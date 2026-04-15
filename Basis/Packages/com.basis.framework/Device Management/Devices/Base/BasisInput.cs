@@ -395,6 +395,17 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="Role">Role to assign to this device post-calibration.</param>
         public void ApplyTrackerCalibration(BasisBoneTrackedRole Role)
         {
+            // Respect the master FBT toggle — if FBT is disabled in settings and this
+            // is a full-body role, drop the assignment so the existing non-tracker
+            // fallback (head + hands + foot IK) handles the bone.
+            if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(Role)
+                && !Basis.BasisUI.BasisSettingsDefaults.EnableFBT.RawValue)
+            {
+                BasisDebug.Log($"ApplyTrackerCalibration skipped for {Role}: FBT disabled in settings", BasisDebug.LogTag.Input);
+                UnAssignTracker();
+                return;
+            }
+
             UnAssignTracker();
             BasisDebug.Log($"ApplyTrackerCalibration {Role} to tracker {UniqueDeviceIdentifier}", BasisDebug.LogTag.Input);
             AssignRoleAndTracker(Role);

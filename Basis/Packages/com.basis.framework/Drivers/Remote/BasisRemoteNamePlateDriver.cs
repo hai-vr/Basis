@@ -483,6 +483,17 @@ namespace Basis.Scripts.UI.NamePlate
                     var p = plates[i];
                     bool pulsing = p.GetIsPulsingForJob();
 
+                    // Mid-pulse audibility recheck: if the player became inaudible
+                    // (mute, block, out-of-range, audio source unloaded, etc.) while
+                    // a pulse was in flight, snap the plate back to normal now
+                    // instead of letting the 0.7s hold+fade finish the transition.
+                    if (pulsing && !p.CanCurrentlyBeHeard())
+                    {
+                        p.ApplyColorFromJob(StaticNormalColor);
+                        p.StopPulseFromJob();
+                        pulsing = false;
+                    }
+
                     pIn[i] = new PlateInput
                     {
                         isVisible = (ushort)p.IsVisibleRaw,

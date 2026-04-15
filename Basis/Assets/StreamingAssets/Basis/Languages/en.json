@@ -1,0 +1,62 @@
+{
+  "code": "en",
+  "nativeName": "English",
+  "entries": [
+    { "key": "menu.main.title", "value": "Main Menu" },
+
+    { "key": "settings.title", "value": "Settings" },
+    { "key": "settings.general.title", "value": "General Settings" },
+    { "key": "settings.audio.title", "value": "Audio Settings" },
+    { "key": "settings.microphone.title", "value": "Microphone Settings" },
+    { "key": "settings.graphics.title", "value": "Graphics Settings" },
+
+    { "key": "settings.tab.general", "value": "General" },
+    { "key": "settings.tab.audio", "value": "Audio" },
+    { "key": "settings.tab.microphone", "value": "Microphone" },
+    { "key": "settings.tab.graphics", "value": "Graphics" },
+    { "key": "settings.tab.controls", "value": "Controls" },
+    { "key": "settings.tab.chat", "value": "Chat" },
+    { "key": "settings.tab.bodytracking", "value": "Body Tracking" },
+    { "key": "settings.tab.nameplates", "value": "Nameplates" },
+    { "key": "settings.tab.myavatar", "value": "My Avatar" },
+    { "key": "settings.tab.downloadscache", "value": "Downloads & Cache" },
+    { "key": "settings.tab.trustedurls", "value": "Trusted URLs" },
+    { "key": "settings.tab.developer", "value": "Developer" },
+    { "key": "settings.tab.admin", "value": "Admin" },
+
+    { "key": "settings.general.ranges.title", "value": "Ranges" },
+    { "key": "settings.general.ranges.description", "value": "Visibility and hearing ranges." },
+    { "key": "settings.general.avatarRange", "value": "Avatar Visibility Range" },
+    { "key": "settings.general.hearingRange", "value": "Hearing Range" },
+    { "key": "settings.general.microphoneRange", "value": "Microphone Range" },
+    { "key": "settings.general.limitAvatars", "value": "Limit Avatars" },
+    { "key": "settings.general.maxAvatars", "value": "Max Avatars" },
+    { "key": "settings.general.viewCone", "value": "View Cone Avatars" },
+    { "key": "settings.general.viewCone.description", "value": "Only show avatars in the direction you are looking." },
+    { "key": "settings.general.viewConeAngle", "value": "View Cone Angle" },
+    { "key": "settings.general.limitAudio", "value": "Limit Audio Sources" },
+    { "key": "settings.general.maxAudio", "value": "Max Audio Sources" },
+
+    { "key": "settings.general.interactions.title", "value": "Interactions" },
+    { "key": "settings.general.disableSeats", "value": "Disable Seats" },
+    { "key": "settings.general.disableSeats.description", "value": "Prevent sitting in seats placed in the world." },
+
+    { "key": "settings.general.language.title", "value": "Language" },
+    { "key": "settings.general.language.description", "value": "Reopen the menu to apply a language change." },
+
+    { "key": "settings.nameplates.title", "value": "Nameplates" },
+    { "key": "settings.nameplates.description", "value": "Controls the appearance of nameplates above other players." },
+    { "key": "settings.nameplates.show", "value": "Show Nameplates" },
+    { "key": "settings.nameplates.menuOnly", "value": "Only Show When Menu Open" },
+    { "key": "settings.nameplates.hoverMenuOnly", "value": "Only Allow Hover When Menu Open" },
+    { "key": "settings.nameplates.size", "value": "Size" },
+    { "key": "settings.nameplates.transparency", "value": "Transparency" },
+
+    { "key": "ui.reset", "value": "Reset" },
+    { "key": "ui.cancel", "value": "Cancel" },
+    { "key": "ui.search", "value": "Search..." },
+    { "key": "ui.resetPage.title", "value": "Reset {0}" },
+    { "key": "ui.resetPage.description", "value": "Resets this page to defaults." },
+    { "key": "ui.resetPage.confirm", "value": "Reset all {0} settings to defaults?" }
+  ]
+}

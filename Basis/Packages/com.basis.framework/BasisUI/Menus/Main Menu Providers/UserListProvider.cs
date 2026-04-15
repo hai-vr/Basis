@@ -19,7 +19,8 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new UserListProvider());
         }
 
-        public static string StaticTitle = "Players";
+        public const string StaticTitleKey = "menu.provider.players";
+        public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Avatars;
         public override int Order => 4;
@@ -42,18 +43,20 @@ namespace Basis.BasisUI
 
             // Vertical scrollable page (same pattern as IndividualPlayerProvider)
             PanelTabPage tab = PanelTabPage.CreateVertical(panel.Descriptor.ContentParent);
-            tab.Descriptor.SetTitle("Players");
+            tab.Descriptor.SetTitle(BasisLocalization.Get("menu.provider.players"));
             tab.Descriptor.SetIcon(AddressableAssets.Sprites.Avatars);
             RectTransform root = tab.Descriptor.ContentParent;
 
             // Search field at the very top
             PanelTextField searchField = PanelTextField.CreateNewEntry(root);
-            searchField.Descriptor.SetTitle("Search");
-            searchField.Descriptor.SetDescription("Filter by display name.");
+            searchField.Descriptor.SetTitle(BasisLocalization.Get("ui.search.label"));
+            searchField.Descriptor.SetDescription(BasisLocalization.Get("menu.players.search.byName"));
 
-            // Search mode dropdown right below search
+            // Search mode dropdown right below search. Entries stay as stable
+            // identifiers ("Name"/"UUID") because the dropdown value is compared
+            // against those strings when filtering.
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(root);
-            modeDropdown.Descriptor.SetTitle("Search Mode");
+            modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.searchMode"));
             modeDropdown.AssignEntries(new List<string> { "Name", "UUID" });
             modeDropdown.SetValueWithoutNotify("Name");
 
@@ -95,8 +98,9 @@ namespace Basis.BasisUI
 
         public static string GetPlatformLabel(string platform)
         {
-            if (string.IsNullOrEmpty(platform)) return "Unknown";
+            if (string.IsNullOrEmpty(platform)) return BasisLocalization.Get("ui.unknown");
             string lower = platform.ToLowerInvariant();
+            // Platform names are proper nouns and don't get translated.
             if (lower.Contains("windows")) return "Windows";
             if (lower.Contains("osx") || lower.Contains("mac")) return "macOS";
             if (lower.Contains("linux")) return "Linux";
@@ -189,9 +193,10 @@ namespace Basis.BasisUI
 
             private void UpdateSearchHint()
             {
-                SearchField.Descriptor.SetDescription(_searchMode == SearchMode.UUID
-                    ? "Filter by player UUID."
-                    : "Filter by display name.");
+                SearchField.Descriptor.SetDescription(BasisLocalization.Get(
+                    _searchMode == SearchMode.UUID
+                        ? "menu.players.search.byUuid"
+                        : "menu.players.search.byName"));
             }
 
             private void OnSearchChanged(string query)
@@ -212,11 +217,11 @@ namespace Basis.BasisUI
                 }
 
                 if (visible < total && !string.IsNullOrEmpty(_lastQuery))
-                    HeaderGroup.SetTitle($"Online Players ({visible}/{total})");
+                    HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header.filtered", visible, total));
                 else
-                    HeaderGroup.SetTitle($"Online Players ({total})");
+                    HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header", total));
 
-                HeaderGroup.SetDescription("Click a player to view their profile.");
+                HeaderGroup.SetDescription(BasisLocalization.Get("menu.players.header.description"));
             }
 
             private void ClearAllEntries()
@@ -255,15 +260,15 @@ namespace Basis.BasisUI
 
                 bool isLocal = netPlayer.Player != null && netPlayer.Player.IsLocal;
                 string name = netPlayer.SafeDisplayName;
-                if (string.IsNullOrEmpty(name)) name = "Unknown";
+                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
 
                 string platform = netPlayer.Player != null ? netPlayer.Player.PlayerPlatform : "";
                 string platformLabel = GetPlatformLabel(platform);
 
                 bool isPinned = netPlayer.Player != null && PinnedPlayers.IsPinned(netPlayer.Player.UUID);
-                string descriptionLabel = isPinned ? $"{platformLabel} \u2022 Pinned" : platformLabel;
+                string descriptionLabel = isPinned ? $"{platformLabel} \u2022 {BasisLocalization.Get("menu.players.pinned")}" : platformLabel;
 
-                btn.Descriptor.SetTitle(isLocal ? $"{name} (You)" : name);
+                btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
                 btn.Descriptor.SetDescription(descriptionLabel);
 
                 if (isLocal)

@@ -66,18 +66,18 @@ namespace Basis.BasisUI
             URL._inputField.contentType = TMP_InputField.ContentType.Standard;
             URL.Descriptor.SetHeight(115);
             URL.Descriptor.SetWidth(700);
-            URL.Descriptor.SetTitle("BEE File URL:");
+            URL.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.beeFileUrl"));
             URL.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
-            URL.Descriptor.SetDescription("This should be a direct link to your BEE file.");
+            URL.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.urlDescription"));
 
             PanelPasswordField Password = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, panelGroup.TabButtonParent);
             Password._placeholderField.text = "Enter password";
             Password.Descriptor.SetHeight(115);
             Password.Descriptor.SetWidth(700);
 
-            Password.Descriptor.SetTitle("BEE File Password:");
+            Password.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.beeFilePassword"));
             Password.Descriptor.SetIcon(AddressableAssets.Sprites.Unlocked);
-            Password.Descriptor.SetDescription("This is the password that was generated with you BEE file.");
+            Password.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.beeFilePassword.description"));
 
             // create a text field to show validation error messages, initially empty
             PanelTextField validationMessageField = PanelTextField.CreateNew(TextFieldStyles.EntryWarning, panelGroup.TabButtonParent);
@@ -111,7 +111,7 @@ namespace Basis.BasisUI
             acceptOrDenyPanel.Descriptor.SetWidth(900);
 
             PanelButton yesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, acceptOrDenyPanel.TabButtonParent); //ButtonStyles.Cancel
-            yesPanel.Descriptor.SetTitle("Add");
+            yesPanel.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.addButton"));
             yesPanel.Descriptor.SetWidth(900);
             yesPanel.Descriptor.SetHeight(60);
 
@@ -154,8 +154,8 @@ namespace Basis.BasisUI
                                 if (!validationMessageField.Descriptor.gameObject.activeSelf)
                                     validationMessageField.Descriptor.gameObject.SetActive(true);
 
-                                validationMessageField.Descriptor.SetTitle("Validating BEE file");
-                                validationMessageField.Descriptor.SetDescription("Checking BEE metadata...");
+                                validationMessageField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.validating"));
+                                validationMessageField.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.checkingMetadata"));
 
                                 // temp item do not use to add new item with!
                                 BasisDataStoreItemKeys.ItemKey tempItem = new BasisDataStoreItemKeys.ItemKey
@@ -259,8 +259,8 @@ namespace Basis.BasisUI
                                 if (!validationMessageField.Descriptor.gameObject.activeSelf)
                                     validationMessageField.Descriptor.gameObject.SetActive(true);
 
-                                validationMessageField.Descriptor.SetTitle("BEE Validation Error");
-                                validationMessageField.Descriptor.SetDescription($"Failed to validate BEE file: {ex.Message}");
+                                validationMessageField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.validationError"));
+                                validationMessageField.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.validationErrorBody", ex.Message));
 
                                 newItemDialogBox.IsBusy = false;
 

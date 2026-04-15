@@ -60,13 +60,13 @@ namespace Basis.BasisUI
             if (!string.IsNullOrEmpty(warning))
             {
                 DialogBox<bool> noticeDialog = DialogBox<bool>.Create(panel, new Vector2(830, 200),
-                    "Avatar File Unreachable",
-                    warning + "\n\nThe avatar was still loaded, but the remote file could not be reached.",
+                    Basis.BasisUI.BasisLocalization.Get("library.dialog.avatarUnreachable.title"),
+                    warning + "\n\n" + Basis.BasisUI.BasisLocalization.Get("library.dialog.avatarUnreachable.body"),
                     AddressableAssets.Sprites.Information
                 );
 
                 PanelButton closeButton = PanelButton.CreateNew(PanelButton.ButtonStyles.AcceptButton, noticeDialog.Descriptor.ContentParent);
-                closeButton.Descriptor.SetTitle("OK");
+                closeButton.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("ui.ok"));
                 closeButton.Descriptor.SetWidth(200);
                 closeButton.Descriptor.SetHeight(60);
                 closeButton.OnClicked += () => noticeDialog.CloseWithResult(true);

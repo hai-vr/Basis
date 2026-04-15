@@ -397,13 +397,17 @@ namespace Basis.Scripts.Drivers
             data.PositionHead = headPos;
             data.RotationHead = headRot;
 
+            // Master FBT gate — when the user turns FBT off in settings, we pretend no
+            // FBT trackers exist and fall back to head+hands+foot IK for the entire body.
+            bool fbtEnabled = Basis.BasisUI.BasisSettingsDefaults.EnableFBT.RawValue;
+
             // ---------------- FEET ----------------
             // Per-foot: each foot independently uses tracker, foot driver, or animation.
             // If only one foot has a tracker, the other uses the foot driver.
-            bool leftHasTracker = BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker
-                || BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker;
-            bool rightHasTracker = BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker
-                || BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker;
+            bool leftHasTracker = fbtEnabled && (BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker
+                || BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
+            bool rightHasTracker = fbtEnabled && (BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker
+                || BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
 
             // Use controller input to determine if the player is intentionally moving.
             // If controller input is driving movement → animator handles legs.
@@ -522,7 +526,7 @@ namespace Basis.Scripts.Drivers
             // ── HIP BOB ──
             if (footIKBlendWeight > 0.001f && footDriverReady)
             {
-                bool hipsHaveTracker = BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
+                bool hipsHaveTracker = fbtEnabled && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
                 if (!hipsHaveTracker)
                 {
                     data.PositionHips = new Vector3(data.PositionHips.x,
@@ -549,8 +553,8 @@ namespace Basis.Scripts.Drivers
             data.ChestRotation = chestRot;
 
             // ---------------- LOWER LEG HINTS (knee) ----------------
-            bool leftLLHasTracker = BasisLocalBoneDriver.LeftLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
-            bool rightLLHasTracker = BasisLocalBoneDriver.RightLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
+            bool leftLLHasTracker = fbtEnabled && BasisLocalBoneDriver.LeftLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
+            bool rightLLHasTracker = fbtEnabled && BasisLocalBoneDriver.RightLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
 
             if (leftLLHasTracker)
             {

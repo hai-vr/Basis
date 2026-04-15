@@ -43,6 +43,20 @@ namespace Basis.BasisUI
         /// </summary>
         public static BasisSettingsBinding<bool> DisableAnimationsInFBT = new("disableanimationsinfbt", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// Master switch for full-body tracking. When disabled, hip/chest/foot/knee
+        /// trackers are ignored and the avatar falls back to head + hands + procedural
+        /// foot IK, even if FBT trackers are connected and calibrated.
+        /// </summary>
+        public static BasisSettingsBinding<bool> EnableFBT = new("enablefbt", new BasisPlatformDefault<bool>(true));
+
+        /// <summary>
+        /// Master switch for the OSC acquisition server (face/body parameter ingest on
+        /// UDP 9000/9001). When disabled, no OSC client is opened and no external
+        /// programs can push avatar parameters.
+        /// </summary>
+        public static BasisSettingsBinding<bool> EnableOSC = new("enableosc", new BasisPlatformDefault<bool>(true));
+
         public static BasisSettingsBinding<float> AvatarRange = new("avatarrange", new BasisPlatformDefault<float>(25));
 
         /// <summary>
@@ -703,8 +717,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> NoiseGateAttack = new("noisegateattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
         public static BasisSettingsBinding<float> NoiseGateRelease = new("noisegaterelease", new BasisPlatformDefault<float>(0.05f)); // 0..1
 
+        public static BasisSettingsBinding<string> Language = new("language", new BasisPlatformDefault<string>(BasisLocalization.DefaultLanguage));
+
         public static void LoadAll()
         {
+            // Localization
+            Language.LoadBindingValue();
+
             // Audio
             MainVolume.LoadBindingValue();
             MenuVolume.LoadBindingValue();
@@ -764,6 +783,8 @@ namespace Basis.BasisUI
             IKLockMode.LoadBindingValue();
             PitchCalibration.LoadBindingValue();
             SitStand.LoadBindingValue();
+            EnableFBT.LoadBindingValue();
+            EnableOSC.LoadBindingValue();
 
             // Rendering / Graphics
             QualityLevel.LoadBindingValue();

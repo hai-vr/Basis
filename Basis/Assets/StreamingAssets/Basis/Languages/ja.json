@@ -1,0 +1,62 @@
+{
+  "code": "ja",
+  "nativeName": "日本語",
+  "entries": [
+    { "key": "menu.main.title", "value": "メインメニュー" },
+
+    { "key": "settings.title", "value": "設定" },
+    { "key": "settings.general.title", "value": "一般設定" },
+    { "key": "settings.audio.title", "value": "オーディオ設定" },
+    { "key": "settings.microphone.title", "value": "マイク設定" },
+    { "key": "settings.graphics.title", "value": "グラフィック設定" },
+
+    { "key": "settings.tab.general", "value": "一般" },
+    { "key": "settings.tab.audio", "value": "オーディオ" },
+    { "key": "settings.tab.microphone", "value": "マイク" },
+    { "key": "settings.tab.graphics", "value": "グラフィック" },
+    { "key": "settings.tab.controls", "value": "操作" },
+    { "key": "settings.tab.chat", "value": "チャット" },
+    { "key": "settings.tab.bodytracking", "value": "ボディトラッキング" },
+    { "key": "settings.tab.nameplates", "value": "ネームプレート" },
+    { "key": "settings.tab.myavatar", "value": "マイアバター" },
+    { "key": "settings.tab.downloadscache", "value": "ダウンロードとキャッシュ" },
+    { "key": "settings.tab.trustedurls", "value": "信頼済みURL" },
+    { "key": "settings.tab.developer", "value": "開発者" },
+    { "key": "settings.tab.admin", "value": "管理者" },
+
+    { "key": "settings.general.ranges.title", "value": "範囲" },
+    { "key": "settings.general.ranges.description", "value": "表示および聴取範囲。" },
+    { "key": "settings.general.avatarRange", "value": "アバター表示範囲" },
+    { "key": "settings.general.hearingRange", "value": "聴取範囲" },
+    { "key": "settings.general.microphoneRange", "value": "マイク範囲" },
+    { "key": "settings.general.limitAvatars", "value": "アバター数を制限" },
+    { "key": "settings.general.maxAvatars", "value": "最大アバター数" },
+    { "key": "settings.general.viewCone", "value": "視野内のアバターのみ表示" },
+    { "key": "settings.general.viewCone.description", "value": "視線方向のアバターのみ表示します。" },
+    { "key": "settings.general.viewConeAngle", "value": "視野角" },
+    { "key": "settings.general.limitAudio", "value": "オーディオソースを制限" },
+    { "key": "settings.general.maxAudio", "value": "最大オーディオソース数" },
+
+    { "key": "settings.general.interactions.title", "value": "インタラクション" },
+    { "key": "settings.general.disableSeats", "value": "座席を無効化" },
+    { "key": "settings.general.disableSeats.description", "value": "ワールドに配置された座席への着席を防ぎます。" },
+
+    { "key": "settings.general.language.title", "value": "言語" },
+    { "key": "settings.general.language.description", "value": "言語の変更を反映するにはメニューを開き直してください。" },
+
+    { "key": "settings.nameplates.title", "value": "ネームプレート" },
+    { "key": "settings.nameplates.description", "value": "他のプレイヤーの頭上に表示されるネームプレートの外観を設定します。" },
+    { "key": "settings.nameplates.show", "value": "ネームプレートを表示" },
+    { "key": "settings.nameplates.menuOnly", "value": "メニュー表示中のみ表示" },
+    { "key": "settings.nameplates.hoverMenuOnly", "value": "メニュー表示中のみホバー可能" },
+    { "key": "settings.nameplates.size", "value": "サイズ" },
+    { "key": "settings.nameplates.transparency", "value": "透明度" },
+
+    { "key": "ui.reset", "value": "リセット" },
+    { "key": "ui.cancel", "value": "キャンセル" },
+    { "key": "ui.search", "value": "検索..." },
+    { "key": "ui.resetPage.title", "value": "{0}をリセット" },
+    { "key": "ui.resetPage.description", "value": "このページをデフォルトに戻します。" },
+    { "key": "ui.resetPage.confirm", "value": "{0}の設定をすべてデフォルトに戻しますか？" }
+  ]
+}

@@ -467,7 +467,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             if (BasisInputModuleHandler.Instance.IsTyping() == false)
             {
-                SettingsProvider.OpenToTab("Chat");
+                SettingsProvider.OpenToTab("settings.tab.chat");
             }
         }
 

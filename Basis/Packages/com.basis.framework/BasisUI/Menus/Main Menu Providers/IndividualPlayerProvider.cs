@@ -22,7 +22,8 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new IndividualPlayerProvider());
         }
 
-        public static string StaticTitle = "IndividualPlayer";
+        public const string StaticTitleKey = "menu.provider.individualPlayer";
+        public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
         public override int Order => 50;
@@ -311,22 +312,22 @@ namespace Basis.BasisUI
             PanelTabPage tab = PanelTabPage.CreateVertical(panel.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
             descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-            descriptor.SetTitle("General Settings");
+            descriptor.SetTitle(BasisLocalization.Get("settings.general.title"));
 
             TextMeshProUGUI titleLabel = panel.Descriptor.TitleLabel;
             if (titleLabel != null) titleLabel.text = target.DisplayName;
 
             var root = tab.Descriptor.ContentParent;
             var infoGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            infoGroup.SetTitle("Player");
-            infoGroup.SetDescription("Per-player overrides (volume, avatar visibility, interactions).");
+            infoGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.player"));
+            infoGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.player.description"));
 
             var Descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group,infoGroup.ContentParent);
-            Descriptor.SetTitle("Name");
+            Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.name"));
             Descriptor.SetDescription(remotePlayer.DisplayName);
 
             var PlatformDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
-            PlatformDescriptor.SetTitle("Platform");
+            PlatformDescriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.platform"));
             PlatformDescriptor.SetDescription(remotePlayer.PlayerPlatform);
 
             var uuidField = PanelTextField.CreateNewEntry(infoGroup.ContentParent);
@@ -336,17 +337,17 @@ namespace Basis.BasisUI
 
             // ---- Highlight beacon controls ----
             var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            locateGroup.SetTitle("Locate");
-            locateGroup.SetDescription("Highlight this player with a visible beacon in the world.");
+            locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));
+            locateGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locate.description"));
 
             PanelButton highlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            highlightBtn.Descriptor.SetTitle(HasHighlight && s_beaconTarget?.Player == remotePlayer
-                ? "Remove Highlight" : "Highlight Player");
-            highlightBtn.Descriptor.SetDescription("Toggle a vertical beacon above this player.");
+            highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight && s_beaconTarget?.Player == remotePlayer
+                ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
+            highlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.highlight.description"));
 
             PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            clearHighlightBtn.Descriptor.SetTitle("Clear All Highlights");
-            clearHighlightBtn.Descriptor.SetDescription("Remove any active beacon.");
+            clearHighlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.clearHighlights"));
+            clearHighlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.clearHighlights.description"));
 
             highlightBtn.OnClicked += () =>
             {
@@ -354,53 +355,53 @@ namespace Basis.BasisUI
                     remotePlayer, out BasisNetworkPlayer netPlayer))
                 {
                     SetHighlight(netPlayer);
-                    highlightBtn.Descriptor.SetTitle(HasHighlight ? "Remove Highlight" : "Highlight Player");
+                    highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
                 }
             };
 
             clearHighlightBtn.OnClicked += () =>
             {
                 ClearHighlight();
-                highlightBtn.Descriptor.SetTitle("Highlight Player");
+                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
             };
 
             // ---- Pin controls ----
             var pinGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            pinGroup.SetTitle("Pin");
-            pinGroup.SetDescription("Pinned players sort to the top of the Players list.");
+            pinGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.pin"));
+            pinGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.description"));
 
             string pinUuid = remotePlayer.UUID;
             PanelButton pinBtn = PanelButton.CreateNew(pinGroup.ContentParent);
-            pinBtn.Descriptor.SetTitle(PinnedPlayers.IsPinned(pinUuid) ? "Unpin Player" : "Pin Player");
-            pinBtn.Descriptor.SetDescription("Keep this player at the top of your list for quick access.");
+            pinBtn.Descriptor.SetTitle(BasisLocalization.Get(PinnedPlayers.IsPinned(pinUuid) ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
+            pinBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.button.description"));
             pinBtn.OnClicked += () =>
             {
                 bool nowPinned = PinnedPlayers.Toggle(pinUuid);
-                pinBtn.Descriptor.SetTitle(nowPinned ? "Unpin Player" : "Pin Player");
+                pinBtn.Descriptor.SetTitle(BasisLocalization.Get(nowPinned ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
             };
 
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            audioGroup.SetTitle("Audio");
-            audioGroup.SetDescription("Override this player’s voice volume just for you.");
+            audioGroup.SetTitle(BasisLocalization.Get("settings.tab.audio"));
+            audioGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audio.description"));
 
             string indivdualusersettingsvolume = "indivdualusersettingsvolume";
             BasisSettingsBinding<float> Binding = new BasisSettingsBinding<float>(indivdualusersettingsvolume);
 
             PanelSlider volumeSlider = PanelSlider.CreateEntryAndBind(
                 audioGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Player Volume Override", 0f, 1.5f, false, 2, ValueDisplayMode.percentageFromZero),
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("menu.individualPlayer.volumeOverride"), 0f, 1.5f, false, 2, ValueDisplayMode.percentageFromZero),
                 Binding);
 
             volumeSlider.SetValueWithoutNotify(settings.VolumeLevel);
 
             var volumeNote = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioGroup.ContentParent);
-            volumeNote.SetTitle("Note");
+            volumeNote.SetTitle(BasisLocalization.Get("ui.note"));
 
             void UpdateVolumeNote(float v)
             {
                 bool over = v > 1.0f;
-                volumeNote.SetDescription(over ? "Over 100% (may clip / distort)" : "Normal range");
+                volumeNote.SetDescription(BasisLocalization.Get(over ? "menu.individualPlayer.volumeOver" : "menu.individualPlayer.volumeNormal"));
             }
             UpdateVolumeNote(settings.VolumeLevel);
 
@@ -473,23 +474,23 @@ namespace Basis.BasisUI
                 }
             };
             var avatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            avatarGroup.SetTitle("Avatar");
-            avatarGroup.SetDescription("Visibility and interaction toggles.");
+            avatarGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatar"));
+            avatarGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatar.description"));
 
             if (!string.IsNullOrEmpty(remotePlayer.AvatarLoadErrorMessage))
             {
                 var avatarErrorField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarGroup.ContentParent);
-                avatarErrorField.SetTitle("Avatar Load Error");
+                avatarErrorField.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarLoadError"));
                 avatarErrorField.SetDescription(remotePlayer.AvatarLoadErrorMessage);
             }
 
             PanelButton toggleAvatarBtn = PanelButton.CreateNew(avatarGroup.ContentParent);
-            toggleAvatarBtn.Descriptor.SetTitle(settings.AvatarVisible ? "Hide Avatar" : "Show Avatar");
-            toggleAvatarBtn.Descriptor.SetDescription("Toggles rendering of this player’s avatar on your client.");
+            toggleAvatarBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.AvatarVisible ? "menu.individualPlayer.hideAvatar" : "menu.individualPlayer.showAvatar"));
+            toggleAvatarBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.toggleAvatar.description"));
 
             PanelButton toggleInteractionsBtn = PanelButton.CreateNew(avatarGroup.ContentParent);
-            toggleInteractionsBtn.Descriptor.SetTitle(settings.AvatarInteraction ? "Disable Interactions" : "Enable Interactions");
-            toggleInteractionsBtn.Descriptor.SetDescription("Toggles whether this avatar can interact with you.");
+            toggleInteractionsBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.AvatarInteraction ? "menu.individualPlayer.disableInteractions" : "menu.individualPlayer.enableInteractions"));
+            toggleInteractionsBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.toggleInteractions.description"));
 
             toggleAvatarBtn.OnClicked += async () =>
             {
@@ -497,7 +498,7 @@ namespace Basis.BasisUI
                 s.AvatarVisible = !s.AvatarVisible;
                 await BasisPlayerSettingsManager.SetPlayerSettings(s);
 
-                toggleAvatarBtn.Descriptor.SetTitle(s.AvatarVisible ? "Hide Avatar" : "Show Avatar");
+                toggleAvatarBtn.Descriptor.SetTitle(BasisLocalization.Get(s.AvatarVisible ? "menu.individualPlayer.hideAvatar" : "menu.individualPlayer.showAvatar"));
 
                 if (remotePlayer != null)
                 {
@@ -520,7 +521,7 @@ namespace Basis.BasisUI
                 s.AvatarInteraction = !s.AvatarInteraction;
                await BasisPlayerSettingsManager.SetPlayerSettings(s);
 
-                toggleInteractionsBtn.Descriptor.SetTitle(s.AvatarInteraction ? "Disable Interactions" : "Enable Interactions");
+                toggleInteractionsBtn.Descriptor.SetTitle(BasisLocalization.Get(s.AvatarInteraction ? "menu.individualPlayer.disableInteractions" : "menu.individualPlayer.enableInteractions"));
 
                 if (remotePlayer != null)
                 {
@@ -530,12 +531,12 @@ namespace Basis.BasisUI
 
             // ---- Block group ----
             var blockGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            blockGroup.SetTitle("Block");
-            blockGroup.SetDescription("Block this player. Their audio, avatar, and nameplate will be hidden from your client.");
+            blockGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.block"));
+            blockGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.block.description"));
 
             PanelButton toggleBlockBtn = PanelButton.CreateNew(blockGroup.ContentParent);
-            toggleBlockBtn.Descriptor.SetTitle(settings.IsBlocked ? "Unblock Player" : "Block Player");
-            toggleBlockBtn.Descriptor.SetDescription("Mutes audio, hides the avatar, and hides the nameplate for this player on your client only.");
+            toggleBlockBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.IsBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
+            toggleBlockBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.block.button.description"));
 
             toggleBlockBtn.OnClicked += async () =>
             {
@@ -545,7 +546,7 @@ namespace Basis.BasisUI
 
                 if (remotePlayer == null) return;
 
-                toggleBlockBtn.Descriptor.SetTitle(s.IsBlocked ? "Unblock Player" : "Block Player");
+                toggleBlockBtn.Descriptor.SetTitle(BasisLocalization.Get(s.IsBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
                 remotePlayer.IsBlocked = s.IsBlocked;
 
                 if (remotePlayer.NetworkReceiver != null && remotePlayer.NetworkReceiver.AudioReceiverModule != null)
@@ -575,12 +576,12 @@ namespace Basis.BasisUI
             };
 
             var chatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            chatGroup.SetTitle("Chat");
-            chatGroup.SetDescription("Control chat message visibility for this player.");
+            chatGroup.SetTitle(BasisLocalization.Get("settings.tab.chat"));
+            chatGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.chat.description"));
 
             PanelButton toggleChatBtn = PanelButton.CreateNew(chatGroup.ContentParent);
-            toggleChatBtn.Descriptor.SetTitle(settings.ChatVisible ? "Hide Chat" : "Show Chat");
-            toggleChatBtn.Descriptor.SetDescription("Toggles whether chat messages from this player appear above their nameplate.");
+            toggleChatBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.ChatVisible ? "menu.individualPlayer.hideChat" : "menu.individualPlayer.showChat"));
+            toggleChatBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.toggleChat.description"));
 
             toggleChatBtn.OnClicked += async () =>
             {
@@ -588,7 +589,7 @@ namespace Basis.BasisUI
                 s.ChatVisible = !s.ChatVisible;
                 await BasisPlayerSettingsManager.SetPlayerSettings(s);
 
-                toggleChatBtn.Descriptor.SetTitle(s.ChatVisible ? "Hide Chat" : "Show Chat");
+                toggleChatBtn.Descriptor.SetTitle(BasisLocalization.Get(s.ChatVisible ? "menu.individualPlayer.hideChat" : "menu.individualPlayer.showChat"));
 
                 // If chat was just hidden, clear any currently displayed message
                 if (!s.ChatVisible && remotePlayer != null && remotePlayer.RemoteNamePlate != null)
@@ -599,11 +600,11 @@ namespace Basis.BasisUI
 
             // ---- Network metadata group ----
             var networkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            networkGroup.SetTitle("Network");
-            networkGroup.SetDescription("Live network state for this player.");
+            networkGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.network"));
+            networkGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.network.description"));
 
             var netIdField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            netIdField.SetTitle("Player ID");
+            netIdField.SetTitle(BasisLocalization.Get("menu.individualPlayer.playerId"));
             if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
                 remotePlayer, out BasisNetworkPlayer netP))
             {
@@ -611,23 +612,23 @@ namespace Basis.BasisUI
             }
             else
             {
-                netIdField.SetDescription("Unknown");
+                netIdField.SetDescription(BasisLocalization.Get("ui.unknown"));
             }
 
             var distanceField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            distanceField.SetTitle("Distance");
+            distanceField.SetTitle(BasisLocalization.Get("menu.individualPlayer.distance"));
             distanceField.SetDescription("...");
 
             var lodField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            lodField.SetTitle("Mesh LOD Level");
+            lodField.SetTitle(BasisLocalization.Get("menu.individualPlayer.meshLod"));
             lodField.SetDescription("...");
 
             var rangesField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            rangesField.SetTitle("Ranges");
+            rangesField.SetTitle(BasisLocalization.Get("menu.individualPlayer.ranges"));
             rangesField.SetDescription("...");
 
             var bufferField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            bufferField.SetTitle("Buffer State");
+            bufferField.SetTitle(BasisLocalization.Get("menu.individualPlayer.bufferState"));
             bufferField.SetDescription("...");
 
             // ---- Admin moderation section (only visible to admins) ----
@@ -636,48 +637,51 @@ namespace Basis.BasisUI
                 string targetUUID = remotePlayer.UUID;
 
                 var adminGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-                adminGroup.SetTitle("Admin");
-                adminGroup.SetDescription("Moderation actions for this player.");
+                adminGroup.SetTitle(BasisLocalization.Get("settings.tab.admin"));
+                adminGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.admin.description"));
 
                 PanelButton kickBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                kickBtn.Descriptor.SetTitle("Kick");
-                kickBtn.Descriptor.SetDescription("Disconnect this player from the server.");
+                kickBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.kick"));
+                kickBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.kick.description"));
                 kickBtn.OnClicked += () =>
                 {
                     BasisMainMenu.Instance.OpenDialogue(
-                        "Kick player?",
-                        $"Kick {remotePlayer.DisplayName}?",
-                        "Kick", "Cancel",
+                        BasisLocalization.Get("menu.individualPlayer.kick.dialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.kick.dialog.body", remotePlayer.DisplayName),
+                        BasisLocalization.Get("menu.individualPlayer.kick"),
+                        BasisLocalization.Get("ui.cancel"),
                         confirmed => { if (confirmed) BasisNetworkModeration.SendKick(targetUUID, ""); });
                 };
 
                 PanelButton banBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                banBtn.Descriptor.SetTitle("Ban");
-                banBtn.Descriptor.SetDescription("Ban this player by UUID.");
+                banBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.ban"));
+                banBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.ban.description"));
                 banBtn.OnClicked += () =>
                 {
                     BasisMainMenu.Instance.OpenDialogue(
-                        "Ban player?",
-                        $"Ban {remotePlayer.DisplayName}? This may be irreversible.",
-                        "Ban", "Cancel",
+                        BasisLocalization.Get("menu.individualPlayer.ban.dialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.ban.dialog.body", remotePlayer.DisplayName),
+                        BasisLocalization.Get("menu.individualPlayer.ban"),
+                        BasisLocalization.Get("ui.cancel"),
                         confirmed => { if (confirmed) BasisNetworkModeration.SendBan(targetUUID, ""); });
                 };
 
                 PanelButton ipBanBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                ipBanBtn.Descriptor.SetTitle("IP Ban");
-                ipBanBtn.Descriptor.SetDescription("IP-ban this player. Affects all accounts on their connection.");
+                ipBanBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.ipBan"));
+                ipBanBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.ipBan.description"));
                 ipBanBtn.OnClicked += () =>
                 {
                     BasisMainMenu.Instance.OpenDialogue(
-                        "IP ban player?",
-                        $"IP-ban {remotePlayer.DisplayName}? This can affect multiple accounts.",
-                        "IP Ban", "Cancel",
+                        BasisLocalization.Get("menu.individualPlayer.ipBan.dialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.ipBan.dialog.body", remotePlayer.DisplayName),
+                        BasisLocalization.Get("menu.individualPlayer.ipBan"),
+                        BasisLocalization.Get("ui.cancel"),
                         confirmed => { if (confirmed) BasisNetworkModeration.SendIPBan(targetUUID, ""); });
                 };
 
                 PanelButton teleportToBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                teleportToBtn.Descriptor.SetTitle("Teleport To");
-                teleportToBtn.Descriptor.SetDescription("Teleport yourself to this player's location.");
+                teleportToBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.teleportTo"));
+                teleportToBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.teleportTo.description"));
                 teleportToBtn.OnClicked += () =>
                 {
                     if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np))
@@ -685,8 +689,8 @@ namespace Basis.BasisUI
                 };
 
                 PanelButton teleportHereBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                teleportHereBtn.Descriptor.SetTitle("Teleport Here");
-                teleportHereBtn.Descriptor.SetDescription("Teleport this player to your location.");
+                teleportHereBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.teleportHere"));
+                teleportHereBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.teleportHere.description"));
                 teleportHereBtn.OnClicked += () =>
                 {
                     if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np))
@@ -697,8 +701,8 @@ namespace Basis.BasisUI
                 bool isShouting = false;
                 if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer shoutNp))
                     isShouting = BasisShoutAudioDriver.IsInShoutMode(shoutNp.playerId);
-                shoutBtn.Descriptor.SetTitle(isShouting ? "Disable Shout Mode" : "Enable Shout Mode");
-                shoutBtn.Descriptor.SetDescription("Toggle non-spatialized broadcast voice for this player.");
+                shoutBtn.Descriptor.SetTitle(BasisLocalization.Get(isShouting ? "menu.individualPlayer.shout.disable" : "menu.individualPlayer.shout.enable"));
+                shoutBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.shout.description"));
                 shoutBtn.OnClicked += () =>
                 {
                     if (BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer np))
@@ -708,17 +712,17 @@ namespace Basis.BasisUI
                             BasisNetworkModeration.DisableShoutMode(np.playerId);
                         else
                             BasisNetworkModeration.EnableShoutMode(np.playerId);
-                        shoutBtn.Descriptor.SetTitle(active ? "Enable Shout Mode" : "Disable Shout Mode");
+                        shoutBtn.Descriptor.SetTitle(BasisLocalization.Get(active ? "menu.individualPlayer.shout.enable" : "menu.individualPlayer.shout.disable"));
                     }
                 };
 
                 PanelTextField msgField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
-                msgField.Descriptor.SetTitle("Message");
-                msgField.Descriptor.SetDescription("Send a message directly to this player.");
+                msgField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.message"));
+                msgField.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.message.description"));
 
                 PanelButton sendMsgBtn = PanelButton.CreateNew(adminGroup.ContentParent);
-                sendMsgBtn.Descriptor.SetTitle("Send Message");
-                sendMsgBtn.Descriptor.SetDescription("Delivers the message above to this player.");
+                sendMsgBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.sendMessage"));
+                sendMsgBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.sendMessage.description"));
                 sendMsgBtn.OnClicked += () =>
                 {
                     string msg = msgField.Value;
@@ -736,8 +740,8 @@ namespace Basis.BasisUI
 
                 // ---- Per-user permissions ----
                 var permGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
-                permGroup.SetTitle("Permissions");
-                permGroup.SetDescription("Add or remove individual permission nodes for this player.");
+                permGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.permissions"));
+                permGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.permissions.description"));
 
                 var knownNodes = new System.Collections.Generic.List<string>
                 {
@@ -771,16 +775,16 @@ namespace Basis.BasisUI
                 };
 
                 PanelDropdown nodeDropdown = PanelDropdown.CreateNewEntry(permGroup.ContentParent);
-                nodeDropdown.Descriptor.SetTitle("Permission Node");
+                nodeDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.permissionNode"));
                 nodeDropdown.AssignEntries(knownNodes);
 
                 PanelTextField customNodeField = PanelTextField.CreateNewEntry(permGroup.ContentParent);
-                customNodeField.Descriptor.SetTitle("Custom Node");
-                customNodeField.Descriptor.SetDescription("Or type a custom node (overrides dropdown).");
+                customNodeField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.customNode"));
+                customNodeField.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.customNode.description"));
 
                 PanelButton addNodeBtn = PanelButton.CreateNew(permGroup.ContentParent);
-                addNodeBtn.Descriptor.SetTitle("Grant Permission");
-                addNodeBtn.Descriptor.SetDescription("Add the selected permission node to this player.");
+                addNodeBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.grantPermission"));
+                addNodeBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.grantPermission.description"));
                 addNodeBtn.OnClicked += () =>
                 {
                     string node = !string.IsNullOrWhiteSpace(customNodeField.Value)
@@ -791,8 +795,8 @@ namespace Basis.BasisUI
                 };
 
                 PanelButton removeNodeBtn = PanelButton.CreateNew(permGroup.ContentParent);
-                removeNodeBtn.Descriptor.SetTitle("Revoke Permission");
-                removeNodeBtn.Descriptor.SetDescription("Remove the selected permission node from this player.");
+                removeNodeBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.revokePermission"));
+                removeNodeBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.revokePermission.description"));
                 removeNodeBtn.OnClicked += () =>
                 {
                     string node = !string.IsNullOrWhiteSpace(customNodeField.Value)
@@ -804,15 +808,15 @@ namespace Basis.BasisUI
 
                 // ---- Group assignment ----
                 var groupSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
-                groupSection.SetTitle("Groups");
-                groupSection.SetDescription("Add or remove this player from permission groups.");
+                groupSection.SetTitle(BasisLocalization.Get("menu.individualPlayer.groups"));
+                groupSection.SetDescription(BasisLocalization.Get("menu.individualPlayer.groups.description"));
 
                 PanelTextField groupField = PanelTextField.CreateNewEntry(groupSection.ContentParent);
-                groupField.Descriptor.SetTitle("Group Name");
-                groupField.Descriptor.SetDescription("Name of the permission group.");
+                groupField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.groupName"));
+                groupField.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.groupName.description"));
 
                 PanelButton addGroupBtn = PanelButton.CreateNew(groupSection.ContentParent);
-                addGroupBtn.Descriptor.SetTitle("Add to Group");
+                addGroupBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.addToGroup"));
                 addGroupBtn.OnClicked += () =>
                 {
                     string group = groupField.Value;
@@ -821,7 +825,7 @@ namespace Basis.BasisUI
                 };
 
                 PanelButton removeGroupBtn = PanelButton.CreateNew(groupSection.ContentParent);
-                removeGroupBtn.Descriptor.SetTitle("Remove from Group");
+                removeGroupBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.removeFromGroup"));
                 removeGroupBtn.OnClicked += () =>
                 {
                     string group = groupField.Value;
@@ -831,22 +835,22 @@ namespace Basis.BasisUI
             }
 
             var debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            debugGroup.SetTitle("Debug");
-            debugGroup.SetDescription("Live diagnostics for voice/range checks (optional).");
+            debugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.debug"));
+            debugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.debug.description"));
 
             var debugField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, debugGroup.ContentParent);
-            debugField.SetTitle("Transmission");
-            debugField.SetDescription("Waiting for data...");
+            debugField.SetTitle(BasisLocalization.Get("menu.individualPlayer.transmission"));
+            debugField.SetDescription(BasisLocalization.Get("menu.individualPlayer.waitingForData"));
 
             // ---- Audio Debug Section ----
             var audioDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            audioDebugGroup.SetTitle("Audio Debug");
-            audioDebugGroup.SetDescription("Live audio chain diagnostics. Toggle sections in Settings > Developer.");
+            audioDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug"));
+            audioDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audioDebug.description"));
 
             // Toggle to show/hide the audio debug fields for this player
             PanelToggle audioDebugToggle = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
-            audioDebugToggle.Descriptor.SetTitle("Show Audio Debug");
-            audioDebugToggle.Descriptor.SetDescription("Toggle live audio pipeline info for this player.");
+            audioDebugToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.showAudioDebug"));
+            audioDebugToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.showAudioDebug.description"));
             audioDebugToggle.AssignBinding(BasisSettingsDefaults.AudioDebugEnabled);
 
             // Create all the audio debug fields
@@ -864,42 +868,42 @@ namespace Basis.BasisUI
                 if (BasisSettingsDefaults.AudioDebugShowSource.RawValue)
                 {
                     audioSourceField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioDebugGroup.ContentParent);
-                    audioSourceField.SetTitle("Audio Source");
+                    audioSourceField.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.source"));
                     audioSourceField.SetDescription("...");
                 }
 
                 if (BasisSettingsDefaults.AudioDebugShowVolume.RawValue)
                 {
                     volumeChainField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioDebugGroup.ContentParent);
-                    volumeChainField.SetTitle("Volume Chain");
+                    volumeChainField.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.volumeChain"));
                     volumeChainField.SetDescription("...");
                 }
 
                 if (BasisSettingsDefaults.AudioDebugShowRingBuffer.RawValue)
                 {
                     decodedBufferField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioDebugGroup.ContentParent);
-                    decodedBufferField.SetTitle("Decoded PCM");
+                    decodedBufferField.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.decodedPcm"));
                     decodedBufferField.SetDescription("...");
                 }
 
                 if (BasisSettingsDefaults.AudioDebugShowJitter.RawValue)
                 {
                     encodedBufferField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioDebugGroup.ContentParent);
-                    encodedBufferField.SetTitle("Encoded Packets");
+                    encodedBufferField.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.encodedPackets"));
                     encodedBufferField.SetDescription("...");
                 }
 
                 if (BasisSettingsDefaults.AudioDebugShowSilence.RawValue)
                 {
                     silenceField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioDebugGroup.ContentParent);
-                    silenceField.SetTitle("Silence Tracking");
+                    silenceField.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.silence"));
                     silenceField.SetDescription("...");
                 }
 
                 if (BasisSettingsDefaults.AudioDebugShowViseme.RawValue)
                 {
                     visemeField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioDebugGroup.ContentParent);
-                    visemeField.SetTitle("Viseme Driver");
+                    visemeField.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.viseme"));
                     visemeField.SetDescription("...");
                 }
             }

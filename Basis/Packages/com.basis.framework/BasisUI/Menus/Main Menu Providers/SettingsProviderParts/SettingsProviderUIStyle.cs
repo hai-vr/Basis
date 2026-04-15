@@ -98,7 +98,7 @@ public static class SettingsProviderUIStyle
         AddColorPicker(container, "Black", UiPaletteStyle.BlackColor, BasisSettingsDefaults.UIPaletteBlack);
         AddColorPicker(container, "Clear", UiPaletteStyle.ClearColor, BasisSettingsDefaults.UIPaletteClear);
 
-        SettingsProvider.AddResetPageButton(container, "UI Style", ResetUIStyleDefaults);
+        SettingsProvider.AddResetPageButton(container, "settings.tab.uistyle", ResetUIStyleDefaults);
         descriptor.ForceRebuild();
         return tab;
     }

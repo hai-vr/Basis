@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Threading;
 using System.Threading.Tasks;
@@ -272,21 +273,70 @@ namespace Basis.Scripts.UI.NamePlate
             }
         }
 
+        /// <summary>
+        /// Returns true when audio from this player is currently audible to the local
+        /// user. Main-thread only — touches Unity components (audio source volume).
+        /// </summary>
+        /// <remarks>
+        /// Covers every state that should prevent a talking pulse:
+        /// face-visibility, failed-load pin, block state (local or remote temp),
+        /// audio receiver presence, out-of-range (signalled by <c>HasAudioSource==false</c>,
+        /// since <see cref="Basis.Scripts.Networking.Receivers.BasisAudioReceiver.StopAudio"/>
+        /// fires on the out-of-range transition), and individual-player mute
+        /// (<c>audioSource.volume==0</c>, set by <c>ChangeRemotePlayersVolumeSettings</c>).
+        /// Continuous audio streams from speakers the user can't hear will repeatedly
+        /// fail this check and so never latch the pulse.
+        /// </remarks>
+        public bool CanCurrentlyBeHeard()
+        {
+            if (!IsVisible) return false;
+
+            var player = BasisRemotePlayer;
+            if (player == null) return false;
+            if (player.HasFailedAvatarLoadGlobally) return false;
+            if (player.IsEffectivelyBlocked) return false;
+
+            var receiver = player.NetworkReceiver;
+            if (receiver == null) return false;
+
+            var audio = receiver.AudioReceiverModule;
+            if (audio == null || !audio.HasAudioSource) return false;
+
+            var src = audio.audioSource;
+            if (src == null || src.volume <= 0f) return false;
+
+            return true;
+        }
+
         public void OnAudioReceived()
         {
+            // ── Network-thread fast path ──
+            // Fires at audio packet rate (~50Hz per speaker). Bail using only
+            // thread-safe reads — Unity component access (audioSource.volume) is
+            // deferred to the enqueued main-thread lambda below.
             if (!IsVisible) return;
-            // Skip the talking pulse entirely while pinned to the failed-load red state.
-            if (BasisRemotePlayer != null && BasisRemotePlayer.HasFailedAvatarLoadGlobally) return;
+
+            var player = BasisRemotePlayer;
+            if (player == null) return;
+            if (player.HasFailedAvatarLoadGlobally) return;
+            if (player.IsEffectivelyBlocked) return;
+
+            var receiver = player.NetworkReceiver;
+            if (receiver == null) return;
+            var audio = receiver.AudioReceiverModule;
+            // HasAudioSource is volatile — false while out of range, not yet loaded, or unloaded.
+            if (audio == null || !audio.HasAudioSource) return;
 
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
                 if (this == null || !isActiveAndEnabled) return;
-                if (BasisRemotePlayer != null && BasisRemotePlayer.HasFailedAvatarLoadGlobally) return;
 
-                // pick the "talking" pulse color
-                talkColorCached = BasisRemotePlayer.OutOfRangeFromLocal
-                    ? BasisRemoteNamePlateDriver.StaticOutOfRangeColor
-                    : BasisRemoteNamePlateDriver.StaticIsTalkingColor;
+                // Re-check on the main thread: state may have changed during the
+                // enqueue + drain window, and this covers the volume check that
+                // can't be done safely off the main thread.
+                if (!CanCurrentlyBeHeard()) return;
+
+                talkColorCached = BasisRemoteNamePlateDriver.StaticIsTalkingColor;
                 talkColorFloat4 = new float4(talkColorCached.r, talkColorCached.g, talkColorCached.b, talkColorCached.a);
 
                 // Start pulse timeline

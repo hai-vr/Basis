@@ -14,7 +14,7 @@ namespace Basis.BasisUI
             actionsPanel.Descriptor.SetHeight(60);
 
             PanelButton noPanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
-            noPanelButton.Descriptor.SetTitle("No");
+            noPanelButton.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("ui.no"));
             noPanelButton.Descriptor.SetWidth(200);
             noPanelButton.Descriptor.SetHeight(60);
 
@@ -27,7 +27,7 @@ namespace Basis.BasisUI
             };
 
             PanelButton yesPanelButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
-            yesPanelButton.Descriptor.SetTitle("Yes");
+            yesPanelButton.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("ui.yes"));
             yesPanelButton.Descriptor.SetWidth(200);
             yesPanelButton.Descriptor.SetHeight(60);
 
