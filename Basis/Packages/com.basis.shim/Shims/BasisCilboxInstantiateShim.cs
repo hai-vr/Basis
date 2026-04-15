@@ -1,48 +1,31 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Reflection;
+using Basis.Scripts.Device_Management;
 using Cilbox;
 using UnityEngine;
-using UnityEngine.Events;
 
 namespace Basis.Shims
 {
-	// Sanitizing replacement for UnityEngine.Object.Instantiate when called from
-	// inside a cilbox sandbox. Prefabs referenced by a cilbox script can carry
-	// MonoBehaviours and persistent UnityEvent listeners that would run native
-	// code the moment the clone's Awake/OnEnable fires. To keep the sandbox
-	// honest we:
-	//   1. Instantiate the prefab as a child of a persistent, inactive host so
-	//      the clone is not active-in-hierarchy and Awake is deferred.
-	//   2. Destroy every component whose type is not in the prop content-police
-	//      approved list (the same list that gates top-level prop loading).
-	//   3. Walk every surviving component and disable every persistent UnityEvent
-	//      listener. Cilbox scripts that want event callbacks must wire them at
-	//      runtime via AddListener, which goes through the sandboxed delegate
-	//      proxy path — persistent listeners from the bundle are never legitimate
-	//      for cilbox-authored content.
-	//   4. Reparent / position / activate the clone so the caller sees exactly
-	//      what UnityEngine.Object.Instantiate would have returned.
+	// Sanitizing replacement for UnityEngine.Object.Instantiate when called
+	// from inside a cilbox sandbox. Cilbox scripts can reference prefabs that
+	// ship with arbitrary MonoBehaviours and persistent UnityEvent listeners;
+	// Unity runs Awake/OnEnable the instant the clone becomes active in
+	// hierarchy, so a Button.onClick wired to Application.OpenURL fires
+	// outside the sandbox before we can react.
+	//
+	// This shim funnels every cilbox-initiated Instantiate through
+	// ContentPoliceControl.ContentControl with UseContentRemoval=true and
+	// ScrubPersistentUnityEvents=true. ContentPoliceControl parks the clone
+	// under BasisDeviceManagement.Instance.CreationGameobject (inactive),
+	// destroys disallowed components, disables dangerous persistent listeners,
+	// then reparents/activates — matching the non-cilbox bundle-load path.
 	public static class BasisCilboxInstantiateShim
 	{
-		private static GameObject sanitationHost;
-
-		private static Transform GetSanitationHost()
-		{
-			if( sanitationHost != null ) return sanitationHost.transform;
-
-			sanitationHost = new GameObject( "BasisCilboxSanitationHost" );
-			sanitationHost.SetActive( false );
-			sanitationHost.hideFlags = HideFlags.HideAndDontSave;
-			UnityEngine.Object.DontDestroyOnLoad( sanitationHost );
-			return sanitationHost.transform;
-		}
-
 		// Called from CilboxPropBasis.CheckMethodAllowed / CilboxSceneBasis.CheckMethodAllowed
-		// to resolve the shim overload that matches the original UnityEngine.Object.Instantiate
-		// call site. Reuses the cilbox usage helper so overload selection (including generics)
-		// matches exactly what the interpreter would have done against UnityEngine.Object.
+		// to resolve the shim overload that matches the original
+		// UnityEngine.Object.Instantiate call site. Reuses the cilbox usage
+		// helper so overload selection (including generics) matches exactly
+		// what the interpreter would have picked against UnityEngine.Object.
 		public static MethodInfo ResolveShim(
 			CilboxUsage usage,
 			String name,
@@ -77,65 +60,65 @@ namespace Basis.Shims
 
 		public static UnityEngine.Object Instantiate( UnityEngine.Object original )
 		{
-			return ParkSanitizeReparent( original, null, false, null, null );
+			return SanitizeInstantiate( original, null, null, null );
 		}
 
 		public static UnityEngine.Object Instantiate( UnityEngine.Object original, Transform parent )
 		{
-			return ParkSanitizeReparent( original, parent, true, null, null );
+			return SanitizeInstantiate( original, null, null, parent );
 		}
 
 		public static UnityEngine.Object Instantiate( UnityEngine.Object original, Transform parent, bool worldPositionStays )
 		{
-			return ParkSanitizeReparent( original, parent, worldPositionStays, null, null );
+			return SanitizeInstantiate( original, null, null, parent );
 		}
 
 		public static UnityEngine.Object Instantiate( UnityEngine.Object original, Vector3 position, Quaternion rotation )
 		{
-			return ParkSanitizeReparent( original, null, false, position, rotation );
+			return SanitizeInstantiate( original, position, rotation, null );
 		}
 
 		public static UnityEngine.Object Instantiate( UnityEngine.Object original, Vector3 position, Quaternion rotation, Transform parent )
 		{
-			return ParkSanitizeReparent( original, parent, false, position, rotation );
+			return SanitizeInstantiate( original, position, rotation, parent );
 		}
 
 		public static T Instantiate<T>( T original ) where T : UnityEngine.Object
 		{
-			return ParkSanitizeReparent( original, null, false, null, null ) as T;
+			return SanitizeInstantiate( original, null, null, null ) as T;
 		}
 
 		public static T Instantiate<T>( T original, Transform parent ) where T : UnityEngine.Object
 		{
-			return ParkSanitizeReparent( original, parent, true, null, null ) as T;
+			return SanitizeInstantiate( original, null, null, parent ) as T;
 		}
 
 		public static T Instantiate<T>( T original, Transform parent, bool worldPositionStays ) where T : UnityEngine.Object
 		{
-			return ParkSanitizeReparent( original, parent, worldPositionStays, null, null ) as T;
+			return SanitizeInstantiate( original, null, null, parent ) as T;
 		}
 
 		public static T Instantiate<T>( T original, Vector3 position, Quaternion rotation ) where T : UnityEngine.Object
 		{
-			return ParkSanitizeReparent( original, null, false, position, rotation ) as T;
+			return SanitizeInstantiate( original, position, rotation, null ) as T;
 		}
 
 		public static T Instantiate<T>( T original, Vector3 position, Quaternion rotation, Transform parent ) where T : UnityEngine.Object
 		{
-			return ParkSanitizeReparent( original, parent, false, position, rotation ) as T;
+			return SanitizeInstantiate( original, position, rotation, parent ) as T;
 		}
 
 		// ------------------------------------------------------------------
-		// Core pipeline: instantiate -> park under disabled host -> sanitize
-		// -> re-home per the caller's requested transform state.
+		// Core pipeline: delegate to ContentPoliceControl with the prop
+		// selector and the UnityEvent scrub opt-in, using the canonical
+		// disabled host wired on BasisFramework.prefab.
 		// ------------------------------------------------------------------
 
-		private static UnityEngine.Object ParkSanitizeReparent(
+		private static UnityEngine.Object SanitizeInstantiate(
 			UnityEngine.Object original,
-			Transform finalParent,
-			bool worldPositionStays,
 			Vector3? position,
-			Quaternion? rotation )
+			Quaternion? rotation,
+			Transform parent )
 		{
 			if( original == null )
 			{
@@ -149,41 +132,55 @@ namespace Basis.Shims
 			if( rootPrefab == null )
 				return UnityEngine.Object.Instantiate( original );
 
-			Transform host = GetSanitationHost();
-			UnityEngine.Object cloneObj = UnityEngine.Object.Instantiate( original, host );
-			GameObject cloneRoot = ExtractRootGameObject( cloneObj );
-			if( cloneRoot == null )
+			BasisDeviceManagement mgmt = BasisDeviceManagement.Instance;
+			if( mgmt == null || mgmt.CreationGameobject == null )
 			{
-				Debug.LogWarning( "[BasisCilbox] Instantiate produced a clone with no GameObject root; destroying." );
-				if( cloneObj != null ) UnityEngine.Object.Destroy( cloneObj );
+				Debug.LogError( "[BasisCilbox] BasisDeviceManagement.CreationGameobject unavailable; refusing Instantiate." );
 				return null;
 			}
 
-			try
-			{
-				Sanitize( cloneRoot );
-			}
-			catch( Exception e )
-			{
-				Debug.LogError( $"[BasisCilbox] Sanitize threw, destroying clone: {e}" );
-				UnityEngine.Object.Destroy( cloneRoot );
-				return null;
-			}
+			Vector3 spawnPos = position ?? rootPrefab.transform.position;
+			Quaternion spawnRot = rotation ?? rootPrefab.transform.rotation;
 
-			Transform cloneTransform = cloneRoot.transform;
-			if( finalParent != null )
+			ChecksRequired checks = new ChecksRequired
 			{
-				cloneTransform.SetParent( finalParent, worldPositionStays );
-			}
-			else
-			{
-				cloneTransform.SetParent( null, false );
-			}
+				UseContentRemoval = true,
+				ScrubPersistentUnityEvents = true,
+				// Animator events route through SendMessage-by-name, which is
+				// another reflection escape — disable them for cilbox spawns.
+				DisableAnimatorEvents = true,
+				RemoveColliders = false,
+				ChangeCollidersToCorrectLayer = false,
+			};
 
-			if( position.HasValue && rotation.HasValue )
-				cloneTransform.SetPositionAndRotation( position.Value, rotation.Value );
+			GameObject sanitizedClone = ContentPoliceControl.ContentControl(
+				mgmt.CreationGameobject,
+				rootPrefab,
+				checks,
+				spawnPos,
+				spawnRot,
+				false,
+				Vector3.zero,
+				BundledContentHolder.Selector.Prop,
+				parent );
 
-			return cloneObj;
+			if( sanitizedClone == null ) return null;
+
+			// Unity's Instantiate returns whatever sub-object on the clone
+			// matches the original's type: GameObject -> GameObject, Component
+			// -> the matching component fished off the clone root.
+			if( original is GameObject ) return sanitizedClone;
+			Type originalType = original.GetType();
+			Component match = sanitizedClone.GetComponent( originalType );
+			if( match != null ) return match;
+
+			// Component might live on a child (e.g. cloning a Rigidbody nested
+			// somewhere). Fall back to a first-match search.
+			Component[] all = sanitizedClone.GetComponentsInChildren( originalType, true );
+			if( all != null && all.Length > 0 ) return all[0];
+
+			Debug.LogWarning( $"[BasisCilbox] Clone is missing a {originalType.FullName} component (likely scrubbed); returning root GameObject." );
+			return sanitizedClone;
 		}
 
 		private static GameObject ExtractRootGameObject( UnityEngine.Object o )
@@ -192,152 +189,6 @@ namespace Basis.Shims
 			if( o is GameObject go ) return go;
 			if( o is Component comp ) return comp.gameObject;
 			return null;
-		}
-
-		// ------------------------------------------------------------------
-		// Sanitization pass. Runs while the clone is parked under the
-		// disabled sanitation host, so no MonoBehaviour callbacks have fired.
-		// ------------------------------------------------------------------
-
-		private static void Sanitize( GameObject clone )
-		{
-			HashSet<string> approvedTypeNames = GetApprovedTypeNames();
-
-			ScrubComponents( clone, approvedTypeNames );
-			ScrubPersistentEvents( clone );
-		}
-
-		private static HashSet<string> GetApprovedTypeNames()
-		{
-			BundledContentHolder holder = BundledContentHolder.Instance;
-			if( holder == null ) return null;
-			if( !holder.GetSelector( BundledContentHolder.Selector.Prop, out ContentPoliceSelector selector ) ) return null;
-			if( selector == null ) return null;
-			return selector.ApprovedTypeNames;
-		}
-
-		private static void ScrubComponents( GameObject root, HashSet<string> approvedTypeNames )
-		{
-			// If the prop selector is unavailable we can't tell approved from not —
-			// destroy the whole clone rather than silently allow arbitrary components.
-			if( approvedTypeNames == null )
-			{
-				Debug.LogError( "[BasisCilbox] PropScriptSelector unavailable; destroying clone to fail closed." );
-				UnityEngine.Object.DestroyImmediate( root );
-				return;
-			}
-
-			Component[] comps = root.GetComponentsInChildren<Component>( true );
-			for( int i = 0; i < comps.Length; i++ )
-			{
-				Component c = comps[i];
-				if( c == null ) continue;
-				if( c is Transform ) continue;
-				string fullName = c.GetType().FullName;
-				if( fullName == null || !approvedTypeNames.Contains( fullName ) )
-				{
-					UnityEngine.Object.DestroyImmediate( c );
-				}
-			}
-		}
-
-		// Persistent UnityEvent listeners are the attack vector reported for this
-		// exploit (e.g. a Button.onClick wired in the editor to call an approved
-		// component's method that ultimately invokes Application.OpenURL). Cilbox
-		// scripts never need them — they wire callbacks at runtime via AddListener
-		// through the sandboxed delegate proxy. Disable them all.
-		private static void ScrubPersistentEvents( GameObject root )
-		{
-			Component[] comps = root.GetComponentsInChildren<Component>( true );
-			HashSet<object> visited = new HashSet<object>( ReferenceEqualityComparer.Instance );
-			for( int i = 0; i < comps.Length; i++ )
-			{
-				Component c = comps[i];
-				if( c == null ) continue;
-				// The generic walker handles EventTrigger transparently: it recurses
-				// into the triggers List<Entry>, into each Entry, and finds the
-				// UnityEvent<BaseEventData> callback via the UnityEventBase check.
-				WalkForUnityEvents( c, visited, 0 );
-			}
-		}
-
-		private const int MaxWalkDepth = 6;
-
-		private static void WalkForUnityEvents( object obj, HashSet<object> visited, int depth )
-		{
-			if( obj == null ) return;
-			if( depth > MaxWalkDepth ) return;
-
-			Type t = obj.GetType();
-			if( t.IsPrimitive || t == typeof(string) || t.IsEnum ) return;
-
-			// Reference-type cycle guard. Value types are copies so we can't dedupe.
-			if( !t.IsValueType && !visited.Add( obj ) ) return;
-
-			if( obj is UnityEventBase evt )
-			{
-				DisableAllPersistentListeners( evt );
-				return;
-			}
-
-			// UnityEngine.Object fields usually point at other scene/asset objects
-			// we don't own — never recurse across that boundary.
-			if( obj is UnityEngine.Object && depth > 0 ) return;
-
-			Type cursor = t;
-			while( cursor != null && cursor != typeof(object) && cursor != typeof(UnityEngine.Object) && cursor != typeof(Component) && cursor != typeof(MonoBehaviour) && cursor != typeof(Behaviour) )
-			{
-				FieldInfo[] fields = cursor.GetFields(
-					BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly );
-				for( int i = 0; i < fields.Length; i++ )
-				{
-					FieldInfo f = fields[i];
-					Type ft = f.FieldType;
-					if( ft.IsPrimitive || ft == typeof(string) || ft.IsEnum ) continue;
-
-					object value;
-					try { value = f.GetValue( obj ); }
-					catch { continue; }
-					if( value == null ) continue;
-
-					if( value is UnityEventBase ue )
-					{
-						DisableAllPersistentListeners( ue );
-						continue;
-					}
-
-					if( value is IList list )
-					{
-						for( int j = 0; j < list.Count; j++ )
-							WalkForUnityEvents( list[j], visited, depth + 1 );
-						continue;
-					}
-
-					if( ft.IsClass || (ft.IsValueType && !ft.IsPrimitive && !ft.IsEnum) )
-					{
-						WalkForUnityEvents( value, visited, depth + 1 );
-					}
-				}
-				cursor = cursor.BaseType;
-			}
-		}
-
-		private static void DisableAllPersistentListeners( UnityEventBase evt )
-		{
-			if( evt == null ) return;
-			int count = evt.GetPersistentEventCount();
-			for( int i = 0; i < count; i++ )
-				evt.SetPersistentListenerState( i, UnityEventCallState.Off );
-		}
-
-		// .NET Standard 2.0 lacks ReferenceEqualityComparer; provide a local one so
-		// the visited set doesn't fall back on MonoBehaviour.Equals (which is
-		// value-equal across destroyed objects and can recurse into Unity internals).
-		private sealed class ReferenceEqualityComparer : IEqualityComparer<object>
-		{
-			public static readonly ReferenceEqualityComparer Instance = new ReferenceEqualityComparer();
-			public new bool Equals( object x, object y ) { return ReferenceEquals( x, y ); }
-			public int GetHashCode( object obj ) { return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode( obj ); }
 		}
 	}
 }

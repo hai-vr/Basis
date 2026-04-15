@@ -27,11 +27,33 @@ namespace Basis.BasisUI
         private float _updateTimer;
         private const float UpdateInterval = 0.2f;
 
+        private bool _richTextDisabled;
+
+        private void DisableRichTextOnce()
+        {
+            if (_richTextDisabled) return;
+            _richTextDisabled = true;
+            // These debug panels only display plain-text stats — skip tag scanning.
+            DebugField?.DisableRichText();
+            DistanceField?.DisableRichText();
+            LodField?.DisableRichText();
+            RangesField?.DisableRichText();
+            BufferField?.DisableRichText();
+            AudioSourceField?.DisableRichText();
+            VolumeChainField?.DisableRichText();
+            DecodedBufferField?.DisableRichText();
+            EncodedBufferField?.DisableRichText();
+            SilenceField?.DisableRichText();
+            VisemeField?.DisableRichText();
+        }
+
         private void Update()
         {
             _updateTimer += Time.unscaledDeltaTime;
             if (_updateTimer < UpdateInterval) return;
             _updateTimer = 0f;
+
+            DisableRichTextOnce();
 
             if (RemotePlayer == null)
             {

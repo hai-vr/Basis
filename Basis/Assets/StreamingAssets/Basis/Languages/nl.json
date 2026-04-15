@@ -1,154 +1,154 @@
 {
     "code": "nl",
-    "nativeName": "nl",
+    "nativeName": "Nederlands",
     "entries": [
         {
             "key": "calibration.additionalHeight",
-            "value": "Additional Player Height"
+            "value": "Extra Spelerslengte"
         },
         {
             "key": "calibration.calibrate",
-            "value": "Calibrate"
+            "value": "Kalibreren"
         },
         {
             "key": "calibration.bodyTrackingSettings",
-            "value": "Body Tracking Settings"
+            "value": "Lichaamstracking-instellingen"
         },
         {
             "key": "calibration.calibrating",
-            "value": "Calibrating"
+            "value": "Aan het kalibreren"
         },
         {
             "key": "calibration.decreaseHeight",
-            "value": "Decrease Height"
+            "value": "Lengte Verlagen"
         },
         {
             "key": "calibration.increaseHeight",
-            "value": "Increase Height"
+            "value": "Lengte Verhogen"
         },
         {
             "key": "calibration.pitch.down",
-            "value": "Look DOWN, pull triggers"
+            "value": "Kijk OMLAAG, druk op triggers"
         },
         {
             "key": "calibration.pitch.forward",
-            "value": "Look FORWARD, pull triggers"
+            "value": "Kijk VOORUIT, druk op triggers"
         },
         {
             "key": "calibration.pitch.up",
-            "value": "Look UP, pull triggers"
+            "value": "Kijk OMHOOG, druk op triggers"
         },
         {
             "key": "calibration.pitchLabel",
-            "value": "Pitch Calibration: {0}"
+            "value": "Pitch Kalibratie: {0}"
         },
         {
             "key": "calibration.pullTriggers",
-            "value": "Pull Triggers to Calibrate"
+            "value": "Druk op Triggers om te Kalibreren"
         },
         {
             "key": "library.availablePlatforms",
-            "value": "Available Platforms"
+            "value": "Beschikbare Platforms"
         },
         {
             "key": "library.beeFilePassword",
-            "value": "BEE File Password:"
+            "value": "BEE-bestand Wachtwoord:"
         },
         {
             "key": "library.beeFilePassword.description",
-            "value": "This is the password that was generated with you BEE file."
+            "value": "Dit is het wachtwoord dat is gegenereerd met jouw BEE-bestand."
         },
         {
             "key": "library.beeFileUrl",
-            "value": "BEE File URL:"
+            "value": "BEE-bestand URL:"
         },
         {
             "key": "library.beeFileUrl.description",
-            "value": "The direct link to the BEE file."
+            "value": "De directe link naar het BEE-bestand."
         },
         {
             "key": "library.bonesCount",
-            "value": "Bones Count"
+            "value": "Aantal Botten"
         },
         {
             "key": "library.creationDate",
-            "value": "Creation Date"
+            "value": "Aanmaakdatum"
         },
         {
             "key": "library.delete",
-            "value": "Delete"
+            "value": "Verwijderen"
         },
         {
             "key": "library.dialog.add.addButton",
-            "value": "Add"
+            "value": "Toevoegen"
         },
         {
             "key": "library.dialog.add.checkingMetadata",
-            "value": "Checking BEE metadata..."
+            "value": "BEE-metadata controleren..."
         },
         {
             "key": "library.dialog.add.urlDescription",
-            "value": "This should be a direct link to your BEE file."
+            "value": "Dit moet een directe link naar jouw BEE-bestand zijn."
         },
         {
             "key": "library.dialog.add.validating",
-            "value": "Validating BEE file"
+            "value": "BEE-bestand valideren"
         },
         {
             "key": "library.dialog.add.validationError",
-            "value": "BEE Validation Error"
+            "value": "BEE Validatiefout"
         },
         {
             "key": "library.dialog.add.validationErrorBody",
-            "value": "Failed to validate BEE file: {0}"
+            "value": "Kon BEE-bestand niet valideren: {0}"
         },
         {
             "key": "library.dialog.avatarUnreachable.body",
-            "value": "The avatar was still loaded, but the remote file could not be reached."
+            "value": "De avatar is nog steeds geladen, maar het externe bestand kon niet worden bereikt."
         },
         {
             "key": "library.dialog.avatarUnreachable.title",
-            "value": "Avatar File Unreachable"
+            "value": "Avatarbestand Onbereikbaar"
         },
         {
             "key": "library.dialog.legacy.contentType",
-            "value": "Content Type"
+            "value": "Inhoudstype"
         },
         {
             "key": "library.dialog.legacy.contentType.description",
-            "value": "What content are you adding?"
+            "value": "Welke inhoud voeg je toe?"
         },
         {
             "key": "library.dialog.legacy.whyShowing",
-            "value": "Why is this showing?"
+            "value": "Waarom wordt dit getoond?"
         },
         {
             "key": "library.ephemeralMode",
-            "value": "Ephemeral Mode"
+            "value": "Vluchtige Modus"
         },
         {
             "key": "library.ephemeralMode.description",
-            "value": "This item will only be visible to people currently in the instance. Late joiners wont be able to see this."
+            "value": "Dit item is alleen zichtbaar voor mensen die zich momenteel in de instantie bevinden. Latere deelnemers kunnen dit niet zien."
         },
         {
             "key": "library.loading",
-            "value": "Loading..."
+            "value": "Laden..."
         },
         {
             "key": "library.materialCount",
-            "value": "Material Count"
+            "value": "Aantal Materialen"
         },
         {
             "key": "library.networkType",
-            "value": "Network Type"
+            "value": "Netwerktype"
         },
         {
             "key": "library.remove",
-            "value": "Remove"
+            "value": "Verwijderen"
         },
         {
             "key": "library.share",
-            "value": "Share"
+            "value": "Delen"
         },
         {
             "key": "library.tab.avatars",
@@ -156,7 +156,7 @@
         },
         {
             "key": "library.tab.instantiated",
-            "value": "Instantiated"
+            "value": "Geïnstantieerd"
         },
         {
             "key": "library.tab.props",
@@ -164,31 +164,31 @@
         },
         {
             "key": "library.tab.worlds",
-            "value": "Worlds"
+            "value": "Werelden"
         },
         {
             "key": "library.teleportTo",
-            "value": "Teleport To"
+            "value": "Teleporteren Naar"
         },
         {
             "key": "library.triangleCount",
-            "value": "Triangle Count"
+            "value": "Aantal Driehoeken"
         },
         {
             "key": "library.uniqueVersion",
-            "value": "Unique Version:"
+            "value": "Unieke Versie:"
         },
         {
             "key": "library.uniqueVersion.description",
-            "value": "The unique version number of the basis bundle."
+            "value": "Het unieke versienummer van de basis-bundle."
         },
         {
             "key": "menu.exit.dialog.body",
-            "value": "Are you sure you want to close Basis?"
+            "value": "Weet je zeker dat je Basis wilt sluiten?"
         },
         {
             "key": "menu.exit.dialog.confirm",
-            "value": "Exit Basis"
+            "value": "Basis Afsluiten"
         },
         {
             "key": "menu.exit.dialog.title",
@@ -196,15 +196,15 @@
         },
         {
             "key": "menu.individualPlayer.addToGroup",
-            "value": "Add to Group"
+            "value": "Aan Groep Toevoegen"
         },
         {
             "key": "menu.individualPlayer.admin.description",
-            "value": "Moderation actions for this player."
+            "value": "Moderatie-acties voor deze speler."
         },
         {
             "key": "menu.individualPlayer.audio.description",
-            "value": "Override this player's voice volume just for you."
+            "value": "Overschrijf het stemvolume van deze speler alleen voor jou."
         },
         {
             "key": "menu.individualPlayer.audioDebug",
@@ -212,31 +212,31 @@
         },
         {
             "key": "menu.individualPlayer.audioDebug.decodedPcm",
-            "value": "Decoded PCM"
+            "value": "Gedecodeerde PCM"
         },
         {
             "key": "menu.individualPlayer.audioDebug.description",
-            "value": "Live audio chain diagnostics. Toggle sections in Settings > Developer."
+            "value": "Live audioketendiagnostiek. Schakel secties in via Instellingen > Ontwikkelaar."
         },
         {
             "key": "menu.individualPlayer.audioDebug.encodedPackets",
-            "value": "Encoded Packets"
+            "value": "Gecodeerde Pakketten"
         },
         {
             "key": "menu.individualPlayer.audioDebug.silence",
-            "value": "Silence Tracking"
+            "value": "Stilte Tracking"
         },
         {
             "key": "menu.individualPlayer.audioDebug.source",
-            "value": "Audio Source"
+            "value": "Audiobron"
         },
         {
             "key": "menu.individualPlayer.audioDebug.viseme",
-            "value": "Viseme Driver"
+            "value": "Viseme Stuurprogramma"
         },
         {
             "key": "menu.individualPlayer.audioDebug.volumeChain",
-            "value": "Volume Chain"
+            "value": "Volumeketen"
         },
         {
             "key": "menu.individualPlayer.avatar",
@@ -244,67 +244,67 @@
         },
         {
             "key": "menu.individualPlayer.avatar.description",
-            "value": "Visibility and interaction toggles."
+            "value": "Schakelaars voor zichtbaarheid en interactie."
         },
         {
             "key": "menu.individualPlayer.avatarLoadError",
-            "value": "Avatar Load Error"
+            "value": "Avatar Laadfout"
         },
         {
             "key": "menu.individualPlayer.ban",
-            "value": "Ban"
+            "value": "Verbannen"
         },
         {
             "key": "menu.individualPlayer.ban.description",
-            "value": "Ban this player by UUID."
+            "value": "Verban deze speler op UUID."
         },
         {
             "key": "menu.individualPlayer.ban.dialog.body",
-            "value": "Ban {0}? This may be irreversible."
+            "value": "{0} verbannen? Dit kan onomkeerbaar zijn."
         },
         {
             "key": "menu.individualPlayer.ban.dialog.title",
-            "value": "Ban player?"
+            "value": "Speler verbannen?"
         },
         {
             "key": "menu.individualPlayer.block",
-            "value": "Block"
+            "value": "Blokkeren"
         },
         {
             "key": "menu.individualPlayer.block.button.description",
-            "value": "Mutes audio, hides the avatar, and hides the nameplate for this player on your client only."
+            "value": "Dempt audio, verbergt de avatar en verbergt de naamplaat voor deze speler, alleen in jouw client."
         },
         {
             "key": "menu.individualPlayer.block.description",
-            "value": "Block this player. Their audio, avatar, and nameplate will be hidden from your client."
+            "value": "Blokkeer deze speler. Hun audio, avatar en naamplaat worden verborgen in jouw client."
         },
         {
             "key": "menu.individualPlayer.blockButton",
-            "value": "Block Player"
+            "value": "Speler Blokkeren"
         },
         {
             "key": "menu.individualPlayer.bufferState",
-            "value": "Buffer State"
+            "value": "Bufferstatus"
         },
         {
             "key": "menu.individualPlayer.chat.description",
-            "value": "Control chat message visibility for this player."
+            "value": "Bepaal de zichtbaarheid van chatberichten voor deze speler."
         },
         {
             "key": "menu.individualPlayer.clearHighlights",
-            "value": "Clear All Highlights"
+            "value": "Alle Markeringen Wissen"
         },
         {
             "key": "menu.individualPlayer.clearHighlights.description",
-            "value": "Remove any active beacon."
+            "value": "Verwijder elk actief baken."
         },
         {
             "key": "menu.individualPlayer.customNode",
-            "value": "Custom Node"
+            "value": "Aangepast Knooppunt"
         },
         {
             "key": "menu.individualPlayer.customNode.description",
-            "value": "Or type a custom node (overrides dropdown)."
+            "value": "Of typ een aangepast knooppunt (overschrijft dropdown)."
         },
         {
             "key": "menu.individualPlayer.debug",
@@ -312,151 +312,151 @@
         },
         {
             "key": "menu.individualPlayer.debug.description",
-            "value": "Live diagnostics for voice/range checks (optional)."
+            "value": "Live diagnostiek voor stem/bereikcontroles (optioneel)."
         },
         {
             "key": "menu.individualPlayer.disableInteractions",
-            "value": "Disable Interactions"
+            "value": "Interacties Uitschakelen"
         },
         {
             "key": "menu.individualPlayer.distance",
-            "value": "Distance"
+            "value": "Afstand"
         },
         {
             "key": "menu.individualPlayer.enableInteractions",
-            "value": "Enable Interactions"
+            "value": "Interacties Inschakelen"
         },
         {
             "key": "menu.individualPlayer.grantPermission",
-            "value": "Grant Permission"
+            "value": "Machtiging Verlenen"
         },
         {
             "key": "menu.individualPlayer.grantPermission.description",
-            "value": "Add the selected permission node to this player."
+            "value": "Voeg het geselecteerde machtigingsknooppunt toe aan deze speler."
         },
         {
             "key": "menu.individualPlayer.groupName",
-            "value": "Group Name"
+            "value": "Groepsnaam"
         },
         {
             "key": "menu.individualPlayer.groupName.description",
-            "value": "Name of the permission group."
+            "value": "Naam van de machtigingsgroep."
         },
         {
             "key": "menu.individualPlayer.groups",
-            "value": "Groups"
+            "value": "Groepen"
         },
         {
             "key": "menu.individualPlayer.groups.description",
-            "value": "Add or remove this player from permission groups."
+            "value": "Voeg deze speler toe aan of verwijder hem uit machtigingsgroepen."
         },
         {
             "key": "menu.individualPlayer.hideAvatar",
-            "value": "Hide Avatar"
+            "value": "Avatar Verbergen"
         },
         {
             "key": "menu.individualPlayer.hideChat",
-            "value": "Hide Chat"
+            "value": "Chat Verbergen"
         },
         {
             "key": "menu.individualPlayer.highlight",
-            "value": "Highlight Player"
+            "value": "Speler Markeren"
         },
         {
             "key": "menu.individualPlayer.highlight.description",
-            "value": "Toggle a vertical beacon above this player."
+            "value": "Schakel een verticaal baken boven deze speler."
         },
         {
             "key": "menu.individualPlayer.ipBan",
-            "value": "IP Ban"
+            "value": "IP-verbanning"
         },
         {
             "key": "menu.individualPlayer.ipBan.description",
-            "value": "IP-ban this player. Affects all accounts on their connection."
+            "value": "IP-verban deze speler. Dit heeft invloed op alle accounts op hun verbinding."
         },
         {
             "key": "menu.individualPlayer.ipBan.dialog.body",
-            "value": "IP-ban {0}? This can affect multiple accounts."
+            "value": "{0} IP-verbannen? Dit kan invloed hebben op meerdere accounts."
         },
         {
             "key": "menu.individualPlayer.ipBan.dialog.title",
-            "value": "IP ban player?"
+            "value": "Speler IP-verbannen?"
         },
         {
             "key": "menu.individualPlayer.kick",
-            "value": "Kick"
+            "value": "Schoppen"
         },
         {
             "key": "menu.individualPlayer.kick.description",
-            "value": "Disconnect this player from the server."
+            "value": "Verbreek de verbinding van deze speler met de server."
         },
         {
             "key": "menu.individualPlayer.kick.dialog.body",
-            "value": "Kick {0}?"
+            "value": "{0} schoppen?"
         },
         {
             "key": "menu.individualPlayer.kick.dialog.title",
-            "value": "Kick player?"
+            "value": "Speler schoppen?"
         },
         {
             "key": "menu.individualPlayer.locate",
-            "value": "Locate"
+            "value": "Lokaliseren"
         },
         {
             "key": "menu.individualPlayer.locate.description",
-            "value": "Highlight this player with a visible beacon in the world."
+            "value": "Markeer deze speler met een zichtbaar baken in de wereld."
         },
         {
             "key": "menu.individualPlayer.meshLod",
-            "value": "Mesh LOD Level"
+            "value": "Mesh LOD Niveau"
         },
         {
             "key": "menu.individualPlayer.message",
-            "value": "Message"
+            "value": "Bericht"
         },
         {
             "key": "menu.individualPlayer.message.description",
-            "value": "Send a message directly to this player."
+            "value": "Stuur een bericht rechtstreeks naar deze speler."
         },
         {
             "key": "menu.individualPlayer.name",
-            "value": "Name"
+            "value": "Naam"
         },
         {
             "key": "menu.individualPlayer.network",
-            "value": "Network"
+            "value": "Netwerk"
         },
         {
             "key": "menu.individualPlayer.network.description",
-            "value": "Live network state for this player."
+            "value": "Live netwerkstatus voor deze speler."
         },
         {
             "key": "menu.individualPlayer.permissionNode",
-            "value": "Permission Node"
+            "value": "Machtigingsknooppunt"
         },
         {
             "key": "menu.individualPlayer.permissions",
-            "value": "Permissions"
+            "value": "Machtigingen"
         },
         {
             "key": "menu.individualPlayer.permissions.description",
-            "value": "Add or remove individual permission nodes for this player."
+            "value": "Voeg individuele machtigingsknooppunten toe of verwijder ze voor deze speler."
         },
         {
             "key": "menu.individualPlayer.pin",
-            "value": "Pin"
+            "value": "Vastmaken"
         },
         {
             "key": "menu.individualPlayer.pin.button.description",
-            "value": "Keep this player at the top of your list for quick access."
+            "value": "Houd deze speler bovenaan je lijst voor snelle toegang."
         },
         {
             "key": "menu.individualPlayer.pin.description",
-            "value": "Pinned players sort to the top of the Players list."
+            "value": "Vastgemaakte spelers worden bovenaan de Spelerslijst gesorteerd."
         },
         {
             "key": "menu.individualPlayer.pinButton",
-            "value": "Pin Player"
+            "value": "Speler Vastmaken"
         },
         {
             "key": "menu.individualPlayer.platform",
@@ -464,191 +464,191 @@
         },
         {
             "key": "menu.individualPlayer.player",
-            "value": "Player"
+            "value": "Speler"
         },
         {
             "key": "menu.individualPlayer.player.description",
-            "value": "Per-player overrides (volume, avatar visibility, interactions)."
+            "value": "Per-speler overschrijvingen (volume, avatarzichtbaarheid, interacties)."
         },
         {
             "key": "menu.individualPlayer.playerId",
-            "value": "Player ID"
+            "value": "Speler-ID"
         },
         {
             "key": "menu.individualPlayer.ranges",
-            "value": "Ranges"
+            "value": "Bereiken"
         },
         {
             "key": "menu.individualPlayer.removeFromGroup",
-            "value": "Remove from Group"
+            "value": "Uit Groep Verwijderen"
         },
         {
             "key": "menu.individualPlayer.removeHighlight",
-            "value": "Remove Highlight"
+            "value": "Markering Verwijderen"
         },
         {
             "key": "menu.individualPlayer.revokePermission",
-            "value": "Revoke Permission"
+            "value": "Machtiging Intrekken"
         },
         {
             "key": "menu.individualPlayer.revokePermission.description",
-            "value": "Remove the selected permission node from this player."
+            "value": "Verwijder het geselecteerde machtigingsknooppunt van deze speler."
         },
         {
             "key": "menu.individualPlayer.sendMessage",
-            "value": "Send Message"
+            "value": "Bericht Verzenden"
         },
         {
             "key": "menu.individualPlayer.sendMessage.description",
-            "value": "Delivers the message above to this player."
+            "value": "Bezorgt het bovenstaande bericht aan deze speler."
         },
         {
             "key": "menu.individualPlayer.shout.description",
-            "value": "Toggle non-spatialized broadcast voice for this player."
+            "value": "Schakel niet-ruimtelijke uitzendstem voor deze speler."
         },
         {
             "key": "menu.individualPlayer.shout.disable",
-            "value": "Disable Shout Mode"
+            "value": "Schreeuwmodus Uitschakelen"
         },
         {
             "key": "menu.individualPlayer.shout.enable",
-            "value": "Enable Shout Mode"
+            "value": "Schreeuwmodus Inschakelen"
         },
         {
             "key": "menu.individualPlayer.showAudioDebug",
-            "value": "Show Audio Debug"
+            "value": "Audio Debug Tonen"
         },
         {
             "key": "menu.individualPlayer.showAudioDebug.description",
-            "value": "Toggle live audio pipeline info for this player."
+            "value": "Schakel live audiopijplijn-info voor deze speler."
         },
         {
             "key": "menu.individualPlayer.showAvatar",
-            "value": "Show Avatar"
+            "value": "Avatar Tonen"
         },
         {
             "key": "menu.individualPlayer.showChat",
-            "value": "Show Chat"
+            "value": "Chat Tonen"
         },
         {
             "key": "menu.individualPlayer.teleportHere",
-            "value": "Teleport Here"
+            "value": "Hierheen Teleporteren"
         },
         {
             "key": "menu.individualPlayer.teleportHere.description",
-            "value": "Teleport this player to your location."
+            "value": "Teleporteer deze speler naar jouw locatie."
         },
         {
             "key": "menu.individualPlayer.teleportTo",
-            "value": "Teleport To"
+            "value": "Teleporteren Naar"
         },
         {
             "key": "menu.individualPlayer.teleportTo.description",
-            "value": "Teleport yourself to this player's location."
+            "value": "Teleporteer jezelf naar de locatie van deze speler."
         },
         {
             "key": "menu.individualPlayer.toggleAvatar.description",
-            "value": "Toggles rendering of this player's avatar on your client."
+            "value": "Schakelt de weergave van de avatar van deze speler in jouw client."
         },
         {
             "key": "menu.individualPlayer.toggleChat.description",
-            "value": "Toggles whether chat messages from this player appear above their nameplate."
+            "value": "Schakelt of chatberichten van deze speler boven hun naamplaat verschijnen."
         },
         {
             "key": "menu.individualPlayer.toggleInteractions.description",
-            "value": "Toggles whether this avatar can interact with you."
+            "value": "Schakelt of deze avatar met jou kan interacteren."
         },
         {
             "key": "menu.individualPlayer.transmission",
-            "value": "Transmission"
+            "value": "Transmissie"
         },
         {
             "key": "menu.individualPlayer.unblock",
-            "value": "Unblock Player"
+            "value": "Speler Deblokkeren"
         },
         {
             "key": "menu.individualPlayer.unpin",
-            "value": "Unpin Player"
+            "value": "Speler Losmaken"
         },
         {
             "key": "menu.individualPlayer.volumeNormal",
-            "value": "Normal range"
+            "value": "Normaal bereik"
         },
         {
             "key": "menu.individualPlayer.volumeOver",
-            "value": "Over 100% (may clip / distort)"
+            "value": "Boven 100% (kan clippen / vervormen)"
         },
         {
             "key": "menu.individualPlayer.volumeOverride",
-            "value": "Player Volume Override"
+            "value": "Spelervolume Overschrijving"
         },
         {
             "key": "menu.individualPlayer.waitingForData",
-            "value": "Waiting for data..."
+            "value": "Wachten op gegevens..."
         },
         {
             "key": "menu.main.title",
-            "value": "Main Menu"
+            "value": "Hoofdmenu"
         },
         {
             "key": "menu.players.header",
-            "value": "Online Players ({0})"
+            "value": "Online Spelers ({0})"
         },
         {
             "key": "menu.players.header.description",
-            "value": "Click a player to view their profile."
+            "value": "Klik op een speler om hun profiel te bekijken."
         },
         {
             "key": "menu.players.header.filtered",
-            "value": "Online Players ({0}/{1})"
+            "value": "Online Spelers ({0}/{1})"
         },
         {
             "key": "menu.players.pinned",
-            "value": "Pinned"
+            "value": "Vastgemaakt"
         },
         {
             "key": "menu.players.search.byName",
-            "value": "Filter by display name."
+            "value": "Filter op weergavenaam."
         },
         {
             "key": "menu.players.search.byUuid",
-            "value": "Filter by player UUID."
+            "value": "Filter op speler-UUID."
         },
         {
             "key": "menu.players.searchMode",
-            "value": "Search Mode"
+            "value": "Zoekmodus"
         },
         {
             "key": "menu.players.you",
-            "value": "{0} (You)"
+            "value": "{0} (Jij)"
         },
         {
             "key": "menu.provider.calibration",
-            "value": "Calibration"
+            "value": "Kalibratie"
         },
         {
             "key": "menu.provider.exit",
-            "value": "Exit"
+            "value": "Afsluiten"
         },
         {
             "key": "menu.provider.individualPlayer",
-            "value": "Individual Player"
+            "value": "Individuele Speler"
         },
         {
             "key": "menu.provider.library",
-            "value": "Library"
+            "value": "Bibliotheek"
         },
         {
             "key": "menu.provider.mute",
-            "value": "Mute"
+            "value": "Dempen"
         },
         {
             "key": "menu.provider.players",
-            "value": "Players"
+            "value": "Spelers"
         },
         {
             "key": "menu.provider.respawn",
-            "value": "Respawn"
+            "value": "Herstart"
         },
         {
             "key": "menu.provider.servers",
@@ -656,39 +656,39 @@
         },
         {
             "key": "menu.provider.shoutModeOff",
-            "value": "Shout Mode Off"
+            "value": "Schreeuwmodus Uit"
         },
         {
             "key": "menu.provider.unmute",
-            "value": "Unmute"
+            "value": "Dempen Opheffen"
         },
         {
             "key": "menu.servers.autoConnect",
-            "value": "Auto Connect"
+            "value": "Automatisch Verbinden"
         },
         {
             "key": "menu.servers.autoConnect.description",
-            "value": "Automatically connect to the last server on startup."
+            "value": "Automatisch verbinden met de laatste server bij het opstarten."
         },
         {
             "key": "menu.servers.connect",
-            "value": "Connect"
+            "value": "Verbinden"
         },
         {
             "key": "menu.servers.error.connectFailed",
-            "value": "Connection failed."
+            "value": "Verbinding mislukt."
         },
         {
             "key": "menu.servers.error.emptyName",
-            "value": "Display Name Was Empty"
+            "value": "Weergavenaam Was Leeg"
         },
         {
             "key": "menu.servers.error.noNetworkLayer",
-            "value": "Networking Layer was Not Created!"
+            "value": "Netwerklaag is Niet Aangemaakt!"
         },
         {
             "key": "menu.servers.error.timeout",
-            "value": "Disconnect/reboot timed out."
+            "value": "Verbreken/herstarten time-out."
         },
         {
             "key": "menu.servers.host",
@@ -696,267 +696,267 @@
         },
         {
             "key": "menu.servers.hostMode",
-            "value": "Host Mode"
+            "value": "Hostmodus"
         },
         {
             "key": "menu.servers.hostMode.description",
-            "value": "Run a local server and connect to it."
+            "value": "Voer een lokale server uit en maak er verbinding mee."
         },
         {
             "key": "menu.servers.ipAddress",
-            "value": "IP Address"
+            "value": "IP-adres"
         },
         {
             "key": "menu.servers.password",
-            "value": "Password"
+            "value": "Wachtwoord"
         },
         {
             "key": "menu.servers.port",
-            "value": "Port"
+            "value": "Poort"
         },
         {
             "key": "menu.servers.status.connecting",
-            "value": "Connecting"
+            "value": "Verbinden"
         },
         {
             "key": "menu.servers.status.disconnecting",
-            "value": "Disconnecting..."
+            "value": "Verbinding verbreken..."
         },
         {
             "key": "menu.servers.status.initializing",
-            "value": "Initializing..."
+            "value": "Initialiseren..."
         },
         {
             "key": "menu.servers.status.loadingBundle",
-            "value": "Loading Asset Bundle..."
+            "value": "Asset Bundle laden..."
         },
         {
             "key": "menu.servers.status.preparing",
-            "value": "Preparing..."
+            "value": "Voorbereiden..."
         },
         {
             "key": "menu.servers.useLocalhost",
-            "value": "Use \"Localhost\""
+            "value": "Gebruik \"Localhost\""
         },
         {
             "key": "menu.servers.username",
-            "value": "Username"
+            "value": "Gebruikersnaam"
         },
         {
             "key": "settings.admin.actions",
-            "value": "Actions"
+            "value": "Acties"
         },
         {
             "key": "settings.admin.actions.description",
-            "value": "Moderation + utility actions."
+            "value": "Moderatie + hulpprogramma-acties."
         },
         {
             "key": "settings.admin.autoRefresh",
-            "value": "Auto Refresh Player List"
+            "value": "Spelerslijst Automatisch Vernieuwen"
         },
         {
             "key": "settings.admin.autoRefresh.description",
-            "value": "Rebuild the list automatically when players join or leave. Disable in crowded instances to avoid rebuild cost."
+            "value": "Bouwt de lijst automatisch opnieuw wanneer spelers binnenkomen of weggaan. Uitschakelen in drukke instanties om herbouwkosten te vermijden."
         },
         {
             "key": "settings.admin.banUuid",
-            "value": "Ban (UUID)"
+            "value": "Verbannen (UUID)"
         },
         {
             "key": "settings.admin.banUuid.description",
-            "value": "Bans by UUID using the reason/message field."
+            "value": "Verbant op UUID met het reden/berichtveld."
         },
         {
             "key": "settings.admin.description",
-            "value": "Moderation tools and quick utilities."
+            "value": "Moderatiehulpmiddelen en snelle hulpprogramma's."
         },
         {
             "key": "settings.admin.disableShout.description",
-            "value": "Removes non-spatialized broadcast voice from the selected player."
+            "value": "Verwijdert niet-ruimtelijke uitzendstem van de geselecteerde speler."
         },
         {
             "key": "settings.admin.enableShout.description",
-            "value": "Grants non-spatialized broadcast voice to the selected player."
+            "value": "Verleent niet-ruimtelijke uitzendstem aan de geselecteerde speler."
         },
         {
             "key": "settings.admin.ipBanUuid",
-            "value": "IP Ban (UUID)"
+            "value": "IP Verbannen (UUID)"
         },
         {
             "key": "settings.admin.ipBanUuid.description",
-            "value": "IP bans by UUID using the reason/message field."
+            "value": "IP-verbant op UUID met het reden/berichtveld."
         },
         {
             "key": "settings.admin.kickUuid",
-            "value": "Kick (UUID)"
+            "value": "Schoppen (UUID)"
         },
         {
             "key": "settings.admin.kickUuid.description",
-            "value": "Kicks by UUID using the reason/message field."
+            "value": "Schopt op UUID met het reden/berichtveld."
         },
         {
             "key": "settings.admin.players.description",
-            "value": "Click a player to target them (fills UUID)."
+            "value": "Klik op een speler om hen te targeten (vult UUID)."
         },
         {
             "key": "settings.admin.reason",
-            "value": "Reason / Message"
+            "value": "Reden / Bericht"
         },
         {
             "key": "settings.admin.reason.description",
-            "value": "Reason for moderation actions, or message contents."
+            "value": "Reden voor moderatieacties, of berichtinhoud."
         },
         {
             "key": "settings.admin.refreshPlayers",
-            "value": "Refresh Player List"
+            "value": "Spelerslijst Vernieuwen"
         },
         {
             "key": "settings.admin.refreshPlayers.description",
-            "value": "Rebuilds the list from current network state."
+            "value": "Bouwt de lijst opnieuw op vanuit de huidige netwerkstatus."
         },
         {
             "key": "settings.admin.sendAll",
-            "value": "Send Message To All"
+            "value": "Bericht naar Allen Verzenden"
         },
         {
             "key": "settings.admin.sendAll.description",
-            "value": "Broadcasts the message to all players."
+            "value": "Verstuurt het bericht naar alle spelers."
         },
         {
             "key": "settings.admin.sendMessageUuid",
-            "value": "Send Message (UUID)"
+            "value": "Bericht Verzenden (UUID)"
         },
         {
             "key": "settings.admin.sendMessageUuid.description",
-            "value": "Sends the message to the target player (requires UUID -> network id lookup)."
+            "value": "Verzendt het bericht naar de doelspeler (vereist UUID -> netwerk-id opzoeking)."
         },
         {
             "key": "settings.admin.target",
-            "value": "Target"
+            "value": "Doel"
         },
         {
             "key": "settings.admin.target.description",
-            "value": "UUID can be filled by selecting a player above."
+            "value": "UUID kan worden ingevuld door hierboven een speler te selecteren."
         },
         {
             "key": "settings.admin.teleportAll",
-            "value": "Teleport All To Target"
+            "value": "Allen Teleporteren Naar Doel"
         },
         {
             "key": "settings.admin.teleportAll.description",
-            "value": "Teleports everyone to the selected player's location."
+            "value": "Teleporteert iedereen naar de locatie van de geselecteerde speler."
         },
         {
             "key": "settings.admin.teleportHere",
-            "value": "Teleport Player Here"
+            "value": "Speler Hierheen Teleporteren"
         },
         {
             "key": "settings.admin.teleportHere.description",
-            "value": "Teleports the selected player to your location."
+            "value": "Teleporteert de geselecteerde speler naar jouw locatie."
         },
         {
             "key": "settings.admin.teleportTo",
-            "value": "Teleport To Player"
+            "value": "Naar Speler Teleporteren"
         },
         {
             "key": "settings.admin.teleportTo.description",
-            "value": "Teleports you to the selected player's location."
+            "value": "Teleporteert jou naar de locatie van de geselecteerde speler."
         },
         {
             "key": "settings.admin.title",
-            "value": "Admin & Moderation"
+            "value": "Beheer & Moderatie"
         },
         {
             "key": "settings.admin.unbanUuid",
-            "value": "Unban (UUID)"
+            "value": "Verbanning Opheffen (UUID)"
         },
         {
             "key": "settings.admin.unbanUuid.description",
-            "value": "Removes ban by UUID."
+            "value": "Verwijdert verbanning op UUID."
         },
         {
             "key": "settings.admin.uuidTarget",
-            "value": "UUID / Target"
+            "value": "UUID / Doel"
         },
         {
             "key": "settings.admin.uuidTarget.description",
-            "value": "Player UUID (or paste a UUID)."
+            "value": "Speler-UUID (of plak een UUID)."
         },
         {
             "key": "settings.audio.avatarVolume",
-            "value": "Avatar Volume"
+            "value": "Avatarvolume"
         },
         {
             "key": "settings.audio.mainVolume",
-            "value": "Main Volume"
+            "value": "Hoofdvolume"
         },
         {
             "key": "settings.audio.masterVolume",
-            "value": "Master Volume"
+            "value": "Mastervolume"
         },
         {
             "key": "settings.audio.masterVolume.description",
-            "value": "Overall game volume."
+            "value": "Algemeen spelvolume."
         },
         {
             "key": "settings.audio.mediaVolume",
-            "value": "Media Volume"
+            "value": "Mediavolume"
         },
         {
             "key": "settings.audio.menuVolume",
-            "value": "Menu Volume"
+            "value": "Menuvolume"
         },
         {
             "key": "settings.audio.mixer.description",
-            "value": "Control individual channel volumes."
+            "value": "Bedien individuele kanaalvolumes."
         },
         {
             "key": "settings.audio.mixer.title",
-            "value": "Volume Mixer"
+            "value": "Volumemixer"
         },
         {
             "key": "settings.audio.propVolume",
-            "value": "Prop Volume"
+            "value": "Propvolume"
         },
         {
             "key": "settings.audio.title",
-            "value": "Audio Settings"
+            "value": "Audio-instellingen"
         },
         {
             "key": "settings.audio.voiceVolume",
-            "value": "Voice Volume"
+            "value": "Stemvolume"
         },
         {
             "key": "settings.audio.worldVolume",
-            "value": "World Volume"
+            "value": "Wereldvolume"
         },
         {
             "key": "settings.bodyTracking.advanced",
-            "value": "Advanced IK Settings"
+            "value": "Geavanceerde IK-instellingen"
         },
         {
             "key": "settings.bodyTracking.advanced.description",
-            "value": "Show advanced collider, shoulder, and spine tuning parameters."
+            "value": "Toon geavanceerde collider-, schouder- en wervelkolominstellingsparameters."
         },
         {
             "key": "settings.bodyTracking.colliders.description",
-            "value": "Controls for IK collision detection and spine/shoulder tuning parameters"
+            "value": "Bedieningselementen voor IK-botsingdetectie en wervelkolom/schouder-instellingsparameters"
         },
         {
             "key": "settings.bodyTracking.colliders.title",
-            "value": "IK Colliders & Tuning"
+            "value": "IK Colliders & Afstemming"
         },
         {
             "key": "settings.bodyTracking.collisionsEnabled",
-            "value": "Collisions Enabled"
+            "value": "Botsingen Ingeschakeld"
         },
         {
             "key": "settings.bodyTracking.customScale",
-            "value": "Custom Scale"
+            "value": "Aangepaste Schaal"
         },
         {
             "key": "settings.bodyTracking.customScale.description",
-            "value": "Enables manual override of automatic body scaling."
+            "value": "Schakelt handmatige overschrijving van automatische lichaamsschaling in."
         },
         {
             "key": "settings.bodyTracking.debugInfo",
@@ -964,83 +964,83 @@
         },
         {
             "key": "settings.bodyTracking.debugInfo.description",
-            "value": "Show live height, scaling, and calibration data."
+            "value": "Toon live hoogte-, schaling- en kalibratiegegevens."
         },
         {
             "key": "settings.bodyTracking.description",
-            "value": "Fine-tuning for avatar scaling, calibration, and IK smoothing"
+            "value": "Fijnafstemming voor avatarschaling, kalibratie en IK-afvlakking"
         },
         {
             "key": "settings.bodyTracking.disableAnimFbt",
-            "value": "Disable Animations in FBT"
+            "value": "Animaties Uitschakelen in FBT"
         },
         {
             "key": "settings.bodyTracking.fbt",
-            "value": "Full Body Tracking"
+            "value": "Volledige Lichaamstracking"
         },
         {
             "key": "settings.bodyTracking.footIk",
-            "value": "Foot IK"
+            "value": "Voet-IK"
         },
         {
             "key": "settings.bodyTracking.heightDebug.description",
-            "value": "Current values from the height driver and calibration system."
+            "value": "Huidige waarden van het hoogtestuurprogramma en kalibratiesysteem."
         },
         {
             "key": "settings.bodyTracking.heightDebug.title",
-            "value": "Height & Calibration Debug"
+            "value": "Hoogte & Kalibratie Debug"
         },
         {
             "key": "settings.bodyTracking.ikMode",
-            "value": "Full Body IK Mode"
+            "value": "Volledige Lichaam IK-modus"
         },
         {
             "key": "settings.bodyTracking.osc",
-            "value": "OSC (Face / Parameters)"
+            "value": "OSC (Gezicht / Parameters)"
         },
         {
             "key": "settings.bodyTracking.refreshDebug",
-            "value": "Refresh Debug Data"
+            "value": "Debug-gegevens Vernieuwen"
         },
         {
             "key": "settings.bodyTracking.seatedMode",
-            "value": "Seated / Standing Mode"
+            "value": "Zittende / Staande Modus"
         },
         {
             "key": "settings.bodyTracking.spineLockMode",
-            "value": "Spine Lock Mode"
+            "value": "Wervelkolomvergrendelingsmodus"
         },
         {
             "key": "settings.chat.group.description",
-            "value": "Send a text message that appears above your nameplate."
+            "value": "Stuur een tekstbericht dat boven je naamplaat verschijnt."
         },
         {
             "key": "settings.chat.joinNotifications",
-            "value": "Join Notifications"
+            "value": "Meldingen bij Binnenkomen"
         },
         {
             "key": "settings.chat.leaveNotifications",
-            "value": "Leave Notifications"
+            "value": "Meldingen bij Vertrek"
         },
         {
             "key": "settings.chat.message",
-            "value": "Chat Message"
+            "value": "Chatbericht"
         },
         {
             "key": "settings.chat.notifications.description",
-            "value": "Toggle join and leave notifications."
+            "value": "Schakel binnenkomen- en vertrekmeldingen."
         },
         {
             "key": "settings.chat.notifications.title",
-            "value": "Notifications"
+            "value": "Meldingen"
         },
         {
             "key": "settings.console.clearLogs",
-            "value": "Clear Logs"
+            "value": "Logboeken Wissen"
         },
         {
             "key": "settings.console.collapse",
-            "value": "Collapse"
+            "value": "Samenvouwen"
         },
         {
             "key": "settings.console.filter",
@@ -1052,35 +1052,35 @@
         },
         {
             "key": "settings.console.openCrashReport",
-            "value": "Open Latest Crash Report"
+            "value": "Laatste Crashrapport Openen"
         },
         {
             "key": "settings.console.output",
-            "value": "Output"
+            "value": "Uitvoer"
         },
         {
             "key": "settings.controls.action",
-            "value": "Action"
+            "value": "Actie"
         },
         {
             "key": "settings.controls.actionBindings.description",
-            "value": "Choose an action to edit its bound roles."
+            "value": "Kies een actie om de gekoppelde rollen te bewerken."
         },
         {
             "key": "settings.controls.actionBindings.title",
-            "value": "Action Bindings ({0})"
+            "value": "Actie Koppelingen ({0})"
         },
         {
             "key": "settings.controls.dominantHand",
-            "value": "Dominant Hand"
+            "value": "Dominante Hand"
         },
         {
             "key": "settings.controls.gameplay.description",
-            "value": "General controls and comfort settings."
+            "value": "Algemene bediening en comfortinstellingen."
         },
         {
             "key": "settings.controls.gameplay.title",
-            "value": "Gameplay & Input"
+            "value": "Gameplay & Invoer"
         },
         {
             "key": "settings.controls.gateCurve",
@@ -1088,75 +1088,75 @@
         },
         {
             "key": "settings.controls.generalDeadzone.description",
-            "value": "Basic filtering applied to the whole stick. (excluding look)"
+            "value": "Basisfiltering toegepast op de hele stick. (exclusief kijken)"
         },
         {
             "key": "settings.controls.generalDeadzone.title",
-            "value": "General Deadzone"
+            "value": "Algemene Dode Zone"
         },
         {
             "key": "settings.controls.invertMouse",
-            "value": "Invert Mouse"
+            "value": "Muis Omkeren"
         },
         {
             "key": "settings.controls.lookYDeadZone",
-            "value": "Look Y Dead Zone"
+            "value": "Kijk Y Dode Zone"
         },
         {
             "key": "settings.controls.mouseSensitivity",
-            "value": "Mouse Sensitivity"
+            "value": "Muisgevoeligheid"
         },
         {
             "key": "settings.controls.pitchComfort.description",
-            "value": "Look joystick Y Dead Zone."
+            "value": "Kijk-joystick Y Dode Zone."
         },
         {
             "key": "settings.controls.pitchComfort.title",
-            "value": "Vertical (Pitch / Other)"
+            "value": "Verticaal (Pitch / Overig)"
         },
         {
             "key": "settings.controls.radialDeadZone",
-            "value": "Radial Dead Zone"
+            "value": "Radiale Dode Zone"
         },
         {
             "key": "settings.controls.roles",
-            "value": "Roles"
+            "value": "Rollen"
         },
         {
             "key": "settings.controls.smoothTurnSpeed",
-            "value": "Smooth Turn Speed"
+            "value": "Vloeiende Draaisnelheid"
         },
         {
             "key": "settings.controls.snapTurn",
-            "value": "Use Snap Turn Locomotion"
+            "value": "Snap Turn Beweging Gebruiken"
         },
         {
             "key": "settings.controls.snapTurnAngle",
-            "value": "Snap Turn Angle"
+            "value": "Snap Turn Hoek"
         },
         {
             "key": "settings.controls.xDeadZoneMin",
-            "value": "X Dead Zone (Min)"
+            "value": "X Dode Zone (Min)"
         },
         {
             "key": "settings.controls.xGateFullY",
-            "value": "X Gate (At Full Y)"
+            "value": "X Gate (Bij Volle Y)"
         },
         {
             "key": "settings.controls.yawComfort.description",
-            "value": "Prevents forward/back stick pressure from causing accidental left/right drift (\"butterfly wings\")."
+            "value": "Voorkomt dat voorwaarts/achterwaartse stickdruk per ongeluk links/rechts afdrijving veroorzaakt (\"vlindervleugels\")."
         },
         {
             "key": "settings.controls.yawComfort.title",
-            "value": "Horizontal (Yaw) Comfort"
+            "value": "Horizontaal (Yaw) Comfort"
         },
         {
             "key": "settings.developer.audioDebug.enable",
-            "value": "Enable Audio Debug"
+            "value": "Audio Debug Inschakelen"
         },
         {
             "key": "settings.developer.audioDebug.enable.description",
-            "value": "Show audio debug info in individual player panels."
+            "value": "Toon audio debug-info in individuele spelerspanelen."
         },
         {
             "key": "settings.developer.audioDebug.jitter",
@@ -1164,7 +1164,7 @@
         },
         {
             "key": "settings.developer.audioDebug.jitter.description",
-            "value": "Show jitter buffer packets, fill state, and playback status."
+            "value": "Toon jitter-bufferpakketten, vulstatus en afspeelstatus."
         },
         {
             "key": "settings.developer.audioDebug.ringBuffer",
@@ -1172,159 +1172,167 @@
         },
         {
             "key": "settings.developer.audioDebug.ringBuffer.description",
-            "value": "Show voice ring buffer fill level and state."
+            "value": "Toon vulniveau en status van stemringbuffer."
         },
         {
             "key": "settings.developer.audioDebug.silence.description",
-            "value": "Show silence duration and gap detection."
+            "value": "Toon stilteduur en gatdetectie."
         },
         {
             "key": "settings.developer.audioDebug.source.description",
-            "value": "Show AudioSource state (enabled, playing, spatial settings)."
+            "value": "Toon AudioSource-status (ingeschakeld, spelend, ruimtelijke instellingen)."
         },
         {
             "key": "settings.developer.audioDebug.viseme.description",
-            "value": "Show viseme/lip-sync driver state."
+            "value": "Toon viseme/lip-sync stuurprogrammastatus."
         },
         {
             "key": "settings.developer.audioDebug.volumeChain.description",
-            "value": "Show volume multipliers (source, dampening, main, effective)."
+            "value": "Toon volumevermenigvuldigers (bron, demping, hoofd, effectief)."
         },
         {
             "key": "settings.developer.avatarDistance",
-            "value": "Avatar Distance"
+            "value": "Avatarafstand"
         },
         {
             "key": "settings.developer.avatarDistance.description",
-            "value": "Show avatar visibility range circle at your feet."
+            "value": "Toon avatar-zichtbaarheidsbereikcirkel bij je voeten."
         },
         {
             "key": "settings.developer.boneTracking",
-            "value": "Bone Tracking"
+            "value": "Bot Tracking"
         },
         {
             "key": "settings.developer.boneTracking.description",
-            "value": "Show sphere gizmos at tracked bone positions."
+            "value": "Toon bolgizmo's bij gevolgde botposities."
         },
         {
             "key": "settings.developer.buildInfo",
-            "value": "Build & Environment"
+            "value": "Build & Omgeving"
         },
         {
             "key": "settings.developer.buildInfo.description",
-            "value": "Show build identifiers and environment info."
+            "value": "Toon build-ID's en omgevingsinfo."
         },
         {
             "key": "settings.developer.buildInfo.section.description",
-            "value": "Useful identifiers for debugging builds."
+            "value": "Nuttige identificaties voor het debuggen van builds."
         },
         {
             "key": "settings.developer.console",
-            "value": "Console Log"
+            "value": "Consolelogboek"
         },
         {
             "key": "settings.developer.console.description",
-            "value": "Show inline console log output."
+            "value": "Toon inline console log uitvoer."
         },
         {
             "key": "settings.developer.disableLogging",
-            "value": "Disable Basis Logging"
+            "value": "Basis Logging Uitschakelen"
         },
         {
             "key": "settings.developer.disableLogging.description",
-            "value": "Suppress all BasisDebug log, warning, and error output."
+            "value": "Onderdruk alle BasisDebug log-, waarschuwings- en fout-uitvoer."
         },
         {
             "key": "settings.developer.enableStatistics",
-            "value": "Enable Statistics"
+            "value": "Statistieken Inschakelen"
         },
         {
             "key": "settings.developer.enableStatistics.description",
-            "value": "Enable network statistics recording. Takes effect on next connection."
+            "value": "Schakel netwerkstatistieken-opname in. Wordt van kracht bij volgende verbinding."
         },
         {
             "key": "settings.developer.euroFilter",
-            "value": "Network Euro Filter"
+            "value": "Netwerk Euro Filter"
         },
         {
             "key": "settings.developer.euroFilter.description",
-            "value": "Show One Euro filter tuning for remote interpolation."
+            "value": "Toon One Euro filter-afstemming voor externe interpolatie."
         },
         {
             "key": "settings.developer.netStats",
-            "value": "Network & Statistics"
+            "value": "Netwerk & Statistieken"
         },
         {
             "key": "settings.developer.netStats.description",
-            "value": "Show live connection and bandwidth diagnostics."
+            "value": "Toon live verbinding en bandbreedtediagnostiek."
         },
         {
             "key": "settings.developer.remoteAudioDebug.description",
-            "value": "Controls which audio debug sections appear in per-player panels."
+            "value": "Bepaalt welke audio-debugsecties verschijnen in per-spelerpanelen."
         },
         {
             "key": "settings.developer.remoteAudioDebug.title",
-            "value": "Remote Audio Debug"
+            "value": "Externe Audio Debug"
         },
         {
             "key": "settings.developer.sections.description",
-            "value": "Toggle which developer sections are visible below."
+            "value": "Schakel welke ontwikkelaarssecties hieronder zichtbaar zijn."
         },
         {
             "key": "settings.developer.sections.title",
-            "value": "Developer Sections"
+            "value": "Ontwikkelaarssecties"
         },
         {
             "key": "settings.developer.title",
-            "value": "Developer & Debug"
+            "value": "Ontwikkelaar & Debug"
         },
         {
             "key": "settings.developer.visualHelpers.description",
-            "value": "Toggle individual debug visualizations."
+            "value": "Schakel individuele debug-visualisaties."
         },
         {
             "key": "settings.developer.visualHelpers.title",
-            "value": "Visual Helpers"
+            "value": "Visuele Helpers"
         },
         {
             "key": "settings.general.avatarRange",
-            "value": "Avatar Visibility Range"
+            "value": "Avatarzichtbaarheidsbereik"
         },
         {
             "key": "settings.general.disableSeats",
-            "value": "Disable Seats"
+            "value": "Stoelen Uitschakelen"
         },
         {
             "key": "settings.general.disableSeats.description",
-            "value": "Prevent sitting in seats placed in the world."
+            "value": "Voorkom dat er wordt gezeten in stoelen die in de wereld zijn geplaatst."
         },
         {
             "key": "settings.general.hearingRange",
-            "value": "Hearing Range"
+            "value": "Hoorbereik"
         },
         {
             "key": "settings.general.interactions.title",
-            "value": "Interactions"
+            "value": "Interacties"
         },
         {
             "key": "settings.general.language.description",
-            "value": "Reopen the menu to apply a language change."
+            "value": "Open het menu opnieuw om een taalwijziging toe te passen."
         },
         {
             "key": "settings.general.language.title",
-            "value": "Language"
+            "value": "Taal"
+        },
+        {
+            "key": "settings.general.language.help_translate.title",
+            "value": "Help ons vertalen!"
+        },
+        {
+            "key": "settings.general.language.help_translate.description",
+            "value": "Taalbestanden staan in StreamingAssets/Basis/Languages. Kopieer en.json, vertaal de waarden en stuur een pull request in."
         },
         {
             "key": "settings.general.limitAudio",
-            "value": "Limit Audio Sources"
+            "value": "Audiobronnen Beperken"
         },
         {
             "key": "settings.general.limitAvatars",
-            "value": "Limit Avatars"
+            "value": "Avatars Beperken"
         },
         {
             "key": "settings.general.maxAudio",
-            "value": "Max Audio Sources"
+            "value": "Max Audiobronnen"
         },
         {
             "key": "settings.general.maxAvatars",
@@ -1332,39 +1340,39 @@
         },
         {
             "key": "settings.general.microphoneRange",
-            "value": "Microphone Range"
+            "value": "Microfoonbereik"
         },
         {
             "key": "settings.general.ranges.description",
-            "value": "Visibility and hearing ranges."
+            "value": "Zichtbaarheids- en hoorbereiken."
         },
         {
             "key": "settings.general.ranges.title",
-            "value": "Ranges"
+            "value": "Bereiken"
         },
         {
             "key": "settings.general.title",
-            "value": "General Settings"
+            "value": "Algemene Instellingen"
         },
         {
             "key": "settings.general.viewCone",
-            "value": "View Cone Avatars"
+            "value": "Kijkkegel Avatars"
         },
         {
             "key": "settings.general.viewCone.description",
-            "value": "Only show avatars in the direction you are looking."
+            "value": "Toon alleen avatars in de richting waar je naar kijkt."
         },
         {
             "key": "settings.general.viewConeAngle",
-            "value": "View Cone Angle"
+            "value": "Kijkkegelhoek"
         },
         {
             "key": "settings.graphics.advanced.description",
-            "value": "Fine-tune rendering, LOD, and performance options."
+            "value": "Fijnafstellen van rendering, LOD en prestatie-opties."
         },
         {
             "key": "settings.graphics.advanced.showAdvanced",
-            "value": "Show Advanced Settings"
+            "value": "Geavanceerde Instellingen Tonen"
         },
         {
             "key": "settings.graphics.antialiasing",
@@ -1376,15 +1384,15 @@
         },
         {
             "key": "settings.graphics.bloom.intensity",
-            "value": "Bloom Intensity"
+            "value": "Bloom Intensiteit"
         },
         {
             "key": "settings.graphics.bloom.override",
-            "value": "Override Bloom Intensity"
+            "value": "Bloom Intensiteit Overschrijven"
         },
         {
             "key": "settings.graphics.bloom.override.description",
-            "value": "Override the scene bloom intensity."
+            "value": "Overschrijf de scène bloom intensiteit."
         },
         {
             "key": "settings.graphics.bloom.title",
@@ -1392,27 +1400,27 @@
         },
         {
             "key": "settings.graphics.cameraClip.far",
-            "value": "Far Clip"
+            "value": "Verre Clip"
         },
         {
             "key": "settings.graphics.cameraClip.near",
-            "value": "Near Clip"
+            "value": "Nabije Clip"
         },
         {
             "key": "settings.graphics.cameraClip.override",
-            "value": "Override Camera Clip Distances"
+            "value": "Camera Clip Afstanden Overschrijven"
         },
         {
             "key": "settings.graphics.cameraClip.override.description",
-            "value": "Force near and far clip plane distances on the camera."
+            "value": "Forceer nabije en verre clipvlakafstanden op de camera."
         },
         {
             "key": "settings.graphics.cameraClip.title",
-            "value": "Camera Clip Distances"
+            "value": "Camera Clip Afstanden"
         },
         {
             "key": "settings.graphics.fov",
-            "value": "Field of View"
+            "value": "Gezichtsveld"
         },
         {
             "key": "settings.graphics.foveated",
@@ -1420,35 +1428,35 @@
         },
         {
             "key": "settings.graphics.frameRateCap",
-            "value": "Frame Rate Cap (FPS)"
+            "value": "Framesnelheidslimiet (FPS)"
         },
         {
             "key": "settings.graphics.frameRateCap.description",
-            "value": "Used only when Vertical Sync is set to Capped."
+            "value": "Alleen gebruikt wanneer Verticale Synchronisatie is ingesteld op Beperkt."
         },
         {
             "key": "settings.graphics.hdrSupport",
-            "value": "HDR Support"
+            "value": "HDR Ondersteuning"
         },
         {
             "key": "settings.graphics.memoryAllocation",
-            "value": "Memory Allocation"
+            "value": "Geheugentoewijzing"
         },
         {
             "key": "settings.graphics.mirrorQuality.override",
-            "value": "Override Mirror Quality"
+            "value": "Spiegelkwaliteit Overschrijven"
         },
         {
             "key": "settings.graphics.mirrorQuality.override.description",
-            "value": "Override the resolution used by mirrors."
+            "value": "Overschrijf de resolutie die door spiegels wordt gebruikt."
         },
         {
             "key": "settings.graphics.mirrorQuality.title",
-            "value": "Mirror Quality"
+            "value": "Spiegelkwaliteit"
         },
         {
             "key": "settings.graphics.mirrorResolution",
-            "value": "Mirror Resolution"
+            "value": "Spiegelresolutie"
         },
         {
             "key": "settings.graphics.poseLod.bias",
@@ -1456,11 +1464,11 @@
         },
         {
             "key": "settings.graphics.poseLod.bias.description",
-            "value": "Reduces CPU cost by updating distant player poses less frequently.\n0 = off (all players update every frame).\n1-2 = subtle reduction, barely visible.\n3-5 = noticeable on distant players, significant CPU savings."
+            "value": "Vermindert CPU-kosten door houdingen van verre spelers minder vaak bij te werken.\n0 = uit (alle spelers updaten elk frame).\n1-2 = subtiele vermindering, nauwelijks zichtbaar.\n3-5 = merkbaar bij verre spelers, aanzienlijke CPU-besparing."
         },
         {
             "key": "settings.graphics.poseLod.description",
-            "value": "Control how frequently distant player poses update."
+            "value": "Bepaal hoe vaak verre spelerhoudingen worden bijgewerkt."
         },
         {
             "key": "settings.graphics.poseLod.title",
@@ -1468,19 +1476,19 @@
         },
         {
             "key": "settings.graphics.quality.description",
-            "value": "Overall render quality and post-processing."
+            "value": "Algemene renderkwaliteit en nabewerking."
         },
         {
             "key": "settings.graphics.quality.title",
-            "value": "Quality"
+            "value": "Kwaliteit"
         },
         {
             "key": "settings.graphics.qualityLevel",
-            "value": "Quality Level"
+            "value": "Kwaliteitsniveau"
         },
         {
             "key": "settings.graphics.rendering.description",
-            "value": "Resolution and performance-related options."
+            "value": "Resolutie- en prestatiegerelateerde opties."
         },
         {
             "key": "settings.graphics.rendering.title",
@@ -1488,51 +1496,51 @@
         },
         {
             "key": "settings.graphics.renderScale",
-            "value": "Render Scale"
+            "value": "Renderschaal"
         },
         {
             "key": "settings.graphics.resolution",
-            "value": "Resolution"
+            "value": "Resolutie"
         },
         {
             "key": "settings.graphics.screenMode",
-            "value": "Screen Mode"
+            "value": "Schermmodus"
         },
         {
             "key": "settings.graphics.shadowQuality",
-            "value": "Shadow Quality"
+            "value": "Schaduwkwaliteit"
         },
         {
             "key": "settings.graphics.title",
-            "value": "Graphics Settings"
+            "value": "Grafische Instellingen"
         },
         {
             "key": "settings.graphics.verticalSync",
-            "value": "Vertical Sync"
+            "value": "Verticale Synchronisatie"
         },
         {
             "key": "settings.graphics.verticalSync.description",
-            "value": "VR uses headset refreshrate"
+            "value": "VR gebruikt verversingssnelheid van headset"
         },
         {
             "key": "settings.graphics.worldLod",
-            "value": "World LOD"
+            "value": "Wereld LOD"
         },
         {
             "key": "settings.microphone.agc",
-            "value": "Automatic Gain (AGC)"
+            "value": "Automatische Versterking (AGC)"
         },
         {
             "key": "settings.microphone.agc.attack",
-            "value": "AGC Attack"
+            "value": "AGC Aanval"
         },
         {
             "key": "settings.microphone.agc.description",
-            "value": "Target loudness and responsiveness (only applies when AGC is enabled)."
+            "value": "Doelluidheid en responsiviteit (alleen van toepassing wanneer AGC is ingeschakeld)."
         },
         {
             "key": "settings.microphone.agc.maxGain",
-            "value": "AGC Max Gain (dB)"
+            "value": "AGC Max Versterking (dB)"
         },
         {
             "key": "settings.microphone.agc.release",
@@ -1540,71 +1548,71 @@
         },
         {
             "key": "settings.microphone.agc.targetRms",
-            "value": "AGC Target RMS"
+            "value": "AGC Doel RMS"
         },
         {
             "key": "settings.microphone.agc.title",
-            "value": "AGC Tuning"
+            "value": "AGC Afstemming"
         },
         {
             "key": "settings.microphone.denoiser",
-            "value": "Microphone Denoiser"
+            "value": "Microfoon Ruisonderdrukker"
         },
         {
             "key": "settings.microphone.denoiser.description",
-            "value": "Adjust denoiser blend and makeup gain."
+            "value": "Pas ruisonderdrukking blend en makeup gain aan."
         },
         {
             "key": "settings.microphone.denoiser.makeup",
-            "value": "Denoise Makeup (dB)"
+            "value": "Ruisonderdrukking Makeup (dB)"
         },
         {
             "key": "settings.microphone.denoiser.title",
-            "value": "Denoiser Tuning"
+            "value": "Ruisonderdrukker Afstemming"
         },
         {
             "key": "settings.microphone.denoiser.wet",
-            "value": "Denoise Wet"
+            "value": "Ruisonderdrukking Wet"
         },
         {
             "key": "settings.microphone.group.description",
-            "value": "Microphone Related Settings"
+            "value": "Microfoon Gerelateerde Instellingen"
         },
         {
             "key": "settings.microphone.group.title",
-            "value": "Microphone"
+            "value": "Microfoon"
         },
         {
             "key": "settings.microphone.icon",
-            "value": "Microphone Icon"
+            "value": "Microfoon Icoon"
         },
         {
             "key": "settings.microphone.iconPosition.description",
-            "value": "Adjust the microphone icon position on screen."
+            "value": "Pas de microfoon-iconpositie op het scherm aan."
         },
         {
             "key": "settings.microphone.iconPosition.horizontal",
-            "value": "Horizontal Offset"
+            "value": "Horizontale Verschuiving"
         },
         {
             "key": "settings.microphone.iconPosition.title",
-            "value": "Mic Icon Position"
+            "value": "Mic Icoonpositie"
         },
         {
             "key": "settings.microphone.iconPosition.vertical",
-            "value": "Vertical Offset"
+            "value": "Verticale Verschuiving"
         },
         {
             "key": "settings.microphone.limiter.description",
-            "value": "Prevents clipping by soft-limiting peaks."
+            "value": "Voorkomt clipping door pieken zacht te beperken."
         },
         {
             "key": "settings.microphone.limiter.knee",
-            "value": "Limit Knee"
+            "value": "Limiet Knie"
         },
         {
             "key": "settings.microphone.limiter.threshold",
-            "value": "Limit Threshold"
+            "value": "Limietdrempel"
         },
         {
             "key": "settings.microphone.limiter.title",
@@ -1612,19 +1620,19 @@
         },
         {
             "key": "settings.microphone.mode",
-            "value": "Microphone Mode"
+            "value": "Microfoonmodus"
         },
         {
             "key": "settings.microphone.noiseGate.attack",
-            "value": "Gate Attack"
+            "value": "Gate Aanval"
         },
         {
             "key": "settings.microphone.noiseGate.description",
-            "value": "Mutes audio below a threshold to cut background noise."
+            "value": "Dempt audio onder een drempel om achtergrondgeluid te verminderen."
         },
         {
             "key": "settings.microphone.noiseGate.enable",
-            "value": "Enable Noise Gate"
+            "value": "Ruisgate Inschakelen"
         },
         {
             "key": "settings.microphone.noiseGate.release",
@@ -1632,35 +1640,35 @@
         },
         {
             "key": "settings.microphone.noiseGate.threshold",
-            "value": "Gate Threshold"
+            "value": "Gate Drempel"
         },
         {
             "key": "settings.microphone.noiseGate.title",
-            "value": "Noise Gate"
+            "value": "Ruisgate"
         },
         {
             "key": "settings.microphone.selection",
-            "value": "Microphone Selection"
+            "value": "Microfoonselectie"
         },
         {
             "key": "settings.microphone.startBehavior",
-            "value": "Mic Start Behavior"
+            "value": "Mic Startgedrag"
         },
         {
             "key": "settings.microphone.title",
-            "value": "Microphone Settings"
+            "value": "Microfooninstellingen"
         },
         {
             "key": "settings.microphone.volume",
-            "value": "Microphone Volume"
+            "value": "Microfoonvolume"
         },
         {
             "key": "settings.myAvatar.assignedTrackers",
-            "value": "Assigned Trackers"
+            "value": "Toegewezen Trackers"
         },
         {
             "key": "settings.myAvatar.description",
-            "value": "Texture and memory statistics for your current avatar."
+            "value": "Textuur- en geheugenstatistieken voor je huidige avatar."
         },
         {
             "key": "settings.myAvatar.mipmapStreaming",
@@ -1668,99 +1676,99 @@
         },
         {
             "key": "settings.myAvatar.mipmapStreaming.description",
-            "value": "Textures with streaming mipmaps load only the detail levels needed, reducing VRAM pressure on everyone in the instance."
+            "value": "Texturen met streaming mipmaps laden alleen de benodigde detailniveaus, waardoor de VRAM-druk voor iedereen in de instantie wordt verlaagd."
         },
         {
             "key": "settings.myAvatar.noAvatar",
-            "value": "No Avatar"
+            "value": "Geen Avatar"
         },
         {
             "key": "settings.myAvatar.noAvatar.description",
-            "value": "No avatar is currently loaded."
+            "value": "Er is momenteel geen avatar geladen."
         },
         {
             "key": "settings.myAvatar.overview",
-            "value": "Overview"
+            "value": "Overzicht"
         },
         {
             "key": "settings.myAvatar.perfImpact",
-            "value": "Performance Impact"
+            "value": "Prestatie-impact"
         },
         {
             "key": "settings.myAvatar.perfImpact.description",
-            "value": "How this avatar affects other players in the instance."
+            "value": "Hoe deze avatar andere spelers in de instantie beïnvloedt."
         },
         {
             "key": "settings.myAvatar.scan",
-            "value": "Scan Avatar"
+            "value": "Avatar Scannen"
         },
         {
             "key": "settings.myAvatar.scan.description",
-            "value": "Analyze your current avatar's textures, VRAM usage, and streaming mipmap status."
+            "value": "Analyseer texturen, VRAM-gebruik en streaming mipmap-status van je huidige avatar."
         },
         {
             "key": "settings.myAvatar.showTrackers",
-            "value": "Show Assigned Trackers"
+            "value": "Toegewezen Trackers Tonen"
         },
         {
             "key": "settings.myAvatar.showTrackers.description",
-            "value": "List every input device that has been assigned a tracked bone role."
+            "value": "Toon elk invoerapparaat dat een gevolgde botrol heeft gekregen."
         },
         {
             "key": "settings.myAvatar.textureDetails",
-            "value": "Texture Details"
+            "value": "Textuurdetails"
         },
         {
             "key": "settings.myAvatar.trackerRoles",
-            "value": "Tracker Roles"
+            "value": "Trackerrollen"
         },
         {
             "key": "settings.myAvatar.trackerRoles.description",
-            "value": "Inspect which physical trackers are currently bound to avatar roles."
+            "value": "Inspecteer welke fysieke trackers momenteel zijn gekoppeld aan avatarrollen."
         },
         {
             "key": "settings.myAvatar.vramUsage",
-            "value": "Estimated VRAM Usage"
+            "value": "Geschat VRAM-gebruik"
         },
         {
             "key": "settings.myAvatar.vramUsage.description",
-            "value": "GPU memory consumed by this avatar's textures."
+            "value": "GPU-geheugen verbruikt door de texturen van deze avatar."
         },
         {
             "key": "settings.nameplates.description",
-            "value": "Controls the appearance of nameplates above other players."
+            "value": "Bepaalt de weergave van naamplaten boven andere spelers."
         },
         {
             "key": "settings.nameplates.hoverMenuOnly",
-            "value": "Only Allow Hover When Menu Open"
+            "value": "Hover Alleen Toestaan Wanneer Menu Open"
         },
         {
             "key": "settings.nameplates.menuOnly",
-            "value": "Only Show When Menu Open"
+            "value": "Alleen Tonen Wanneer Menu Open"
         },
         {
             "key": "settings.nameplates.show",
-            "value": "Show Nameplates"
+            "value": "Naamplaten Tonen"
         },
         {
             "key": "settings.nameplates.size",
-            "value": "Size"
+            "value": "Grootte"
         },
         {
             "key": "settings.nameplates.title",
-            "value": "Nameplates"
+            "value": "Naamplaten"
         },
         {
             "key": "settings.nameplates.transparency",
-            "value": "Transparency"
+            "value": "Transparantie"
         },
         {
             "key": "settings.network.bandwidth",
-            "value": "Bandwidth"
+            "value": "Bandbreedte"
         },
         {
             "key": "settings.network.connection",
-            "value": "Connection"
+            "value": "Verbinding"
         },
         {
             "key": "settings.network.euro.beta",
@@ -1768,11 +1776,11 @@
         },
         {
             "key": "settings.network.euro.derivativeCutoff",
-            "value": "Derivative Cutoff"
+            "value": "Afgeleide Afsnijding"
         },
         {
             "key": "settings.network.euro.minCutoff",
-            "value": "Min Cutoff"
+            "value": "Min Afsnijding"
         },
         {
             "key": "settings.network.ping",
@@ -1788,95 +1796,95 @@
         },
         {
             "key": "settings.permissions.addNodeToGroup",
-            "value": "Add Node To Group"
+            "value": "Knooppunt Toevoegen Aan Groep"
         },
         {
             "key": "settings.permissions.addParentToGroup",
-            "value": "Add Parent To Group"
+            "value": "Ouder Toevoegen Aan Groep"
         },
         {
             "key": "settings.permissions.addUserToGroup",
-            "value": "Add User To Group"
+            "value": "Gebruiker Toevoegen Aan Groep"
         },
         {
             "key": "settings.permissions.adminActions",
-            "value": "Admin Actions"
+            "value": "Beheerdersacties"
         },
         {
             "key": "settings.permissions.adminActions.description",
-            "value": "Requires admin privileges. Create or delete groups, assign users."
+            "value": "Vereist beheerdersrechten. Maak of verwijder groepen, wijs gebruikers toe."
         },
         {
             "key": "settings.permissions.childGroup",
-            "value": "Child Group"
+            "value": "Ondergeschikte Groep"
         },
         {
             "key": "settings.permissions.childGroup.description",
-            "value": "Group that inherits from the parent."
+            "value": "Groep die overerft van de ouder."
         },
         {
             "key": "settings.permissions.createGroup",
-            "value": "Create Group"
+            "value": "Groep Aanmaken"
         },
         {
             "key": "settings.permissions.deleteGroup",
-            "value": "Delete Group"
+            "value": "Groep Verwijderen"
         },
         {
             "key": "settings.permissions.deleteGroup.confirm",
-            "value": "Are you sure you want to delete group '{0}'? This will remove it from all users."
+            "value": "Weet je zeker dat je groep '{0}' wilt verwijderen? Dit verwijdert deze uit alle gebruikers."
         },
         {
             "key": "settings.permissions.deleteGroup.title",
-            "value": "Delete Group?"
+            "value": "Groep Verwijderen?"
         },
         {
             "key": "settings.permissions.groupName.description",
-            "value": "Name for new group, or group to delete."
+            "value": "Naam voor nieuwe groep, of groep om te verwijderen."
         },
         {
             "key": "settings.permissions.groups.description",
-            "value": "Permission groups defined on the server."
+            "value": "Machtigingsgroepen gedefinieerd op de server."
         },
         {
             "key": "settings.permissions.nodeGroup",
-            "value": "Group (for node edit)"
+            "value": "Groep (voor knooppuntbewerking)"
         },
         {
             "key": "settings.permissions.nodeGroup.description",
-            "value": "Group to add/remove a permission node from."
+            "value": "Groep om een machtigingsknooppunt aan toe te voegen/uit te verwijderen."
         },
         {
             "key": "settings.permissions.parentGroup",
-            "value": "Parent Group"
+            "value": "Oudergroep"
         },
         {
             "key": "settings.permissions.parentGroup.description",
-            "value": "Group to inherit permissions from."
+            "value": "Groep om machtigingen van te erven."
         },
         {
             "key": "settings.permissions.permissionNode.description",
-            "value": "e.g. basis.resource.load, basis.server.stats, * (wildcard)"
+            "value": "bijv. basis.resource.load, basis.server.stats, * (wildcard)"
         },
         {
             "key": "settings.permissions.refresh",
-            "value": "Refresh Permissions"
+            "value": "Machtigingen Vernieuwen"
         },
         {
             "key": "settings.permissions.refresh.description",
-            "value": "Fetches the current permission snapshot from the server."
+            "value": "Haalt de huidige machtigingssnapshot op van de server."
         },
         {
             "key": "settings.permissions.removeNodeFromGroup",
-            "value": "Remove Node From Group"
+            "value": "Knooppunt Verwijderen Uit Groep"
         },
         {
             "key": "settings.permissions.removeParentFromGroup",
-            "value": "Remove Parent From Group"
+            "value": "Ouder Verwijderen Uit Groep"
         },
         {
             "key": "settings.permissions.removeUserFromGroup",
-            "value": "Remove User From Group"
+            "value": "Gebruiker Verwijderen Uit Groep"
         },
         {
             "key": "settings.permissions.status",
@@ -1884,63 +1892,63 @@
         },
         {
             "key": "settings.permissions.status.description",
-            "value": "Request the latest permission data from the server."
+            "value": "Vraag de nieuwste machtigingsgegevens op van de server."
         },
         {
             "key": "settings.permissions.targetGroup",
-            "value": "Target Group"
+            "value": "Doelgroep"
         },
         {
             "key": "settings.permissions.targetGroup.description",
-            "value": "Group to add/remove the user from."
+            "value": "Groep om de gebruiker aan toe te voegen/uit te verwijderen."
         },
         {
             "key": "settings.permissions.users",
-            "value": "Users"
+            "value": "Gebruikers"
         },
         {
             "key": "settings.permissions.users.description",
-            "value": "Users with explicit permission entries."
+            "value": "Gebruikers met expliciete machtigingsinvoer."
         },
         {
             "key": "settings.permissions.userUuid",
-            "value": "User UUID"
+            "value": "Gebruikers-UUID"
         },
         {
             "key": "settings.permissions.userUuid.description",
-            "value": "UUID of the user to assign/remove from a group."
+            "value": "UUID van de gebruiker om toe te wijzen/verwijderen uit een groep."
         },
         {
             "key": "settings.platform.activeMode",
-            "value": "Active Mode"
+            "value": "Actieve Modus"
         },
         {
             "key": "settings.platform.deviceMode",
-            "value": "Device Mode"
+            "value": "Apparaatmodus"
         },
         {
             "key": "settings.platform.deviceMode.description",
-            "value": "The active device mode for this session."
+            "value": "De actieve apparaatmodus voor deze sessie."
         },
         {
             "key": "settings.platform.swapMode.description",
-            "value": "Controls how the system handles switching between VR and Desktop modes."
+            "value": "Bepaalt hoe het systeem omgaat met het schakelen tussen VR- en Desktopmodi."
         },
         {
             "key": "settings.platform.swapMode.dropdown.description",
-            "value": "Shutdown Runtime: full XR restart on swap.\nAuto Swap: automatically swap based on headset presence."
+            "value": "Runtime Afsluiten: volledige XR-herstart bij wissel.\nAutomatisch Wisselen: automatisch wisselen op basis van headset-aanwezigheid."
         },
         {
             "key": "settings.platform.swapMode.title",
-            "value": "Swap Mode"
+            "value": "Wisselmodus"
         },
         {
             "key": "settings.platform.switchTo",
-            "value": "Switch To {0}"
+            "value": "Overschakelen Naar {0}"
         },
         {
             "key": "settings.platform.switchTo.confirm",
-            "value": "Are you sure you want to switch to {0}?"
+            "value": "Weet je zeker dat je wilt overschakelen naar {0}?"
         },
         {
             "key": "settings.platform.vrRuntime",
@@ -1948,71 +1956,71 @@
         },
         {
             "key": "settings.remoteAudio.airAbsorption",
-            "value": "Air Absorption"
+            "value": "Luchtabsorptie"
         },
         {
             "key": "settings.remoteAudio.airAbsorptionMode",
-            "value": "Air Absorption Mode"
+            "value": "Luchtabsorptiemodus"
         },
         {
             "key": "settings.remoteAudio.applyHrtfReflections",
-            "value": "Apply HRTF to Reflections"
+            "value": "HRTF Toepassen op Reflecties"
         },
         {
             "key": "settings.remoteAudio.attenuationMode",
-            "value": "Attenuation Mode"
+            "value": "Dempingsmodus"
         },
         {
             "key": "settings.remoteAudio.audioSource",
-            "value": "Audio Source"
+            "value": "Audiobron"
         },
         {
             "key": "settings.remoteAudio.audioSource.description",
-            "value": "Unity AudioSource spatial settings for remote voice playback."
+            "value": "Unity AudioSource ruimtelijke instellingen voor externe stemweergave."
         },
         {
             "key": "settings.remoteAudio.curvePreset",
-            "value": "Rolloff Curve Preset"
+            "value": "Rolloff Curve Voorinstelling"
         },
         {
             "key": "settings.remoteAudio.directBinaural",
-            "value": "Direct Binaural (HRTF)"
+            "value": "Direct Binauraal (HRTF)"
         },
         {
             "key": "settings.remoteAudio.directivity",
-            "value": "Directivity"
+            "value": "Directiviteit"
         },
         {
             "key": "settings.remoteAudio.directivity.description",
-            "value": "Controls how directional voice sources sound (dipole pattern)."
+            "value": "Bepaalt hoe gerichte stembronnen klinken (dipoolpatroon)."
         },
         {
             "key": "settings.remoteAudio.distanceAttenuation",
-            "value": "Distance Attenuation"
+            "value": "Afstandsdemping"
         },
         {
             "key": "settings.remoteAudio.hrtf",
-            "value": "HRTF / Binaural"
+            "value": "HRTF / Binauraal"
         },
         {
             "key": "settings.remoteAudio.hrtf.description",
-            "value": "Head-related transfer function settings for 3D audio."
+            "value": "Head-related transfer function instellingen voor 3D-audio."
         },
         {
             "key": "settings.remoteAudio.hrtfInterpolation",
-            "value": "HRTF Interpolation"
+            "value": "HRTF Interpolatie"
         },
         {
             "key": "settings.remoteAudio.limitLipSync",
-            "value": "Limit OpenLipSync Slots"
+            "value": "OpenLipSync Slots Beperken"
         },
         {
             "key": "settings.remoteAudio.lipSync",
-            "value": "Lip Sync"
+            "value": "Lipsync"
         },
         {
             "key": "settings.remoteAudio.lipSync.description",
-            "value": "Controls how many players use high-quality neural lip sync (OpenLipSync).\nPlayers beyond this limit fall back to the lighter uLipSync backend."
+            "value": "Bepaalt hoeveel spelers high-quality neural lip sync (OpenLipSync) gebruiken.\nSpelers boven deze limiet vallen terug op de lichtere uLipSync backend."
         },
         {
             "key": "settings.remoteAudio.mix",
@@ -2020,75 +2028,75 @@
         },
         {
             "key": "settings.remoteAudio.mix.description",
-            "value": "Direct sound mix level."
+            "value": "Direct geluidsmixniveau."
         },
         {
             "key": "settings.remoteAudio.occlusion",
-            "value": "Occlusion"
+            "value": "Occlusie"
         },
         {
             "key": "settings.remoteAudio.occlusion.description",
-            "value": "Controls how walls and objects block sound."
+            "value": "Bepaalt hoe muren en objecten geluid blokkeren."
         },
         {
             "key": "settings.remoteAudio.occlusionType",
-            "value": "Occlusion Type"
+            "value": "Occlusietype"
         },
         {
             "key": "settings.remoteAudio.perspectiveCorrection",
-            "value": "Perspective Correction"
+            "value": "Perspectiefcorrectie"
         },
         {
             "key": "settings.remoteAudio.propagation",
-            "value": "Sound Propagation"
+            "value": "Geluidsvoortplanting"
         },
         {
             "key": "settings.remoteAudio.propagation.description",
-            "value": "Distance attenuation and air absorption simulation."
+            "value": "Afstandsdemping en luchtabsorptie simulatie."
         },
         {
             "key": "settings.remoteAudio.reflections",
-            "value": "Reflections"
+            "value": "Reflecties"
         },
         {
             "key": "settings.remoteAudio.reflections.description",
-            "value": "Environment reflections on voice audio. Requires baked scene data for best results."
+            "value": "Omgevingsreflecties op stemaudio. Vereist ingebakken scènegegevens voor de beste resultaten."
         },
         {
             "key": "settings.remoteAudio.remotePlayers",
-            "value": "Remote Players"
+            "value": "Externe Spelers"
         },
         {
             "key": "settings.remoteAudio.remotePlayers.description",
-            "value": "Reduces volume of players behind you. Helps in crowded environments."
+            "value": "Vermindert het volume van spelers achter je. Helpt in drukke omgevingen."
         },
         {
             "key": "settings.remoteAudio.rolloffMode",
-            "value": "Rolloff Mode"
+            "value": "Rolloff Modus"
         },
         {
             "key": "settings.remoteAudio.transmission",
-            "value": "Transmission"
+            "value": "Transmissie"
         },
         {
             "key": "settings.remoteAudio.transmission.description",
-            "value": "Controls sound passing through walls and surfaces."
+            "value": "Bepaalt hoe geluid door muren en oppervlakken gaat."
         },
         {
             "key": "settings.remoteAudio.transmissionType",
-            "value": "Transmission Type"
+            "value": "Transmissietype"
         },
         {
             "key": "settings.storage.avatarDownloadSize",
-            "value": "Avatar Download Size"
+            "value": "Avatar Downloadgrootte"
         },
         {
             "key": "settings.storage.cache.description",
-            "value": "Set the maximum disk space for cached BEE (basis encrypted extension) files."
+            "value": "Stel de maximale schijfruimte in voor in cache opgeslagen BEE (basis encrypted extension) bestanden."
         },
         {
             "key": "settings.storage.cache.title",
-            "value": "Cache Settings"
+            "value": "Cache-instellingen"
         },
         {
             "key": "settings.storage.cacheInfo",
@@ -2096,87 +2104,87 @@
         },
         {
             "key": "settings.storage.clearAll",
-            "value": "Clear All Cache"
+            "value": "Alle Cache Wissen"
         },
         {
             "key": "settings.storage.clearAll.button",
-            "value": "Clear All"
+            "value": "Alles Wissen"
         },
         {
             "key": "settings.storage.clearAll.confirm",
-            "value": "Delete all {0} cached files ({1})? This cannot be undone."
+            "value": "Alle {0} in cache opgeslagen bestanden ({1}) verwijderen? Dit kan niet ongedaan worden gemaakt."
         },
         {
             "key": "settings.storage.clearAll.description",
-            "value": "Delete all downloaded BEE (basis encrypted extension) files from disk."
+            "value": "Verwijder alle gedownloade BEE (basis encrypted extension) bestanden van schijf."
         },
         {
             "key": "settings.storage.deleteFile",
-            "value": "Delete File"
+            "value": "Bestand Verwijderen"
         },
         {
             "key": "settings.storage.deleteFile.confirm",
-            "value": "Delete cached file '{0}' ({1})?"
+            "value": "In cache opgeslagen bestand '{0}' ({1}) verwijderen?"
         },
         {
             "key": "settings.storage.deleteFile.inUse",
-            "value": "Warning: This file is currently in use. Deleting it will unload the asset."
+            "value": "Waarschuwing: Dit bestand is momenteel in gebruik. Het verwijderen zal de asset uitladen."
         },
         {
             "key": "settings.storage.downloadLimits.description",
-            "value": "Configure download size and concurrency limits."
+            "value": "Configureer downloadgrootte- en gelijktijdigheidslimieten."
         },
         {
             "key": "settings.storage.downloadLimits.title",
-            "value": "Download Limits"
+            "value": "Downloadlimieten"
         },
         {
             "key": "settings.storage.fileCount",
-            "value": "{0} files"
+            "value": "{0} bestanden"
         },
         {
             "key": "settings.storage.loadButton",
-            "value": "Load Storage Data"
+            "value": "Opslaggegevens Laden"
         },
         {
             "key": "settings.storage.loadButton.description",
-            "value": "Scan disk for cached BEE (basis encrypted extension) files. This may take a moment."
+            "value": "Scan schijf op in cache opgeslagen BEE (basis encrypted extension) bestanden. Dit kan even duren."
         },
         {
             "key": "settings.storage.maxAddressables",
-            "value": "Max Concurrent Addressables"
+            "value": "Max Gelijktijdige Addressables"
         },
         {
             "key": "settings.storage.maxCacheSize",
-            "value": "Max Cache Size (GB)"
+            "value": "Max Cachegrootte (GB)"
         },
         {
             "key": "settings.storage.maxDiscLoads",
-            "value": "Max Concurrent Disc Loads"
+            "value": "Max Gelijktijdige Schijfladingen"
         },
         {
             "key": "settings.storage.maxDownloads",
-            "value": "Max Concurrent Downloads"
+            "value": "Max Gelijktijdige Downloads"
         },
         {
             "key": "settings.storage.storedBeeFiles",
-            "value": "Stored BEE (basis encrypted extension) Files"
+            "value": "Opgeslagen BEE (basis encrypted extension) Bestanden"
         },
         {
             "key": "settings.storage.storedBeeFiles.description",
-            "value": "Individual cached files. Click to delete."
+            "value": "Individuele in cache opgeslagen bestanden. Klik om te verwijderen."
         },
         {
             "key": "settings.storage.storedFiles",
-            "value": "Stored Files"
+            "value": "Opgeslagen Bestanden"
         },
         {
             "key": "settings.storage.totalCacheSize",
-            "value": "Total Cache Size"
+            "value": "Totale Cachegrootte"
         },
         {
             "key": "settings.tab.admin",
-            "value": "Admin"
+            "value": "Beheer"
         },
         {
             "key": "settings.tab.audio",
@@ -2184,7 +2192,7 @@
         },
         {
             "key": "settings.tab.bodytracking",
-            "value": "Body Tracking"
+            "value": "Lichaamstracking"
         },
         {
             "key": "settings.tab.chat",
@@ -2192,11 +2200,11 @@
         },
         {
             "key": "settings.tab.controls",
-            "value": "Controls"
+            "value": "Bediening"
         },
         {
             "key": "settings.tab.developer",
-            "value": "Developer"
+            "value": "Ontwikkelaar"
         },
         {
             "key": "settings.tab.downloadscache",
@@ -2204,7 +2212,7 @@
         },
         {
             "key": "settings.tab.general",
-            "value": "General"
+            "value": "Algemeen"
         },
         {
             "key": "settings.tab.graphics",
@@ -2212,83 +2220,83 @@
         },
         {
             "key": "settings.tab.microphone",
-            "value": "Microphone"
+            "value": "Microfoon"
         },
         {
             "key": "settings.tab.myavatar",
-            "value": "My Avatar"
+            "value": "Mijn Avatar"
         },
         {
             "key": "settings.tab.nameplates",
-            "value": "Nameplates"
+            "value": "Naamplaten"
         },
         {
             "key": "settings.tab.trustedurls",
-            "value": "Trusted URLs"
+            "value": "Vertrouwde URL's"
         },
         {
             "key": "settings.tab.uistyle",
-            "value": "UI Style"
+            "value": "UI Stijl"
         },
         {
             "key": "settings.title",
-            "value": "Settings"
+            "value": "Instellingen"
         },
         {
             "key": "settings.trustedUrls.clearAll",
-            "value": "Clear All Trusted URLs"
+            "value": "Alle Vertrouwde URL's Wissen"
         },
         {
             "key": "settings.trustedUrls.clearAll.confirm",
-            "value": "Remove all {0} trusted URL(s)? Video players will prompt for each URL again."
+            "value": "Alle {0} vertrouwde URL('s) verwijderen? Video-spelers vragen voor elke URL opnieuw."
         },
         {
             "key": "settings.trustedUrls.clearAll.description",
-            "value": "Remove all trusted URLs. Video players will prompt for approval again."
+            "value": "Verwijder alle vertrouwde URL's. Video-spelers vragen opnieuw om goedkeuring."
         },
         {
             "key": "settings.trustedUrls.clickToRemove",
-            "value": "Click to remove"
+            "value": "Klik om te verwijderen"
         },
         {
             "key": "settings.trustedUrls.count",
-            "value": "{0} URL(s)"
+            "value": "{0} URL('s)"
         },
         {
             "key": "settings.trustedUrls.count.title",
-            "value": "Trusted URLs"
+            "value": "Vertrouwde URL's"
         },
         {
             "key": "settings.trustedUrls.description",
-            "value": "URLs in this list are automatically accepted by video players without prompting."
+            "value": "URL's in deze lijst worden automatisch geaccepteerd door video-spelers zonder te vragen."
         },
         {
             "key": "settings.trustedUrls.empty",
-            "value": "No Trusted URLs"
+            "value": "Geen Vertrouwde URL's"
         },
         {
             "key": "settings.trustedUrls.empty.description",
-            "value": "Accept a video URL to add it here."
+            "value": "Accepteer een video-URL om deze hier toe te voegen."
         },
         {
             "key": "settings.trustedUrls.list.description",
-            "value": "Click a URL to remove it from the trusted list."
+            "value": "Klik op een URL om deze uit de vertrouwde lijst te verwijderen."
         },
         {
             "key": "settings.trustedUrls.list.title",
-            "value": "URL List"
+            "value": "URL Lijst"
         },
         {
             "key": "settings.trustedUrls.remove.confirm",
-            "value": "Remove this URL from trusted list?\n{0}"
+            "value": "Deze URL uit de vertrouwde lijst verwijderen?\n{0}"
         },
         {
             "key": "settings.trustedUrls.remove.title",
-            "value": "Remove Trusted URL"
+            "value": "Vertrouwde URL Verwijderen"
         },
         {
             "key": "settings.trustedUrls.title",
-            "value": "Trusted Video URLs"
+            "value": "Vertrouwde Video-URL's"
         },
         {
             "key": "settings.uiStyle.accent",
@@ -2296,47 +2304,47 @@
         },
         {
             "key": "settings.uiStyle.background1",
-            "value": "Background 1"
+            "value": "Achtergrond 1"
         },
         {
             "key": "settings.uiStyle.background2",
-            "value": "Background 2"
+            "value": "Achtergrond 2"
         },
         {
             "key": "settings.uiStyle.background3",
-            "value": "Background 3"
+            "value": "Achtergrond 3"
         },
         {
             "key": "settings.uiStyle.black",
-            "value": "Black"
+            "value": "Zwart"
         },
         {
             "key": "settings.uiStyle.button",
-            "value": "Button"
+            "value": "Knop"
         },
         {
             "key": "settings.uiStyle.caution",
-            "value": "Caution"
+            "value": "Voorzichtig"
         },
         {
             "key": "settings.uiStyle.clear",
-            "value": "Clear"
+            "value": "Wissen"
         },
         {
             "key": "settings.uiStyle.danger",
-            "value": "Danger"
+            "value": "Gevaar"
         },
         {
             "key": "settings.uiStyle.fontPrimary",
-            "value": "Font Primary"
+            "value": "Lettertype Primair"
         },
         {
             "key": "settings.uiStyle.fontSecondary",
-            "value": "Font Secondary"
+            "value": "Lettertype Secundair"
         },
         {
             "key": "settings.uiStyle.fontTertiary",
-            "value": "Font Tertiary"
+            "value": "Lettertype Tertiair"
         },
         {
             "key": "settings.uiStyle.hex",
@@ -2344,55 +2352,55 @@
         },
         {
             "key": "settings.uiStyle.hue",
-            "value": "Hue"
+            "value": "Tint"
         },
         {
             "key": "settings.uiStyle.inputField",
-            "value": "Input Field"
+            "value": "Invoerveld"
         },
         {
             "key": "settings.uiStyle.layer",
-            "value": "Layer"
+            "value": "Laag"
         },
         {
             "key": "settings.uiStyle.scrollbar",
-            "value": "Scrollbar"
+            "value": "Schuifbalk"
         },
         {
             "key": "settings.uiStyle.success",
-            "value": "Success"
+            "value": "Succes"
         },
         {
             "key": "settings.uiStyle.title",
-            "value": "UI Style"
+            "value": "UI Stijl"
         },
         {
             "key": "settings.uiStyle.white",
-            "value": "White"
+            "value": "Wit"
         },
         {
             "key": "ui.advanced",
-            "value": "Advanced"
+            "value": "Geavanceerd"
         },
         {
             "key": "ui.cancel",
-            "value": "Cancel"
+            "value": "Annuleren"
         },
         {
             "key": "ui.error",
-            "value": "Error"
+            "value": "Fout"
         },
         {
             "key": "ui.no",
-            "value": "No"
+            "value": "Nee"
         },
         {
             "key": "ui.note",
-            "value": "Note"
+            "value": "Opmerking"
         },
         {
             "key": "ui.off",
-            "value": "OFF"
+            "value": "UIT"
         },
         {
             "key": "ui.ok",
@@ -2400,39 +2408,39 @@
         },
         {
             "key": "ui.on",
-            "value": "ON"
+            "value": "AAN"
         },
         {
             "key": "ui.reset",
-            "value": "Reset"
+            "value": "Resetten"
         },
         {
             "key": "ui.resetPage.confirm",
-            "value": "Reset all {0} settings to defaults?"
+            "value": "Alle {0} instellingen herstellen naar standaardwaarden?"
         },
         {
             "key": "ui.resetPage.description",
-            "value": "Resets this page to defaults."
+            "value": "Herstelt deze pagina naar standaardwaarden."
         },
         {
             "key": "ui.resetPage.title",
-            "value": "Reset {0}"
+            "value": "Resetten {0}"
         },
         {
             "key": "ui.search",
-            "value": "Search..."
+            "value": "Zoeken..."
         },
         {
             "key": "ui.search.label",
-            "value": "Search"
+            "value": "Zoeken"
         },
         {
             "key": "ui.unknown",
-            "value": "Unknown"
+            "value": "Onbekend"
         },
         {
             "key": "ui.yes",
-            "value": "Yes"
+            "value": "Ja"
         }
     ]
 }

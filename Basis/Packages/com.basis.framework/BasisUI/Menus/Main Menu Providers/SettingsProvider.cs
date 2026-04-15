@@ -445,6 +445,11 @@ namespace Basis.BasisUI
                     }
                 }
             };
+
+            PanelElementDescriptor helpTranslateGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            helpTranslateGroup.SetTitle(BasisLocalization.Get("settings.general.language.help_translate.title"));
+            helpTranslateGroup.SetDescription(BasisLocalization.Get("settings.general.language.help_translate.description"));
         }
 
         private static void ResetGeneralDefaults()

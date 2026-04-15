@@ -206,6 +206,13 @@ namespace Cilbox
 
 			if( name.Contains( "Invoke" ) ) return false;
 
+			// UnityEngine.Application.OpenURL opens an arbitrary URL in the native
+			// browser — the exact payload behind the reported prop exploit. Deny it
+			// explicitly so this never works from cilbox regardless of how the
+			// Application type ends up whitelisted.
+			if( declaringType == typeof(UnityEngine.Application) && name == "OpenURL" )
+				return false;
+
 			// Redirect every UnityEngine.Object.Instantiate variant through the
 			// sanitizing shim so spawned prefabs are scrubbed (disallowed components
 			// destroyed, persistent UnityEvent listeners killed) while parked under a

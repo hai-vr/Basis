@@ -85,6 +85,8 @@ namespace Basis.BasisUI
         protected Texture2D _textureImage;
         protected string _title;
         protected string _description;
+        private bool _titleSet;
+        private bool _descriptionSet;
 
         protected bool _iconIsAddressable;
 
@@ -163,21 +165,34 @@ namespace Basis.BasisUI
         public void SetTitle(string value)
         {
             if (!HasTitle) return;
-            bool titleIsValid = !string.IsNullOrEmpty(value);
-            // Disable the object if the title is empty.
+            // Skip redraw if the text hasn't actually changed — polling updaters
+            // call this every tick and TMP's setter unconditionally triggers a rebuild.
+            if (_titleSet && string.Equals(_title, value)) return;
             _title = value;
-            TitleLabel.gameObject.SetActive(titleIsValid);
-            TitleLabel.text = value;
+            _titleSet = true;
+            TitleLabel.gameObject.SetActive(!string.IsNullOrEmpty(value));
+            TitleLabel.SetText(value);
         }
 
         public void SetDescription(string value)
         {
             if (!HasDescription) return;
-            bool descriptionIsValid = !string.IsNullOrEmpty(value);
-            // Disable the object if the description is empty.
+            if (_descriptionSet && string.Equals(_description, value)) return;
             _description = value;
-            DescriptionLabel.gameObject.SetActive(descriptionIsValid);
-            DescriptionLabel.text = value;
+            _descriptionSet = true;
+            DescriptionLabel.gameObject.SetActive(!string.IsNullOrEmpty(value));
+            DescriptionLabel.SetText(value);
+        }
+
+        /// <summary>
+        /// Disables rich-text parsing on Title and Description labels. Use for fields
+        /// that only display plain strings/numbers — TMP skips tag scanning entirely,
+        /// which is a big win on polling-heavy panels (stats, bandwidth, buffers).
+        /// </summary>
+        public void DisableRichText()
+        {
+            if (HasTitle) TitleLabel.richText = false;
+            if (HasDescription) DescriptionLabel.richText = false;
         }
 
         public void SetActive(bool value)

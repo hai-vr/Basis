@@ -24,11 +24,29 @@ namespace Basis.BasisUI
         private float _updateTimer;
         private const float UpdateInterval = 0.25f;
 
+        private bool _richTextDisabled;
+
+        private void DisableRichTextOnce()
+        {
+            if (_richTextDisabled) return;
+            _richTextDisabled = true;
+            // These panels only display plain-text stats — skip tag scanning.
+            ConnectionField?.DisableRichText();
+            ServerField?.DisableRichText();
+            PingField?.DisableRichText();
+            PlayersField?.DisableRichText();
+            TransmissionField?.DisableRichText();
+            BandwidthField?.DisableRichText();
+            MetaField?.DisableRichText();
+        }
+
         private void Update()
         {
             _updateTimer += Time.unscaledDeltaTime;
             if (_updateTimer < UpdateInterval) return;
             _updateTimer = 0f;
+
+            DisableRichTextOnce();
 
             bool connected = BasisNetworkManagement.NetworkRunning;
             NetPeer peer = connected ? BasisNetworkManagement.LocalPlayerPeer : null;

@@ -14,10 +14,21 @@ public class BasisFrameRateVisualization : MonoBehaviour
     // Reusable character buffer — adjust size if needed
     private char[] buffer = new char[160];
 
+    // Throttle redraws to 10 Hz. SetCharArray forces a TMP vertex/layout
+    // rebuild, and the user can't read FPS updates faster than this anyway.
+    private const float RedrawInterval = 0.1f;
+    private float _redrawTimer;
+
     void Update()
     {
         float dt = Time.unscaledDeltaTime;
+        // Keep smoothing the delta every frame so the displayed value stays accurate.
         deltaTime += (dt - deltaTime) * 0.1f;
+
+        _redrawTimer += dt;
+        if (_redrawTimer < RedrawInterval) return;
+        _redrawTimer -= RedrawInterval;
+
         float fps = 1f / deltaTime;
 
         // Only fetch system time once per second

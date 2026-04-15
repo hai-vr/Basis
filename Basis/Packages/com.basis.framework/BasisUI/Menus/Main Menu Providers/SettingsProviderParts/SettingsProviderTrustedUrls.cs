@@ -56,12 +56,14 @@ public static class SettingsProviderTrustedUrls
             urlGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.list.title"));
             urlGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.list.description"));
 
+            string removeHint = BasisLocalization.Get("settings.trustedUrls.clickToRemove");
             foreach (string url in urls)
             {
                 string capturedUrl = url;
                 PanelButton urlButton = PanelButton.CreateNew(urlGroup.ContentParent);
+                urlButton.Descriptor.DisableRichText();
                 urlButton.Descriptor.SetTitle(capturedUrl);
-                urlButton.Descriptor.SetDescription(BasisLocalization.Get("settings.trustedUrls.clickToRemove"));
+                urlButton.Descriptor.SetDescription(removeHint);
                 urlButton.OnClicked += () =>
                 {
                     BasisMainMenu.Instance.OpenDialogue(
