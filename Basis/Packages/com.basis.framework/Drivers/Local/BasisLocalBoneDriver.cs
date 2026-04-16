@@ -5,6 +5,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -106,6 +107,18 @@ namespace Basis.Scripts.Drivers
         /// <summary>Gizmo size for hand-related visuals (scaled by avatar height).</summary>
         public static float HandGizmoSize = 0.02f;
 
+        /// <summary>Minimum bones in a dependency level before dispatching to thread pool.</summary>
+        public static int ParallelThreshold = 4;
+
+        /// <summary>
+        /// Bone indices grouped by dependency depth (level 0 = no Target, level N = Target at level &lt; N).
+        /// Each level is safe to run in parallel; levels run sequentially.
+        /// </summary>
+        private int[][] _dependencyLevels;
+
+        /// <summary>True when <see cref="_dependencyLevels"/> must be rebuilt before next Simulate.</summary>
+        private bool _dependencyLevelsDirty = true;
+
         /// <summary>
         /// Discovers common tracked roles and assigns cached references (e.g., head, spine).
         /// </summary>
@@ -142,10 +155,27 @@ namespace Basis.Scripts.Drivers
         /// <param name="transform">Parent transform whose <see cref="Transform.localToWorldMatrix"/> seeds world computation.</param>
         public void Simulate(float deltaTime, Matrix4x4 parentMatrix)
         {
-            // sequence all other devices to run at the same time
-            for (int Index = 0; Index < ControlsLength; Index++)
+            if (_dependencyLevelsDirty) RebuildDependencyLevels();
+
+            BasisLocalBoneControl[] controls = Controls;
+            int[][] levels = _dependencyLevels;
+            for (int levelIndex = 0; levelIndex < levels.Length; levelIndex++)
             {
-                Controls[Index].ComputeMovementLocal(parentMatrix, deltaTime);
+                int[] level = levels[levelIndex];
+                if (level.Length < ParallelThreshold)
+                {
+                    for (int k = 0; k < level.Length; k++)
+                    {
+                        controls[level[k]].ComputeMovementLocal(parentMatrix, deltaTime);
+                    }
+                }
+                else
+                {
+                    Parallel.For(0, level.Length, k =>
+                    {
+                        controls[level[k]].ComputeMovementLocal(parentMatrix, deltaTime);
+                    });
+                }
             }
             if (SMModuleDebugOptions.UseGizmos)
             {
@@ -160,18 +190,132 @@ namespace Basis.Scripts.Drivers
         /// <param name="transform">Parent transform for world calculations.</param>
         public void SimulateWithoutLerp(Matrix4x4 parentMatrix)
         {
-            // sequence all other devices to run at the same time
+            if (_dependencyLevelsDirty) RebuildDependencyLevels();
+
             float DeltaTime = Time.deltaTime;
-            for (int Index = 0; Index < ControlsLength; Index++)
+            BasisLocalBoneControl[] controls = Controls;
+
+            // Seed LastRunData across all bones — independent per-bone, safe in parallel regardless of levels.
+            int total = ControlsLength;
+            if (total < ParallelThreshold)
             {
-                Controls[Index].LastRunData.position = Controls[Index].OutGoingData.position;
-                Controls[Index].LastRunData.rotation = Controls[Index].OutGoingData.rotation;
-                Controls[Index].ComputeMovementLocal(parentMatrix, DeltaTime);
+                for (int Index = 0; Index < total; Index++)
+                {
+                    controls[Index].LastRunData.position = controls[Index].OutGoingData.position;
+                    controls[Index].LastRunData.rotation = controls[Index].OutGoingData.rotation;
+                }
+            }
+            else
+            {
+                Parallel.For(0, total, Index =>
+                {
+                    controls[Index].LastRunData.position = controls[Index].OutGoingData.position;
+                    controls[Index].LastRunData.rotation = controls[Index].OutGoingData.rotation;
+                });
+            }
+
+            int[][] levels = _dependencyLevels;
+            for (int levelIndex = 0; levelIndex < levels.Length; levelIndex++)
+            {
+                int[] level = levels[levelIndex];
+                if (level.Length < ParallelThreshold)
+                {
+                    for (int k = 0; k < level.Length; k++)
+                    {
+                        controls[level[k]].ComputeMovementLocal(parentMatrix, DeltaTime);
+                    }
+                }
+                else
+                {
+                    Parallel.For(0, level.Length, k =>
+                    {
+                        controls[level[k]].ComputeMovementLocal(parentMatrix, DeltaTime);
+                    });
+                }
             }
             if (SMModuleDebugOptions.UseGizmos)
             {
                 DrawGizmos();
             }
+        }
+
+        /// <summary>
+        /// Marks the cached dependency-level grouping as stale. Call whenever Controls or Targets change.
+        /// </summary>
+        public void MarkDependencyLevelsDirty()
+        {
+            _dependencyLevelsDirty = true;
+        }
+
+        /// <summary>
+        /// Topologically groups Controls by Target-chain depth so bones within a level never
+        /// read another bone in the same (or later) level. Cycles degrade to level 0 to stay safe.
+        /// </summary>
+        private void RebuildDependencyLevels()
+        {
+            int count = ControlsLength;
+            if (count == 0)
+            {
+                _dependencyLevels = Array.Empty<int[]>();
+                _dependencyLevelsDirty = false;
+                return;
+            }
+
+            Dictionary<BasisLocalBoneControl, int> indexOf = new Dictionary<BasisLocalBoneControl, int>(count);
+            for (int i = 0; i < count; i++)
+            {
+                indexOf[Controls[i]] = i;
+            }
+
+            int[] depth = new int[count];
+            for (int i = 0; i < count; i++) depth[i] = -1;
+
+            for (int i = 0; i < count; i++)
+            {
+                ComputeDepth(i, depth, indexOf);
+            }
+
+            int maxDepth = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (depth[i] > maxDepth) maxDepth = depth[i];
+            }
+
+            int[] counts = new int[maxDepth + 1];
+            for (int i = 0; i < count; i++) counts[depth[i]]++;
+
+            int[][] levels = new int[maxDepth + 1][];
+            for (int d = 0; d <= maxDepth; d++) levels[d] = new int[counts[d]];
+
+            int[] cursor = new int[maxDepth + 1];
+            for (int i = 0; i < count; i++)
+            {
+                int d = depth[i];
+                levels[d][cursor[d]++] = i;
+            }
+
+            _dependencyLevels = levels;
+            _dependencyLevelsDirty = false;
+        }
+
+        private int ComputeDepth(int i, int[] depth, Dictionary<BasisLocalBoneControl, int> indexOf)
+        {
+            int existing = depth[i];
+            if (existing == -2) return 0; // cycle: break at 0
+            if (existing >= 0) return existing;
+
+            BasisLocalBoneControl ctrl = Controls[i];
+            BasisLocalBoneControl target = ctrl.Target;
+            if (target == null || !indexOf.TryGetValue(target, out int targetIdx))
+            {
+                depth[i] = 0;
+                return 0;
+            }
+
+            depth[i] = -2; // cycle guard
+            int d = ComputeDepth(targetIdx, depth, indexOf) + 1;
+            depth[i] = d;
+            return d;
         }
 
         /// <summary>
@@ -241,6 +385,7 @@ namespace Basis.Scripts.Drivers
             Controls = Controls.Concat(newControls).ToArray();
             trackedRoles = trackedRoles.Concat(newRoles).ToArray();
             ControlsLength = Controls.Length;
+            _dependencyLevelsDirty = true;
         }
 
         /// <summary>
@@ -422,6 +567,7 @@ namespace Basis.Scripts.Drivers
             addToBone.Target = target;
             addToBone.Offset = addToBone.TposeLocalScaled.position - target.TposeLocalScaled.position;
             addToBone.ScaledOffset = addToBone.Offset;
+            _dependencyLevelsDirty = true;
         }
 
         /// <summary>

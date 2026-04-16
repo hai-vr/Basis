@@ -196,6 +196,14 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> EnableStatistics = new("enablestatistics", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// When on, the client runs a loopback-only HTTP listener (127.0.0.1:9080)
+        /// exposing /stats.json and /overlay.html so OBS Browser Source (or any
+        /// local tool) can pull FPS / CCU / ping. Off by default — the listener
+        /// is only opened after the user explicitly enables this.
+        /// </summary>
+        public static BasisSettingsBinding<bool> EnableStreamingMeta = new("enablestreamingmeta", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> AvatarShowTextureStats = new("avatarshowtexturestats", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> AvatarShowTrackerRoles = new("avatarshowtrackerroles", new BasisPlatformDefault<bool>(false));
@@ -886,6 +894,7 @@ namespace Basis.BasisUI
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
+            EnableStreamingMeta.LoadBindingValue();
             MemoryAllocation.LoadBindingValue();
             VisualState.LoadBindingValue();
             FoveatedRendering.LoadBindingValue();
