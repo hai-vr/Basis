@@ -294,31 +294,31 @@ namespace Basis.BasisUI
         // Changing any value at runtime re-evaluates every currently-loaded remote
         // avatar (see SMModuleAvatarPerformanceLimits).
 
-        public static BasisSettingsBinding<bool> UsePerfLimitTriangles = new("useperflimittriangles", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfTriangles = new("maxperftriangles", new BasisPlatformDefault<float>(200000));
+        public static BasisSettingsBinding<bool> UsePerfLimitTriangles = new("useperflimittriangles", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfTriangles = new("maxperftriangles", new BasisPlatformDefault<float>(2000000));
 
-        public static BasisSettingsBinding<bool> UsePerfLimitBoundsSize = new("useperflimitboundssize", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfBoundsSize = new("maxperfboundssize", new BasisPlatformDefault<float>(10f));
+        public static BasisSettingsBinding<bool> UsePerfLimitBoundsSize = new("useperflimitboundssize", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfBoundsSize = new("maxperfboundssize", new BasisPlatformDefault<float>(50f));
 
         // Texture memory defaults on — 512 MB is generous for a single avatar but
         // catches the 2–4 GB outliers that trip out-of-memory on lower-end hardware.
         public static BasisSettingsBinding<bool> UsePerfLimitTextureMemory = new("useperflimittexturememory", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> MaxPerfTextureMemoryMB = new("maxperftexturememorymb", new BasisPlatformDefault<float>(512));
 
-        public static BasisSettingsBinding<bool> UsePerfLimitSkinnedMeshes = new("useperflimitskinnedmeshes", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfSkinnedMeshes = new("maxperfskinnedmeshes", new BasisPlatformDefault<float>(8));
+        public static BasisSettingsBinding<bool> UsePerfLimitSkinnedMeshes = new("useperflimitskinnedmeshes", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfSkinnedMeshes = new("maxperfskinnedmeshes", new BasisPlatformDefault<float>(64));
 
-        public static BasisSettingsBinding<bool> UsePerfLimitBasicMeshes = new("useperflimitbasicmeshes", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfBasicMeshes = new("maxperfbasicmeshes", new BasisPlatformDefault<float>(16));
+        public static BasisSettingsBinding<bool> UsePerfLimitBasicMeshes = new("useperflimitbasicmeshes", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfBasicMeshes = new("maxperfbasicmeshes", new BasisPlatformDefault<float>(128));
 
-        public static BasisSettingsBinding<bool> UsePerfLimitMaterialSlots = new("useperflimitmaterialslots", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfMaterialSlots = new("maxperfmaterialslots", new BasisPlatformDefault<float>(32));
+        public static BasisSettingsBinding<bool> UsePerfLimitMaterialSlots = new("useperflimitmaterialslots", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfMaterialSlots = new("maxperfmaterialslots", new BasisPlatformDefault<float>(256));
 
-        public static BasisSettingsBinding<bool> UsePerfLimitJiggleBones = new("useperflimitjigglebones", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfJiggleBones = new("maxperfjigglebones", new BasisPlatformDefault<float>(32));
+        public static BasisSettingsBinding<bool> UsePerfLimitJiggleBones = new("useperflimitjigglebones", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfJiggleBones = new("maxperfjigglebones", new BasisPlatformDefault<float>(128));
 
-        public static BasisSettingsBinding<bool> UsePerfLimitJiggleColliders = new("useperflimitjigglecolliders", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfJiggleColliders = new("maxperfjigglecolliders", new BasisPlatformDefault<float>(16));
+        public static BasisSettingsBinding<bool> UsePerfLimitJiggleColliders = new("useperflimitjigglecolliders", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfJiggleColliders = new("maxperfjigglecolliders", new BasisPlatformDefault<float>(64));
 
         // Animators default on at 1 — extras are a common perf trap (every child
         // Animator ticks every frame). Excess Animators are trimmed, not blocked.
@@ -328,8 +328,8 @@ namespace Basis.BasisUI
         // Hard-block cap on skinned bone count. Unlike the others this one is intended
         // as a guard rail for the genuinely bad bundles (tens of thousands of bones)
         // rather than as a daily-driver cap, hence the high default.
-        public static BasisSettingsBinding<bool> UsePerfLimitBones = new("useperflimitbones", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> MaxPerfBones = new("maxperfbones", new BasisPlatformDefault<float>(4096));
+        public static BasisSettingsBinding<bool> UsePerfLimitBones = new("useperflimitbones", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfBones = new("maxperfbones", new BasisPlatformDefault<float>(16384));
 
         // Lights default on at 0 — dynamic Light components on an avatar force an
         // extra pass per frame; not safe at crowd scale, so trim them all by default.

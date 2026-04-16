@@ -22,15 +22,15 @@ public static class SettingsProviderTrustedUrls
 
         if (urls.Count == 0)
         {
-            PanelPasswordField emptyField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+            PanelTextField emptyField = PanelTextField.CreateNew(infoGroup.ContentParent);
             emptyField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.empty"));
-            emptyField.SetPassword(BasisLocalization.Get("settings.trustedUrls.empty.description"));
+            emptyField.SetValue(BasisLocalization.Get("settings.trustedUrls.empty.description"));
         }
         else
         {
-            PanelPasswordField countField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+            PanelTextField countField = PanelTextField.CreateNew(infoGroup.ContentParent);
             countField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.count.title"));
-            countField.SetPassword(BasisLocalization.Get("settings.trustedUrls.count", urls.Count));
+            countField.SetValue(BasisLocalization.Get("settings.trustedUrls.count", urls.Count));
 
             PanelButton clearAllButton = PanelButton.CreateNew(container);
             clearAllButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.clearAll"));

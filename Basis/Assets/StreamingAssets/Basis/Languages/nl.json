@@ -2152,7 +2152,7 @@
         },
         {
             "key": "settings.storage.maxAddressables",
-            "value": "Max Gelijktijdige Addressables"
+            "value": "Max Addressables"
         },
         {
             "key": "settings.storage.maxCacheSize",
@@ -2160,11 +2160,11 @@
         },
         {
             "key": "settings.storage.maxDiscLoads",
-            "value": "Max Gelijktijdige Schijfladingen"
+            "value": "Max Schijfladingen"
         },
         {
             "key": "settings.storage.maxDownloads",
-            "value": "Max Gelijktijdige Downloads"
+            "value": "Max Downloads"
         },
         {
             "key": "settings.storage.storedBeeFiles",
