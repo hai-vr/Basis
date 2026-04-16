@@ -537,6 +537,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "Muestra el círculo de rango de visibilidad del avatar a tus pies." },
     { "key": "settings.developer.enableStatistics", "value": "Activar estadísticas" },
     { "key": "settings.developer.enableStatistics.description", "value": "Activa el registro de estadísticas de red. Tiene efecto en la próxima conexión." },
+    { "key": "settings.developer.streamingMeta", "value": "Meta de streaming (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "Expone FPS y CCU en un servidor web solo loopback en http://127.0.0.1:9080/overlay.html (pega esa URL en una Fuente de navegador de OBS). JSON sin procesar disponible en /stats.json. Desactivado por defecto — solo se vincula a localhost, nunca a la LAN." },
     { "key": "settings.developer.disableLogging", "value": "Desactivar registro de Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "Suprime todos los mensajes de log, advertencias y errores de BasisDebug." },
     { "key": "settings.developer.sections.title", "value": "Secciones de desarrollador" },

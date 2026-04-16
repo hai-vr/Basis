@@ -538,6 +538,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "إظهار دائرة نطاق رؤية الأفاتار عند قدميك." },
     { "key": "settings.developer.enableStatistics", "value": "تمكين الإحصائيات" },
     { "key": "settings.developer.enableStatistics.description", "value": "تمكين تسجيل إحصائيات الشبكة. يسري عند الاتصال التالي." },
+    { "key": "settings.developer.streamingMeta", "value": "بيانات البث (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "يعرض FPS و CCU على خادم ويب loopback فقط على http://127.0.0.1:9080/overlay.html (ضع هذا الرابط في مصدر متصفح OBS). بيانات JSON الخام متاحة على /stats.json. معطّل افتراضياً — يرتبط بـ localhost فقط، وليس بشبكة LAN أبداً." },
     { "key": "settings.developer.disableLogging", "value": "تعطيل تسجيل Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "إلغاء جميع مخرجات السجل والتحذيرات والأخطاء من BasisDebug." },
     { "key": "settings.developer.sections.title", "value": "أقسام المطوّر" },

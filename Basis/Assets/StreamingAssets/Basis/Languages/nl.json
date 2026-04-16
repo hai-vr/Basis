@@ -1447,6 +1447,14 @@
             "value": "Ontwikkelaarssecties"
         },
         {
+            "key": "settings.developer.streamingMeta",
+            "value": "Streaming-metagegevens (OBS)"
+        },
+        {
+            "key": "settings.developer.streamingMeta.description",
+            "value": "Biedt FPS en CCU op een alleen-loopback webserver op http://127.0.0.1:9080/overlay.html (plak die URL in een OBS Browser-bron). Ruwe JSON beschikbaar op /stats.json. Standaard uit — bindt alleen aan localhost, nooit aan het LAN."
+        },
+        {
             "key": "settings.developer.title",
             "value": "Ontwikkelaar & Debug"
         },

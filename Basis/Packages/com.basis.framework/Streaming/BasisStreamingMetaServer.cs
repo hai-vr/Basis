@@ -4,7 +4,6 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 
 namespace Basis.Streaming
 {
@@ -73,7 +72,7 @@ namespace Basis.Streaming
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning("[BasisStreamingMeta] listen loop error: " + ex);
+                    BasisDebug.LogError("[BasisStreamingMeta] listen loop error: " + ex);
                     continue;
                 }
 

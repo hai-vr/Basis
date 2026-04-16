@@ -538,6 +538,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "足元にアバター表示範囲の円を表示。" },
     { "key": "settings.developer.enableStatistics", "value": "統計を有効化" },
     { "key": "settings.developer.enableStatistics.description", "value": "ネットワーク統計の記録を有効化。次回の接続から適用。" },
+    { "key": "settings.developer.streamingMeta", "value": "ストリーミングメタ (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "ループバック専用のWebサーバー（http://127.0.0.1:9080/overlay.html）でFPSとCCUを公開（このURLをOBSのブラウザソースに貼り付け）。生のJSONは /stats.json で利用可能。デフォルトでオフ — localhostのみにバインドし、LANには一切バインドしません。" },
     { "key": "settings.developer.disableLogging", "value": "Basisログを無効化" },
     { "key": "settings.developer.disableLogging.description", "value": "BasisDebugのログ・警告・エラー出力をすべて抑制。" },
     { "key": "settings.developer.sections.title", "value": "開発者セクション" },

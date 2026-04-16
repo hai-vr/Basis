@@ -538,6 +538,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "Показывать круг диапазона видимости аватара у ваших ног." },
     { "key": "settings.developer.enableStatistics", "value": "Включить статистику" },
     { "key": "settings.developer.enableStatistics.description", "value": "Включить запись сетевой статистики. Вступит в силу при следующем подключении." },
+    { "key": "settings.developer.streamingMeta", "value": "Стриминг-мета (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "Предоставляет FPS и CCU через веб-сервер только на loopback по адресу http://127.0.0.1:9080/overlay.html (вставьте этот URL в OBS Browser Source). Сырой JSON доступен по /stats.json. По умолчанию отключено — привязывается только к localhost, никогда к LAN." },
     { "key": "settings.developer.disableLogging", "value": "Отключить логирование Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "Подавить весь вывод логов, предупреждений и ошибок BasisDebug." },
     { "key": "settings.developer.sections.title", "value": "Разделы разработчика" },

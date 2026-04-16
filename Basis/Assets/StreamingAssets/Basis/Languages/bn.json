@@ -537,6 +537,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "আপনার পায়ে অবতার দৃশ্যমানতা পরিসর বৃত্ত দেখান।" },
     { "key": "settings.developer.enableStatistics", "value": "পরিসংখ্যান সক্ষম করুন" },
     { "key": "settings.developer.enableStatistics.description", "value": "নেটওয়ার্ক পরিসংখ্যান রেকর্ডিং সক্ষম করুন। পরবর্তী সংযোগে কার্যকর হয়।" },
+    { "key": "settings.developer.streamingMeta", "value": "স্ট্রিমিং মেটা (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "http://127.0.0.1:9080/overlay.html-এ শুধু-loopback ওয়েব সার্ভারে FPS এবং CCU প্রকাশ করে (সেই URL-টি OBS ব্রাউজার সোর্সে পেস্ট করুন)। কাঁচা JSON /stats.json-এ উপলব্ধ। ডিফল্টভাবে বন্ধ — শুধুমাত্র localhost-এ বাইন্ড হয়, কখনো LAN-এ নয়।" },
     { "key": "settings.developer.disableLogging", "value": "Basis লগিং অক্ষম করুন" },
     { "key": "settings.developer.disableLogging.description", "value": "সমস্ত BasisDebug লগ, সতর্কতা, এবং ত্রুটি আউটপুট দমন করুন।" },
     { "key": "settings.developer.sections.title", "value": "ডেভেলপার বিভাগ" },

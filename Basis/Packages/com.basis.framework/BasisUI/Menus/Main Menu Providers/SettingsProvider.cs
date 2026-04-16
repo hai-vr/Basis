@@ -1402,13 +1402,8 @@ namespace Basis.BasisUI
             toggleStatistics.AssignBinding(BasisSettingsDefaults.EnableStatistics);
 
             PanelToggle toggleStreamingMeta = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
-            toggleStreamingMeta.Descriptor.SetTitle("Streaming Meta (OBS)");
-            toggleStreamingMeta.Descriptor.SetDescription(
-                "Exposes FPS and CCU on a loopback-only web server at " +
-                "http://127.0.0.1:9080/overlay.html (drop that URL into an OBS " +
-                "Browser Source). Raw JSON is available at /stats.json. Off by " +
-                "default — only binds to localhost, never the LAN."
-            );
+            toggleStreamingMeta.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.streamingMeta"));
+            toggleStreamingMeta.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.streamingMeta.description"));
             toggleStreamingMeta.AssignBinding(BasisSettingsDefaults.EnableStreamingMeta);
 
             PanelToggle toggleDisableLogging = PanelToggle.CreateNewEntry(debugGroup.ContentParent);

@@ -537,6 +537,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "अपने पैरों पर अवतार दृश्यता रेंज वृत्त दिखाएँ।" },
     { "key": "settings.developer.enableStatistics", "value": "आँकड़े सक्षम करें" },
     { "key": "settings.developer.enableStatistics.description", "value": "नेटवर्क आँकड़ा रिकॉर्डिंग सक्षम करें। अगले कनेक्शन पर प्रभावी होगा।" },
+    { "key": "settings.developer.streamingMeta", "value": "स्ट्रीमिंग मेटा (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "http://127.0.0.1:9080/overlay.html पर केवल-loopback वेब सर्वर पर FPS और CCU दिखाता है (उस URL को OBS ब्राउज़र सोर्स में डालें)। कच्चा JSON /stats.json पर उपलब्ध है। डिफ़ॉल्ट रूप से बंद — केवल localhost से जुड़ता है, LAN से कभी नहीं।" },
     { "key": "settings.developer.disableLogging", "value": "Basis लॉगिंग अक्षम करें" },
     { "key": "settings.developer.disableLogging.description", "value": "सभी BasisDebug लॉग, चेतावनी, और त्रुटि आउटपुट को दबाएँ।" },
     { "key": "settings.developer.sections.title", "value": "डेवलपर अनुभाग" },

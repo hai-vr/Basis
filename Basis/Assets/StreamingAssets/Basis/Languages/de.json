@@ -538,6 +538,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "Zeigt einen Kreis der Avatar-Sichtreichweite zu deinen Füßen an." },
     { "key": "settings.developer.enableStatistics", "value": "Statistiken aktivieren" },
     { "key": "settings.developer.enableStatistics.description", "value": "Aktiviert die Aufzeichnung von Netzwerkstatistiken. Wirkt sich bei der nächsten Verbindung aus." },
+    { "key": "settings.developer.streamingMeta", "value": "Streaming-Metadaten (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "Stellt FPS und CCU auf einem reinen Loopback-Webserver unter http://127.0.0.1:9080/overlay.html bereit (diese URL in eine OBS-Browser-Quelle einfügen). Rohe JSON-Daten sind unter /stats.json verfügbar. Standardmäßig aus — bindet nur an localhost, niemals an das LAN." },
     { "key": "settings.developer.disableLogging", "value": "Basis-Logging deaktivieren" },
     { "key": "settings.developer.disableLogging.description", "value": "Unterdrückt alle BasisDebug-Log-, Warn- und Fehlerausgaben." },
     { "key": "settings.developer.sections.title", "value": "Entwickler-Bereiche" },

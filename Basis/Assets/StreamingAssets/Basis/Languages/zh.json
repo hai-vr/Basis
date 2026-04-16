@@ -538,6 +538,8 @@
     { "key": "settings.developer.avatarDistance.description", "value": "在你的脚下显示虚拟形象可见范围圆圈。" },
     { "key": "settings.developer.enableStatistics", "value": "启用统计数据" },
     { "key": "settings.developer.enableStatistics.description", "value": "启用网络统计记录。在下一次连接时生效。" },
+    { "key": "settings.developer.streamingMeta", "value": "流媒体元数据 (OBS)" },
+    { "key": "settings.developer.streamingMeta.description", "value": "在仅限回环的 Web 服务器 http://127.0.0.1:9080/overlay.html 上公开 FPS 和 CCU（将该 URL 放入 OBS 浏览器源）。原始 JSON 可在 /stats.json 获取。默认关闭 — 仅绑定到 localhost，从不绑定到 LAN。" },
     { "key": "settings.developer.disableLogging", "value": "禁用 Basis 日志" },
     { "key": "settings.developer.disableLogging.description", "value": "抑制所有 BasisDebug 的日志、警告和错误输出。" },
     { "key": "settings.developer.sections.title", "value": "开发者部分" },
