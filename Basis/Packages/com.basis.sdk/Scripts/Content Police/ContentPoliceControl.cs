@@ -41,9 +41,26 @@ public static class ContentPoliceControl
                     switch (component)
                     {
                         case Animator animator:
+                            // AnimationEvents dispatch via SendMessage(methodName, arg),
+                            // which invokes any method of that name on any component on
+                            // this GameObject — even non-public methods on approved
+                            // scripts, bypassing the whitelist below. Disable runtime
+                            // dispatch AND strip the serialized events so no playback
+                            // path (different animator, Playables, a whitelisted script
+                            // flipping fireEvents back on) can revive them.
                             if (ChecksRequired.DisableAnimatorEvents)
                             {
                                 animator.fireEvents = false;
+                            }
+                            StripEventsFromRuntimeController(animator.runtimeAnimatorController);
+                            break;
+                        case Animation legacyAnimation:
+                            // Legacy Animation has no fireEvents toggle; stripping
+                            // each state's clip events is the only defense.
+                            // Stripped by default unless AllowLegacyEvents is explicitly enabled.
+                            if (!ChecksRequired.AllowLegacyEvents)
+                            {
+                                StripEventsFromLegacyAnimation(legacyAnimation);
                             }
                             break;
                         case Collider collider:
@@ -149,6 +166,27 @@ public static class ContentPoliceControl
             {
                 Component component = components[ComponentIndex];
                 //do this first before we nuke stuff
+                switch (component)
+                {
+                    case Animator animator:
+                        // See the Animator case in the GameObject overload for the
+                        // full threat-model comment. AnimationEvents fire via
+                        // SendMessage and reach private methods on approved scripts,
+                        // so we disable runtime dispatch AND strip the serialized
+                        // events off every referenced clip.
+                        if (checks.DisableAnimatorEvents)
+                        {
+                            animator.fireEvents = false;
+                        }
+                        StripEventsFromRuntimeController(animator.runtimeAnimatorController);
+                        break;
+                    case Animation legacyAnimation:
+                        if (!checks.AllowLegacyEvents)
+                        {
+                            StripEventsFromLegacyAnimation(legacyAnimation);
+                        }
+                        break;
+                }
                 // Check if the component is a MonoBehaviour and not in the approved list
                 if (component is UnityEngine.Component monoBehaviour)
                 {
@@ -355,6 +393,74 @@ public static class ContentPoliceControl
         return false;
     }
 
+    // ------------------------------------------------------------------
+    // AnimationEvent scrubbing.
+    //
+    // AnimationClip.events[] is a serialized payload of (method, time,
+    // parameter) tuples. During playback Unity fires each event via
+    // gameObject.SendMessage(method, parameter, DontRequireReceiver) on
+    // the Animator/Animation component's GameObject. SendMessage hits
+    // ANY method of that name on ANY component on that GameObject —
+    // public or private, on approved scripts too — so a malicious clip
+    // can invoke arbitrary methods that were never meant to be reachable
+    // from an animation track.
+    //
+    // animator.fireEvents = false closes the primary gate, but it is a
+    // runtime bool that any surviving approved script can flip, and the
+    // legacy Animation component has no equivalent flag at all. The
+    // authoritative fix is to clear AnimationClip.events on every clip
+    // reached through the loaded subtree. The clips come from the user
+    // bundle (unique per load), so clearing them is safe — no shared SDK
+    // asset is mutated.
+    // ------------------------------------------------------------------
+
+    private static readonly AnimationEvent[] EmptyAnimationEvents = new AnimationEvent[0];
+
+    private static void StripEventsFromRuntimeController(RuntimeAnimatorController controller)
+    {
+        // AnimatorOverrideController can wrap another controller; cap the
+        // walk to defend against pathological chains.
+        int safety = 8;
+        while (controller != null && safety-- > 0)
+        {
+            AnimationClip[] clips = controller.animationClips;
+            if (clips != null)
+            {
+                for (int i = 0; i < clips.Length; i++)
+                {
+                    ClearAnimationEventsOnClip(clips[i]);
+                }
+            }
+            // AnimatorOverrideController.animationClips returns only the
+            // effective (overridden) set — walk to the base controller so
+            // un-overridden base clips are also scrubbed.
+            AnimatorOverrideController overrideController = controller as AnimatorOverrideController;
+            if (overrideController == null) break;
+            RuntimeAnimatorController next = overrideController.runtimeAnimatorController;
+            if (ReferenceEquals(next, controller)) break;
+            controller = next;
+        }
+    }
+
+    private static void StripEventsFromLegacyAnimation(Animation legacyAnimation)
+    {
+        if (legacyAnimation == null) return;
+        foreach (AnimationState state in legacyAnimation)
+        {
+            if (state == null) continue;
+            ClearAnimationEventsOnClip(state.clip);
+        }
+    }
+
+    private static void ClearAnimationEventsOnClip(AnimationClip clip)
+    {
+        if (clip == null) return;
+        AnimationEvent[] existing = clip.events;
+        if (existing == null || existing.Length == 0) return;
+        Debug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
+        clip.events = EmptyAnimationEvents;
+    }
+
     // .NET Standard 2.0 has no ReferenceEqualityComparer; supply one so the
     // visited set uses identity, not UnityEngine.Object.Equals (which is
     // value-equal across destroyed objects).
@@ -380,6 +486,9 @@ public struct ChecksRequired
     // Process.Start, assembly loading, etc.). Opt-in so legacy prop bundles
     // with wired-up Buttons keep working; cilbox-initiated spawns enable it.
     public bool ScrubPersistentUnityEvents;
+    // When false (default), legacy Animation clip events are stripped.
+    // Set to true only if legacy animation events are explicitly trusted.
+    public bool AllowLegacyEvents;
     public ChecksRequired(bool useContentRemoval, bool disableAnimatorEvents, bool removeColliders,bool changeColidersToCorrectLayer)
     {
         UseContentRemoval = useContentRemoval;
@@ -387,5 +496,6 @@ public struct ChecksRequired
         RemoveColliders = removeColliders;
         ChangeCollidersToCorrectLayer = changeColidersToCorrectLayer;
         ScrubPersistentUnityEvents = false;
+        AllowLegacyEvents = false;
     }
 }
