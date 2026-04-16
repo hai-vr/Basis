@@ -45,8 +45,8 @@ namespace Basis.BasisUI
         {
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> newItemDialogBox = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, new Vector2(930, 600),
-                "Add New Content",
-                "Please provide the URL and password for your BEE file. Ensure your url and pass are correct or the item wont be included in your library.",
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.add.title"),
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.add.description"),
                 AddressableAssets.Sprites.Add);
 
             // create the exit button for the dialog box
@@ -62,7 +62,7 @@ namespace Basis.BasisUI
 
             // BEE file URL field
             PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, panelGroup.TabButtonParent);
-            URL._placeholderLabel.text = "URL";
+            URL._placeholderLabel.text = Basis.BasisUI.BasisLocalization.Get("library.dialog.add.urlPlaceholder");
             URL._inputField.contentType = TMP_InputField.ContentType.Standard;
             URL.Descriptor.SetHeight(115);
             URL.Descriptor.SetWidth(700);
@@ -71,7 +71,7 @@ namespace Basis.BasisUI
             URL.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.urlDescription"));
 
             PanelPasswordField Password = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, panelGroup.TabButtonParent);
-            Password._placeholderField.text = "Enter password";
+            Password._placeholderField.text = Basis.BasisUI.BasisLocalization.Get("library.dialog.add.passwordPlaceholder");
             Password.Descriptor.SetHeight(115);
             Password.Descriptor.SetWidth(700);
 
@@ -300,12 +300,12 @@ namespace Basis.BasisUI
                     // if validation failed, show an error message and do not proceed
                     string errorMessage = validationResult switch
                     {
-                        InputValidation.EntryValidationResult.EmptyUrl => "URL cannot be empty.",
-                        InputValidation.EntryValidationResult.InvalidUrlFormat => "URL format is invalid.",
-                        InputValidation.EntryValidationResult.InvalidUrlScheme => "URL must start with http:// or https://",
-                        InputValidation.EntryValidationResult.EmptyPassword => "Password cannot be empty.",
-                        InputValidation.EntryValidationResult.DuplicateEntry => "An entry with this URL already exists in your library.",
-                        _ => "Unknown validation error."
+                        InputValidation.EntryValidationResult.EmptyUrl => Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.emptyUrl"),
+                        InputValidation.EntryValidationResult.InvalidUrlFormat => Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.invalidUrlFormat"),
+                        InputValidation.EntryValidationResult.InvalidUrlScheme => Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.invalidUrlScheme"),
+                        InputValidation.EntryValidationResult.EmptyPassword => Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.emptyPassword"),
+                        InputValidation.EntryValidationResult.DuplicateEntry => Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.duplicateEntry"),
+                        _ => Basis.BasisUI.BasisLocalization.Get("library.dialog.add.error.unknown")
                     };
 
                     if (!validationMessageField.Descriptor.gameObject.activeSelf)

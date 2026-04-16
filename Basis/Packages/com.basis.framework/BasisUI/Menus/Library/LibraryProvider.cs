@@ -131,14 +131,14 @@ namespace Basis.BasisUI
             };
 
             // Attach per-tab refresh callbacks that only fetch and rebuild the associated tab when selected
-            tabGroup.AddTab("Props", AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop, true), propsTab);
-            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.World, true), worldsTab);
-            tabGroup.AddTab("Avatars", AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar, true), avatarsTab);
-            tabGroup.AddTab("Instantiated", AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated, true), instantiatedTab);
+            tabGroup.AddTab(BasisLocalization.Get("library.tab.props"), AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop, true), propsTab);
+            tabGroup.AddTab(BasisLocalization.Get("library.tab.worlds"), AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.World, true), worldsTab);
+            tabGroup.AddTab(BasisLocalization.Get("library.tab.avatars"), AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar, true), avatarsTab);
+            tabGroup.AddTab(BasisLocalization.Get("library.tab.instantiated"), AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated, true), instantiatedTab);
 
             // create a search text field in the tab group extras area
             searchField = PanelTextField.CreateNew(TextFieldStyles.EntryWithNoTitle, tabGroup.ExtrasContainer);
-            searchField._placeholderLabel.text = "Search...";
+            searchField._placeholderLabel.text = BasisLocalization.Get("ui.search");
             searchField.Descriptor.SetSize(new Vector2(60, 80));
             searchField.OnValueChanged = async (val) =>
             {
@@ -209,7 +209,7 @@ namespace Basis.BasisUI
             // };
 
             // add our extra menu button items, this is the buttons below the panel content
-            addNewContentButton = tabGroup.AddExtraAction("Add New Content", async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
+            addNewContentButton = tabGroup.AddExtraAction(BasisLocalization.Get("library.addNewContent"), async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
 
             // set the current tab to the current page
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
@@ -702,7 +702,7 @@ namespace Basis.BasisUI
 
         public static string PinnedText(BasisDataStoreItemKeys.ItemKey item)
         {
-            return item.PinnedSettings.IsPinned ? "Pinned" : "Pin";
+            return item.PinnedSettings.IsPinned ? BasisLocalization.Get("library.pinned") : BasisLocalization.Get("library.pin");
         }
 
         private static async Task HandleBadItem(BasisDataStoreItemKeys.ItemKey item)
@@ -735,7 +735,7 @@ namespace Basis.BasisUI
             Sprite targetSprite = null;   // target sprite
 
             // default string text for embedded item
-            string embedItem = "Emebbed item";
+            string embedItem = BasisLocalization.Get("library.embeddedItem");
 
             int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
 
@@ -770,8 +770,8 @@ namespace Basis.BasisUI
 
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> existingItemDialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, overlaySize,
-                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}{(spawnItemCount > 0 ? $" ({spawnItemCount} spawned)" : "" )}",
-                $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
+                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}{(spawnItemCount > 0 ? $" {BasisLocalization.Get("library.spawnedCount", spawnItemCount)}" : "" )}",
+                $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : BasisLocalization.Get("library.noDescription"))}",
                 ConvertItemKeyToAddressableSprite(item));
 
             // only items can be pinned as props
@@ -853,7 +853,7 @@ namespace Basis.BasisUI
                 // determine what the creation date text is gonna say
                 if (string.IsNullOrEmpty(creationDate))
                 {
-                    creationDate = "N/A";
+                    creationDate = BasisLocalization.Get("library.notAvailable");
                 }
                 else
                 {
@@ -891,7 +891,7 @@ namespace Basis.BasisUI
 
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
-                platformIconsTextField.Descriptor.SetDescription($"All - Embedded Item");
+                platformIconsTextField.Descriptor.SetDescription(BasisLocalization.Get("library.allPlatformsEmbedded"));
             }
             else
             {
@@ -1300,7 +1300,7 @@ namespace Basis.BasisUI
                         // if the item is embedded dont interact
                         loadButtonComponent.interactable = !sameAvatar;
                     }
-                    loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
+                    loadPanelButton.Descriptor.SetTitle(sameAvatar ? BasisLocalization.Get("library.alreadyInAvatar") : BasisLocalization.Get("library.load"));
                     break;
                 case BundledContentHolder.Mode.World:
                     bool worldAlreadyExists = spawnItemCount > 0;
@@ -1311,10 +1311,10 @@ namespace Basis.BasisUI
                         loadButtonComponent2.interactable = !worldAlreadyExists;
                     }
                     // you can only load one instance of a scene
-                    loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? "You can only load 1 instance of a scene." : "Load");
+                    loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? BasisLocalization.Get("library.sceneAlreadyLoaded") : BasisLocalization.Get("library.load"));
                     break;
                 case BundledContentHolder.Mode.Prop:
-                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : GetPropLoadButtonTitle(desiredNetworkType));
+                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? BasisLocalization.Get("library.despawn") : GetPropLoadButtonTitle(desiredNetworkType));
                     break;
             }
 
@@ -1367,10 +1367,10 @@ namespace Basis.BasisUI
 
         #region NetworkType Descriptions
 
-        private static readonly Dictionary<BundledContentHolder.NetworkType, string> NetworkTypeDisplayNames = new()
+        private static Dictionary<BundledContentHolder.NetworkType, string> NetworkTypeDisplayNames => new()
         {
-            [BundledContentHolder.NetworkType.Local] = "Only Me",
-            [BundledContentHolder.NetworkType.Networked] = "Everyone (Instant)",
+            [BundledContentHolder.NetworkType.Local] = BasisLocalization.Get("library.networkType.local"),
+            [BundledContentHolder.NetworkType.Networked] = BasisLocalization.Get("library.networkType.networked"),
             // TODO: Re-enable once synchronized loading is fully working (late joiner + prop unload bugs)
             // [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
         };
@@ -1404,13 +1404,13 @@ namespace Basis.BasisUI
             return networkType switch
             {
                 BundledContentHolder.NetworkType.Local =>
-                    "If the item is set to local, it will only be visible and interactive for you.",
+                    BasisLocalization.Get("library.networkType.local.description"),
                 BundledContentHolder.NetworkType.Networked =>
-                    "The item will be spawned on all connected players immediately.",
+                    BasisLocalization.Get("library.networkType.networked.description"),
                 BundledContentHolder.NetworkType.Synchronized =>
-                    "Downloads to all players, then spawns simultaneously once everyone is ready. Has a 5 minute timeout for slow connections.",
+                    BasisLocalization.Get("library.networkType.synchronized.description"),
                 _ =>
-                    "Unknown network type.",
+                    BasisLocalization.Get("library.networkType.unknown.description"),
             };
         }
 
@@ -1418,8 +1418,8 @@ namespace Basis.BasisUI
         {
             return networkType switch
             {
-                BundledContentHolder.NetworkType.Synchronized => "Sync Spawn",
-                _ => "Spawn",
+                BundledContentHolder.NetworkType.Synchronized => BasisLocalization.Get("library.syncSpawn"),
+                _ => BasisLocalization.Get("library.spawn"),
             };
         }
 
@@ -1790,7 +1790,7 @@ namespace Basis.BasisUI
             // set the title and description of the list entry
             itemTextInfo.Descriptor.SetTitle(title);
 
-            string createdDisplayName = "N/A";
+            string createdDisplayName = BasisLocalization.Get("library.notAvailable");
             if(!string.IsNullOrEmpty(itemKey.UUIDOfCreator))
             {
                 // this is not ideal todo revise.
@@ -1802,13 +1802,13 @@ namespace Basis.BasisUI
                 }
             }
 
-            itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago by {createdDisplayName}"); // {description}
+            itemTextInfo.Descriptor.SetDescription(BasisLocalization.Get("library.instantiated.createdAgoBy", LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc), createdDisplayName)); // {description}
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
             PanelButton selectItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
-            selectItem.Descriptor.SetTitle(hasSelected ? "Deselect" : "Select");
+            selectItem.Descriptor.SetTitle(hasSelected ? BasisLocalization.Get("library.deselect") : BasisLocalization.Get("library.select"));
             selectItem.SetSize(new Vector2(200, 60));
 
             // determine if we can select this item

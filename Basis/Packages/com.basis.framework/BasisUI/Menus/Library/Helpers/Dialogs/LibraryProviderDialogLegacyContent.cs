@@ -18,8 +18,8 @@ namespace Basis.BasisUI
         public static async Task<BundledContentHolder.Mode> PromptUserToDefineLegacyContent(BasisMenuPanel panel)
         {
             DialogBox<BundledContentHolder.Mode> legacyCotentDefineDialogBox = DialogBox<BundledContentHolder.Mode>.Create(panel, new Vector2(830, 430),
-                "Specify Content Type",
-                "Your content is marked legacy. Please specify what type of content you are adding.",
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.legacy.title"),
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.legacy.description"),
                 AddressableAssets.Sprites.Add,
                 true
             );
@@ -35,7 +35,7 @@ namespace Basis.BasisUI
             createdInformationTextField._inputField.gameObject.SetActive(false); // disable the text input field box
             createdInformationTextField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.dialog.legacy.whyShowing"));
             createdInformationTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
-            createdInformationTextField.Descriptor.SetDescription($"BEE files now contain metadata of what's inside it, this is used to determine things about your BEE file which will be important in future features. Please to consider updating your content to include this metadata.");
+            createdInformationTextField.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.legacy.whyShowing.description"));
 
             createdInformationTextField.Descriptor.SetHeight(100);
             createdInformationTextField.Descriptor.SetWidth(800);

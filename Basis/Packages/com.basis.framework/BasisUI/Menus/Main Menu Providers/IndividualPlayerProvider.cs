@@ -330,56 +330,6 @@ namespace Basis.BasisUI
             PlatformDescriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.platform"));
             PlatformDescriptor.SetDescription(remotePlayer.PlayerPlatform);
 
-            var uuidField = PanelTextField.CreateNewEntry(infoGroup.ContentParent);
-            uuidField.Descriptor.SetTitle("UUID");
-            uuidField.SetValueWithoutNotify(remotePlayer.UUID);
-            uuidField._inputField.readOnly = true;
-
-            // ---- Highlight beacon controls ----
-            var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));
-            locateGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locate.description"));
-
-            PanelButton highlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight && s_beaconTarget?.Player == remotePlayer
-                ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
-            highlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.highlight.description"));
-
-            PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            clearHighlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.clearHighlights"));
-            clearHighlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.clearHighlights.description"));
-
-            highlightBtn.OnClicked += () =>
-            {
-                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
-                    remotePlayer, out BasisNetworkPlayer netPlayer))
-                {
-                    SetHighlight(netPlayer);
-                    highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
-                }
-            };
-
-            clearHighlightBtn.OnClicked += () =>
-            {
-                ClearHighlight();
-                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
-            };
-
-            // ---- Pin controls ----
-            var pinGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            pinGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.pin"));
-            pinGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.description"));
-
-            string pinUuid = remotePlayer.UUID;
-            PanelButton pinBtn = PanelButton.CreateNew(pinGroup.ContentParent);
-            pinBtn.Descriptor.SetTitle(BasisLocalization.Get(PinnedPlayers.IsPinned(pinUuid) ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
-            pinBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.button.description"));
-            pinBtn.OnClicked += () =>
-            {
-                bool nowPinned = PinnedPlayers.Toggle(pinUuid);
-                pinBtn.Descriptor.SetTitle(BasisLocalization.Get(nowPinned ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
-            };
-
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             audioGroup.SetTitle(BasisLocalization.Get("settings.tab.audio"));
@@ -394,16 +344,6 @@ namespace Basis.BasisUI
                 Binding);
 
             volumeSlider.SetValueWithoutNotify(settings.VolumeLevel);
-
-            var volumeNote = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, audioGroup.ContentParent);
-            volumeNote.SetTitle(BasisLocalization.Get("ui.note"));
-
-            void UpdateVolumeNote(float v)
-            {
-                bool over = v > 1.0f;
-                volumeNote.SetDescription(BasisLocalization.Get(over ? "menu.individualPlayer.volumeOver" : "menu.individualPlayer.volumeNormal"));
-            }
-            UpdateVolumeNote(settings.VolumeLevel);
 
             // ---- Create meter UI (Addressables sprite) ----
             MeterRefs meter = await CreateVolumeMeterUIAsync(audioGroup.ContentParent);
@@ -461,8 +401,6 @@ namespace Basis.BasisUI
             {
                 float value = Mathf.Clamp(raw, 0f, 1.5f);
 
-                UpdateVolumeNote(value);
-
                 var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
                 s.VolumeLevel = value;
                 await BasisPlayerSettingsManager.SetPlayerSettings(s);
@@ -473,6 +411,52 @@ namespace Basis.BasisUI
                         remotePlayer.IsEffectivelyBlocked ? 0f : value);
                 }
             };
+
+            // ---- Highlight beacon controls ----
+            var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));
+            locateGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locate.description"));
+
+            PanelButton highlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
+            highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight && s_beaconTarget?.Player == remotePlayer
+                ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
+            highlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.highlight.description"));
+
+            PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
+            clearHighlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.clearHighlights"));
+            clearHighlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.clearHighlights.description"));
+
+            highlightBtn.OnClicked += () =>
+            {
+                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                    remotePlayer, out BasisNetworkPlayer netPlayer))
+                {
+                    SetHighlight(netPlayer);
+                    highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
+                }
+            };
+
+            clearHighlightBtn.OnClicked += () =>
+            {
+                ClearHighlight();
+                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
+            };
+
+            // ---- Pin controls ----
+            var pinGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            pinGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.pin"));
+            pinGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.description"));
+
+            string pinUuid = remotePlayer.UUID;
+            PanelButton pinBtn = PanelButton.CreateNew(pinGroup.ContentParent);
+            pinBtn.Descriptor.SetTitle(BasisLocalization.Get(PinnedPlayers.IsPinned(pinUuid) ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
+            pinBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.button.description"));
+            pinBtn.OnClicked += () =>
+            {
+                bool nowPinned = PinnedPlayers.Toggle(pinUuid);
+                pinBtn.Descriptor.SetTitle(BasisLocalization.Get(nowPinned ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
+            };
+
             var avatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             avatarGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatar"));
             avatarGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatar.description"));
@@ -1012,6 +996,11 @@ namespace Basis.BasisUI
                 updater.SilenceField = silenceField;
                 updater.VisemeField = visemeField;
             };
+
+            var uuidField = PanelTextField.CreateNewEntry(root);
+            uuidField.Descriptor.SetTitle("UUID");
+            uuidField.SetValueWithoutNotify(remotePlayer.UUID);
+            uuidField._inputField.readOnly = true;
 
             panel.Descriptor.ForceRebuild();
             panel.Descriptor.ForceRebuild();

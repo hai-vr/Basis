@@ -21,8 +21,8 @@ namespace Basis.BasisUI
         )
         {
             DialogBox<bool> contentLoadingDialogBox = DialogBox<bool>.Create(panel, new Vector2(830, 150),
-                "Please wait",
-                "Your content is currently loading standby...",
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.loading.title"),
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.loading.description"),
                 AddressableAssets.Sprites.HourGlass,
                 true
             );
@@ -33,7 +33,7 @@ namespace Basis.BasisUI
                 {
                     if (contentLoadingDialogBox.Descriptor != null)
                     {
-                        contentLoadingDialogBox.Descriptor.SetDescription($"Loading {progress:F0}% - {info}");
+                        contentLoadingDialogBox.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.loading.progress", $"{progress:F0}", info));
                     }
                 });
             }

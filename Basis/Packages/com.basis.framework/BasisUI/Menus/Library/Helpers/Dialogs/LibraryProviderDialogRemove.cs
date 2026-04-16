@@ -54,8 +54,8 @@ namespace Basis.BasisUI
         public static async Task<bool> PromptUserForRemoval(BasisMenuPanel panel, BasisDataStoreItemKeys.ItemKey item, BasisBundleDescription description)
         {
             DialogBox<bool> contentRemovalDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
-                $"Delete {LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}?",
-                $"Are you sure you want to remove this {item.Mode}?",
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.remove.title", LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)),
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.remove.body", item.Mode),
                 AddressableAssets.Sprites.Information,
                 true
             );
@@ -69,8 +69,8 @@ namespace Basis.BasisUI
         public static async Task<bool> PromptUserForRemoval(BasisMenuPanel panel, string assetName, string type)
         {
             DialogBox<bool> contentRemovalDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
-                $"Delete {assetName}?",
-                $"Are you sure you want to remove this {type}?",
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.remove.title", assetName),
+                Basis.BasisUI.BasisLocalization.Get("library.dialog.remove.body", type),
                 AddressableAssets.Sprites.Information,
                 true
             );
