@@ -13,13 +13,14 @@ namespace Basis.Streaming
     public sealed class BasisStreamingMetaRuntime : MonoBehaviour
     {
         public const string Host = "127.0.0.1";
-        public const int Port = 9080;
+        public const int DefaultPort = 9080;
+        private const float PublishInterval = 0.1f;
 
         private static BasisStreamingMetaRuntime instance;
 
         private BasisStreamingMetaServer server;
-        private float smoothedDelta;
         private bool subscribed;
+        private int activePort;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -38,7 +39,8 @@ namespace Basis.Streaming
         {
             if (!subscribed)
             {
-                BasisSettingsDefaults.EnableStreamingMeta.OnChanged += HandleSettingChanged;
+                BasisSettingsDefaults.EnableStreamingMeta.OnChanged += HandleEnabledChanged;
+                BasisSettingsDefaults.StreamingMetaPort.OnChanged += HandlePortChanged;
                 subscribed = true;
             }
 
@@ -49,7 +51,8 @@ namespace Basis.Streaming
         {
             if (subscribed)
             {
-                BasisSettingsDefaults.EnableStreamingMeta.OnChanged -= HandleSettingChanged;
+                BasisSettingsDefaults.EnableStreamingMeta.OnChanged -= HandleEnabledChanged;
+                BasisSettingsDefaults.StreamingMetaPort.OnChanged -= HandlePortChanged;
                 subscribed = false;
             }
 
@@ -65,7 +68,23 @@ namespace Basis.Streaming
             }
         }
 
-        private void HandleSettingChanged(bool _) => ApplyCurrentSetting();
+        private void HandleEnabledChanged(bool _) => ApplyCurrentSetting();
+
+        private void HandlePortChanged(string _)
+        {
+            if (!BasisSettingsDefaults.EnableStreamingMeta.RawValue)
+            {
+                return;
+            }
+
+            if (server != null && ResolvePort() == activePort)
+            {
+                return;
+            }
+
+            StopServer();
+            StartServer();
+        }
 
         private void ApplyCurrentSetting()
         {
@@ -79,6 +98,16 @@ namespace Basis.Streaming
             }
         }
 
+        private static int ResolvePort()
+        {
+            string raw = BasisSettingsDefaults.StreamingMetaPort.RawValue;
+            if (int.TryParse(raw, out int parsed) && parsed > 0 && parsed <= 65535)
+            {
+                return parsed;
+            }
+            return DefaultPort;
+        }
+
         private void StartServer()
         {
             if (server != null)
@@ -86,14 +115,17 @@ namespace Basis.Streaming
                 return;
             }
 
+            int port = ResolvePort();
             try
             {
-                server = new BasisStreamingMetaServer(Host, Port);
-                Debug.Log($"[BasisStreamingMeta] overlay available at {server.Prefix}overlay.html");
+                server = new BasisStreamingMetaServer(Host, port);
+                activePort = port;
+                BasisDebug.Log($"[BasisStreamingMeta] overlay available at {server.Prefix}overlay.html", BasisDebug.LogTag.LocalNetwork);
+                InvokeRepeating(nameof(PublishTick), PublishInterval, PublishInterval);
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[BasisStreamingMeta] failed to bind http://{Host}:{Port}: {ex.Message}");
+                BasisDebug.LogWarning($"[BasisStreamingMeta] failed to bind http://{Host}:{port}: {ex.Message}", BasisDebug.LogTag.LocalNetwork);
                 server = null;
             }
         }
@@ -105,20 +137,20 @@ namespace Basis.Streaming
                 return;
             }
 
+            CancelInvoke(nameof(PublishTick));
             server.Dispose();
             server = null;
         }
 
-        private void Update()
+        private void PublishTick()
         {
             if (server == null)
             {
                 return;
             }
 
-            float dt = Time.unscaledDeltaTime;
-            smoothedDelta += (dt - smoothedDelta) * 0.1f;
-            float fps = smoothedDelta > 0f ? 1f / smoothedDelta : 0f;
+            float dt = Time.smoothDeltaTime;
+            float fps = dt > 0f ? 1f / dt : 0f;
 
             var snapshot = new BasisStreamingMetaServer.Snapshot
             {
