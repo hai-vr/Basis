@@ -111,6 +111,178 @@
             "value": "Avatarbestand Onbereikbaar"
         },
         {
+            "key": "library.addNewContent",
+            "value": "Nieuwe Inhoud Toevoegen"
+        },
+        {
+            "key": "library.pinned",
+            "value": "Vastgemaakt"
+        },
+        {
+            "key": "library.pin",
+            "value": "Vastmaken"
+        },
+        {
+            "key": "library.embeddedItem",
+            "value": "Ingebed Item"
+        },
+        {
+            "key": "library.noDescription",
+            "value": "Er is geen beschrijving opgegeven."
+        },
+        {
+            "key": "library.allPlatformsEmbedded",
+            "value": "Alle - Ingebed Item"
+        },
+        {
+            "key": "library.notAvailable",
+            "value": "N.v.t."
+        },
+        {
+            "key": "library.alreadyInAvatar",
+            "value": "Je draagt deze avatar al"
+        },
+        {
+            "key": "library.load",
+            "value": "Laden"
+        },
+        {
+            "key": "library.sceneAlreadyLoaded",
+            "value": "Je kunt slechts 1 instantie van een scène laden."
+        },
+        {
+            "key": "library.despawn",
+            "value": "Despawnen"
+        },
+        {
+            "key": "library.spawn",
+            "value": "Spawnen"
+        },
+        {
+            "key": "library.syncSpawn",
+            "value": "Synchroon Spawnen"
+        },
+        {
+            "key": "library.spawnedCount",
+            "value": "({0} gespawnd)"
+        },
+        {
+            "key": "library.select",
+            "value": "Selecteren"
+        },
+        {
+            "key": "library.deselect",
+            "value": "Deselecteren"
+        },
+        {
+            "key": "library.networkType.local",
+            "value": "Alleen Ik"
+        },
+        {
+            "key": "library.networkType.networked",
+            "value": "Iedereen (Direct)"
+        },
+        {
+            "key": "library.networkType.local.description",
+            "value": "Als het item op lokaal staat, is het alleen zichtbaar en interactief voor jou."
+        },
+        {
+            "key": "library.networkType.networked.description",
+            "value": "Het item wordt onmiddellijk bij alle verbonden spelers gespawnd."
+        },
+        {
+            "key": "library.networkType.synchronized.description",
+            "value": "Wordt gedownload naar alle spelers en vervolgens gelijktijdig gespawnd zodra iedereen klaar is. Heeft een timeout van 5 minuten voor trage verbindingen."
+        },
+        {
+            "key": "library.networkType.unknown.description",
+            "value": "Onbekend netwerktype."
+        },
+        {
+            "key": "library.instantiated.createdAgoBy",
+            "value": "{0} geleden aangemaakt door {1}"
+        },
+        {
+            "key": "library.dialog.add.title",
+            "value": "Nieuwe Inhoud Toevoegen"
+        },
+        {
+            "key": "library.dialog.add.description",
+            "value": "Geef de URL en het wachtwoord op voor je BEE-bestand. Zorg ervoor dat je URL en wachtwoord correct zijn, anders wordt het item niet opgenomen in je bibliotheek."
+        },
+        {
+            "key": "library.dialog.add.urlPlaceholder",
+            "value": "URL"
+        },
+        {
+            "key": "library.dialog.add.passwordPlaceholder",
+            "value": "Wachtwoord invoeren"
+        },
+        {
+            "key": "library.dialog.add.error.emptyUrl",
+            "value": "URL mag niet leeg zijn."
+        },
+        {
+            "key": "library.dialog.add.error.invalidUrlFormat",
+            "value": "URL-formaat is ongeldig."
+        },
+        {
+            "key": "library.dialog.add.error.invalidUrlScheme",
+            "value": "URL moet beginnen met http:// of https://"
+        },
+        {
+            "key": "library.dialog.add.error.emptyPassword",
+            "value": "Wachtwoord mag niet leeg zijn."
+        },
+        {
+            "key": "library.dialog.add.error.duplicateEntry",
+            "value": "Er bestaat al een item met deze URL in je bibliotheek."
+        },
+        {
+            "key": "library.dialog.add.error.unknown",
+            "value": "Onbekende validatiefout."
+        },
+        {
+            "key": "library.dialog.loading.title",
+            "value": "Even geduld"
+        },
+        {
+            "key": "library.dialog.loading.description",
+            "value": "Je inhoud wordt momenteel geladen, even geduld..."
+        },
+        {
+            "key": "library.dialog.loading.progress",
+            "value": "Laden {0}% - {1}"
+        },
+        {
+            "key": "library.dialog.remove.title",
+            "value": "{0} verwijderen?"
+        },
+        {
+            "key": "library.dialog.remove.body",
+            "value": "Weet je zeker dat je dit {0} wilt verwijderen?"
+        },
+        {
+            "key": "library.dialog.share.title",
+            "value": "{0} delen?"
+        },
+        {
+            "key": "library.dialog.share.body",
+            "value": "Weet je zeker dat je dit {0} wilt delen met iedereen op de server?"
+        },
+        {
+            "key": "library.dialog.legacy.title",
+            "value": "Inhoudstype Opgeven"
+        },
+        {
+            "key": "library.dialog.legacy.description",
+            "value": "Je inhoud is gemarkeerd als verouderd. Geef aan welk type inhoud je toevoegt."
+        },
+        {
+            "key": "library.dialog.legacy.whyShowing.description",
+            "value": "BEE-bestanden bevatten nu metadata over de inhoud. Dit wordt gebruikt om informatie over je BEE-bestand te bepalen, wat belangrijk zal zijn voor toekomstige functies. Overweeg je inhoud bij te werken om deze metadata op te nemen."
+        },
+        {
             "key": "library.dialog.legacy.contentType",
             "value": "Inhoudstype"
         },
