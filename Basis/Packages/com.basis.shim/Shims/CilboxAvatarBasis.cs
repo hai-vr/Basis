@@ -24,6 +24,9 @@ namespace Cilbox
 			"Basis.Scripts.BasisSdk.Players.BasisLocalPlayer",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer",
 			"Basis.Shims.BasisNet*", // Restrictive, only used as a type and for events.
+			"Basis.Shims.BasisAvatarShim",
+			"Basis.Shims.BasisAvatarShim+OnReady",
+			"Basis.Shims.BasisAvatarShim+AvatarReadyEvent",
 			"Basis.Shims.BasisCilboxInstantiateShim", // Restrictive, only used as a type and for Instantiate methods.
 			"Basis.Shims.BasisDebugPropsShim", // Restrictive, only used as a type and for logging methods.
 
@@ -42,6 +45,7 @@ namespace Cilbox
 			"System.DateTime",
 			"System.DateTimeOffset",
 			"System.DayOfWeek",
+			"System.Delegate",
 			"System.Diagnostics.Stopwatch",
 			"System.Double",
 			"System.Exception",
@@ -88,6 +92,7 @@ namespace Cilbox
 			"UnityEngine.Rigidbody",
 			"UnityEngine.RenderTexture",
 			"UnityEngine.RenderTextureFormat",
+			"UnityEngine.SkinnedMeshRenderer",
 			"UnityEngine.UI.*",
 			"UnityEngine.Vector*",
 			"UnityEngine.UI.InputField",
@@ -107,6 +112,7 @@ namespace Cilbox
 			"UnityEngine.Vector*.y",
 			"UnityEngine.Vector*.z",
 			"UnityEngine.Vector*.w",
+			"UnityEngine.Quaternion*",
 
 			// System fields
 			"System.Array.*",
@@ -114,6 +120,18 @@ namespace Cilbox
 			
 
 			// Basis types
+			"Basis.Shims.BasisAvatarShim.Animator",
+			"Basis.Shims.BasisAvatarShim.FaceVisemeMesh",
+			"Basis.Shims.BasisAvatarShim.FaceBlinkMesh",
+			"Basis.Shims.BasisAvatarShim.AvatarEyePosition",
+			"Basis.Shims.BasisAvatarShim.AvatarMouthPosition",
+			"Basis.Shims.BasisAvatarShim.FaceVisemeMovement",
+			"Basis.Shims.BasisAvatarShim.BlinkViseme",
+			"Basis.Shims.BasisAvatarShim.laughterBlendTarget",
+			"Basis.Shims.BasisAvatarShim.AnimatorHumanScale",
+			"Basis.Shims.BasisAvatarShim.IsOwnedLocally",
+			"Basis.Shims.BasisAvatarShim.HumanScale",
+			"Basis.Scripts.BasisSdk.BasisProcessingAvatarOptions.doNotAutoRenameBones",
 			"Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable.OnPickupUse",
             "Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject.OnInteractStartEvent",
             "Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject.OnInteractEndEvent",
@@ -219,7 +237,7 @@ namespace Cilbox
 			return true;
 		}
 
-        public override bool GetComponentTypeOverride(string sType, out Type t)
+        public override bool GetTypeOverride(string sType, out Type t)
         {
 			switch(sType)
 			{
@@ -241,6 +259,12 @@ namespace Cilbox
 					return true;
 				case "UnityEngine.Debug":
 					t = typeof(Basis.Shims.BasisDebugPropsShim);
+					return true;
+				case "Basis.Scripts.BasisSdk.BasisAvatar":
+					t = typeof(Basis.Shims.BasisAvatarShim);
+					return true;
+				case "Basis.Scripts.BasisSdk.BasisAvatar+OnReady":
+					t = typeof(Basis.Shims.BasisAvatarShim.OnReady);
 					return true;
 				default:
 					t = null;
