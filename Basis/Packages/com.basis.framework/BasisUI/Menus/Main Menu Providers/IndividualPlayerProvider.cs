@@ -610,9 +610,7 @@ namespace Basis.BasisUI
 
                 // Mirror the block onto the other side of the pair so that when we
                 // block them, they also can't see/hear us (session-scoped temp block).
-                // Admins skip this send so moderation blocks stay one-way.
-                if (!BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView)
-                    && Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
                         remotePlayer, out BasisNetworkPlayer blockTargetNet))
                 {
                     BasisNetworkHandleTempBlock.SendTempBlock(blockTargetNet.playerId, s.IsBlocked);
