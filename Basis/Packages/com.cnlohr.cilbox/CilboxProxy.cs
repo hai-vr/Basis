@@ -344,10 +344,7 @@ namespace Cilbox
 
 			proxyWasSetup = true;
 			runtimeFieldsObjects = null;
-			// Release the serialized blob and original object list — they're only needed during load
-			// and the guard above prevents re-entry. Keeps ~a kB per proxy off the GC heap.
 			serializedObjectData = null;
-			fieldsObjects = null;
 			if (verboseLogging)
 				Debug.Log( $"RuntimeProxyLoad complete for class {className}" );
 		}
