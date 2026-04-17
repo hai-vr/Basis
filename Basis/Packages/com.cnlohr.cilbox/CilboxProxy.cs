@@ -272,8 +272,7 @@ namespace Cilbox
 				Dictionary< String, Serializee > dict = s.AsMap();
 				if( dict.ContainsKey( "t" ) && dict.TryGetValue( "miid", out Serializee miid ) )
 				{
-					if( UInt32.TryParse( miid.AsString(), out UInt32 nMIID ) &&
-						nMIID < fieldCount )
+					if( UInt32.TryParse( miid.AsString(), out UInt32 nMIID ) && nMIID < fieldCount )
 					{
 						matchingSerializeeInstanceField[nMIID] = s;
 						matchingDicts[nMIID] = dict;
@@ -334,7 +333,7 @@ namespace Cilbox
 				if( s == null ) { /* Debug.Log( $"Skipping {i} {cls.instanceFieldNames[i]}" ); */ continue; }
 
 				object o;
-				bool bIsObject = LoadObjectFromSerializee( s, out o, cls.instanceFieldNames[i], cls.instanceFieldTypes[i], true, matchingDicts[i] );
+				bool bIsObject = LoadObjectFromSerializee( s, out o, cls.instanceFieldNames[i], cls.instanceFieldTypes[i], true);
 				if( bIsObject )
 					fields[i].LoadObject( o );
 				else
@@ -355,10 +354,10 @@ namespace Cilbox
 
 		// Returns: true if is object, otherwise is primitive.
 		// `dict` may be supplied by callers that already parsed the Serializee to avoid a redundant AsMap allocation.
-		private bool LoadObjectFromSerializee( Serializee s, out object oOut, String rootFieldName, Type inType, bool root, Dictionary< String, Serializee > dict = null )
+		private bool LoadObjectFromSerializee( Serializee s, out object oOut, String rootFieldName, Type inType, bool root)
 		{
 			List<UnityEngine.Object> objectSlots = runtimeFieldsObjects ?? fieldsObjects;
-			if( dict == null ) dict = s.AsMap();
+           var dict = s.AsMap();
 
 			Serializee setype;
 			if( dict.TryGetValue( "t", out setype ) )
@@ -366,46 +365,41 @@ namespace Cilbox
 				String sT = setype.AsString();
 				if( sT == "cba" || sT == "obj" )
 				{
-					Serializee seFO;
-					int iFO;
-					if( dict.TryGetValue( "fo", out seFO ) &&
-						Int32.TryParse( seFO.AsString(), out iFO ) &&
-						objectSlots != null &&
-						iFO < objectSlots.Count )
-					{
-						if (dict.TryGetValue("or", out var seOr))
-						{
-							if (seOr.AsString() == "null")
-							{
-								// This field was null when serialized, so just return null
-								oOut = null;
-								return true;
-							}
-						}
+                    if (dict.TryGetValue("fo", out Serializee seFO) && Int32.TryParse(seFO.AsString(), out int iFO) && objectSlots != null && iFO < objectSlots.Count)
+                    {
+                        if (dict.TryGetValue("or", out var seOr))
+                        {
+                            if (seOr.AsString() == "null")
+                            {
+                                // This field was null when serialized, so just return null
+                                oOut = null;
+                                return true;
+                            }
+                        }
 
-						UnityEngine.Object o = objectSlots[iFO];
+                        UnityEngine.Object o = objectSlots[iFO];
 
-						//Debug.Log( $"LOADING FIELD: {i} with {o}" );
-						if( o )
-						{
-							if( o is CilboxProxy )
-								((CilboxProxy)o).RuntimeProxyLoad();
+                        //Debug.Log( $"LOADING FIELD: {i} with {o}" );
+                        if (o)
+                        {
+                            if (o is CilboxProxy)
+                                ((CilboxProxy)o).RuntimeProxyLoad();
 
-							oOut = o;
+                            oOut = o;
 
-							// Remove reference out of the fieldsObjects array.
-							objectSlots[iFO] = null;
+                            // Remove reference out of the fieldsObjects array.
+                            objectSlots[iFO] = null;
 
-							return true;
-						}
-						Debug.LogWarning( $"[CilboxProxy:{gameObject.name}] Object reference slot {iFO} for field {rootFieldName} is null/missing at load time." );
-					}
-					else
-					{
-						int objectSlotCount = objectSlots != null ? objectSlots.Count : 0;
-						Debug.LogWarning( $"Failure to load object in field id:{rootFieldName} of {className} (slot parse failed or out of range, fieldsObjects count={objectSlotCount})");
-					}
-				}
+                            return true;
+                        }
+                        Debug.LogWarning($"[CilboxProxy:{gameObject.name}] Object reference slot {iFO} for field {rootFieldName} is null/missing at load time.");
+                    }
+                    else
+                    {
+                        int objectSlotCount = objectSlots != null ? objectSlots.Count : 0;
+                        Debug.LogWarning($"Failure to load object in field id:{rootFieldName} of {className} (slot parse failed or out of range, fieldsObjects count={objectSlotCount})");
+                    }
+                }
 				else if( sT[0] == 'a' )
 				{
 					Serializee seT, seAT, seAL, seAD;
