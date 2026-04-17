@@ -20,6 +20,8 @@ namespace Cilbox
             "Basis.Scripts.Device_Management.Devices.BasisInput", // Restrictive, only used as a type.
 			"Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable", // Restrictive (See below), only access field.
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject", // Restrictive (See below), only access field.
+			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton",
+			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton+ClickEvent",
 			"Basis.BasisNetworkBehaviour",
             "Basis.BasisImageDownloader",
 			"Basis.BasisNetworkBehaviour",
