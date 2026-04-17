@@ -79,7 +79,7 @@ public static class BasisNetworkHandleTempBlock
             if (!remotePlayer.IsEffectivelyBlocked)
             {
                 var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
-                volume = settings != null ? settings.VolumeLevel : 1f;
+                volume = settings.IsValid ? settings.VolumeLevel : 1f;
             }
             remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(volume);
         }
@@ -117,7 +117,7 @@ public static class BasisNetworkHandleTempBlock
             return;
         }
 
-        if (settings != null && settings.IsBlocked)
+        if (settings.IsValid && settings.IsBlocked)
         {
             SendTempBlock(networkPlayer.playerId, true);
         }
