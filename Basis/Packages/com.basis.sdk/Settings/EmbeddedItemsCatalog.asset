@@ -173,3 +173,23 @@ MonoBehaviour:
       m_Extents: {x: 0, y: 0, z: 0}
     HasCustomSpawnOffset: 0
     SpawnOffsetFromPlayerReference: {x: 0, y: 0, z: 0.5}
+  - Key:
+      Mode: 0
+      PlacementType: 0
+      Url: https://dipcdn.net/froggycar_20260417-bRDp
+      Pass: f6e4f7035472e73d090053673f9dcae4bb994c5c4d824955640cebd48d7e10a6
+      EmbeddedSettings:
+        IsEmbedded: 1
+        SourceType: 0
+      PinnedSettings:
+        IsPinned: 0
+        NetworkType: 0
+        IsEphemeral: 1
+    HasCustomIconAddress: 0
+    IconAddress: 
+    HasCustomBounds: 0
+    Bounds:
+      m_Center: {x: 1, y: 1, z: 1}
+      m_Extents: {x: 0, y: 0, z: 0}
+    HasCustomSpawnOffset: 0
+    SpawnOffsetFromPlayerReference: {x: 0, y: 0, z: 0.5}
