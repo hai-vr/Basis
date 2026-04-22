@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace HVR.Vixxy
 {
+    [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization/vixxy")]
     public partial class HVRVixxyControl
     {
         // # Wearer properties

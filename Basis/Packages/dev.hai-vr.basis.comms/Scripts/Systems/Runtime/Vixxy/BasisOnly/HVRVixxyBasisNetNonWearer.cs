@@ -4,10 +4,10 @@ using HVR.Basis.Comms.HVRUtility;
 
 namespace HVR.Basis.Vixxy.Runtime
 {
-    internal class HVRNonWearer : IHVRNet
+    internal class HVRNonWearer : IHVRVixxyBasisNet
     {
         private readonly HVRVixxyBasisAvatarNetworking _vixxyNet;
-        private readonly byte[] Buffer_RequestState_NW_to_W = { IHVRNet.RequestState_NW_to_W };
+        private readonly byte[] Buffer_RequestState_NW_to_W = { IHVRVixxyBasisNet.RequestState_NW_to_W };
 
         public HVRNonWearer(HVRVixxyBasisAvatarNetworking vixxyNet)
         {
@@ -47,7 +47,7 @@ namespace HVR.Basis.Vixxy.Runtime
             byte packetId = unsafeBuffer[0];
             switch (packetId)
             {
-                case IHVRNet.SubmitFullSnapshot_W_to_NW:
+                case IHVRVixxyBasisNet.SubmitFullSnapshot_W_to_NW:
                 {
                     var TODO_DERIVE_BUFFER_LENGTH = 12345;
                     if (unsafeBuffer.Length != TODO_DERIVE_BUFFER_LENGTH)

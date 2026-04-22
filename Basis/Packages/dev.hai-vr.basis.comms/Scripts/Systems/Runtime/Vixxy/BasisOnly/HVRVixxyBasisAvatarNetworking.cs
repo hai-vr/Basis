@@ -16,13 +16,13 @@ namespace HVR.Basis.Vixxy.Runtime
         [SerializeField] public HVRVixxyOrchestrator orchestrator;
         [SerializeField] public BasisAvatar avatar;
 
+        public IHVRTransmitter transmitter { get; set; }
+
         private ushort _wearerId;
         private bool _isNetworkInitialized;
-        private IHVRNet _relayLateInit;
-        private IHVRTransmitter transmitter;
+        private IHVRVixxyBasisNet _relayLateInit;
 
         private HVRAvatarComms _comms;
-        private FeatureEvent _featureEvent;
 
         private void Awake()
         {
@@ -45,6 +45,7 @@ namespace HVR.Basis.Vixxy.Runtime
             if (avatar != null) // dooly
             {
                 _comms = avatar.GetComponent<HVRAvatarComms>();
+                _comms.BindVixxy(this);
             }
         }
 
@@ -58,32 +59,6 @@ namespace HVR.Basis.Vixxy.Runtime
             }
             _relayLateInit = isWearer ? new HVRWearer(this) : new HVRNonWearer(this);
             _relayLateInit.OnNetworkInitialized();
-
-            _featureEvent = CommsNetworking.NewEventDriven(OnEventReceived, OnResyncRequested, OnResyncEveryoneRequested, Carrier1());
-        }
-
-        private HVRNetworkingCarrier Carrier1()
-        {
-            var allCarriers = avatar.GetComponentsInChildren<HVRNetworkingCarrier>(true);
-            for (var i = 0; i < allCarriers.Length; i++)
-            {
-                var thatCarrier = allCarriers[i];
-                if (thatCarrier.index == 1) return thatCarrier;
-            }
-
-            throw new InvalidOperationException("Broke assumption: Could not find networking carrier with index 1.");
-        }
-
-        private void OnEventReceived(ArraySegment<byte> subBuffer)
-        {
-        }
-
-        private void OnResyncRequested(ushort[] whoAsked)
-        {
-        }
-
-        private void OnResyncEveryoneRequested()
-        {
         }
 
         public virtual void OnNetworkMessageReceived(ushort RemoteUser, byte[] unsafeBuffer, DeliveryMethod DeliveryMethod)
@@ -133,7 +108,7 @@ namespace HVR.Basis.Vixxy.Runtime
         public bool IsWearer;
     }
 
-    internal interface IHVRNet
+    internal interface IHVRVixxyBasisNet
     {
         /// A Non-Wearer requests a full snapshot from the Wearer.
         internal const byte RequestState_NW_to_W = 0x01;

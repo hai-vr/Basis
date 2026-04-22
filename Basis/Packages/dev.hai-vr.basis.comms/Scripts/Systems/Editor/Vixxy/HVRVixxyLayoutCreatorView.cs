@@ -74,10 +74,21 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField("Control", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.controlType)));
-            if (my.controlType == HVRVixxyControlType.Variable)
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.mode)));
+            if (my.mode == HVRVixxyControlMode.Advanced)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.remember)));
+                if (my.remember == HVRVixxyRememberScope.RememberInThisTag)
+                {
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.rememberTag)));
+                }
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
+                if (my.networked)
+                {
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
+                }
             }
             EditorGUILayout.Separator();
 

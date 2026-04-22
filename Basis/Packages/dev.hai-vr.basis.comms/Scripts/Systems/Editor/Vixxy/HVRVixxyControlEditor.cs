@@ -18,9 +18,9 @@ namespace HVR.Vixxy.Editor
         private const string CreatorViewLabel = "Creator View";
         private const string DeveloperViewLabel = "Developer View";
 
-        private static bool _userViewFoldout;
-        private static bool _creatorViewFoldout;
-        private static bool _developerViewFoldout;
+        public static bool _userViewFoldout = true;
+        public static bool _creatorViewFoldout;
+        public static bool _developerViewFoldout;
 
         private HVRVixxyLayoutUserView _userView;
         private HVRVixxyLayoutCreatorView _creatorView;

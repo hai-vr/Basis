@@ -765,6 +765,20 @@ namespace HVR.Vixxy
         public void OptimizePruneArrays()
         {
             FigureOutActualNumberOfChoices(out _, out var actualNumberOfChoices);
+
+            if (choices.Length != actualNumberOfChoices)
+            {
+                Array.Resize(ref choices, actualNumberOfChoices);
+            }
+
+            foreach (var activation in activations)
+            {
+                if (activation.choices.Length != actualNumberOfChoices)
+                {
+                    Array.Resize(ref activation.choices, actualNumberOfChoices);
+                }
+            }
+
             foreach (var subject in subjects)
             {
                 foreach (var propertyBase in subject.properties)

@@ -4,7 +4,7 @@ using HVR.Basis.Comms.HVRUtility;
 
 namespace HVR.Basis.Vixxy.Runtime
 {
-    internal class HVRWearer : IHVRNet
+    internal class HVRWearer : IHVRVixxyBasisNet
     {
         private readonly HVRVixxyBasisAvatarNetworking _vixxyNet;
 
@@ -48,7 +48,7 @@ namespace HVR.Basis.Vixxy.Runtime
             byte packetId = unsafeBuffer[0];
             switch (packetId)
             {
-                case IHVRNet.RequestState_NW_to_W:
+                case IHVRVixxyBasisNet.RequestState_NW_to_W:
                     if (unsafeBuffer.Length != 1)
                     {
                         HVRLogging.ProtocolError($"Buffer has incorrect length (expected 1, was {unsafeBuffer.Length}.");

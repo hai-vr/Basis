@@ -312,4 +312,12 @@ namespace HVR.Vixxy
             // networking.RequireNetworked(address, bakedDefaultValue, netDataUsage);
         }
     }
+
+    public class HVRActuatorRegistrationToken
+    {
+        public string registeredAddress;
+        public int registeredIddress;
+        public AcquisitionService.AddressUpdated registeredCallback;
+        public IHVRVixxyActuator registeredActuator;
+    }
 }
