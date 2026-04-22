@@ -166,23 +166,6 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
-    public class HVRVixxyVariabilization<T>
-    {
-        public bool isValue;
-
-        /// null or default if isValue is false.
-        public T value;
-
-        // null if isValue is true.
-        public IHVRVixxyVariabilized<T> variabilized;
-    }
-
-    public interface IHVRVixxyVariabilized<T>
-    {
-        T Get();
-    }
-
-    [Serializable]
     public class HVRVixxyProperty<T> : HVRVixxyPropertyBase
     {
         public T[] choices = new T[2];

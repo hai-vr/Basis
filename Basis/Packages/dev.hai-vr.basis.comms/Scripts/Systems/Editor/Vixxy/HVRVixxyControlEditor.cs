@@ -36,6 +36,7 @@ namespace HVR.Vixxy.Editor
         public override void OnInspectorGUI()
         {
             var my = (HVRVixxyControl)target;
+            HVRAvatarCommsEditor.EnsureAvatarHasPrefab(my.transform);
 
             var isPlaying = Application.isPlaying;
             if (isPlaying)

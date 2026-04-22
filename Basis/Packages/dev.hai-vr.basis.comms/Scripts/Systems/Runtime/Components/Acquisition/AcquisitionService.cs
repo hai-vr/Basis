@@ -11,12 +11,13 @@ namespace HVR.Basis.Comms
 
         public delegate void AddressUpdated(int address, float value);
 
-        private readonly Dictionary<int, AcquisitionForAddress> _addressUpdated = new();
+        internal readonly Dictionary<int, AcquisitionForAddress> _addressUpdated = new();
 
         public void Submit(int address, float value)
         {
             if (_addressUpdated.TryGetValue(address, out var acquisitor))
             {
+                acquisitor.lastValueForDebugPurposesOnly = value;
                 acquisitor.Invoke(address, value);
             }
         }
@@ -48,7 +49,9 @@ namespace HVR.Basis.Comms
     internal class AcquisitionForAddress
     {
         internal event AcquisitionService.AddressUpdated OnAddressUpdated;
+        internal float lastValueForDebugPurposesOnly = 0f;
 
         public void Invoke(int address, float value) => OnAddressUpdated?.Invoke(address, value);
+        internal int GetListenersCount() => OnAddressUpdated?.GetInvocationList().Length ?? 0;
     }
 }

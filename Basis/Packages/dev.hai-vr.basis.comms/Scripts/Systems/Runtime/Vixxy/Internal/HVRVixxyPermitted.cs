@@ -11,15 +11,16 @@ namespace HVR.Vixxy
     {
         private static readonly List<Type> PermittedTypes = new()
         {
+            // Other
             typeof(Transform),
             typeof(GameObject),
+            typeof(ParticleSystem),
+            typeof(Cloth),
             // Renderers
             typeof(MeshRenderer),
             typeof(SkinnedMeshRenderer),
             typeof(TrailRenderer),
             typeof(ParticleSystemRenderer),
-            // Particle System
-            typeof(ParticleSystem),
             // Constraints
             typeof(ParentConstraint),
             typeof(PositionConstraint),
