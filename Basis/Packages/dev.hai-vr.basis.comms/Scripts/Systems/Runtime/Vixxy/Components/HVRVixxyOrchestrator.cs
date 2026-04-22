@@ -4,7 +4,7 @@ using HVR.Basis.Comms;
 using HVR.Shared;
 using UnityEngine;
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     /// There is one instance of this **per avatar** or **per world object**.
     [DefaultExecutionOrder(-10)] // FIXME: acquisitionService can be null if the dependents become awake before this
@@ -16,9 +16,9 @@ namespace HVR.Vixxy.Runtime
         // - When all data arrived, and we're starting the update cycle, we wake up all aggregators of that data.
 
         [SerializeField] public AcquisitionService acquisitionService;
-        [LateInjectable] [SerializeField] public HVRGadgetRepository gadgetRepository;
+        [SerializeField] public HVRGadgetRepository gadgetRepository;
         [SerializeField] public Transform context; // Can be null. If it is null, the orchestrator *is* the context.
-        
+
 #if HVR_VIXXY_IS_IN_BASIS
         [SerializeField] public object networking;
 #endif
@@ -45,8 +45,6 @@ namespace HVR.Vixxy.Runtime
 
         private void Awake()
         {
-            HVRLateInjector.InjectDependenciesInto(this);
-
             // TODO: Should we nullify the acquisitionService if it's not locally worn?
             if (!acquisitionService) acquisitionService = AcquisitionService.SceneInstance;
         }
@@ -289,12 +287,18 @@ namespace HVR.Vixxy.Runtime
 
         public void RegisterGadget(HVRSettableFloatElement element)
         {
-            gadgetRepository.Add(element);
+            if (gadgetRepository != null) // THIS CHECK SHOULD NOT EXIST. We're only doing this because we don't have an injector to initialize GadgetRepository.
+            {
+                gadgetRepository.Add(element);
+            }
         }
 
         public void UnregisterGadget(HVRSettableFloatElement element)
         {
-            gadgetRepository.Remove(element);
+            if (gadgetRepository != null) // THIS CHECK SHOULD NOT EXIST. We're only doing this because we don't have an injector to initialize GadgetRepository.
+            {
+                gadgetRepository.Remove(element);
+            }
         }
 
         public void ___SubmitToAcquisitionService(string address, float newValue)

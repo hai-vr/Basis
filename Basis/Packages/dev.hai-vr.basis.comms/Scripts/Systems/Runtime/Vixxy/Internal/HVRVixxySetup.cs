@@ -6,7 +6,7 @@ using HVR.Basis.Comms;
 using HVR.Basis.Vixxy.Runtime;
 #endif
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     public class VixxySetup
     {
@@ -65,7 +65,7 @@ namespace HVR.Vixxy.Runtime
             if (contextNullable != null)
             {
 #if HVR_VIXXY_IS_IN_BASIS
-                var networking = go.AddComponent<HVRVixxyBasisNetworking>();
+                var networking = go.AddComponent<HVRVixxyBasisAvatarNetworking>();
                 networking.orchestrator = sceneOrchestrator;
                 networking.avatar = contextNullable.GetComponent<BasisAvatar>();
                 sceneOrchestrator.networking = networking;

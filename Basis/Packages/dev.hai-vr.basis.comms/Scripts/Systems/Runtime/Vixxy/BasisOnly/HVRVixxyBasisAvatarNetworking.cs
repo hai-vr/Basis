@@ -6,11 +6,10 @@ using HVR.Basis.Comms.HVRUtility;
 using HVR.Vixxy;
 using UnityEngine;
 using Basis.Scripts.BasisSdk;
-using HVR.Vixxy.Runtime;
 
 namespace HVR.Basis.Vixxy.Runtime
 {
-    public class HVRVixxyBasisNetworking : MonoBehaviour, IHVRInitializable, IHVRVixxyNetworkable
+    public class HVRVixxyBasisAvatarNetworking : MonoBehaviour, IHVRInitializable, IHVRVixxyNetworkable
     {
         private const DeliveryMethod MainMessageDeliveryMethod = DeliveryMethod.Sequenced;
 

@@ -6,9 +6,9 @@ namespace HVR.Basis.Vixxy.Runtime
 {
     internal class HVRWearer : IHVRNet
     {
-        private readonly HVRVixxyBasisNetworking _vixxyNet;
+        private readonly HVRVixxyBasisAvatarNetworking _vixxyNet;
 
-        public HVRWearer(HVRVixxyBasisNetworking vixxyNet)
+        public HVRWearer(HVRVixxyBasisAvatarNetworking vixxyNet)
         {
             _vixxyNet = vixxyNet;
         }

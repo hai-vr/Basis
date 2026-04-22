@@ -1,5 +1,5 @@
 ﻿using System;
-using HVR.Vixxy.Runtime;
+using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -36,7 +36,7 @@ namespace HVR.Vixxy.Editor
             {
                 EditorGUILayout.HelpBox(MsgAddressIsOptional, MessageType.Info);
             }
-            
+
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
             if (my.hasThreeOrMoreChoices)
             {
@@ -50,7 +50,7 @@ namespace HVR.Vixxy.Editor
                 my.InterpolateFromChoice = 0;
                 my.InterpolateFromChoiceAmount01 = 0f;
             }
-            
+
             if (isPlaying)
             {
                 if (my.IsInitialized)

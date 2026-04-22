@@ -6,10 +6,10 @@ namespace HVR.Basis.Vixxy.Runtime
 {
     internal class HVRNonWearer : IHVRNet
     {
-        private readonly HVRVixxyBasisNetworking _vixxyNet;
+        private readonly HVRVixxyBasisAvatarNetworking _vixxyNet;
         private readonly byte[] Buffer_RequestState_NW_to_W = { IHVRNet.RequestState_NW_to_W };
 
-        public HVRNonWearer(HVRVixxyBasisNetworking vixxyNet)
+        public HVRNonWearer(HVRVixxyBasisAvatarNetworking vixxyNet)
         {
             _vixxyNet = vixxyNet;
         }
@@ -48,6 +48,7 @@ namespace HVR.Basis.Vixxy.Runtime
             switch (packetId)
             {
                 case IHVRNet.SubmitFullSnapshot_W_to_NW:
+                {
                     var TODO_DERIVE_BUFFER_LENGTH = 12345;
                     if (unsafeBuffer.Length != TODO_DERIVE_BUFFER_LENGTH)
                     {
@@ -60,7 +61,7 @@ namespace HVR.Basis.Vixxy.Runtime
                     object snapshot = null; // TODO: Decode
                     _vixxyNet.NonWearer_ProcessFullSnapshot(snapshot);
                     break;
-
+                }
                 default:
                     HVRLogging.ProtocolError("Unknown packet ID.");
                     break;

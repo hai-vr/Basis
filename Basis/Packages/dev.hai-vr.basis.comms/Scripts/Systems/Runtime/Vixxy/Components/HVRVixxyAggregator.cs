@@ -3,15 +3,15 @@ using HVR.Basis.Comms;
 using HVR.Shared;
 using UnityEngine;
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     public class HVRVixxyAggregator : MonoBehaviour, IHVRVixxyAggregator
     {
         [SerializeField] private string addressA;
         [SerializeField] private string addressB;
         [SerializeField] private string outputAddress;
-        [EarlyInjectable] public HVRVixxyOrchestrator orchestrator;
-        [LateInjectable] public AcquisitionService acquisitionService;
+        public HVRVixxyOrchestrator orchestrator;
+        public AcquisitionService acquisitionService;
 
         private readonly HashSet<HVRVixxyAggregator> _transformerResult = new();
         private readonly HashSet<IHVRVixxyActuator> _actuatorResult = new();
@@ -67,7 +67,7 @@ namespace HVR.Vixxy.Runtime
                 b = value;
             }
             else return;
-            
+
             orchestrator.PassAddressUpdated(inputIddress);
         }
 

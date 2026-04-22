@@ -8,7 +8,7 @@ using Basis.Scripts.BasisSdk;
 #endif
 using UnityEngine;
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     /// UGC Rule: GameObjects and Components referenced by this class should be treated defensively as being UGC at runtime:<br/>
     /// - There may be null values in the arrays, as they may be unreliable user input or removed as part of a build process (e.g. EditorOnly),<br/>
@@ -47,11 +47,11 @@ namespace HVR.Vixxy.Runtime
 
         [NonSerialized] internal bool Networked;
         [NonSerialized] internal HVRVixxyNetworkingType NetworkingType;
-        
+
         [SerializeField] internal bool InterpolateFromChoiceApplies; // Only serializable for debug purposes
         [SerializeField] internal int InterpolateFromChoice; // Only serializable for debug purposes
         [SerializeField] internal float InterpolateFromChoiceAmount01; // Only serializable for debug purposes
-        
+
         public void Awake()
         {
             if (_avatarNullable == null)
@@ -83,10 +83,10 @@ namespace HVR.Vixxy.Runtime
             // We need to do this here too, because if the VixxyControl is by default OFF, we need this to initalize ourselves. (WasAvatarReadyApplied is separate from IsInitialized)
             _avatarNullable = GetComponentInParent<BasisAvatar>(true);
 #endif
-            
+
             orchestrator = VixxySetup.EnsureInitialized(this);
             _context = orchestrator.Context();
-            
+
             Address = string.IsNullOrWhiteSpace(address) ? GenerateAddressFromPath() : address;
             _iddress = HVRAddress.AddressToId(Address);
 
@@ -210,7 +210,7 @@ namespace HVR.Vixxy.Runtime
             {
                 orchestrator.UnregisterActuator(_registeredActuator);
             }
-            
+
             orchestrator.UnregisterGadget(GadgetElement);
             sample.OnValueChanged -= OnValueChanged;
         }
@@ -379,7 +379,7 @@ namespace HVR.Vixxy.Runtime
         private HVRVixxyPropertyBakeResult BakeProperty(HVRVixxyPropertyBase property, HVRVixxySubject subject)
         {
             if (!HVRVixxyPermitted.IsTypeOfPropertyValuePermitted(property)) return HVRVixxyPropertyBakeResult.TypeOfPropertyValueIsNotPermitted;
-            if (!HVRVixxyPermitted.IsPermitted(property.propertyName)) return HVRVixxyPropertyBakeResult.TypeIsNotPermitted; 
+            if (!HVRVixxyPermitted.IsPermitted(property.propertyName)) return HVRVixxyPropertyBakeResult.TypeIsNotPermitted;
             if (!HVRComponentDictionary.TryGetComponentType(property.fullClassName, out var foundType)) return HVRVixxyPropertyBakeResult.TypeNotFound;
             if (!property.ValidateBasedOnNumberOfChoices(ActualNumberOfChoices))
             {
@@ -464,10 +464,10 @@ namespace HVR.Vixxy.Runtime
                 {
                     var propertyInfoNullable = GetPropertyInfoOrNull(foundType, property.propertyName);
                     if (propertyInfoNullable == null) return HVRVixxyPropertyBakeResult.NoFieldNorPropertyMatches;
-                    
+
                     if (typeof(Array).IsAssignableFrom(propertyInfoNullable.PropertyType))
                     {
-                        
+
                     }
 
                     property.TPropertyIfMarkedAsTPropertyAccess = propertyInfoNullable;
@@ -485,7 +485,7 @@ namespace HVR.Vixxy.Runtime
         {
             // If this was true, we have already enabled this in OnHVRAvatarReady.
             if (AlsoExecutesWhenDisabled) return;
-            
+
             _previousValue = float.MinValue + 1.23456789f;
             if (IsInitialized && _registeredActuator == null)
             {
@@ -496,7 +496,7 @@ namespace HVR.Vixxy.Runtime
         private void OnDisable()
         {
             if (AlsoExecutesWhenDisabled) return;
-            
+
             if (IsInitialized)
             {
                 orchestrator.UnregisterActuator(_registeredActuator);
@@ -555,7 +555,7 @@ namespace HVR.Vixxy.Runtime
             foreach (var activation in activations)
             {
                 if (!activation.IsApplicable) continue;
-                
+
                 // Defensive check in case of external destruction.
                 if (null != activation.component)
                 {

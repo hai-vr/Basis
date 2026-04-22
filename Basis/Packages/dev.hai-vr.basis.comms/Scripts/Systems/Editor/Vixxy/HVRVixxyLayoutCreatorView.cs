@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using HVR.Vixxy.Runtime;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -73,11 +72,22 @@ namespace HVR.Vixxy.Editor
         internal bool Layout()
         {
             EditorGUILayout.Separator();
-            
+
+            EditorGUILayout.LabelField("Control", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.controlType)));
+            if (my.controlType == HVRVixxyControlType.Variable)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
+            }
+            EditorGUILayout.Separator();
+
+            EditorGUILayout.LabelField("Interpolation", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationDurationSeconds)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationCurve)));
-            
+
             EditorGUILayout.Separator();
+
+            EditorGUILayout.LabelField("Toggle", EditorStyles.boldLabel);
             if (!my.hasThreeOrMoreChoices)
             {
                 var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
@@ -87,6 +97,8 @@ namespace HVR.Vixxy.Editor
                 DisplayActivations(activationsSp, false);
             }
             EditorGUILayout.Separator();
+
+            EditorGUILayout.LabelField("Properties", EditorStyles.boldLabel);
             LayoutChangePropertiesPart();
             EditorGUILayout.Separator();
 

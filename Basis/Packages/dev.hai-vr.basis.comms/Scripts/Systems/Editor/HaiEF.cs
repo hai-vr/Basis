@@ -4,7 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace HVR.Vixxy.Editor
+namespace HVR.Basis.Comms.Editor
 {
     // HEF V0.0.9991
     public static class HaiEFCommon

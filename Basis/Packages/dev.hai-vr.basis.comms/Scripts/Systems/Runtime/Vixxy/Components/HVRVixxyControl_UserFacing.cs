@@ -3,17 +3,19 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     public partial class HVRVixxyControl
     {
         // # Wearer properties
+        [SerializeField] internal HVRVixxyControlType controlType;
+
         [SerializeField] [Multiline] internal string title;
         [SerializeField] internal HVRVixxyTitleSelection titleSelection = HVRVixxyTitleSelection.UseObjectName;
         [SerializeField] internal HVRVixxyChoice[] choices = new HVRVixxyChoice[2];
-        
+
         // ---
-        
+
         /// The orchestrator defines the context that the subjects of this control will affect (e.g. Recursive Search).
         /// Vixxy is not an avatar-specific component, so it needs that limited context.
         [SerializeField] internal HVRVixxyOrchestrator orchestrator;
@@ -23,7 +25,7 @@ namespace HVR.Vixxy.Runtime
         [SerializeField] internal string address = "";
 
         [SerializeField] internal HVRSettableFloatElement sample;
-        
+
         [SerializeField] public bool hasThreeOrMoreChoices;
         [SerializeField] public int numberOfChoices = 3;
 
@@ -55,12 +57,19 @@ namespace HVR.Vixxy.Runtime
         [SerializeField] internal string rememberTag = "";
         /// IF NOT ADVANCED MENU MODE: If set to true, this value will be sent to other users whenever it is changed, or when the avatar loads.
         [SerializeField] internal bool networked = true;
-        /// IF NOT ADVANCED MENU MODE: 
+        /// IF NOT ADVANCED MENU MODE:
         [SerializeField] internal HVRVixxyNetworkingType advancedNetworking = HVRVixxyNetworkingType.Automatic;
-        
+
         /// If true, we only run the logic of this control if it's enabled. By default, this is false, so that users can put a toggle control
         /// directly inside the component hierarchy that is being toggled OFF.
         [SerializeField] internal bool onlyExecuteWhenEnabled = false;
+    }
+
+    [Serializable]
+    public enum HVRVixxyControlType
+    {
+        Menu,
+        Variable,
     }
 
     [Serializable]
@@ -85,7 +94,7 @@ namespace HVR.Vixxy.Runtime
         public Component component; // To toggle a GameObject, provide the Transform instead. It makes things easier as GameObject is not a component.
         public ActivationThreshold threshold;
         public bool[] choices;
-        
+
         [NonSerialized] internal bool IsApplicable;
         [NonSerialized] internal HVRVixxyActivationBakeResult BakeResult;
     }
@@ -147,7 +156,7 @@ namespace HVR.Vixxy.Runtime
         /// We remember the value for this address across all avatars.
         RememberAcrossAvatars
     }
-    
+
     [Serializable]
     public enum HVRVixxyNetworkingType
     {
@@ -159,10 +168,10 @@ namespace HVR.Vixxy.Runtime
     public class HVRVixxyVariabilization<T>
     {
         public bool isValue;
-        
+
         /// null or default if isValue is false.
         public T value;
-        
+
         // null if isValue is true.
         public IHVRVixxyVariabilized<T> variabilized;
     }
@@ -179,7 +188,7 @@ namespace HVR.Vixxy.Runtime
 
         public T InactiveValue => choices[InactiveIndex];
         public T ActiveValue => choices[ActiveIndex];
-        
+
         public override bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => choices.Length >= actualNumberOfChoices;
 
         public override void PruneArrays(int actualNumberOfChoices)
@@ -200,7 +209,7 @@ namespace HVR.Vixxy.Runtime
                     }
                 }
             }
-            
+
             choices = newChoices;
         }
     }
@@ -218,7 +227,7 @@ namespace HVR.Vixxy.Runtime
         public string propertyName;
 
         [Obsolete] public bool flip;
-        
+
         // Runtime only
         [NonSerialized] internal bool IsApplicable;
         [NonSerialized] internal HVRVixxyPropertyBakeResult BakeResult;

@@ -1,6 +1,6 @@
 ﻿using HVR.Basis.Comms;
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     public class HVRActuatorRegistrationToken
     {

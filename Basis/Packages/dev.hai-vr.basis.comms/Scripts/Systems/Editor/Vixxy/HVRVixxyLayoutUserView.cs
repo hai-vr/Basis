@@ -1,4 +1,4 @@
-﻿using HVR.Vixxy.Runtime;
+﻿using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -9,10 +9,11 @@ namespace HVR.Vixxy.Editor
         private const string ObjectNameLabel = "Title (Object Name)";
         private const string ActiveLabel = "Active";
         private const string InactiveLabel = "Inactive";
+        private const string MsgControlTriggeredByVariable = "No user options. This control is triggered by a variable.";
 
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
-        
+
         internal HVRVixxyLayoutUserView(HVRVixxyControlEditor editor)
         {
             my = (HVRVixxyControl)editor.target;
@@ -22,6 +23,24 @@ namespace HVR.Vixxy.Editor
         public bool Layout()
         {
             EditorGUILayout.Separator();
+            if (my.controlType == HVRVixxyControlType.Menu)
+            {
+                LayoutMenu();
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(MsgControlTriggeredByVariable, MessageType.Info);
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
+                EditorGUI.EndDisabledGroup();
+            }
+            EditorGUILayout.Separator();
+
+            return false;
+        }
+
+        private void LayoutMenu()
+        {
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.titleSelection)));
             if (my.titleSelection == HVRVixxyTitleSelection.UseObjectName)
             {
@@ -71,9 +90,6 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField(ActiveLabel, EditorStyles.boldLabel);
                 DisplayChoiceInBistableToggle(choicesSp.GetArrayElementAtIndex(1));
             }
-            EditorGUILayout.Separator();
-            
-            return false;
         }
 
         private void DisplayChoiceInBistableToggle(SerializedProperty choiceSp)

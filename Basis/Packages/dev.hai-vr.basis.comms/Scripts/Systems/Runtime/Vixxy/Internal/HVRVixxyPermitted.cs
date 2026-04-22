@@ -5,7 +5,7 @@ using UnityEngine.Animations;
 using System.Linq;
 using UnityEngine.UI;
 
-namespace HVR.Vixxy.Runtime
+namespace HVR.Vixxy
 {
     public class HVRVixxyPermitted
     {
@@ -63,7 +63,7 @@ namespace HVR.Vixxy.Runtime
                 .Concat(PermittedTypeNames)
                 .ToHashSet();
         }
-        
+
         public static bool IsPermitted(string typeName) => RuntimePermittedTypeNames.Contains(typeName);
 
         public static bool IsTypeOfPropertyValuePermitted(HVRVixxyPropertyBase property)
