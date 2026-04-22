@@ -21,6 +21,9 @@ namespace HVR.Basis.Vixxy.Runtime
         private IHVRNet _relayLateInit;
         private IHVRTransmitter transmitter;
 
+        private HVRAvatarComms _comms;
+        private FeatureEvent _featureEvent;
+
         private void Awake()
         {
             orchestrator.OnNetworkDataUpdateRequired += OnNetworkDataUpdateRequired;
@@ -39,6 +42,10 @@ namespace HVR.Basis.Vixxy.Runtime
 
         public void OnHVRAvatarReady(bool isWearer)
         {
+            if (avatar != null) // dooly
+            {
+                _comms = avatar.GetComponent<HVRAvatarComms>();
+            }
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
@@ -51,6 +58,32 @@ namespace HVR.Basis.Vixxy.Runtime
             }
             _relayLateInit = isWearer ? new HVRWearer(this) : new HVRNonWearer(this);
             _relayLateInit.OnNetworkInitialized();
+
+            _featureEvent = CommsNetworking.NewEventDriven(OnEventReceived, OnResyncRequested, OnResyncEveryoneRequested, Carrier1());
+        }
+
+        private HVRNetworkingCarrier Carrier1()
+        {
+            var allCarriers = avatar.GetComponentsInChildren<HVRNetworkingCarrier>(true);
+            for (var i = 0; i < allCarriers.Length; i++)
+            {
+                var thatCarrier = allCarriers[i];
+                if (thatCarrier.index == 1) return thatCarrier;
+            }
+
+            throw new InvalidOperationException("Broke assumption: Could not find networking carrier with index 1.");
+        }
+
+        private void OnEventReceived(ArraySegment<byte> subBuffer)
+        {
+        }
+
+        private void OnResyncRequested(ushort[] whoAsked)
+        {
+        }
+
+        private void OnResyncEveryoneRequested()
+        {
         }
 
         public virtual void OnNetworkMessageReceived(ushort RemoteUser, byte[] unsafeBuffer, DeliveryMethod DeliveryMethod)
