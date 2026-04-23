@@ -9,6 +9,7 @@ namespace HVR.Vixxy
         [SerializeField] [Multiline] internal string title;
         [SerializeField] internal HVRVixxyTitleSelection titleSelection = HVRVixxyTitleSelection.UseObjectName;
         [SerializeField] internal HVRVixxyChoice[] choices = new HVRVixxyChoice[2];
+        [SerializeField] internal HVRVixxyControlPresentation presentation;
 
         [SerializeField] internal int numberOfChoices = 2;
         [SerializeField] internal float defaultValue;

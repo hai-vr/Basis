@@ -301,16 +301,41 @@ namespace HVR.Basis.Comms
             {
                 if (menuItem.numberOfChoices == 2)
                 {
-                    var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
-                    toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
-                    toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
-                    toggle.OnValueChanged += value =>
+                    if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
                     {
-                        menuItem.ApplyValue(value ? 1f : 0f);
+                        var slider = PanelSlider.CreateNew(menuGroup.ContentParent);
+                        slider.Descriptor.SetTitle(menuItem.ResolveTitle());
+                        slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+                        slider.SetSliderSettings(new PanelSlider.SliderSettings
+                        {
+                            SliderMin = 0f,
+                            SliderMax = 1f,
+                            DecimalPlaces = 2,
+                            DisplayMode = ValueDisplayMode.Percentage,
+                        });
+                        void WhenValueChanged(float value)
+                        {
+                            menuItem.ApplyValue(value);
+                            slider.Descriptor.SetTitle(menuItem.ResolveTitle());
+                            slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+                        }
+                        slider.SliderComponent.onValueChanged.AddListener(WhenValueChanged);
+                        slider.OnValueChanged += WhenValueChanged;
+                        slider.SetValueWithoutNotify(menuItem.GetValue());
+                    }
+                    else
+                    {
+                        var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
                         toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
                         toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
-                    };
-                    toggle.SetValueWithoutNotify(menuItem.GetValue() > 0f);
+                        toggle.OnValueChanged += value =>
+                        {
+                            menuItem.ApplyValue(value ? 1f : 0f);
+                            toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                            toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+                        };
+                        toggle.SetValueWithoutNotify(menuItem.GetValue() > 0f);
+                    }
                 }
                 else
                 {

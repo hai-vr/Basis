@@ -61,6 +61,13 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
+    public enum HVRVixxyControlPresentation
+    {
+        Default,
+        Slider,
+    }
+
+    [Serializable]
     public enum HVRVixxyTitleSelection
     {
         UseObjectName,

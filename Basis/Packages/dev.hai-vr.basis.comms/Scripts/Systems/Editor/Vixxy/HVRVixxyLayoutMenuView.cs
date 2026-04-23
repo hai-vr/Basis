@@ -64,9 +64,15 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.title)));
             }
 
+            var hasMoreThanThreeChoices = my.numberOfChoices > 2;
+            if (!hasMoreThanThreeChoices)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
+            }
+
             var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyMenuItem.defaultValue));
             var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyMenuItem.choices));
-            if (my.numberOfChoices > 2)
+            if (hasMoreThanThreeChoices)
             {
                 var currentValue = (int)defaultValueSp.floatValue;
                 var newValue = EditorGUILayout.IntSlider(new GUIContent(ObjectNames.NicifyVariableName(nameof(HVRVixxyMenuItem.defaultValue))), currentValue, 0, my.numberOfChoices - 1);
