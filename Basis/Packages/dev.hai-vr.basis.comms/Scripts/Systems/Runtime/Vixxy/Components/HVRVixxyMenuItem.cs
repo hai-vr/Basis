@@ -36,17 +36,11 @@ namespace HVR.Vixxy
                 GadgetElement.defaultValue = defaultValue;
                 GadgetElement.storedValue = defaultValue;
             }
-            orchestrator.RegisterGadget(GadgetElement);
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
             if (!isWearer) return;
-        }
-
-        private void OnDestroy()
-        {
-            if (orchestrator != null && GadgetElement != null) orchestrator.UnregisterGadget(GadgetElement);
         }
     }
 }

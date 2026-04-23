@@ -57,10 +57,8 @@ namespace HVR.Vixxy
                 go.transform.SetParent(parentNullable);
             }
             go.SetActive(false);
-            var gadgetRepository = go.AddComponent<HVRGadgetRepository>();
             var sceneOrchestrator = go.AddComponent<HVRVixxyOrchestrator>();
             sceneOrchestrator.acquisitionService = AcquisitionService.SceneInstance;
-            sceneOrchestrator.gadgetRepository = gadgetRepository;
             sceneOrchestrator.context = contextNullable;
             if (contextNullable != null)
             {

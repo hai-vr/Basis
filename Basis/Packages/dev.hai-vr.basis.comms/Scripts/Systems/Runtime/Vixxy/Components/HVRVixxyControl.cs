@@ -159,11 +159,6 @@ namespace HVR.Vixxy
             {
                 ApplyAvatarReady(isWearer);
             }
-            else
-            {
-                // A lack of avatar probably means we're in a testing scene, so add it to the menu.
-                orchestrator.RegisterGadget(GadgetElement);
-            }
 
             if (Networked)
             {
@@ -196,18 +191,13 @@ namespace HVR.Vixxy
                 orchestrator.UnregisterActuator(_registeredActuator);
             }
 
-            orchestrator.UnregisterGadget(GadgetElement);
             sample.OnValueChanged -= OnValueChanged;
         }
 
-        private void ApplyAvatarReady(bool isOwner)
+        private void ApplyAvatarReady(bool isWearer)
         {
             WasAvatarReadyApplied = true;
-            IsWearer = isOwner;
-            if (isOwner)
-            {
-                orchestrator.RegisterGadget(GadgetElement);
-            }
+            IsWearer = isWearer;
             sample.OnValueChanged -= OnValueChanged;
             sample.OnValueChanged += OnValueChanged;
         }

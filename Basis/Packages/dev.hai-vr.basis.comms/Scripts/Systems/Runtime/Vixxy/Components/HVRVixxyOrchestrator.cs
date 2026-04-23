@@ -16,7 +16,6 @@ namespace HVR.Vixxy
         // - When all data arrived, and we're starting the update cycle, we wake up all aggregators of that data.
 
         [SerializeField] public AcquisitionService acquisitionService;
-        [SerializeField] public HVRGadgetRepository gadgetRepository;
         [SerializeField] public Transform context; // Can be null. If it is null, the orchestrator *is* the context.
 
 #if HVR_VIXXY_IS_IN_BASIS
@@ -283,22 +282,6 @@ namespace HVR.Vixxy
             // e.g. a rebuild operation. But this might not be the case.
 
             // _stagedComponents.Add(component);
-        }
-
-        public void RegisterGadget(HVRSettableFloatElement element)
-        {
-            if (gadgetRepository != null) // THIS CHECK SHOULD NOT EXIST. We're only doing this because we don't have an injector to initialize GadgetRepository.
-            {
-                gadgetRepository.Add(element);
-            }
-        }
-
-        public void UnregisterGadget(HVRSettableFloatElement element)
-        {
-            if (gadgetRepository != null) // THIS CHECK SHOULD NOT EXIST. We're only doing this because we don't have an injector to initialize GadgetRepository.
-            {
-                gadgetRepository.Remove(element);
-            }
         }
 
         public void ___SubmitToAcquisitionService(string address, float newValue)
