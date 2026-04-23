@@ -354,7 +354,7 @@ namespace HVR.Vixxy
         private HVRVixxyPropertyBakeResult BakeProperty(HVRVixxyPropertyBase property, HVRVixxySubject subject)
         {
             if (!HVRVixxyPermitted.IsTypeOfPropertyValuePermitted(property)) return HVRVixxyPropertyBakeResult.TypeOfPropertyValueIsNotPermitted;
-            if (!HVRVixxyPermitted.IsPermitted(property.propertyName)) return HVRVixxyPropertyBakeResult.TypeIsNotPermitted;
+            if (!HVRVixxyPermitted.IsPermitted(property.fullClassName)) return HVRVixxyPropertyBakeResult.TypeIsNotPermitted;
             if (!HVRComponentDictionary.TryGetComponentType(property.fullClassName, out var foundType)) return HVRVixxyPropertyBakeResult.TypeNotFound;
             if (!property.ValidateBasedOnNumberOfChoices(ActualNumberOfChoices))
             {

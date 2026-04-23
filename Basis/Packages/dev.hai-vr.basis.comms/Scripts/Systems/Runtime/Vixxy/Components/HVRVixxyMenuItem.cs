@@ -17,25 +17,15 @@ namespace HVR.Vixxy
         [SerializeField] internal string address = "";
         [SerializeField] internal HVRVixxyControl[] controls = Array.Empty<HVRVixxyControl>();
 
-        [SerializeField] internal HVRVixxyOrchestrator orchestrator;
-
-        private HVRSettableFloatElement GadgetElement;
+        private float _value;
 
         public void OnHVRAvatarReady(bool isWearer)
         {
             if (!isWearer) return;
 
-            orchestrator = VixxySetup.EnsureInitialized(this);
-
-            {
-                GadgetElement = ScriptableObject.CreateInstance<HVRSettableFloatElement>();
-                GadgetElement.localizedTitle = gameObject.name;
-                GadgetElement.min = 0f;
-                GadgetElement.max = numberOfChoices - 1f;
-                GadgetElement.displayAs = HVRSettableFloatElement.HVRUnitDisplayKind.Toggle; // TODO: This depends on the type of control.
-                GadgetElement.defaultValue = defaultValue;
-                GadgetElement.storedValue = defaultValue;
-            }
+            // TODO: We would have to load the actual default value from memory somehow.
+            _value = defaultValue;
+            SubmitValue();
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
@@ -71,28 +61,26 @@ namespace HVR.Vixxy
         {
             if (choices == null) return title;
 
-            var index = (int)GadgetElement.storedValue;
+            var index = (int)_value;
             if (index < 0 || index >= choices.Length) return title;
 
             return choices[index].title ?? title;
         }
 
-        public void ButtonPressed()
-        {
-            var newValue = (GadgetElement.storedValue + 1) % numberOfChoices;
-            GadgetElement.storedValue = newValue;
-            AcquisitionService.SceneInstance.Submit(HVRAddress.AddressToId(address), newValue);
-        }
-
         public void ApplyValue(float value)
         {
-            GadgetElement.storedValue = value;
-            AcquisitionService.SceneInstance.Submit(HVRAddress.AddressToId(address), value);
+            _value = value;
+            SubmitValue();
         }
 
         public float GetValue()
         {
-            return GadgetElement.storedValue;
+            return _value;
+        }
+
+        private void SubmitValue()
+        {
+            AcquisitionService.SceneInstance.Submit(HVRAddress.AddressToId(address), _value);
         }
     }
 }
