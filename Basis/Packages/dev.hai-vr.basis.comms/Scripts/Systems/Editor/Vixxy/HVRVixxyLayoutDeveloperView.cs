@@ -1,4 +1,5 @@
 ﻿using System;
+using HVR.Basis.Comms;
 using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -72,7 +73,7 @@ namespace HVR.Vixxy.Editor
                             var slider = EditorGUILayout.IntSlider((int)my._value, 0, my.ActualNumberOfChoices - 1);
                             if (!Mathf.Approximately(slider, my._value))
                             {
-                                my.ChangeValue(slider);
+                                AcquisitionService.SceneInstance.Submit(my.AddressIndex, slider);
                             }
                         }
                         else
@@ -80,7 +81,7 @@ namespace HVR.Vixxy.Editor
                             var slider = EditorGUILayout.Slider(my._value, 0, my.ActualNumberOfChoices - 1);
                             if (!Mathf.Approximately(slider, my._value))
                             {
-                                my.ChangeValue(slider);
+                                AcquisitionService.SceneInstance.Submit(my.AddressIndex, slider);
                             }
                         }
                         EditorGUILayout.EndVertical();

@@ -284,12 +284,6 @@ namespace HVR.Vixxy
             // _stagedComponents.Add(component);
         }
 
-        public void ___SubmitToAcquisitionService(string address, float newValue)
-        {
-            // TODO: This is temporary.
-            acquisitionService.Submit(HVRAddress.AddressToId(address), newValue);
-        }
-
         public void RequireNetworked(string address, float bakedDefaultValue, HVRVixxyNetworkingType networkingType)
         {
             // networking.RequireNetworked(address, bakedDefaultValue, netDataUsage);

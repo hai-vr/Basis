@@ -27,7 +27,6 @@ namespace HVR.Vixxy
         // Runtime only
         private Component _avatarNullable;
 
-        private int _iddress;
         private Transform _context;
         private HVRActuatorRegistrationToken _registeredActuator;
 
@@ -36,6 +35,7 @@ namespace HVR.Vixxy
         private float _bakedDefaultValue;
 
         [NonSerialized] internal string Address;
+        [NonSerialized] internal int AddressIndex;
         [NonSerialized] internal bool HasMoreThanTwoChoices;
         [NonSerialized] internal int ActualNumberOfChoices;
         [NonSerialized] internal HVRVixxyRememberScope Remember;
@@ -88,7 +88,7 @@ namespace HVR.Vixxy
             _context = orchestrator.Context();
 
             Address = string.IsNullOrWhiteSpace(address) ? GenerateAddressFromPath() : address;
-            _iddress = HVRAddress.AddressToId(Address);
+            AddressIndex = HVRAddress.AddressToId(Address);
 
             FigureOutActualNumberOfChoices(out var hasMoreThanTwoChoices, out var actualNumberOfChoices);
             HasMoreThanTwoChoices = hasMoreThanTwoChoices;
@@ -160,7 +160,7 @@ namespace HVR.Vixxy
             IsInitialized = true;
             if (isActiveAndEnabled || AlsoExecutesWhenDisabled)
             {
-                _registeredActuator = orchestrator.RegisterActuator(_iddress, this, OnImplicitAddressUpdated);
+                _registeredActuator = orchestrator.RegisterActuator(AddressIndex, this, OnImplicitAddressUpdated);
             }
         }
 
@@ -196,11 +196,6 @@ namespace HVR.Vixxy
             var path = HVR_VixxyUtil.ResolveRelativePath(orchestrator.Context().transform, transform);
             var newAddress = $"{path}@{HVR_VixxyUtil.SimpleSha1(path)}+{componentIndex}";
             return newAddress;
-        }
-
-        private void OnValueChanged(float newValue)
-        {
-            orchestrator.___SubmitToAcquisitionService(Address, newValue);
         }
 
         /// Called by the Editor when a serialized property changes due to live edits. This is not to be invoked by anything else.
@@ -452,7 +447,7 @@ namespace HVR.Vixxy
             _previousValue = float.MinValue + 1.23456789f;
             if (IsInitialized && _registeredActuator == null)
             {
-                _registeredActuator = orchestrator.RegisterActuator(_iddress, this, OnImplicitAddressUpdated);
+                _registeredActuator = orchestrator.RegisterActuator(AddressIndex, this, OnImplicitAddressUpdated);
             }
         }
 
@@ -478,7 +473,7 @@ namespace HVR.Vixxy
             //           For comparison, we can't do this for aggregators (which can have multiple input values), it's not their responsibility.
             _value = value;
 
-            orchestrator.PassAddressUpdated(_iddress);
+            orchestrator.PassAddressUpdated(AddressIndex);
         }
 
         public void Actuate()
@@ -772,12 +767,6 @@ namespace HVR.Vixxy
             }
 
             return null;
-        }
-
-        public void ChangeValue(float newValue)
-        {
-            _value = newValue;
-            OnValueChanged(newValue);
         }
     }
 
