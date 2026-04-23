@@ -42,5 +42,57 @@ namespace HVR.Vixxy
         {
             if (!isWearer) return;
         }
+
+        public string ResolveTitle()
+        {
+            return titleSelection switch
+            {
+                HVRVixxyTitleSelection.UseObjectName => gameObject.name,
+                HVRVixxyTitleSelection.UseCustomTitle => title,
+                HVRVixxyTitleSelection.UseCustomTitleAndChoices => title,
+                HVRVixxyTitleSelection.UseChoicesOnly => ResolveComplexTitle(),
+                _ => title
+            };
+        }
+
+        public string ResolveDescription()
+        {
+            return titleSelection switch
+            {
+                HVRVixxyTitleSelection.UseObjectName => "",
+                HVRVixxyTitleSelection.UseCustomTitle => "",
+                HVRVixxyTitleSelection.UseCustomTitleAndChoices => ResolveComplexTitle(),
+                HVRVixxyTitleSelection.UseChoicesOnly => "",
+                _ => title
+            };
+        }
+
+        private string ResolveComplexTitle()
+        {
+            if (choices == null) return title;
+
+            var index = (int)GadgetElement.storedValue;
+            if (index < 0 || index >= choices.Length) return title;
+
+            return choices[index].title ?? title;
+        }
+
+        public void ButtonPressed()
+        {
+            var newValue = (GadgetElement.storedValue + 1) % numberOfChoices;
+            GadgetElement.storedValue = newValue;
+            AcquisitionService.SceneInstance.Submit(HVRAddress.AddressToId(address), newValue);
+        }
+
+        public void ApplyValue(float value)
+        {
+            GadgetElement.storedValue = value;
+            AcquisitionService.SceneInstance.Submit(HVRAddress.AddressToId(address), value);
+        }
+
+        public float GetValue()
+        {
+            return GadgetElement.storedValue;
+        }
     }
 }

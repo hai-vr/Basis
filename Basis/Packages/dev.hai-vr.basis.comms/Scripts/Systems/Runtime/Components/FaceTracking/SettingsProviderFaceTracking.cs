@@ -1,5 +1,7 @@
+using System.Linq;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
+using HVR.Vixxy;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -21,6 +23,8 @@ namespace HVR.Basis.Comms
             descriptor.SetDescription("Face tracking diagnostics and avatar statistics.");
 
             RectTransform container = descriptor.ContentParent;
+
+            InitializeVixxyPanel(container);
 
             // ── Tracking Master Switches ──
             PanelElementDescriptor trackingTogglesGroup =
@@ -278,6 +282,59 @@ namespace HVR.Basis.Comms
             field.SetTitle(title);
             field.SetDescription(initialValue);
             return field;
+        }
+
+        private static void InitializeVixxyPanel(RectTransform container)
+        {
+            var localPlayer = BasisLocalPlayer.Instance;
+            var avatar = localPlayer?.BasisAvatar;
+            if (avatar == null) return;
+
+            var menuItems = avatar.GetComponentsInChildren<HVRVixxyMenuItem>(true);
+            if (menuItems.Length <= 0) return;
+
+            var menuGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            menuGroup.SetTitle("Vixxy");
+            menuGroup.SetDescription("Trigger effects on this avatar.");
+
+            foreach (var menuItem in menuItems)
+            {
+                if (menuItem.numberOfChoices == 2)
+                {
+                    var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
+                    toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                    toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+                    toggle.OnValueChanged += value =>
+                    {
+                        menuItem.ApplyValue(value ? 1f : 0f);
+                        toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                        toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+                    };
+                    toggle.SetValueWithoutNotify(menuItem.GetValue() > 0f);
+                }
+                else
+                {
+                    var choices = menuItem.choices.Select((choice, i) =>
+                    {
+                        if (string.IsNullOrWhiteSpace(choice.title)) return $"Option #{(i + 1)}";
+                        return $"{choice.title} (#{i + 1})";
+                    }).ToList();
+
+                    var dropdown = PanelDropdown.CreateNewEntry(menuGroup.ContentParent);
+                    dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
+                    dropdown.AssignEntries(choices);
+                    dropdown.OnValueChanged += value =>
+                    {
+                        menuItem.ApplyValue(choices.IndexOf(value));
+                        dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
+                    };
+                    var autoSelect = (int)menuItem.GetValue();
+                    if (autoSelect >= 0 && autoSelect < choices.Count)
+                    {
+                        dropdown.SetValueWithoutNotify(choices[autoSelect]);
+                    }
+                }
+            }
         }
     }
 }
