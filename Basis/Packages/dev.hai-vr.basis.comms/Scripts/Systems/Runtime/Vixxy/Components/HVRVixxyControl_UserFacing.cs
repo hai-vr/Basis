@@ -31,21 +31,7 @@ namespace HVR.Vixxy
         [SerializeField] internal float interpolationDurationSeconds = 0f;
         [SerializeField] internal AnimationCurve interpolationCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
-        // Menu and Networking
-
-        /// When the control mode is set to Simplified, we ignore some of the internally serialized values of this control and use
-        /// sensible defaults: Remember across avatars, and networked by default.
-        [SerializeField] public HVRVixxyControlMode mode;
-
-        // Those values below may be ignored depending on the control type.
-
-        /// IF NOT ADVANCED MENU MODE: By default, we remember the control setting across all avatars, so long the address does not change.
-        [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberAcrossAvatars;
-        /// IF NOT ADVANCED MENU MODE: Used only when remember is set to RememberInThisTag. We restore the value if control shares the same address and tag.
-        [SerializeField] internal string rememberTag = "";
-        /// IF NOT ADVANCED MENU MODE: If set to true, this value will be sent to other users whenever it is changed, or when the avatar loads.
         [SerializeField] internal bool networked = true;
-        /// IF NOT ADVANCED MENU MODE:
         [SerializeField] internal HVRVixxyNetworkingType advancedNetworking = HVRVixxyNetworkingType.Automatic;
 
         /// If true, we only run the logic of this control if it's enabled. By default, this is false, so that users can put a toggle control
@@ -74,13 +60,6 @@ namespace HVR.Vixxy
         UseCustomTitle,
         UseCustomTitleAndChoices,
         UseChoicesOnly,
-    }
-
-    [Serializable]
-    public enum HVRVixxyControlMode
-    {
-        Simplified,
-        Advanced
     }
 
     [Serializable]

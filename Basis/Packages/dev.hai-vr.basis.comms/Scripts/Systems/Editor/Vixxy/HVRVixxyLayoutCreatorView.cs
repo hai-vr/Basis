@@ -17,15 +17,20 @@ namespace HVR.Vixxy.Editor
 
         private const string ChangeTheseObjectsAndTheirChildrenLabel = "Change these objects and their children";
         private const string ChangeTheseObjectsLabel = "Change these objects";
+        private const string ControlLabel = "Control";
+        private const string CreateMenuForThisControlLabel = "Create menu for this control";
         private const string DoNotChangeTheseObjectsLabel = "Do not change these objects";
         private const string EverythingLabel = "Everything";
+        private const string InterpolationLabel = "Interpolation";
         private const string MsgEverthingInContext = "All valid objects within the context of this control's orchestrator that contains these properties will be affected.";
+        private const string MsgMissingFromComponentTypes = "The following components are not in the list of modifiable component types, so they cannot be affected.";
+        private const string MultiChoiceLabel = "Multi-choice";
         private const string ObjectGroupLabel = "Object group";
         private const string ObjectGroupsLabel = "Object groups";
-        private const string RecursiveSearchLabel = "Recursive search";
         private const string PropertiesLabel = "Properties";
+        private const string RecursiveSearchLabel = "Recursive search";
         private const string SampleFromLabel = "Sample from";
-        private const string MsgMissingFromComponentTypes = "The following components are not in the list of modifiable component types, so they cannot be affected.";
+        private const string ToggleLabel = "Toggle";
 
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
@@ -76,32 +81,23 @@ namespace HVR.Vixxy.Editor
             var menuItem = my.GetComponent<HVRVixxyMenuItem>();
             if (menuItem == null)
             {
-                if (GUILayout.Button("Create menu for this control"))
+                if (GUILayout.Button(CreateMenuForThisControlLabel))
                 {
                     var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
                     ComponentUtility.MoveComponentUp(comp);
                 }
             }
 
-            EditorGUILayout.LabelField("Control", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(ControlLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.mode)));
-            if (my.mode == HVRVixxyControlMode.Advanced)
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
+            if (my.networked)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.remember)));
-                if (my.remember == HVRVixxyRememberScope.RememberInThisTag)
-                {
-                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.rememberTag)));
-                }
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
-                if (my.networked)
-                {
-                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
-                }
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField("Multi-choice", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(MultiChoiceLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
             if (my.hasThreeOrMoreChoices)
             {
@@ -109,7 +105,7 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField("Interpolation", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(InterpolationLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationDurationSeconds)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationCurve)));
 
@@ -122,7 +118,7 @@ namespace HVR.Vixxy.Editor
         {
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField("Toggle", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(ToggleLabel, EditorStyles.boldLabel);
             if (!my.hasThreeOrMoreChoices)
             {
                 var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
@@ -140,7 +136,7 @@ namespace HVR.Vixxy.Editor
         {
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField("Properties", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(PropertiesLabel, EditorStyles.boldLabel);
             LayoutChangePropertiesPart();
             EditorGUILayout.Separator();
 

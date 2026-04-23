@@ -37,8 +37,6 @@ namespace HVR.Vixxy
         [NonSerialized] internal int AddressId;
         [NonSerialized] internal bool HasMoreThanTwoChoices;
         [NonSerialized] internal int ActualNumberOfChoices;
-        [NonSerialized] internal HVRVixxyRememberScope Remember;
-        [NonSerialized] internal string RememberTagNullable;
         [NonSerialized] internal bool IsInitialized;
         [NonSerialized] internal bool WasAvatarReadyApplied;
         [NonSerialized] internal bool IsWearer;
@@ -99,43 +97,8 @@ namespace HVR.Vixxy
 
             AlsoExecutesWhenDisabled = !onlyExecuteWhenEnabled;
 
-            switch (mode)
-            {
-                case HVRVixxyControlMode.Simplified:
-                {
-                    Remember = HVRVixxyRememberScope.RememberAcrossAvatars;
-                    RememberTagNullable = null;
-                    Networked = true;
-                    NetworkingType = HVRVixxyNetworkingType.Automatic;
-                    break;
-                }
-                case HVRVixxyControlMode.Advanced:
-                {
-                    if (remember == HVRVixxyRememberScope.RememberInThisTag)
-                    {
-                        if (!string.IsNullOrWhiteSpace(rememberTag))
-                        {
-                            Remember = HVRVixxyRememberScope.RememberInThisTag;
-                            RememberTagNullable = rememberTag;
-                        }
-                        else
-                        {
-                            // Get rid of invalid user-provided configurations.
-                            Remember = HVRVixxyRememberScope.RememberInThisAvatar;
-                            RememberTagNullable = null;
-                        }
-                    }
-                    else
-                    {
-                        Remember = remember;
-                    }
-                    Networked = networked;
-                    NetworkingType = networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
-                    break;
-                }
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            Networked = networked;
+            NetworkingType = networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
 
             // UGC Rule: Sanitize arrays.
             activations ??= Array.Empty<HVRVixxyActivation>();

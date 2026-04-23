@@ -17,6 +17,9 @@ namespace HVR.Vixxy
         [SerializeField] internal string address = "";
         [SerializeField] internal HVRVixxyControl control;
 
+        // [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberAcrossAvatars;
+        // [SerializeField] internal string rememberTag = "";
+
         private float _value;
 
         public void OnHVRAvatarReady(bool isWearer)
