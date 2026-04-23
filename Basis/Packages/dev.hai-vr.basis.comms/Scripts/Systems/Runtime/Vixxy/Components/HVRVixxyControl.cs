@@ -32,7 +32,6 @@ namespace HVR.Vixxy
 
         private float _previousValue;
         internal float _value;
-        private float _bakedDefaultValue;
 
         [NonSerialized] internal string Address;
         [NonSerialized] internal int AddressId;
@@ -143,9 +142,6 @@ namespace HVR.Vixxy
             subjects ??= Array.Empty<HVRVixxySubject>();
 
             BakeControlSubjectsAndActivationsForRuntime();
-            _bakedDefaultValue = defaultValue; // TODO: The baked value depends on the level of detail in the control, and the type of control.
-
-            _value = _bakedDefaultValue;
 
             if (_avatarNullable != null)
             {
@@ -154,13 +150,15 @@ namespace HVR.Vixxy
 
             if (Networked)
             {
-                orchestrator.RequireNetworked(Address, _bakedDefaultValue, NetworkingType);
+                orchestrator.RequireNetworked(Address, NetworkingType);
             }
 
             IsInitialized = true;
             if (isActiveAndEnabled || AlsoExecutesWhenDisabled)
             {
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
+                _value = _registeredActuator.initialValue;
+                BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_value}");
             }
         }
 

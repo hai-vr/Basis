@@ -17,8 +17,24 @@ namespace HVR.Basis.Comms
         {
             if (_addressUpdated.TryGetValue(address, out var acquisitor))
             {
-                acquisitor.lastValueForDebugPurposesOnly = value;
+                acquisitor.value = value;
                 acquisitor.Invoke(address, value);
+            }
+        }
+
+        public void SubmitOrDefineDefaultValue(int address, float value)
+        {
+            if (_addressUpdated.TryGetValue(address, out var acquisitor))
+            {
+                acquisitor.value = value;
+                acquisitor.Invoke(address, value);
+            }
+            else
+            {
+                _addressUpdated.Add(address, new AcquisitionForAddress
+                {
+                    value = value
+                });
             }
         }
 
@@ -44,12 +60,22 @@ namespace HVR.Basis.Comms
                 }
             }
         }
+
+        public float GetValue(int addressId)
+        {
+            if (_addressUpdated.TryGetValue(addressId, out var acquisitor))
+            {
+                return acquisitor.value;
+            }
+
+            return 0f;
+        }
     }
 
     internal class AcquisitionForAddress
     {
         internal event AcquisitionService.AddressUpdated OnAddressUpdated;
-        internal float lastValueForDebugPurposesOnly = 0f;
+        internal float value;
 
         public void Invoke(int address, float value) => OnAddressUpdated?.Invoke(address, value);
         internal int GetListenersCount() => OnAddressUpdated?.GetInvocationList().Length ?? 0;

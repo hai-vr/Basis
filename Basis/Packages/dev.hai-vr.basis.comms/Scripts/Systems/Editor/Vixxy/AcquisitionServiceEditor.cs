@@ -21,7 +21,7 @@ namespace HVR.Vixxy.Editor
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.TextField(HVRAddress.ResolveKnownAddressFromId(pair.Key));
                     EditorGUILayout.LabelField($"{pair.Value.GetListenersCount()} listeners", GUILayout.Width(80));
-                    var currentValue = pair.Value.lastValueForDebugPurposesOnly;
+                    var currentValue = pair.Value.value;
                     var newValue = EditorGUILayout.FloatField(currentValue, GUILayout.Width(50));
                     if (!Mathf.Approximately(currentValue, newValue))
                     {

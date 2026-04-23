@@ -33,8 +33,6 @@ namespace HVR.Vixxy
 
         // Menu and Networking
 
-        [SerializeField] public float defaultValue;
-
         /// When the control mode is set to Simplified, we ignore some of the internally serialized values of this control and use
         /// sensible defaults: Remember across avatars, and networked by default.
         [SerializeField] public HVRVixxyControlMode mode;
@@ -198,8 +196,6 @@ namespace HVR.Vixxy
         public string fullClassName;
         public HVRVixxyPropertyVariant variant;
         public string propertyName;
-
-        [Obsolete] public bool flip;
 
         // Runtime only
         [NonSerialized] internal bool IsApplicable;

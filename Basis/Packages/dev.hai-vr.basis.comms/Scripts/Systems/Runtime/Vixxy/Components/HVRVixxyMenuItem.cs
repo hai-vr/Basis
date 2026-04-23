@@ -1,5 +1,4 @@
-﻿using System;
-using HVR.Basis.Comms;
+﻿using HVR.Basis.Comms;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -12,7 +11,7 @@ namespace HVR.Vixxy
         [SerializeField] internal HVRVixxyChoice[] choices = new HVRVixxyChoice[2];
 
         [SerializeField] internal int numberOfChoices = 2;
-        [SerializeField] internal float defaultValue = 0f;
+        [SerializeField] internal float defaultValue;
 
         [SerializeField] internal string address = "";
         [SerializeField] internal HVRVixxyControl control;
@@ -31,6 +30,7 @@ namespace HVR.Vixxy
             // TODO: We would have to load the actual default value from memory somehow.
             _value = defaultValue;
             SubmitValue();
+            BasisDebug.Log($"Initialized {GetType().Name} {address} with default value {_value}");
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
@@ -85,7 +85,7 @@ namespace HVR.Vixxy
 
         private void SubmitValue()
         {
-            AcquisitionService.SceneInstance.Submit(HVRAddress.AddressToId(address), _value);
+            AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(HVRAddress.AddressToId(address), _value);
         }
     }
 }

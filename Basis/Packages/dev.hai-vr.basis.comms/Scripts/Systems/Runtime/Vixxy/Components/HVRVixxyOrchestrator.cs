@@ -158,11 +158,6 @@ namespace HVR.Vixxy
             // }
         }
 
-        public HVRActuatorRegistrationToken RegisterActuator(string address, IHVRVixxyActuator actuator, ImplicitAddressUpdated implicitAddressUpdatedFn)
-        {
-            return RegisterActuator(HVRAddress.AddressToId(address), actuator, implicitAddressUpdatedFn);
-        }
-
         public HVRActuatorRegistrationToken RegisterActuator(int iddress, IHVRVixxyActuator actuator, ImplicitAddressUpdated implicitAddressUpdatedFn)
         {
             if (_iddressToActuators.TryGetValue(iddress, out var existingActuators))
@@ -188,7 +183,8 @@ namespace HVR.Vixxy
                 registeredAddress = address,
                 registeredIddress = iddress,
                 registeredCallback = addressUpdatedFn,
-                registeredActuator = actuator
+                registeredActuator = actuator,
+                initialValue = acquisitionService.GetValue(iddress)
             };
         }
 
@@ -279,7 +275,7 @@ namespace HVR.Vixxy
             // _stagedComponents.Add(component);
         }
 
-        public void RequireNetworked(string address, float bakedDefaultValue, HVRVixxyNetworkingType networkingType)
+        public void RequireNetworked(string address, HVRVixxyNetworkingType networkingType)
         {
             // networking.RequireNetworked(address, bakedDefaultValue, netDataUsage);
         }
@@ -291,5 +287,7 @@ namespace HVR.Vixxy
         public int registeredIddress;
         public AcquisitionService.AddressUpdated registeredCallback;
         public IHVRVixxyActuator registeredActuator;
+
+        public float initialValue;
     }
 }
