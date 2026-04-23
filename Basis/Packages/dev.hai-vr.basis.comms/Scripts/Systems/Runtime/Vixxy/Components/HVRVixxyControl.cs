@@ -31,8 +31,8 @@ namespace HVR.Vixxy
         private Transform _context;
         private HVRActuatorRegistrationToken _registeredActuator;
 
-        [NonSerialized] internal HVRSettableFloatElement GadgetElement;
         private float _previousValue;
+        internal float _value;
         private float _bakedDefaultValue;
 
         [NonSerialized] internal string Address;
@@ -145,15 +145,7 @@ namespace HVR.Vixxy
             BakeControlSubjectsAndActivationsForRuntime();
             _bakedDefaultValue = defaultValue; // TODO: The baked value depends on the level of detail in the control, and the type of control.
 
-            // TODO: This is temporary code
-            GadgetElement = ScriptableObject.CreateInstance<HVRSettableFloatElement>();
-            GadgetElement.localizedTitle = gameObject.name;
-            GadgetElement.min = 0f;
-            GadgetElement.max = HasMoreThanTwoChoices ? (ActualNumberOfChoices - 1) : 1f;
-            GadgetElement.displayAs = HVRSettableFloatElement.HVRUnitDisplayKind.Toggle; // TODO: This depends on the type of control.
-            GadgetElement.defaultValue = _bakedDefaultValue;
-            GadgetElement.storedValue = _bakedDefaultValue;
-            sample = GadgetElement;
+            _value = _bakedDefaultValue;
 
             if (_avatarNullable != null)
             {
@@ -190,16 +182,12 @@ namespace HVR.Vixxy
             {
                 orchestrator.UnregisterActuator(_registeredActuator);
             }
-
-            sample.OnValueChanged -= OnValueChanged;
         }
 
         private void ApplyAvatarReady(bool isWearer)
         {
             WasAvatarReadyApplied = true;
             IsWearer = isWearer;
-            sample.OnValueChanged -= OnValueChanged;
-            sample.OnValueChanged += OnValueChanged;
         }
 
         private string GenerateAddressFromPath()
@@ -488,7 +476,7 @@ namespace HVR.Vixxy
 
             // FIXME: Storing that value is probably not a good idea to do at this specific stage of the processing.
             //           For comparison, we can't do this for aggregators (which can have multiple input values), it's not their responsibility.
-            sample.storedValue = value;
+            _value = value;
 
             orchestrator.PassAddressUpdated(_iddress);
         }
@@ -498,14 +486,14 @@ namespace HVR.Vixxy
             if (!HasMoreThanTwoChoices)
             {
                 // FIXME: We really need to figure out how actuators sample values from their dependents.
-                var linear01 = Mathf.InverseLerp(lowerBound, upperBound, sample.storedValue);
+                var linear01 = Mathf.InverseLerp(lowerBound, upperBound, _value);
                 var active01 = interpolationCurve.Evaluate(linear01);
                 ActuateActivations(active01);
                 ActuateSubjects(active01, HVRVixxyPropertyBase.InactiveIndex, HVRVixxyPropertyBase.ActiveIndex);
             }
             else
             {
-                int storedIntValue = Mathf.RoundToInt(sample.storedValue);
+                int storedIntValue = Mathf.RoundToInt(_value);
                 int outValue;
                 if (storedIntValue < 0) outValue = 0;
                 else if (storedIntValue >= ActualNumberOfChoices) outValue = ActualNumberOfChoices - 1;
@@ -784,6 +772,12 @@ namespace HVR.Vixxy
             }
 
             return null;
+        }
+
+        public void ChangeValue(float newValue)
+        {
+            _value = newValue;
+            OnValueChanged(newValue);
         }
     }
 

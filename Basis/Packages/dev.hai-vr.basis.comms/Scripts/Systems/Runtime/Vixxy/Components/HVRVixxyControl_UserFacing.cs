@@ -16,8 +16,6 @@ namespace HVR.Vixxy
         /// If not, we will generate one at runtime.
         [SerializeField] internal string address = "";
 
-        [SerializeField] internal HVRSettableFloatElement sample;
-
         [SerializeField] public bool hasThreeOrMoreChoices;
         [SerializeField] public int numberOfChoices = 3;
 

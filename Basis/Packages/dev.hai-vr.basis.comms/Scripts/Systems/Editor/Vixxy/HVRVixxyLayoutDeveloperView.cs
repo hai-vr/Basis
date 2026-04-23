@@ -69,18 +69,18 @@ namespace HVR.Vixxy.Editor
                         EditorGUI.EndDisabledGroup();
                         if (my.HasMoreThanTwoChoices)
                         {
-                            var slider = EditorGUILayout.IntSlider((int)my.GadgetElement.storedValue, (int)my.GadgetElement.min, (int)my.GadgetElement.max);
-                            if (slider != my.GadgetElement.storedValue)
+                            var slider = EditorGUILayout.IntSlider((int)my._value, 0, my.ActualNumberOfChoices - 1);
+                            if (!Mathf.Approximately(slider, my._value))
                             {
-                                my.GadgetElement.storedValue = slider;
+                                my.ChangeValue(slider);
                             }
                         }
                         else
                         {
-                            var slider = EditorGUILayout.Slider(my.GadgetElement.storedValue, my.GadgetElement.min, my.GadgetElement.max);
-                            if (slider != my.GadgetElement.storedValue)
+                            var slider = EditorGUILayout.Slider(my._value, 0, my.ActualNumberOfChoices - 1);
+                            if (!Mathf.Approximately(slider, my._value))
                             {
-                                my.GadgetElement.storedValue = slider;
+                                my.ChangeValue(slider);
                             }
                         }
                         EditorGUILayout.EndVertical();
