@@ -14,11 +14,15 @@ namespace HVR.Vixxy.Editor
 
         internal const float DeleteButtonWidth = 40;
 
+        internal const string CreatorView = "Creator View";
         internal const string UserViewLabel = "User View";
-        internal const string CreatorViewLabel = "Creator View";
+        internal const string ToggleObjectsViewLabel = "Toggle Objects";
+        internal const string ChangePropertiesViewLabel = "Change Properties";
         private const string DeveloperViewLabel = "Developer View";
 
         public static bool _creatorViewFoldout;
+        public static bool _toggleObjectsFoldout;
+        public static bool _changePropertiesFoldout;
         public static bool _developerViewFoldout;
 
         private HVRVixxyLayoutMenuView _menuView;
@@ -43,10 +47,20 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
-            _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorViewLabel, "", _creatorViewFoldout, ref anyChanged);
+            _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorView, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {
-                if (_creatorView.Layout()) return;
+                if (_creatorView.LayoutCreatorView()) return;
+            }
+            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
+            if (_toggleObjectsFoldout)
+            {
+                if (_creatorView.LayoutToggleObjects()) return;
+            }
+            _changePropertiesFoldout = HaiEFCommon.LilFoldout(ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
+            if (_changePropertiesFoldout)
+            {
+                if (_creatorView.LayoutChangeProperties()) return;
             }
             _developerViewFoldout = HaiEFCommon.LilFoldout(DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
             if (_developerViewFoldout)

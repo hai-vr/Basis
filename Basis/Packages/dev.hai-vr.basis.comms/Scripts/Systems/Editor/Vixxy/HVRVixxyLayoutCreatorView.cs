@@ -69,7 +69,7 @@ namespace HVR.Vixxy.Editor
             subjectsReorderableList.elementHeight = EditorGUIUtility.singleLineHeight * 1;
         }
 
-        internal bool Layout()
+        public bool LayoutCreatorView()
         {
             EditorGUILayout.Separator();
 
@@ -101,10 +101,25 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
+            EditorGUILayout.LabelField("Multi-choice", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
+            if (my.hasThreeOrMoreChoices)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.numberOfChoices)));
+            }
+            EditorGUILayout.Separator();
+
             EditorGUILayout.LabelField("Interpolation", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationDurationSeconds)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationCurve)));
 
+            EditorGUILayout.Separator();
+
+            return false;
+        }
+
+        internal bool LayoutToggleObjects()
+        {
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField("Toggle", EditorStyles.boldLabel);
@@ -116,6 +131,13 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField("Disable these when Active:");
                 DisplayActivations(activationsSp, false);
             }
+            EditorGUILayout.Separator();
+
+            return false;
+        }
+
+        public bool LayoutChangeProperties()
+        {
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField("Properties", EditorStyles.boldLabel);

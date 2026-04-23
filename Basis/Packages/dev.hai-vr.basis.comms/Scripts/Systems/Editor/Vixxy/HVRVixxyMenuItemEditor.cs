@@ -12,6 +12,8 @@ namespace HVR.Vixxy.Editor
         public static bool _userViewFoldout = true;
         public static bool _creatorViewFoldout;
 
+        internal const string CreatorView = "Creator View";
+
         private void OnEnable()
         {
             _menuView = new HVRVixxyLayoutMenuView(this);
@@ -34,7 +36,7 @@ namespace HVR.Vixxy.Editor
             {
                 if (_menuView.LayoutUserView()) return;
             }
-            _creatorViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyControlEditor.CreatorViewLabel, "", _creatorViewFoldout, ref anyChanged);
+            _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorView, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {
                 if (_menuView.LayoutCreatorView()) return;
