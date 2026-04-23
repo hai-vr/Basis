@@ -18,7 +18,7 @@ namespace HVR.Basis.Comms.Editor
             {
                 if (my._streamedLateInit != null)
                 {
-                    EditorGUILayout.LabelField($"Mutualized ({my._ranges.Count})", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField($"Mutualized / lower / upper / current ({my._ranges.Count} items)", EditorStyles.boldLabel);
                     for (var index = 0; index < my._ranges.Count; index++)
                     {
                         var range = my._ranges[index];

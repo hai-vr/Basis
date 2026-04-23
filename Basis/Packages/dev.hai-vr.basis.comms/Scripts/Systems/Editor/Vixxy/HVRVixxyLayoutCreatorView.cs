@@ -75,7 +75,6 @@ namespace HVR.Vixxy.Editor
 
             EditorGUILayout.LabelField("Control", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.controlType)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.mode)));
             if (my.mode == HVRVixxyControlMode.Advanced)
             {

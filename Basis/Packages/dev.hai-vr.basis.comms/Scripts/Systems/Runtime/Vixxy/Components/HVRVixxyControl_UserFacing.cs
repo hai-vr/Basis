@@ -8,15 +8,6 @@ namespace HVR.Vixxy
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization/vixxy")]
     public partial class HVRVixxyControl
     {
-        // # Wearer properties
-        [SerializeField] internal HVRVixxyControlType controlType;
-
-        [SerializeField] [Multiline] internal string title;
-        [SerializeField] internal HVRVixxyTitleSelection titleSelection = HVRVixxyTitleSelection.UseObjectName;
-        [SerializeField] internal HVRVixxyChoice[] choices = new HVRVixxyChoice[2];
-
-        // ---
-
         /// The orchestrator defines the context that the subjects of this control will affect (e.g. Recursive Search).
         /// Vixxy is not an avatar-specific component, so it needs that limited context.
         [SerializeField] internal HVRVixxyOrchestrator orchestrator;

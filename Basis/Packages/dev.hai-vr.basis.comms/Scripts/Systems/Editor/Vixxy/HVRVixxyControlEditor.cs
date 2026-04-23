@@ -10,15 +10,14 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color PreviewColor = new Color(0.65f, 1f, 0.56f);
         internal static readonly Color RuntimeColorOK = Color.cyan;
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
-        private const string MsgCannotEditInPlayMode = "Editing this component during Play Mode can lead to different visual and scene results than editing the component in Edit Mode.";
+        internal const string MsgCannotEditInPlayMode = "Editing this component during Play Mode can lead to different visual and scene results than editing the component in Edit Mode.";
 
         internal const float DeleteButtonWidth = 40;
 
-        private const string UserViewLabel = "User View";
-        private const string CreatorViewLabel = "Creator View";
+        internal const string UserViewLabel = "User View";
+        internal const string CreatorViewLabel = "Creator View";
         private const string DeveloperViewLabel = "Developer View";
 
-        public static bool _userViewFoldout = true;
         public static bool _creatorViewFoldout;
         public static bool _developerViewFoldout;
 
@@ -28,7 +27,6 @@ namespace HVR.Vixxy.Editor
 
         private void OnEnable()
         {
-            _userView = new HVRVixxyLayoutUserView(this);
             _creatorView = new HVRVixxyLayoutCreatorView(this);
             _developerView = new HVRVixxyLayoutDeveloperView(this);
         }
@@ -45,11 +43,6 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
-            _userViewFoldout = HaiEFCommon.LilFoldout(UserViewLabel, "", _userViewFoldout, ref anyChanged);
-            if (_userViewFoldout)
-            {
-                if (_userView.Layout()) return;
-            }
             _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorViewLabel, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {

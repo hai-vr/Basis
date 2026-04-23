@@ -11,29 +11,36 @@ namespace HVR.Vixxy.Editor
         private const string InactiveLabel = "Inactive";
         private const string MsgControlTriggeredByVariable = "No user options. This control is triggered by a variable.";
 
-        private readonly HVRVixxyControl my;
+        private readonly HVRVixxyMenuItem my;
         private readonly SerializedObject serializedObject;
 
-        internal HVRVixxyLayoutUserView(HVRVixxyControlEditor editor)
+        internal HVRVixxyLayoutUserView(HVRVixxyMenuItemEditor editor)
         {
-            my = (HVRVixxyControl)editor.target;
+            my = (HVRVixxyMenuItem)editor.target;
             serializedObject = editor.serializedObject;
         }
 
         public bool Layout()
         {
             EditorGUILayout.Separator();
-            if (my.controlType == HVRVixxyControlType.Menu)
+            LayoutMenu();
+            EditorGUILayout.Separator();
+
+            return false;
+        }
+
+        public bool LayoutCreatorView()
+        {
+            EditorGUILayout.Separator();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.numberOfChoices)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.address)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.controls)));
+            EditorGUI.BeginDisabledGroup(true);
+            foreach (var control in my.GetComponents<HVRVixxyControl>())
             {
-                LayoutMenu();
+                EditorGUILayout.ObjectField(control, typeof(HVRVixxyControl), true);
             }
-            else
-            {
-                EditorGUILayout.HelpBox(MsgControlTriggeredByVariable, MessageType.Info);
-                EditorGUI.BeginDisabledGroup(true);
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-                EditorGUI.EndDisabledGroup();
-            }
+            EditorGUI.EndDisabledGroup();
             EditorGUILayout.Separator();
 
             return false;
@@ -41,7 +48,7 @@ namespace HVR.Vixxy.Editor
 
         private void LayoutMenu()
         {
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.titleSelection)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.titleSelection)));
             if (my.titleSelection == HVRVixxyTitleSelection.UseObjectName)
             {
                 var currentName = my.gameObject.name;
@@ -55,15 +62,15 @@ namespace HVR.Vixxy.Editor
             }
             else if (my.titleSelection != HVRVixxyTitleSelection.UseChoicesOnly)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.title)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.title)));
             }
 
-            var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
-            var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
-            if (my.hasThreeOrMoreChoices)
+            var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyMenuItem.defaultValue));
+            var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyMenuItem.choices));
+            if (my.numberOfChoices > 2)
             {
                 var currentValue = (int)defaultValueSp.floatValue;
-                var newValue = EditorGUILayout.IntSlider(new GUIContent(ObjectNames.NicifyVariableName(nameof(HVRVixxyControl.defaultValue))), currentValue, 0, my.numberOfChoices - 1);
+                var newValue = EditorGUILayout.IntSlider(new GUIContent(ObjectNames.NicifyVariableName(nameof(HVRVixxyMenuItem.defaultValue))), currentValue, 0, my.numberOfChoices - 1);
                 if (currentValue != newValue)
                 {
                     defaultValueSp.floatValue = newValue;
@@ -90,11 +97,13 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField(ActiveLabel, EditorStyles.boldLabel);
                 DisplayChoiceInBistableToggle(choicesSp.GetArrayElementAtIndex(1));
             }
+
+            EditorGUILayout.Separator();
         }
 
         private void DisplayChoiceInBistableToggle(SerializedProperty choiceSp)
         {
-            if (my.titleSelection == HVRVixxyTitleSelection.UseCustomTitleAndChoices || my.titleSelection == HVRVixxyTitleSelection.UseChoicesOnly || my.hasThreeOrMoreChoices)
+            if (my.titleSelection == HVRVixxyTitleSelection.UseCustomTitleAndChoices || my.titleSelection == HVRVixxyTitleSelection.UseChoicesOnly || my.numberOfChoices > 2)
             {
                 EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoice.title)));
             }

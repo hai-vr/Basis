@@ -138,21 +138,6 @@ namespace HVR.Vixxy
                     throw new ArgumentOutOfRangeException();
             }
 
-            title ??= "";
-            choices ??= new HVRVixxyChoice[ActualNumberOfChoices];
-            if (choices.Length != ActualNumberOfChoices)
-            {
-                Array.Resize(ref choices, ActualNumberOfChoices);
-            }
-
-            for (var index = 0; index < choices.Length; index++)
-            {
-                var choice = choices[index];
-                if (choice == null) choice = new HVRVixxyChoice();
-                choice.title ??= "";
-                choices[index] = choice;
-            }
-
             // UGC Rule: Sanitize arrays.
             activations ??= Array.Empty<HVRVixxyActivation>();
             subjects ??= Array.Empty<HVRVixxySubject>();
@@ -765,11 +750,6 @@ namespace HVR.Vixxy
         public void OptimizePruneArrays()
         {
             FigureOutActualNumberOfChoices(out _, out var actualNumberOfChoices);
-
-            if (choices.Length != actualNumberOfChoices)
-            {
-                Array.Resize(ref choices, actualNumberOfChoices);
-            }
 
             foreach (var activation in activations)
             {

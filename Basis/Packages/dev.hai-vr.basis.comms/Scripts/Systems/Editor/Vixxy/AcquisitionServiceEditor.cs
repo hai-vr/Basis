@@ -14,6 +14,8 @@ namespace HVR.Vixxy.Editor
             if (Application.isPlaying)
             {
                 var my = (AcquisitionService)target;
+
+                EditorGUILayout.LabelField("Registered addresses / listeners", EditorStyles.boldLabel);
                 foreach (var pair in my._addressUpdated)
                 {
                     EditorGUILayout.BeginHorizontal();
