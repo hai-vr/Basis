@@ -15,13 +15,18 @@ namespace HVR.Vixxy
         [SerializeField] internal float defaultValue = 0f;
 
         [SerializeField] internal string address = "";
-        [SerializeField] internal HVRVixxyControl[] controls = Array.Empty<HVRVixxyControl>();
+        [SerializeField] internal HVRVixxyControl control;
 
         private float _value;
 
         public void OnHVRAvatarReady(bool isWearer)
         {
             if (!isWearer) return;
+
+            if (control == null && string.IsNullOrWhiteSpace(address))
+            {
+                control = GetComponent<HVRVixxyControl>(); // This may return null.
+            }
 
             // TODO: We would have to load the actual default value from memory somehow.
             _value = defaultValue;

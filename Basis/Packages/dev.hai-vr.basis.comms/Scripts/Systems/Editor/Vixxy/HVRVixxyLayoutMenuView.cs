@@ -4,23 +4,22 @@ using UnityEngine;
 
 namespace HVR.Vixxy.Editor
 {
-    internal class HVRVixxyLayoutUserView
+    internal class HVRVixxyLayoutMenuView
     {
         private const string ObjectNameLabel = "Title (Object Name)";
         private const string ActiveLabel = "Active";
         private const string InactiveLabel = "Inactive";
-        private const string MsgControlTriggeredByVariable = "No user options. This control is triggered by a variable.";
 
         private readonly HVRVixxyMenuItem my;
         private readonly SerializedObject serializedObject;
 
-        internal HVRVixxyLayoutUserView(HVRVixxyMenuItemEditor editor)
+        internal HVRVixxyLayoutMenuView(HVRVixxyMenuItemEditor editor)
         {
             my = (HVRVixxyMenuItem)editor.target;
             serializedObject = editor.serializedObject;
         }
 
-        public bool Layout()
+        public bool LayoutUserView()
         {
             EditorGUILayout.Separator();
             LayoutMenu();
@@ -34,7 +33,7 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.numberOfChoices)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.address)));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.controls)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.control)));
             EditorGUI.BeginDisabledGroup(true);
             foreach (var control in my.GetComponents<HVRVixxyControl>())
             {

@@ -21,7 +21,7 @@ namespace HVR.Vixxy.Editor
         public static bool _creatorViewFoldout;
         public static bool _developerViewFoldout;
 
-        private HVRVixxyLayoutUserView _userView;
+        private HVRVixxyLayoutMenuView _menuView;
         private HVRVixxyLayoutCreatorView _creatorView;
         private HVRVixxyLayoutDeveloperView _developerView;
 

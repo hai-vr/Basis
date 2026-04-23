@@ -7,14 +7,14 @@ namespace HVR.Vixxy.Editor
     [CustomEditor(typeof(HVRVixxyMenuItem))]
     public class HVRVixxyMenuItemEditor : UnityEditor.Editor
     {
-        private HVRVixxyLayoutUserView _userView;
+        private HVRVixxyLayoutMenuView _menuView;
 
         public static bool _userViewFoldout = true;
         public static bool _creatorViewFoldout;
 
         private void OnEnable()
         {
-            _userView = new HVRVixxyLayoutUserView(this);
+            _menuView = new HVRVixxyLayoutMenuView(this);
         }
 
         public override void OnInspectorGUI()
@@ -32,12 +32,12 @@ namespace HVR.Vixxy.Editor
             _userViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyControlEditor.UserViewLabel, "", _userViewFoldout, ref anyChanged);
             if (_userViewFoldout)
             {
-                if (_userView.Layout()) return;
+                if (_menuView.LayoutUserView()) return;
             }
             _creatorViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyControlEditor.CreatorViewLabel, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {
-                if (_userView.LayoutCreatorView()) return;
+                if (_menuView.LayoutCreatorView()) return;
             }
 
             serializedObject.ApplyModifiedProperties();
