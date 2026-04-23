@@ -35,7 +35,7 @@ namespace HVR.Vixxy
         private float _bakedDefaultValue;
 
         [NonSerialized] internal string Address;
-        [NonSerialized] internal int AddressIndex;
+        [NonSerialized] internal int AddressId;
         [NonSerialized] internal bool HasMoreThanTwoChoices;
         [NonSerialized] internal int ActualNumberOfChoices;
         [NonSerialized] internal HVRVixxyRememberScope Remember;
@@ -88,7 +88,7 @@ namespace HVR.Vixxy
             _context = orchestrator.Context();
 
             Address = string.IsNullOrWhiteSpace(address) ? GenerateAddressFromPath() : address;
-            AddressIndex = HVRAddress.AddressToId(Address);
+            AddressId = HVRAddress.AddressToId(Address);
 
             FigureOutActualNumberOfChoices(out var hasMoreThanTwoChoices, out var actualNumberOfChoices);
             HasMoreThanTwoChoices = hasMoreThanTwoChoices;
@@ -160,7 +160,7 @@ namespace HVR.Vixxy
             IsInitialized = true;
             if (isActiveAndEnabled || AlsoExecutesWhenDisabled)
             {
-                _registeredActuator = orchestrator.RegisterActuator(AddressIndex, this, OnImplicitAddressUpdated);
+                _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
             }
         }
 
@@ -447,7 +447,7 @@ namespace HVR.Vixxy
             _previousValue = float.MinValue + 1.23456789f;
             if (IsInitialized && _registeredActuator == null)
             {
-                _registeredActuator = orchestrator.RegisterActuator(AddressIndex, this, OnImplicitAddressUpdated);
+                _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
             }
         }
 
@@ -473,7 +473,7 @@ namespace HVR.Vixxy
             //           For comparison, we can't do this for aggregators (which can have multiple input values), it's not their responsibility.
             _value = value;
 
-            orchestrator.PassAddressUpdated(AddressIndex);
+            orchestrator.PassAddressUpdated(AddressId);
         }
 
         public void Actuate()

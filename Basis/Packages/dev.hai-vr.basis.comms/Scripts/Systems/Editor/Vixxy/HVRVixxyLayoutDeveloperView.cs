@@ -73,7 +73,7 @@ namespace HVR.Vixxy.Editor
                             var slider = EditorGUILayout.IntSlider((int)my._value, 0, my.ActualNumberOfChoices - 1);
                             if (!Mathf.Approximately(slider, my._value))
                             {
-                                AcquisitionService.SceneInstance.Submit(my.AddressIndex, slider);
+                                AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
                             }
                         }
                         else
@@ -81,7 +81,7 @@ namespace HVR.Vixxy.Editor
                             var slider = EditorGUILayout.Slider(my._value, 0, my.ActualNumberOfChoices - 1);
                             if (!Mathf.Approximately(slider, my._value))
                             {
-                                AcquisitionService.SceneInstance.Submit(my.AddressIndex, slider);
+                                AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
                             }
                         }
                         EditorGUILayout.EndVertical();

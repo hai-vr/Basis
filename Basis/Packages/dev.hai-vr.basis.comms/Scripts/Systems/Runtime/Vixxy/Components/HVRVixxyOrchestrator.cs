@@ -53,11 +53,6 @@ namespace HVR.Vixxy
             return context != null ? context : transform;
         }
 
-        public void PassAddressUpdated(string address)
-        {
-            PassAddressUpdated(HVRAddress.AddressToId(address));
-        }
-
         public void PassAddressUpdated(int iddress)
         {
             // TODO: Store received addresses and value

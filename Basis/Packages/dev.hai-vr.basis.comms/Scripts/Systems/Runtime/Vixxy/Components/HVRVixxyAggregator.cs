@@ -16,8 +16,8 @@ namespace HVR.Vixxy
         private readonly HashSet<HVRVixxyAggregator> _transformerResult = new();
         private readonly HashSet<IHVRVixxyActuator> _actuatorResult = new();
 
-        private int _iddressA;
-        private int _iddressB;
+        private int _addressIdA;
+        private int _addressIdB;
         private int _outputIddress;
         private float _activeResult = float.MinValue;
         private bool _hasNeverBeenAggregated = true;
@@ -29,8 +29,8 @@ namespace HVR.Vixxy
         private void Awake()
         {
             acquisitionService = AcquisitionService.SceneInstance;
-            _iddressA = HVRAddress.AddressToId(addressA);
-            _iddressB = HVRAddress.AddressToId(addressB);
+            _addressIdA = HVRAddress.AddressToId(addressA);
+            _addressIdB = HVRAddress.AddressToId(addressB);
             _outputIddress = HVRAddress.AddressToId(outputAddress);
 
             if (string.IsNullOrEmpty(addressA) || string.IsNullOrEmpty(addressB) || string.IsNullOrEmpty(outputAddress))
@@ -42,27 +42,27 @@ namespace HVR.Vixxy
 
         private void OnEnable()
         {
-            orchestrator.RegisterAggregator(_iddressA, this);
-            orchestrator.RegisterAggregator(_iddressB, this);
+            orchestrator.RegisterAggregator(_addressIdA, this);
+            orchestrator.RegisterAggregator(_addressIdB, this);
             // FIXME: Address registration should be inside the orchestrator
-            acquisitionService.RegisterAddresses(new []{ _iddressA, _iddressB }, OnAddressUpdated);
+            acquisitionService.RegisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
         }
 
         private void OnDisable()
         {
-            orchestrator.UnregisterAggregator(_iddressA, this);
-            orchestrator.UnregisterAggregator(_iddressB, this);
+            orchestrator.UnregisterAggregator(_addressIdA, this);
+            orchestrator.UnregisterAggregator(_addressIdB, this);
             // FIXME: Address registration should be inside the orchestrator
-            acquisitionService.UnregisterAddresses(new []{ _iddressA, _iddressB }, OnAddressUpdated);
+            acquisitionService.UnregisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
         }
 
         private void OnAddressUpdated(int inputIddress, float value)
         {
-            if (inputIddress == _iddressA)
+            if (inputIddress == _addressIdA)
             {
                 a = value;
             }
-            else if (inputIddress == _iddressB)
+            else if (inputIddress == _addressIdB)
             {
                 b = value;
             }
