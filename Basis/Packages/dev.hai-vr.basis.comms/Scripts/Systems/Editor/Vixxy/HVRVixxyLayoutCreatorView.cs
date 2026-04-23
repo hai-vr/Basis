@@ -73,6 +73,16 @@ namespace HVR.Vixxy.Editor
         {
             EditorGUILayout.Separator();
 
+            var menuItem = my.GetComponent<HVRVixxyMenuItem>();
+            if (menuItem == null)
+            {
+                if (GUILayout.Button("Create menu for this control"))
+                {
+                    var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
+                    ComponentUtility.MoveComponentUp(comp);
+                }
+            }
+
             EditorGUILayout.LabelField("Control", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.mode)));
