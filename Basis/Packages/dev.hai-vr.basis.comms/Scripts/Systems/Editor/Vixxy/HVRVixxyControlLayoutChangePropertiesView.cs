@@ -9,7 +9,7 @@ using Object = UnityEngine.Object;
 
 namespace HVR.Vixxy.Editor
 {
-    internal class HVRVixxyLayoutCreatorView
+    internal class HVRVixxyLayoutChangePropertiesView
     {
         private const int MaxSearchQueryLength = 100;
         private static readonly Regex HasAnyNonLetterNonSpace = new Regex(@"[^A-Za-z\s]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -44,7 +44,7 @@ namespace HVR.Vixxy.Editor
         private string _search;
         private bool _focusNext;
 
-        internal HVRVixxyLayoutCreatorView(HVRVixxyControlEditor editor)
+        internal HVRVixxyLayoutChangePropertiesView(HVRVixxyControlEditor editor)
         {
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
@@ -114,24 +114,6 @@ namespace HVR.Vixxy.Editor
             return false;
         }
 
-        internal bool LayoutToggleObjects()
-        {
-            EditorGUILayout.Separator();
-
-            EditorGUILayout.LabelField(ToggleLabel, EditorStyles.boldLabel);
-            if (!my.hasThreeOrMoreChoices)
-            {
-                var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
-                EditorGUILayout.LabelField("Enable these when Active:");
-                DisplayActivations(activationsSp, true);
-                EditorGUILayout.LabelField("Disable these when Active:");
-                DisplayActivations(activationsSp, false);
-            }
-            EditorGUILayout.Separator();
-
-            return false;
-        }
-
         public bool LayoutChangeProperties()
         {
             EditorGUILayout.Separator();
@@ -141,30 +123,6 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             return false;
-        }
-
-        private void DisplayActivations(SerializedProperty activationsSp, bool showThoseActive)
-        {
-            for (var i = 0; i < activationsSp.arraySize; i++)
-            {
-                var elementSp = activationsSp.GetArrayElementAtIndex(i);
-                var isWhenActive = elementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue;
-                if (isWhenActive == showThoseActive)
-                {
-                    EditorGUILayout.PropertyField(elementSp);
-                }
-            }
-            var newComponent = EditorGUILayout.ObjectField(null, typeof(Component), true);
-            if (newComponent != null)
-            {
-                var newIndex = activationsSp.arraySize;
-                activationsSp.InsertArrayElementAtIndex(newIndex);
-                var newElementSp = activationsSp.GetArrayElementAtIndex(newIndex);
-                newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).arraySize = my.numberOfChoices;
-                newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = showThoseActive;
-                newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex).boolValue = !showThoseActive;
-                newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.component)).objectReferenceValue = newComponent;
-            }
         }
 
         private void LayoutChangePropertiesPart()
@@ -275,7 +233,7 @@ namespace HVR.Vixxy.Editor
             }
         }
 
-        private void CreateArrayAddition(SerializedProperty whichArrayProperty, Type arrayType, bool limitToOne = false)
+        private static void CreateArrayAddition(SerializedProperty whichArrayProperty, Type arrayType, bool limitToOne = false)
         {
             var useComponentDropdown = arrayType == typeof(Component);
             for (var i = 0; i < (limitToOne ? Math.Min(1, whichArrayProperty.arraySize) : whichArrayProperty.arraySize); i++)
@@ -485,32 +443,11 @@ namespace HVR.Vixxy.Editor
                 {
                     var property = binding.propertyName;
                     // TODO VIXXY
-                    // DisplayColorOrVectorPropertyViewer(componentNullable, mySelectedElement, selectedElementSp, property, binding, rootObject);
 
                     if (!CoordsSuffixes.Any(suffix => property.EndsWith(suffix)))
                     {
                         EditorGUILayout.BeginHorizontal();
                         EditorGUILayout.TextField(property);
-                        // if (_showValues)
-                        // {
-                        //     var success =
-                        //         AnimationUtility.GetFloatValue(rootObject, binding, out var floatValue);
-                        //     if (success)
-                        //     {
-                        //         EditorGUILayout.FloatField(floatValue, GUILayout.Width(50));
-                        //     }
-                        //     else
-                        //     {
-                        //         success = AnimationUtility.GetObjectReferenceValue(rootObject, binding,
-                        //             out var objectValue);
-                        //         if (success && objectValue != null && objectValue is Object)
-                        //         {
-                        //             EditorGUILayout.ObjectField(objectValue, typeof(Object),
-                        //                 GUILayout.Width(100));
-                        //         }
-                        //     }
-                        // }
-
                         EditorGUI.BeginDisabledGroup(mySelectedElement.properties.Any(prop =>
                         {
                             return prop.fullClassName == binding.type.FullName && prop.propertyName == property;
@@ -526,6 +463,18 @@ namespace HVR.Vixxy.Editor
                         EditorGUI.EndDisabledGroup();
 
                         EditorGUILayout.EndHorizontal();
+                    }
+                    else
+                    {
+                        var isXYZ = property.EndsWith(".x");
+                        var isRGB = property.EndsWith(".r");
+
+                        if (isXYZ || isRGB)
+                        {
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.TextField(property.Substring(0, property.Length - ".x".Length));
+                            EditorGUILayout.EndHorizontal();
+                        }
                     }
                 }
             }

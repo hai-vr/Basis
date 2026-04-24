@@ -10,7 +10,6 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color PreviewColor = new Color(0.65f, 1f, 0.56f);
         internal static readonly Color RuntimeColorOK = Color.cyan;
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
-        internal const string MsgCannotEditInPlayMode = "Editing this component during Play Mode can lead to different visual and scene results than editing the component in Edit Mode.";
 
         internal const float DeleteButtonWidth = 40;
 
@@ -19,6 +18,8 @@ namespace HVR.Vixxy.Editor
         internal const string ToggleObjectsViewLabel = "Toggle Objects";
         internal const string ChangePropertiesViewLabel = "Change Properties";
         private const string DeveloperViewLabel = "Developer View";
+        private const string AdvancedLabel = "Advanced";
+        internal const string MsgCannotEditInPlayMode = "Editing this component during Play Mode can lead to different visual and scene results than editing the component in Edit Mode.";
 
         public static bool _creatorViewFoldout;
         public static bool _toggleObjectsFoldout;
@@ -26,12 +27,14 @@ namespace HVR.Vixxy.Editor
         public static bool _developerViewFoldout;
 
         private HVRVixxyLayoutMenuView _menuView;
-        private HVRVixxyLayoutCreatorView _creatorView;
+        private HVRVixxyLayoutChangePropertiesView _changePropertiesView;
+        private HVRVixxyLayoutToggleObjectsView _toggleObjectsView;
         private HVRVixxyLayoutDeveloperView _developerView;
 
         private void OnEnable()
         {
-            _creatorView = new HVRVixxyLayoutCreatorView(this);
+            _changePropertiesView = new HVRVixxyLayoutChangePropertiesView(this);
+            _toggleObjectsView = new HVRVixxyLayoutToggleObjectsView(this);
             _developerView = new HVRVixxyLayoutDeveloperView(this);
         }
 
@@ -50,18 +53,21 @@ namespace HVR.Vixxy.Editor
             _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorView, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {
-                if (_creatorView.LayoutCreatorView()) return;
+                if (_changePropertiesView.LayoutCreatorView()) return;
             }
             _toggleObjectsFoldout = HaiEFCommon.LilFoldout(ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
             if (_toggleObjectsFoldout)
             {
-                if (_creatorView.LayoutToggleObjects()) return;
+                if (_toggleObjectsView.LayoutToggleObjects()) return;
             }
             _changePropertiesFoldout = HaiEFCommon.LilFoldout(ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
             if (_changePropertiesFoldout)
             {
-                if (_creatorView.LayoutChangeProperties()) return;
+                if (_changePropertiesView.LayoutChangeProperties()) return;
             }
+            EditorGUILayout.Separator();
+
+            EditorGUILayout.LabelField(AdvancedLabel, EditorStyles.boldLabel);
             _developerViewFoldout = HaiEFCommon.LilFoldout(DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
             if (_developerViewFoldout)
             {
