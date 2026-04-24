@@ -133,7 +133,7 @@ namespace Basis.Scripts.Networking.Transmitters
             writer.Reset();
 
 #if !BASIS_DISABLE_MICROPHONE
-            Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,Segment.buffer,Segment.TotalLength);
+            Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.ProcessFrameLength,Segment.buffer,Segment.TotalLength);
 #endif
 
             Segment.SequenceNumber = _sequenceNumber++;
