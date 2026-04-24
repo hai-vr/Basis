@@ -49,7 +49,7 @@ namespace HVR.Basis.Comms
     public class FaceTrackingActivityRelay : MonoBehaviour, IHVRInitializable
     {
         public const string ActivityAddress = "HVR/Internal/FaceTrackingActive";
-        public static readonly int ActivityAddressId = HVRAddress.AddressToId(ActivityAddress);
+        public static readonly int ActivityAddressId = HVRAddressRegistry.AddressToId(ActivityAddress);
         public const float InactivityTimeoutSeconds = 0.5f;
 
         [HideInInspector] [SerializeField] private BasisAvatar avatar;

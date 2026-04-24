@@ -64,10 +64,10 @@ namespace HVR.Basis.Comms
 
         public EyeTrackingBoneActuation()
         {
-            _eyeLeftXAddress = HVRAddress.AddressToId(EyeLeftX);
-            _eyeRightXAddress = HVRAddress.AddressToId(EyeRightX);
-            _eyeYAddress = HVRAddress.AddressToId(EyeY);
-            _eyeTrackingActiveAddress = HVRAddress.AddressToId(EyeTrackingActive);
+            _eyeLeftXAddress = HVRAddressRegistry.AddressToId(EyeLeftX);
+            _eyeRightXAddress = HVRAddressRegistry.AddressToId(EyeRightX);
+            _eyeYAddress = HVRAddressRegistry.AddressToId(EyeY);
+            _eyeTrackingActiveAddress = HVRAddressRegistry.AddressToId(EyeTrackingActive);
             _sourceEyeAddresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
         }
 

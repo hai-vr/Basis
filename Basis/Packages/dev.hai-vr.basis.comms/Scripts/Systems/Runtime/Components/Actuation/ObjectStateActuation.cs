@@ -77,7 +77,7 @@ namespace HVR.Basis.Comms
 
             if (isWearer)
             {
-                acquisition.RegisterAddresses(new []{ HVRAddress.AddressToId(address) }, OnAddressUpdated);
+                acquisition.RegisterAddresses(new []{ HVRAddressRegistry.AddressToId(address) }, OnAddressUpdated);
             }
 
             ForceUpdateState();
@@ -89,7 +89,7 @@ namespace HVR.Basis.Comms
 
             if (_isWearer)
             {
-                acquisition.UnregisterAddresses(new []{ HVRAddress.AddressToId(address) }, OnAddressUpdated);
+                acquisition.UnregisterAddresses(new []{ HVRAddressRegistry.AddressToId(address) }, OnAddressUpdated);
             }
         }
 
@@ -150,7 +150,7 @@ namespace HVR.Basis.Comms
         private void OnAddressUpdated(int receivedAddress, float value)
         {
             // TODO: AddressToId should be stored. Really, this ObjectStateActuation class should be removed as it's being replaced by Vixxy.
-            if (receivedAddress != HVRAddress.AddressToId(address)) throw new ArgumentException("Unexpected address received");
+            if (receivedAddress != HVRAddressRegistry.AddressToId(address)) throw new ArgumentException("Unexpected address received");
 
             var state = value >= 1f;
             if (_currentTargetState != state)
