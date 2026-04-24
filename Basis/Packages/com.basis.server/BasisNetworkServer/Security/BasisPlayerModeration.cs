@@ -341,6 +341,11 @@ namespace BasisNetworkServer.Security
                         HandleHeadlessDisallowSet(peer, reader));
                     break;
 
+                case AdminRequestMode.SetGlobalOpusPacketLoss:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleOpusPacketLossSet(peer, reader));
+                    break;
+
                 // ===== PERMISSION EDIT =====
                 case AdminRequestMode.SetUserGroup:
                 case AdminRequestMode.SetUserNode:
@@ -519,6 +524,26 @@ namespace BasisNetworkServer.Security
             }
 
             BasisHeadlessConnectionPolicyManager.BroadcastState();
+        }
+
+        private static void HandleOpusPacketLossSet(NetPeer peer, NetPacketReader reader)
+        {
+            if (reader.AvailableBytes < 1)
+            {
+                SendBackMessage(peer, "Failed to set Opus packet loss: missing value byte.");
+                return;
+            }
+
+            int percent = reader.GetByte();
+            bool changed = BasisOpusPacketLossStateManager.SetPacketLossPercent(percent);
+            int applied = BasisOpusPacketLossStateManager.PacketLossPercent;
+            string notification = changed
+                ? $"Opus FEC packet-loss % is now {applied}."
+                : $"Opus FEC packet-loss % was already {applied}.";
+
+            BNL.Log(notification);
+            SendBackMessage(peer, notification);
+            BasisOpusPacketLossStateManager.BroadcastState();
         }
 
         public static void SendBackMessage(NetPeer peer, string msg)

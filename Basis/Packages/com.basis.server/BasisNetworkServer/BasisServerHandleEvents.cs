@@ -336,6 +336,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisGlobalLockManager.SendLockStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessAudioStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessConnectionPolicyManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisOpusPacketLossStateManager.SendStateToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else

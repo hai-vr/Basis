@@ -368,6 +368,25 @@ public class BasisVoiceBuffer
         ClearDecoded();
     }
 
+    /// <summary>
+    /// Re-arm the initial-fill gate so <see cref="TryConsumeEncoded"/> waits for
+    /// <see cref="InitialBufferDepth"/> packets again before releasing playback.
+    /// Called by the receiver when it detects the sender has been idle long enough
+    /// (e.g. mic muted) that the pipeline has fully drained — without this, the
+    /// first post-resume packet would be released with only 20 ms of audio queued
+    /// and any arrival jitter on the next packet would underrun.
+    /// Keeps <c>_started</c> and <c>_nextPlaybackSeq</c> as-is: the sender's
+    /// sequence number is continuous across its mute, so playback resumes from
+    /// where it left off.
+    /// </summary>
+    public void RearmInitialBuffer()
+    {
+        lock (_encodedLock)
+        {
+            _receivedSinceStart = 0;
+        }
+    }
+
     private void ClearEncoded()
     {
         for (int i = 0; i < EncodedSlotCount; i++)

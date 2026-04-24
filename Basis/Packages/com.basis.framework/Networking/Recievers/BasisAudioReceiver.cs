@@ -63,6 +63,19 @@ namespace Basis.Scripts.Networking.Receivers
         private const int MaxConsecutivePlc = 2;
         private int _consecutiveMissing;
 
+        /// <summary>
+        /// Number of accumulated 20 ms silence units (see <see cref="_silentUnits20ms"/>)
+        /// after which we treat the stream as fully idle and rearm decoder + jitter on
+        /// resume. Sized above any natural pause (room-noise floor keeps packets flowing
+        /// during normal speech gaps) and above network jitter (absorbed by the jitter
+        /// buffer), so the realistic trigger is a true sender-side mute.
+        /// </summary>
+        private const int IdleResetThresholdUnits = 10; // 200 ms
+
+        // Latched so the idle reset fires once per idle cycle, not every drain tick
+        // while the jitter buffer is filling back up.
+        private bool _idleResetDone;
+
         // Resampler state — persistent across OnAudioFilterRead callbacks so phase
         // and the last interpolation sample carry over the callback boundary. Without
         // this, interpolation restarts at phase=0 each call and drops a fractional
@@ -159,6 +172,38 @@ namespace Basis.Scripts.Networking.Receivers
         public void DrainAndDecodeThreadSafe()
         {
             _lastDrainDecoded = false;
+
+            // Mute creates a gap that Opus's own loss handling won't catch:
+            // sender stops advancing sequence numbers, so the jitter buffer never
+            // marks anything missing and the existing _consecutiveMissing reset
+            // path doesn't fire. The audio thread, however, accumulates
+            // _silentUnits20ms while the decoded queue is empty. Once that crosses
+            // IdleResetThresholdUnits, reset the decoder (clears the CELT OLA tail
+            // that would otherwise blend pre-mute audio into the first new frame)
+            // and rearm the jitter buffer (so playback waits for InitialBufferDepth
+            // packets again instead of releasing the first post-mute packet with
+            // only 20 ms of audio queued). Latched so we only do this once per
+            // idle cycle while packets refill.
+            if (System.Threading.Volatile.Read(ref _silentUnits20ms) >= IdleResetThresholdUnits)
+            {
+                if (!_idleResetDone)
+                {
+#if !UNITY_SERVER
+                    if (decoder != null)
+                    {
+                        try { decoder.Ctl(OpusSharp.Core.GenericCTL.OPUS_RESET_STATE); }
+                        catch (OpusSharp.Core.OpusException) { }
+                    }
+#endif
+                    VoiceBuffer.RearmInitialBuffer();
+                    _idleResetDone = true;
+                }
+            }
+            else
+            {
+                _idleResetDone = false;
+            }
+
             while (true)
             {
                 // Backpressure: don't decode faster than the audio thread can drain.

@@ -142,9 +142,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         };
 
         // Distance -> Quality thresholds (squared meters)
-        public static float HighDistanceSq = 9f;        // 3m
-        public static float MediumDistanceSq = 100f;    // 10m
-        public static float LowDistanceSq = 400f;       // 20m
+        public static float HighDistanceSq = 100f;      // 10m
+        public static float MediumDistanceSq = 900f;    // 30m
+        public static float LowDistanceSq = 2500f;      // 50m
 
         public static long intervalMs = 4;
         // Tick slicing: only process a subset of receivers each tick to spread the O(NÂ²) work.

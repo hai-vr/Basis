@@ -48,6 +48,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 DetachMicrophoneEvents();
             }
 
+            LocalOpusSettings.OnPacketLossPercentChanged -= ApplyPacketLossPerc;
             encoder?.Dispose();
             encoder = null;
 #endif
@@ -78,10 +79,29 @@ namespace Basis.Scripts.Networking.Transmitters
             // the receiver, this lets a single-packet loss be reconstructed from the
             // next packet instead of falling back to PLC or silence.
             encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_INBAND_FEC, 1);
-            int lossPct = LocalOpusSettings.PacketLossPercent;
-            if (lossPct < 0) lossPct = 0;
-            else if (lossPct > 100) lossPct = 100;
-            encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_PACKET_LOSS_PERC, lossPct);
+            ApplyPacketLossPerc(LocalOpusSettings.PacketLossPercent);
+            LocalOpusSettings.OnPacketLossPercentChanged += ApplyPacketLossPerc;
+        }
+
+        /// <summary>
+        /// Pushes OPUS_SET_PACKET_LOSS_PERC onto the live encoder without tearing
+        /// it down. Safe to call multiple times; subscribed to
+        /// <see cref="LocalOpusSettings.OnPacketLossPercentChanged"/> so an admin
+        /// push updates FEC immediately on the already-running encoder.
+        /// </summary>
+        private void ApplyPacketLossPerc(int percent)
+        {
+            if (encoder == null) return;
+            if (percent < 0) percent = 0;
+            else if (percent > 100) percent = 100;
+            try
+            {
+                encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_PACKET_LOSS_PERC, percent);
+            }
+            catch (OpusSharp.Core.OpusException ex)
+            {
+                BasisDebug.LogWarning($"Failed to set encoder packet-loss %: {ex.Message}", BasisDebug.LogTag.Voice);
+            }
         }
 #endif
 
