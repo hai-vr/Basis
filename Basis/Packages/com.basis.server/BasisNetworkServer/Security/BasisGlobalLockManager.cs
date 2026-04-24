@@ -20,6 +20,13 @@ namespace BasisNetworkServer.Security
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
         public static bool WorldsLocked => Interlocked.CompareExchange(ref _worldsLocked, 0, 0) == 1;
 
+        public static void InitializeFromConfig(Configuration config)
+        {
+            Interlocked.Exchange(ref _avatarsLocked, config.AvatarsLocked ? 1 : 0);
+            Interlocked.Exchange(ref _propsLocked, config.PropsLocked ? 1 : 0);
+            Interlocked.Exchange(ref _worldsLocked, config.WorldsLocked ? 1 : 0);
+        }
+
         /// <summary>
         /// Toggle avatar loading. Returns the new state (true = locked).
         /// </summary>

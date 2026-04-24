@@ -81,22 +81,32 @@ public static partial class SerializableBasis
 
         public void Serialize(NetDataWriter writer)
         {
-            if (Users == null || Users.Length == 0)
+            Serialize(writer, largeCount: true);
+        }
+
+        public void Serialize(NetDataWriter writer, bool largeCount)
+        {
+            int usersLength = Users?.Length ?? 0;
+            int maxCount = largeCount ? ushort.MaxValue : byte.MaxValue;
+
+            if (usersLength == 0)
             {
                 // Still write a 0-length so read side stays in sync
-                writer.Put((ushort)0);
+                if (largeCount) writer.Put((ushort)0);
+                else writer.Put((byte)0);
                 return;
             }
 
-            if (Users.Length > ushort.MaxValue)
+            if (usersLength > maxCount)
             {
                 BNL.LogError(
-                    $"VoiceReceiversMessage: Users.Length={Users.Length} exceeds ushort.MaxValue. " +
-                    "Truncating.");
+                    $"VoiceReceiversMessage: Users.Length={usersLength} exceeds " +
+                    $"{(largeCount ? "ushort.MaxValue" : "byte.MaxValue")} for this channel. Truncating.");
             }
 
-            ushort count = (ushort)Math.Min(Users.Length, ushort.MaxValue);
-            writer.Put(count);
+            int count = Math.Min(usersLength, maxCount);
+            if (largeCount) writer.Put((ushort)count);
+            else writer.Put((byte)count);
 
             for (int i = 0; i < count; i++)
             {
