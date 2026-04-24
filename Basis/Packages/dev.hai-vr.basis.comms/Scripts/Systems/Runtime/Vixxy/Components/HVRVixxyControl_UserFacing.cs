@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using HVR.Basis.Comms;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -15,7 +16,7 @@ namespace HVR.Vixxy
 
         /// An address is not necessary, but if one is provided, then we will be using that provided address.
         /// If not, we will generate one at runtime.
-        [SerializeField] internal string address = "";
+        [SerializeField] internal HVRAddressSelector address;
 
         [SerializeField] public bool hasThreeOrMoreChoices;
         [SerializeField] public int numberOfChoices = 3;

@@ -9,10 +9,9 @@ using Object = UnityEngine.Object;
 
 namespace HVR.Vixxy.Editor
 {
-    internal class HVRVixxyLayoutChangePropertiesView
+    internal class VLayoutChangeProperties
     {
         private const int MaxSearchQueryLength = 100;
-        private const string MsgNetworkingUsesHighFrequency = "The option UpdatedExtremelyFrequently should only be used if you are using special external software to update this value all the time, multiple times per second, for example using a face tracking device.\nIt should almost never be used in other circumstances.";
         private static readonly Regex HasAnyNonLetterNonSpace = new Regex(@"[^A-Za-z\s]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly string[] CoordsSuffixes = {".x", ".y", ".z", ".w", ".r", ".g", ".b", ".a"};
 
@@ -23,12 +22,11 @@ namespace HVR.Vixxy.Editor
         private IGrouping<Type, EditorCurveBinding>[] _typeToBindings;
         private Object _previousRootObject;
         private readonly Dictionary<Type, int> _typeToWhichOpened = new();
-        private string _addBlendshape = "";
 
         private string _search;
         private bool _focusNext;
 
-        internal HVRVixxyLayoutChangePropertiesView(HVRVixxyControlEditor editor)
+        internal VLayoutChangeProperties(HVRVixxyControlEditor editor)
         {
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
@@ -56,52 +54,6 @@ namespace HVR.Vixxy.Editor
                 subjectsReorderableList.index = newIndex;
             };
             subjectsReorderableList.elementHeight = EditorGUIUtility.singleLineHeight * 1;
-        }
-
-        public bool LayoutSettings()
-        {
-            EditorGUILayout.Separator();
-
-            var menuItem = my.GetComponent<HVRVixxyMenuItem>();
-            if (menuItem == null)
-            {
-                if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuForThisControlLabel))
-                {
-                    var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
-                    ComponentUtility.MoveComponentUp(comp);
-                }
-            }
-
-            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ControlLabel, EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
-            if (my.networked)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
-                if (my.advancedNetworking == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
-                {
-                    EditorGUILayout.HelpBox(MsgNetworkingUsesHighFrequency, MessageType.Warning);
-                }
-            }
-            EditorGUILayout.Separator();
-
-            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.MultiChoiceLabel, EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
-            if (my.hasThreeOrMoreChoices)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.numberOfChoices)));
-            }
-            EditorGUILayout.Separator();
-
-            if (false) {
-                // EditorGUILayout.LabelField(HVRVixenLocalizationPhrase.InterpolationLabel, EditorStyles.boldLabel);
-                // EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationDurationSeconds)));
-                // EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationCurve)));
-            }
-
-            EditorGUILayout.Separator();
-
-            return false;
         }
 
         public bool LayoutChangeProperties()

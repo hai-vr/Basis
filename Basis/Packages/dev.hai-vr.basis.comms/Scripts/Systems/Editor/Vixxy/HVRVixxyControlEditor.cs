@@ -1,4 +1,5 @@
-﻿using HVR.Basis.Comms.Editor;
+﻿using HVR.Basis.Comms;
+using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -19,15 +20,17 @@ namespace HVR.Vixxy.Editor
         public static bool _developerViewFoldout;
 
         private HVRVixxyLayoutMenuView _menuView;
-        private HVRVixxyLayoutChangePropertiesView _changePropertiesView;
-        private HVRVixxyLayoutToggleObjectsView _toggleObjectsView;
-        private HVRVixxyLayoutDeveloperView _developerView;
+        private VLayoutSettings _settings;
+        private VLayoutChangeProperties _changeProperties;
+        private VLayoutToggleObjects _toggleObjects;
+        private VLayoutDeveloperView _developerView;
 
         private void OnEnable()
         {
-            _changePropertiesView = new HVRVixxyLayoutChangePropertiesView(this);
-            _toggleObjectsView = new HVRVixxyLayoutToggleObjectsView(this);
-            _developerView = new HVRVixxyLayoutDeveloperView(this);
+            _settings = new VLayoutSettings(this);
+            _changeProperties = new VLayoutChangeProperties(this);
+            _toggleObjects = new VLayoutToggleObjects(this);
+            _developerView = new VLayoutDeveloperView(this);
         }
 
         public override void OnInspectorGUI()
@@ -45,17 +48,17 @@ namespace HVR.Vixxy.Editor
             _settingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.SettingsLabel, "", _settingsFoldout, ref anyChanged);
             if (_settingsFoldout)
             {
-                if (_changePropertiesView.LayoutSettings()) return;
+                if (_settings.LayoutSettings()) return;
             }
             _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
             if (_toggleObjectsFoldout)
             {
-                if (_toggleObjectsView.LayoutToggleObjects()) return;
+                if (_toggleObjects.LayoutToggleObjects()) return;
             }
             _changePropertiesFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
             if (_changePropertiesFoldout)
             {
-                if (_changePropertiesView.LayoutChangeProperties()) return;
+                if (_changeProperties.LayoutChangeProperties()) return;
             }
             EditorGUILayout.Separator();
 
@@ -77,6 +80,39 @@ namespace HVR.Vixxy.Editor
             {
                 DrawDefaultInspector();
             }
+        }
+
+        public static void LayoutAddressSelector(SerializedProperty property)
+        {
+            var assetSp = property.FindPropertyRelative(nameof(HVRAddressSelector.asset));
+            var pathSp = property.FindPropertyRelative(nameof(HVRAddressSelector.path));
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Address", GUILayout.Width(100));
+
+            if (assetSp.objectReferenceValue != null)
+            {
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUILayout.TextField(((HVRAddress)assetSp.objectReferenceValue).AsPath());
+                EditorGUI.EndDisabledGroup();
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(pathSp, GUIContent.none);
+            }
+
+            EditorGUI.BeginDisabledGroup(!string.IsNullOrWhiteSpace(pathSp.stringValue));
+            EditorGUILayout.PropertyField(assetSp, GUIContent.none);
+            EditorGUI.EndDisabledGroup();
+
+            EditorGUI.BeginDisabledGroup(string.IsNullOrWhiteSpace(pathSp.stringValue) && assetSp.objectReferenceValue == null);
+            if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(20)))
+            {
+                assetSp.objectReferenceValue = null;
+                pathSp.stringValue = "";
+            }
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.EndHorizontal();
         }
     }
 }

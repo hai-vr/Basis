@@ -14,7 +14,7 @@ Modifications in existing HVR.Basis systems:
 - Acquisition Service now keeps track of values that were sent to it, rather than just emitting events.
 - The SettingsProvider avatar tab override now integrates with Vixxy menu items.
 - HVRAvatarComms now uses the networking carrier at index 1 (this means the second one) for networking Vixxy-specific messages.
-- Remove "Avatar" from the display name of the package, so that is is now "HVR Basis Comms".
+- Remove "Avatar" from the display name of the package, so that is now "HVR Basis Comms".
 - Renamed HVRAddress to HVRAddressRegistry, so that the name HVRAddress can be used for a new addition.
 
 Editor modifications in existing HVR.Basis systems:

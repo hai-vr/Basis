@@ -6,14 +6,14 @@ using UnityEngine;
 
 namespace HVR.Vixxy.Editor
 {
-    public class HVRVixxyLayoutDeveloperView
+    public class VLayoutDeveloperView
     {
         // ReSharper disable once InconsistentNaming
         private readonly HVRVixxyControl my;
         // ReSharper disable once InconsistentNaming
         private readonly SerializedObject serializedObject;
 
-        public HVRVixxyLayoutDeveloperView(HVRVixxyControlEditor editor)
+        public VLayoutDeveloperView(HVRVixxyControlEditor editor)
         {
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
@@ -25,10 +25,6 @@ namespace HVR.Vixxy.Editor
 
             EditorGUI.BeginDisabledGroup(isPlaying);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-            if (string.IsNullOrWhiteSpace(my.address))
-            {
-                EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgAddressIsOptional, MessageType.Info);
-            }
 
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
             if (my.hasThreeOrMoreChoices)

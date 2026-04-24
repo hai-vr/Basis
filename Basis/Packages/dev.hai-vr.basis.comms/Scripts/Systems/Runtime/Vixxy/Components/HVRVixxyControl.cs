@@ -83,7 +83,7 @@ namespace HVR.Vixxy
             orchestrator = VixxySetup.EnsureInitialized(this);
             _context = orchestrator.Context();
 
-            Address = string.IsNullOrWhiteSpace(address) ? GenerateAddressFromPath() : address;
+            Address = address.TryResolvePath(out var resolvedPath) ? resolvedPath : GenerateAddressFromPath();
             AddressId = HVRAddressRegistry.AddressToId(Address);
 
             FigureOutActualNumberOfChoices(out var hasMoreThanTwoChoices, out var actualNumberOfChoices);

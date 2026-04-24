@@ -4,12 +4,12 @@ using UnityEngine;
 
 namespace HVR.Vixxy.Editor
 {
-    internal class HVRVixxyLayoutToggleObjectsView
+    internal class VLayoutToggleObjects
     {
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
 
-        internal HVRVixxyLayoutToggleObjectsView(HVRVixxyControlEditor editor)
+        internal VLayoutToggleObjects(HVRVixxyControlEditor editor)
         {
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
