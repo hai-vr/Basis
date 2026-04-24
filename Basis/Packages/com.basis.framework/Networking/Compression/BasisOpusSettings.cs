@@ -15,6 +15,17 @@ public static class LocalOpusSettings
     public static float noiseGateThreshold = 0.01f;
     public static float silenceThreshold = 0.0007f;
     public static int rmsWindowSize = 10;
+
+    /// <summary>
+    /// Expected packet loss percentage used to tune Opus's in-band Forward Error
+    /// Correction (OPUS_SET_PACKET_LOSS_PERC). Higher values spend more bitrate
+    /// on redundant FEC data embedded in each packet, giving the decoder a better
+    /// chance of reconstructing a single-packet loss via decode_fec=true. Valid
+    /// range is 0..100; Opus recommends ~10 for moderate networks and up to ~30
+    /// for lossy ones. Set to 0 to effectively disable FEC. ~15% bitrate overhead
+    /// at the default value.
+    /// </summary>
+    public static int PacketLossPercent = 10;
     public static void SetDeviceAudioConfig(int maxFreq)
     {
         //    MicrophoneSampleRate = maxFreq;

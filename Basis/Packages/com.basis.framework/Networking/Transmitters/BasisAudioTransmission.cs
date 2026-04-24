@@ -73,6 +73,15 @@ namespace Basis.Scripts.Networking.Transmitters
 
             encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_BITRATE, 32000);
             encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_COMPLEXITY, 5);
+            // Forward Error Correction — embed a low-bitrate redundant copy of the
+            // previous frame inside each packet. Combined with look-ahead decode on
+            // the receiver, this lets a single-packet loss be reconstructed from the
+            // next packet instead of falling back to PLC or silence.
+            encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_INBAND_FEC, 1);
+            int lossPct = LocalOpusSettings.PacketLossPercent;
+            if (lossPct < 0) lossPct = 0;
+            else if (lossPct > 100) lossPct = 100;
+            encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_PACKET_LOSS_PERC, lossPct);
         }
 #endif
 

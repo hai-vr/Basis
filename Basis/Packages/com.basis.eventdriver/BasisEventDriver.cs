@@ -310,6 +310,7 @@ public partial class BasisEventDriver : MonoBehaviour
         // ── JigglePhysics schedule ──
         ProfileBegin(PROF_JIGGLE_SCHEDULE);
 
+        fixedDeltaTime = Time.fixedDeltaTime;
         JigglePhysics.ScheduleSimulate(TimeAsDouble, fixedDeltaTime);
 
         ProfileEnd(PROF_JIGGLE_SCHEDULE);

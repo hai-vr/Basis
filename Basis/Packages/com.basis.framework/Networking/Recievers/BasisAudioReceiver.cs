@@ -53,6 +53,8 @@ namespace Basis.Scripts.Networking.Receivers
         public volatile int PlcCount;
         /// <summary>Silence gaps skipped (diagnostic counter).</summary>
         public volatile int SilenceInjectedCount;
+        /// <summary>Frames reconstructed from Opus FEC data embedded in the NEXT packet (diagnostic counter).</summary>
+        public volatile int FecRecoveredCount;
 
         /// <summary>
         /// Maximum consecutive missing slots that trigger Opus PLC.
@@ -127,6 +129,30 @@ namespace Basis.Scripts.Networking.Receivers
         }
 
         /// <summary>
+        /// Reconstruct a missing frame using the FEC data embedded in the NEXT
+        /// packet (requires the encoder to have OPUS_SET_INBAND_FEC enabled and
+        /// <paramref name="data"/> to be the packet that follows the lost one in
+        /// sequence). Falls back to PLC on decoder failure.
+        /// </summary>
+        public void OnDecodeFEC(byte[] data, int length)
+        {
+#if UNITY_SERVER
+            return;
+#else
+            if (!HasAudioSource) return;
+            try
+            {
+                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.FrameSize, true);
+                VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
+            }
+            catch
+            {
+                OnDecodePLC();
+            }
+#endif
+        }
+
+        /// <summary>
         /// Thread-safe: drains encoded packets and decodes them (Opus).
         /// Does NOT touch Unity AudioSource. Call ApplyAudioState() on main thread after.
         /// </summary>
@@ -149,8 +175,20 @@ namespace Basis.Scripts.Networking.Receivers
                     _consecutiveMissing++;
                     if (_consecutiveMissing <= MaxConsecutivePlc)
                     {
-                        System.Threading.Interlocked.Increment(ref PlcCount);
-                        OnDecodePLC();
+                        // Try Opus FEC first: if the next-in-sequence packet is
+                        // already buffered, it carries a redundant copy of the
+                        // missing frame. Falls back to PLC when FEC data isn't
+                        // available yet (late next packet, or burst loss).
+                        if (VoiceBuffer.TryPeekNextEncoded(out byte[] fecData, out int fecLength))
+                        {
+                            System.Threading.Interlocked.Increment(ref FecRecoveredCount);
+                            OnDecodeFEC(fecData, fecLength);
+                        }
+                        else
+                        {
+                            System.Threading.Interlocked.Increment(ref PlcCount);
+                            OnDecodePLC();
+                        }
                     }
                     else
                     {
@@ -413,7 +451,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         // ==================== Volume ====================
 
-        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f, float dopplerLevel = 0, float spatialBlend = 1.0f, bool spatialize = true, bool spatializePostEffects = true)
+        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f, float dopplerLevel = 1f, float spatialBlend = 1.0f, bool spatialize = true, bool spatializePostEffects = true)
         {
             if (BasisNetworkReceiver != null && BasisNetworkReceiver.RemotePlayer != null && BasisNetworkReceiver.RemotePlayer.IsEffectivelyBlocked)
             {
