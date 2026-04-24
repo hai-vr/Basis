@@ -11,13 +11,30 @@ namespace HVR.Basis.Comms
 
         public delegate void AddressUpdated(int address, float value);
 
-        private readonly Dictionary<int, AcquisitionForAddress> _addressUpdated = new();
+        internal readonly Dictionary<int, AcquisitionForAddress> _addressUpdated = new();
 
         public void Submit(int address, float value)
         {
             if (_addressUpdated.TryGetValue(address, out var acquisitor))
             {
+                acquisitor.value = value;
                 acquisitor.Invoke(address, value);
+            }
+        }
+
+        public void SubmitOrDefineDefaultValue(int address, float value)
+        {
+            if (_addressUpdated.TryGetValue(address, out var acquisitor))
+            {
+                acquisitor.value = value;
+                acquisitor.Invoke(address, value);
+            }
+            else
+            {
+                _addressUpdated.Add(address, new AcquisitionForAddress
+                {
+                    value = value
+                });
             }
         }
 
@@ -43,12 +60,24 @@ namespace HVR.Basis.Comms
                 }
             }
         }
+
+        public float GetValue(int addressId)
+        {
+            if (_addressUpdated.TryGetValue(addressId, out var acquisitor))
+            {
+                return acquisitor.value;
+            }
+
+            return 0f;
+        }
     }
 
     internal class AcquisitionForAddress
     {
         internal event AcquisitionService.AddressUpdated OnAddressUpdated;
+        internal float value;
 
         public void Invoke(int address, float value) => OnAddressUpdated?.Invoke(address, value);
+        internal int GetListenersCount() => OnAddressUpdated?.GetInvocationList().Length ?? 0;
     }
 }

@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace HVR.Basis.Comms
+namespace HVR.Basis.Comms.Editor
 {
     [CustomEditor(typeof(AcquisitionAssist))]
     public class AcquisitionAssistEditor : UnityEditor.Editor
