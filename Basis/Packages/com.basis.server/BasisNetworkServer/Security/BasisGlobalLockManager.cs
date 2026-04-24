@@ -20,6 +20,10 @@ namespace BasisNetworkServer.Security
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
         public static bool WorldsLocked => Interlocked.CompareExchange(ref _worldsLocked, 0, 0) == 1;
 
+        /// <summary>
+        /// Seed the initial lock state from the server configuration.
+        /// Call once at startup before any client threads are running.
+        /// </summary>
         public static void InitializeFromConfig(Configuration config)
         {
             Interlocked.Exchange(ref _avatarsLocked, config.AvatarsLocked ? 1 : 0);

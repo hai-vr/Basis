@@ -58,6 +58,12 @@ namespace BasisServerHandle
 
         #region Peer Connection and Disconnection
 
+        /// <summary>
+        /// Runs the idempotent per-peer subsystem cleanup shared by graceful
+        /// disconnects and reconnect-collision eviction. Does NOT broadcast a
+        /// disconnect to other peers and does NOT reset server-wide state — the
+        /// caller decides whether either is appropriate.
+        /// </summary>
         private static bool CleanupPeerSubsystems(NetPeer peer, int id)
         {
             if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
@@ -143,6 +149,9 @@ namespace BasisServerHandle
             writer.Put(reason ?? string.Empty);
             byte[] reasonBytes = writer.CopyData();
             NetworkServer.ReturnWriter(writer);
+            // Key-value-matched remove: "Peer already exists" rejects the duplicate,
+            // so only evict if the stored NetPeer is actually this one — otherwise
+            // we'd silently kick the alive peer that owns the slot.
             var kvp = new KeyValuePair<int, NetPeer>(id, request);
             if (((ICollection<KeyValuePair<int, NetPeer>>)NetworkServer.AuthenticatedPeers).Remove(kvp))
             {
@@ -256,6 +265,11 @@ namespace BasisServerHandle
             bool added = NetworkServer.AuthenticatedPeers.TryAdd(PeerId, newPeer);
             if (!added)
             {
+                // Reconnect collision: LiteNetLib recycled this peer-id slot before the
+                // previous disconnect's subsystem cleanup completed (or the original
+                // PeerDisconnectedEvent has not yet been dispatched). The old entry is
+                // stale because LNL will not hand us two live peers with the same Id —
+                // evict it synchronously and retry the insert.
                 if (NetworkServer.AuthenticatedPeers.TryGetValue(PeerId, out NetPeer stale) &&
                     !ReferenceEquals(stale, newPeer))
                 {
@@ -495,6 +509,8 @@ namespace BasisServerHandle
                 return;
             }
 
+            // Snapshot under the list lock so a concurrent rebuild or RemovePlayer
+            // can't race our indexer reads. Lock is short — just a ref-array copy.
             NetPeer[] snapshot;
             int snapshotCount;
             lock (targetPeers)
@@ -556,6 +572,7 @@ namespace BasisServerHandle
 
                 if (excluded.Users == null || excluded.UsersLength == 0)
                 {
+                    // No exclusions: everyone except sender is a recipient
                     foreach (var kvp in NetworkServer.AuthenticatedPeers)
                     {
                         if (kvp.Key != senderId)

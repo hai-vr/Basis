@@ -79,11 +79,25 @@ public static partial class SerializableBasis
             }
         }
 
+        /// <summary>
+        /// Equivalent to <c>Serialize(writer, largeCount: true)</c> — always writes
+        /// a 2-byte (ushort) count. Use only when sending on
+        /// <see cref="BasisNetworkCommons.AudioRecipientsLargeChannel"/> (channel 39).
+        /// For <see cref="BasisNetworkCommons.AudioRecipientsChannel"/> (channel 5),
+        /// call the largeCount overload with <c>false</c> so the length field width
+        /// matches what the server expects.
+        /// </summary>
         public void Serialize(NetDataWriter writer)
         {
             Serialize(writer, largeCount: true);
         }
 
+        /// <param name="largeCount">
+        /// Must match the channel the packet will be sent on:
+        /// false = byte count (AudioRecipientsChannel, ≤255 recipients);
+        /// true  = ushort count (AudioRecipientsLargeChannel, up to 65535 recipients).
+        /// Mismatch desyncs the wire format and the server will log "Protocol mismatch?".
+        /// </param>
         public void Serialize(NetDataWriter writer, bool largeCount)
         {
             int usersLength = Users?.Length ?? 0;

@@ -26,6 +26,8 @@ namespace BasisPermissions
         public const string ResourceLoadAvatar = "basis.resource.load.avatar";
         public const string ResourceUnloadAvatar = "basis.resource.unload.avatar";
 
+        // Bypass the global lockouts (BasisGlobalLockManager). Users without
+        // the matching bypass node are blocked from loading while the lock is on.
         public const string ResourceLockBypassAvatar = "basis.resource.lockbypass.avatar";
         public const string ResourceLockBypassProp = "basis.resource.lockbypass.prop";
         public const string ResourceLockBypassWorld = "basis.resource.lockbypass.world";
