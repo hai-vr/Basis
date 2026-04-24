@@ -300,6 +300,7 @@ namespace HVR.Vixxy
             if (!HVRVixxyPermitted.IsTypeOfPropertyValuePermitted(property)) return HVRVixxyPropertyBakeResult.TypeOfPropertyValueIsNotPermitted;
             if (!HVRVixxyPermitted.IsPermitted(property.fullClassName)) return HVRVixxyPropertyBakeResult.TypeIsNotPermitted;
             if (!HVRComponentDictionary.TryGetComponentType(property.fullClassName, out var foundType)) return HVRVixxyPropertyBakeResult.TypeNotFound;
+
             if (!property.ValidateBasedOnNumberOfChoices(ActualNumberOfChoices))
             {
                 return HVRVixxyPropertyBakeResult.InconsistentNumberOfChoices;
@@ -318,10 +319,19 @@ namespace HVR.Vixxy
                 return HVRVixxyPropertyBakeResult.BlendShapeCanOnlyBeUsedOnSkinnedMeshRenderers;
             }
 
+            var useSkinnedMeshRendererLeniency = affectsMaterialPropertyBlock && (foundType == typeof(SkinnedMeshRenderer) || foundType == typeof(MeshRenderer));
+            var skinnedMeshRendererLeniencyOtherType = useSkinnedMeshRendererLeniency
+                ? (foundType == typeof(SkinnedMeshRenderer) ? typeof(MeshRenderer) : typeof(SkinnedMeshRenderer))
+                : null;
+
             var foundComponents = new List<Component>();
             foreach (var bakedObject in subject.BakedObjects)
             {
                 var component = bakedObject.GetComponent(foundType);
+                if (component == null && useSkinnedMeshRendererLeniency)
+                {
+                    bakedObject.GetComponent(skinnedMeshRendererLeniencyOtherType);
+                }
                 if (component != null) // This is *NOT* UGC Rule. Some of the targets just may not have that component, especially the non-first objects, and recursive searches.
                 {
                     foundComponents.Add(component);

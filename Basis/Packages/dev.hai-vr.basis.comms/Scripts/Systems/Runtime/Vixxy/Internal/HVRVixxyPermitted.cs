@@ -17,7 +17,7 @@ namespace HVR.Vixxy
             typeof(ParticleSystem),
             typeof(Cloth),
             // Renderers
-            typeof(MeshRenderer),
+            typeof(MeshRenderer), // NOTE: MeshRenderer and SkinnedMeshRenderer have leniency on material properties. If a property recursively affects a SkinnedMeshRenderer, then it will also affect a MeshRenderer.
             typeof(SkinnedMeshRenderer),
             typeof(TrailRenderer),
             typeof(ParticleSystemRenderer),
