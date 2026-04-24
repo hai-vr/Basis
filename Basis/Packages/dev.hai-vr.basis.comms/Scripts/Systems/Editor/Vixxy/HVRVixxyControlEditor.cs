@@ -143,7 +143,7 @@ namespace HVR.Vixxy.Editor
         public void RemoveChoice(int choiceIndex)
         {
             var my = (HVRVixxyControl)target;
-            if (my.NumberOfChoices <= 2) return;
+            if (!my.HasThreeOrMoreChoices) return;
 
             foreach (var activation in my.activations)
             {

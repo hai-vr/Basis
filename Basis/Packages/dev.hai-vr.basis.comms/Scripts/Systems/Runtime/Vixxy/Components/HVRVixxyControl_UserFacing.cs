@@ -20,6 +20,7 @@ namespace HVR.Vixxy
         [SerializeField] internal HVRAddressSelector address;
 
         public int NumberOfChoices => choices.Length;
+        public bool HasThreeOrMoreChoices => NumberOfChoices >= 3;
 
         [SerializeField] public HVRVixxyChoiceControl[] choices = {
             new() { title = "", icon = null, value = 0f },

@@ -66,7 +66,7 @@ namespace HVR.Vixxy.Editor
                     EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
                     EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value)), GUIContent.none, GUILayout.Width(50));
 
-                    EditorGUI.BeginDisabledGroup(my.NumberOfChoices <= 2);
+                    EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
                     if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(20)))
                     {
                         _editor.RemoveChoice(choiceIndex);

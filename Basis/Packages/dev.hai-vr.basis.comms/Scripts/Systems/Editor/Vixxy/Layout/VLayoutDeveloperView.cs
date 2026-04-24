@@ -53,7 +53,7 @@ namespace HVR.Vixxy.Editor
                         EditorGUI.EndDisabledGroup();
                         if (my.HasMoreThanTwoChoices)
                         {
-                            var slider = EditorGUILayout.IntSlider((int)my._value, 0, my.ActualNumberOfChoices - 1);
+                            var slider = EditorGUILayout.IntSlider((int)my._value, (int)my.Min(), (int)my.Max());
                             if (!Mathf.Approximately(slider, my._value))
                             {
                                 AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
@@ -61,7 +61,7 @@ namespace HVR.Vixxy.Editor
                         }
                         else
                         {
-                            var slider = EditorGUILayout.Slider(my._value, 0, my.ActualNumberOfChoices - 1);
+                            var slider = EditorGUILayout.Slider(my._value, (int)my.Min(), (int)my.Max());
                             if (!Mathf.Approximately(slider, my._value))
                             {
                                 AcquisitionService.SceneInstance.Submit(my.AddressId, slider);

@@ -302,7 +302,7 @@ namespace HVR.Basis.Comms
                 var hasControl = menuItem.TryResolveActualControl(out var control);
                 if (hasControl)
                 {
-                    if (control.NumberOfChoices == 2)
+                    if (!control.HasThreeOrMoreChoices)
                     {
                         if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
                         {
@@ -342,7 +342,7 @@ namespace HVR.Basis.Comms
                     }
                     else
                     {
-                        var choices = control.choices.Select((choice, i) =>
+                        var choiceStrings = control.choices.Select((choice, i) =>
                         {
                             if (string.IsNullOrWhiteSpace(choice.title)) return $"Option #{(i + 1)}";
                             return $"{choice.title} (#{i + 1})";
@@ -350,16 +350,21 @@ namespace HVR.Basis.Comms
 
                         var dropdown = PanelDropdown.CreateNewEntry(menuGroup.ContentParent);
                         dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
-                        dropdown.AssignEntries(choices);
-                        dropdown.OnValueChanged += value =>
+                        dropdown.AssignEntries(choiceStrings);
+                        dropdown.OnValueChanged += choice =>
                         {
-                            menuItem.ApplyValue(choices.IndexOf(value));
+                            var valueForThatChoice = control.choices[choiceStrings.IndexOf(choice)].value;
+                            BasisDebug.Log($"Selected {choice}, value is {valueForThatChoice}");
+                            menuItem.ApplyValue(valueForThatChoice);
                             dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
                         };
-                        var autoSelect = (int)menuItem.GetValue();
-                        if (autoSelect >= 0 && autoSelect < choices.Count)
+                        var currentValue = (int)menuItem.GetValue();
+                        var matchingChoice = control.choices.FirstOrDefault(choice => Mathf.Approximately(choice.value, currentValue));
+                        var currentChoice = matchingChoice != null ? control.choices.ToList().IndexOf(matchingChoice) : -1;
+                        BasisDebug.Log($"Current choice is {currentChoice}, choicestring count is {choiceStrings.Count}");
+                        if (currentChoice >= 0 && currentChoice < choiceStrings.Count)
                         {
-                            dropdown.SetValueWithoutNotify(choices[autoSelect]);
+                            dropdown.SetValueWithoutNotify(choiceStrings[currentChoice]);
                         }
                     }
                 }
