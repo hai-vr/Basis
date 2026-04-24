@@ -1,4 +1,6 @@
-﻿using HVR.Basis.Comms;
+﻿using System;
+using System.Linq;
+using HVR.Basis.Comms;
 using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -19,7 +21,7 @@ namespace HVR.Vixxy.Editor
         public static bool _changePropertiesFoldout;
         public static bool _developerViewFoldout;
 
-        private HVRVixxyLayoutMenuView _menuView;
+        private VMenuItem _menuItem;
         private VLayoutSettings _settings;
         private VLayoutChangeProperties _changeProperties;
         private VLayoutToggleObjects _toggleObjects;
@@ -113,6 +115,50 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
+        }
+
+        public void AddChoice()
+        {
+            var my = (HVRVixxyControl)target;
+            my.choices = my.choices.Concat(new[] { new HVRVixxyChoiceControl
+            {
+                value = my.choices.Length
+            } }).ToArray();
+            var newNumberOfChoices = my.choices.Length;
+
+            foreach (var activation in my.activations)
+            {
+                var last = activation.choices.Last();
+                activation.choices = activation.choices.Concat(new[] { last }).ToArray();
+            }
+            foreach (var subject in my.subjects)
+            {
+                foreach (var property in subject.properties)
+                {
+                    property.PruneArrays(newNumberOfChoices);
+                }
+            }
+            Undo.RecordObject(my, HVRVixxyLocalizationPhrase.AddChoiceLabel);
+        }
+
+        public void RemoveChoice(int choiceIndex)
+        {
+            var my = (HVRVixxyControl)target;
+            if (my.NumberOfChoices <= 2) return;
+
+            foreach (var activation in my.activations)
+            {
+                activation.choices = activation.choices.Where((_, i) => i != choiceIndex).ToArray();
+            }
+            foreach (var subject in my.subjects)
+            {
+                foreach (var property in subject.properties)
+                {
+                    property.RemoveChoiceAtIndex(choiceIndex);
+                }
+            }
+            my.choices = my.choices.Where((_, i) => i != choiceIndex).ToArray();
+            Undo.RecordObject(my, HVRVixxyLocalizationPhrase.RemoveChoiceLabel);
         }
     }
 }

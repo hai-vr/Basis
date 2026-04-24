@@ -25,12 +25,7 @@ namespace HVR.Vixxy.Editor
 
             EditorGUI.BeginDisabledGroup(isPlaying);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
-            if (my.hasThreeOrMoreChoices)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.numberOfChoices)));
-            }
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.choices)));
             EditorGUI.EndDisabledGroup();
 
             if (!isPlaying)
@@ -243,13 +238,13 @@ namespace HVR.Vixxy.Editor
             if (inheritsFromVixxyProperty)
             {
                 var choicesSp = propertySp.FindPropertyRelative(nameof(HVRVixxyProperty<object>.choices));
-                if (my.hasThreeOrMoreChoices)
+                if (my.NumberOfChoices > 2)
                 {
-                    if (choicesSp.arraySize < my.numberOfChoices)
+                    if (choicesSp.arraySize < my.NumberOfChoices)
                     {
-                        choicesSp.arraySize = my.numberOfChoices;
+                        choicesSp.arraySize = my.NumberOfChoices;
                     }
-                    for (var choiceIndex = 0; choiceIndex < my.numberOfChoices; choiceIndex++)
+                    for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                     {
                         EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent($"Value for #{choiceIndex}"));
                     }

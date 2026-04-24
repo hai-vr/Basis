@@ -20,7 +20,7 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
-            if (!my.hasThreeOrMoreChoices)
+            if (my.NumberOfChoices == 2)
             {
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.EnableTheseWhenActiveLabel);
                 DisplayActivations(activationsSp, true);
@@ -30,6 +30,7 @@ namespace HVR.Vixxy.Editor
             }
             else
             {
+                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AffectTheseObjectsLabel);
                 DisplayActivations(activationsSp, false);
             }
             EditorGUILayout.Separator();
@@ -43,7 +44,7 @@ namespace HVR.Vixxy.Editor
 
             for (var i = 0; i < activationsSp.arraySize; i++)
             {
-                if (my.hasThreeOrMoreChoices)
+                if (my.NumberOfChoices > 2)
                 {
                     EditorGUILayout.BeginVertical("GroupBox");
                 }
@@ -52,7 +53,7 @@ namespace HVR.Vixxy.Editor
                 var choicesSp = elementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices));
                 var arrayElementAtIndex = choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex);
                 var isWhenActive = arrayElementAtIndex.boolValue;
-                if (my.hasThreeOrMoreChoices || isWhenActive == showThoseActive)
+                if (my.NumberOfChoices > 2 || isWhenActive == showThoseActive)
                 {
                     var componentSp = elementSp.FindPropertyRelative(nameof(HVRVixxyActivation.component));
 
@@ -97,7 +98,7 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (!my.hasThreeOrMoreChoices && GUILayout.Button("⇅", GUILayout.Width(25)))
+                    if (my.NumberOfChoices == 2 && GUILayout.Button("⇅", GUILayout.Width(25)))
                     {
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex).boolValue = showThoseActive;
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = !showThoseActive;
@@ -110,13 +111,13 @@ namespace HVR.Vixxy.Editor
                     }
 
                     EditorGUILayout.EndHorizontal();
-                    if (my.hasThreeOrMoreChoices)
+                    if (my.NumberOfChoices > 2)
                     {
                         EditorGUILayout.PropertyField(choicesSp);
                     }
                 }
 
-                if (my.hasThreeOrMoreChoices)
+                if (my.NumberOfChoices > 2)
                 {
                     EditorGUILayout.EndVertical();
                 }
@@ -130,7 +131,7 @@ namespace HVR.Vixxy.Editor
                 var newIndex = activationsSp.arraySize;
                 activationsSp.InsertArrayElementAtIndex(newIndex);
                 var newElementSp = activationsSp.GetArrayElementAtIndex(newIndex);
-                newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).arraySize = my.numberOfChoices;
+                newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).arraySize = my.NumberOfChoices;
                 newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = showThoseActive;
                 newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices)).GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex).boolValue = !showThoseActive;
                 newElementSp.FindPropertyRelative(nameof(HVRVixxyActivation.component)).objectReferenceValue = newComponent;

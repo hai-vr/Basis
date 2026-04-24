@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HVR.Basis.Comms;
 #if HVR_VIXXY_IS_IN_BASIS
@@ -126,8 +127,8 @@ namespace HVR.Vixxy
 
         private void FigureOutActualNumberOfChoices(out bool hasMoreThanTwoChoices, out int actualNumberOfChoices)
         {
-            hasMoreThanTwoChoices = hasThreeOrMoreChoices && numberOfChoices > 2;
-            actualNumberOfChoices = hasMoreThanTwoChoices ? numberOfChoices : 2;
+            hasMoreThanTwoChoices = NumberOfChoices > 2;
+            actualNumberOfChoices = hasMoreThanTwoChoices ? NumberOfChoices : 2;
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
@@ -738,6 +739,9 @@ namespace HVR.Vixxy
 
             return null;
         }
+
+        public float Min() => choices.Select(control => control.value).Min();
+        public float Max() => choices.Select(control => control.value).Max();
     }
 
     internal enum HVRKindMarker

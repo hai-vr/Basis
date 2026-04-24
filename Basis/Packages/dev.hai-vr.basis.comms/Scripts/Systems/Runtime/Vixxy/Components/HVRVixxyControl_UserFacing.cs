@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HVR.Basis.Comms;
 using UnityEngine;
@@ -18,8 +19,12 @@ namespace HVR.Vixxy
         /// If not, we will generate one at runtime.
         [SerializeField] internal HVRAddressSelector address;
 
-        [SerializeField] public bool hasThreeOrMoreChoices;
-        [SerializeField] public int numberOfChoices = 3;
+        public int NumberOfChoices => choices.Length;
+
+        [SerializeField] public HVRVixxyChoiceControl[] choices = {
+            new() { title = "", icon = null, value = 0f },
+            new() { title = "", icon = null, value = 1f }
+        };
 
         [SerializeField] internal HVRVixxyActivation[] activations = Array.Empty<HVRVixxyActivation>();
         [SerializeField] internal HVRVixxySubject[] subjects = Array.Empty<HVRVixxySubject>();
@@ -171,6 +176,11 @@ namespace HVR.Vixxy
 
             choices = newChoices;
         }
+
+        public override void RemoveChoiceAtIndex(int choiceIndex)
+        {
+            choices = choices.Where((_, i) => i != choiceIndex).ToArray();
+        }
     }
 
     [Serializable]
@@ -198,6 +208,7 @@ namespace HVR.Vixxy
 
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}
+        public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
     }
 
     [Serializable]
@@ -235,9 +246,10 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
-    public class HVRVixxyChoice
+    public class HVRVixxyChoiceControl
     {
         public string title;
         public Texture2D icon;
+        public float value;
     }
 }

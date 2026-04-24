@@ -299,64 +299,68 @@ namespace HVR.Basis.Comms
 
             foreach (var menuItem in menuItems)
             {
-                if (menuItem.numberOfChoices == 2)
+                var hasControl = menuItem.TryResolveActualControl(out var control);
+                if (hasControl)
                 {
-                    if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
+                    if (control.NumberOfChoices == 2)
                     {
-                        var slider = PanelSlider.CreateNew(menuGroup.ContentParent);
-                        slider.Descriptor.SetTitle(menuItem.ResolveTitle());
-                        slider.Descriptor.SetDescription(menuItem.ResolveDescription());
-                        slider.SetSliderSettings(new PanelSlider.SliderSettings
+                        if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
                         {
-                            SliderMin = 0f,
-                            SliderMax = 1f,
-                            DecimalPlaces = 2,
-                            DisplayMode = ValueDisplayMode.Percentage,
-                        });
-                        void WhenValueChanged(float value)
-                        {
-                            menuItem.ApplyValue(value);
+                            var slider = PanelSlider.CreateNew(menuGroup.ContentParent);
+                            slider.SetSliderSettings(new PanelSlider.SliderSettings
+                            {
+                                SliderMin = 0f,
+                                SliderMax = 1f,
+                                DecimalPlaces = 2,
+                                DisplayMode = ValueDisplayMode.Percentage,
+                            });
                             slider.Descriptor.SetTitle(menuItem.ResolveTitle());
                             slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+                            void WhenValueChanged(float value)
+                            {
+                                menuItem.ApplyValue(value);
+                                slider.Descriptor.SetTitle(menuItem.ResolveTitle());
+                                slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+                            }
+                            slider.SliderComponent.onValueChanged.AddListener(WhenValueChanged);
+                            slider.OnValueChanged += WhenValueChanged;
+                            slider.SetValueWithoutNotify(menuItem.GetValue());
                         }
-                        slider.SliderComponent.onValueChanged.AddListener(WhenValueChanged);
-                        slider.OnValueChanged += WhenValueChanged;
-                        slider.SetValueWithoutNotify(menuItem.GetValue());
+                        else
+                        {
+                            var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
+                            toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                            toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+                            toggle.OnValueChanged += value =>
+                            {
+                                menuItem.ApplyValue(value ? 1f : 0f);
+                                toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                                toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+                            };
+                            toggle.SetValueWithoutNotify(menuItem.GetValue() > 0f);
+                        }
                     }
                     else
                     {
-                        var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
-                        toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
-                        toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
-                        toggle.OnValueChanged += value =>
+                        var choices = control.choices.Select((choice, i) =>
                         {
-                            menuItem.ApplyValue(value ? 1f : 0f);
-                            toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
-                            toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
-                        };
-                        toggle.SetValueWithoutNotify(menuItem.GetValue() > 0f);
-                    }
-                }
-                else
-                {
-                    var choices = menuItem.choices.Select((choice, i) =>
-                    {
-                        if (string.IsNullOrWhiteSpace(choice.title)) return $"Option #{(i + 1)}";
-                        return $"{choice.title} (#{i + 1})";
-                    }).ToList();
+                            if (string.IsNullOrWhiteSpace(choice.title)) return $"Option #{(i + 1)}";
+                            return $"{choice.title} (#{i + 1})";
+                        }).ToList();
 
-                    var dropdown = PanelDropdown.CreateNewEntry(menuGroup.ContentParent);
-                    dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
-                    dropdown.AssignEntries(choices);
-                    dropdown.OnValueChanged += value =>
-                    {
-                        menuItem.ApplyValue(choices.IndexOf(value));
+                        var dropdown = PanelDropdown.CreateNewEntry(menuGroup.ContentParent);
                         dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
-                    };
-                    var autoSelect = (int)menuItem.GetValue();
-                    if (autoSelect >= 0 && autoSelect < choices.Count)
-                    {
-                        dropdown.SetValueWithoutNotify(choices[autoSelect]);
+                        dropdown.AssignEntries(choices);
+                        dropdown.OnValueChanged += value =>
+                        {
+                            menuItem.ApplyValue(choices.IndexOf(value));
+                            dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
+                        };
+                        var autoSelect = (int)menuItem.GetValue();
+                        if (autoSelect >= 0 && autoSelect < choices.Count)
+                        {
+                            dropdown.SetValueWithoutNotify(choices[autoSelect]);
+                        }
                     }
                 }
             }

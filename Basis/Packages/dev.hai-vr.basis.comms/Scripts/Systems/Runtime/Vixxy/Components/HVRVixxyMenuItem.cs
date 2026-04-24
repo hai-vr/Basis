@@ -9,27 +9,50 @@ namespace HVR.Vixxy
     {
         [SerializeField] [Multiline] internal string title;
         [SerializeField] internal HVRVixxyTitleSelection titleSelection = HVRVixxyTitleSelection.UseObjectName;
-        [SerializeField] internal HVRVixxyChoice[] choices = new HVRVixxyChoice[2];
         [SerializeField] internal HVRVixxyControlPresentation presentation;
 
-        [SerializeField] internal int numberOfChoices = 2;
         [SerializeField] internal float defaultValue;
 
-        [SerializeField] internal string address = "";
+        [SerializeField] internal HVRAddressSelector address;
         [SerializeField] internal HVRVixxyControl control;
 
         // [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberAcrossAvatars;
         // [SerializeField] internal string rememberTag = "";
 
         private float _value;
+        private bool _hasAddress;
+        private int _iddressPath;
+
+        public bool TryResolveActualControl(out HVRVixxyControl result)
+        {
+            var controlsOnThis = GetComponents<HVRVixxyControl>(); // This may return 0 elements.
+            if (controlsOnThis.Length == 1)
+            {
+                result = controlsOnThis[0];
+                return true;
+            }
+
+            if (control != null)
+            {
+                result = control;
+                return true;
+            }
+
+            result = null;
+            return false;
+        }
 
         public void OnHVRAvatarReady(bool isWearer)
         {
             if (!isWearer) return;
 
-            if (control == null && string.IsNullOrWhiteSpace(address))
+            control = TryResolveActualControl(out var actualControl) ? actualControl : null;
+
+            var intermediateAddress = control != null ? control.address : address;
+            _hasAddress = intermediateAddress.TryResolvePath(out var addressPath);
+            if (_hasAddress)
             {
-                control = GetComponent<HVRVixxyControl>(); // This may return null.
+                _iddressPath = HVRAddressRegistry.AddressToId(addressPath);
             }
 
             // TODO: We would have to load the actual default value from memory somehow.
@@ -69,6 +92,9 @@ namespace HVR.Vixxy
 
         private string ResolveComplexTitle()
         {
+            if (!TryResolveActualControl(out var actualControl)) return title;
+
+            var choices = actualControl.choices;
             if (choices == null) return title;
 
             var index = (int)_value;
@@ -90,7 +116,10 @@ namespace HVR.Vixxy
 
         private void SubmitValue()
         {
-            AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(HVRAddressRegistry.AddressToId(address), _value);
+            if (_hasAddress)
+            {
+                AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(_iddressPath, _value);
+            }
         }
     }
 }

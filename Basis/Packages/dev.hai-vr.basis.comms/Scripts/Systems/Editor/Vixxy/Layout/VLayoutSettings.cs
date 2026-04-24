@@ -9,8 +9,11 @@ namespace HVR.Vixxy.Editor
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
 
+        private readonly HVRVixxyControlEditor _editor;
+
         internal VLayoutSettings(HVRVixxyControlEditor editor)
         {
+            _editor = editor;
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
         }
@@ -42,11 +45,48 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ChoicesLabel, EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
-            if (my.hasThreeOrMoreChoices)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.numberOfChoices)));
+                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
+                var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("", GUILayout.Width(30));
+                EditorGUILayout.LabelField("Description / Icon / Value");
+                EditorGUILayout.LabelField("", GUILayout.Width(20));
+                EditorGUILayout.EndHorizontal();
+
+                for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
+                {
+                    var choiceSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
+
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(30));
+
+                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.title)), GUIContent.none);
+                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
+                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value)), GUIContent.none, GUILayout.Width(50));
+
+                    EditorGUI.BeginDisabledGroup(my.NumberOfChoices <= 2);
+                    if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(20)))
+                    {
+                        _editor.RemoveChoice(choiceIndex);
+                        return true;
+                    }
+                    EditorGUI.EndDisabledGroup();
+
+                    EditorGUILayout.EndHorizontal();
+                }
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("", GUILayout.Width(30));
+                if (GUILayout.Button($"{HVRUiHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
+                {
+                    _editor.AddChoice();
+                    return true;
+                }
+                EditorGUILayout.LabelField("", GUILayout.Width(20));
+                EditorGUILayout.EndHorizontal();
+
             }
             EditorGUILayout.Separator();
 
