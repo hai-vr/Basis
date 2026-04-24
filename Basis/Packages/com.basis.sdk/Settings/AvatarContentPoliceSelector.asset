@@ -194,3 +194,6 @@ MonoBehaviour:
   - Basis.Shims.BasisAvatarShim
   - Basis.Shims.BasisNetworkShim
   - Cilbox.CilboxProxy
+  - HVR.Vixxy.HVRVixxyControl
+  - HVR.Vixxy.HVRVixxyMenuItem
+  - HVR.Vixxy.HVRVixxyAggregator
