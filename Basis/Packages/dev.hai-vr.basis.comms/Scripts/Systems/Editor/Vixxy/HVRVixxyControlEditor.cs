@@ -13,14 +13,6 @@ namespace HVR.Vixxy.Editor
 
         internal const float DeleteButtonWidth = 40;
 
-        internal const string CreatorView = "Creator View";
-        internal const string UserViewLabel = "User View";
-        internal const string ToggleObjectsViewLabel = "Toggle Objects";
-        internal const string ChangePropertiesViewLabel = "Change Properties";
-        private const string DeveloperViewLabel = "Developer View";
-        private const string AdvancedLabel = "Advanced";
-        internal const string MsgCannotEditInPlayMode = "Editing this component during Play Mode can lead to different visual and scene results than editing the component in Edit Mode.";
-
         public static bool _creatorViewFoldout;
         public static bool _toggleObjectsFoldout;
         public static bool _changePropertiesFoldout;
@@ -46,29 +38,29 @@ namespace HVR.Vixxy.Editor
             var isPlaying = Application.isPlaying;
             if (isPlaying)
             {
-                EditorGUILayout.HelpBox(MsgCannotEditInPlayMode, MessageType.Warning);
+                EditorGUILayout.HelpBox(VixenLocalizationPhrase.MsgCannotEditInPlayMode, MessageType.Warning);
             }
 
             var anyChanged = false;
-            _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorView, "", _creatorViewFoldout, ref anyChanged);
+            _creatorViewFoldout = HaiEFCommon.LilFoldout(VixenLocalizationPhrase.CreatorView, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {
                 if (_changePropertiesView.LayoutCreatorView()) return;
             }
-            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
+            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(VixenLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
             if (_toggleObjectsFoldout)
             {
                 if (_toggleObjectsView.LayoutToggleObjects()) return;
             }
-            _changePropertiesFoldout = HaiEFCommon.LilFoldout(ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
+            _changePropertiesFoldout = HaiEFCommon.LilFoldout(VixenLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
             if (_changePropertiesFoldout)
             {
                 if (_changePropertiesView.LayoutChangeProperties()) return;
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(AdvancedLabel, EditorStyles.boldLabel);
-            _developerViewFoldout = HaiEFCommon.LilFoldout(DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
+            EditorGUILayout.LabelField(VixenLocalizationPhrase.AdvancedLabel, EditorStyles.boldLabel);
+            _developerViewFoldout = HaiEFCommon.LilFoldout(VixenLocalizationPhrase.DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
             if (_developerViewFoldout)
             {
                 if (_developerView.Layout()) return;

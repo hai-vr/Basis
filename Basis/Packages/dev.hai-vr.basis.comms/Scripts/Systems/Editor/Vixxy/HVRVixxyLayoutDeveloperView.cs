@@ -8,14 +8,6 @@ namespace HVR.Vixxy.Editor
 {
     public class HVRVixxyLayoutDeveloperView
     {
-        private const string AddPropertyOfTypeLabel = "+ Add Property of type {0}";
-        private const string AddSubjectLabel = "+ Add Subject";
-        private const string MsgAddressIsOptional = "Address is completely optional, we will generate one for you. If you need explicit control by external programs, then do specify one.";
-        private const string MsgAvatarReadyNotApplied = "AvatarReady was not applied on the avatar of this component while we were listening.\nThis may be because this is a test scene and not a loaded avatar. If this isn't the case, this is a proper error.";
-        private const string MsgPropertyFailedToResolve = "This property has failed to resolve. Reason: {0}";
-        private const string RuntimeBakedDataLabel = "Runtime Baked Data";
-        private const string SampleFromLabel = "Sample from";
-
         // ReSharper disable once InconsistentNaming
         private readonly HVRVixxyControl my;
         // ReSharper disable once InconsistentNaming
@@ -35,7 +27,7 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
             if (string.IsNullOrWhiteSpace(my.address))
             {
-                EditorGUILayout.HelpBox(MsgAddressIsOptional, MessageType.Info);
+                EditorGUILayout.HelpBox(VixenLocalizationPhrase.MsgAddressIsOptional, MessageType.Info);
             }
 
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
@@ -95,7 +87,7 @@ namespace HVR.Vixxy.Editor
                     EditorGUILayout.Toggle(nameof(HVRVixxyControl.WasAvatarReadyApplied), my.WasAvatarReadyApplied);
                     if (!my.WasAvatarReadyApplied)
                     {
-                        HaiEFCommon.ColoredBackgroundVoid(true, Color.white, () => { EditorGUILayout.HelpBox(MsgAvatarReadyNotApplied, MessageType.Error); });
+                        HaiEFCommon.ColoredBackgroundVoid(true, Color.white, () => { EditorGUILayout.HelpBox(VixenLocalizationPhrase.MsgAvatarReadyNotApplied, MessageType.Error); });
                     }
                     EditorGUILayout.Toggle(nameof(HVRVixxyControl.IsWearer), my.IsWearer);
                     EditorGUILayout.TextField(nameof(HVRVixxyControl.Address), my.Address);
@@ -138,7 +130,7 @@ namespace HVR.Vixxy.Editor
 
                 if (selection != HVRVixxySelection.Normal)
                 {
-                    EditorGUILayout.LabelField(SampleFromLabel);
+                    EditorGUILayout.LabelField(VixenLocalizationPhrase.SampleFromLabel);
                     EditorGUILayout.PropertyField(subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.targets))); // TODO: Only show 0th value
                 }
 
@@ -149,7 +141,7 @@ namespace HVR.Vixxy.Editor
                     {
                         // var it = (HVRVixxySubject)subjectSp.boxedValue; // This doesn't work. It returns a default struct
                         EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
-                        EditorGUILayout.LabelField(RuntimeBakedDataLabel, EditorStyles.boldLabel);
+                        EditorGUILayout.LabelField(VixenLocalizationPhrase.RuntimeBakedDataLabel, EditorStyles.boldLabel);
                         EditorGUILayout.Toggle(nameof(HVRVixxySubject.IsApplicable), it.IsApplicable);
                         EditorGUILayout.LabelField(nameof(HVRVixxySubject.BakedObjects));
                         if (it.IsApplicable)
@@ -182,7 +174,7 @@ namespace HVR.Vixxy.Editor
 
                 EditorGUILayout.EndVertical();
             }
-            if (GUILayout.Button(AddSubjectLabel))
+            if (GUILayout.Button(VixenLocalizationPhrase.AddSubjectLabel))
             {
                 subjectsSp.arraySize += 1;
             }
@@ -192,7 +184,7 @@ namespace HVR.Vixxy.Editor
 
         private static void ButtonToAddProperty(SerializedProperty propertiesSp, string name, Func<object> factoryFn)
         {
-            if (GUILayout.Button(string.Format(AddPropertyOfTypeLabel, name)))
+            if (GUILayout.Button(string.Format(VixenLocalizationPhrase.AddPropertyOfTypeLabel, name)))
             {
                 var indexToPutData = propertiesSp.arraySize;
                 propertiesSp.arraySize = indexToPutData + 1;
@@ -284,7 +276,7 @@ namespace HVR.Vixxy.Editor
                 HaiEFCommon.ColoredBackgroundVoid(true, it.IsApplicable ? HVRVixxyControlEditor.RuntimeColorOK : HVRVixxyControlEditor.RuntimeColorKO, () =>
                 {
                     EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
-                    EditorGUILayout.LabelField(RuntimeBakedDataLabel, EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField(VixenLocalizationPhrase.RuntimeBakedDataLabel, EditorStyles.boldLabel);
                     EditorGUILayout.Toggle(nameof(HVRVixxyPropertyBase.IsApplicable), it.IsApplicable);
                     EditorGUILayout.EnumPopup(nameof(HVRVixxyPropertyBase.BakeResult), it.BakeResult);
                     if (it.IsApplicable)
@@ -310,7 +302,7 @@ namespace HVR.Vixxy.Editor
                     }
                     else
                     {
-                        HaiEFCommon.ColoredBackgroundVoid(true, Color.white, () => { EditorGUILayout.HelpBox(string.Format(MsgPropertyFailedToResolve, it.BakeResult), MessageType.Error); });
+                        HaiEFCommon.ColoredBackgroundVoid(true, Color.white, () => { EditorGUILayout.HelpBox(string.Format(VixenLocalizationPhrase.MsgPropertyFailedToResolve, it.BakeResult), MessageType.Error); });
                     }
                     EditorGUILayout.EndVertical();
                 });

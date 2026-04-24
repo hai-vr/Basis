@@ -15,23 +15,6 @@ namespace HVR.Vixxy.Editor
         private static readonly Regex HasAnyNonLetterNonSpace = new Regex(@"[^A-Za-z\s]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly string[] CoordsSuffixes = {".x", ".y", ".z", ".w", ".r", ".g", ".b", ".a"};
 
-        private const string ChangeTheseObjectsAndTheirChildrenLabel = "Change these objects and their children";
-        private const string ChangeTheseObjectsLabel = "Change these objects";
-        private const string ControlLabel = "Control";
-        private const string CreateMenuForThisControlLabel = "Create menu for this control";
-        private const string DoNotChangeTheseObjectsLabel = "Do not change these objects";
-        private const string EverythingLabel = "Everything";
-        private const string InterpolationLabel = "Interpolation";
-        private const string MsgEverthingInContext = "All valid objects within the context of this control's orchestrator that contains these properties will be affected.";
-        private const string MsgMissingFromComponentTypes = "The following components are not in the list of modifiable component types, so they cannot be affected.";
-        private const string MultiChoiceLabel = "Multi-choice";
-        private const string ObjectGroupLabel = "Object group";
-        private const string ObjectGroupsLabel = "Object groups";
-        private const string PropertiesLabel = "Properties";
-        private const string RecursiveSearchLabel = "Recursive search";
-        private const string SampleFromLabel = "Sample from";
-        private const string ToggleLabel = "Toggle";
-
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
         private readonly ReorderableList subjectsReorderableList;
@@ -57,7 +40,7 @@ namespace HVR.Vixxy.Editor
             );
             subjectsReorderableList.drawElementCallback = SubjectsListElement;
             subjectsReorderableList.drawHeaderCallback =
-                rect => EditorGUI.LabelField(rect, ObjectGroupsLabel);
+                rect => EditorGUI.LabelField(rect, VixenLocalizationPhrase.ObjectGroupsLabel);
             subjectsReorderableList.onAddCallback = list =>
             {
                 ++list.serializedProperty.arraySize;
@@ -81,14 +64,14 @@ namespace HVR.Vixxy.Editor
             var menuItem = my.GetComponent<HVRVixxyMenuItem>();
             if (menuItem == null)
             {
-                if (GUILayout.Button(CreateMenuForThisControlLabel))
+                if (GUILayout.Button(VixenLocalizationPhrase.CreateMenuForThisControlLabel))
                 {
                     var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
                     ComponentUtility.MoveComponentUp(comp);
                 }
             }
 
-            EditorGUILayout.LabelField(ControlLabel, EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(VixenLocalizationPhrase.ControlLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
             if (my.networked)
@@ -97,7 +80,7 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(MultiChoiceLabel, EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(VixenLocalizationPhrase.MultiChoiceLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.hasThreeOrMoreChoices)));
             if (my.hasThreeOrMoreChoices)
             {
@@ -105,7 +88,7 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(InterpolationLabel, EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(VixenLocalizationPhrase.InterpolationLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationDurationSeconds)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.interpolationCurve)));
 
@@ -118,7 +101,7 @@ namespace HVR.Vixxy.Editor
         {
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(PropertiesLabel, EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(VixenLocalizationPhrase.PropertiesLabel, EditorStyles.boldLabel);
             LayoutChangePropertiesPart();
             EditorGUILayout.Separator();
 
@@ -135,37 +118,37 @@ namespace HVR.Vixxy.Editor
                 var selectedElementSp = subjectsReorderableList.serializedProperty.GetArrayElementAtIndex(selectedIndex);
                 var mySelectedElement = my.subjects[selectedIndex];
 
-                EditorGUILayout.LabelField($"{ObjectGroupLabel} #{selectedIndex + 1}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{VixenLocalizationPhrase.ObjectGroupLabel} #{selectedIndex + 1}", EditorStyles.boldLabel);
 
                 EditorGUILayout.PropertyField(selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.selection)));
                 if (mySelectedElement.selection == HVRVixxySelection.Normal)
                 {
-                    EditorGUILayout.LabelField(ChangeTheseObjectsLabel);
+                    EditorGUILayout.LabelField(VixenLocalizationPhrase.ChangeTheseObjectsLabel);
                     CreateArrayAddition(selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.targets)), typeof(GameObject));
                 }
                 else if (mySelectedElement.selection == HVRVixxySelection.RecursiveSearch)
                 {
-                    EditorGUILayout.LabelField(ChangeTheseObjectsAndTheirChildrenLabel);
+                    EditorGUILayout.LabelField(VixenLocalizationPhrase.ChangeTheseObjectsAndTheirChildrenLabel);
                     CreateArrayAddition(selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.childrenOf)),
                         typeof(GameObject));
 
-                    EditorGUILayout.LabelField(DoNotChangeTheseObjectsLabel);
+                    EditorGUILayout.LabelField(VixenLocalizationPhrase.DoNotChangeTheseObjectsLabel);
                     CreateArrayAddition(selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.exceptions)),
                         typeof(GameObject));
                 }
                 else if (mySelectedElement.selection == HVRVixxySelection.Everything)
                 {
-                    EditorGUILayout.HelpBox(MsgEverthingInContext, MessageType.Info);
+                    EditorGUILayout.HelpBox(VixenLocalizationPhrase.MsgEverthingInContext, MessageType.Info);
 
-                    EditorGUILayout.LabelField(DoNotChangeTheseObjectsLabel);
+                    EditorGUILayout.LabelField(VixenLocalizationPhrase.DoNotChangeTheseObjectsLabel);
                     CreateArrayAddition(selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.exceptions)),
                         typeof(GameObject));
                 }
 
                 EditorGUILayout.Separator();
 
-                EditorGUILayout.LabelField(PropertiesLabel, EditorStyles.boldLabel);
-                EditorGUILayout.LabelField(SampleFromLabel);
+                EditorGUILayout.LabelField(VixenLocalizationPhrase.PropertiesLabel, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(VixenLocalizationPhrase.SampleFromLabel);
                 EditorGUI.BeginDisabledGroup(mySelectedElement.selection == HVRVixxySelection.Normal);
                 CreateArrayAddition(selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.targets)), typeof(GameObject), true);
                 EditorGUI.EndDisabledGroup();
@@ -214,7 +197,7 @@ namespace HVR.Vixxy.Editor
                         if (nonPermitted.Any())
                         {
                             GUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
-                            EditorGUILayout.HelpBox(MsgMissingFromComponentTypes, MessageType.Warning);
+                            EditorGUILayout.HelpBox(VixenLocalizationPhrase.MsgMissingFromComponentTypes, MessageType.Warning);
                             EditorGUI.BeginDisabledGroup(true);
                             foreach (var typeToBinding in nonPermitted)
                             {
@@ -527,7 +510,7 @@ namespace HVR.Vixxy.Editor
             }
             else
             {
-                var label = subject.selection == HVRVixxySelection.RecursiveSearch ? RecursiveSearchLabel : EverythingLabel;
+                var label = subject.selection == HVRVixxySelection.RecursiveSearch ? VixenLocalizationPhrase.RecursiveSearchLabel : VixenLocalizationPhrase.EverythingLabel;
                 return $"#{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
             }
         }
