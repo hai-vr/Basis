@@ -39,7 +39,6 @@ namespace HVR.Vixxy.Editor
             else
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.control)));
-                HVRVixxyControlEditor.LayoutAddressSelector(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.address)));
             }
 
             EditorGUILayout.Separator();

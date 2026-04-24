@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using HVR.Basis.Comms;
 using HVR.Basis.Comms.Editor;
 using UnityEditor;
@@ -60,7 +59,7 @@ namespace HVR.Vixxy.Editor
             _changePropertiesFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
             if (_changePropertiesFoldout)
             {
-                if (_changeProperties.LayoutChangeProperties()) return;
+                if (_changeProperties.LayoutChangePropertiesPart()) return;
             }
             EditorGUILayout.Separator();
 

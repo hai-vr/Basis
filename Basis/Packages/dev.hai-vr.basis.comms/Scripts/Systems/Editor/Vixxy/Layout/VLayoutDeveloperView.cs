@@ -240,13 +240,16 @@ namespace HVR.Vixxy.Editor
                 var choicesSp = propertySp.FindPropertyRelative(nameof(HVRVixxyProperty<object>.choices));
                 if (my.NumberOfChoices > 2)
                 {
+                    var choices = my.choices;
                     if (choicesSp.arraySize < my.NumberOfChoices)
                     {
                         choicesSp.arraySize = my.NumberOfChoices;
                     }
                     for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                     {
-                        EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent($"Value for #{choiceIndex}"));
+                        var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
+                        var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
+                        EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
                     }
                 }
                 else

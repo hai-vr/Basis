@@ -13,7 +13,6 @@ namespace HVR.Vixxy
 
         [SerializeField] internal float defaultValue;
 
-        [SerializeField] internal HVRAddressSelector address;
         [SerializeField] internal HVRVixxyControl control;
 
         // [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberAcrossAvatars;
@@ -48,8 +47,8 @@ namespace HVR.Vixxy
 
             control = TryResolveActualControl(out var actualControl) ? actualControl : null;
 
-            var intermediateAddress = control != null ? control.address : address;
-            _hasAddress = intermediateAddress.TryResolvePath(out var addressPath);
+            string addressPath = null;
+            _hasAddress = control != null && control.address.TryResolvePath(out addressPath);
             if (_hasAddress)
             {
                 _iddressPath = HVRAddressRegistry.AddressToId(addressPath);
@@ -58,7 +57,7 @@ namespace HVR.Vixxy
             // TODO: We would have to load the actual default value from memory somehow.
             _value = defaultValue;
             SubmitValue();
-            BasisDebug.Log($"Initialized {GetType().Name} {address} with default value {_value}");
+            BasisDebug.Log($"Initialized {GetType().Name} with default value {_value}");
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
