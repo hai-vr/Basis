@@ -38,6 +38,12 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 06d43e66a99d9c742851f25200052b1a
+    m_Address: Languages/zh-Hans
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0870e2b67a5121e4ebfeacb2276a0abd
     m_Address: Packages/com.basis.sdk/Textures/Runtime/add.png
     m_ReadOnly: 0
@@ -229,6 +235,12 @@ MonoBehaviour:
     m_Address: Packages/com.basis.sdk/Textures/Runtime/camera-outline.png
     m_ReadOnly: 0
     m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 63960d848fbc43a498989e5c850219e1
+    m_Address: Languages/zh-Hant
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 64a436389ec64fc47bfd6d1068f1e3c9
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Button.prefab
