@@ -448,6 +448,13 @@ namespace BasisNetworkServer.Security
             NetworkServer.ReturnWriter(writer);
         }
 
+        private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)
+        {
+            ushort id = reader.GetUShort();
+            Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(id, enable);
+            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable);
+        }
+
         private static void HandleGlobalToggle(NetPeer peer, string contentType, bool nowLocked)
         {
             string state = nowLocked ? "DISABLED" : "ENABLED";
@@ -512,13 +519,6 @@ namespace BasisNetworkServer.Security
             }
 
             BasisHeadlessConnectionPolicyManager.BroadcastState();
-        }
-
-        private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)
-        {
-            ushort id = reader.GetUShort();
-            Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(id, enable);
-            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable);
         }
 
         public static void SendBackMessage(NetPeer peer, string msg)
