@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace HVR.Basis.Comms
+namespace HVR.Basis.Comms.Editor
 {
     [CustomEditor(typeof(AcquisitionAssist))]
     public class AcquisitionAssistEditor : UnityEditor.Editor
@@ -26,7 +26,7 @@ namespace HVR.Basis.Comms
                     if (value != newValue)
                     {
                         assist.memory[address] = newValue;
-                        assist.acquisitionService.Submit(HVRAddress.AddressToId(address), newValue);
+                        assist.acquisitionService.Submit(HVRAddressRegistry.AddressToId(address), newValue);
                     }
                 }
             }
@@ -35,11 +35,11 @@ namespace HVR.Basis.Comms
                 EditorGUILayout.BeginHorizontal();
                 if (GUILayout.Button($"{def} = false"))
                 {
-                    assist.acquisitionService.Submit(HVRAddress.AddressToId(def), 0f);
+                    assist.acquisitionService.Submit(HVRAddressRegistry.AddressToId(def), 0f);
                 }
                 if (GUILayout.Button($"{def} = true"))
                 {
-                    assist.acquisitionService.Submit(HVRAddress.AddressToId(def), 1f);
+                    assist.acquisitionService.Submit(HVRAddressRegistry.AddressToId(def), 1f);
                 }
                 EditorGUILayout.EndHorizontal();
             }
