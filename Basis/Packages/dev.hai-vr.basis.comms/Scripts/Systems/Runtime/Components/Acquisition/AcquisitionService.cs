@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -15,6 +16,8 @@ namespace HVR.Basis.Comms
 
         public void Submit(int address, float value)
         {
+            if (address == 0) throw new IndexOutOfRangeException("Address cannot be zero, this may indicate an initialization issue.");
+
             if (_addressUpdated.TryGetValue(address, out var acquisitor))
             {
                 acquisitor.value = value;
@@ -24,6 +27,8 @@ namespace HVR.Basis.Comms
 
         public void SubmitOrDefineDefaultValue(int address, float value)
         {
+            if (address == 0) throw new IndexOutOfRangeException("Address cannot be zero, this may indicate an initialization issue.");
+
             if (_addressUpdated.TryGetValue(address, out var acquisitor))
             {
                 acquisitor.value = value;

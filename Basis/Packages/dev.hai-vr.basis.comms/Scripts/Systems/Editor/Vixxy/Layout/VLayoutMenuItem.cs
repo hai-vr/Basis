@@ -73,10 +73,7 @@ namespace HVR.Vixxy.Editor
             }
 
             var hasMoreThanThreeChoices = hasControl && control.NumberOfChoices > 2;
-            if (!hasMoreThanThreeChoices)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
-            }
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
 
             if (hasControl)
             {
@@ -92,18 +89,22 @@ namespace HVR.Vixxy.Editor
                 }
                 else
                 {
-                    EditorGUILayout.Slider(defaultValueSp, 0f, 1f);
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("", GUILayout.Width(50));
-                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.InactiveLabel)))
+                    EditorGUILayout.Slider(defaultValueSp, control.Min(), control.Max());
+
+                    if (Mathf.Approximately(control.Min(), 0f) && Mathf.Approximately(control.Max(), 1f))
                     {
-                        defaultValueSp.floatValue = 0f;
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField("", GUILayout.Width(50));
+                        if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.InactiveLabel)))
+                        {
+                            defaultValueSp.floatValue = 0f;
+                        }
+                        if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.ActiveLabel)))
+                        {
+                            defaultValueSp.floatValue = 1f;
+                        }
+                        EditorGUILayout.EndHorizontal();
                     }
-                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.ActiveLabel)))
-                    {
-                        defaultValueSp.floatValue = 1f;
-                    }
-                    EditorGUILayout.EndHorizontal();
                 }
             }
 

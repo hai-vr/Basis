@@ -20,31 +20,34 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
-            if (!my.HasThreeOrMoreChoices)
+            var isRegularToggle = !my.HasThreeOrMoreChoices
+                                  && Mathf.Approximately(my.choices[HVRVixxyPropertyBase.ActiveIndex].value, 1f)
+                                  && Mathf.Approximately(my.choices[HVRVixxyPropertyBase.InactiveIndex].value, 0f);
+            if (isRegularToggle)
             {
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.EnableTheseWhenActiveLabel);
-                DisplayActivations(activationsSp, true);
+                DisplayActivations(activationsSp, true, false);
                 EditorGUILayout.Separator();
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DisableTheseWhenActiveLabel);
-                DisplayActivations(activationsSp, false);
+                DisplayActivations(activationsSp, false, false);
             }
             else
             {
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AffectTheseObjectsLabel);
-                DisplayActivations(activationsSp, false);
+                DisplayActivations(activationsSp, false, true);
             }
             EditorGUILayout.Separator();
 
             return false;
         }
 
-        private void DisplayActivations(SerializedProperty activationsSp, bool showThoseActive)
+        private void DisplayActivations(SerializedProperty activationsSp, bool showThoseActive, bool displayInsideBox)
         {
             // showThoseActive must be ignored when we have three or more choices
 
             for (var i = 0; i < activationsSp.arraySize; i++)
             {
-                if (my.HasThreeOrMoreChoices)
+                if (displayInsideBox)
                 {
                     EditorGUILayout.BeginVertical("GroupBox");
                 }
@@ -53,7 +56,9 @@ namespace HVR.Vixxy.Editor
                 var choicesSp = activationSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices));
                 var activeChoiceSp = choicesSp.arraySize >= 2 ? choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex) : null;
                 var isWhenActive = activeChoiceSp != null ? activeChoiceSp.boolValue : true;
-                if (my.HasThreeOrMoreChoices || isWhenActive == showThoseActive)
+
+                var shouldBeDisplayed = isWhenActive == showThoseActive;
+                if (displayInsideBox || shouldBeDisplayed)
                 {
                     var componentSp = activationSp.FindPropertyRelative(nameof(HVRVixxyActivation.component));
 
@@ -98,7 +103,7 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (!my.HasThreeOrMoreChoices && GUILayout.Button("⇅", GUILayout.Width(25)))
+                    if (!displayInsideBox && GUILayout.Button(HVRUiHelpers.SwapSymbol, GUILayout.Width(25)))
                     {
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex).boolValue = showThoseActive;
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = !showThoseActive;
@@ -111,13 +116,16 @@ namespace HVR.Vixxy.Editor
                     }
 
                     EditorGUILayout.EndHorizontal();
-                    if (my.HasThreeOrMoreChoices)
+                    if (displayInsideBox)
                     {
-                        EditorGUILayout.PropertyField(choicesSp);
+                        for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
+                        {
+                            EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, my.choices)));
+                        }
                     }
                 }
 
-                if (my.HasThreeOrMoreChoices)
+                if (displayInsideBox)
                 {
                     EditorGUILayout.EndVertical();
                 }

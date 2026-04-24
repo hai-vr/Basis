@@ -30,11 +30,6 @@ namespace HVR.Vixxy
         [SerializeField] internal HVRVixxyActivation[] activations = Array.Empty<HVRVixxyActivation>();
         [SerializeField] internal HVRVixxySubject[] subjects = Array.Empty<HVRVixxySubject>();
 
-        /// The value that is considered to be OFF. This may be larger than upperBound. (Irrelevant when there are more than two choices)
-        [SerializeField] internal float lowerBound = 0f;
-        /// The value that is considered to be ON. (Irrelevant when there are more than two choices)
-        [SerializeField] internal float upperBound = 1f;
-
         // The number of seconds it takes to go from 0.0 to 1.0. If there are more than two choices: The number of seconds it takes to go from one state to another.
         // [SerializeField] internal float interpolationDurationSeconds = 0f;
         // [SerializeField] internal AnimationCurve interpolationCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);

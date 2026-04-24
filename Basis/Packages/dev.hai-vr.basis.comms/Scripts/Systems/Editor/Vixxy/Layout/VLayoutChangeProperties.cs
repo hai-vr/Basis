@@ -243,8 +243,7 @@ namespace HVR.Vixxy.Editor
                     }
                     for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                     {
-                        var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
-                        var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
+                        var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
                         EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
                     }
                 }
@@ -531,7 +530,6 @@ namespace HVR.Vixxy.Editor
                 ComputeLabel(index, subject)
             );
         }
-
 
         private static string ComputeLabel(int index, HVRVixxySubject subject)
         {

@@ -12,6 +12,7 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color PreviewColor = new Color(0.65f, 1f, 0.56f);
         internal static readonly Color RuntimeColorOK = Color.cyan;
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
+        internal static readonly Color FilledColor = new Color(0.76f, 0.97f, 0.74f);
 
         internal const float DeleteButtonWidth = 40;
 
@@ -51,12 +52,12 @@ namespace HVR.Vixxy.Editor
             {
                 if (_settings.LayoutSettings()) return;
             }
-            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
+            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged, my.activations.Length > 0, FilledColor);
             if (_toggleObjectsFoldout)
             {
                 if (_toggleObjects.LayoutToggleObjects()) return;
             }
-            _changePropertiesFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
+            _changePropertiesFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged, my.subjects.Length > 0, FilledColor);
             if (_changePropertiesFoldout)
             {
                 if (_changeProperties.LayoutChangePropertiesPart()) return;
@@ -158,6 +159,13 @@ namespace HVR.Vixxy.Editor
             }
             my.choices = my.choices.Where((_, i) => i != choiceIndex).ToArray();
             Undo.RecordObject(my, HVRVixxyLocalizationPhrase.RemoveChoiceLabel);
+        }
+
+        internal static string EditorChoiceDescription(int choiceIndex, HVRVixxyChoiceControl[] choices)
+        {
+            var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
+            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
+            return description;
         }
     }
 }

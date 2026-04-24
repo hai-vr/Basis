@@ -19,8 +19,6 @@ namespace HVR.Vixxy
         // [SerializeField] internal string rememberTag = "";
 
         private float _value;
-        private bool _hasAddress;
-        private int _iddressPath;
 
         public bool TryResolveActualControl(out HVRVixxyControl result)
         {
@@ -46,13 +44,6 @@ namespace HVR.Vixxy
             if (!isWearer) return;
 
             control = TryResolveActualControl(out var actualControl) ? actualControl : null;
-
-            string addressPath = null;
-            _hasAddress = control != null && control.address.TryResolvePath(out addressPath);
-            if (_hasAddress)
-            {
-                _iddressPath = HVRAddressRegistry.AddressToId(addressPath);
-            }
 
             // TODO: We would have to load the actual default value from memory somehow.
             _value = defaultValue;
@@ -115,9 +106,10 @@ namespace HVR.Vixxy
 
         private void SubmitValue()
         {
-            if (_hasAddress)
+            if (control != null)
             {
-                AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(_iddressPath, _value);
+                var actualAddress = control.IsInitialized ? control.AddressId : HVRAddressRegistry.AddressToId(control.CalculateAddress());
+                AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(actualAddress, _value);
             }
         }
     }
