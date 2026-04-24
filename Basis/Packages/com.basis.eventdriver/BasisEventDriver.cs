@@ -118,12 +118,6 @@ public partial class BasisEventDriver : MonoBehaviour
 
     public static bool StateOfOnRenderBefore = false;
 
-    /// <summary>
-    /// Time For Jiggles
-    /// </summary>
-    private double accumulatedTime;
-    private double fixedTime;
-
     // ── Lifecycle ───────────────────────────────────────────────
 
     /// <summary>
@@ -315,17 +309,9 @@ public partial class BasisEventDriver : MonoBehaviour
 
         // ── JigglePhysics schedule ──
         ProfileBegin(PROF_JIGGLE_SCHEDULE);
-        var fixedDeltaTime = Time.fixedDeltaTime;
-        accumulatedTime += Time.deltaTime;
-        if (accumulatedTime > fixedDeltaTime)
-        {
-            while (accumulatedTime > fixedDeltaTime)
-            {
-                fixedTime += fixedDeltaTime;
-                accumulatedTime -= fixedDeltaTime;
-            }
-            JigglePhysics.ScheduleSimulate(fixedTime, TimeAsDouble, fixedDeltaTime);
-        }
+
+        JigglePhysics.ScheduleSimulate(TimeAsDouble, fixedDeltaTime);
+
         ProfileEnd(PROF_JIGGLE_SCHEDULE);
 
         // ── Network transmit (reads bone results via GetOutGoingMouth) ──
