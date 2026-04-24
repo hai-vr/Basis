@@ -2,7 +2,7 @@
 using Basis.Network.Core;
 using HVR.Basis.Comms.HVRUtility;
 
-namespace HVR.Basis.Vixxy.Runtime
+namespace HVR.Basis.Comms.Vixxy
 {
     internal class HVRWearer : IHVRVixxyBasisNet
     {

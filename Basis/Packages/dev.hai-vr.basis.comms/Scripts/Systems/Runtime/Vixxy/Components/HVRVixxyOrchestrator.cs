@@ -1,13 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using HVR.Basis.Comms;
-using HVR.Shared;
 using UnityEngine;
 
 namespace HVR.Vixxy
 {
     /// There is one instance of this **per avatar** or **per world object**.
     [DefaultExecutionOrder(-10)] // FIXME: acquisitionService can be null if the dependents become awake before this
+    [AddComponentMenu("HVR.Basis/Comms/HVRVixxyOrchestrator")]
     public class HVRVixxyOrchestrator : MonoBehaviour
     {
         // TODO:

@@ -19,13 +19,13 @@ namespace HVR.Vixxy.Editor
         {
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(VixenLocalizationPhrase.ToggleLabel, EditorStyles.boldLabel);
             var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
             if (!my.hasThreeOrMoreChoices)
             {
-                EditorGUILayout.LabelField(VixenLocalizationPhrase.EnableTheseWhenActiveLabel);
+                EditorGUILayout.LabelField(HVRVixenLocalizationPhrase.EnableTheseWhenActiveLabel);
                 DisplayActivations(activationsSp, true);
-                EditorGUILayout.LabelField(VixenLocalizationPhrase.DisableTheseWhenActiveLabel);
+                EditorGUILayout.Separator();
+                EditorGUILayout.LabelField(HVRVixenLocalizationPhrase.DisableTheseWhenActiveLabel);
                 DisplayActivations(activationsSp, false);
             }
             else
@@ -73,14 +73,14 @@ namespace HVR.Vixxy.Editor
                     EditorGUILayout.PropertyField(elementSp.FindPropertyRelative(nameof(HVRVixxyActivation.threshold)), GUIContent.none, GUILayout.Width(70));
 
                     {
-                        var allComponents = new [] { VixenLocalizationPhrase.TypeSelectionLabel }.Concat(((Component)(componentSp.objectReferenceValue)).gameObject
+                        var allComponents = new [] { HVRVixenLocalizationPhrase.TypeSelectionLabel }.Concat(((Component)(componentSp.objectReferenceValue)).gameObject
                                 .GetComponents<Component>() // GetComponents may contain null values for unloadable MonoBehaviours
                                 .Where(component => component != null)
                                 // .Where(component => component.GetType() != element.objectReferenceValue.GetType())
                                 .Select(component =>
                                 {
                                     var name = component.GetType().Name;
-                                    return (name == "Transform" ? "GameObject" : name) + (component.GetType() == componentSp.objectReferenceValue.GetType() ? $" {VixenLocalizationPhrase.CurrentLabel}" : "");
+                                    return (name == "Transform" ? "GameObject" : name) + (component.GetType() == componentSp.objectReferenceValue.GetType() ? $" {HVRVixenLocalizationPhrase.CurrentLabel}" : "");
                                 })
                                 .Distinct())
                             .ToArray();

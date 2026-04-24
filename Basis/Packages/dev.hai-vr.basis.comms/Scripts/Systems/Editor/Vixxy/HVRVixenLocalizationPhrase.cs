@@ -1,6 +1,6 @@
 ﻿namespace HVR.Vixxy.Editor
 {
-    public static class VixenLocalizationPhrase
+    public static class HVRVixenLocalizationPhrase
     {
         internal const string ActiveLabel = "Active";
         internal const string AddLabel = "Add";
@@ -13,7 +13,7 @@
         internal const string ChangeTheseObjectsLabel = "Change these objects";
         internal const string ControlLabel = "Control";
         internal const string CreateMenuForThisControlLabel = "Create menu for this control";
-        internal const string CreatorView = "Creator View";
+        internal const string SettingsLabel = "Settings";
         internal const string CurrentLabel = "(current)";
         internal const string DeveloperViewLabel = "Developer View";
         internal const string DisableTheseWhenActiveLabel = "Disable these when active";

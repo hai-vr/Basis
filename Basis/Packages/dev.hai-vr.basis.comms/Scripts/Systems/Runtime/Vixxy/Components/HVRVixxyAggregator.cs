@@ -1,10 +1,10 @@
 ﻿using System.Collections.Generic;
 using HVR.Basis.Comms;
-using HVR.Shared;
 using UnityEngine;
 
 namespace HVR.Vixxy
 {
+    [AddComponentMenu("HVR.Basis/Comms/HVRVixxyAggregator")]
     public class HVRVixxyAggregator : MonoBehaviour, IHVRVixxyAggregator
     {
         [SerializeField] private string addressA;

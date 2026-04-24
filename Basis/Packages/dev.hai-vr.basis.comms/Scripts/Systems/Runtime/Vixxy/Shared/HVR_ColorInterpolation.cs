@@ -2,7 +2,7 @@
 // ReSharper disable SuggestVarOrType_BuiltInTypes
 // ReSharper disable InconsistentNaming
 
-namespace HVR.Shared
+namespace HVR.Vixxy
 {
 #if HVR_VIXXY_IS_IN_BASIS
     public static class HVR_ColorInterpolation
@@ -17,7 +17,7 @@ namespace HVR.Shared
 
             return OklabToRGB(lab, alpha);
         }
-        
+
         private static Vector3 RGBToOklab(Color rgb)
         {
             float r = rgb.r;
@@ -38,7 +38,7 @@ namespace HVR.Shared
 
             return new Vector3(L, A, B);
         }
-        
+
         private static Color OklabToRGB(Vector3 lab, float alpha)
         {
             float L = lab.x;

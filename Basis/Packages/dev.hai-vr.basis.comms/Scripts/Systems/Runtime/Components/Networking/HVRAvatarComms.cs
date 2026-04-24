@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
-using HVR.Basis.Vixxy.Runtime;
+using HVR.Basis.Comms.Vixxy;
 using UnityEngine;
 
 namespace HVR.Basis.Comms

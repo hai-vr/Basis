@@ -7,7 +7,7 @@ using HVR.Vixxy;
 using UnityEngine;
 using Basis.Scripts.BasisSdk;
 
-namespace HVR.Basis.Vixxy.Runtime
+namespace HVR.Basis.Comms.Vixxy
 {
     public class HVRVixxyBasisAvatarNetworking : MonoBehaviour, IHVRInitializable, IHVRVixxyNetworkable
     {

@@ -6,6 +6,7 @@ using UnityEngine;
 namespace HVR.Vixxy
 {
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization/vixxy")]
+    [AddComponentMenu("HVR.Basis/Vixxy Control")]
     public partial class HVRVixxyControl
     {
         /// The orchestrator defines the context that the subjects of this control will affect (e.g. Recursive Search).

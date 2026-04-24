@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using UnityEngine;
 
-namespace HVR.Shared
+namespace HVR.Vixxy
 {
     public static class HVR_VixxyUtil
     {

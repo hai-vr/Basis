@@ -3,7 +3,7 @@ using UnityEngine;
 #if HVR_VIXXY_IS_IN_BASIS
 using Basis.Scripts.BasisSdk;
 using HVR.Basis.Comms;
-using HVR.Basis.Vixxy.Runtime;
+using HVR.Basis.Comms.Vixxy;
 #endif
 
 namespace HVR.Vixxy

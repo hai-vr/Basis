@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Reflection;
 using HVR.Basis.Comms;
-using HVR.Shared;
 #if HVR_VIXXY_IS_IN_BASIS
 using Basis.Scripts.BasisSdk;
 #endif

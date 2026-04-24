@@ -27,11 +27,11 @@ namespace HVR.Vixxy.Editor
             var isPlaying = Application.isPlaying;
             if (isPlaying)
             {
-                EditorGUILayout.HelpBox(VixenLocalizationPhrase.MsgCannotEditInPlayMode, MessageType.Warning);
+                EditorGUILayout.HelpBox(HVRVixenLocalizationPhrase.MsgCannotEditInPlayMode, MessageType.Warning);
             }
 
             var anyChanged = false;
-            _userViewFoldout = HaiEFCommon.LilFoldout(VixenLocalizationPhrase.UserViewLabel, "", _userViewFoldout, ref anyChanged);
+            _userViewFoldout = HaiEFCommon.LilFoldout(HVRVixenLocalizationPhrase.UserViewLabel, "", _userViewFoldout, ref anyChanged);
             if (_userViewFoldout)
             {
                 if (_menuView.LayoutUserView()) return;
