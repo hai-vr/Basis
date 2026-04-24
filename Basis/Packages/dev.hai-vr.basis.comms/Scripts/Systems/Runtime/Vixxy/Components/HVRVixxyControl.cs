@@ -84,7 +84,7 @@ namespace HVR.Vixxy
             _context = orchestrator.Context();
 
             Address = string.IsNullOrWhiteSpace(address) ? GenerateAddressFromPath() : address;
-            AddressId = HVRAddress.AddressToId(Address);
+            AddressId = HVRAddressRegistry.AddressToId(Address);
 
             FigureOutActualNumberOfChoices(out var hasMoreThanTwoChoices, out var actualNumberOfChoices);
             HasMoreThanTwoChoices = hasMoreThanTwoChoices;
@@ -452,7 +452,7 @@ namespace HVR.Vixxy
             {
                 // FIXME: We really need to figure out how actuators sample values from their dependents.
                 var linear01 = Mathf.InverseLerp(lowerBound, upperBound, _value);
-                var active01 = interpolationCurve.Evaluate(linear01);
+                var active01 = linear01; // TODO: var active01 = interpolationCurve.Evaluate(linear01);
                 ActuateActivations(active01);
                 ActuateSubjects(active01, HVRVixxyPropertyBase.InactiveIndex, HVRVixxyPropertyBase.ActiveIndex);
             }

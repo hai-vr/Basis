@@ -24,7 +24,7 @@ namespace HVR.Basis.Comms.Editor
                         var range = my._ranges[index];
                         var current = my._streamedLateInit.current[index];
 
-                        var address = HVRAddress.ResolveKnownAddressFromId(range.address);
+                        var address = HVRAddressRegistry.ResolveKnownAddressFromId(range.address);
                         EditorGUILayout.BeginHorizontal();
                         EditorGUILayout.LabelField($"[#{index}]", GUILayout.Width(50));
                         EditorGUILayout.TextArea(address);

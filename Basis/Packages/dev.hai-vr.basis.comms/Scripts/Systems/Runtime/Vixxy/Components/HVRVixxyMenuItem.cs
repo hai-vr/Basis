@@ -90,7 +90,7 @@ namespace HVR.Vixxy
 
         private void SubmitValue()
         {
-            AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(HVRAddress.AddressToId(address), _value);
+            AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(HVRAddressRegistry.AddressToId(address), _value);
         }
     }
 }

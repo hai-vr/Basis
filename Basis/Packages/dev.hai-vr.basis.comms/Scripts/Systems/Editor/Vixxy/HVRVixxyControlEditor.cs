@@ -38,29 +38,29 @@ namespace HVR.Vixxy.Editor
             var isPlaying = Application.isPlaying;
             if (isPlaying)
             {
-                EditorGUILayout.HelpBox(HVRVixenLocalizationPhrase.MsgCannotEditInPlayMode, MessageType.Warning);
+                EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgCannotEditInPlayMode, MessageType.Warning);
             }
 
             var anyChanged = false;
-            _settingsFoldout = HaiEFCommon.LilFoldout(HVRVixenLocalizationPhrase.SettingsLabel, "", _settingsFoldout, ref anyChanged);
+            _settingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.SettingsLabel, "", _settingsFoldout, ref anyChanged);
             if (_settingsFoldout)
             {
                 if (_changePropertiesView.LayoutSettings()) return;
             }
-            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixenLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
+            _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged);
             if (_toggleObjectsFoldout)
             {
                 if (_toggleObjectsView.LayoutToggleObjects()) return;
             }
-            _changePropertiesFoldout = HaiEFCommon.LilFoldout(HVRVixenLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
+            _changePropertiesFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ChangePropertiesViewLabel, "", _changePropertiesFoldout, ref anyChanged);
             if (_changePropertiesFoldout)
             {
                 if (_changePropertiesView.LayoutChangeProperties()) return;
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(HVRVixenLocalizationPhrase.AdvancedLabel, EditorStyles.boldLabel);
-            _developerViewFoldout = HaiEFCommon.LilFoldout(HVRVixenLocalizationPhrase.DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
+            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AdvancedLabel, EditorStyles.boldLabel);
+            _developerViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
             if (_developerViewFoldout)
             {
                 if (_developerView.Layout()) return;

@@ -127,7 +127,7 @@ namespace HVR.Basis.Comms
             // If we want to stream values outside of this range (i.e. [-1; 1]), we need to collect all
             // possible InStart and InEnd values in order to lerp in that range.
             _addressToStreamedLowerUpper = allDefinitions
-                .GroupBy(definition => HVRAddress.AddressToId(definition.address))
+                .GroupBy(definition => HVRAddressRegistry.AddressToId(definition.address))
                 .ToDictionary(grouping => grouping.Key, grouping =>
                 {
                     var inValuesForThisAddress = grouping
@@ -143,7 +143,7 @@ namespace HVR.Basis.Comms
                     var actuatorTargets = ComputeTargets(smrToBlendshapeNames, definition.blendshapes, definition.onlyFirstMatch);
                     if (actuatorTargets.Length == 0) return null;
 
-                    var (lower, upper) = _addressToStreamedLowerUpper[HVRAddress.AddressToId(definition.address)];
+                    var (lower, upper) = _addressToStreamedLowerUpper[HVRAddressRegistry.AddressToId(definition.address)];
                     return new ComputedActuator
                     {
                         // The AddressIndex field is filled later.
@@ -159,7 +159,7 @@ namespace HVR.Basis.Comms
                         RequestedFeature = new RequestedFeature
                         {
                             identifier = definition.address,
-                            address = HVRAddress.AddressToId(definition.address),
+                            address = HVRAddressRegistry.AddressToId(definition.address),
                             lower = lower,
                             upper = upper
                         }
@@ -355,7 +355,7 @@ namespace HVR.Basis.Comms
         {
             foreach (var addressOverride in _defaultOverrides)
             {
-                ApplyAddressValue(HVRAddress.AddressToId(addressOverride.address), addressOverride.defaultValue, forwardToNetwork: true);
+                ApplyAddressValue(HVRAddressRegistry.AddressToId(addressOverride.address), addressOverride.defaultValue, forwardToNetwork: true);
             }
         }
 
@@ -384,7 +384,7 @@ namespace HVR.Basis.Comms
 
             foreach (var addressOverride in _defaultOverrides)
             {
-                if (_addessIdToBaseIndex.TryGetValue(HVRAddress.AddressToId(addressOverride.address), out var baseIndex))
+                if (_addessIdToBaseIndex.TryGetValue(HVRAddressRegistry.AddressToId(addressOverride.address), out var baseIndex))
                 {
                     featureInterpolator.SubmitAbsolute(baseIndex, addressOverride.defaultValue);
                 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace HVR.Basis.Comms
 {
-    public class HVRAddress
+    public class HVRAddressRegistry
     {
         private static readonly Dictionary<string, int> AddressToIdDict = new();
         private static readonly Dictionary<int, string> IdToAddressDict = new(); // TODO: Could probably make a List and stop using _nextId, or make a bidirectional dictionary

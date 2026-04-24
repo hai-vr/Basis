@@ -1,6 +1,6 @@
 ﻿namespace HVR.Vixxy.Editor
 {
-    public static class HVRVixenLocalizationPhrase
+    public static class HVRVixxyLocalizationPhrase
     {
         internal const string ActiveLabel = "Active";
         internal const string AddLabel = "Add";
@@ -21,7 +21,6 @@
         internal const string EnableTheseWhenActiveLabel = "Enable these when active";
         internal const string EverythingLabel = "Everything";
         internal const string InactiveLabel = "Inactive";
-        internal const string InterpolationLabel = "Interpolation";
         internal const string JustPropertiesLabel = "Properties";
         internal const string MaterialLabel = "Material";
         internal const string MsgAddressIsOptional = "Address is completely optional, we will generate one for you. If you need explicit control by external programs, then do specify one.";
@@ -42,7 +41,6 @@
         internal const string RuntimeBakedDataLabel = "Runtime Baked Data";
         internal const string SampleFromLabel = "Sample from";
         internal const string SearchLabel = "Search";
-        internal const string ToggleLabel = "Toggle";
         internal const string ToggleObjectsViewLabel = "Toggle Objects";
         internal const string TypeSelectionLabel = "Type...";
         internal const string UserViewLabel = "User View";

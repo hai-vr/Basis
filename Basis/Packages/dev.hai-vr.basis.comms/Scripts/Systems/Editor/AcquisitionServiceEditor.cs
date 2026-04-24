@@ -19,7 +19,7 @@ namespace HVR.Vixxy.Editor
                 foreach (var pair in my._addressUpdated)
                 {
                     EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.TextField(HVRAddress.ResolveKnownAddressFromId(pair.Key));
+                    EditorGUILayout.TextField(HVRAddressRegistry.ResolveKnownAddressFromId(pair.Key));
                     EditorGUILayout.LabelField($"{pair.Value.GetListenersCount()} listeners", GUILayout.Width(80));
                     var currentValue = pair.Value.value;
                     var newValue = EditorGUILayout.FloatField(currentValue, GUILayout.Width(50));

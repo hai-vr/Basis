@@ -29,9 +29,9 @@ namespace HVR.Vixxy
         private void Awake()
         {
             acquisitionService = AcquisitionService.SceneInstance;
-            _addressIdA = HVRAddress.AddressToId(addressA);
-            _addressIdB = HVRAddress.AddressToId(addressB);
-            _outputIddress = HVRAddress.AddressToId(outputAddress);
+            _addressIdA = HVRAddressRegistry.AddressToId(addressA);
+            _addressIdB = HVRAddressRegistry.AddressToId(addressB);
+            _outputIddress = HVRAddressRegistry.AddressToId(outputAddress);
 
             if (string.IsNullOrEmpty(addressA) || string.IsNullOrEmpty(addressB) || string.IsNullOrEmpty(outputAddress))
             {

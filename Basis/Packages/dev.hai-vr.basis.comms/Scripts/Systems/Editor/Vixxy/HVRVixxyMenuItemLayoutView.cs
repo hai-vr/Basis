@@ -47,7 +47,7 @@ namespace HVR.Vixxy.Editor
             if (my.titleSelection == HVRVixxyTitleSelection.UseObjectName)
             {
                 var currentName = my.gameObject.name;
-                var newName = EditorGUILayout.TextField(HVRVixenLocalizationPhrase.ObjectNameLabel, currentName);
+                var newName = EditorGUILayout.TextField(HVRVixxyLocalizationPhrase.ObjectNameLabel, currentName);
                 if (currentName != newName)
                 {
                     var go = new SerializedObject(my.gameObject);
@@ -83,19 +83,19 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.Slider(defaultValueSp, 0f, 1f);
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("", GUILayout.Width(50));
-                if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixenLocalizationPhrase.InactiveLabel)))
+                if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.InactiveLabel)))
                 {
                     defaultValueSp.floatValue = 0f;
                 }
-                if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixenLocalizationPhrase.ActiveLabel)))
+                if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.ActiveLabel)))
                 {
                     defaultValueSp.floatValue = 1f;
                 }
                 EditorGUILayout.EndHorizontal();
 
-                EditorGUILayout.LabelField(HVRVixenLocalizationPhrase.InactiveLabel, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.InactiveLabel, EditorStyles.boldLabel);
                 DisplayChoiceInBistableToggle(choicesSp.GetArrayElementAtIndex(0));
-                EditorGUILayout.LabelField(HVRVixenLocalizationPhrase.ActiveLabel, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ActiveLabel, EditorStyles.boldLabel);
                 DisplayChoiceInBistableToggle(choicesSp.GetArrayElementAtIndex(1));
             }
 

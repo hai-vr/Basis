@@ -174,9 +174,9 @@ namespace HVR.Vixxy
             _anythingNeedsUpdating = true;
             _actuatorsToUpdateThisTick.Add(actuator);
 
-            var address = HVRAddress.ResolveKnownAddressFromId(iddress);
+            var address = HVRAddressRegistry.ResolveKnownAddressFromId(iddress);
             AcquisitionService.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
-            acquisitionService.RegisterAddresses(new [] { HVRAddress.AddressToId(address) }, addressUpdatedFn);
+            acquisitionService.RegisterAddresses(new [] { HVRAddressRegistry.AddressToId(address) }, addressUpdatedFn);
 
             return new HVRActuatorRegistrationToken
             {
@@ -194,12 +194,12 @@ namespace HVR.Vixxy
             {
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
             }
-            acquisitionService.UnregisterAddresses(new []{ HVRAddress.AddressToId(actuatorRegistrationToken.registeredAddress) }, actuatorRegistrationToken.registeredCallback);
+            acquisitionService.UnregisterAddresses(new []{ HVRAddressRegistry.AddressToId(actuatorRegistrationToken.registeredAddress) }, actuatorRegistrationToken.registeredCallback);
         }
 
         public void RegisterAggregator(string address, IHVRVixxyAggregator actuator)
         {
-            RegisterAggregator(HVRAddress.AddressToId(address), actuator);
+            RegisterAggregator(HVRAddressRegistry.AddressToId(address), actuator);
         }
 
         public void RegisterAggregator(int iddress, IHVRVixxyAggregator actuator)
@@ -221,7 +221,7 @@ namespace HVR.Vixxy
 
         public void UnregisterAggregator(string address, IHVRVixxyAggregator aggregator)
         {
-            UnregisterAggregator(HVRAddress.AddressToId(address), aggregator);
+            UnregisterAggregator(HVRAddressRegistry.AddressToId(address), aggregator);
         }
 
         public void UnregisterAggregator(int iddress, IHVRVixxyAggregator aggregator)
