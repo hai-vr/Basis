@@ -208,11 +208,7 @@ namespace Basis.Scripts.Networking.Receivers
                 _idleResetDone = false;
             }
 
-            // Cap decodes per call to avoid one backlogged receiver dominating the
-            // worker thread's tail latency. Steady state is 0-1 frames per tick at
-            // 50Hz packets; cap of 3 still allows smoothing across a frame hitch.
-            int decodesThisCall = 0;
-            while (decodesThisCall < MaxDecodesPerCall)
+            while (true)
             {
                 // Backpressure: don't decode faster than the audio thread can drain.
                 // If we did, PushDecoded would silently drop the oldest frame (= click).
@@ -222,7 +218,6 @@ namespace Basis.Scripts.Networking.Receivers
                 if (!VoiceBuffer.TryConsumeEncoded(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
                     break;
 
-                decodesThisCall++;
                 if (isMissing)
                 {
                     _consecutiveMissing++;
@@ -285,8 +280,6 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
         }
-
-        private const int MaxDecodesPerCall = 3;
 
         // Set by DrainAndDecodeThreadSafe, read by ApplyAudioState on main thread.
         internal volatile bool _lastDrainDecoded;
