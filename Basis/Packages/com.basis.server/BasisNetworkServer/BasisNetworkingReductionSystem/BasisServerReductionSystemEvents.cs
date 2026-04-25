@@ -123,6 +123,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Avoids per-tick allocations in the deflate path. Sized by the flush logic.
         public byte[] BundleRawScratch;
         public byte[] BundleCompressedScratch;
+
+        // EMA of compressed/raw ratio observed for this receiver's bundles. Used by
+        // FlushPendingForReceiver to predict how many messages fit in one MTU-sized chunk
+        // so the first compress attempt usually succeeds with no retry. 0 = unseeded.
+        public float LastBundleRatio;
     }
 
     public partial class BasisServerReductionSystemEvents
@@ -697,11 +702,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         /// <summary>
         /// Flushes the per-receiver PendingSends buffer to the wire. When bundling is
-        /// enabled and the receiver has accumulated enough avatar messages to be worth
-        /// compressing, builds a single deflated bundle and emits it on
-        /// <see cref="BasisNetworkCommons.CompressedAvatarBundleChannel"/>; otherwise
-        /// (or when the compressed result would exceed peer MTU) replays each pending
-        /// entry as an individual unreliable send on its original quality channel.
+        /// enabled and the receiver has at least <see cref="AvatarBundleMinMessages"/>
+        /// messages queued, packs them greedily into one or more MTU-sized deflated
+        /// bundles on <see cref="BasisNetworkCommons.CompressedAvatarBundleChannel"/>.
+        /// Any tail too small to bundle (or pathological pairs that won't compress)
+        /// gets replayed as individual unreliable sends on the original quality channel.
         /// </summary>
         private static void FlushPendingForReceiver(PlayerState stateI, NetPeer peer, bool bundlingEnabled)
         {
@@ -709,27 +714,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (count <= 0) return;
             var pending = stateI.PendingSends;
 
+            int cursor = 0;
             if (bundlingEnabled && count >= AvatarBundleMinMessages)
             {
-                // Estimate raw bundle size to skip work for tiny bundles where the deflate
-                // header (5+ bytes) and bundle header (3 bytes) wouldn't pay back.
-                int rawTotal = 0;
-                for (int i = 0; i < count; i++)
-                {
-                    rawTotal += 3 + pending[i].Length; // [origChannel:1][len:2]
-                }
-
-                if (rawTotal >= AvatarBundleMinBytes && TryEmitCompressedBundle(stateI, peer, pending, count, rawTotal))
-                {
-                    stateI.PendingCount = 0;
-                    return;
-                }
+                cursor = EmitGreedyBundles(stateI, peer, pending, count);
             }
 
-            // Fallback: replay each pending message individually on its original channel.
-            // Equivalent to the pre-bundling behavior; LiteNetLib's merge buffer still
-            // packs multiple of these into single UDP datagrams up to MTU.
-            for (int i = 0; i < count; i++)
+            // Send anything not packed into a bundle (the tail < min, or all of pending
+            // when bundling is disabled / pathological no-fit). Equivalent to the
+            // pre-bundling path; LiteNetLib's merge buffer still packs these into UDP packets.
+            for (int i = cursor; i < count; i++)
             {
                 ref PendingAvatarSend p = ref pending[i];
                 if (p.Length <= p.IntervalOffset) continue;
@@ -740,24 +734,115 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
-        /// Builds the raw bundle [origChannel:1][len:2][bytes]* into a per-state scratch
-        /// buffer, deflates into a second scratch buffer, and emits one UDP datagram on
-        /// CompressedAvatarBundleChannel if the compressed payload + header fits the peer
-        /// MTU minus headroom. Returns false if compression doesn't shrink enough or the
-        /// result wouldn't fit, signaling the caller to fall back to per-message sends.
+        /// Greedily packs as many pending messages as fit into MTU-sized compressed
+        /// bundles, emitting each on <see cref="BasisNetworkCommons.CompressedAvatarBundleChannel"/>.
+        /// Uses a per-receiver EMA of the compressed/raw ratio so the first deflate
+        /// attempt usually succeeds; on overshoot we shrink using the actual observed
+        /// ratio and retry once. Returns the index of the first not-yet-emitted entry —
+        /// callers send the [cursor, count) tail uncompressed.
         /// </summary>
-        private static bool TryEmitCompressedBundle(PlayerState stateI, NetPeer peer, PendingAvatarSend[] pending, int count, int rawTotal)
+        private static int EmitGreedyBundles(PlayerState stateI, NetPeer peer, PendingAvatarSend[] pending, int count)
         {
-            // Build raw bundle into the per-state scratch (grown on demand).
-            byte[] raw = stateI.BundleRawScratch;
-            if (raw == null || raw.Length < rawTotal)
+            int budget = peer.Mtu - BundleMtuHeadroom - BundleHeaderSize;
+            if (budget <= 0) return 0;
+
+            // Initial ratio guess: deflate Fastest on bit-packed avatar data observed ~0.6.
+            // Stays in [0.05, 0.95] so prediction never picks zero or full-budget chunks.
+            float ratio = stateI.LastBundleRatio;
+            if (ratio < 0.05f || ratio > 0.95f) ratio = 0.6f;
+
+            int cursor = 0;
+            // AvatarBundleMinMessages gates *starting* to bundle (caller already checked it for
+            // the first chunk). Inside the loop, individual chunks are sized by what fits in MTU;
+            // a chunk of only 1-2 large messages is still worthwhile if rawLen ≥ AvatarBundleMinBytes
+            // so the deflate header pays back. The outer condition just keeps the receiver tail of
+            // < min uncompressed (since uncompressed sends merge fine for tiny remainders).
+            while (count - cursor >= AvatarBundleMinMessages)
             {
-                raw = new byte[Math.Max(rawTotal, 4096)];
+                // Predict raw chunk size that would compress to ~budget * 0.95 (small safety
+                // margin so we don't waste a retry on near-MTU overshoots). Then walk pending
+                // accumulating sizes until we hit that target or run out of messages.
+                int targetRaw = (int)((budget * 0.95f) / ratio);
+                int chunkEnd = PickChunkEnd(pending, cursor, count, targetRaw);
+                if (chunkEnd <= cursor) break;
+
+                int rawLen = BuildRawForRange(stateI, pending, cursor, chunkEnd);
+                if (rawLen < AvatarBundleMinBytes) break;
+
+                if (TryDeflateAndEmit(stateI, peer, cursor, chunkEnd, rawLen, budget, out int compressedLen))
+                {
+                    UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.3f);
+                    cursor = chunkEnd;
+                    ratio = stateI.LastBundleRatio;
+                    continue;
+                }
+
+                // Overshoot — recompute target using the actual ratio we just observed and
+                // retry with a smaller chunk. Heavier weight on the observed value: this
+                // receiver's payload likely just compresses worse than predicted.
+                UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.7f);
+                float observed = (float)compressedLen / rawLen;
+                if (observed < 0.05f) observed = 0.05f;
+                if (observed > 0.99f) observed = 0.99f;
+
+                int retryTargetRaw = (int)((budget * 0.92f) / observed);
+                int retryEnd = PickChunkEnd(pending, cursor, chunkEnd, retryTargetRaw);
+                if (retryEnd >= chunkEnd) retryEnd = cursor + Math.Max(1, (chunkEnd - cursor) * 3 / 4);
+                if (retryEnd <= cursor) break;
+
+                int retryRawLen = BuildRawForRange(stateI, pending, cursor, retryEnd);
+                if (retryRawLen < AvatarBundleMinBytes) break;
+
+                if (!TryDeflateAndEmit(stateI, peer, cursor, retryEnd, retryRawLen, budget, out int retryCompressed))
+                {
+                    // Two failures in a row — give up on bundling for this receiver this tick;
+                    // caller replays cursor..count uncompressed.
+                    break;
+                }
+
+                UpdateRatioEMA(ref stateI.LastBundleRatio, retryCompressed, retryRawLen, weightOnObserved: 0.5f);
+                cursor = retryEnd;
+                ratio = stateI.LastBundleRatio;
+            }
+            return cursor;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int PickChunkEnd(PendingAvatarSend[] pending, int cursor, int hardEnd, int targetRaw)
+        {
+            int chunkEnd = cursor;
+            int rawAccum = 0;
+            while (chunkEnd < hardEnd)
+            {
+                int entrySize = 3 + pending[chunkEnd].Length; // [chan:1][len:2][bytes]
+                // Always include at least one entry so the chunk grows; only break once
+                // adding the next would exceed the predicted budget.
+                if (chunkEnd > cursor && rawAccum + entrySize > targetRaw) break;
+                rawAccum += entrySize;
+                chunkEnd++;
+            }
+            return chunkEnd;
+        }
+
+        /// <summary>
+        /// Writes <c>[origChannel:1][len:2-LE][bytes (interval-patched)]</c> for each
+        /// pending entry in <c>[start, end)</c> into <c>stateI.BundleRawScratch</c>
+        /// (grown on demand) and returns the total bytes written.
+        /// </summary>
+        private static int BuildRawForRange(PlayerState stateI, PendingAvatarSend[] pending, int start, int end)
+        {
+            int upperBound = 0;
+            for (int i = start; i < end; i++) upperBound += 3 + pending[i].Length;
+
+            byte[] raw = stateI.BundleRawScratch;
+            if (raw == null || raw.Length < upperBound)
+            {
+                raw = new byte[Math.Max(upperBound, 4096)];
                 stateI.BundleRawScratch = raw;
             }
 
             int rawPos = 0;
-            for (int i = 0; i < count; i++)
+            for (int i = start; i < end; i++)
             {
                 ref PendingAvatarSend p = ref pending[i];
                 int len = p.Length;
@@ -771,38 +856,42 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 raw[rawPos + p.IntervalOffset] = p.Interval;
                 rawPos += len;
             }
-            if (rawPos == 0) return false;
+            return rawPos;
+        }
 
-            // Deflate into the per-state compressed scratch.
-            int budget = peer.Mtu - BundleMtuHeadroom - BundleHeaderSize;
-            if (budget <= 0) return false;
-
+        /// <summary>
+        /// Deflates <c>stateI.BundleRawScratch[0..rawLen]</c> into the payload region of
+        /// <c>stateI.BundleCompressedScratch</c> (after the reserved bundle-header prefix),
+        /// emits one UDP datagram on CompressedAvatarBundleChannel if it fits, and reports
+        /// the compressed payload length. On overshoot returns false (caller decides
+        /// whether to retry with a smaller chunk).
+        /// </summary>
+        private static bool TryDeflateAndEmit(PlayerState stateI, NetPeer peer, int chunkStart, int chunkEnd, int rawLen, int budget, out int compressedLen)
+        {
+            compressedLen = 0;
+            byte[] raw = stateI.BundleRawScratch;
             byte[] compressed = stateI.BundleCompressedScratch;
-            // Reserve BundleHeaderSize bytes at the start so the wire packet can be built
-            // in-place without a second buffer or shift. Deflate writes from offset 3.
-            int compCapacityNeeded = BundleHeaderSize + rawPos + 64;
+            int compCapacityNeeded = BundleHeaderSize + rawLen + 64;
             if (compressed == null || compressed.Length < compCapacityNeeded)
             {
                 compressed = new byte[Math.Max(compCapacityNeeded, 4096)];
                 stateI.BundleCompressedScratch = compressed;
             }
 
-            int compressedLen;
             try
             {
-                // Wrap a slice starting after the reserved header so deflate writes directly
-                // into the wire packet's payload region — no shift, no extra allocation.
                 using var ms = new MemoryStream(compressed, BundleHeaderSize, compressed.Length - BundleHeaderSize, writable: true);
                 using (var dstream = new DeflateStream(ms, CompressionLevel.Fastest, leaveOpen: true))
                 {
-                    dstream.Write(raw, 0, rawPos);
+                    dstream.Write(raw, 0, rawLen);
                 }
                 compressedLen = (int)ms.Position;
             }
             catch (NotSupportedException)
             {
-                // Fixed-buffer MemoryStream throws if deflate output would exceed capacity —
-                // means compression didn't shrink enough to fit. Caller falls back.
+                // Fixed-buffer MemoryStream is full. We can't observe a ratio in this case,
+                // so signal "too big" to the caller for retry/fallback handling.
+                compressedLen = budget + 1;
                 return false;
             }
 
@@ -811,14 +900,26 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return false;
             }
 
-            // Final wire packet: [count:1][rawLen:2-LE][compressed bytes...]
             int wireLen = BundleHeaderSize + compressedLen;
-            compressed[0] = (byte)Math.Min(count, 255);
-            BinaryPrimitives.WriteUInt16LittleEndian(compressed.AsSpan(1, 2), (ushort)Math.Min(rawPos, ushort.MaxValue));
+            int chunkCount = chunkEnd - chunkStart;
+            compressed[0] = (byte)Math.Min(chunkCount, 255);
+            BinaryPrimitives.WriteUInt16LittleEndian(compressed.AsSpan(1, 2), (ushort)Math.Min(rawLen, ushort.MaxValue));
 
             peer.SendUnreliableRawMerge(compressed, 0, wireLen, BasisNetworkCommons.CompressedAvatarBundleChannel);
             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.CompressedAvatarBundleChannel, wireLen);
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void UpdateRatioEMA(ref float ema, int compressed, int raw, float weightOnObserved)
+        {
+            if (raw <= 0) return;
+            float observed = (float)compressed / raw;
+            if (observed < 0.05f) observed = 0.05f;
+            if (observed > 0.99f) observed = 0.99f;
+            float prev = ema;
+            if (prev < 0.05f || prev > 0.95f) prev = observed; // unseeded → adopt
+            ema = prev * (1f - weightOnObserved) + observed * weightOnObserved;
         }
 
         /// <summary>

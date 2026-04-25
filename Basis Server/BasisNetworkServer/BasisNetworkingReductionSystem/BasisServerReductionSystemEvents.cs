@@ -752,6 +752,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (ratio < 0.05f || ratio > 0.95f) ratio = 0.6f;
 
             int cursor = 0;
+            // AvatarBundleMinMessages gates *starting* to bundle (caller already checked it for
+            // the first chunk). Inside the loop, individual chunks are sized by what fits in MTU;
+            // a chunk of only 1-2 large messages is still worthwhile if rawLen ≥ AvatarBundleMinBytes
+            // so the deflate header pays back. The outer condition just keeps the receiver tail of
+            // < min uncompressed (since uncompressed sends merge fine for tiny remainders).
             while (count - cursor >= AvatarBundleMinMessages)
             {
                 // Predict raw chunk size that would compress to ~budget * 0.95 (small safety
@@ -759,7 +764,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // accumulating sizes until we hit that target or run out of messages.
                 int targetRaw = (int)((budget * 0.95f) / ratio);
                 int chunkEnd = PickChunkEnd(pending, cursor, count, targetRaw);
-                if (chunkEnd - cursor < AvatarBundleMinMessages) break;
+                if (chunkEnd <= cursor) break;
 
                 int rawLen = BuildRawForRange(stateI, pending, cursor, chunkEnd);
                 if (rawLen < AvatarBundleMinBytes) break;
@@ -775,15 +780,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Overshoot — recompute target using the actual ratio we just observed and
                 // retry with a smaller chunk. Heavier weight on the observed value: this
                 // receiver's payload likely just compresses worse than predicted.
+                UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.7f);
                 float observed = (float)compressedLen / rawLen;
                 if (observed < 0.05f) observed = 0.05f;
                 if (observed > 0.99f) observed = 0.99f;
-                UpdateRatioEMA(ref stateI.LastBundleRatio, compressedLen, rawLen, weightOnObserved: 0.7f);
 
                 int retryTargetRaw = (int)((budget * 0.92f) / observed);
                 int retryEnd = PickChunkEnd(pending, cursor, chunkEnd, retryTargetRaw);
-                if (retryEnd <= cursor || retryEnd - cursor < AvatarBundleMinMessages) break;
-                if (retryEnd >= chunkEnd) retryEnd = cursor + Math.Max(AvatarBundleMinMessages, (chunkEnd - cursor) * 3 / 4);
+                if (retryEnd >= chunkEnd) retryEnd = cursor + Math.Max(1, (chunkEnd - cursor) * 3 / 4);
+                if (retryEnd <= cursor) break;
 
                 int retryRawLen = BuildRawForRange(stateI, pending, cursor, retryEnd);
                 if (retryRawLen < AvatarBundleMinBytes) break;
