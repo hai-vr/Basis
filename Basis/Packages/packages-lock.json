@@ -610,6 +610,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "org.basisvr.k4os.compression.lz4": {
+      "version": "file:org.basisvr.k4os.compression.lz4",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "org.basisvr.newtonsoft.json": {
       "version": "file:org.basisvr.newtonsoft.json",
       "depth": 0,

@@ -87,6 +87,7 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.AvatarBundleMinMessages = Configuration.AvatarBundleMinMessages;
         BasisServerReductionSystemEvents.AvatarBundleMinBytes = Configuration.AvatarBundleMinBytes;
         BSRProfiler.Enabled = Configuration.EnableBSRProfiling;
+        BNL.Log($"[BSR] AvatarBundleCompression={Configuration.EnableAvatarBundleCompression} (minMsgs={Configuration.AvatarBundleMinMessages}, minBytes={Configuration.AvatarBundleMinBytes})");
     }
 
     private static void InitializeAuth()

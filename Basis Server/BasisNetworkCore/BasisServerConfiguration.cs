@@ -54,7 +54,6 @@ public class Configuration
     public bool EnableConsole = true;
     public bool DisableWriteUnlessAdminPersistentFlag = true;
     public bool DisableReadUnlessAdminPersistentFlag = false;
-    public bool UseNetworkFinalCompression = false;
     /// <summary>
     /// When true, the avatar reduction system bundles per-receiver avatar messages
     /// and emits them deflated on CompressedAvatarBundleChannel. Falls back to
@@ -65,8 +64,8 @@ public class Configuration
     public bool EnableAvatarBundleCompression = false;
     /// <summary>Minimum queued avatar messages to a single receiver before a bundle is even attempted.</summary>
     public int AvatarBundleMinMessages = 4;
-    /// <summary>Minimum uncompressed bundle bytes before deflate is attempted (smaller bundles aren't worth the header overhead).</summary>
-    public int AvatarBundleMinBytes = 300;
+    /// <summary>Minimum uncompressed bundle bytes before LZ4 compression is attempted. With LZ4 having near-zero per-call setup, 128 just guards the very smallest cases where LZ4 can't find any redundancy.</summary>
+    public int AvatarBundleMinBytes = 128;
     public bool EnableBSRProfiling = false;
     public bool DisallowHeadless = false;
 

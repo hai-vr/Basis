@@ -164,11 +164,12 @@ namespace Basis.Network.Core
         // ── Compressed avatar bundle (server → client only) ──────────────────
         /// <summary>
         /// Server-only outbound channel carrying multiple avatar quality messages
-        /// to a single receiver, deflated into one UDP datagram that fits the peer MTU.
+        /// to a single receiver, LZ4-compressed into one UDP datagram that fits the peer MTU.
         /// Wire format:
-        ///   [count:1][rawLen:2-LE][deflate( [origChannel:1][msgLen:2-LE][bytes]* )]
+        ///   [count:1][rawLen:2-LE][LZ4 block( [origChannel:1][msgLen:2-LE][bytes]* )]
         /// Each inner [origChannel] is the byte-id or ushort-id avatar quality channel
         /// the message would have been sent on individually (channels 6-13 / 41-48).
+        /// Compression: LZ4Codec.Encode at LZ4Level.L00_FAST (K4os.Compression.LZ4 1.3.x).
         /// </summary>
         public const byte CompressedAvatarBundleChannel = 52;
 

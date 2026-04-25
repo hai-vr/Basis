@@ -1,14 +1,13 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using BasisNetworkServer.BasisNetworking;
+using K4os.Compression.LZ4;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -723,12 +722,24 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // Send anything not packed into a bundle (the tail < min, or all of pending
             // when bundling is disabled / pathological no-fit). Equivalent to the
             // pre-bundling path; LiteNetLib's merge buffer still packs these into UDP packets.
+            int tailSent = 0;
             for (int i = cursor; i < count; i++)
             {
                 ref PendingAvatarSend p = ref pending[i];
                 if (p.Length <= p.IntervalOffset) continue;
                 peer.SendUnreliableRawMerge(p.Source, 0, p.Length, p.Channel, p.IntervalOffset, p.Interval);
                 BasisNetworkStatistics.RecordOutbound(p.Channel, p.Length);
+                tailSent++;
+            }
+            // Profiler attribution: distinguish "tail of bundled receiver" (cursor > 0) from
+            // "fallback because bundling produced nothing" (cursor == 0 with bundling enabled).
+            if (BSRProfiler.Enabled && tailSent > 0)
+            {
+                Interlocked.Add(ref BSRProfiler.bundleTailUncompressed, tailSent);
+                if (bundlingEnabled && cursor == 0 && count >= AvatarBundleMinMessages)
+                {
+                    Interlocked.Increment(ref BSRProfiler.bundleFallbacks);
+                }
             }
             stateI.PendingCount = 0;
         }
@@ -793,6 +804,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 int retryRawLen = BuildRawForRange(stateI, pending, cursor, retryEnd);
                 if (retryRawLen < AvatarBundleMinBytes) break;
 
+                if (BSRProfiler.Enabled) Interlocked.Increment(ref BSRProfiler.bundleRetries);
                 if (!TryDeflateAndEmit(stateI, peer, cursor, retryEnd, retryRawLen, budget, out int retryCompressed))
                 {
                     // Two failures in a row — give up on bundling for this receiver this tick;
@@ -860,40 +872,39 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
-        /// Deflates <c>stateI.BundleRawScratch[0..rawLen]</c> into the payload region of
+        /// LZ4-compresses <c>stateI.BundleRawScratch[0..rawLen]</c> into the payload region of
         /// <c>stateI.BundleCompressedScratch</c> (after the reserved bundle-header prefix),
-        /// emits one UDP datagram on CompressedAvatarBundleChannel if it fits, and reports
-        /// the compressed payload length. On overshoot returns false (caller decides
-        /// whether to retry with a smaller chunk).
+        /// emits one UDP datagram on CompressedAvatarBundleChannel if it fits the peer-MTU
+        /// budget, and reports the compressed payload length. On overshoot returns false
+        /// (caller retries with a smaller chunk). LZ4Codec.Encode is a single static call
+        /// with no allocations and no per-call setup — at high call rates this is ~10× cheaper
+        /// than DeflateStream, which allocates an internal window + hashtable on every Write.
         /// </summary>
         private static bool TryDeflateAndEmit(PlayerState stateI, NetPeer peer, int chunkStart, int chunkEnd, int rawLen, int budget, out int compressedLen)
         {
             compressedLen = 0;
             byte[] raw = stateI.BundleRawScratch;
             byte[] compressed = stateI.BundleCompressedScratch;
-            int compCapacityNeeded = BundleHeaderSize + rawLen + 64;
+            // LZ4 worst case is rawLen + (rawLen / 255) + 16 (returned by MaximumOutputSize).
+            int compCapacityNeeded = BundleHeaderSize + LZ4Codec.MaximumOutputSize(rawLen);
             if (compressed == null || compressed.Length < compCapacityNeeded)
             {
                 compressed = new byte[Math.Max(compCapacityNeeded, 4096)];
                 stateI.BundleCompressedScratch = compressed;
             }
 
-            try
-            {
-                using var ms = new MemoryStream(compressed, BundleHeaderSize, compressed.Length - BundleHeaderSize, writable: true);
-                using (var dstream = new DeflateStream(ms, CompressionLevel.Fastest, leaveOpen: true))
-                {
-                    dstream.Write(raw, 0, rawLen);
-                }
-                compressedLen = (int)ms.Position;
-            }
-            catch (NotSupportedException)
-            {
-                // Fixed-buffer MemoryStream is full. We can't observe a ratio in this case,
-                // so signal "too big" to the caller for retry/fallback handling.
-                compressedLen = budget + 1;
-                return false;
-            }
+            bool profiling = BSRProfiler.Enabled;
+            long deflateStart = profiling ? Stopwatch.GetTimestamp() : 0;
+
+            // Encode directly into the wire packet's payload region. Returns -1 if the
+            // destination span isn't large enough — shouldn't happen given the sizing above,
+            // but if it does we treat it as an overshoot and let the caller retry smaller.
+            compressedLen = LZ4Codec.Encode(
+                raw.AsSpan(0, rawLen),
+                compressed.AsSpan(BundleHeaderSize, compressed.Length - BundleHeaderSize),
+                LZ4Level.L00_FAST);
+
+            if (profiling) Interlocked.Add(ref BSRProfiler.bundleDeflateTicks, Stopwatch.GetTimestamp() - deflateStart);
 
             if (compressedLen <= 0 || compressedLen > budget)
             {
@@ -907,6 +918,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             peer.SendUnreliableRawMerge(compressed, 0, wireLen, BasisNetworkCommons.CompressedAvatarBundleChannel);
             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.CompressedAvatarBundleChannel, wireLen);
+
+            if (profiling)
+            {
+                Interlocked.Increment(ref BSRProfiler.bundlesEmitted);
+                Interlocked.Add(ref BSRProfiler.bundleMessages, chunkCount);
+                Interlocked.Add(ref BSRProfiler.bundleRawBytes, rawLen);
+                Interlocked.Add(ref BSRProfiler.bundleCompressedBytes, compressedLen);
+            }
             return true;
         }
 
