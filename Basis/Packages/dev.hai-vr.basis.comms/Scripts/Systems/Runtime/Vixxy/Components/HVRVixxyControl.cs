@@ -119,8 +119,10 @@ namespace HVR.Vixxy
             IsInitialized = true;
             if (isActiveAndEnabled || AlsoExecutesWhenDisabled)
             {
+                AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(AddressId, defaultValue);
+
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
-                _value = _registeredActuator.initialValue;
+                _value = defaultValue;
                 BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_value}");
             }
         }

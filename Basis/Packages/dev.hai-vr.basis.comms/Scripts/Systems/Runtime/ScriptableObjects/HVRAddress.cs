@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
-    [CreateAssetMenu(fileName = "HVRAddress", menuName = "HVR.Basis/Comms")]
+    [CreateAssetMenu(menuName = "HVR.Basis/Comms", fileName = "HVRAddress")]
     public class HVRAddress : ScriptableObject
     {
         public string path;

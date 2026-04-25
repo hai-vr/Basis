@@ -1,5 +1,4 @@
-﻿using HVR.Basis.Comms.Editor;
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEngine;
 
 namespace HVR.Vixxy.Editor
@@ -71,43 +70,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.HelpBox("Cannot display choices because no control is assigned to this menu item.", MessageType.Error);
                 return;
             }
-
-            var hasMoreThanThreeChoices = hasControl && control.NumberOfChoices > 2;
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
-
-            if (hasControl)
-            {
-                var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyMenuItem.defaultValue));
-                if (hasMoreThanThreeChoices)
-                {
-                    var currentValue = (int)defaultValueSp.floatValue;
-                    var newValue = EditorGUILayout.IntSlider(new GUIContent(ObjectNames.NicifyVariableName(nameof(HVRVixxyMenuItem.defaultValue))), currentValue, (int)control.Min(), (int)control.Max());
-                    if (currentValue != newValue)
-                    {
-                        defaultValueSp.floatValue = newValue;
-                    }
-                }
-                else
-                {
-                    EditorGUILayout.Slider(defaultValueSp, control.Min(), control.Max());
-
-                    if (Mathf.Approximately(control.Min(), 0f) && Mathf.Approximately(control.Max(), 1f))
-                    {
-                        EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField("", GUILayout.Width(50));
-                        if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.InactiveLabel)))
-                        {
-                            defaultValueSp.floatValue = 0f;
-                        }
-                        if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.ActiveLabel)))
-                        {
-                            defaultValueSp.floatValue = 1f;
-                        }
-                        EditorGUILayout.EndHorizontal();
-                    }
-                }
-            }
-
             EditorGUILayout.Separator();
         }
     }

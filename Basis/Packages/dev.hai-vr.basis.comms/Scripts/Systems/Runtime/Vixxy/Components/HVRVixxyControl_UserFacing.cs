@@ -26,6 +26,7 @@ namespace HVR.Vixxy
             new() { title = "", icon = null, value = 0f },
             new() { title = "", icon = null, value = 1f }
         };
+        [SerializeField] public float defaultValue = 0f;
 
         [SerializeField] internal HVRVixxyActivation[] activations = Array.Empty<HVRVixxyActivation>();
         [SerializeField] internal HVRVixxySubject[] subjects = Array.Empty<HVRVixxySubject>();

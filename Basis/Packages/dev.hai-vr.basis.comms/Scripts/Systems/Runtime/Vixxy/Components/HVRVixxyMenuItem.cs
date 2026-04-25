@@ -11,8 +11,6 @@ namespace HVR.Vixxy
         [SerializeField] internal HVRVixxyTitleSelection titleSelection = HVRVixxyTitleSelection.UseObjectName;
         [SerializeField] internal HVRVixxyControlPresentation presentation;
 
-        [SerializeField] internal float defaultValue;
-
         [SerializeField] internal HVRVixxyControl control;
 
         // [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberAcrossAvatars;
@@ -46,8 +44,7 @@ namespace HVR.Vixxy
             control = TryResolveActualControl(out var actualControl) ? actualControl : null;
 
             // TODO: We would have to load the actual default value from memory somehow.
-            _value = defaultValue;
-            SubmitValue();
+            _value = control != null ? control.defaultValue : 0f;
             BasisDebug.Log($"Initialized {GetType().Name} with default value {_value}");
         }
 

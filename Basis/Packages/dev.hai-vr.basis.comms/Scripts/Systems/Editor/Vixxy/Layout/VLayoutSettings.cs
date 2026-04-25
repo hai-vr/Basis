@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using HVR.Basis.Comms.Editor;
+using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 
@@ -47,6 +48,7 @@ namespace HVR.Vixxy.Editor
 
             {
                 EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
+                LayoutDefaultValueSlider();
                 var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
 
                 EditorGUILayout.BeginHorizontal();
@@ -91,6 +93,31 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             return false;
+        }
+
+        private void LayoutDefaultValueSlider()
+        {
+            var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
+            EditorGUILayout.Slider(defaultValueSp, my.Min(), my.Max());
+            if (!my.HasThreeOrMoreChoices)
+            {
+                if (Mathf.Approximately(my.Min(), 0f) && Mathf.Approximately(my.Max(), 1f))
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField("", GUILayout.Width(50));
+                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.InactiveLabel)))
+                    {
+                        defaultValueSp.floatValue = 0f;
+                    }
+
+                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.ActiveLabel)))
+                    {
+                        defaultValueSp.floatValue = 1f;
+                    }
+
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
         }
     }
 }

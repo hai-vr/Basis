@@ -51,21 +51,10 @@ namespace HVR.Vixxy.Editor
                         EditorGUI.BeginDisabledGroup(true);
                         EditorGUILayout.TextField(nameof(HVRVixxyControl.Address), my.Address);
                         EditorGUI.EndDisabledGroup();
-                        if (my.HasMoreThanTwoChoices)
+                        var slider = EditorGUILayout.Slider(my._value, my.Min(), my.Max());
+                        if (!Mathf.Approximately(slider, my._value))
                         {
-                            var slider = EditorGUILayout.IntSlider((int)my._value, (int)my.Min(), (int)my.Max());
-                            if (!Mathf.Approximately(slider, my._value))
-                            {
-                                AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
-                            }
-                        }
-                        else
-                        {
-                            var slider = EditorGUILayout.Slider(my._value, (int)my.Min(), (int)my.Max());
-                            if (!Mathf.Approximately(slider, my._value))
-                            {
-                                AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
-                            }
+                            AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
                         }
                         EditorGUILayout.EndVertical();
                     });
