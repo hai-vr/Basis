@@ -134,6 +134,8 @@ namespace Basis.Network.Core
 
         long NetPeer.RemoteTimeDelta => peer.RemoteTimeDelta;
 
+        int NetPeer.Mtu => peer.Mtu;
+
         void NetPeer.Disconnect()
         {
             peer.Disconnect();

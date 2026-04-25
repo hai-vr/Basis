@@ -161,6 +161,17 @@ namespace Basis.Network.Core
         public const byte PlayerAvatarHighLargeChannel = 47;
         public const byte PlayerAvatarHighAdditionalLargeChannel = 48;
 
+        // ── Compressed avatar bundle (server → client only) ──────────────────
+        /// <summary>
+        /// Server-only outbound channel carrying multiple avatar quality messages
+        /// to a single receiver, deflated into one UDP datagram that fits the peer MTU.
+        /// Wire format:
+        ///   [count:1][rawLen:2-LE][deflate( [origChannel:1][msgLen:2-LE][bytes]* )]
+        /// Each inner [origChannel] is the byte-id or ushort-id avatar quality channel
+        /// the message would have been sent on individually (channels 6-13 / 41-48).
+        /// </summary>
+        public const byte CompressedAvatarBundleChannel = 52;
+
         /// <summary>
         /// Maps quality index (0‑3) + additional data presence → byte-ID channel.
         /// </summary>

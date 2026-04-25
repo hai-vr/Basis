@@ -27,7 +27,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public BasisVoiceBuffer VoiceBuffer = new BasisVoiceBuffer();
 
-        public float[] pcmBuffer = new float[RemoteOpusSettings.FrameSize];
+        public float[] pcmBuffer = new float[RemoteOpusSettings.MaxFrameSize];
         public int pcmLength;
         public byte lastReadIndex = 0;
         public Transform AudioSourceTransform;
@@ -115,7 +115,11 @@ namespace Basis.Scripts.Networking.Receivers
 #else
             if (HasAudioSource)
             {
-                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.FrameSize, false);
+                // Pass MaxFrameSize (the buffer's true capacity) as available space so a
+                // 40 ms packet still decodes during in-flight transitions where this
+                // receiver still thinks FrameSize == 960. Actual length comes back via
+                // the return value.
+                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.MaxFrameSize, false);
                 VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
             }
 #endif
@@ -385,7 +389,7 @@ namespace Basis.Scripts.Networking.Receivers
             return;
 #else
             outputSampleRate = AudioSettings.outputSampleRate;
-            silentData ??= new float[RemoteOpusSettings.FrameSize];
+            silentData ??= new float[RemoteOpusSettings.MaxFrameSize];
             BasisNetworkReceiver = networkedPlayer;
 
 #if UNITY_IOS && !UNITY_EDITOR

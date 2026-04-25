@@ -55,6 +55,18 @@ public class Configuration
     public bool DisableWriteUnlessAdminPersistentFlag = true;
     public bool DisableReadUnlessAdminPersistentFlag = false;
     public bool UseNetworkFinalCompression = false;
+    /// <summary>
+    /// When true, the avatar reduction system bundles per-receiver avatar messages
+    /// and emits them deflated on CompressedAvatarBundleChannel. Falls back to
+    /// per-message uncompressed sends when a receiver has too few queued messages
+    /// for compression to be worthwhile, or when the compressed result would
+    /// exceed peer MTU. Clients must implement the matching decoder.
+    /// </summary>
+    public bool EnableAvatarBundleCompression = false;
+    /// <summary>Minimum queued avatar messages to a single receiver before a bundle is even attempted.</summary>
+    public int AvatarBundleMinMessages = 4;
+    /// <summary>Minimum uncompressed bundle bytes before deflate is attempted (smaller bundles aren't worth the header overhead).</summary>
+    public int AvatarBundleMinBytes = 300;
     public bool EnableBSRProfiling = false;
     public bool DisallowHeadless = false;
 
