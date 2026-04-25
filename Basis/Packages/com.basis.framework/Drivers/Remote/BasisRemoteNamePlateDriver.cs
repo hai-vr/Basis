@@ -157,9 +157,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         private static void SetAllPlateVisibility()
         {
-            for (int i = 0; i < plates.Count; i++)
+            var arr = plates;
+            int n = count;
+            for (int i = 0; i < n; i++)
             {
-                var plate = plates[i];
+                var plate = arr[i];
                 if (plate != null)
                     plate.RefreshActiveState();
             }
@@ -186,9 +188,11 @@ namespace Basis.Scripts.UI.NamePlate
             UpdateCachedColors(newTransparency);
 
             Vector3 scale = new Vector3(0.02f, 0.02f, 0.02f) * newSize;
-            for (int i = 0; i < plates.Count; i++)
+            var arr = plates;
+            int n = count;
+            for (int i = 0; i < n; i++)
             {
-                var plate = plates[i];
+                var plate = arr[i];
                 if (plate == null) continue;
 
                 if (plate.Self != null)
@@ -363,7 +367,12 @@ namespace Basis.Scripts.UI.NamePlate
         // Optimized job system (double-buffered + safe structural changes)
         // =========================================================
 
-        private static readonly List<BasisRemoteNamePlate> plates = new(256);
+        // Manually-managed array (not List<T>) so the per-frame gather/apply loops
+        // index a plain T[] instead of going through List<T>.this[]'s bounds-check
+        // and indirection — that overhead showed up in the profiler.
+        // `count` (declared below) is the live element count, maintained eagerly
+        // by ApplyPendingStructuralChanges.
+        private static BasisRemoteNamePlate[] plates = new BasisRemoteNamePlate[256];
         private static readonly Dictionary<BasisRemoteNamePlate, int> indexOf = new(256);
 
         private static readonly List<BasisRemoteNamePlate> pendingAdd = new(64);
@@ -407,7 +416,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             DisposeArrays();
 
-            plates.Clear();
+            System.Array.Clear(plates, 0, count);
             indexOf.Clear();
             pendingAdd.Clear();
             pendingRemove.Clear();
@@ -461,7 +470,6 @@ namespace Basis.Scripts.UI.NamePlate
             if (pendingRemove.Count > 0 || pendingAdd.Count > 0)
                 ApplyPendingStructuralChanges();
 
-            count = plates.Count;
             if (count == 0)
                 return;
 
@@ -473,14 +481,16 @@ namespace Basis.Scripts.UI.NamePlate
             var inBuf = (writeBuffer == 0) ? inputA : inputB;
             var outBuf = (writeBuffer == 0) ? outputA : outputB;
 
-            // Gather inputs via unsafe pointers to bypass NativeArray safety checks
+            // Gather inputs via unsafe pointers to bypass NativeArray safety checks.
+            // `plates` is a plain T[] (not List<T>) so indexing skips the List indexer overhead.
+            var arr = plates;
             unsafe
             {
                 PlateInput* pIn = (PlateInput*)inBuf.GetUnsafePtr();
 
                 for (int i = 0; i < count; i++)
                 {
-                    var p = plates[i];
+                    var p = arr[i];
                     bool pulsing = p.GetIsPulsingForJob();
 
                     // Mid-pulse audibility recheck: if the player became inaudible
@@ -494,13 +504,14 @@ namespace Basis.Scripts.UI.NamePlate
                         pulsing = false;
                     }
 
-                    pIn[i] = new PlateInput
+                    var input = new PlateInput { isVisible = (ushort)p.IsVisibleRaw };
+                    if (pulsing)
                     {
-                        isVisible = (ushort)p.IsVisibleRaw,
-                        isPulsing = (ushort)(pulsing ? 1 : 0),
-                        startTime = pulsing ? p.GetTalkStartTimeForJob() : 0,
-                        talkColor = pulsing ? p.GetTalkColorFloat4ForJob() : default
-                    };
+                        input.isPulsing = 1;
+                        input.startTime = p.GetTalkStartTimeForJob();
+                        input.talkColor = p.GetTalkColorFloat4ForJob();
+                    }
+                    pIn[i] = input;
                 }
             }
 
@@ -551,6 +562,7 @@ namespace Basis.Scripts.UI.NamePlate
             jobScheduled = false;
 
             var outBuf = (writeBuffer == 0) ? outputA : outputB;
+            var arr = plates;
 
             unsafe
             {
@@ -558,7 +570,7 @@ namespace Basis.Scripts.UI.NamePlate
 
                 for (int i = 0; i < count; i++)
                 {
-                    var p = plates[i];
+                    var p = arr[i];
                     PlateOutput o = pOut[i];
 
                     if (o.stopPulsing != 0)
@@ -584,27 +596,42 @@ namespace Basis.Scripts.UI.NamePlate
                 if (p == null) continue;
                 if (!indexOf.TryGetValue(p, out int idx)) continue;
 
-                int last = plates.Count - 1;
+                int last = count - 1;
                 var lastPlate = plates[last];
 
                 plates[idx] = lastPlate;
-                plates.RemoveAt(last);
+                plates[last] = null; // null out the now-unused tail slot so we don't pin a ref
+                count = last;
 
-                indexOf[lastPlate] = idx;
+                if (!ReferenceEquals(lastPlate, p))
+                    indexOf[lastPlate] = idx;
                 indexOf.Remove(p);
             }
             pendingRemove.Clear();
 
-            // Add
-            for (int a = 0; a < pendingAdd.Count; a++)
+            // Add — grow backing array if needed
+            int adds = pendingAdd.Count;
+            if (adds > 0)
             {
-                var p = pendingAdd[a];
-                if (p == null) continue;
-                if (indexOf.ContainsKey(p)) continue;
+                int needed = count + adds;
+                if (needed > plates.Length)
+                {
+                    int newCap = math.max(plates.Length * 2, math.ceilpow2(needed));
+                    var grown = new BasisRemoteNamePlate[newCap];
+                    System.Array.Copy(plates, grown, count);
+                    plates = grown;
+                }
 
-                int idx = plates.Count;
-                plates.Add(p);
-                indexOf[p] = idx;
+                for (int a = 0; a < adds; a++)
+                {
+                    var p = pendingAdd[a];
+                    if (p == null) continue;
+                    if (indexOf.ContainsKey(p)) continue;
+
+                    plates[count] = p;
+                    indexOf[p] = count;
+                    count++;
+                }
             }
             pendingAdd.Clear();
         }

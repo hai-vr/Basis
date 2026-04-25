@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
+using System.Numerics;
 
 namespace OpenLipSync.Inference.Audio
 {
@@ -16,13 +16,20 @@ namespace OpenLipSync.Inference.Audio
         private readonly int _numPhases;
         private readonly float[] _coeffTable;
 
-        private readonly List<float> _buffer = new List<float>();
+        // Manually-managed delay-line. Replaces a List<float>: the convolution inner loop
+        // indexed List.this[] 48× per output sample, which Mono's JIT does not inline well.
+        // Layout: valid samples occupy _buf[_bufHead .. _bufHead + _bufCount - 1].
+        // Drop-front is O(1) (advance head); we compact when head wanders past mid-array.
+        private float[] _buf = new float[256];
+        private int _bufHead;
+        private int _bufCount;
+
         private double _time;
         private bool _primed;
         private bool _disposed;
 
-        // Cached output list and array to avoid per-call allocation.
-        private readonly List<float> _outputList = new List<float>();
+        // Output staging — grows as needed; trimmed to exact length only when the
+        // emitted-sample count changes (preserves the previous Length-equals-count contract).
         private float[] _outputArray = Array.Empty<float>();
 
         // ── Coefficient table cache ──
@@ -81,67 +88,135 @@ namespace OpenLipSync.Inference.Audio
         {
             if (_disposed) throw new ObjectDisposedException(nameof(AudioResampler));
 
+            int taps = _filterTaps;
+            int halfMinus1 = _halfTaps - 1;
+
             if (input.Length > 0)
             {
                 if (!_primed)
                 {
-                    for (int i = 0; i < _halfTaps; i++) _buffer.Add(0f);
-                    _time = _halfTaps - 1;
+                    EnsureBufCapacity(_halfTaps);
+                    Array.Clear(_buf, 0, _halfTaps);
+                    _bufHead = 0;
+                    _bufCount = _halfTaps;
+                    _time = halfMinus1;
                     _primed = true;
                 }
 
-                for (int i = 0; i < input.Length; i++)
-                {
-                    _buffer.Add(input[i]);
-                }
+                int writePos = _bufHead + _bufCount;
+                EnsureBufCapacity(writePos + input.Length);
+                input.CopyTo(_buf.AsSpan(writePos));
+                _bufCount += input.Length;
             }
 
-            if (_buffer.Count < _filterTaps) return Array.Empty<float>();
+            if (_bufCount < taps) return Array.Empty<float>();
 
-            _outputList.Clear();
+            float[] coeffs = _coeffTable;
+            float[] buf = _buf;
+            int bufHead = _bufHead;
+            int phases = _numPhases;
+            double inputPerOutput = _inputPerOutput;
+            int outCount = 0;
 
             while (true)
             {
                 int center = (int)Math.Floor(_time);
-                int leftIndex = center - (_halfTaps - 1);
+                int leftIndex = center - halfMinus1;
                 int rightIndex = center + _halfTaps;
 
-                if (leftIndex < 0 || rightIndex >= _buffer.Count)
+                if (leftIndex < 0 || rightIndex >= _bufCount)
                 {
                     break;
                 }
 
                 double frac = _time - center;
-                int phaseIndex = (int)Math.Round(frac * _numPhases);
-                if (phaseIndex == _numPhases) phaseIndex = 0;
-                int coeffBase = phaseIndex * _filterTaps;
+                int phaseIndex = (int)Math.Round(frac * phases);
+                if (phaseIndex == phases) phaseIndex = 0;
+                int coeffBase = phaseIndex * taps;
+                int bufBase = bufHead + leftIndex;
 
-                double sum = 0.0;
-                for (int t = 0; t < _filterTaps; t++)
+                float sum = ConvolveTaps(buf, bufBase, coeffs, coeffBase, taps);
+
+                if (outCount >= _outputArray.Length)
                 {
-                    sum += _buffer[leftIndex + t] * _coeffTable[coeffBase + t];
+                    int newCap = _outputArray.Length == 0 ? 64 : _outputArray.Length * 2;
+                    Array.Resize(ref _outputArray, newCap);
                 }
-                _outputList.Add((float)sum);
+                _outputArray[outCount++] = sum;
 
-                _time += _inputPerOutput;
+                _time += inputPerOutput;
             }
 
-            int safeToRemove = (int)Math.Floor(_time) - (_halfTaps - 1);
+            int safeToRemove = (int)Math.Floor(_time) - halfMinus1;
             if (safeToRemove > 0)
             {
-                _buffer.RemoveRange(0, Math.Min(safeToRemove, _buffer.Count));
+                if (safeToRemove >= _bufCount)
+                {
+                    _bufHead = 0;
+                    _bufCount = 0;
+                }
+                else
+                {
+                    _bufHead += safeToRemove;
+                    _bufCount -= safeToRemove;
+                }
                 _time -= safeToRemove;
                 if (_time < 0) _time = 0;
+
+                // Compact when the head has wandered past the midpoint, otherwise
+                // appends keep growing the backing array unboundedly.
+                if (_bufHead > (_buf.Length >> 1) && _bufCount > 0)
+                {
+                    Array.Copy(_buf, _bufHead, _buf, 0, _bufCount);
+                    _bufHead = 0;
+                }
             }
 
-            int count = _outputList.Count;
-            if (count == 0) return Array.Empty<float>();
+            if (outCount == 0) return Array.Empty<float>();
 
-            // Reuse the cached array if it's the right size, otherwise resize once.
-            if (_outputArray.Length != count)
-                _outputArray = new float[count];
-            _outputList.CopyTo(_outputArray);
+            // Trim to exact length only when the emitted count changed — preserves the
+            // old contract that returned-array Length == sample count.
+            if (_outputArray.Length != outCount)
+                Array.Resize(ref _outputArray, outCount);
             return _outputArray;
+        }
+
+        // SIMD dot-product over `taps` floats. Falls back to scalar if Vector<float>
+        // doesn't fit. Note: accumulates in float (the previous code accumulated in
+        // double). For 48-tap windowed-sinc audio this is well within precision.
+        private static float ConvolveTaps(float[] buf, int bufBase, float[] coeffs, int coeffBase, int taps)
+        {
+            int simd = Vector<float>.Count;
+            int t = 0;
+            float sum = 0f;
+
+            if (simd > 1 && taps >= simd)
+            {
+                Vector<float> vsum = Vector<float>.Zero;
+                int vEnd = taps - simd;
+                for (; t <= vEnd; t += simd)
+                {
+                    var vb = new Vector<float>(buf, bufBase + t);
+                    var vc = new Vector<float>(coeffs, coeffBase + t);
+                    vsum += vb * vc;
+                }
+                sum = Vector.Dot(vsum, Vector<float>.One);
+            }
+
+            for (; t < taps; t++)
+            {
+                sum += buf[bufBase + t] * coeffs[coeffBase + t];
+            }
+            return sum;
+        }
+
+        private void EnsureBufCapacity(int needed)
+        {
+            if (_buf.Length >= needed) return;
+
+            int newCap = _buf.Length;
+            while (newCap < needed) newCap <<= 1;
+            Array.Resize(ref _buf, newCap);
         }
 
         private void BuildCoefficientTable(double fc)

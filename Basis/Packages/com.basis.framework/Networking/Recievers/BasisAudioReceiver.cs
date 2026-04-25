@@ -208,7 +208,11 @@ namespace Basis.Scripts.Networking.Receivers
                 _idleResetDone = false;
             }
 
-            while (true)
+            // Cap decodes per call to avoid one backlogged receiver dominating the
+            // worker thread's tail latency. Steady state is 0-1 frames per tick at
+            // 50Hz packets; cap of 3 still allows smoothing across a frame hitch.
+            int decodesThisCall = 0;
+            while (decodesThisCall < MaxDecodesPerCall)
             {
                 // Backpressure: don't decode faster than the audio thread can drain.
                 // If we did, PushDecoded would silently drop the oldest frame (= click).
@@ -218,7 +222,7 @@ namespace Basis.Scripts.Networking.Receivers
                 if (!VoiceBuffer.TryConsumeEncoded(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
                     break;
 
-                _lastDrainDecoded = true;
+                decodesThisCall++;
                 if (isMissing)
                 {
                     _consecutiveMissing++;
@@ -238,9 +242,16 @@ namespace Basis.Scripts.Networking.Receivers
                             System.Threading.Interlocked.Increment(ref PlcCount);
                             OnDecodePLC();
                         }
+                        // FEC/PLC push audio into the decoded queue, so this counts
+                        // as a meaningful drain that downstream state (audio source
+                        // enable/play) may need to react to.
+                        _lastDrainDecoded = true;
                     }
                     else
                     {
+                        // Pure silence injection: we just bump a counter and don't
+                        // push anything to the decoded queue, so there's nothing
+                        // for ApplyAudioState to react to. Don't set the flag.
                         System.Threading.Interlocked.Increment(ref SilenceInjectedCount);
                     }
                 }
@@ -270,29 +281,33 @@ namespace Basis.Scripts.Networking.Receivers
                             System.Threading.Interlocked.Add(ref SilenceInjectedCount, missing);
                     }
                     OnDecode(data, length);
+                    _lastDrainDecoded = true;
                 }
             }
         }
 
+        private const int MaxDecodesPerCall = 3;
+
         // Set by DrainAndDecodeThreadSafe, read by ApplyAudioState on main thread.
         internal volatile bool _lastDrainDecoded;
+
+        // Cached AudioSource state. Unity's audioSource.enabled / isPlaying getters
+        // cross the managed/native boundary (and isPlaying queries the FMOD channel),
+        // so polling them every receiver every tick costs ~µs per receiver. We mirror
+        // the state here and only touch the Unity API on transitions.
+        private bool _audioEnabled;
+        private bool _audioPlaying;
 
         /// <summary>
         /// Main-thread only: updates AudioSource enabled/playing state after decode.
         /// </summary>
         public void ApplyAudioState()
         {
-            if (_lastDrainDecoded && HasAudioSource)
-            {
-                if (VoiceBuffer.HasRealAudio)
-                {
-                    EnableAndEnsurePlaying();
-                }
-                else if (audioSource.enabled)
-                {
-                    audioSource.enabled = false;
-                }
-            }
+            if (!_lastDrainDecoded || !HasAudioSource) return;
+            if (VoiceBuffer.HasRealAudio)
+                EnableAndEnsurePlaying();
+            else
+                DisableAudio();
         }
 
         public void DrainAndDecode()
@@ -309,22 +324,36 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 if (!HasAudioSource) return;
                 if (VoiceBuffer.HasRealAudio)
-                {
                     EnableAndEnsurePlaying();
-                }
-                else if (audioSource.enabled)
-                {
-                    audioSource.enabled = false;
-                }
+                else
+                    DisableAudio();
             });
         }
 
         private void EnableAndEnsurePlaying()
         {
-            if (!audioSource.enabled)
+            if (!_audioEnabled)
+            {
                 audioSource.enabled = true;
-            if (!audioSource.isPlaying)
+                _audioEnabled = true;
+            }
+            if (!_audioPlaying)
+            {
                 audioSource.Play();
+                _audioPlaying = true;
+            }
+        }
+
+        private void DisableAudio()
+        {
+            if (_audioEnabled)
+            {
+                audioSource.enabled = false;
+                _audioEnabled = false;
+                // Disabling stops audio processing; treat as not-playing so the next
+                // enable path calls Play() again.
+                _audioPlaying = false;
+            }
         }
 
         public void ApplyRangeData(float Distance)
@@ -346,6 +375,10 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource.Play();
                 audioSource.maxDistance = MaxDistance;
             }
+            // Seed the state cache to match what we just configured above. AudioSource
+            // is enabled by default on a newly attached component, and we just called Play().
+            _audioEnabled = true;
+            _audioPlaying = true;
             HasAudioSource = true;
             AvatarChanged(networkedPlayer, false);
 
@@ -368,6 +401,8 @@ namespace Basis.Scripts.Networking.Receivers
         public void UnloadAudioSource()
         {
             HasAudioSource = false;
+            _audioEnabled = false;
+            _audioPlaying = false;
             if (visemeDriver != null) visemeDriver.TrackedAudioSource = null;
             if (audioSource != null && audioSource.clip != null)
             {
