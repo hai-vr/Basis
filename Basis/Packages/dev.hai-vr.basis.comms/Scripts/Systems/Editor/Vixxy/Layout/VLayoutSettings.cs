@@ -66,7 +66,15 @@ namespace HVR.Vixxy.Editor
 
                     EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.title)), GUIContent.none);
                     EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
-                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value)), GUIContent.none, GUILayout.Width(50));
+                    var valueSp = choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value));
+                    EditorGUILayout.PropertyField(valueSp, GUIContent.none, GUILayout.Width(30));
+                    var choiceValue = valueSp.floatValue;
+                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(my.defaultValue, choiceValue), HVRVixxyControlEditor.FilledColor,
+                            () => GUILayout.Button(HVRVixxyLocalizationPhrase.DefaultLabel, GUILayout.Width(60))))
+                    {
+                        var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
+                        defaultValueSp.floatValue = choiceValue;
+                    }
 
                     EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
                     if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(20)))

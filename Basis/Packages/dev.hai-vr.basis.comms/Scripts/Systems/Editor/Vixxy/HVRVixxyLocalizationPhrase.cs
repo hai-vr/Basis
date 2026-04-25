@@ -47,5 +47,6 @@
         internal const string ToggleObjectsViewLabel = "Toggle Objects";
         internal const string TypeSelectionLabel = "Type...";
         internal const string UserViewLabel = "User View";
+        internal const string DefaultLabel = "Default";
     }
 }
