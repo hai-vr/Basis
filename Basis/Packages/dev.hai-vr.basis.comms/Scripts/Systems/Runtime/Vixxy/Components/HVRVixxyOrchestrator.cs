@@ -26,8 +26,8 @@ namespace HVR.Vixxy
         private readonly HashSet<IHVRVixxyActuator> _actuatorsToUpdateThisTick = new();
         private bool _anythingNeedsUpdating;
 
-        private readonly Dictionary<int, HashSet<IHVRVixxyAggregator>> _iddressToAggregators = new();
-        private readonly Dictionary<int, HashSet<IHVRVixxyActuator>> _iddressToActuators = new();
+        private readonly Dictionary<int, HashSet<IHVRVixxyAggregator>> _addressIdToAggregators = new();
+        private readonly Dictionary<int, HashSet<IHVRVixxyActuator>> _addressIdToActuators = new();
         private readonly Dictionary<GameObject, MaterialPropertyBlock> _objectToMaterialPropertyBlock = new();
         private readonly Dictionary<GameObject, Renderer> _objectToRenderer_mayContainNullObjects = new();
         private readonly HashSet<GameObject> _stagedBlocks = new(); // FIXME: We should really just be binding tuples into _objectToMaterialPropertyBlock
@@ -53,7 +53,7 @@ namespace HVR.Vixxy
             return context != null ? context : transform;
         }
 
-        public void PassAddressUpdated(int iddress)
+        public void PassAddressUpdated(int addressId)
         {
             // TODO: Store received addresses and value
 
@@ -62,8 +62,8 @@ namespace HVR.Vixxy
             // Might need to add a baking phase so that we don't do a string lookup every time
             // (consider switching to an int lookup).
 
-            var aggregators = AggregatorsOf(iddress);
-            var actuators = ActuatorsOf(iddress);
+            var aggregators = AggregatorsOf(addressId);
+            var actuators = ActuatorsOf(addressId);
 
             // In AcquisitionService, acquisition events are raised as soon as the data arrives.
             // We don't want to process that new data when it arrives, instead we want to process
@@ -78,19 +78,19 @@ namespace HVR.Vixxy
             _anythingNeedsUpdating = true;
         }
 
-        private IEnumerable<IHVRVixxyAggregator> AggregatorsOf(int iddress)
+        private IEnumerable<IHVRVixxyAggregator> AggregatorsOf(int addressId)
         {
-            if (_iddressToAggregators.TryGetValue(iddress, out var results)) return results;
+            if (_addressIdToAggregators.TryGetValue(addressId, out var results)) return results;
             return Enumerable.Empty<IHVRVixxyAggregator>();
         }
 
-        private IEnumerable<IHVRVixxyActuator> ActuatorsOf(int iddress)
+        private IEnumerable<IHVRVixxyActuator> ActuatorsOf(int addressId)
         {
-            if (_iddressToActuators.TryGetValue(iddress, out var results)) return results;
+            if (_addressIdToActuators.TryGetValue(addressId, out var results)) return results;
             return Enumerable.Empty<IHVRVixxyActuator>();
         }
 
-        public void ProvideValue(int iddress, float result)
+        public void ProvideValue(int addressId, float result)
         {
             // FIXME: This bleeds the value type to the orchestrator. It would be nice to avoid that.
         }
@@ -158,39 +158,39 @@ namespace HVR.Vixxy
             // }
         }
 
-        public HVRActuatorRegistrationToken RegisterActuator(int iddress, IHVRVixxyActuator actuator, ImplicitAddressUpdated implicitAddressUpdatedFn)
+        public HVRActuatorRegistrationToken RegisterActuator(int addressId, IHVRVixxyActuator actuator, ImplicitAddressUpdated implicitAddressUpdatedFn)
         {
-            if (_iddressToActuators.TryGetValue(iddress, out var existingActuators))
+            if (_addressIdToActuators.TryGetValue(addressId, out var existingActuators))
             {
                 existingActuators.Add(actuator);
             }
             else
             {
                 var newActuators = new HashSet<IHVRVixxyActuator> { actuator };
-                _iddressToActuators.Add(iddress, newActuators);
+                _addressIdToActuators.Add(addressId, newActuators);
             }
 
             // When an actuator is added, it is scheduled to be updated for initialization purposes.
             _anythingNeedsUpdating = true;
             _actuatorsToUpdateThisTick.Add(actuator);
 
-            var address = HVRAddressRegistry.ResolveKnownAddressFromId(iddress);
+            var address = HVRAddressRegistry.ResolveKnownAddressFromId(addressId);
             AcquisitionService.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
             acquisitionService.RegisterAddresses(new [] { HVRAddressRegistry.AddressToId(address) }, addressUpdatedFn);
 
             return new HVRActuatorRegistrationToken
             {
                 registeredAddress = address,
-                registeredIddress = iddress,
+                registeredAddressId = addressId,
                 registeredCallback = addressUpdatedFn,
                 registeredActuator = actuator,
-                initialValue = acquisitionService.GetValue(iddress)
+                initialValue = acquisitionService.GetValue(addressId)
             };
         }
 
         public void UnregisterActuator(HVRActuatorRegistrationToken actuatorRegistrationToken)
         {
-            if (_iddressToActuators.TryGetValue(actuatorRegistrationToken.registeredIddress, out var existingActuator))
+            if (_addressIdToActuators.TryGetValue(actuatorRegistrationToken.registeredAddressId, out var existingActuator))
             {
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
             }
@@ -202,16 +202,16 @@ namespace HVR.Vixxy
             RegisterAggregator(HVRAddressRegistry.AddressToId(address), actuator);
         }
 
-        public void RegisterAggregator(int iddress, IHVRVixxyAggregator actuator)
+        public void RegisterAggregator(int addressId, IHVRVixxyAggregator actuator)
         {
-            if (_iddressToAggregators.TryGetValue(iddress, out var existingAggregators))
+            if (_addressIdToAggregators.TryGetValue(addressId, out var existingAggregators))
             {
                 existingAggregators.Add(actuator);
             }
             else
             {
                 var newAggregators = new HashSet<IHVRVixxyAggregator> { actuator };
-                _iddressToAggregators.Add(iddress, newAggregators);
+                _addressIdToAggregators.Add(addressId, newAggregators);
             }
 
             // When an aggregator is added, it is scheduled to be updated for initialization purposes.
@@ -224,9 +224,9 @@ namespace HVR.Vixxy
             UnregisterAggregator(HVRAddressRegistry.AddressToId(address), aggregator);
         }
 
-        public void UnregisterAggregator(int iddress, IHVRVixxyAggregator aggregator)
+        public void UnregisterAggregator(int addressId, IHVRVixxyAggregator aggregator)
         {
-            if (_iddressToAggregators.TryGetValue(iddress, out var existingActuator)) existingActuator.Remove(aggregator);
+            if (_addressIdToAggregators.TryGetValue(addressId, out var existingActuator)) existingActuator.Remove(aggregator);
         }
 
         /// Inform the orchestrator that the object will need a material property block assigned to it.
@@ -284,7 +284,7 @@ namespace HVR.Vixxy
     public class HVRActuatorRegistrationToken
     {
         public string registeredAddress;
-        public int registeredIddress;
+        public int registeredAddressId;
         public AcquisitionService.AddressUpdated registeredCallback;
         public IHVRVixxyActuator registeredActuator;
 

@@ -18,7 +18,7 @@ namespace HVR.Vixxy
 
         private int _addressIdA;
         private int _addressIdB;
-        private int _outputIddress;
+        private int _outputAddressId;
         private float _activeResult = float.MinValue;
         private bool _hasNeverBeenAggregated = true;
 
@@ -31,7 +31,7 @@ namespace HVR.Vixxy
             acquisitionService = AcquisitionService.SceneInstance;
             _addressIdA = HVRAddressRegistry.AddressToId(addressA);
             _addressIdB = HVRAddressRegistry.AddressToId(addressB);
-            _outputIddress = HVRAddressRegistry.AddressToId(outputAddress);
+            _outputAddressId = HVRAddressRegistry.AddressToId(outputAddress);
 
             if (string.IsNullOrEmpty(addressA) || string.IsNullOrEmpty(addressB) || string.IsNullOrEmpty(outputAddress))
             {
@@ -56,19 +56,19 @@ namespace HVR.Vixxy
             acquisitionService.UnregisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
         }
 
-        private void OnAddressUpdated(int inputIddress, float value)
+        private void OnAddressUpdated(int inputAddressId, float value)
         {
-            if (inputIddress == _addressIdA)
+            if (inputAddressId == _addressIdA)
             {
                 a = value;
             }
-            else if (inputIddress == _addressIdB)
+            else if (inputAddressId == _addressIdB)
             {
                 b = value;
             }
             else return;
 
-            orchestrator.PassAddressUpdated(inputIddress);
+            orchestrator.PassAddressUpdated(inputAddressId);
         }
 
         public bool TryAggregate(out IEnumerable<IHVRVixxyAggregator> aggregators, out IEnumerable<IHVRVixxyActuator> actuators)
@@ -84,7 +84,7 @@ namespace HVR.Vixxy
                 _hasNeverBeenAggregated = false;
                 _activeResult = result;
 
-                orchestrator.ProvideValue(_outputIddress, result);
+                orchestrator.ProvideValue(_outputAddressId, result);
 
                 return true;
             }

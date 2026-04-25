@@ -35,9 +35,9 @@ namespace HVR.Basis.Comms
         }
 
         /// Returns the string address for an ID that was returned by any method of this class. Throws an exception if that ID was never seen.
-        public static string ResolveKnownAddressFromId(int knownIddress)
+        public static string ResolveKnownAddressFromId(int knownAddressId)
         {
-            if (IdToAddressDict.TryGetValue(knownIddress, out var id)) return id;
+            if (IdToAddressDict.TryGetValue(knownAddressId, out var id)) return id;
             throw new IndexOutOfRangeException();
         }
     }
