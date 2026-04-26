@@ -28,12 +28,10 @@ namespace OpenLipSync.Inference.Audio
         private bool _primed;
         private bool _disposed;
 
-        // Output buffer. Reallocated only when the emitted-sample count changes between
-        // calls — same allocation profile as the original List-based implementation.
-        // (An earlier rewrite grew this inside the convolution loop and trimmed it at the
-        // end, producing two Array.Resize allocations per call when the count fluctuated
-        // by even one sample. That GC pressure compounded over a session and caused
-        // viseme lag to grow until the pipeline could no longer keep up with real-time.)
+        // Output buffer. Grow-only: we expose results as a ReadOnlySpan with the
+        // exact emitted-sample count so the backing array can be larger than the
+        // span without copying or trimming. Result: zero allocations per call once
+        // the array reaches its steady-state size.
         private float[] _outputArray = Array.Empty<float>();
 
         // ── Coefficient table cache ──
@@ -88,7 +86,7 @@ namespace OpenLipSync.Inference.Audio
         public int OutputSampleRate => _outputSampleRate;
         public double ResampleRatio => _ratio;
 
-        public float[] Resample(ReadOnlySpan<float> input)
+        public ReadOnlySpan<float> Resample(ReadOnlySpan<float> input)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(AudioResampler));
 
@@ -113,7 +111,7 @@ namespace OpenLipSync.Inference.Audio
                 _bufCount += input.Length;
             }
 
-            if (_bufCount < taps) return Array.Empty<float>();
+            if (_bufCount < taps) return ReadOnlySpan<float>.Empty;
 
             // Pre-count outputs so we allocate _outputArray exactly once when its size
             // changes. The original loop produced N satisfying floor(_time + n·step) ≤ maxCenter,
@@ -130,9 +128,11 @@ namespace OpenLipSync.Inference.Audio
                 tEnd += inputPerOutput;
             }
 
-            if (outCount == 0) return Array.Empty<float>();
+            if (outCount == 0) return ReadOnlySpan<float>.Empty;
 
-            if (_outputArray.Length != outCount)
+            // Grow only — never shrink. The returned span carries the exact
+            // sample count, so the backing array is allowed to be larger.
+            if (_outputArray.Length < outCount)
                 _outputArray = new float[outCount];
 
             float[] coeffs = _coeffTable;
@@ -181,36 +181,22 @@ namespace OpenLipSync.Inference.Audio
                 }
             }
 
-            return _outputArray;
+            return new ReadOnlySpan<float>(_outputArray, 0, outCount);
         }
 
-        // SIMD dot-product over `taps` floats. Falls back to scalar if Vector<float>
-        // doesn't fit. Note: accumulates in float (the previous code accumulated in
-        // double). For 48-tap windowed-sinc audio this is well within precision.
+        // Scalar convolution with double accumulator. An earlier rewrite used
+        // System.Numerics.Vector<float> here; in IL2CPP the per-vector load
+        // overhead (`new Vector<float>(buf, offset)`) was high enough that the
+        // SIMD path measured 20ms/call vs ~1ms scalar in built players. The
+        // double accumulator matches the original implementation's precision.
         private static float ConvolveTaps(float[] buf, int bufBase, float[] coeffs, int coeffBase, int taps)
         {
-            int simd = Vector<float>.Count;
-            int t = 0;
-            float sum = 0f;
-
-            if (simd > 1 && taps >= simd)
-            {
-                Vector<float> vsum = Vector<float>.Zero;
-                int vEnd = taps - simd;
-                for (; t <= vEnd; t += simd)
-                {
-                    var vb = new Vector<float>(buf, bufBase + t);
-                    var vc = new Vector<float>(coeffs, coeffBase + t);
-                    vsum += vb * vc;
-                }
-                sum = Vector.Dot(vsum, Vector<float>.One);
-            }
-
-            for (; t < taps; t++)
+            double sum = 0.0;
+            for (int t = 0; t < taps; t++)
             {
                 sum += buf[bufBase + t] * coeffs[coeffBase + t];
             }
-            return sum;
+            return (float)sum;
         }
 
         private void EnsureBufCapacity(int needed)
