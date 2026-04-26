@@ -101,28 +101,31 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         private static void ClassifyAndAssignTrackersFromTPose()
         {
-            if (!TryGetHmdPose(out Vector3 hmdWorldPos, out Quaternion hmdWorldRot, out BasisInput hmdDevice))
+            if (!TryGetHmdPose(out Vector3 hmdUnscaledPos, out Quaternion hmdUnscaledRot, out BasisInput hmdDevice))
             {
                 BasisDebug.LogError("FBIK constellation calibration: HMD pose unavailable, no trackers assigned", BasisDebug.LogTag.Input);
                 return;
             }
 
-            // Use the calibrated player eye height as the height normalizer. Floor is then
-            // hmd.y - eyeHeight, which is invariant to playspace elevation and to where the
-            // player root sits (some setups place the root at hip height, not the floor).
+            // All positions in this classifier are read from UnscaledDeviceCoord (raw playspace,
+            // pre-scale). PlayerEyeHeight lives in the same frame, so HeightRatios reduce to
+            // tracker height above the playspace floor as a fraction of the player's eye height
+            // — independent of the avatar's DeviceScale. Reading transform.position here would
+            // mix world (post-scale) with PlayerEyeHeight (pre-scale) and cause Hips↔Chest to
+            // flip whenever the avatar isn't the same size as the player.
             float eyeHeight = Mathf.Max(BasisHeightDriver.PlayerEyeHeight, 0.5f);
-            float floorY = hmdWorldPos.y - eyeHeight;
+            float floorY = hmdUnscaledPos.y - eyeHeight;
 
             // Body forward = HMD facing projected onto the horizontal plane. In T-pose the
             // player should be looking straight ahead, so the projection is well defined.
-            Vector3 hmdFwdHoriz = hmdWorldRot * Vector3.forward;
+            Vector3 hmdFwdHoriz = hmdUnscaledRot * Vector3.forward;
             hmdFwdHoriz.y = 0f;
             if (hmdFwdHoriz.sqrMagnitude < 1e-4f) hmdFwdHoriz = BasisLocalPlayer.Instance.transform.forward;
             hmdFwdHoriz.Normalize();
 
             Quaternion bodyRot = Quaternion.LookRotation(hmdFwdHoriz, Vector3.up);
             Quaternion bodyRotInv = Quaternion.Inverse(bodyRot);
-            Vector3 bodyOrigin = new Vector3(hmdWorldPos.x, floorY, hmdWorldPos.z);
+            Vector3 bodyOrigin = new Vector3(hmdUnscaledPos.x, floorY, hmdUnscaledPos.z);
 
             List<TrackerSample> samples = CollectFreeFbTrackerSamples(bodyOrigin, bodyRotInv, eyeHeight, hmdDevice);
             if (samples.Count == 0) return;
@@ -179,7 +182,7 @@ namespace Basis.Scripts.Avatar
             }
         }
 
-        private static bool TryGetHmdPose(out Vector3 worldPos, out Quaternion worldRot, out BasisInput hmdDevice)
+        private static bool TryGetHmdPose(out Vector3 unscaledPos, out Quaternion unscaledRot, out BasisInput hmdDevice)
         {
             BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance.AllInputDevices;
             int count = devices.Count;
@@ -190,13 +193,14 @@ namespace Basis.Scripts.Avatar
                 if (!input.TryGetRole(out BasisBoneTrackedRole role)) continue;
                 if (role == BasisBoneTrackedRole.CenterEye || role == BasisBoneTrackedRole.Head)
                 {
-                    input.transform.GetPositionAndRotation(out worldPos, out worldRot);
+                    unscaledPos = input.UnscaledDeviceCoord.position;
+                    unscaledRot = input.UnscaledDeviceCoord.rotation;
                     hmdDevice = input;
                     return true;
                 }
             }
-            worldPos = Vector3.zero;
-            worldRot = Quaternion.identity;
+            unscaledPos = Vector3.zero;
+            unscaledRot = Quaternion.identity;
             hmdDevice = null;
             return false;
         }
@@ -234,7 +238,7 @@ namespace Basis.Scripts.Avatar
                 // prior FB role; this is defensive in case a tracker came online late.
                 input.UnAssignFullBodyTrackers();
 
-                Vector3 local = bodyRotInv * (input.transform.position - bodyOrigin);
+                Vector3 local = bodyRotInv * (input.UnscaledDeviceCoord.position - bodyOrigin);
                 samples.Add(new TrackerSample
                 {
                     Input = input,
