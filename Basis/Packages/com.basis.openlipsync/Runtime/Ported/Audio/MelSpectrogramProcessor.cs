@@ -15,16 +15,9 @@ namespace OpenLipSync.Inference.Audio
 
         private readonly float[] _window;
         private readonly float[] _fftBuffer;
-
-        // Sparse mel filter bank. Each mel is a triangular filter that touches only
-        // ~5–15 contiguous bins out of (nFft/2 + 1). The dense float[,] version paid
-        // for nMels × (nFft/2 + 1) multiplies per hop AND used the slow 2D-array
-        // indexer; this stores only the nonzero range per mel.
-        //   _melBinStart[m] = index of first nonzero bin
-        //   _melWeights[m]  = contiguous nonzero weights, _melWeights[m].Length bins
-        private readonly int[] _melBinStart;
-        private readonly float[][] _melWeights;
-
+        private readonly Complex[] _fftInput;
+        private readonly Complex[] _fftOutput;
+        private readonly float[,] _melFilterBank;
         private readonly float[] _powerSpectrum;
         private readonly float[] _melSpectrum;
         private readonly float[] _windowBuffer;
@@ -45,9 +38,11 @@ namespace OpenLipSync.Inference.Audio
 
             _window = CreateHannWindow(_windowLength);
             _fftBuffer = new float[_nFft];
+            _fftInput = new Complex[_nFft];
+            _fftOutput = new Complex[_nFft];
             _windowBuffer = new float[_windowLength];
             _previousSamples = new float[_windowLength - _hopLength];
-            (_melBinStart, _melWeights) = CreateSparseMelFilterBank();
+            _melFilterBank = CreateMelFilterBank();
             _powerSpectrum = new float[_nFft / 2 + 1];
             _melSpectrum = new float[_nMels];
             _fft = new FFTProcessor(_nFft);
@@ -68,28 +63,32 @@ namespace OpenLipSync.Inference.Audio
             hopSamples.CopyTo(_windowBuffer.AsSpan(_previousSamples.Length, _hopLength));
             _windowBuffer.AsSpan(_hopLength, _previousSamples.Length).CopyTo(_previousSamples.AsSpan());
 
-            ApplyWindow(_windowBuffer, _window, _windowLength);
+            for (int i = 0; i < _windowLength; i++)
+            {
+                _windowBuffer[i] *= _window[i];
+            }
 
             Array.Clear(_fftBuffer, 0, _fftBuffer.Length);
             _windowBuffer.AsSpan().CopyTo(_fftBuffer.AsSpan(0, _windowLength));
 
-            // Real-input FFT writes |X[k]|² directly: skips Complex packing on the way in
-            // and the per-bin sqrt-then-square on the way out, and runs an N/2 FFT internally.
-            _fft.ForwardPower(_fftBuffer, _powerSpectrum);
+            for (int i = 0; i < _nFft; i++)
+            {
+                _fftInput[i] = new Complex(_fftBuffer[i], 0);
+            }
 
-            // Sparse mel multiply — visit only the nonzero range per filter.
-            float[] power = _powerSpectrum;
-            int[] starts = _melBinStart;
-            float[][] weights = _melWeights;
+            _fft.Forward(_fftInput, _fftOutput);
+
+            for (int i = 0; i < _powerSpectrum.Length; i++)
+            {
+                _powerSpectrum[i] = (float)(_fftOutput[i].Magnitude * _fftOutput[i].Magnitude);
+            }
+
             for (int mel = 0; mel < _nMels; mel++)
             {
-                int start = starts[mel];
-                float[] w = weights[mel];
-                int len = w.Length;
                 float sum = 0f;
-                for (int i = 0; i < len; i++)
+                for (int bin = 0; bin < _powerSpectrum.Length; bin++)
                 {
-                    sum += power[start + i] * w[i];
+                    sum += _powerSpectrum[bin] * _melFilterBank[mel, bin];
                 }
                 _melSpectrum[mel] = sum;
             }
@@ -100,26 +99,6 @@ namespace OpenLipSync.Inference.Audio
             }
 
             return _melSpectrum;
-        }
-
-        private static void ApplyWindow(float[] buffer, float[] window, int length)
-        {
-            int simd = Vector<float>.Count;
-            int i = 0;
-            if (simd > 1 && length >= simd)
-            {
-                int vEnd = length - simd;
-                for (; i <= vEnd; i += simd)
-                {
-                    var vb = new Vector<float>(buffer, i);
-                    var vw = new Vector<float>(window, i);
-                    (vb * vw).CopyTo(buffer, i);
-                }
-            }
-            for (; i < length; i++)
-            {
-                buffer[i] *= window[i];
-            }
         }
 
         public bool CanProcessHop(AudioRingBuffer ringBuffer)
@@ -158,11 +137,9 @@ namespace OpenLipSync.Inference.Audio
             return window;
         }
 
-        private (int[] starts, float[][] weights) CreateSparseMelFilterBank()
+        private float[,] CreateMelFilterBank()
         {
-            int numBins = _nFft / 2 + 1;
-            var starts = new int[_nMels];
-            var weights = new float[_nMels][];
+            var filterBank = new float[_nMels, _nFft / 2 + 1];
 
             float melMin = HzToMel(_fMin);
             float melMax = HzToMel(_fMax);
@@ -173,10 +150,16 @@ namespace OpenLipSync.Inference.Audio
                 melPoints[i] = melMin + (melMax - melMin) * i / (_nMels + 1);
             }
 
-            var binPoints = new float[melPoints.Length];
-            for (int i = 0; i < binPoints.Length; i++)
+            var hzPoints = new float[melPoints.Length];
+            for (int i = 0; i < hzPoints.Length; i++)
             {
-                binPoints[i] = (_nFft + 1) * MelToHz(melPoints[i]) / _sampleRate;
+                hzPoints[i] = MelToHz(melPoints[i]);
+            }
+
+            var binPoints = new float[hzPoints.Length];
+            for (int i = 0; i < hzPoints.Length; i++)
+            {
+                binPoints[i] = (_nFft + 1) * hzPoints[i] / _sampleRate;
             }
 
             for (int mel = 0; mel < _nMels; mel++)
@@ -185,41 +168,24 @@ namespace OpenLipSync.Inference.Audio
                 float center = binPoints[mel + 1];
                 float right = binPoints[mel + 2];
 
-                // First nonzero bin: smallest int strictly greater than left and <= right.
-                // Match the original predicates: rising edge `bin >= left && bin <= center`,
-                // falling edge `bin > center && bin <= right`. So bin == left contributes 0
-                // (numerator is 0), but we keep it in the range for exact equivalence.
-                int binLo = (int)Math.Ceiling(left);
-                int binHi = (int)Math.Floor(right);
-
-                if (binLo < 0) binLo = 0;
-                if (binHi > numBins - 1) binHi = numBins - 1;
-
-                if (binHi < binLo)
+                for (int bin = 0; bin < _nFft / 2 + 1; bin++)
                 {
-                    starts[mel] = 0;
-                    weights[mel] = Array.Empty<float>();
-                    continue;
-                }
-
-                int len = binHi - binLo + 1;
-                var w = new float[len];
-                for (int k = 0; k < len; k++)
-                {
-                    int bin = binLo + k;
                     if (bin >= left && bin <= center)
-                        w[k] = (bin - left) / (center - left);
+                    {
+                        filterBank[mel, bin] = (bin - left) / (center - left);
+                    }
                     else if (bin > center && bin <= right)
-                        w[k] = (right - bin) / (right - center);
+                    {
+                        filterBank[mel, bin] = (right - bin) / (right - center);
+                    }
                     else
-                        w[k] = 0f;
+                    {
+                        filterBank[mel, bin] = 0f;
+                    }
                 }
-
-                starts[mel] = binLo;
-                weights[mel] = w;
             }
 
-            return (starts, weights);
+            return filterBank;
         }
 
         private static float HzToMel(float hz)
