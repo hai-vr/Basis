@@ -24,7 +24,6 @@ namespace HVR.Basis.Comms
 
         private bool _isWearer;
 
-        private readonly List<int> _addresses = new();
         internal readonly List<MutualizedInterpolationRange> _ranges = new();
         private readonly List<HVRNeedsInterpolationCallback> _needsInterpolation = new();
         private readonly List<HVRToSubmitLater> _toStoreLater = new();
@@ -112,7 +111,7 @@ namespace HVR.Basis.Comms
             };
             holder.SetActive(false);
             _streamedLateInit = holder.AddComponent<StreamedAvatarFeature>();
-            _streamedLateInit.valueArraySize = (byte)_addresses.Count; // TODO: Sanitize count to be within bounds
+            _streamedLateInit.valueArraySize = (byte)_ranges.Count; // TODO: Sanitize count to be within bounds
             _streamedLateInit.transmitter = carrier;
             _streamedLateInit.isWearer = isWearer;
             _streamedLateInit.localIdentifier = 0;
@@ -161,9 +160,10 @@ namespace HVR.Basis.Comms
             foreach (var inputRange in inputRanges)
             {
                 var address = inputRange.address;
-                if (!_addresses.Contains(address))
+                var mutualizedIndex = _ranges.FindIndex(range => range.address == address);
+                if (mutualizedIndex == -1)
                 {
-                    _addresses.Add(address);
+                    mutualizedIndex = _ranges.Count;
                     _ranges.Add(new MutualizedInterpolationRange
                     {
                         address = address,
@@ -172,7 +172,6 @@ namespace HVR.Basis.Comms
                     });
                 }
 
-                var mutualizedIndex = _addresses.IndexOf(address);
                 oursToMutualizedIndex.Add(mutualizedIndex);
 
                 var storedRange = _ranges[mutualizedIndex];
