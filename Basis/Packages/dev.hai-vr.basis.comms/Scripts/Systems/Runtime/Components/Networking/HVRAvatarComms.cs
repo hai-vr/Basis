@@ -166,24 +166,30 @@ namespace HVR.Basis.Comms
                     mutualizedIndex = _ranges.Count;
                     _ranges.Add(new MutualizedInterpolationRange
                     {
+                        isHighFrequency = true,
                         address = address,
                         lower = inputRange.lower,
                         upper = inputRange.upper,
                     });
                 }
+                else
+                {
+                    var storedRange = _ranges[mutualizedIndex];
+                    if (!storedRange.isHighFrequency)
+                    {
+                        storedRange.isHighFrequency = true;
+                    }
+                    if (inputRange.lower < storedRange.lower)
+                    {
+                        storedRange.lower = inputRange.lower;
+                    }
+                    if (inputRange.upper > storedRange.upper)
+                    {
+                        storedRange.upper = inputRange.upper;
+                    }
+                }
 
                 oursToMutualizedIndex.Add(mutualizedIndex);
-
-                var storedRange = _ranges[mutualizedIndex];
-                if (inputRange.lower < storedRange.lower)
-                {
-                    storedRange.lower = inputRange.lower;
-                }
-                if (inputRange.upper > storedRange.upper)
-                {
-                    storedRange.upper = inputRange.upper;
-                }
-                _ranges[mutualizedIndex] = storedRange;
             }
 
             _needsInterpolation.Add(new HVRNeedsInterpolationCallback
