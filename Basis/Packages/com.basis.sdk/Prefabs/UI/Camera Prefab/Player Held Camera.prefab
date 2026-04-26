@@ -10999,6 +10999,7 @@ GameObject:
   - component: {fileID: 8233105290812530403}
   - component: {fileID: 6265056561024954311}
   - component: {fileID: 6723639694777943521}
+  - component: {fileID: 888522258817766430}
   m_Layer: 8
   m_Name: Player Held Camera
   m_TagString: Untagged
@@ -11304,6 +11305,21 @@ MonoBehaviour:
   focusCursor: {fileID: 5031476817167857582}
   depthOfFieldToggle: {fileID: 3523609784769922076}
   maxRaycastDistance: 1000
+--- !u!114 &888522258817766430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9180963843103522591}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4c71224a0906ad4181ecaa7e38adda9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::BasisGazeTarget
+  Priority: 2
+  FocusPoint: {x: 0, y: 0, z: 0}
+  UseTransformPosition: 1
 --- !u!1 &9214270550539423555
 GameObject:
   m_ObjectHideFlags: 0
