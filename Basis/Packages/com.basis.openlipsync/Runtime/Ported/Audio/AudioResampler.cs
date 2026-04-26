@@ -28,8 +28,12 @@ namespace OpenLipSync.Inference.Audio
         private bool _primed;
         private bool _disposed;
 
-        // Output staging — grows as needed; trimmed to exact length only when the
-        // emitted-sample count changes (preserves the previous Length-equals-count contract).
+        // Output buffer. Reallocated only when the emitted-sample count changes between
+        // calls — same allocation profile as the original List-based implementation.
+        // (An earlier rewrite grew this inside the convolution loop and trimmed it at the
+        // end, producing two Array.Resize allocations per call when the count fluctuated
+        // by even one sample. That GC pressure compounded over a session and caused
+        // viseme lag to grow until the pipeline could no longer keep up with real-time.)
         private float[] _outputArray = Array.Empty<float>();
 
         // ── Coefficient table cache ──
@@ -111,23 +115,35 @@ namespace OpenLipSync.Inference.Audio
 
             if (_bufCount < taps) return Array.Empty<float>();
 
+            // Pre-count outputs so we allocate _outputArray exactly once when its size
+            // changes. The original loop produced N satisfying floor(_time + n·step) ≤ maxCenter,
+            // i.e. _time + n·step < maxCenter + 1. Walking the integer math here is O(N)
+            // and avoids a per-call doubling/trimming dance on _outputArray.
+            int maxCenter = _bufCount - _halfTaps - 1;
+            double inputPerOutput = _inputPerOutput;
+            double tEnd = _time;
+            int outCount = 0;
+            double maxBound = maxCenter + 1;
+            while (tEnd < maxBound)
+            {
+                outCount++;
+                tEnd += inputPerOutput;
+            }
+
+            if (outCount == 0) return Array.Empty<float>();
+
+            if (_outputArray.Length != outCount)
+                _outputArray = new float[outCount];
+
             float[] coeffs = _coeffTable;
             float[] buf = _buf;
             int bufHead = _bufHead;
             int phases = _numPhases;
-            double inputPerOutput = _inputPerOutput;
-            int outCount = 0;
 
-            while (true)
+            for (int o = 0; o < outCount; o++)
             {
                 int center = (int)Math.Floor(_time);
                 int leftIndex = center - halfMinus1;
-                int rightIndex = center + _halfTaps;
-
-                if (leftIndex < 0 || rightIndex >= _bufCount)
-                {
-                    break;
-                }
 
                 double frac = _time - center;
                 int phaseIndex = (int)Math.Round(frac * phases);
@@ -135,14 +151,7 @@ namespace OpenLipSync.Inference.Audio
                 int coeffBase = phaseIndex * taps;
                 int bufBase = bufHead + leftIndex;
 
-                float sum = ConvolveTaps(buf, bufBase, coeffs, coeffBase, taps);
-
-                if (outCount >= _outputArray.Length)
-                {
-                    int newCap = _outputArray.Length == 0 ? 64 : _outputArray.Length * 2;
-                    Array.Resize(ref _outputArray, newCap);
-                }
-                _outputArray[outCount++] = sum;
+                _outputArray[o] = ConvolveTaps(buf, bufBase, coeffs, coeffBase, taps);
 
                 _time += inputPerOutput;
             }
@@ -172,12 +181,6 @@ namespace OpenLipSync.Inference.Audio
                 }
             }
 
-            if (outCount == 0) return Array.Empty<float>();
-
-            // Trim to exact length only when the emitted count changed — preserves the
-            // old contract that returned-array Length == sample count.
-            if (_outputArray.Length != outCount)
-                Array.Resize(ref _outputArray, outCount);
             return _outputArray;
         }
 
