@@ -30,7 +30,16 @@ namespace HVR.Basis.Comms
 
     public class MutualizedInterpolationRange
     {
-        public int address;
+        public int addressId;
+        public float lower;
+        public float upper;
+    }
+
+    public class MutualizedInterpolationRangeStorage
+    {
+        public int index;
+        public bool isHighFrequency;
+        public int addressId;
         public float lower;
         public float upper;
 

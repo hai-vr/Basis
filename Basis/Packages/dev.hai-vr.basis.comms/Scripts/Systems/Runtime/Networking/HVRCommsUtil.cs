@@ -7,7 +7,7 @@ using Object = UnityEngine.Object;
 
 namespace HVR.Basis.Comms
 {
-    public class HVRCommsUtil
+    public static class HVRCommsUtil
     {
         public static T GetOrCreateSceneInstance<T>(ref T instance) where T : Component
         {
@@ -42,6 +42,18 @@ namespace HVR.Basis.Comms
             if (structuresNullable == null) return Array.Empty<T>();
 
             return structuresNullable;
+        }
+
+        public static (List<T> matches, List<T> rest) Partition<T>(this IEnumerable<T> source, Func<T, bool> predicate)
+        {
+            var matches = new List<T>();
+            var rest = new List<T>();
+            foreach (var item in source)
+            {
+                if (predicate(item)) matches.Add(item);
+                else rest.Add(item);
+            }
+            return (matches, rest);
         }
     }
 
@@ -118,7 +130,7 @@ namespace HVR.Basis.Comms
             {
                 new MutualizedInterpolationRange
                 {
-                    address = ActivityAddressId,
+                    addressId = ActivityAddressId,
                     lower = 0f,
                     upper = 1f,
                 }

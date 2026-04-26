@@ -78,7 +78,7 @@ namespace HVR.Vixxy
         public bool[] choices;
 
         [NonSerialized] internal bool IsApplicable;
-        [NonSerialized] internal HVRVixxyActivationBakeResult BakeResult;
+        [NonSerialized] internal HVRVixxyActivationBakeResult BakeResult = HVRVixxyActivationBakeResult.WasNotEvaluated;
     }
 
     [Serializable]
@@ -115,7 +115,7 @@ namespace HVR.Vixxy
         // Runtime only
         [NonSerialized] internal List<GameObject> BakedObjects;
         [NonSerialized] internal bool IsApplicable;
-        [NonSerialized] internal HVRVixxySubjectsBakeResult BakeResult;
+        [NonSerialized] internal HVRVixxySubjectsBakeResult BakeResult = HVRVixxySubjectsBakeResult.WasNotEvaluated;
     }
 
     [Serializable]
@@ -203,7 +203,7 @@ namespace HVR.Vixxy
 
         // Runtime only
         [NonSerialized] internal bool IsApplicable;
-        [NonSerialized] internal HVRVixxyPropertyBakeResult BakeResult;
+        [NonSerialized] internal HVRVixxyPropertyBakeResult BakeResult = HVRVixxyPropertyBakeResult.WasNotEvaluated;
         [NonSerialized] internal Type FoundType;
         [NonSerialized] internal List<Component> FoundComponents;
         [NonSerialized] internal HVRKindMarker KindMarker;

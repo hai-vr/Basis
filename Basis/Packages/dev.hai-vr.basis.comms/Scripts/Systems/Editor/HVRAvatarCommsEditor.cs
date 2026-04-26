@@ -1,3 +1,4 @@
+using System.Linq;
 using Basis.Scripts.BasisSdk;
 using UnityEditor;
 using UnityEngine;
@@ -18,15 +19,23 @@ namespace HVR.Basis.Comms.Editor
             {
                 if (my._streamedLateInit != null)
                 {
-                    EditorGUILayout.LabelField($"Mutualized / lower / upper / current ({my._ranges.Count} items)", EditorStyles.boldLabel);
-                    for (var index = 0; index < my._ranges.Count; index++)
+                    EditorGUILayout.LabelField($"Index / freq / lower / upper / current ({my._ranges.Count} items)", EditorStyles.boldLabel);
+                    var ranges = my._ranges;
+                    foreach (var range in ranges
+                                 // Push face tracking parameters at the bottom because we know most of them are going to be high frequency,
+                                 // so not that interesting to debug.
+                                 .OrderBy(range => HVRAddressRegistry.ResolveKnownAddressFromId(range.addressId).StartsWith("FT/"))
+                                 .ThenBy(range => range.isHighFrequency)
+                                 // We're not supposed to use ResolveKnownAddressFromId too often but this is a debug inspector so this is fine
+                                 .ThenBy(range => HVRAddressRegistry.ResolveKnownAddressFromId(range.addressId)))
                     {
-                        var range = my._ranges[index];
-                        var current = my._streamedLateInit.current[index];
+                        var rangeIndex = range.index;
+                        var current = my._streamedLateInit.current[rangeIndex];
 
-                        var address = HVRAddressRegistry.ResolveKnownAddressFromId(range.address);
+                        var address = HVRAddressRegistry.ResolveKnownAddressFromId(range.addressId);
                         EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.LabelField($"[#{index}]", GUILayout.Width(50));
+                        EditorGUILayout.LabelField($"#{rangeIndex}", GUILayout.Width(50));
+                        EditorGUILayout.LabelField(range.isHighFrequency ? "HF" : "", GUILayout.Width(20));
                         EditorGUILayout.TextArea(address);
                         EditorGUILayout.FloatField(range.lower, GUILayout.Width(50));
                         EditorGUILayout.FloatField(range.upper, GUILayout.Width(50));

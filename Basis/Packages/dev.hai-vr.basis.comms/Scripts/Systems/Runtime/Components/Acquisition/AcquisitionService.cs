@@ -10,6 +10,17 @@ namespace HVR.Basis.Comms
         public static AcquisitionService SceneInstance => HVRCommsUtil.GetOrCreateSceneInstance(ref _sceneInstance);
         private static AcquisitionService _sceneInstance;
 
+        internal readonly HVRDataProvider _dataProvider = new();
+
+        public void Submit(int address, float value) => _dataProvider.Submit(address, value);
+        public void SubmitOrDefineDefaultValue(int address, float value) => _dataProvider.SubmitOrDefineDefaultValue(address, value);
+        public void RegisterAddresses(int[] addressBase, HVRDataProvider.AddressUpdated onAddressUpdated) => _dataProvider.RegisterAddresses(addressBase, onAddressUpdated);
+        public void UnregisterAddresses(int[] addressBase, HVRDataProvider.AddressUpdated onAddressUpdated) => _dataProvider.UnregisterAddresses(addressBase, onAddressUpdated);
+        public float GetValue(int addressId) => _dataProvider.GetValue(addressId);
+    }
+
+    public class HVRDataProvider
+    {
         public delegate void AddressUpdated(int address, float value);
 
         internal readonly Dictionary<int, AcquisitionForAddress> _addressUpdated = new();
@@ -79,7 +90,7 @@ namespace HVR.Basis.Comms
 
     internal class AcquisitionForAddress
     {
-        internal event AcquisitionService.AddressUpdated OnAddressUpdated;
+        internal event HVRDataProvider.AddressUpdated OnAddressUpdated;
         internal float value;
 
         public void Invoke(int address, float value) => OnAddressUpdated?.Invoke(address, value);

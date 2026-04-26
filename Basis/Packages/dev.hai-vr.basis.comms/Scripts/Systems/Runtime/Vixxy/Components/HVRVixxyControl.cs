@@ -86,7 +86,7 @@ namespace HVR.Vixxy
             _avatarNullable = GetComponentInParent<BasisAvatar>(true);
 #endif
 
-            orchestrator = VixxySetup.EnsureInitialized(this);
+            orchestrator = VixxySetup.EnsureInitialized(this, isWearer);
             _context = orchestrator.Context();
 
             Address = CalculateAddress();

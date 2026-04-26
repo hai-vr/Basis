@@ -18,6 +18,7 @@ namespace HVR.Vixxy
 
         [SerializeField] public AcquisitionService acquisitionService;
         [SerializeField] public Transform context; // Can be null. If it is null, the orchestrator *is* the context.
+        [SerializeField] public bool isWearer;
 
         [SerializeField] public object networking;
 #if HVR_VIXXY_IS_IN_BASIS
@@ -177,18 +178,29 @@ namespace HVR.Vixxy
             _anythingNeedsUpdating = true;
             _actuatorsToUpdateThisTick.Add(actuator);
 
-            var address = HVRAddressRegistry.ResolveKnownAddressFromId(addressId);
-            AcquisitionService.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
-            acquisitionService.RegisterAddresses(new [] { HVRAddressRegistry.AddressToId(address) }, addressUpdatedFn);
-
-            return new HVRActuatorRegistrationToken
+            if (isWearer)
             {
-                registeredAddress = address,
-                registeredAddressId = addressId,
-                registeredCallback = addressUpdatedFn,
-                registeredActuator = actuator,
-                initialValue = acquisitionService.GetValue(addressId)
-            };
+                HVRDataProvider.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
+                acquisitionService.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
+
+                return new HVRActuatorRegistrationToken
+                {
+                    registeredAddressId = addressId,
+                    registeredCallback = addressUpdatedFn,
+                    registeredActuator = actuator,
+                    initialValue = acquisitionService.GetValue(addressId)
+                };
+            }
+            else
+            {
+                return new HVRActuatorRegistrationToken
+                {
+                    registeredAddressId = addressId,
+                    registeredCallback = null, // FIXME: ???
+                    registeredActuator = actuator,
+                    initialValue = acquisitionService.GetValue(addressId)
+                };
+            }
         }
 
         public void UnregisterActuator(HVRActuatorRegistrationToken actuatorRegistrationToken)
@@ -197,7 +209,11 @@ namespace HVR.Vixxy
             {
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
             }
-            acquisitionService.UnregisterAddresses(new []{ HVRAddressRegistry.AddressToId(actuatorRegistrationToken.registeredAddress) }, actuatorRegistrationToken.registeredCallback);
+
+            if (isWearer)
+            {
+                acquisitionService.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
+            }
         }
 
         public void RegisterAggregator(string address, IHVRVixxyAggregator actuator)
@@ -281,9 +297,8 @@ namespace HVR.Vixxy
 
     public class HVRActuatorRegistrationToken
     {
-        public string registeredAddress;
         public int registeredAddressId;
-        public AcquisitionService.AddressUpdated registeredCallback;
+        public HVRDataProvider.AddressUpdated registeredCallback;
         public IHVRVixxyActuator registeredActuator;
 
         public float initialValue;
