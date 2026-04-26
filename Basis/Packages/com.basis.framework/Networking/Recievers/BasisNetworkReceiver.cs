@@ -46,8 +46,11 @@ namespace Basis.Scripts.Networking.Receivers
 
         public bool hasEvents = false;
         /// <summary>
-        /// Scratch array for blendshape-driven eye/mouth values used by the face driver.
-        /// Not part of the bone rotation network stream — populated locally by BasisRemoteFaceManagement.
+        /// Eye/mouth values consumed by BasisRemoteFaceDriver to drive the eye bones.
+        /// Layout: [0]=vL, [1]=hL, [2]=vR, [3]=hR (signed [-1, 1]), [4][5]=mouth.
+        /// Eye bones are not part of the bone rotation network stream — these floats
+        /// are populated either by BasisRemoteFaceManagement (idle look-around) or by
+        /// EyeTrackingBoneActuation (when face tracking is active on the remote).
         /// </summary>
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 };
         public float3 ApplyingScale;

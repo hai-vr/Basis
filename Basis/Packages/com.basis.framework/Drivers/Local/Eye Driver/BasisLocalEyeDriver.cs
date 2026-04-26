@@ -432,7 +432,7 @@ public class BasisLocalEyeDriver
     /// Auto-detect the eye bone's local forward/up axes by comparing its transformed local axes
     /// to the head reference forward/up in world space.
     /// </summary>
-    private static BasisEyeCalibration CalibrateOneEye(Transform eye, Transform refHead)
+    internal static BasisEyeCalibration CalibrateOneEye(Transform eye, Transform refHead)
     {
 
         float3 headF = refHead.forward;

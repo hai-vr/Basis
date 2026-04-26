@@ -131,15 +131,23 @@ public static class BasisRemoteFaceManagement
                 BasisRemoteFaceDriver Face = remote.RemoteFaceDriver;
 
                 // Always write eye floats (cheap, keeps state consistent across range transitions)
+                float[] eyes = receiver.EyesAndMouth;
                 if (!Face.OverrideEye)
                 {
                     EyeOutput e = pEyeOut[Index];
 
-                    float[] eyes = receiver.EyesAndMouth;
                     eyes[0] = e.vL;
                     eyes[1] = e.hL;
                     eyes[2] = e.vR;
                     eyes[3] = e.hR;
+                }
+
+                // Apply the eye floats to the actual eye bones. Eye bones are excluded
+                // from the network bone sync (BasisBoneRotationCompression.SyncBoneCount = 51),
+                // so without this write remote eyes would be frozen at calibration pose.
+                if (Face.HasEyeBones)
+                {
+                    Face.ApplyEyeRotations(eyes[0], eyes[1], eyes[2], eyes[3]);
                 }
 
                 // Skip blink blendshape mesh writes when there is no mesh to write to
