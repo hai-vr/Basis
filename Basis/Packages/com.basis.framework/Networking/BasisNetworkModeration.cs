@@ -219,6 +219,14 @@ public static class BasisNetworkModeration
                 HandleGlobalOpusPacketLossState(reader);
                 break;
 
+            case AdminRequestMode.UserOpusBitrateOverride:
+                HandleUserOpusBitrateOverride(reader);
+                break;
+
+            case AdminRequestMode.GlobalGetOpusFrameDurationState:
+                HandleGlobalOpusFrameDurationState(reader);
+                break;
+
             default:
                 BasisDebug.LogError($"Unhandled admin command: {mode}", BasisDebug.LogTag.Networking);
                 break;
@@ -600,6 +608,70 @@ public static class BasisNetworkModeration
         SendAdminRequest(
             AdminRequestMode.SetGlobalOpusPacketLoss,
             w => w.Put((byte)percent));
+    }
+
+    /// <summary>
+    /// Local Opus bitrate (bps) currently overridden by the server for this client.
+    /// 0 means no override — the encoder uses <see cref="LocalOpusSettings.DefaultBitrate"/>.
+    /// </summary>
+    public static int LocalOpusBitrateOverride => LocalOpusSettings.BitrateOverride;
+
+    /// <summary>Fired when the server pushes a per-user bitrate override to this client.</summary>
+    public static event Action<int> OnLocalOpusBitrateOverrideChanged;
+
+    private static void HandleUserOpusBitrateOverride(NetDataReader reader)
+    {
+        int bps = reader.GetInt();
+        LocalOpusSettings.SetBitrateOverride(bps);
+        BasisDebug.Log(
+            bps > 0
+                ? $"Local Opus bitrate override updated → {bps} bps"
+                : "Local Opus bitrate override cleared (using default)",
+            BasisDebug.LogTag.Networking);
+        OnLocalOpusBitrateOverrideChanged?.Invoke(bps);
+    }
+
+    /// <summary>
+    /// Admin: Override (or clear) a single user's Opus encoder bitrate. Pass 0 to clear.
+    /// Targeted by netId (the runtime ushort player id).
+    /// </summary>
+    public static void SetUserOpusBitrate(ushort targetPlayerId, int bitrateBps)
+    {
+        if (bitrateBps < 0) bitrateBps = 0;
+        SendAdminRequest(
+            AdminRequestMode.SetUserOpusBitrate,
+            w => w.Put(targetPlayerId),
+            w => w.Put(bitrateBps));
+    }
+
+    /// <summary>Last Opus frame duration (ms) received from the server. 20 or 40.</summary>
+    public static int GlobalOpusFrameDurationMs { get; private set; } = 20;
+
+    /// <summary>Fired when the server-pushed Opus frame duration changes.</summary>
+    public static event Action<int> OnGlobalOpusFrameDurationChanged;
+
+    private static void HandleGlobalOpusFrameDurationState(NetDataReader reader)
+    {
+        int ms = reader.GetByte();
+        GlobalOpusFrameDurationMs = ms;
+        SharedOpusSettings.SetDesiredDurationInSeconds(ms / 1000f);
+        BasisDebug.Log($"Global Opus frame duration updated → {ms} ms", BasisDebug.LogTag.Networking);
+        OnGlobalOpusFrameDurationChanged?.Invoke(ms);
+    }
+
+    /// <summary>
+    /// Admin: Set the global Opus frame duration in milliseconds. Only 20 and 40 are accepted.
+    /// </summary>
+    public static void SetGlobalOpusFrameDuration(int ms)
+    {
+        if (ms != 20 && ms != 40)
+        {
+            BasisDebug.LogError($"SetGlobalOpusFrameDuration rejects {ms} — only 20 or 40 ms are supported.");
+            return;
+        }
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalOpusFrameDuration,
+            w => w.Put((byte)ms));
     }
 
     #endregion

@@ -192,11 +192,14 @@ namespace Basis.Scripts.Networking.Receivers
         public void ComputeData(double unscaledDeltaTime)
         {
             // Audio decode is thread-safe (per-receiver decoder/buffers, no Unity API).
+            UnityEngine.Profiling.Profiler.BeginSample("ComputeData.AudioDecode");
             AudioReceiverModule?.DrainAndDecodeThreadSafe();
+            UnityEngine.Profiling.Profiler.EndSample();
 
             if (!hasRequiredData) return;
 
             // 1) Pull network packets, drop stale, sort by sequence, then stage
+            UnityEngine.Profiling.Profiler.BeginSample("ComputeData.PacketDrain");
             if (System.Threading.Interlocked.Exchange(ref _pendingCount, 0) > 0)
             {
                 _pendingSort.Clear();
@@ -249,7 +252,10 @@ namespace Basis.Scripts.Networking.Receivers
                 }
                 StagedCount = _stagedRing.Count;
             }
+            UnityEngine.Profiling.Profiler.EndSample();
+
             // 2) Ensure we have a valid interpolation window (Current -> Next)
+            UnityEngine.Profiling.Profiler.BeginSample("ComputeData.BufferWindow");
             if (!HasCurrentBuffer)
             {
                 TrySeedFirstFromStaging();
@@ -263,6 +269,7 @@ namespace Basis.Scripts.Networking.Receivers
             HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
             if (!HasBufferHolds)
             {
+                UnityEngine.Profiling.Profiler.EndSample();
                 return;
             }
 
@@ -279,8 +286,10 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
             StagedCount = _stagedRing.Count;
+            UnityEngine.Profiling.Profiler.EndSample();
 
             // 3) Advance time and slide the interpolation window forward as needed.
+            UnityEngine.Profiling.Profiler.BeginSample("ComputeData.FrameInputs");
             if (HasBufferHolds)
             {
                 double windowDuration = Next.ServerTimeSeconds - Current.ServerTimeSeconds;
@@ -351,6 +360,7 @@ namespace Basis.Scripts.Networking.Receivers
                     SentLatest = false;
                 }
             }
+            UnityEngine.Profiling.Profiler.EndSample();
         }
 
         /// <summary>

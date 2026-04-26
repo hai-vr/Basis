@@ -138,7 +138,7 @@ public class BasisVoiceBuffer
         _decodedLengths = new int[MaxDecodedFrames];
         _decodedIsReal = new bool[MaxDecodedFrames];
         for (int i = 0; i < MaxDecodedFrames; i++)
-            _decoded[i] = new float[RemoteOpusSettings.FrameSize];
+            _decoded[i] = new float[RemoteOpusSettings.MaxFrameSize];
     }
 
     // ==================== Encoded packet API ====================

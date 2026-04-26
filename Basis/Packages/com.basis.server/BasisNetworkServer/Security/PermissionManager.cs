@@ -59,6 +59,7 @@ namespace BasisPermissions
         public const string ModerationShout = "basis.moderation.shout";
         public const string ModerationGlobalLock = "basis.moderation.globallock";
         public const string ModerationHeadlessAudio = "basis.moderation.headlessaudio";
+        public const string ModerationOpusBitrate = "basis.moderation.opusbitrate";
 
         public const string PermissionsView = "basis.permissions.view";
         public const string PermissionsEdit = "basis.permissions.edit";
@@ -771,6 +772,7 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.ModerationShout);
                     adm.Nodes.Add(PermNodes.ModerationGlobalLock);
                     adm.Nodes.Add(PermNodes.ModerationHeadlessAudio);
+                    adm.Nodes.Add(PermNodes.ModerationOpusBitrate);
                     adm.Nodes.Add(PermNodes.PermissionsView);
 
                     adm.Nodes.Add(PermNodes.ResourceLockBypassAvatar);

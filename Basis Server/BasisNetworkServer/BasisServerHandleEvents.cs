@@ -78,6 +78,7 @@ namespace BasisServerHandle
             BasisNetworkPIPCamera.RemovePlayer(id);
             BasisNetworkContentShare.RemovePlayerSpheres(id);
             BasisNetworkPreloadResourceManagement.RemovePeer(id);
+            BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.ClearForPeer(id);
 
             return NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }
@@ -337,6 +338,8 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisHeadlessAudioStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisHeadlessConnectionPolicyManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisOpusPacketLossStateManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisOpusFrameDurationStateManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.SendStateToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else
