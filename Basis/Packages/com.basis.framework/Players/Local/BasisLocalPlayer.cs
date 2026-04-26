@@ -509,16 +509,12 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // Flatten head forward onto the XZ plane to get yaw-only orientation
             Vector3 flatFwd = Vector3.ProjectOnPlane(headRotWS * Vector3.forward, Vector3.up);
-            if (flatFwd.sqrMagnitude < 1e-6f) flatFwd = Vector3.forward; // fallback
+            if (flatFwd.sqrMagnitude < 1e-6f)
+            {
+                flatFwd = Vector3.forward; // fallback
+            }
             Quaternion desiredRotWS = Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
-
-            // Full T-pose local offset from hips/root to head (already scaled)
-            Vector3 headTposeLocal = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position;
-
-            // Place avatar so that (hips + desiredRot * headTposeLocal) == headPosWS
-            Vector3 avatarWorldPos = headPosWS - (desiredRotWS * headTposeLocal);
-
-            AvatarTransform.SetPositionAndRotation(avatarWorldPos, desiredRotWS);
+            AvatarTransform.SetPositionAndRotation(headPosWS, desiredRotWS);
         }
         public void Immobilize(bool immobilize)
         {
