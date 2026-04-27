@@ -193,6 +193,10 @@ namespace Basis.Scripts.Avatar
                 if (!input.TryGetRole(out BasisBoneTrackedRole role)) continue;
                 if (role == BasisBoneTrackedRole.CenterEye || role == BasisBoneTrackedRole.Head)
                 {
+                    // UnscaledDeviceCoord only refreshes when LateDoPollData runs. If FullBodyCalibration
+                    // is invoked outside the normal frame loop (UI button during Update, etc.) the cached
+                    // value can be stale or zero — force a fresh poll before reading.
+                    input.LatePollData();
                     unscaledPos = input.UnscaledDeviceCoord.position;
                     unscaledRot = input.UnscaledDeviceCoord.rotation;
                     hmdDevice = input;
@@ -238,6 +242,10 @@ namespace Basis.Scripts.Avatar
                 // prior FB role; this is defensive in case a tracker came online late.
                 input.UnAssignFullBodyTrackers();
 
+                // Force a fresh poll so UnscaledDeviceCoord reflects the current device pose. A stale
+                // (zero) read here would classify the tracker at HeightRatio ≈ 0 and pin it to a foot
+                // role, dragging the avatar into the floor.
+                input.LatePollData();
                 Vector3 local = bodyRotInv * (input.UnscaledDeviceCoord.position - bodyOrigin);
                 samples.Add(new TrackerSample
                 {
