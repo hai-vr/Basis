@@ -743,6 +743,14 @@
     { "key": "menu.individualPlayer.perfFilter.bypassedDescription", "value": "Bypassed for this player — performance limits ignored until you toggle off or reconnect." },
     { "key": "menu.individualPlayer.perfFilter.blockedPrefix", "value": "Avatar blocked: " },
     { "key": "menu.individualPlayer.perfFilter.trimmedPrefix", "value": "Trimmed by performance filter: " },
-    { "key": "menu.individualPlayer.perfFilter.bypassToggle", "value": "Bypass Limits For This Player" }
+    { "key": "menu.individualPlayer.perfFilter.bypassToggle", "value": "Bypass Limits For This Player" },
+
+    { "key": "settings.perf.contentTags.title", "value": "Content Tags" },
+    { "key": "settings.perf.contentTags.description", "value": "Block avatars, scenes, or props whose creator-declared tags match any of the categories below. Honor system — only tags creators chose to add are matched." },
+    { "key": "settings.perf.contentTags.blockFormat", "value": "Block '{0}'" },
+    { "key": "settings.perf.contentTags.custom.title", "value": "Custom Blocked Tags" },
+    { "key": "settings.perf.contentTags.custom.description", "value": "Block your own tag strings. Type a tag and press Enter or Add to start blocking it. Toggle a custom tag off to remove it." },
+    { "key": "settings.perf.contentTags.custom.addLabel", "value": "Tag" },
+    { "key": "settings.perf.contentTags.custom.addButton", "value": "Add" }
   ]
 }

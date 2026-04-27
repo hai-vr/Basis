@@ -7,22 +7,9 @@ using UnityEngine.UIElements;
 
 public static class BasisSDKCommonInspector
 {
-    // Curated content-safety presets. Creators can also type their own. Order is the
-    // display order in the inspector — adult/explicit categories first so they are
-    // hard to overlook, then accessibility warnings.
-    public static readonly string[] ContentTagPresets =
-    {
-        "18+",
-        "Sexual Content",
-        "Nudity",
-        "Horror",
-        "Gore",
-        "Violence",
-        "Drugs",
-        "Seizure Warning",
-        "Loud Audio",
-        "Flashing Lights",
-    };
+    // Source of truth for preset labels lives in BasisContentTagPresets so the client
+    // filter UI surfaces the same options creators see in this inspector.
+    private static string[] ContentTagPresets => BasisContentTagPresets.All;
 
     public static void CreateContentTagsFoldout(VisualElement parent, BasisContentBase content)
     {

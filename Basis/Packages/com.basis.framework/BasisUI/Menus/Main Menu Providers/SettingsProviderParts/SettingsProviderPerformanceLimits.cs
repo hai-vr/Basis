@@ -231,6 +231,12 @@ public static class SettingsProviderPerformanceLimits
             BasisSettingsDefaults.UsePerfLimitAnimators,
             BasisSettingsDefaults.MaxPerfAnimators,
             1, 32, true);
+
+        // ---------------- Content Tags ----------------
+        // Sits at the bottom of the same tab so users see content-safety filters
+        // alongside perf filters — same mental model ("block this avatar before it
+        // loads"), different criteria (creator-declared category vs. measured cost).
+        SettingsProviderContentTags.BuildContentTagsContent(container);
     }
 
     /// <summary>

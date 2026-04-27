@@ -61,7 +61,7 @@ namespace Basis.Scripts.UI.NamePlate
         private Vector3[] workNormals;
         private Vector2[] workUVs;
 
-        private static bool _cjkFallbackEnsured;
+        private static bool _unicodeFallbacksEnsured;
 
         public void Awake()
         {
@@ -80,19 +80,23 @@ namespace Basis.Scripts.UI.NamePlate
 
             UpdateCachedColors(NamePlateTransparency);
             PrecomputeCornerData();
-            EnsureCJKFallbackOnNameplateFont();
+            EnsureUnicodeFallbacksOnNameplateFont();
         }
 
         /// <summary>
-        /// Adds an OS-dynamic CJK-capable font (Yu Gothic UI / Hiragino / Noto) to the
-        /// nameplate font's fallback list so display names containing kanji, hiragana,
-        /// katakana, Hangul, or Han characters render instead of dropping silently.
-        /// First-installed candidate wins; if none are present we leave the list as-is.
+        /// Walks a per-script list of OS font candidates and adds the first installed
+        /// match per script to the nameplate font's fallback list. This lets display
+        /// names render glyphs the primary (Latin) font doesn't cover — Japanese,
+        /// Korean, Chinese, Arabic, Thai, Hebrew, Devanagari — instead of silently
+        /// dropping them. Scripts with no installed candidate degrade to "no glyph";
+        /// no crash. Per-family dedupe avoids loading the same atlas twice when a
+        /// font (e.g., Tahoma covers both Arabic and Hebrew) was added for an earlier
+        /// script in the chain.
         /// </summary>
-        private void EnsureCJKFallbackOnNameplateFont()
+        private void EnsureUnicodeFallbacksOnNameplateFont()
         {
-            if (_cjkFallbackEnsured) return;
-            _cjkFallbackEnsured = true;
+            if (_unicodeFallbacksEnsured) return;
+            _unicodeFallbacksEnsured = true;
 
             if (Text == null || Text.font == null) return;
 
@@ -100,32 +104,73 @@ namespace Basis.Scripts.UI.NamePlate
             if (primary.fallbackFontAssetTable == null)
                 primary.fallbackFontAssetTable = new List<TMP_FontAsset>();
 
-            // Curated cross-platform list of fonts known to ship with the OS and cover CJK.
-            // Order = priority; first one that loads wins.
-            string[] candidates =
+            var registered = new HashSet<string>();
+            string[][] scriptCandidates =
             {
-                "Yu Gothic UI",                 // Windows 10/11
-                "Yu Gothic",
-                "Meiryo UI",
-                "Meiryo",
-                "MS Gothic",
-                "Hiragino Sans",                // macOS
-                "Hiragino Kaku Gothic ProN",
-                "Noto Sans CJK JP",             // Linux / Android
-                "Noto Sans JP",
-                "Source Han Sans JP",
-                "TakaoGothic",
+                // Japanese — kanji, hiragana, katakana
+                new[] { "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic",
+                        "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+                        "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "TakaoGothic" },
+
+                // Korean — Hangul
+                new[] { "Malgun Gothic", "Gulim", "Dotum", "Batang",
+                        "Apple SD Gothic Neo", "AppleGothic",
+                        "Noto Sans CJK KR", "Noto Sans KR", "NanumGothic" },
+
+                // Simplified Chinese — CN-style Han glyphs
+                new[] { "Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun",
+                        "PingFang SC", "Hiragino Sans GB", "STHeiti",
+                        "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
+                        "WenQuanYi Micro Hei" },
+
+                // Traditional Chinese — TW/HK-style Han glyphs
+                new[] { "Microsoft JhengHei UI", "Microsoft JhengHei", "PMingLiU", "MingLiU",
+                        "PingFang TC", "Heiti TC",
+                        "Noto Sans CJK TC", "Noto Sans TC" },
+
+                // Arabic
+                new[] { "Tahoma", "Segoe UI",
+                        "Geeza Pro", "Damascus",
+                        "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans" },
+
+                // Thai
+                new[] { "Leelawadee UI", "Leelawadee",
+                        "Thonburi", "Sukhumvit Set",
+                        "Noto Sans Thai", "Loma" },
+
+                // Hebrew
+                new[] { "David CLM", "Arial Hebrew",
+                        "Tahoma", "Segoe UI", "Lucida Grande",
+                        "Noto Sans Hebrew", "DejaVu Sans" },
+
+                // Devanagari — Hindi, Marathi, Sanskrit
+                new[] { "Nirmala UI", "Mangal",
+                        "Devanagari MT", "Kohinoor Devanagari",
+                        "Noto Sans Devanagari", "Lohit Devanagari" },
             };
 
+            foreach (string[] candidates in scriptCandidates)
+                AddFirstAvailableFallback(primary, candidates, registered);
+        }
+
+        private static void AddFirstAvailableFallback(TMP_FontAsset primary, string[] candidates, HashSet<string> registered)
+        {
             foreach (string family in candidates)
             {
+                // If a previous script already loaded this family, accept its glyph
+                // coverage for the current script too — avoids double-allocating the
+                // same atlas. Stop the search; we won't try worse candidates after a
+                // hit on the user's preferred chain.
+                if (registered.Contains(family)) return;
+
                 TMP_FontAsset fallback = null;
                 try { fallback = TMP_FontAsset.CreateFontAsset(family, "Regular"); }
                 catch { continue; }
                 if (fallback == null) continue;
 
-                fallback.name = "NamePlate CJK Fallback (" + family + ")";
+                fallback.name = "NamePlate Fallback (" + family + ")";
                 primary.fallbackFontAssetTable.Add(fallback);
+                registered.Add(family);
                 return;
             }
         }
