@@ -9,6 +9,9 @@ namespace HVR.Vixxy
 {
     public class HVRVixxyPermitted
     {
+        public static readonly bool allowFieldAccess = true;
+        public static readonly bool allowPropertyAccess = true;
+
         private static readonly List<Type> PermittedTypes = new()
         {
             // Other

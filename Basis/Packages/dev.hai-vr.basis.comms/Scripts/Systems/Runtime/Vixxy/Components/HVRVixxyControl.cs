@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace HVR.Vixxy
 {
-    /// This is a toggle system.<br/>
+    /// This is a user-accessible toggle system.<br/>
     /// <br/>
     /// This component listens to a value in an address, which toggles and applies user-defined values in the properties of some objects accordingly.<br/>
     /// If there are material properties to be changed, those changes are staged into the HVROrchestrator component, which then applies a material property block
