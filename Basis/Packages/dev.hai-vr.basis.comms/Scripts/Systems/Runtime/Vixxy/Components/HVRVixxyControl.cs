@@ -10,6 +10,12 @@ using UnityEngine;
 
 namespace HVR.Vixxy
 {
+    /// This is a toggle system.<br/>
+    /// <br/>
+    /// This component listens to a value in an address, which toggles and applies user-defined values in the properties of some objects accordingly.<br/>
+    /// If there are material properties to be changed, those changes are staged into the HVROrchestrator component, which then applies a material property block
+    /// to the renderer once after all changes have been received for that frame.<br/>
+    /// <br/>
     /// UGC Rule: GameObjects and Components referenced by this class should be treated defensively as being UGC at runtime:<br/>
     /// - There may be null values in the arrays, as they may be unreliable user input or removed as part of a build process (e.g. EditorOnly),<br/>
     /// - Non-null values in the array may reference objects that will be destroyed later, so treat objects and components as potentially destroyable,<br/>
