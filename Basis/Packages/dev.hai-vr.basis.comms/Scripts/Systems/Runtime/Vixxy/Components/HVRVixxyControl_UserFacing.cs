@@ -182,6 +182,8 @@ namespace HVR.Vixxy
 
         internal T ApplyThresholdFunction(float active01, int inactiveIndex, int activeIndex, float threshold)
         {
+            // This checks if it's above the threshold, OR if it's equal to 1.
+            // We specifically don't do "above or equal to" because we don't want 0 to be above the threshold.
             var isActive = active01 > threshold || Mathf.Approximately(active01, 1f);
             return isActive ? choices[activeIndex] : choices[inactiveIndex];
         }
@@ -270,15 +272,19 @@ namespace HVR.Vixxy
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            if (interpolation == HVRVixxyPropertyVector4Interpolation.Regular)
+            switch (interpolation)
             {
-                return Vector4.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
-            }
-            else
-            {
-                var vector3 = Vector3.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
-                var w = Mathf.Lerp(choices[inactiveIndex].w, choices[activeIndex].w, active01);
-                return new Vector4(vector3.x, vector3.y, vector3.z, w);
+                case HVRVixxyPropertyVector4Interpolation.Regular:
+                {
+                    return Vector4.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+                }
+                case HVRVixxyPropertyVector4Interpolation.VectorXYZSpherical:
+                {
+                    var vector3 = Vector3.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
+                    var w = Mathf.Lerp(choices[inactiveIndex].w, choices[activeIndex].w, active01);
+                    return new Vector4(vector3.x, vector3.y, vector3.z, w);
+                }
+                default: throw new ArgumentOutOfRangeException();
             }
         }
     }
@@ -290,15 +296,12 @@ namespace HVR.Vixxy
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            if (interpolation == HVRVixxyPropertyVector3Interpolation.Regular)
+            return interpolation switch
             {
-                return Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
-            }
-            else
-            {
-                var vector3 = Vector3.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
-                return vector3;
-            }
+                HVRVixxyPropertyVector3Interpolation.Regular => Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01),
+                HVRVixxyPropertyVector3Interpolation.Spherical => Vector3.Slerp(choices[inactiveIndex], choices[activeIndex], active01),
+                _ => throw new ArgumentOutOfRangeException()
+            };
         }
     }
 
@@ -355,6 +358,7 @@ namespace HVR.Vixxy
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
+            // TODO: How to do Oklab interpolation with HDR colors???
             return Color32.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
         }
     }
@@ -425,7 +429,8 @@ namespace HVR.Vixxy
     public enum HVRVixxyPropertyVector4Interpolation
     {
         Regular,
-        Vector3Spherical,
+        /// Slerp for XYZ, Lerp for W
+        VectorXYZSpherical,
     }
 
     [Serializable]
