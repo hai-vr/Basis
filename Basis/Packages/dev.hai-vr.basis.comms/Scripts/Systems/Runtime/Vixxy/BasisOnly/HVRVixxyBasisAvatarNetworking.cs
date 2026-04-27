@@ -9,7 +9,7 @@ using Basis.Scripts.BasisSdk;
 
 namespace HVR.Basis.Comms.Vixxy
 {
-    public class HVRVixxyBasisAvatarNetworking : MonoBehaviour, IHVRInitializable, IHVRVixxyNetworkable
+    public class HVRVixxyBasisAvatarNetworking : MonoBehaviour, IHVRInitializable
     {
         private const DeliveryMethod MainMessageDeliveryMethod = DeliveryMethod.Sequenced;
 

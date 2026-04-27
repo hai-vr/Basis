@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
 using HVR.Basis.Comms.Vixxy;
@@ -24,7 +25,7 @@ namespace HVR.Basis.Comms
 
         private bool _isWearer;
 
-        internal readonly List<MutualizedInterpolationRange> _ranges = new();
+        internal readonly List<MutualizedInterpolationRangeStorage> _ranges = new();
         private readonly List<HVRNeedsInterpolationCallback> _needsInterpolation = new();
         private readonly List<HVRToSubmitLater> _toStoreLater = new();
 
@@ -100,24 +101,31 @@ namespace HVR.Basis.Comms
                 initializable.OnHVRReadyBothAvatarAndNetwork(isWearer);
             }
 
-            DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0]);
+            var (highFrequency, lowFrequency) = _ranges.Partition(range => range.isHighFrequency);
+            if (highFrequency.Any())
+            {
+                DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0], true, highFrequency);
+            }
+            if (lowFrequency.Any())
+            {
+            }
         }
 
-        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)
+        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier, bool isHighFrequency, List<MutualizedInterpolationRangeStorage> partitionRanges)
         {
-            var holder = new GameObject("Streamed-Mutualized")
+            var holder = new GameObject($"Streamed-Mutualized-{(isHighFrequency ? "HF" : "LF")}")
             {
                 transform = { parent = avatar.transform }
             };
             holder.SetActive(false);
             _streamedLateInit = holder.AddComponent<StreamedAvatarFeature>();
-            _streamedLateInit.valueArraySize = (byte)_ranges.Count; // TODO: Sanitize count to be within bounds
+            _streamedLateInit.valueArraySize = (byte)partitionRanges.Count; // TODO: Sanitize count to be within bounds
             _streamedLateInit.transmitter = carrier;
             _streamedLateInit.isWearer = isWearer;
             _streamedLateInit.localIdentifier = 0;
             var pendingStores = _toStoreLater.ToArray();
             holder.SetActive(true);
-            _streamedLateInit.InitializeNormalizedValues(BuildNeutralNormalizedValues());
+            _streamedLateInit.InitializeNormalizedValues(BuildNeutralNormalizedValues(partitionRanges));
             // StreamedAvatarFeature only gets the ability to store data AFTER Awake() runs, so order matters here.
             foreach (var toStoreLater in pendingStores)
             {
@@ -159,15 +167,16 @@ namespace HVR.Basis.Comms
             List<int> oursToMutualizedIndex = new();
             foreach (var inputRange in inputRanges)
             {
-                var address = inputRange.address;
-                var mutualizedIndex = _ranges.FindIndex(range => range.address == address);
+                var address = inputRange.addressId;
+                var mutualizedIndex = _ranges.FindIndex(range => range.addressId == address);
                 if (mutualizedIndex == -1)
                 {
                     mutualizedIndex = _ranges.Count;
-                    _ranges.Add(new MutualizedInterpolationRange
+                    _ranges.Add(new MutualizedInterpolationRangeStorage
                     {
+                        index = mutualizedIndex,
                         isHighFrequency = true,
-                        address = address,
+                        addressId = address,
                         lower = inputRange.lower,
                         upper = inputRange.upper,
                     });
@@ -261,12 +270,12 @@ namespace HVR.Basis.Comms
             }
         }
 
-        private float[] BuildNeutralNormalizedValues()
+        private float[] BuildNeutralNormalizedValues(List<MutualizedInterpolationRangeStorage> partitionRanges)
         {
-            var normalized = new float[_ranges.Count];
-            for (int index = 0; index < _ranges.Count; index++)
+            var normalized = new float[partitionRanges.Count];
+            for (int index = 0; index < partitionRanges.Count; index++)
             {
-                var range = _ranges[index];
+                var range = partitionRanges[index];
                 normalized[index] = range.lower <= 0f && range.upper >= 0f
                     ? Mathf.Clamp01(range.AbsoluteToRange(0f))
                     : 0f;
