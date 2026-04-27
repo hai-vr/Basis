@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using HVR.Basis.Comms;
 using HVR.Basis.Comms.Editor;
@@ -24,7 +25,6 @@ namespace HVR.Vixxy.Editor
         private Object _previousRootObject;
         private readonly Dictionary<Type, int> _typeToWhichOpened = new();
         private List<Type> _types;
-        private List<object> _properties;
         private List<string> _blendshapes;
         private Dictionary<MaterialPropertyType, List<string>> _materialProperties;
 
@@ -413,6 +413,56 @@ namespace HVR.Vixxy.Editor
 
             var hasSearch = !string.IsNullOrEmpty(_search) && (_search.Length >= 3 || (_search.Length == 2 && HasAnyNonLetterNonSpace.IsMatch(_search)) || _search.StartsWith(" "));
 
+            if (showProperties)
+            {
+                List<VProp> props = new List<VProp>()
+                    // .Concat(targetedType.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)
+                    //     .Where(field => !field.IsInitOnly && !field.IsLiteral)
+                    //     .Select(field => new VProp
+                    //     {
+                    //         name = field.Name,
+                    //         type = field.FieldType,
+                    //         isPermitted = HVRVixxyPermitted.AllowArbitraryFieldAccess || HVRVixxyPermitted.IsStandardAccessPermitted(targetedType.FullName, field.Name),
+                    //     }))
+                    .Concat(targetedType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)
+                        .Where(prop => prop.CanWrite)
+                        .Select(prop =>
+                        {
+                            var type = prop.PropertyType;
+                            return new VProp
+                            {
+                                name = prop.Name,
+                                type = type,
+                                isPermitted = HVRVixxyPermitted.AllowArbitraryPropertyAccess || HVRVixxyPermitted.IsStandardAccessPermitted(targetedType.FullName, prop.Name),
+                                isLegal = IsLegal(type)
+                            };
+                        }))
+                    .Distinct()
+                    .OrderBy(prop => !prop.isPermitted)
+                    .ThenBy(prop => !prop.isLegal)
+                    .ThenBy(prop => prop.type.FullName)
+                    .ThenBy(tuple => tuple.name)
+                    .ToList();
+
+                foreach (var prop in props)
+                {
+                    EditorGUI.BeginDisabledGroup(!prop.isPermitted);
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.TextField(prop.name);
+                    if (prop.type.IsEnum)
+                    {
+                        EditorGUILayout.TextField($"enum {prop.type.Name}");
+                    }
+                    else
+                    {
+                        EditorGUILayout.TextField(prop.type.Name);
+                    }
+                    EditorGUILayout.Toggle(prop.isLegal, GUILayout.Width(EditorGUIUtility.singleLineHeight));
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUI.EndDisabledGroup();
+                }
+            }
+
             if (showBlendshapes && _blendshapes != null)
             {
                 foreach (var blendshape in _blendshapes)
@@ -494,6 +544,27 @@ namespace HVR.Vixxy.Editor
                     }
                 }
             }
+        }
+
+        private static bool IsLegal(Type type)
+        {
+            return type == typeof(float)
+                   || type == typeof(bool)
+                   || type == typeof(int)
+                   || type == typeof(short)
+                   || type == typeof(string)
+                   || type == typeof(Material)
+                   || type == typeof(Mesh)
+                   || type == typeof(Vector2)
+                   || type == typeof(Vector3)
+                   || type == typeof(Vector4)
+                   || type == typeof(Vector2Int)
+                   || type == typeof(Vector3Int)
+                   || type == typeof(Color)
+                   || type == typeof(Color32)
+                   || type == typeof(Quaternion)
+                   || type.IsEnum
+                   || type == typeof(Material[]);
         }
 
         private static HVRVixxyPropertyBase GenerateProperty(MaterialPropertyType mptype, Type targetedType, string materialProperty)
@@ -607,5 +678,13 @@ namespace HVR.Vixxy.Editor
                 return $"#{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
             }
         }
+    }
+
+    internal class VProp
+    {
+        public string name;
+        public Type type;
+        public bool isPermitted;
+        public bool isLegal;
     }
 }
