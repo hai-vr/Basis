@@ -104,6 +104,19 @@ public static class BasisSettingsSystem
     {
         QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
     }
+    /// <summary>
+    /// Re-fires <see cref="OnSettingsFinishedChanges"/> so subscribers that read
+    /// <c>BasisSettingsBinding.RawValue</c> can apply the loaded values. The first
+    /// firing inside <see cref="LoadAllSettings"/> happens before
+    /// <see cref="Basis.BasisUI.BasisSettingsDefaults.LoadAll"/> refreshes binding
+    /// RawValues from the dictionary, so subscribers there see static-init defaults.
+    /// Call this after LoadAll to re-notify with correct RawValues.
+    /// </summary>
+    public static void NotifyFinishedChanges()
+    {
+        OnSettingsFinishedChanges?.Invoke();
+        ForceQualityRefresh();
+    }
     public static bool HasSaveData(string uniqueSettingsName)
     {
         return settingsData.settings.TryGetValue(uniqueSettingsName, out var existing);
@@ -251,6 +264,10 @@ public static class BasisSettingsSystem
             {
                 Directory.CreateDirectory(dir);
             }
+
+            settingsData.settings.TryGetValue("ra_jitterbufferdepth", out string jitterDbg);
+            settingsData.settings.TryGetValue("ra_clipbufferscalar", out string clipDbg);
+            BasisDebug.Log($"[BasisSettingsSystem.SaveAllSettings] writing file ra_jitterbufferdepth={jitterDbg ?? "<missing>"}, ra_clipbufferscalar={clipDbg ?? "<missing>"}\n{System.Environment.StackTrace}");
 
             File.WriteAllText(filePath, json);
         }

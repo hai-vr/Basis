@@ -410,6 +410,9 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalAnimatorDriver.OnDestroy();
             LocalBoneDriver.DeInitializeGizmos();
             LocalBoneDriver.Dispose();
+            BasisLocalFootDriver.Dispose();
+            LocalRigDriver.CleanupBeforeContinue();
+            BasisAvatarDriver.RemoveOldShadowClones();
             BasisUILoadingBar.DeInitalize();
         }
 
