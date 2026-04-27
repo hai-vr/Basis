@@ -25,13 +25,14 @@ namespace Basis.Scripts.Avatar
         public const string SettingKey = "contenttagblocklist";
 
         /// <summary>
-        /// Empty default: out of the box no tags are blocked, the user opts in. The
-        /// honor system already prevents any default from being a hard guarantee, so
-        /// shipping with mature categories blocked-by-default would be more theatre
-        /// than safety. Add per-tag defaults later if telemetry justifies them.
+        /// Default blocks the most-likely-to-disturb categories ("18+", "Horror",
+        /// "Gore") so a brand-new user isn't surprised by them on first load. Still
+        /// honor-system — only enforces tags creators declared — but a safer
+        /// out-of-box opt-out beats a permissive default for first impressions.
+        /// Users can clear or extend the list from the settings panel.
         /// </summary>
         private static readonly BasisSettingsBinding<string> _binding =
-            new BasisSettingsBinding<string>(SettingKey, new BasisPlatformDefault<string>(string.Empty));
+            new BasisSettingsBinding<string>(SettingKey, new BasisPlatformDefault<string>("{\"Tags\":[\"18+\",\"Horror\",\"Gore\"]}"));
 
         /// <summary>
         /// Cached parse of <see cref="_binding"/>'s JSON payload. <see cref="_cacheValid"/>
