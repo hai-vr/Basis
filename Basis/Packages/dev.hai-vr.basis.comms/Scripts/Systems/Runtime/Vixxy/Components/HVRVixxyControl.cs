@@ -398,7 +398,8 @@ namespace HVR.Vixxy
                 var fieldInfoNullable = GetFieldInfoOrNull(foundType, property.propertyName);
                 if (fieldInfoNullable != null)
                 {
-                    if (!HVRVixxyPermitted.AllowFieldAccess)
+                    if (!HVRVixxyPermitted.AllowArbitraryFieldAccess
+                        && !HVRVixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
                     {
                         return HVRVixxyPropertyBakeResult.FieldAccessIsNotPermitted;
                     }
@@ -408,7 +409,8 @@ namespace HVR.Vixxy
                 }
                 else
                 {
-                    if (!HVRVixxyPermitted.AllowPropertyAccess)
+                    if (!HVRVixxyPermitted.AllowArbitraryPropertyAccess
+                        && !HVRVixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
                     {
                         return HVRVixxyPropertyBakeResult.PropertyAccessIsNotPermitted;
                     }
@@ -584,7 +586,7 @@ namespace HVR.Vixxy
                     // TODO: Rather than do that check every time, bake the applicable properties into an internal field.
                     if (!property.IsApplicable) continue;
 
-                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex);
+                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex, _value);
                     Apply(property, lerpValue, out var propertyNeedsCleanup);
 
                     if (propertyNeedsCleanup)

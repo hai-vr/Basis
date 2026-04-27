@@ -37,7 +37,7 @@ namespace HVR.Vixxy
 
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
-        private List<HVRVixxyToBeNetworked> _toBeNetworked;
+        private List<HVRVixxyToBeNetworked> _toBeNetworked = new();
         public event NetworkDataUpdateRequired OnNetworkDataUpdateRequired;
         public delegate void NetworkDataUpdateRequired();
 

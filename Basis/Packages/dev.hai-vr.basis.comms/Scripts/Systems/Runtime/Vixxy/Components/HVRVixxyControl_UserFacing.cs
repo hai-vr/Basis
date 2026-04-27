@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using HVR.Basis.Comms;
@@ -209,7 +210,7 @@ namespace HVR.Vixxy
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}
         public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
-        public virtual object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex) { throw new NotImplementedException(); }
+        public virtual object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue) { throw new NotImplementedException(); }
         public virtual void ApplyMaterialProperty(MaterialPropertyBlock materialPropertyBlock, object resolvedValue)
         {
             switch (resolvedValue)
@@ -244,7 +245,7 @@ namespace HVR.Vixxy
     [Serializable]
     public class HVRVixxyPropertyFloat : HVRVixxyProperty<float>
     {
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return Mathf.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
         }
@@ -253,7 +254,7 @@ namespace HVR.Vixxy
     [Serializable]
     public class HVRVixxyPropertyInt : HVRVixxyProperty<int>
     {
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return Mathf.RoundToInt(Mathf.Lerp(choices[inactiveIndex], choices[activeIndex], active01));
         }
@@ -262,18 +263,39 @@ namespace HVR.Vixxy
     [Serializable]
     public class HVRVixxyPropertyVector4 : HVRVixxyProperty<Vector4>
     {
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public HVRVixxyPropertyVector4Interpolation interpolation;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            return Vector4.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+            if (interpolation == HVRVixxyPropertyVector4Interpolation.Regular)
+            {
+                return Vector4.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+            }
+            else
+            {
+                var vector3 = Vector3.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
+                var w = Mathf.Lerp(choices[inactiveIndex].w, choices[activeIndex].w, active01);
+                return new Vector4(vector3.x, vector3.y, vector3.z, w);
+            }
         }
     }
 
     [Serializable]
     public class HVRVixxyPropertyVector3 : HVRVixxyProperty<Vector3>
     {
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public HVRVixxyPropertyVector3Interpolation interpolation;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            return Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+            if (interpolation == HVRVixxyPropertyVector3Interpolation.Regular)
+            {
+                return Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+            }
+            else
+            {
+                var vector3 = Vector3.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
+                return vector3;
+            }
         }
     }
 
@@ -282,7 +304,7 @@ namespace HVR.Vixxy
     {
         public float threshold;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
         }
@@ -293,7 +315,7 @@ namespace HVR.Vixxy
     {
         public float threshold;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
         }
@@ -304,7 +326,7 @@ namespace HVR.Vixxy
     {
         public float threshold;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
         }
@@ -315,7 +337,7 @@ namespace HVR.Vixxy
     {
         public HVRVixxyPropertyColorInterpolation interpolation;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return interpolation == HVRVixxyPropertyColorInterpolation.Oklab
                 ? HVR_ColorInterpolation.OklabLerp(choices[inactiveIndex], choices[activeIndex], active01)
@@ -324,11 +346,22 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
+    public class HVRVixxyPropertyColor32 : HVRVixxyProperty<Color32>
+    {
+        public HVRVixxyPropertyColor32Interpolation interpolation;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
+        {
+            return Color32.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+        }
+    }
+
+    [Serializable]
     public class HVRVixxyPropertyBool : HVRVixxyProperty<bool>
     {
         public float threshold;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
         }
@@ -339,7 +372,7 @@ namespace HVR.Vixxy
     {
         public HVRVixxyPropertyQuaternionInterpolation interpolation;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return Quaternion.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
         }
@@ -350,11 +383,11 @@ namespace HVR.Vixxy
     {
         public float threshold;
 
-        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             var result = ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
 
-            return result != null ? string.Format(result, active01) : null;
+            return result != null ? string.Format(CultureInfo.InvariantCulture, result, absoluteValue, absoluteValue * 100f, active01) : null;
         }
     }
 
@@ -366,9 +399,30 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
+    public enum HVRVixxyPropertyColor32Interpolation
+    {
+        DefaultShouldBeOklabOnceIFigureOutHDRInterpolation,
+        Unity
+    }
+
+    [Serializable]
     public enum HVRVixxyPropertyQuaternionInterpolation
     {
         Spherical,
+    }
+
+    [Serializable]
+    public enum HVRVixxyPropertyVector3Interpolation
+    {
+        Regular,
+        Spherical,
+    }
+
+    [Serializable]
+    public enum HVRVixxyPropertyVector4Interpolation
+    {
+        Regular,
+        Vector3Spherical,
     }
 
     [Serializable]

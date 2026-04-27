@@ -7,11 +7,10 @@ using UnityEngine.UI;
 
 namespace HVR.Vixxy
 {
-    public class HVRVixxyPermitted
+    public static class HVRVixxyPermitted
     {
-        public static readonly bool AllowFieldAccess = false;
-        public static readonly bool AllowPropertyAccess = false;
-
+        /// List of types that can be toggled and affected by field or property accesses.<br/>
+        /// Field and property access have further restrictions, see further down below in this class.
         private static readonly List<Type> PermittedTypes = new()
         {
             // Other
@@ -20,7 +19,7 @@ namespace HVR.Vixxy
             typeof(ParticleSystem),
             typeof(Cloth),
             // Renderers
-            typeof(MeshRenderer), // NOTE: MeshRenderer and SkinnedMeshRenderer have leniency on material properties. If a property recursively affects a SkinnedMeshRenderer, then it will also affect a MeshRenderer.
+            typeof(MeshRenderer), // NOTE: MeshRenderer and SkinnedMeshRenderer have hard-coded leniency on material properties. If a property recursively affects a SkinnedMeshRenderer, then it will also affect a MeshRenderer.
             typeof(SkinnedMeshRenderer),
             typeof(TrailRenderer),
             typeof(ParticleSystemRenderer),
@@ -47,6 +46,7 @@ namespace HVR.Vixxy
             typeof(Image),
         };
 
+        /// Same as above, but those are strings. This is so we may reference types from other packages without creating a dependency.
         private static readonly List<string> PermittedTypeNames = new()
         {
             // Renderers
@@ -59,6 +59,24 @@ namespace HVR.Vixxy
         };
 
         private static readonly HashSet<string> RuntimePermittedTypeNames;
+
+        /// If true, all field accesses are allowed on the permitted types.<br/>
+        /// Otherwise, access is dictated by the PermittedStandardAccess list further down below.
+        public static readonly bool AllowArbitraryFieldAccess = false;
+
+        /// If true, all property accesses are allowed on the permitted types.<br/>
+        /// Otherwise, access is dictated by the PermittedStandardAccess list further down below.
+        public static readonly bool AllowArbitraryPropertyAccess = false;
+
+        /// This list of tuples defines which fields and properties can be accessed on each type.<br/>
+        /// The first list of the tuple contains type names. The second list contains property names that can be accessed.
+        private static readonly List<(List<string>, List<string>)> PermittedStandardAccess = new()
+        {
+            (
+                new List<string> { typeof(Text).FullName, "TMPro.TextMeshPro", "TMPro.TextMeshProUGUI" },
+                new List<string> { "text" }
+            )
+        };
 
         static HVRVixxyPermitted()
         {
@@ -76,10 +94,18 @@ namespace HVR.Vixxy
                 or HVRVixxyPropertyVector4
                 or HVRVixxyPropertyVector3
                 or HVRVixxyPropertyMaterial
-                or HVRVixxyPropertyMesh
                 or HVRVixxyPropertyQuaternion
                 or HVRVixxyPropertyBool
-                or HVRVixxyPropertyColor;
+                or HVRVixxyPropertyColor
+                or HVRVixxyPropertyColor32
+                or HVRVixxyPropertyTexture
+                or HVRVixxyPropertyMesh
+                or HVRVixxyPropertyString;
+        }
+
+        public static bool IsStandardAccessPermitted(string typeName, string propertyName)
+        {
+            return PermittedStandardAccess.Any(tuple => tuple.Item1.Contains(typeName) && tuple.Item2.Contains(propertyName));
         }
     }
 }

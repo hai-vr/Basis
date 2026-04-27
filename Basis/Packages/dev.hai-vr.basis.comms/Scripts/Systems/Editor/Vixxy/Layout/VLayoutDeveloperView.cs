@@ -145,12 +145,15 @@ namespace HVR.Vixxy.Editor
 
                 ButtonToAddProperty(propertiesSp, "float", () => new HVRVixxyPropertyFloat());
                 ButtonToAddProperty(propertiesSp, "bool", () => new HVRVixxyPropertyBool());
+                ButtonToAddProperty(propertiesSp, "int", () => new HVRVixxyPropertyInt());
                 ButtonToAddProperty(propertiesSp, nameof(Color), () => new HVRVixxyPropertyColor());
                 ButtonToAddProperty(propertiesSp, nameof(Vector4), () => new HVRVixxyPropertyVector4());
                 ButtonToAddProperty(propertiesSp, nameof(Vector3), () => new HVRVixxyPropertyVector3());
                 ButtonToAddProperty(propertiesSp, nameof(Quaternion), () => new HVRVixxyPropertyQuaternion());
                 ButtonToAddProperty(propertiesSp, nameof(Material), () => new HVRVixxyPropertyMaterial());
                 ButtonToAddProperty(propertiesSp, nameof(Mesh), () => new HVRVixxyPropertyMesh());
+                ButtonToAddProperty(propertiesSp, nameof(Texture), () => new HVRVixxyPropertyTexture());
+                ButtonToAddProperty(propertiesSp, "string", () => new HVRVixxyPropertyString());
 
                 EditorGUILayout.EndVertical();
             }

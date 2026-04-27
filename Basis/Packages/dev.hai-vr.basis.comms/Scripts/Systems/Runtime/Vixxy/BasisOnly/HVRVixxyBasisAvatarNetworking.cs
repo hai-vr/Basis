@@ -99,7 +99,7 @@ namespace HVR.Basis.Comms.Vixxy
 
         public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue)
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
         }
     }
 
