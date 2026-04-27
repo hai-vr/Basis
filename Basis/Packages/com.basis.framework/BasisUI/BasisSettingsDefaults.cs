@@ -789,13 +789,13 @@ namespace Basis.BasisUI
 
         // Voice jitter buffer depth (in 20ms Opus frames). Lower = less latency,
         // higher = more resilience to network jitter / packet loss before underrun.
-        public static BasisSettingsBinding<float> RAJitterBufferDepth = new("ra_jitterbufferdepth", new BasisPlatformDefault<float>(5f));
+        public static BasisSettingsBinding<float> RAJitterBufferDepth = new("ra_jitterbufferdepth", new BasisPlatformDefault<float>(1f));
 
         // Multiplier on the AudioClip pool's clip duration. Sits between the
         // decoded PCM queue and Unity's AudioSource as a secondary playback
         // buffer. Lower = less latency, higher = more headroom against
         // mid-callback decoded-queue stalls.
-        public static BasisSettingsBinding<float> RAClipBufferScalar = new("ra_clipbufferscalar", new BasisPlatformDefault<float>(4f));
+        public static BasisSettingsBinding<float> RAClipBufferScalar = new("ra_clipbufferscalar", new BasisPlatformDefault<float>(2f));
 
         public static BasisSettingsBinding<bool> FBIKEuroAll = new("euroall");
 

@@ -118,22 +118,22 @@ namespace Basis.BasisUI
             // ─────────────── VOICE BUFFER GROUP (always visible) ───────────────
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.
-            // Buffer is 20 ms per frame, so 5 ≈ 100 ms.
+            // Buffer is 20 ms per frame, so 1 ≈ 20 ms.
             PanelElementDescriptor voiceBufferGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             voiceBufferGroup.SetTitle("Voice Buffer");
             voiceBufferGroup.SetDescription(
                 "How many 20 ms voice frames to buffer ahead of playback.\n" +
                 "Lower = less latency. Higher = smoother audio on jittery networks.\n" +
-                "Default: 5 (~100 ms).");
+                "Default: 1 (~20 ms).");
 
             PanelSlider sliderJitterDepth = PanelSlider.CreateEntryAndBind(
                 voiceBufferGroup,
                 PanelSlider.SliderSettings.Advanced("Buffered Frames Target", 1f, 15f, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RAJitterBufferDepth);
             sliderJitterDepth.Descriptor.SetDescription(
-                "Each frame is 20 ms. 1 = ~20 ms (low latency, more dropouts).\n" +
-                "5 = ~100 ms (default). 15 = ~300 ms (max resilience).");
+                "Each frame is 20 ms. 1 = ~20 ms (default, low latency, more dropouts).\n" +
+                "5 = ~100 ms. 15 = ~300 ms (max resilience).");
 
             PanelSlider sliderClipBufferScalar = PanelSlider.CreateEntryAndBind(
                 voiceBufferGroup,
@@ -142,7 +142,7 @@ namespace Basis.BasisUI
             sliderClipBufferScalar.Descriptor.SetDescription(
                 "Multiplier on the per-player AudioClip length used by Unity's AudioSource.\n" +
                 "Lower = tighter coupling to the decoded queue (less latency, more sensitive\n" +
-                "to underruns). Default: 4. Live audio sources reload in place when changed.");
+                "to underruns). Default: 2. Live audio sources reload in place when changed.");
 
             // ─────────────── AUDIO SOURCE GROUP (advanced) ───────────────
             PanelElementDescriptor audioSourceGroup =

@@ -16,7 +16,7 @@ public static class BasisAudioClipPool
     /// so callers should <see cref="Clear"/> the pool after lowering this if
     /// they want the change to take effect immediately on next <see cref="Get"/>.
     /// </summary>
-    public static int ClipBufferScalar = 4;
+    public static int ClipBufferScalar = 2;
 
     private static Queue<AudioClip> pool = new Queue<AudioClip>();
 
