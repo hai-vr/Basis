@@ -327,6 +327,14 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (!_audioEnabled)
             {
+                // Audio-thread state (fade envelope, resampler carry, last
+                // output sample) survives the disable cycle. If the IsEmpty
+                // fade-down didn't get to run a final callback before
+                // DisableAudio fired, _fadeEnvelope can stay at 1, and the
+                // first sample of the new utterance would step from silence
+                // to full amplitude. Reset before re-enable so each speech
+                // onset fades in from 0 with no stale interpolation carry.
+                ResetAudioThreadState();
                 audioSource.enabled = true;
                 _audioEnabled = true;
             }
@@ -639,14 +647,23 @@ namespace Basis.Scripts.Networking.Receivers
         {
             EnsureCapacity(ref _inputScratch, frames);
             int read = VoiceBuffer.ReadPcm(_inputScratch, frames);
+            bool underrun = read < frames;
 
-            // Zero-fill any shortfall
-            if (read < frames)
+            if (underrun)
             {
-                Array.Clear(_inputScratch, read, frames - read);
+                FadeFillUnderrun(_inputScratch, read, frames);
             }
 
             ApplyGainAndWrite(_inputScratch, data, frames, channels);
+
+            if (underrun)
+            {
+                // Faded out mid-callback to silence; restart the envelope so the
+                // next callback with real audio fades back in instead of stepping
+                // up from 0 to full amplitude.
+                _fadeEnvelope = 0f;
+                _lastOutputSample = 0f;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -655,6 +672,29 @@ namespace Basis.Scripts.Networking.Receivers
             if (x > 1f) return 1f;
             if (x < -1f) return -1f;
             return x;
+        }
+
+        /// <summary>
+        /// Smooths the boundary of a partial buffer read so the source goes from
+        /// the last real sample to 0 over a short ramp instead of stepping. Used
+        /// when ReadPcm returns fewer samples than requested (queue ran dry mid
+        /// callback) — a hard zero-fill at the boundary would be an audible click.
+        /// </summary>
+        private static void FadeFillUnderrun(float[] buf, int read, int total)
+        {
+            int fillLen = total - read;
+            if (fillLen <= 0) return;
+            int fadeLen = fillLen < 96 ? fillLen : 96; // ~2 ms at 48 kHz
+            float lastSample = read > 0 ? buf[read - 1] : 0f;
+            float invFade = 1f / fadeLen;
+            for (int i = 0; i < fadeLen; i++)
+            {
+                buf[read + i] = lastSample * (1f - i * invFade);
+            }
+            if (fillLen > fadeLen)
+            {
+                Array.Clear(buf, read + fadeLen, fillLen - fadeLen);
+            }
         }
 
         private void ProcessResample(float[] data, int frames, int channels)
@@ -676,9 +716,10 @@ namespace Basis.Scripts.Networking.Receivers
             EnsureCapacity(ref _resampleScratch, frames);
 
             int read = VoiceBuffer.ReadPcm(_inputScratch, N);
-            if (read < N)
+            bool underrun = read < N;
+            if (underrun)
             {
-                Array.Clear(_inputScratch, read, N - read);
+                FadeFillUnderrun(_inputScratch, read, N);
             }
 
             double phase = _resamplePhase;
@@ -708,6 +749,12 @@ namespace Basis.Scripts.Networking.Receivers
             _resamplePhase = endPhase - consumedVirtual;
 
             ApplyGainAndWrite(_resampleScratch, data, frames, channels);
+
+            if (underrun)
+            {
+                _fadeEnvelope = 0f;
+                _lastOutputSample = 0f;
+            }
         }
 
         /// <summary>

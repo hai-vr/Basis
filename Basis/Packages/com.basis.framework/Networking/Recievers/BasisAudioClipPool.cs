@@ -24,7 +24,6 @@ public static class BasisAudioClipPool
             if (_resetBuffer == null || _resetBuffer.Length < needed)
             {
                 _resetBuffer = new float[needed];
-                Array.Fill(_resetBuffer, 1.0f);
             }
 
             clip.SetData(_resetBuffer, 0);
@@ -36,7 +35,7 @@ public static class BasisAudioClipPool
             int clipFrames = Mathf.CeilToInt(SharedOpusSettings.DesiredDurationInSeconds * 4 * AudioSettings.outputSampleRate);
             return AudioClip.Create($"player [{LinkedPlayer}]", clipFrames, RemoteOpusSettings.Channels, AudioSettings.outputSampleRate, false, (buf) =>
             {
-                Array.Fill(buf, 1.0f);
+                Array.Clear(buf, 0, buf.Length);
             });
         }
     }
