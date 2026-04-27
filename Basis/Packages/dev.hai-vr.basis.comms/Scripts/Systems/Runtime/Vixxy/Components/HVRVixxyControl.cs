@@ -201,6 +201,12 @@ namespace HVR.Vixxy
                     activation.BakeResult = HVRVixxyActivationBakeResult.TypeIsNotPermitted;
                     continue;
                 }
+                if (activation.component.GetType() == typeof(Transform) && _avatarNullable != null && _avatarNullable.gameObject == activation.component.gameObject)
+                {
+                    activation.IsApplicable = false;
+                    activation.BakeResult = HVRVixxyActivationBakeResult.CannotToggleRootGameObject;
+                    continue;
+                }
 
                 activation.IsApplicable = true;
                 activation.BakeResult = HVRVixxyActivationBakeResult.Success;
@@ -789,5 +795,6 @@ namespace HVR.Vixxy
         Success,
         ComponentOrGameObjectIsMissing,
         TypeIsNotPermitted,
+        CannotToggleRootGameObject,
     }
 }
