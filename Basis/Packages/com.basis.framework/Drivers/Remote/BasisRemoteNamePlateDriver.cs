@@ -61,8 +61,7 @@ namespace Basis.Scripts.UI.NamePlate
         private Vector3[] workNormals;
         private Vector2[] workUVs;
 
-        // Reusable combine buffer
-        private readonly CombineInstance[] combineBuffer = new CombineInstance[2];
+        private static bool _cjkFallbackEnsured;
 
         public void Awake()
         {
@@ -81,6 +80,54 @@ namespace Basis.Scripts.UI.NamePlate
 
             UpdateCachedColors(NamePlateTransparency);
             PrecomputeCornerData();
+            EnsureCJKFallbackOnNameplateFont();
+        }
+
+        /// <summary>
+        /// Adds an OS-dynamic CJK-capable font (Yu Gothic UI / Hiragino / Noto) to the
+        /// nameplate font's fallback list so display names containing kanji, hiragana,
+        /// katakana, Hangul, or Han characters render instead of dropping silently.
+        /// First-installed candidate wins; if none are present we leave the list as-is.
+        /// </summary>
+        private void EnsureCJKFallbackOnNameplateFont()
+        {
+            if (_cjkFallbackEnsured) return;
+            _cjkFallbackEnsured = true;
+
+            if (Text == null || Text.font == null) return;
+
+            var primary = Text.font;
+            if (primary.fallbackFontAssetTable == null)
+                primary.fallbackFontAssetTable = new List<TMP_FontAsset>();
+
+            // Curated cross-platform list of fonts known to ship with the OS and cover CJK.
+            // Order = priority; first one that loads wins.
+            string[] candidates =
+            {
+                "Yu Gothic UI",                 // Windows 10/11
+                "Yu Gothic",
+                "Meiryo UI",
+                "Meiryo",
+                "MS Gothic",
+                "Hiragino Sans",                // macOS
+                "Hiragino Kaku Gothic ProN",
+                "Noto Sans CJK JP",             // Linux / Android
+                "Noto Sans JP",
+                "Source Han Sans JP",
+                "TakaoGothic",
+            };
+
+            foreach (string family in candidates)
+            {
+                TMP_FontAsset fallback = null;
+                try { fallback = TMP_FontAsset.CreateFontAsset(family, "Regular"); }
+                catch { continue; }
+                if (fallback == null) continue;
+
+                fallback.name = "NamePlate CJK Fallback (" + family + ")";
+                primary.fallbackFontAssetTable.Add(fallback);
+                return;
+            }
         }
 
         private void UpdateCachedColors(float transparency)
@@ -206,31 +253,6 @@ namespace Basis.Scripts.UI.NamePlate
             SetAllPlateVisibility();
         }
 
-        /// <summary>
-        /// Combines a fitted rounded-quad background + plate's baked text mesh.
-        /// Shared by initial creation and mesh rebuilds.
-        /// </summary>
-        private void CombinePlateMesh(BasisRemoteNamePlate namePlate, Mesh roundedMesh, bool setMaterials = false)
-        {
-            combineBuffer[0] = new CombineInstance { mesh = roundedMesh, transform = Matrix4x4.identity };
-            combineBuffer[1] = new CombineInstance { mesh = namePlate.bakedMesh, transform = Matrix4x4.identity };
-
-            Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
-            combinedMesh.CombineMeshes(combineBuffer, false);
-
-            namePlate.Filter.sharedMesh = combinedMesh;
-
-            if (setMaterials)
-            {
-                // NOTE: This allocates; ideally cache materials array on plate, but left as-is for compatibility.
-                namePlate.Renderer.materials = new Material[]
-                {
-                    SelectedNamePlateMaterial,
-                    namePlate.Renderer.material
-                };
-            }
-        }
-
         // ===========================
         // Text bake path
         // ===========================
@@ -246,14 +268,56 @@ namespace Basis.Scripts.UI.NamePlate
             const float horizontalPadding = 2f;
             float halfWidth = (textSize.x * 0.5f) + horizontalPadding;
 
-            Mesh textMesh = Instantiate(Text.mesh);
-            FlipMesh(textMesh);
-
-            namePlate.bakedMesh = textMesh;
-            namePlate.Filter.sharedMesh = textMesh;
-
             Mesh plateMesh = GenerateRoundedQuad(halfWidth, 4.5f, "Rounded NamePlate Quad");
-            CombinePlateMesh(namePlate, plateMesh, setMaterials: true);
+
+            // Walk textInfo.meshInfo for every populated sub-mesh — index 0 is the
+            // primary font, indices 1+ are fallback font atlases used when characters
+            // (e.g., kanji) aren't present in the primary font. Cloning only Text.mesh
+            // would silently drop those fallback glyphs because TMP places them on
+            // auto-generated TMP_SubMesh children, not on the main Text mesh.
+            var textInfo = Text.textInfo;
+            int subMeshLimit = 0;
+            int textPartCount = 0;
+            if (textInfo != null && textInfo.meshInfo != null)
+            {
+                subMeshLimit = math.min(textInfo.materialCount, textInfo.meshInfo.Length);
+                for (int i = 0; i < subMeshLimit; i++)
+                {
+                    if (textInfo.meshInfo[i].vertexCount > 0)
+                        textPartCount++;
+                }
+            }
+
+            int totalParts = 1 + textPartCount;
+            var combine = new CombineInstance[totalParts];
+            var materials = new Material[totalParts];
+
+            combine[0] = new CombineInstance { mesh = plateMesh, transform = Matrix4x4.identity };
+            materials[0] = SelectedNamePlateMaterial;
+
+            Mesh primaryFlipped = null;
+            int writeIdx = 1;
+            for (int i = 0; i < subMeshLimit; i++)
+            {
+                var info = textInfo.meshInfo[i];
+                if (info.vertexCount == 0 || info.mesh == null) continue;
+
+                Mesh subClone = Instantiate(info.mesh);
+                FlipMesh(subClone);
+
+                combine[writeIdx] = new CombineInstance { mesh = subClone, transform = Matrix4x4.identity };
+                materials[writeIdx] = info.material;
+                if (primaryFlipped == null) primaryFlipped = subClone;
+                writeIdx++;
+            }
+
+            Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
+            combinedMesh.CombineMeshes(combine, false);
+
+            namePlate.bakedMesh = primaryFlipped;
+            namePlate.Filter.sharedMesh = combinedMesh;
+            namePlate.Renderer.materials = materials;
+
             Text.gameObject.SetActive(false);
         }
 
