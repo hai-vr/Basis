@@ -32,6 +32,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
     private static readonly Color OkayColor = new Color(0.95f, 0.85f, 0.20f);
     private static readonly Color MarginalColor = new Color(0.98f, 0.55f, 0.15f);
     private static readonly Color BadColor = new Color(0.95f, 0.30f, 0.30f);
+    private static readonly Color StaleColor = new Color(0.85f, 0.30f, 0.95f);   // near-origin / not-polled trackers
     private static readonly Color DisabledColor = new Color(0.45f, 0.45f, 0.45f);
     private static readonly Color PriorIdleColor = new Color(0.85f, 0.85f, 0.90f);
     private static readonly Color SilhouetteColor = new Color(1f, 1f, 1f, 0.10f);
@@ -64,6 +65,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
     {
         DrawToolbar();
         DrawHeader();
+        DrawStaleBanner();
         EditorGUILayout.Space(4);
 
         _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -140,6 +142,17 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
                 GUI.color = Color.white;
             }
         }
+    }
+
+    private void DrawStaleBanner()
+    {
+        int stale = 0;
+        for (int i = 0; i < BasisAvatarIKStageCalibration.ConstellationDebug.Samples.Count; i++)
+            if (BasisAvatarIKStageCalibration.ConstellationDebug.Samples[i].NearOrigin) stale++;
+        if (stale == 0) return;
+        EditorGUILayout.HelpBox(
+            $"{stale} tracker(s) returned a world-origin pose at calibration time. Their device's LateDoPollData isn't writing to UnscaledDeviceCoord — fix the device driver, not the calibration. See the Console for per-device errors.",
+            MessageType.Error);
     }
 
     // ─────────── Panels ───────────
@@ -438,7 +451,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
         {
             var s = BasisAvatarIKStageCalibration.ConstellationDebug.Samples[i];
             Vector2 sp = map.ToPanel(s.LateralRatio, s.HeightRatio);
-            Color c = s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor;
+            Color c = s.NearOrigin ? StaleColor : (s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor);
 
             // Connection line to assigned prior (or alt prior if showing)
             BasisAvatarIKStageCalibration.ConstellationDebug.DebugPrior linkedPrior = FindPrior(s.Assigned ? s.AssignedRole : s.BestAnyRole);
@@ -474,7 +487,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
             }
 
             // Short label
-            string lbl = ShortDeviceId(s.DeviceId);
+            string lbl = (s.NearOrigin ? "⚠ STALE  " : "") + ShortDeviceId(s.DeviceId);
             DrawTextWithShadow(new Vector2(sp.x + dotR + 2, sp.y + 2), lbl, FadeColor(c, 0.9f));
         }
     }
@@ -488,7 +501,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
             float zRatio = s.BodyLocal.z / eye;
             Vector2 sp = map.ToPanel(zRatio, s.HeightRatio);
 
-            Color c = s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor;
+            Color c = s.NearOrigin ? StaleColor : (s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor);
 
             // Line from sample horizontally to z=0 (the prior plane) — emphasises forward/back drift
             if (s.Assigned || _showAltLines)
@@ -511,7 +524,9 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
                 Repaint();
             }
 
-            string lbl = $"z={s.BodyLocal.z:+0.00;-0.00;0.00}m";
+            string lbl = s.NearOrigin
+                ? "⚠ STALE poll"
+                : $"z={s.BodyLocal.z:+0.00;-0.00;0.00}m";
             DrawTextWithShadow(new Vector2(sp.x + dotR + 2, sp.y + 2), lbl, FadeColor(c, 0.85f));
         }
     }
@@ -526,6 +541,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
             DrawLegendDot(OkayColor, "okay (1–2σ)");
             DrawLegendDot(MarginalColor, "marginal (2–3σ)");
             DrawLegendDot(BadColor, "rejected / unassigned");
+            DrawLegendDot(StaleColor, "⚠ stale poll (≈origin)");
             DrawLegendDot(PriorIdleColor, "prior, no tracker");
             DrawLegendDot(DisabledColor, "prior disabled");
             GUILayout.FlexibleSpace();
@@ -564,9 +580,20 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
     {
         List<string> issues = new List<string>();
 
+        // Near-origin trackers come first — they're almost certainly a polling bug, not a calibration mistake.
         for (int i = 0; i < BasisAvatarIKStageCalibration.ConstellationDebug.Samples.Count; i++)
         {
             var s = BasisAvatarIKStageCalibration.ConstellationDebug.Samples[i];
+            if (s.NearOrigin)
+            {
+                issues.Add($"⚠ '{ShortDeviceId(s.DeviceId)}' polled at world origin ({s.RawUnscaled.x:F3},{s.RawUnscaled.y:F3},{s.RawUnscaled.z:F3}). The device's LateDoPollData is not writing to UnscaledDeviceCoord — fix the device driver, not the tracker placement. (Sim devices historically forget this; OpenVR/OpenXR call ComputeUnscaledDeviceCoord.)");
+            }
+        }
+
+        for (int i = 0; i < BasisAvatarIKStageCalibration.ConstellationDebug.Samples.Count; i++)
+        {
+            var s = BasisAvatarIKStageCalibration.ConstellationDebug.Samples[i];
+            if (s.NearOrigin) continue; // already reported above
             if (!s.Assigned)
             {
                 float sd = s.BestAnyScore <= 0f ? Mathf.Sqrt(-s.BestAnyScore) : 0f;
@@ -646,8 +673,13 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
                 }
 
                 var prevCol = GUI.contentColor;
-                GUI.contentColor = s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor;
-                if (s.Assigned)
+                GUI.contentColor = s.NearOrigin ? StaleColor : (s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor);
+                if (s.NearOrigin)
+                {
+                    GUILayout.Label("⚠ STALE POLL", GUILayout.Width(150));
+                    GUILayout.Label("—", GUILayout.Width(100));
+                }
+                else if (s.Assigned)
                 {
                     GUILayout.Label(s.AssignedRole.ToString(), GUILayout.Width(150));
                     float sd = Mathf.Sqrt(Mathf.Max(0f, -s.AssignedScore));

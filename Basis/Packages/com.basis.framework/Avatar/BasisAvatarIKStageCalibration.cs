@@ -32,6 +32,7 @@ namespace Basis.Scripts.Avatar
             {
                 public string DeviceId;
                 public Vector3 BodyLocal;        // unscaled, body-relative; z = depth
+                public Vector3 RawUnscaled;      // raw world-space unscaled pose at calibration time
                 public float HeightRatio;
                 public float LateralRatio;
                 public bool Assigned;
@@ -39,6 +40,7 @@ namespace Basis.Scripts.Avatar
                 public float AssignedScore;
                 public BasisBoneTrackedRole BestAnyRole;   // top-scoring role even if rejected
                 public float BestAnyScore;
+                public bool NearOrigin;          // raw unscaled was ≈ (0,0,0); strong indicator of a stale/missing device poll
             }
 
             public class DebugPrior
@@ -83,6 +85,7 @@ namespace Basis.Scripts.Avatar
             public float HeightRatio;   // y / eyeHeight: 0 ≈ floor, 1 ≈ HMD
             public float LateralRatio;  // signed x / eyeHeight: +x = body's right
             public Vector3 BodyLocal;   // raw body-relative position (unscaled); z = depth, kept for debug visualization only
+            public bool NearOrigin;     // tracker's UnscaledDeviceCoord came back ≈ Vector3.zero — almost always a stale/missing poll
         }
 
         private readonly struct BoneRolePrior
@@ -295,13 +298,16 @@ namespace Basis.Scripts.Avatar
             {
                 TrackerSample s = samples[i];
                 string id = s.Input != null ? s.Input.UniqueDeviceIdentifier : null;
+                Vector3 raw = s.Input != null ? s.Input.UnscaledDeviceCoord.position : Vector3.zero;
                 ConstellationDebug.Samples.Add(new ConstellationDebug.DebugSample
                 {
                     DeviceId = string.IsNullOrEmpty(id) ? "(unknown)" : id,
                     BodyLocal = s.BodyLocal,
+                    RawUnscaled = raw,
                     HeightRatio = s.HeightRatio,
                     LateralRatio = s.LateralRatio,
                     Assigned = false,
+                    NearOrigin = s.NearOrigin,
                 });
             }
         }
@@ -430,13 +436,21 @@ namespace Basis.Scripts.Avatar
                 // (zero) read here would classify the tracker at HeightRatio ≈ 0 and pin it to a foot
                 // role, dragging the avatar into the floor.
                 input.LatePollData();
-                Vector3 local = bodyRotInv * (input.UnscaledDeviceCoord.position - bodyOrigin);
+                Vector3 unscaledPos = input.UnscaledDeviceCoord.position;
+                bool nearOrigin = unscaledPos.sqrMagnitude < ConstellationNearOriginEpsilonSqr;
+                if (nearOrigin)
+                {
+                    string id = string.IsNullOrEmpty(input.UniqueDeviceIdentifier) ? "(unknown)" : input.UniqueDeviceIdentifier;
+                    BasisDebug.LogError($"FBIK constellation: tracker '{id}' polled at world origin ({unscaledPos.x:F3},{unscaledPos.y:F3},{unscaledPos.z:F3}). UnscaledDeviceCoord likely never populated — check the device's LateDoPollData. This tracker will not classify into any role.", BasisDebug.LogTag.Input);
+                }
+                Vector3 local = bodyRotInv * (unscaledPos - bodyOrigin);
                 samples.Add(new TrackerSample
                 {
                     Input = input,
                     HeightRatio = local.y / eyeHeight,
                     LateralRatio = local.x / eyeHeight,
                     BodyLocal = local,
+                    NearOrigin = nearOrigin,
                 });
             }
             return samples;
@@ -502,6 +516,10 @@ namespace Basis.Scripts.Avatar
         private const float ConstellationAcceptThreshold = -9f;
         private const float ConstellationArmHeightFloor = 0.65f;
         private const float ConstellationArmLateralFloor = 0.20f;
+        // Anything closer than 1 cm from world (0,0,0) is treated as "the device never wrote
+        // a real pose into UnscaledDeviceCoord". A real tracker basically never sits exactly
+        // on the playspace origin, so this is a safe smoke-test threshold.
+        private const float ConstellationNearOriginEpsilonSqr = 1e-4f;
         // Half arm-span as a fraction of eye height for a typical adult — used as a fallback
         // when no arm-height tracker is present to measure the player's own reach.
         private const float ConstellationDefaultArmReachRatio = 0.55f;
