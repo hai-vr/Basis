@@ -41,6 +41,7 @@ namespace Basis.Scripts.Avatar
                 public BasisBoneTrackedRole BestAnyRole;   // top-scoring role even if rejected
                 public float BestAnyScore;
                 public bool NearOrigin;          // raw unscaled was ≈ (0,0,0); strong indicator of a stale/missing device poll
+                public bool PreBound;            // tracker was pinned to a role outside the constellation (device matcher, manual map). Not classified — shown for visual reference.
             }
 
             public class DebugPrior
@@ -198,6 +199,7 @@ namespace Basis.Scripts.Avatar
 
             List<TrackerSample> samples = CollectFreeFbTrackerSamples(bodyOrigin, bodyRotInv, eyeHeight, hmdDevice);
             CaptureSampleSnapshots(samples);
+            CapturePreBoundSnapshots(bodyOrigin, bodyRotInv, eyeHeight, hmdDevice);
 
             if (samples.Count == 0)
             {
@@ -287,9 +289,189 @@ namespace Basis.Scripts.Avatar
                 assignedCount++;
             }
 
+            DiscoverToes(samples, sampleUsed, eyeHeight, ref assignedCount);
+
             ComputeBestAnyFits(samples);
             ConstellationDebug.Status = $"{assignedCount} of {samples.Count} tracker(s) assigned";
             ConstellationDebug.HasSnapshot = true;
+        }
+
+        /// <summary>
+        /// Toe roles can't be discriminated from foot roles by the 2D constellation classifier
+        /// (same height, same lateral). So after the main pass, look for unassigned trackers
+        /// that sit on the same side as an already-bound foot, are close to the floor, and are
+        /// clearly forward of the foot's z. Those are the toe trackers.
+        /// </summary>
+        private static void DiscoverToes(List<TrackerSample> samples, bool[] sampleUsed, float eyeHeight, ref int assignedCount)
+        {
+            DiscoverToeForSide(samples, sampleUsed, eyeHeight, BasisBoneTrackedRole.LeftFoot, BasisBoneTrackedRole.LeftToes, sideSign: -1, ref assignedCount);
+            DiscoverToeForSide(samples, sampleUsed, eyeHeight, BasisBoneTrackedRole.RightFoot, BasisBoneTrackedRole.RightToes, sideSign: +1, ref assignedCount);
+        }
+
+        private static void DiscoverToeForSide(
+            List<TrackerSample> samples,
+            bool[] sampleUsed,
+            float eyeHeight,
+            BasisBoneTrackedRole footRole,
+            BasisBoneTrackedRole toeRole,
+            int sideSign,
+            ref int assignedCount)
+        {
+            if (!Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(toeRole))
+            {
+                return;
+            }
+
+            // Locate the foot tracker via the snapshot (already populated by the main pass).
+            int footSampleIdx = -1;
+            for (int s = 0; s < ConstellationDebug.Samples.Count; s++)
+            {
+                ConstellationDebug.DebugSample ds = ConstellationDebug.Samples[s];
+                if (ds.Assigned && ds.AssignedRole == footRole)
+                {
+                    footSampleIdx = s;
+                    break;
+                }
+            }
+            if (footSampleIdx < 0 || footSampleIdx >= samples.Count) return;
+
+            TrackerSample foot = samples[footSampleIdx];
+            int bestToeIdx = -1;
+            float bestForwardMeters = ConstellationToeMinForwardMeters;
+            for (int s = 0; s < samples.Count; s++)
+            {
+                if (sampleUsed[s]) continue;
+                TrackerSample c = samples[s];
+
+                // Same side as the foot, similar lateral position
+                if (sideSign > 0 && c.LateralRatio <= 0f) continue;
+                if (sideSign < 0 && c.LateralRatio >= 0f) continue;
+                if (Mathf.Abs(c.LateralRatio - foot.LateralRatio) > ConstellationToeLateralBandRatio) continue;
+
+                // Near floor
+                if (c.HeightRatio > ConstellationToeMaxHeightRatio) continue;
+
+                // Forward of the foot tracker (toe is in front of the ankle)
+                float forwardMeters = c.BodyLocal.z - foot.BodyLocal.z;
+                if (forwardMeters < bestForwardMeters) continue;
+
+                bestForwardMeters = forwardMeters;
+                bestToeIdx = s;
+            }
+
+            if (bestToeIdx < 0) return;
+
+            TrackerSample chosen = samples[bestToeIdx];
+            BasisDebug.Log($"FBIK constellation (toe discovery): '{chosen.Input.UniqueDeviceIdentifier}' -> {toeRole} (forward of {footRole} by {bestForwardMeters * 100f:F0}cm, h={chosen.HeightRatio:F2})", BasisDebug.LogTag.Input);
+            chosen.Input.ApplyTrackerCalibration(toeRole);
+            sampleUsed[bestToeIdx] = true;
+            HasFBIKTrackers = true;
+            assignedCount++;
+
+            // Synthetic σ-distance for the snapshot: 0σ when the toe sits ≥10 cm forward of
+            // the foot at floor height; degrades as the placement gets ambiguous. Keeps the
+            // editor's colour heuristic meaningful for discovered toes.
+            float forwardRatio = bestForwardMeters / Mathf.Max(eyeHeight, 0.5f);
+            float h = chosen.HeightRatio;
+            float forwardScore = -Mathf.Pow(Mathf.Max(0f, 0.10f - forwardRatio) / 0.04f, 2f);
+            float heightScore = -Mathf.Pow(h / 0.10f, 2f);
+            float syntheticScore = Mathf.Min(0f, forwardScore + heightScore);
+
+            ConstellationDebug.Samples[bestToeIdx].Assigned = true;
+            ConstellationDebug.Samples[bestToeIdx].AssignedRole = toeRole;
+            ConstellationDebug.Samples[bestToeIdx].AssignedScore = syntheticScore;
+
+            // Synthesise a prior at the discovered position so the editor can render
+            // the bind line and σ ellipses for the toe — BuildPriors deliberately omits
+            // toes because the 2D classifier can't disambiguate them. We add it here
+            // post-hoc so the visualiser shows the discovered placement.
+            bool foundExisting = false;
+            for (int p = 0; p < ConstellationDebug.Priors.Count; p++)
+            {
+                if (ConstellationDebug.Priors[p].Role == toeRole)
+                {
+                    ConstellationDebug.Priors[p].AssignedSampleIndex = bestToeIdx;
+                    ConstellationDebug.Priors[p].Enabled = true;
+                    foundExisting = true;
+                    break;
+                }
+            }
+            if (!foundExisting)
+            {
+                ConstellationDebug.Priors.Add(new ConstellationDebug.DebugPrior
+                {
+                    Role = toeRole,
+                    ExpectedHeight = 0.04f,
+                    ExpectedLateral = sideSign * 0.10f,
+                    HeightSigma = 0.06f,
+                    LateralSigma = ConstellationToeLateralBandRatio,
+                    Enabled = true,
+                    AssignedSampleIndex = bestToeIdx,
+                });
+            }
+        }
+
+        /// <summary>
+        /// Walks every device, finds the ones the classifier deliberately skips (HMD-tagged
+        /// roles via DeviceMatchSettings, or devices with an existing role whose calibration
+        /// toggle is off), and adds them to the snapshot as PreBound samples. These trackers
+        /// are not classified — their role is fixed by name-matching or manual pinning — but
+        /// they live on the body and the user wants to see them in the constellation view
+        /// (toes, manually-mapped hands, etc.).
+        /// </summary>
+        private static void CapturePreBoundSnapshots(Vector3 bodyOrigin, Quaternion bodyRotInv, float eyeHeight, BasisInput hmdDevice)
+        {
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance.AllInputDevices;
+            int count = devices.Count;
+            for (int i = 0; i < count; i++)
+            {
+                BasisInput input = devices[i];
+                if (input == null) continue;
+                if (input == hmdDevice) continue;
+
+                BasisBoneTrackedRole preBoundRole;
+                bool hasPreBoundRole = false;
+
+                if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole)
+                {
+                    preBoundRole = input.DeviceMatchSettings.TrackedRole;
+                    hasPreBoundRole = true;
+                }
+                else if (input.TryGetRole(out BasisBoneTrackedRole existing) && !Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(existing))
+                {
+                    preBoundRole = existing;
+                    hasPreBoundRole = true;
+                }
+                else
+                {
+                    preBoundRole = default;
+                }
+
+                if (!hasPreBoundRole) continue;
+
+                input.LatePollData();
+                Vector3 unscaledPos = input.UnscaledDeviceCoord.position;
+                bool nearOrigin = unscaledPos.sqrMagnitude < ConstellationNearOriginEpsilonSqr;
+                if (nearOrigin)
+                {
+                    string id = string.IsNullOrEmpty(input.UniqueDeviceIdentifier) ? "(unknown)" : input.UniqueDeviceIdentifier;
+                    BasisDebug.LogError($"FBIK constellation: pre-bound tracker '{id}' (role {preBoundRole}) polled at world origin ({unscaledPos.x:F3},{unscaledPos.y:F3},{unscaledPos.z:F3}). UnscaledDeviceCoord likely never populated — check the device's LateDoPollData.", BasisDebug.LogTag.Input);
+                }
+                Vector3 local = bodyRotInv * (unscaledPos - bodyOrigin);
+                string deviceId = string.IsNullOrEmpty(input.UniqueDeviceIdentifier) ? "(unknown)" : input.UniqueDeviceIdentifier;
+                ConstellationDebug.Samples.Add(new ConstellationDebug.DebugSample
+                {
+                    DeviceId = deviceId,
+                    BodyLocal = local,
+                    RawUnscaled = unscaledPos,
+                    HeightRatio = local.y / eyeHeight,
+                    LateralRatio = local.x / eyeHeight,
+                    Assigned = false,
+                    PreBound = true,
+                    AssignedRole = preBoundRole,  // surface the pinned role here so editor & diagnostics can read it
+                    NearOrigin = nearOrigin,
+                });
+            }
         }
 
         private static void CaptureSampleSnapshots(List<TrackerSample> samples)
@@ -520,6 +702,13 @@ namespace Basis.Scripts.Avatar
         // a real pose into UnscaledDeviceCoord". A real tracker basically never sits exactly
         // on the playspace origin, so this is a safe smoke-test threshold.
         private const float ConstellationNearOriginEpsilonSqr = 1e-4f;
+
+        // Toe discovery — there is no role-name / API path that pins a tracker to LeftToes
+        // or RightToes; we have to find them after the main classifier by their relationship
+        // to the already-bound foot tracker. A toe sits forward of the ankle and stays low.
+        private const float ConstellationToeMinForwardMeters = 0.05f;  // toe must be ≥5 cm in front of the foot tracker
+        private const float ConstellationToeMaxHeightRatio = 0.18f;    // and within ~18% of eye height of the floor
+        private const float ConstellationToeLateralBandRatio = 0.12f;  // and laterally close to the foot it pairs with
         // Half arm-span as a fraction of eye height for a typical adult — used as a fallback
         // when no arm-height tracker is present to measure the player's own reach.
         private const float ConstellationDefaultArmReachRatio = 0.55f;
