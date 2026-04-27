@@ -33,7 +33,6 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
     private static readonly Color MarginalColor = new Color(0.98f, 0.55f, 0.15f);
     private static readonly Color BadColor = new Color(0.95f, 0.30f, 0.30f);
     private static readonly Color StaleColor = new Color(0.85f, 0.30f, 0.95f);   // near-origin / not-polled trackers
-    private static readonly Color PreBoundColor = new Color(0.30f, 0.75f, 0.95f); // pinned by device matcher / manual map, not classified
     private static readonly Color DisabledColor = new Color(0.45f, 0.45f, 0.45f);
     private static readonly Color PriorIdleColor = new Color(0.85f, 0.85f, 0.90f);
     private static readonly Color SilhouetteColor = new Color(1f, 1f, 1f, 0.10f);
@@ -455,11 +454,8 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
             Color c = SampleColor(s);
 
             // Connection line to assigned prior (or alt prior if showing).
-            // Pre-bound samples don't go through the classifier, so we don't draw classifier links for them.
             BasisAvatarIKStageCalibration.ConstellationDebug.DebugPrior linkedPrior =
-                s.PreBound
-                    ? null
-                    : FindPrior(s.Assigned ? s.AssignedRole : s.BestAnyRole);
+                FindPrior(s.Assigned ? s.AssignedRole : s.BestAnyRole);
             if (linkedPrior != null && (s.Assigned || _showAltLines))
             {
                 Vector2 pp = map.ToPanel(linkedPrior.ExpectedLateral, linkedPrior.ExpectedHeight);
@@ -492,8 +488,7 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
             }
 
             // Short label
-            string prefix = s.NearOrigin ? "⚠ STALE  " : (s.PreBound ? $"⛓ {ShortRoleName(s.AssignedRole)}  " : "");
-            string lbl = prefix + ShortDeviceId(s.DeviceId);
+            string lbl = (s.NearOrigin ? "⚠ STALE  " : "") + ShortDeviceId(s.DeviceId);
             DrawTextWithShadow(new Vector2(sp.x + dotR + 2, sp.y + 2), lbl, FadeColor(c, 0.9f));
         }
     }
@@ -530,10 +525,9 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
                 Repaint();
             }
 
-            string lbl;
-            if (s.NearOrigin) lbl = "⚠ STALE poll";
-            else if (s.PreBound) lbl = $"⛓ {ShortRoleName(s.AssignedRole)}  z={s.BodyLocal.z:+0.00;-0.00;0.00}m";
-            else lbl = $"z={s.BodyLocal.z:+0.00;-0.00;0.00}m";
+            string lbl = s.NearOrigin
+                ? "⚠ STALE poll"
+                : $"z={s.BodyLocal.z:+0.00;-0.00;0.00}m";
             DrawTextWithShadow(new Vector2(sp.x + dotR + 2, sp.y + 2), lbl, FadeColor(c, 0.85f));
         }
     }
@@ -541,7 +535,6 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
     private static Color SampleColor(BasisAvatarIKStageCalibration.ConstellationDebug.DebugSample s)
     {
         if (s.NearOrigin) return StaleColor;
-        if (s.PreBound) return PreBoundColor;
         return s.Assigned ? ScoreToColor(s.AssignedScore) : BadColor;
     }
 
@@ -556,7 +549,6 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
             DrawLegendDot(MarginalColor, "marginal (2–3σ)");
             DrawLegendDot(BadColor, "rejected / unassigned");
             DrawLegendDot(StaleColor, "⚠ stale poll (≈origin)");
-            DrawLegendDot(PreBoundColor, "⛓ pre-bound (matcher)");
             DrawLegendDot(PriorIdleColor, "prior, no tracker");
             DrawLegendDot(DisabledColor, "prior disabled");
             GUILayout.FlexibleSpace();
@@ -609,7 +601,6 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
         {
             var s = BasisAvatarIKStageCalibration.ConstellationDebug.Samples[i];
             if (s.NearOrigin) continue; // already reported above
-            if (s.PreBound) continue;   // not classified — informational only, not a failure
             if (!s.Assigned)
             {
                 float sd = s.BestAnyScore <= 0f ? Mathf.Sqrt(-s.BestAnyScore) : 0f;
@@ -694,11 +685,6 @@ public class BasisConstellationCalibrationDebugWindow : EditorWindow
                 {
                     GUILayout.Label("⚠ STALE POLL", GUILayout.Width(150));
                     GUILayout.Label("—", GUILayout.Width(100));
-                }
-                else if (s.PreBound)
-                {
-                    GUILayout.Label($"⛓ {s.AssignedRole}", GUILayout.Width(150));
-                    GUILayout.Label("pre-bound", GUILayout.Width(100));
                 }
                 else if (s.Assigned)
                 {
