@@ -399,6 +399,30 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
+        /// <summary>
+        /// Swap the AudioSource's clip for a freshly-pooled one, in-place. The
+        /// existing clip is destroyed (not pooled) so a stale-sized clip can't
+        /// re-enter circulation when the pool's <see cref="BasisAudioClipPool.ClipBufferScalar"/>
+        /// has just changed. AudioSource, transform, viseme driver, and Steam Audio
+        /// component are all preserved — only the underlying clip is replaced.
+        /// </summary>
+        public void ReloadClip()
+        {
+            if (audioSource == null || BasisNetworkReceiver == null) return;
+
+            audioSource.Stop();
+
+            AudioClip oldClip = audioSource.clip;
+            audioSource.clip = null;
+            if (oldClip != null) AudioClip.Destroy(oldClip);
+
+            audioSource.clip = BasisAudioClipPool.Get(BasisNetworkReceiver.playerId);
+            audioSource.loop = true;
+            audioSource.Play();
+            _audioPlaying = true;
+            _audioEnabled = audioSource.enabled;
+        }
+
         public void UnloadAudioSource()
         {
             HasAudioSource = false;

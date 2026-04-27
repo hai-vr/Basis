@@ -16,7 +16,45 @@ namespace Basis.BasisUI
         [RuntimeInitializeOnLoadMethod]
         static void Init()
         {
+            ApplyJitterBufferDepth();
+            ApplyClipBufferScalar();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyRemoteAudioToAll;
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJitterBufferDepth;
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyClipBufferScalar;
+        }
+
+        /// <summary>
+        /// Pushes the user-chosen jitter buffer depth into <see cref="RemoteOpusSettings.JitterBufferSize"/>.
+        /// BasisVoiceBuffer reads this lazily, so live receivers pick up the new value
+        /// on their next encoded-packet release without needing a per-receiver poke.
+        /// Clamped to 1 so we never disable the initial-fill gate entirely.
+        /// </summary>
+        private static void ApplyJitterBufferDepth()
+        {
+            int depth = Mathf.Max(1, Mathf.RoundToInt(BasisSettingsDefaults.RAJitterBufferDepth.RawValue));
+            RemoteOpusSettings.JitterBufferSize = depth;
+        }
+
+        /// <summary>
+        /// Pushes the user-chosen clip-buffer scalar into <see cref="BasisAudioClipPool.ClipBufferScalar"/>,
+        /// clears the pool so newly-allocated clips pick up the new size, and swaps
+        /// the clip on every live receiver in place via <see cref="BasisAudioReceiver.ReloadClip"/>.
+        /// </summary>
+        private static void ApplyClipBufferScalar()
+        {
+            int scalar = Mathf.Max(1, Mathf.RoundToInt(BasisSettingsDefaults.RAClipBufferScalar.RawValue));
+            if (BasisAudioClipPool.ClipBufferScalar == scalar) return;
+            BasisAudioClipPool.ClipBufferScalar = scalar;
+            BasisAudioClipPool.Clear();
+
+            foreach (var kvp in BasisNetworkPlayers.RemotePlayers)
+            {
+                BasisNetworkReceiver receiver = kvp.Value;
+                if (receiver?.AudioReceiverModule != null && receiver.AudioReceiverModule.HasAudioSource)
+                {
+                    receiver.AudioReceiverModule.ReloadClip();
+                }
+            }
         }
 
         public static void BuildRemoteAudioUI(RectTransform container)
@@ -54,6 +92,35 @@ namespace Basis.BasisUI
                 sliderListenerDampenAmount.Descriptor.SetActive(val < 360f);
                 listenerDampenGroup.ForceRebuild();
             };
+
+            // ─────────────── VOICE BUFFER GROUP (always visible) ───────────────
+            // Frames-of-audio buffered ahead of playback. Lower = less latency,
+            // higher = more resilience to packet jitter / loss before underrun.
+            // Buffer is 20 ms per frame, so 5 ≈ 100 ms.
+            PanelElementDescriptor voiceBufferGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            voiceBufferGroup.SetTitle("Voice Buffer");
+            voiceBufferGroup.SetDescription(
+                "How many 20 ms voice frames to buffer ahead of playback.\n" +
+                "Lower = less latency. Higher = smoother audio on jittery networks.\n" +
+                "Default: 5 (~100 ms).");
+
+            PanelSlider sliderJitterDepth = PanelSlider.CreateEntryAndBind(
+                voiceBufferGroup,
+                PanelSlider.SliderSettings.Advanced("Buffered Frames Target", 1f, 15f, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAJitterBufferDepth);
+            sliderJitterDepth.Descriptor.SetDescription(
+                "Each frame is 20 ms. 1 = ~20 ms (low latency, more dropouts).\n" +
+                "5 = ~100 ms (default). 15 = ~300 ms (max resilience).");
+
+            PanelSlider sliderClipBufferScalar = PanelSlider.CreateEntryAndBind(
+                voiceBufferGroup,
+                PanelSlider.SliderSettings.Advanced("Playback Clip Buffer", 2f, 8f, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAClipBufferScalar);
+            sliderClipBufferScalar.Descriptor.SetDescription(
+                "Multiplier on the per-player AudioClip length used by Unity's AudioSource.\n" +
+                "Lower = tighter coupling to the decoded queue (less latency, more sensitive\n" +
+                "to underruns). Default: 4. Live audio sources reload in place when changed.");
 
             // ─────────────── AUDIO SOURCE GROUP (advanced) ───────────────
             PanelElementDescriptor audioSourceGroup =

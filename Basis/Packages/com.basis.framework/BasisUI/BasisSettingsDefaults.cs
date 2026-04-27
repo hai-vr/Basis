@@ -787,6 +787,16 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> RAReflectionsMixLevel = new("ra_reflectionsmixlevel", new BasisPlatformDefault<float>(0.1f));
         public static BasisSettingsBinding<bool> RAApplyHRTFToReflections = new("ra_applyhrtftoreflections", new BasisPlatformDefault<bool>(false));
 
+        // Voice jitter buffer depth (in 20ms Opus frames). Lower = less latency,
+        // higher = more resilience to network jitter / packet loss before underrun.
+        public static BasisSettingsBinding<float> RAJitterBufferDepth = new("ra_jitterbufferdepth", new BasisPlatformDefault<float>(5f));
+
+        // Multiplier on the AudioClip pool's clip duration. Sits between the
+        // decoded PCM queue and Unity's AudioSource as a secondary playback
+        // buffer. Lower = less latency, higher = more headroom against
+        // mid-callback decoded-queue stalls.
+        public static BasisSettingsBinding<float> RAClipBufferScalar = new("ra_clipbufferscalar", new BasisPlatformDefault<float>(4f));
+
         public static BasisSettingsBinding<bool> FBIKEuroAll = new("euroall");
 
         // ---------------- CALIBRATION SPHERE SCALE (per bone) ----------------
@@ -1230,6 +1240,8 @@ namespace Basis.BasisUI
             RAReflections.LoadBindingValue();
             RAReflectionsMixLevel.LoadBindingValue();
             RAApplyHRTFToReflections.LoadBindingValue();
+            RAJitterBufferDepth.LoadBindingValue();
+            RAClipBufferScalar.LoadBindingValue();
 
             // UI Style Palette
             UIPaletteBG1.LoadBindingValue();
