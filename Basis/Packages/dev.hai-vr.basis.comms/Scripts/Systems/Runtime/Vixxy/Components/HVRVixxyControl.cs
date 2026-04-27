@@ -399,17 +399,27 @@ namespace HVR.Vixxy
                 var fieldInfoNullable = GetFieldInfoOrNull(foundType, property.propertyName);
                 if (fieldInfoNullable != null)
                 {
+                    if (!HVRVixxyPermitted.allowFieldAccess)
+                    {
+                        return HVRVixxyPropertyBakeResult.FieldAccessIsNotPermitted;
+                    }
+
                     property.FieldIfMarkedAsFieldAccess = fieldInfoNullable;
                     property.KindMarker = HVRKindMarker.FieldAccess;
                 }
                 else
                 {
+                    if (!HVRVixxyPermitted.allowPropertyAccess)
+                    {
+                        return HVRVixxyPropertyBakeResult.PropertyAccessIsNotPermitted;
+                    }
+
                     var propertyInfoNullable = GetPropertyInfoOrNull(foundType, property.propertyName);
                     if (propertyInfoNullable == null) return HVRVixxyPropertyBakeResult.NoFieldNorPropertyMatches;
 
                     if (typeof(Array).IsAssignableFrom(propertyInfoNullable.PropertyType))
                     {
-
+                        // TODO: ?????????????????????
                     }
 
                     property.TPropertyIfMarkedAsTPropertyAccess = propertyInfoNullable;
@@ -652,15 +662,7 @@ namespace HVR.Vixxy
                         case HVRKindMarker.AffectsMaterialPropertyBlock:
                         {
                             var materialPropertyBlock = orchestrator.GetMaterialPropertyBlockForBakedObject(component.gameObject);
-                            // TODO: Instead of checking the type, use something like property.ApplyMaterialProperty(materialPropertyBlock, value), where the property itself knows how to apply it to the property block.
-                            switch (resolvedValue)
-                            {
-                                case float lerpFloatValue: materialPropertyBlock.SetFloat(property.ShaderMaterialProperty, lerpFloatValue); break;
-                                case Color lerpColorValue: materialPropertyBlock.SetColor(property.ShaderMaterialProperty, lerpColorValue); break;
-                                case Vector4 lerpVector4Value: materialPropertyBlock.SetVector(property.ShaderMaterialProperty, lerpVector4Value); break;
-                                case Vector3 lerpVector3Value: materialPropertyBlock.SetVector(property.ShaderMaterialProperty, lerpVector3Value); break;
-                                // TODO: Other types
-                            }
+                            property.ApplyMaterialProperty(materialPropertyBlock, resolvedValue);
                             orchestrator.StagePropertyBlock(component.gameObject);
                             break;
                         }
@@ -782,7 +784,9 @@ namespace HVR.Vixxy
         MaterialPropertyBlockCanOnlyBeUsedOnRenderers,
         BlendShapeCanOnlyBeUsedOnSkinnedMeshRenderers,
         NoSkinnedMeshRendererHasThisBlendShape,
-        NoFieldNorPropertyMatches
+        NoFieldNorPropertyMatches,
+        FieldAccessIsNotPermitted,
+        PropertyAccessIsNotPermitted,
     }
 
     internal enum HVRVixxySubjectsBakeResult

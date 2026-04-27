@@ -206,6 +206,24 @@ namespace HVR.Vixxy
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}
         public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
+
+        public virtual void ApplyMaterialProperty(MaterialPropertyBlock materialPropertyBlock, object resolvedValue)
+        {
+            switch (resolvedValue)
+            {
+                case float lerpFloatValue: materialPropertyBlock.SetFloat(ShaderMaterialProperty, lerpFloatValue); break;
+                case Color lerpColorValue: materialPropertyBlock.SetColor(ShaderMaterialProperty, lerpColorValue); break;
+                case Vector4 lerpVector4Value: materialPropertyBlock.SetVector(ShaderMaterialProperty, lerpVector4Value); break;
+                case Vector3 lerpVector3Value: materialPropertyBlock.SetVector(ShaderMaterialProperty, lerpVector3Value); break;
+
+                // Unused, but we define them anyway:
+                case Vector2 lerpVector2Value: materialPropertyBlock.SetVector(ShaderMaterialProperty, lerpVector2Value); break;
+                case int lerpIntValue: materialPropertyBlock.SetInt(ShaderMaterialProperty, lerpIntValue); break;
+                case bool lerpBoolValue: materialPropertyBlock.SetFloat(ShaderMaterialProperty, lerpBoolValue ? 1f : 0f); break;
+                case Texture textureValue: materialPropertyBlock.SetTexture(ShaderMaterialProperty, textureValue); break;
+                case float[] lerpFloatArrayValue: materialPropertyBlock.SetFloatArray(ShaderMaterialProperty, lerpFloatArrayValue); break;
+            }
+        }
     }
 
     [Serializable]
