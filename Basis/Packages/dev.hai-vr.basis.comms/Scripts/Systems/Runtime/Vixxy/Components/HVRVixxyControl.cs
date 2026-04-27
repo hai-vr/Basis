@@ -118,7 +118,7 @@ namespace HVR.Vixxy
 
             if (Networked)
             {
-                orchestrator.RequireNetworked(Address, NetworkingType);
+                orchestrator.RequireNetworked(AddressId, NetworkingType, defaultValue);
             }
 
             IsInitialized = true;
@@ -398,7 +398,7 @@ namespace HVR.Vixxy
                 var fieldInfoNullable = GetFieldInfoOrNull(foundType, property.propertyName);
                 if (fieldInfoNullable != null)
                 {
-                    if (!HVRVixxyPermitted.allowFieldAccess)
+                    if (!HVRVixxyPermitted.AllowFieldAccess)
                     {
                         return HVRVixxyPropertyBakeResult.FieldAccessIsNotPermitted;
                     }
@@ -408,7 +408,7 @@ namespace HVR.Vixxy
                 }
                 else
                 {
-                    if (!HVRVixxyPermitted.allowPropertyAccess)
+                    if (!HVRVixxyPermitted.AllowPropertyAccess)
                     {
                         return HVRVixxyPropertyBakeResult.PropertyAccessIsNotPermitted;
                     }
@@ -584,20 +584,7 @@ namespace HVR.Vixxy
                     // TODO: Rather than do that check every time, bake the applicable properties into an internal field.
                     if (!property.IsApplicable) continue;
 
-                    object lerpValue = property switch
-                    {
-                        HVRVixxyPropertyFloat valueFloat => Mathf.Lerp(valueFloat.choices[inactiveIndex], valueFloat.choices[activeIndex], active01),
-                        HVRVixxyPropertyBool valueBool => active01 > valueBool.threshold || Mathf.Approximately(active01, 1f)
-                            ? valueBool.choices[activeIndex]
-                            : valueBool.choices[inactiveIndex],
-                        HVRVixxyPropertyColor valueColor => valueColor.interpolation == HVRVixxyPropertyColorInterpolation.Oklab
-                            ? HVR_ColorInterpolation.OklabLerp(valueColor.choices[inactiveIndex], valueColor.choices[activeIndex], active01)
-                            : Color.Lerp(valueColor.choices[inactiveIndex], valueColor.choices[activeIndex], active01),
-                        HVRVixxyPropertyVector4 valueVector4 => Vector4.Lerp(valueVector4.choices[inactiveIndex], valueVector4.choices[activeIndex], active01),
-                        HVRVixxyPropertyVector3 valueVector3 => Vector3.Lerp(valueVector3.choices[inactiveIndex], valueVector3.choices[activeIndex], active01),
-                        HVRVixxyPropertyQuaternion valueQuaternion => Quaternion.Slerp(valueQuaternion.choices[inactiveIndex], valueQuaternion.choices[activeIndex], active01),
-                        _ => null
-                    };
+                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex);
                     Apply(property, lerpValue, out var propertyNeedsCleanup);
 
                     if (propertyNeedsCleanup)
@@ -679,14 +666,12 @@ namespace HVR.Vixxy
                         {
                             var fieldInfo = property.FieldIfMarkedAsFieldAccess;
                             fieldInfo.SetValue(component, resolvedValue);
-                            orchestrator.StagePossibleSpecialComponentHandling(component);
                             break;
                         }
                         case HVRKindMarker.PropertyAccess:
                         {
                             var propertyInfo = property.TPropertyIfMarkedAsTPropertyAccess;
                             propertyInfo.SetValue(component, resolvedValue);
-                            orchestrator.StagePossibleSpecialComponentHandling(component);
                             break;
                         }
                         case HVRKindMarker.Undefined:

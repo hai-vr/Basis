@@ -8,7 +8,7 @@ using UnityEngine;
 namespace HVR.Vixxy
 {
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization/vixxy")]
-    [AddComponentMenu("HVR.Basis/Vixxy Control")]
+    [AddComponentMenu("HVR.Basis/HVR Vixxy Control")]
     public partial class HVRVixxyControl
     {
         /// The orchestrator defines the context that the subjects of this control will affect (e.g. Recursive Search).
@@ -147,9 +147,6 @@ namespace HVR.Vixxy
     {
         public T[] choices = new T[2];
 
-        public T InactiveValue => choices[InactiveIndex];
-        public T ActiveValue => choices[ActiveIndex];
-
         public override bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => choices.Length >= actualNumberOfChoices;
 
         public override void PruneArrays(int actualNumberOfChoices)
@@ -178,6 +175,12 @@ namespace HVR.Vixxy
         {
             choices = choices.Where((_, i) => i != choiceIndex).ToArray();
         }
+
+        internal T ApplyThresholdFunction(float active01, int inactiveIndex, int activeIndex, float threshold)
+        {
+            var isActive = active01 > threshold || Mathf.Approximately(active01, 1f);
+            return isActive ? choices[activeIndex] : choices[inactiveIndex];
+        }
     }
 
     [Serializable]
@@ -198,15 +201,15 @@ namespace HVR.Vixxy
         [NonSerialized] internal Type FoundType;
         [NonSerialized] internal List<Component> FoundComponents;
         [NonSerialized] internal HVRKindMarker KindMarker;
-        [NonSerialized] internal int ShaderMaterialProperty;
-        [NonSerialized] internal FieldInfo FieldIfMarkedAsFieldAccess; // null if SpecialMarker is not FieldAccess
-        [NonSerialized] internal PropertyInfo TPropertyIfMarkedAsTPropertyAccess; // null if SpecialMarker is not PropertyAccess
-        [NonSerialized] internal Dictionary<SkinnedMeshRenderer, int> SmrToBlendshapeIndex; // null if SpecialMarker is not BlendShape
+        [NonSerialized] internal int ShaderMaterialProperty; // only relevant if HVRKindMarker is AffectsMaterialPropertyBlock
+        [NonSerialized] internal FieldInfo FieldIfMarkedAsFieldAccess; // null if HVRKindMarker is not FieldAccess
+        [NonSerialized] internal PropertyInfo TPropertyIfMarkedAsTPropertyAccess; // null if HVRKindMarker is not PropertyAccess
+        [NonSerialized] internal Dictionary<SkinnedMeshRenderer, int> SmrToBlendshapeIndex; // null if HVRKindMarker is not BlendShape
 
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}
         public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
-
+        public virtual object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex) { throw new NotImplementedException(); }
         public virtual void ApplyMaterialProperty(MaterialPropertyBlock materialPropertyBlock, object resolvedValue)
         {
             switch (resolvedValue)
@@ -238,14 +241,102 @@ namespace HVR.Vixxy
     {
     }
 
-    [Serializable] public class HVRVixxyPropertyFloat : HVRVixxyProperty<float> { }
-    [Serializable] public class HVRVixxyPropertyVector4 : HVRVixxyProperty<Vector4> { }
-    [Serializable] public class HVRVixxyPropertyVector3 : HVRVixxyProperty<Vector3> { }
-    [Serializable] public class HVRVixxyPropertyMaterial : HVRVixxyProperty<Material> { }
-    [Serializable] public class HVRVixxyPropertyMesh : HVRVixxyProperty<Mesh> { }
-    [Serializable] public class HVRVixxyPropertyColor : HVRVixxyProperty<Color> { public HVRVixxyPropertyColorInterpolation interpolation; }
-    [Serializable] public class HVRVixxyPropertyBool : HVRVixxyProperty<bool> { public float threshold; }
-    [Serializable] public class HVRVixxyPropertyQuaternion : HVRVixxyProperty<Quaternion> { public HVRVixxyPropertyQuaternionInterpolation interpolation; }
+    [Serializable]
+    public class HVRVixxyPropertyFloat : HVRVixxyProperty<float>
+    {
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return Mathf.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyVector4 : HVRVixxyProperty<Vector4>
+    {
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return Vector4.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyVector3 : HVRVixxyProperty<Vector3>
+    {
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyMaterial : HVRVixxyProperty<Material>
+    {
+        public float threshold;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyMesh : HVRVixxyProperty<Mesh>
+    {
+        public float threshold;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyColor : HVRVixxyProperty<Color>
+    {
+        public HVRVixxyPropertyColorInterpolation interpolation;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return interpolation == HVRVixxyPropertyColorInterpolation.Oklab
+                ? HVR_ColorInterpolation.OklabLerp(choices[inactiveIndex], choices[activeIndex], active01)
+                : Color.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyBool : HVRVixxyProperty<bool>
+    {
+        public float threshold;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyQuaternion : HVRVixxyProperty<Quaternion>
+    {
+        public HVRVixxyPropertyQuaternionInterpolation interpolation;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return Quaternion.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyString : HVRVixxyProperty<string>
+    {
+        public float threshold;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            var result = ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
+
+            return result != null ? string.Format(result, active01) : null;
+        }
+    }
 
     [Serializable]
     public enum HVRVixxyPropertyColorInterpolation

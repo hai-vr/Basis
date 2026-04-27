@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using HVR.Basis.Comms;
+using HVR.Basis.Comms.Vixxy;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -18,8 +19,9 @@ namespace HVR.Vixxy
         [SerializeField] public AcquisitionService acquisitionService;
         [SerializeField] public Transform context; // Can be null. If it is null, the orchestrator *is* the context.
 
-#if HVR_VIXXY_IS_IN_BASIS
         [SerializeField] public object networking;
+#if HVR_VIXXY_IS_IN_BASIS
+        public HVRVixxyBasisAvatarNetworking Networking => (HVRVixxyBasisAvatarNetworking)networking;
 #endif
 
         private readonly HashSet<IHVRVixxyAggregator> _aggregatorsToUpdateThisTick = new();
@@ -35,6 +37,7 @@ namespace HVR.Vixxy
 
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
+        private List<HVRVixxyToBeNetworked> _toBeNetworked;
         public event NetworkDataUpdateRequired OnNetworkDataUpdateRequired;
         public delegate void NetworkDataUpdateRequired();
 
@@ -265,19 +268,14 @@ namespace HVR.Vixxy
             _stagedBlocks.Add(bakedObject);
         }
 
-        public void StagePossibleSpecialComponentHandling(Component component)
+        public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue)
         {
-            // TODO: This is a No-op for now.
-            // The intent was that some components might need a method called once all actuators have performed an operation on it,
-            // a bit like material property blocks.
-            // e.g. a rebuild operation. But this might not be the case.
-
-            // _stagedComponents.Add(component);
-        }
-
-        public void RequireNetworked(string address, HVRVixxyNetworkingType networkingType)
-        {
-            // networking.RequireNetworked(address, bakedDefaultValue, netDataUsage);
+            _toBeNetworked.Add(new HVRVixxyToBeNetworked
+            {
+                addressId = addressId,
+                networkingType = networkingType,
+                defaultValue = defaultValue
+            });
         }
     }
 
@@ -289,5 +287,12 @@ namespace HVR.Vixxy
         public IHVRVixxyActuator registeredActuator;
 
         public float initialValue;
+    }
+
+    internal class HVRVixxyToBeNetworked
+    {
+        public int addressId;
+        public HVRVixxyNetworkingType networkingType;
+        public float defaultValue;
     }
 }

@@ -97,8 +97,9 @@ namespace HVR.Basis.Comms.Vixxy
             throw new NotImplementedException();
         }
 
-        public void RequireNetworked(string address, float defaultValue)
+        public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue)
         {
+            throw new NotImplementedException();
         }
     }
 
