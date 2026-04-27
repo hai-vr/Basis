@@ -20,7 +20,7 @@ namespace HVR.Basis.Comms
         /// Returns an ID for that address, storing that address if it was not seen before.
         /// This ID is only valid for the duration of the app's execution; don't store it across app executions.
         /// Valid IDs start at 1.<br/>
-        /// You should store the returned value of this somewhere, the whole point of having addresses represented as strings is to
+        /// You should store the returned value of this somewhere, the whole point of having addresses represented as a number is to
         /// avoid using string references on frequently invoked methods.
         public static int AddressToId(string address)
         {
