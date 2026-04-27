@@ -23,16 +23,38 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyClipBufferScalar;
         }
 
+        // Last applied jitter depth, so we only force a (disruptive) buffer reset
+        // on live receivers when the value actually changed. Initialized to the
+        // default so the first call from Init() is treated as a no-op change.
+        private static int _lastAppliedJitterDepth = -1;
+
         /// <summary>
         /// Pushes the user-chosen jitter buffer depth into <see cref="RemoteOpusSettings.JitterBufferSize"/>.
-        /// BasisVoiceBuffer reads this lazily, so live receivers pick up the new value
-        /// on their next encoded-packet release without needing a per-receiver poke.
-        /// Clamped to 1 so we never disable the initial-fill gate entirely.
+        /// The encoded-packet release gate (<c>_receivedSinceStart &lt; InitialBufferDepth</c>)
+        /// is only consulted during the initial fill, so a mid-stream change wouldn't be
+        /// audible until the next mute→unmute cycle. To make the slider act NOW we also
+        /// <see cref="BasisVoiceBuffer.Reset"/> every live receiver, which costs a brief
+        /// (~100 ms) audio gap as the buffer refills at the new depth.
+        /// Clamped to 1 so we never disable the gate entirely.
         /// </summary>
         private static void ApplyJitterBufferDepth()
         {
             int depth = Mathf.Max(1, Mathf.RoundToInt(BasisSettingsDefaults.RAJitterBufferDepth.RawValue));
             RemoteOpusSettings.JitterBufferSize = depth;
+
+            if (_lastAppliedJitterDepth == depth) return;
+            bool firstApply = _lastAppliedJitterDepth < 0;
+            _lastAppliedJitterDepth = depth;
+            if (firstApply) return; // startup — no live receivers to poke
+
+            foreach (var kvp in BasisNetworkPlayers.RemotePlayers)
+            {
+                BasisNetworkReceiver receiver = kvp.Value;
+                if (receiver?.AudioReceiverModule?.VoiceBuffer != null)
+                {
+                    receiver.AudioReceiverModule.VoiceBuffer.Reset();
+                }
+            }
         }
 
         /// <summary>
