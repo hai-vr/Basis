@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using HVR.Basis.Comms;
 using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEditorInternal;
@@ -29,6 +30,7 @@ namespace HVR.Vixxy.Editor
 
         private string _search;
         private bool _focusNext;
+        private List<Type> _nonTypes;
 
         internal VLayoutChangeProperties(HVRVixxyControlEditor editor)
         {
@@ -120,14 +122,14 @@ namespace HVR.Vixxy.Editor
                     if (_previousRootObject != rootObject || _types == null)
                     {
                         _previousRootObject = rootObject;
-                        _types = targetObject.GetComponents<Component>()
+                        (_types, _nonTypes) = targetObject.GetComponents<Component>()
                             .Where(component => component != null)
                             .Select(component => component.GetType())
                             .Distinct()
-                            .Where(type => HVRVixxyPermitted.IsPermitted(type.FullName))
-                            .ToList();
+                            .Partition(type => HVRVixxyPermitted.IsPermitted(type.FullName));
                         _types.Remove(typeof(Transform));
                         _types.Add(typeof(Transform));
+
                         foreach (var type in _types)
                         {
                             _typeToWhichOpened.Add(type, -1);
@@ -166,6 +168,17 @@ namespace HVR.Vixxy.Editor
                         }
 
                         GUILayout.EndVertical();
+                    }
+
+                    if (_nonTypes.Count > 0)
+                    {
+                        EditorGUILayout.HelpBox("The types of the following components are not in the list of allowed types, so they cannot be modified nor toggled.", MessageType.Info);
+                        foreach (var nonType in _nonTypes)
+                        {
+                            EditorGUI.BeginDisabledGroup(true);
+                            DisplayComponentObjectField(targetObject, nonType);
+                            EditorGUI.EndDisabledGroup();
+                        }
                     }
                 }
 
@@ -236,27 +249,32 @@ namespace HVR.Vixxy.Editor
             // EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)));
             EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.variant)));
             EditorGUI.EndDisabledGroup();
+
+            EditorGUI.BeginDisabledGroup(managedReferenceValue is HVRVixxyPropertyBase { variant: HVRVixxyPropertyVariant.Standard });
             EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.propertyName)));
+            EditorGUI.EndDisabledGroup();
+
             if (inheritsFromVixxyProperty)
             {
                 var choicesSp = propertySp.FindPropertyRelative(nameof(HVRVixxyProperty<object>.choices));
-                if (my.NumberOfChoices > 2)
+                if (my.IsRegularToggle)
+                {
+                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex), new GUIContent("Inactive"));
+                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex), new GUIContent("Active"));
+                }
+                else
                 {
                     var choices = my.choices;
                     if (choicesSp.arraySize < my.NumberOfChoices)
                     {
                         choicesSp.arraySize = my.NumberOfChoices;
                     }
+
                     for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                     {
                         var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
                         EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
                     }
-                }
-                else
-                {
-                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex), new GUIContent("Inactive"));
-                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex), new GUIContent("Active"));
                 }
             }
 

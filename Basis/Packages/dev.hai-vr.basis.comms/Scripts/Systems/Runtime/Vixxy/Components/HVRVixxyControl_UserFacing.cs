@@ -22,6 +22,9 @@ namespace HVR.Vixxy
 
         public int NumberOfChoices => choices.Length;
         public bool HasThreeOrMoreChoices => NumberOfChoices >= 3;
+        public bool IsRegularToggle => !HasThreeOrMoreChoices
+                                       && Mathf.Approximately(choices[HVRVixxyPropertyBase.ActiveIndex].value, 1f)
+                                       && Mathf.Approximately(choices[HVRVixxyPropertyBase.InactiveIndex].value, 0f);
 
         [SerializeField] public HVRVixxyChoiceControl[] choices = {
             new() { title = "", icon = null, value = 0f },

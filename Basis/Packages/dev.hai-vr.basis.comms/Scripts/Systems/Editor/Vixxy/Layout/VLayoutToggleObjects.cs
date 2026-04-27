@@ -20,10 +20,7 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
-            var isRegularToggle = !my.HasThreeOrMoreChoices
-                                  && Mathf.Approximately(my.choices[HVRVixxyPropertyBase.ActiveIndex].value, 1f)
-                                  && Mathf.Approximately(my.choices[HVRVixxyPropertyBase.InactiveIndex].value, 0f);
-            if (isRegularToggle)
+            if (my.IsRegularToggle)
             {
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.EnableTheseWhenActiveLabel);
                 DisplayActivations(activationsSp, true, false);
@@ -152,6 +149,11 @@ namespace HVR.Vixxy.Editor
                     }
 
                     EditorGUILayout.EndHorizontal();
+
+                    if (componentSp.objectReferenceValue != null && !HVRVixxyPermitted.IsPermitted(componentSp.objectReferenceValue.GetType().FullName))
+                    {
+                        EditorGUILayout.HelpBox($"The type of the component {componentSp.objectReferenceValue.GetType().Name} is not in the list of allowed types, so it cannot be toggled.", MessageType.Error);
+                    }
                 }
             }
 

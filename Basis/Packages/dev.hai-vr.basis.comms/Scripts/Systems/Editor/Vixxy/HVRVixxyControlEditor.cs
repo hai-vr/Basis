@@ -165,7 +165,7 @@ namespace HVR.Vixxy.Editor
         {
             var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
             var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
-            return description;
+            return $"{description} (={choices[choiceIndex].value:0})";
         }
     }
 }
