@@ -77,7 +77,7 @@ namespace HVR.Vixxy.Editor
                     }
 
                     EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
-                    if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(20)))
+                    if (GUILayout.Button(HVREditorHelpers.CrossSymbol, GUILayout.Width(20)))
                     {
                         _editor.RemoveChoice(choiceIndex);
                         return true;
@@ -89,7 +89,7 @@ namespace HVR.Vixxy.Editor
 
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("", GUILayout.Width(30));
-                if (GUILayout.Button($"{HVRUiHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
+                if (GUILayout.Button($"{HVREditorHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
                 {
                     _editor.AddChoice();
                     return true;

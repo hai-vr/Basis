@@ -108,7 +108,7 @@ namespace HVR.Vixxy.Editor
             EditorGUI.EndDisabledGroup();
 
             EditorGUI.BeginDisabledGroup(string.IsNullOrWhiteSpace(pathSp.stringValue) && assetSp.objectReferenceValue == null);
-            if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(20)))
+            if (GUILayout.Button(HVREditorHelpers.CrossSymbol, GUILayout.Width(20)))
             {
                 assetSp.objectReferenceValue = null;
                 pathSp.stringValue = "";

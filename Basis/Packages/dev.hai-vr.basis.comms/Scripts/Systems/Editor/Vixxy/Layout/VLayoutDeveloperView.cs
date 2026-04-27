@@ -41,7 +41,7 @@ namespace HVR.Vixxy.Editor
                 {
                     HaiEFCommon.ColoredBackgroundVoid(true, HVRVixxyControlEditor.PreviewColor, () =>
                     {
-                        EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+                        EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
                         if (my.HasMoreThanTwoChoices)
                         {
                             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.InterpolateFromChoiceApplies)));
@@ -62,7 +62,7 @@ namespace HVR.Vixxy.Editor
 
                 HaiEFCommon.ColoredBackgroundVoid(true, HVRVixxyControlEditor.RuntimeColorOK, () =>
                 {
-                    EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+                    EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
                     EditorGUILayout.Toggle(nameof(HVRVixxyControl.IsInitialized), my.IsInitialized);
                     EditorGUILayout.Toggle(nameof(HVRVixxyControl.WasAvatarReadyApplied), my.WasAvatarReadyApplied);
                     if (!my.WasAvatarReadyApplied)
@@ -82,11 +82,11 @@ namespace HVR.Vixxy.Editor
             for (var subjectIndex = 0; subjectIndex < subjectsSp.arraySize; subjectIndex++)
             {
                 var subjectSp = subjectsSp.GetArrayElementAtIndex(subjectIndex);
-                EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+                EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
 
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField($"[{subjectIndex}] Subject", EditorStyles.boldLabel);
-                if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVRUiHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+                if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVREditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
                 {
                     subjectsSp.DeleteArrayElementAtIndex(subjectIndex);
 
@@ -120,7 +120,7 @@ namespace HVR.Vixxy.Editor
                     HaiEFCommon.ColoredBackgroundVoid(true, it.IsApplicable ? HVRVixxyControlEditor.RuntimeColorOK : HVRVixxyControlEditor.RuntimeColorKO, () =>
                     {
                         // var it = (HVRVixxySubject)subjectSp.boxedValue; // This doesn't work. It returns a default struct
-                        EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+                        EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
                         EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.RuntimeBakedDataLabel, EditorStyles.boldLabel);
                         EditorGUILayout.Toggle(nameof(HVRVixxySubject.IsApplicable), it.IsApplicable);
                         EditorGUILayout.LabelField(nameof(HVRVixxySubject.BakedObjects));
@@ -174,7 +174,7 @@ namespace HVR.Vixxy.Editor
 
         private bool DrawPropertyOrReturn(SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp, bool isPlaying)
         {
-            EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+            EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
             var managedReferenceValue = propertySp.managedReferenceValue;
             var managedReferenceValueType = managedReferenceValue.GetType();
@@ -211,7 +211,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField($"[{propertyIndex}] CAUTION: Not a HVRVixxyPropertyBase, type is {managedReferenceValueType.FullName}", EditorStyles.boldLabel);
             }
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVRUiHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVREditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 
@@ -258,7 +258,7 @@ namespace HVR.Vixxy.Editor
                 var it = (HVRVixxyPropertyBase)managedReferenceValue;
                 HaiEFCommon.ColoredBackgroundVoid(true, it.IsApplicable ? HVRVixxyControlEditor.RuntimeColorOK : HVRVixxyControlEditor.RuntimeColorKO, () =>
                 {
-                    EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+                    EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
                     EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.RuntimeBakedDataLabel, EditorStyles.boldLabel);
                     EditorGUILayout.Toggle(nameof(HVRVixxyPropertyBase.IsApplicable), it.IsApplicable);
                     EditorGUILayout.EnumPopup(nameof(HVRVixxyPropertyBase.BakeResult), it.BakeResult);

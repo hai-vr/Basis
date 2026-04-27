@@ -186,8 +186,8 @@ namespace HVR.Vixxy
     [Serializable]
     public class HVRVixxyPropertyBase : IHVRVixxyProperty
     {
-        public const int InactiveIndex = 0;
-        public const int ActiveIndex = 1;
+        [NonSerialized] public const int InactiveIndex = 0;
+        [NonSerialized] public const int ActiveIndex = 1;
 
         // TODO: It might be relevant to use another approach than getting animatable properties,
         // since we have control over the system. It doesn't have to piggyback on the animation APIs.
@@ -251,6 +251,15 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
+    public class HVRVixxyPropertyInt : HVRVixxyProperty<int>
+    {
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return Mathf.RoundToInt(Mathf.Lerp(choices[inactiveIndex], choices[activeIndex], active01));
+        }
+    }
+
+    [Serializable]
     public class HVRVixxyPropertyVector4 : HVRVixxyProperty<Vector4>
     {
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
@@ -281,6 +290,17 @@ namespace HVR.Vixxy
 
     [Serializable]
     public class HVRVixxyPropertyMesh : HVRVixxyProperty<Mesh>
+    {
+        public float threshold;
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex)
+        {
+            return ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyTexture : HVRVixxyProperty<Texture>
     {
         public float threshold;
 

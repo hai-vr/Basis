@@ -20,9 +20,12 @@ namespace HVR.Vixxy.Editor
         private readonly SerializedObject serializedObject;
         private readonly ReorderableList subjectsReorderableList;
 
-        private IGrouping<Type, EditorCurveBinding>[] _typeToBindings;
         private Object _previousRootObject;
         private readonly Dictionary<Type, int> _typeToWhichOpened = new();
+        private List<Type> _types;
+        private List<object> _properties;
+        private List<string> _blendshapes;
+        private Dictionary<MaterialPropertyType, List<string>> _materialProperties;
 
         private string _search;
         private bool _focusNext;
@@ -64,7 +67,7 @@ namespace HVR.Vixxy.Editor
             var selectedIndex = subjectsReorderableList.index;
             if (selectedIndex != -1 && selectedIndex < subjectsReorderableList.count)
             {
-                EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+                EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
                 var subjectSp = subjectsReorderableList.serializedProperty.GetArrayElementAtIndex(selectedIndex);
                 var mySelectedElement = my.subjects[selectedIndex];
 
@@ -108,66 +111,62 @@ namespace HVR.Vixxy.Editor
                     .Distinct()
                     .ToArray();
 
+                var propertiesSp = subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
                 if (validTargets.Length > 0)
                 {
-                    foreach (var targetObject in validTargets)
+                    var targetObject = validTargets.First();
+                    var rootObject = targetObject;
+
+                    if (_previousRootObject != rootObject || _types == null)
                     {
-                        var rootObject = targetObject;
-
-                        if (_typeToBindings == null || _previousRootObject != rootObject)
-                        {
-                            _previousRootObject = rootObject;
-                            _typeToBindings =
-                                AnimationUtility.GetAnimatableBindings(targetObject, rootObject)
-                                    .GroupBy(binding => binding.type)
-                                    .ToArray();
-                            foreach (var typeToBinding in _typeToBindings)
-                            {
-                                _typeToWhichOpened.TryAdd(typeToBinding.Key, -1);
-                            }
-                        }
-
-                        foreach (var typeToBinding in _typeToBindings
-                                     .Where(bindings => HVRVixxyPermitted.IsPermitted(bindings.Key.FullName))
-                                     .Where(bindings => bindings.Key != typeof(Transform)))
-                        {
-                            DisplayComponentBox(typeToBinding, targetObject, subjectSp, mySelectedElement, rootObject);
-                        }
-
-                        // Put the transform property editor at the bottom of the list. Caring about modifying the transform is way more rare than the others
-                        foreach (var typeToBinding in _typeToBindings.Where(bindings => bindings.Key == typeof(Transform)))
-                        {
-                            DisplayComponentBox(typeToBinding, targetObject, subjectSp, mySelectedElement, rootObject);
-                        }
-
-                        var nonPermitted = _typeToBindings
-                            .Where(bindings => !HVRVixxyPermitted.IsPermitted(bindings.Key.FullName))
-                            .Where(bindings => bindings.Key != typeof(Transform))
+                        _previousRootObject = rootObject;
+                        _types = targetObject.GetComponents<Component>()
+                            .Where(component => component != null)
+                            .Select(component => component.GetType())
+                            .Distinct()
+                            .Where(type => HVRVixxyPermitted.IsPermitted(type.FullName))
                             .ToList();
-                        if (nonPermitted.Any())
+                        _types.Remove(typeof(Transform));
+                        _types.Add(typeof(Transform));
+                        foreach (var type in _types)
                         {
-                            GUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
-                            EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgMissingFromComponentTypes, MessageType.Warning);
-                            EditorGUI.BeginDisabledGroup(true);
-                            foreach (var typeToBinding in nonPermitted)
-                            {
-                                DisplayComponentObjectField(targetObject, typeToBinding.Key);
-                                // DisplayComponentBox(typeToBinding, targetObject, selectedElementSp, mySelectedElement, rootObject);
-                            }
-                            EditorGUI.EndDisabledGroup();
-                            GUILayout.EndVertical();
+                            _typeToWhichOpened.Add(type, -1);
                         }
 
-                        break;
+                        if (targetObject.GetComponent<SkinnedMeshRenderer>() is { } smr)
+                        {
+                            _blendshapes = HVREditorHelpers.ListAllBlendshapes(smr);
+                        }
+                        else
+                        {
+                            _blendshapes = null;
+                        }
+                        if (targetObject.GetComponent<Renderer>() is { } renderer)
+                        {
+                            _materialProperties = HVREditorHelpers.ListMostMaterialProperties(renderer);
+                        }
+                        else
+                        {
+                            _materialProperties = null;
+                        }
                     }
-                }
 
-                var propertiesSp = subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
-                EditorGUILayout.LabelField($"Properties ({propertiesSp.arraySize})", EditorStyles.boldLabel);
-                for (var propertyIndex = 0; propertyIndex < propertiesSp.arraySize; propertyIndex++)
-                {
-                    var propertySp = propertiesSp.GetArrayElementAtIndex(propertyIndex);
-                    if (DrawPropertyOrReturn(propertySp, propertyIndex, propertiesSp)) return true;
+                    foreach (var type in _types)
+                    {
+                        GUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
+                        DisplayComponentBox(type, targetObject, subjectSp, mySelectedElement, rootObject);
+
+                        for (var propertyIndex = 0; propertyIndex < propertiesSp.arraySize; propertyIndex++)
+                        {
+                            var propertySp = propertiesSp.GetArrayElementAtIndex(propertyIndex);
+                            var fullClassName = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)).stringValue;
+
+                            if (fullClassName != type.FullName) continue;
+                            if (DrawPropertyOrReturn(propertySp, propertyIndex, propertiesSp)) return true;
+                        }
+
+                        GUILayout.EndVertical();
+                    }
                 }
 
                 EditorGUILayout.EndVertical();
@@ -179,7 +178,7 @@ namespace HVR.Vixxy.Editor
 
         private bool DrawPropertyOrReturn(SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp)
         {
-            EditorGUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
+            EditorGUILayout.BeginVertical(HVREditorHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
             var managedReferenceValue = propertySp.managedReferenceValue;
             var managedReferenceValueType = managedReferenceValue.GetType();
@@ -216,7 +215,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField($"[{propertyIndex}] CAUTION: Not a HVRVixxyPropertyBase, type is {managedReferenceValueType.FullName}", EditorStyles.boldLabel);
             }
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVRUiHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVREditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 
@@ -311,7 +310,7 @@ namespace HVR.Vixxy.Editor
                     }
                 }
 
-                if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(25)))
+                if (GUILayout.Button(HVREditorHelpers.CrossSymbol, GUILayout.Width(25)))
                 {
                     whichArrayProperty.GetArrayElementAtIndex(i).objectReferenceValue = null;
                     whichArrayProperty.DeleteArrayElementAtIndex(i);
@@ -324,7 +323,7 @@ namespace HVR.Vixxy.Editor
             if (!limitToOne || whichArrayProperty.arraySize == 0)
             {
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(HVRUiHelpers.PlusSymbol, GUILayout.Width(15));
+                EditorGUILayout.LabelField(HVREditorHelpers.PlusSymbol, GUILayout.Width(15));
                 var newAddition = EditorGUILayout.ObjectField(GUIContent.none, null, arrayType);
                 EditorGUILayout.LabelField(GUIContent.none, GUILayout.Width(25));
                 EditorGUILayout.EndHorizontal();
@@ -337,12 +336,9 @@ namespace HVR.Vixxy.Editor
             }
         }
 
-        private void DisplayComponentBox(IGrouping<Type, EditorCurveBinding> typeToBinding, GameObject targetObject,
+        private void DisplayComponentBox(Type targetedType, GameObject targetObject,
             SerializedProperty selectedElementSp, HVRVixxySubject mySelectedElement, GameObject rootObject)
         {
-            var targetedType = typeToBinding.Key;
-
-            GUILayout.BeginVertical(HVRUiHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
 
             EditorGUI.BeginDisabledGroup(true);
@@ -351,36 +347,35 @@ namespace HVR.Vixxy.Editor
 
             EditorGUILayout.EndHorizontal();
 
-            var countMaterials = typeToBinding.Count(binding => binding.propertyName.StartsWith("material."));
-            var countBlendShapes = typeToBinding.Count(binding => binding.propertyName.StartsWith("blendShape."));
+            NEW(targetedType, selectedElementSp, mySelectedElement, rootObject, componentNullable);
+        }
 
-            var label = countMaterials > 0 || countBlendShapes > 0 ? HVRVixxyLocalizationPhrase.OtherPropertiesLabel : HVRVixxyLocalizationPhrase.JustPropertiesLabel;
-
-            var showMaterials = countMaterials > 0 && _typeToWhichOpened[typeToBinding.Key] == 0;
-            var showBlendshapes = countBlendShapes > 0 && (countMaterials > 0 && _typeToWhichOpened[typeToBinding.Key] == 1 || countMaterials == 0 && _typeToWhichOpened[typeToBinding.Key] == 0);
-            var showOther = countMaterials > 0 && countBlendShapes > 0 && _typeToWhichOpened[typeToBinding.Key] == 2 ||
-                            countMaterials == 0 && countBlendShapes > 0 && _typeToWhichOpened[typeToBinding.Key] == 1 ||
-                            countMaterials > 0 && countBlendShapes == 0 && _typeToWhichOpened[typeToBinding.Key] == 1 ||
-                            countMaterials == 0 && countBlendShapes == 0 && _typeToWhichOpened[typeToBinding.Key] == 0;
-
+        private void NEW(Type targetedType, SerializedProperty selectedElementSp, HVRVixxySubject mySelectedElement, GameObject rootObject, Component componentNullable)
+        {
+            var isRenderer = typeof(Renderer).IsAssignableFrom(targetedType);
+            var isSkinnedMeshRenderer = targetedType == typeof(SkinnedMeshRenderer);
 
             EditorGUILayout.BeginHorizontal();
-            _typeToWhichOpened[typeToBinding.Key] = GUILayout.Toolbar(_typeToWhichOpened[typeToBinding.Key], new[]
+            _typeToWhichOpened[targetedType] = GUILayout.Toolbar(_typeToWhichOpened[targetedType], new[]
             {
-                countMaterials > 0 ? $"{HVRVixxyLocalizationPhrase.MaterialLabel}" : null,
-                countBlendShapes > 0 ? $"{HVRVixxyLocalizationPhrase.BlendshapesLabel}" : null,
-                $"{label}"
+                HVRVixxyLocalizationPhrase.JustPropertiesLabel,
+                isRenderer ? HVRVixxyLocalizationPhrase.MaterialLabel : null,
+                isSkinnedMeshRenderer ? HVRVixxyLocalizationPhrase.BlendshapesLabel : null,
             }.Where(s => s != null).ToArray());
-            EditorGUI.BeginDisabledGroup(_typeToWhichOpened[typeToBinding.Key] == -1);
+
+            EditorGUI.BeginDisabledGroup(_typeToWhichOpened[targetedType] == -1);
             if (GUILayout.Button("_", GUILayout.Width(25)))
             {
-                _typeToWhichOpened[typeToBinding.Key] = -1;
+                _typeToWhichOpened[targetedType] = -1;
             }
-
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
 
-            if (_typeToWhichOpened[typeToBinding.Key] != -1)
+            var showProperties = _typeToWhichOpened[targetedType] == 0;
+            var showMaterials = isRenderer && _typeToWhichOpened[targetedType] == 1;
+            var showBlendshapes = isSkinnedMeshRenderer && _typeToWhichOpened[targetedType] == 2;
+
+            if (_typeToWhichOpened[targetedType] != -1)
             {
                 GUI.SetNextControlName("search");
                 _search = EditorGUILayout.TextField(HVRVixxyLocalizationPhrase.SearchLabel, _search);
@@ -392,43 +387,101 @@ namespace HVR.Vixxy.Editor
             }
 
             var hasSearch = !string.IsNullOrEmpty(_search) && (_search.Length >= 3 || (_search.Length == 2 && HasAnyNonLetterNonSpace.IsMatch(_search)) || _search.StartsWith(" "));
-            if (hasSearch && _search.Length > MaxSearchQueryLength)
+
+            if (showBlendshapes && _blendshapes != null)
             {
-                // Try to prevent the editor from hanging up if the user mistakenly pastes a page long of unrelated content (it happened)
-                _search = _search.Substring(0, MaxSearchQueryLength);
+                foreach (var blendshape in _blendshapes)
+                {
+                    if (hasSearch && !IsSearchMatch(blendshape)) continue;
+
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.TextField(blendshape);
+                    if (GUILayout.Button("Add", GUILayout.Width(60)))
+                    {
+                        var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
+
+                        var indexToPutData = propertiesSp.arraySize;
+                        propertiesSp.arraySize = indexToPutData + 1;
+                        propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = new HVRVixxyPropertyFloat
+                        {
+                            fullClassName = targetedType.FullName,
+                            variant = HVRVixxyPropertyVariant.BlendShape,
+                            propertyName = blendshape,
+                        };
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
             }
 
-            if (hasSearch && (showMaterials || showBlendshapes || showOther))
+            if (showMaterials && _materialProperties != null)
             {
-                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ResultsAreFilteredBySearchLabel);
-            }
+                foreach (var mptypeToProperties in _materialProperties)
+                {
+                    if (mptypeToProperties.Value.Count <= 0) continue;
 
-            if (showMaterials)
+                    EditorGUILayout.LabelField(mptypeToProperties.Key.ToString(), EditorStyles.boldLabel);
+
+                    foreach (var materialProperty in mptypeToProperties.Value)
+                    {
+                        if (hasSearch && !IsSearchMatch(materialProperty)) continue;
+
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.TextField(materialProperty);
+                        if (GUILayout.Button("Add", GUILayout.Width(60)))
+                        {
+                            var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
+
+                            MaterialPropertyType mptype = mptypeToProperties.Key;
+
+                            var indexToPutData = propertiesSp.arraySize;
+                            propertiesSp.arraySize = indexToPutData + 1;
+                            HVRVixxyPropertyBase hvrVixxyPropertyFloat = GenerateProperty(mptype, targetedType, materialProperty);
+                            propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = hvrVixxyPropertyFloat;
+                        }
+                        EditorGUILayout.EndHorizontal();
+                    }
+                }
+            }
+        }
+
+        private static HVRVixxyPropertyBase GenerateProperty(MaterialPropertyType mptype, Type targetedType, string materialProperty)
+        {
+            switch (mptype)
             {
-                DisplayPropertyViewer(componentNullable, mySelectedElement, selectedElementSp, typeToBinding, hasSearch, rootObject,
-                    binding => binding.propertyName.StartsWith("material.") || binding.propertyName.StartsWith("m_Materials."));
+                case MaterialPropertyType.Float:
+                    return new HVRVixxyPropertyFloat
+                    {
+                        fullClassName = targetedType.FullName,
+                        variant = HVRVixxyPropertyVariant.MaterialProperty,
+                        propertyName = materialProperty,
+                    };
+                case MaterialPropertyType.Int:
+                    return new HVRVixxyPropertyInt
+                    {
+                        fullClassName = targetedType.FullName,
+                        variant = HVRVixxyPropertyVariant.MaterialProperty,
+                        propertyName = materialProperty,
+                    };
+                case MaterialPropertyType.Vector:
+                    return new HVRVixxyPropertyVector4
+                    {
+                        fullClassName = targetedType.FullName,
+                        variant = HVRVixxyPropertyVariant.MaterialProperty,
+                        propertyName = materialProperty,
+                    };
+                case MaterialPropertyType.Texture:
+                    return new HVRVixxyPropertyTexture
+                    {
+                        fullClassName = targetedType.FullName,
+                        variant = HVRVixxyPropertyVariant.MaterialProperty,
+                        propertyName = materialProperty,
+                    };
+                case MaterialPropertyType.Matrix:
+                case MaterialPropertyType.ConstantBuffer:
+                case MaterialPropertyType.ComputeBuffer:
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mptype), mptype, null);
             }
-
-            if (showBlendshapes)
-            {
-                DisplayPropertyViewer(componentNullable, mySelectedElement, selectedElementSp, typeToBinding, hasSearch, rootObject,
-                    binding => binding.propertyName.StartsWith("blendShape."));
-            }
-
-            if (
-                showOther
-            )
-            {
-                DisplayPropertyViewer(componentNullable, mySelectedElement, selectedElementSp, typeToBinding, hasSearch, rootObject,
-                    binding => !binding.propertyName.StartsWith("material.") &&
-                               !binding.propertyName.StartsWith("m_Materials.") &&
-                               !binding.propertyName.StartsWith("blendShape."));
-            }
-
-            // VIXXY TODO
-            // DisplayAcquiredProperties(selectedElementSp, targetedType.FullName, rootObject, componentNullable, typeToBinding.First().path);
-
-            GUILayout.EndVertical();
         }
 
         private static Component DisplayComponentObjectField(GameObject targetObject, Type targetedType)
@@ -452,67 +505,9 @@ namespace HVR.Vixxy.Editor
             return componentNullable;
         }
 
-        private void DisplayPropertyViewer(Component componentNullable, HVRVixxySubject mySelectedElement,
-            SerializedProperty selectedElementSp,
-            IGrouping<Type, EditorCurveBinding> typeToBinding,
-            bool hasSearch, GameObject rootObject, Func<EditorCurveBinding, bool> IsDirectMatch)
+        private bool IsSearchMatch(string isPropertyNameMatch)
         {
-            var allDirectMatches = typeToBinding.Where(IsDirectMatch).Where(IsMatch).ToArray();
-            if (!hasSearch && allDirectMatches.Length > 100)
-            {
-                EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgTooManyResults, MessageType.Warning);
-                var results = string.Join("\n", allDirectMatches.Select(binding => binding.propertyName));
-                EditorGUILayout.HelpBox(results, MessageType.None);
-
-                return;
-            }
-
-            foreach (var binding in allDirectMatches)
-            {
-                if (!hasSearch || IsMatch(binding))
-                {
-                    var property = binding.propertyName;
-                    // TODO VIXXY
-
-                    if (!CoordsSuffixes.Any(suffix => property.EndsWith(suffix)))
-                    {
-                        EditorGUILayout.BeginHorizontal();
-                        EditorGUILayout.TextField(property);
-                        EditorGUI.BeginDisabledGroup(mySelectedElement.properties.Any(prop =>
-                        {
-                            return prop.fullClassName == binding.type.FullName && prop.propertyName == property;
-                        }));
-                        if (GUILayout.Button(HVRVixxyLocalizationPhrase.AddLabel, GUILayout.Width(50)))
-                        {
-                            var isObjectReference = AnimationUtility.GetObjectReferenceValue(rootObject, binding, out var _);
-
-                            // The last argument is zero, because normally, vectors are added from the color property viewer, not here in this single-value property viewer
-                            // TODO VIXXY
-                            // Insert(componentNullable, selectedElementSp, property, isObjectReference ? VixenValueType.Material : VixenValueType.Float, rootObject, binding, Vector4.zero);
-                        }
-                        EditorGUI.EndDisabledGroup();
-
-                        EditorGUILayout.EndHorizontal();
-                    }
-                    else
-                    {
-                        var isXYZ = property.EndsWith(".x");
-                        var isRGB = property.EndsWith(".r");
-
-                        if (isXYZ || isRGB)
-                        {
-                            EditorGUILayout.BeginHorizontal();
-                            EditorGUILayout.TextField(property.Substring(0, property.Length - ".x".Length));
-                            EditorGUILayout.EndHorizontal();
-                        }
-                    }
-                }
-            }
-        }
-
-        private bool IsMatch(EditorCurveBinding editorCurveBinding)
-        {
-            var propertyName = editorCurveBinding.propertyName.ToLowerInvariant();
+            var propertyName = isPropertyNameMatch.ToLowerInvariant();
             return (_search ?? "").ToLowerInvariant().Split(' ').All(needle => propertyName.Contains(needle));
         }
 

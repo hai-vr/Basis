@@ -138,13 +138,13 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (!displayMultiChoice && GUILayout.Button(HVRUiHelpers.SwapSymbol, GUILayout.Width(25)))
+                    if (!displayMultiChoice && GUILayout.Button(HVREditorHelpers.SwapSymbol, GUILayout.Width(25)))
                     {
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex).boolValue = showThoseActive;
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = !showThoseActive;
                     }
 
-                    if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(25)))
+                    if (GUILayout.Button(HVREditorHelpers.CrossSymbol, GUILayout.Width(25)))
                     {
                         activationsSp.GetArrayElementAtIndex(i).objectReferenceValue = null;
                         activationsSp.DeleteArrayElementAtIndex(i);
@@ -156,7 +156,7 @@ namespace HVR.Vixxy.Editor
             }
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField(HVRUiHelpers.PlusSymbol, GUILayout.Width(15));
+            EditorGUILayout.LabelField(HVREditorHelpers.PlusSymbol, GUILayout.Width(15));
             var newComponent = EditorGUILayout.ObjectField(null, typeof(Component), true);
             if (newComponent != null)
             {
