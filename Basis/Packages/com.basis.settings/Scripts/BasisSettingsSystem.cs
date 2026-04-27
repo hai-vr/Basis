@@ -140,7 +140,14 @@ public static class BasisSettingsSystem
             changed = true;
         }
 
-        if (changed)
+        // Saving before LoadAllSettings has read the file would clobber user-saved
+        // values with the static-init binding defaults sitting in the dict. Update
+        // the in-memory dict so reads stay consistent, but defer disk + events
+        // until Initalize has run; LoadAllSettings will repopulate the dict from
+        // disk anyway. This also means a premature change is dropped on the floor,
+        // which is the right thing — callers (e.g. BasisLocalization auto-detect)
+        // must not race the load.
+        if (changed && _settingsLoaded)
         {
             SaveAllSettings();
             OnSettingChanged?.Invoke(uniqueSettingsName, value);
@@ -264,10 +271,6 @@ public static class BasisSettingsSystem
             {
                 Directory.CreateDirectory(dir);
             }
-
-            settingsData.settings.TryGetValue("ra_jitterbufferdepth", out string jitterDbg);
-            settingsData.settings.TryGetValue("ra_clipbufferscalar", out string clipDbg);
-            BasisDebug.Log($"[BasisSettingsSystem.SaveAllSettings] writing file ra_jitterbufferdepth={jitterDbg ?? "<missing>"}, ra_clipbufferscalar={clipDbg ?? "<missing>"}\n{System.Environment.StackTrace}");
 
             File.WriteAllText(filePath, json);
         }

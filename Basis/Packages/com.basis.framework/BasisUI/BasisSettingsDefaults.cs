@@ -1265,7 +1265,6 @@ namespace Basis.BasisUI
             // Subscribers that read RawValue (Apply* in OnSettingsFinishedChanges)
             // ran during Initalize before bindings were refreshed from the file —
             // re-notify so they pick up the loaded values.
-            BasisDebug.Log($"[BasisSettingsDefaults.LoadAll] post-load RawValues — RAJitterBufferDepth={RAJitterBufferDepth.RawValue}, RAClipBufferScalar={RAClipBufferScalar.RawValue}");
             BasisSettingsSystem.NotifyFinishedChanges();
         }
     }
