@@ -324,7 +324,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
             PanelSlider sliderMaxTransmissionSurfaces = PanelSlider.CreateEntryAndBind(
                 transmissionGroup,
-                PanelSlider.SliderSettings.Advanced("Max Transmission Surfaces", 1f, 8f, true, 0, ValueDisplayMode.Raw),
+                PanelSlider.SliderSettings.Advanced("Transmission Surfaces", 1f, 8f, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RAMaxTransmissionSurfaces);
 
             // Transmission sub-settings only visible when transmission is enabled

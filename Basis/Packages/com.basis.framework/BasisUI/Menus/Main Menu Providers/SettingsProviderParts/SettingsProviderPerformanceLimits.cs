@@ -31,6 +31,24 @@ public static class SettingsProviderPerformanceLimits
         descriptor.SetTitle(BasisLocalization.Get("settings.tab.performancelimits"));
 
         RectTransform container = descriptor.ContentParent;
+        BuildPerformanceLimitsContent(container);
+
+        // Use the same tabKey we registered with AddLazyTab — it drives both the
+        // reset button label and the "navigate back to this tab" hop after the
+        // reset. Hardcoded English would show that literal string in JP/NL.
+        SettingsProvider.AddResetPageButton(container, "settings.tab.performancelimits", ResetPerformanceLimitDefaults);
+
+        descriptor.ForceRebuild();
+        return tab;
+    }
+
+    /// <summary>
+    /// Builds every performance-limit group + control into <paramref name="container"/>
+    /// without adding a reset button. Used by the standalone tab and by the merged
+    /// Graphics tab so both share one source of truth.
+    /// </summary>
+    public static void BuildPerformanceLimitsContent(RectTransform container)
+    {
         _layoutRoot = container;
 
         // Session-only bypass. Lives at the top so it's the first thing users see
@@ -213,14 +231,6 @@ public static class SettingsProviderPerformanceLimits
             BasisSettingsDefaults.UsePerfLimitAnimators,
             BasisSettingsDefaults.MaxPerfAnimators,
             1, 32, true);
-
-        // Use the same tabKey we registered with AddLazyTab — it drives both the
-        // reset button label and the "navigate back to this tab" hop after the
-        // reset. Hardcoded English would show that literal string in JP/NL.
-        SettingsProvider.AddResetPageButton(container, "settings.tab.performancelimits", ResetPerformanceLimitDefaults);
-
-        descriptor.ForceRebuild();
-        return tab;
     }
 
     /// <summary>
@@ -273,7 +283,7 @@ public static class SettingsProviderPerformanceLimits
         }
     }
 
-    private static void ResetPerformanceLimitDefaults()
+    public static void ResetPerformanceLimitDefaults()
     {
         BasisSettingsDefaults.UsePerfLimitTriangles.ResetToDefault();
         BasisSettingsDefaults.MaxPerfTriangles.ResetToDefault();

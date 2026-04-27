@@ -535,6 +535,8 @@
     { "key": "settings.developer.visualHelpers.description", "value": "Toggle individual debug visualizations." },
     { "key": "settings.developer.boneTracking", "value": "Bone Tracking" },
     { "key": "settings.developer.boneTracking.description", "value": "Show sphere gizmos at tracked bone positions." },
+    { "key": "settings.developer.trackerGizmos", "value": "Tracker Gizmos" },
+    { "key": "settings.developer.trackerGizmos.description", "value": "Show sphere gizmos at the physical position of each tracker bound to a body role." },
     { "key": "settings.developer.avatarDistance", "value": "Avatar Distance" },
     { "key": "settings.developer.avatarDistance.description", "value": "Show avatar visibility range circle at your feet." },
     { "key": "settings.developer.enableStatistics", "value": "Enable Statistics" },

@@ -133,6 +133,26 @@ namespace Basis.Scripts.Avatar
             float armReach = EstimateArmReach(samples);
             BoneRolePrior[] priors = BuildPriors(armReach);
 
+            // Honor per-role calibration toggles from the body-tracking settings UI.
+            // Roles with their toggle off are dropped from the prior list so the
+            // classifier never attempts to bind a tracker to them.
+            int kept = 0;
+            for (int i = 0; i < priors.Length; i++)
+            {
+                if (Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(priors[i].Role))
+                {
+                    priors[kept++] = priors[i];
+                }
+            }
+            if (kept != priors.Length)
+            {
+                System.Array.Resize(ref priors, kept);
+            }
+            if (priors.Length == 0)
+            {
+                return;
+            }
+
             // Greedy global-best assignment: each iteration picks the (sample, role) pair
             // with the highest score that still beats the threshold. One tracker per role,
             // one role per tracker. Trackers that don't fit any role are left unassigned.
@@ -231,9 +251,10 @@ namespace Basis.Scripts.Avatar
                 // their role no matter what.
                 if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) continue;
 
-                // Devices currently bound to a non-FB role (controllers acting as hands)
-                // are also off-limits — only free FB-trackable devices participate.
-                if (input.TryGetRole(out BasisBoneTrackedRole existing)&& !BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(existing))
+                // Devices currently bound to a role that the user has not enabled for
+                // calibration (e.g. controllers acting as hands, or shoulders by default)
+                // are off-limits — only roles ticked in the bone editor participate.
+                if (input.TryGetRole(out BasisBoneTrackedRole existing) && !Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(existing))
                 {
                     continue;
                 }

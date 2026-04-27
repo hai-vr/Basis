@@ -121,13 +121,11 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.controls", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.chat", () => ChatTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.bodytracking", () => SettingsProviderIK.IKTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.nameplates", () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.myavatar", () =>
                 MyAvatarTabOverride != null
                     ? MyAvatarTabOverride(tabGroup)
                     : SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadscache", () => SettingsProviderStorage.StorageTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.performancelimits", () => SettingsProviderPerformanceLimits.PerformanceLimitsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.trustedurls", () => SettingsProviderTrustedUrls.TrustedUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
@@ -299,87 +297,10 @@ namespace Basis.BasisUI
 
             BuildLanguageSelector(container);
 
-            PanelElementDescriptor rangeGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            rangeGroup.SetTitle(BasisLocalization.Get("settings.general.ranges.title"));
-            rangeGroup.SetDescription(BasisLocalization.Get("settings.general.ranges.description"));
-
-            PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
-                BasisSettingsDefaults.AvatarRange);
-
-            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
-    rangeGroup,
-    PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.hearingRange"), 25),
-    BasisSettingsDefaults.HearingRange);
-
-#if !BASIS_DISABLE_MICROPHONE
-            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.microphoneRange"), 25),
-                BasisSettingsDefaults.MicrophoneRange);
-#endif
-
-            PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(rangeGroup);
-            toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
-
-            toggleLimitAvatars.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAvatars"));
-
-
-            PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAvatars"), 0, 250, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MaxVisibleAvatars);
-
-            sliderMaxVisibleAvatars.Descriptor.SetActive(toggleLimitAvatars.Value);
-
-            toggleLimitAvatars.OnValueChanged += (val) =>
-            {
-                sliderMaxVisibleAvatars.Descriptor.SetActive(val);
-                rangeGroup.ForceRebuild();
-            };
-
-            PanelToggle toggleViewCone = PanelToggle.CreateNewEntry(rangeGroup);
-            toggleViewCone.AssignBinding(BasisSettingsDefaults.UseViewConeAvatars);
-            toggleViewCone.Descriptor.SetTitle(BasisLocalization.Get("settings.general.viewCone"));
-            toggleViewCone.Descriptor.SetDescription(BasisLocalization.Get("settings.general.viewCone.description"));
-
-            PanelSlider sliderViewConeAngle = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.viewConeAngle"), 30, 360, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ViewConeAngle);
-
-            sliderViewConeAngle.Descriptor.SetActive(toggleViewCone.Value);
-
-            toggleViewCone.OnValueChanged += (val) =>
-            {
-                sliderViewConeAngle.Descriptor.SetActive(val);
-                rangeGroup.ForceRebuild();
-            };
-
-            PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(rangeGroup);
-            toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
-            toggleLimitAudio.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAudio"));
-
-            PanelSlider sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAudio"), 0, 250, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MaxAudioSources);
-
-            sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
-
-            toggleLimitAudio.OnValueChanged += (val) =>
-            {
-                sliderMaxAudioSources.Descriptor.SetActive(val);
-                rangeGroup.ForceRebuild();
-            };
-
-            // TODO: re-enable when avatar preview is finished
-            // PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(rangeGroup);
-            // toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
-            // toggleAvatarPreview.Descriptor.SetTitle("Avatar Preview");
-            // toggleAvatarPreview.Descriptor.SetDescription("Show a live preview of your avatar on the HUD.");
+            // Range / visibility / audio-source-limit settings moved out of General:
+            //   Avatar Range / Limit Avatars / View Cone Avatars → Graphics
+            //   Hearing Range / Limit Audio Sources              → Audio
+            //   Microphone Range                                 → Microphone
 
             PanelElementDescriptor interactionsGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -389,8 +310,6 @@ namespace Basis.BasisUI
             toggleDisableSeats.AssignBinding(BasisSettingsDefaults.DisableSeats);
             toggleDisableSeats.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableSeats"));
             toggleDisableSeats.Descriptor.SetDescription(BasisLocalization.Get("settings.general.disableSeats.description"));
-
-            SettingsProviderPlatform.BuildAutoSwapUI(container);
 
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.general", ResetGeneralDefaults);
@@ -455,19 +374,8 @@ namespace Basis.BasisUI
 
         private static void ResetGeneralDefaults()
         {
-            BasisSettingsDefaults.AvatarRange.ResetToDefault();
-            BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
-            BasisSettingsDefaults.MaxAudioSources.ResetToDefault();
-            BasisSettingsDefaults.UseMaxAudioSources.ResetToDefault();
-            BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
-            BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
-            BasisSettingsDefaults.HearingRange.ResetToDefault();
             BasisSettingsDefaults.AvatarPreview.ResetToDefault();
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
-            BasisSettingsDefaults.SwapMode.ResetToDefault();
-#if !BASIS_DISABLE_MICROPHONE
-            BasisSettingsDefaults.MicrophoneRange.ResetToDefault();
-#endif
         }
 
         // ------------------
@@ -524,6 +432,34 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.propVolume")),
                 BasisSettingsDefaults.PropVolume);
 
+            // World audio limits (relocated from General):
+            //   Hearing Range, Limit Audio Sources + cap
+            PanelElementDescriptor audioRangeGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            audioRangeGroup.SetTitle(BasisLocalization.Get("settings.general.ranges.title"));
+            audioRangeGroup.SetDescription(BasisLocalization.Get("settings.general.ranges.description"));
+
+            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
+                audioRangeGroup,
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.hearingRange"), 25),
+                BasisSettingsDefaults.HearingRange);
+
+            PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(audioRangeGroup);
+            toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
+            toggleLimitAudio.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAudio"));
+
+            PanelSlider sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
+                audioRangeGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAudio"), 0, 250, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxAudioSources);
+
+            sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
+            toggleLimitAudio.OnValueChanged += (val) =>
+            {
+                sliderMaxAudioSources.Descriptor.SetActive(val);
+                audioRangeGroup.ForceRebuild();
+            };
+
             // Remote Players (Spatial Audio) — includes its own Advanced toggle
             SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
 
@@ -544,6 +480,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PropVolume.ResetToDefault();
             BasisSettingsDefaults.UseOpenLipSyncLimit.ResetToDefault();
             BasisSettingsDefaults.OpenLipSyncMaxSlots.ResetToDefault();
+            BasisSettingsDefaults.HearingRange.ResetToDefault();
+            BasisSettingsDefaults.UseMaxAudioSources.ResetToDefault();
+            BasisSettingsDefaults.MaxAudioSources.ResetToDefault();
             SettingsProviderRemoteAudio.ResetRemoteAudioToDefaults();
         }
 
@@ -607,6 +546,12 @@ namespace Basis.BasisUI
                 SMDMicrophone.SetMicrophone(name);
             }
             dropdownMicrophoneSelection.OnValueChanged += MicrophoneSelectionChanged;
+
+            // Microphone broadcast range (relocated from General).
+            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
+                microphoneGroup,
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.microphoneRange"), 25),
+                BasisSettingsDefaults.MicrophoneRange);
 
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
             toggleMicrophoneDenoiser.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.denoiser"));
@@ -892,6 +837,7 @@ namespace Basis.BasisUI
         {
 #if !BASIS_DISABLE_MICROPHONE
             BasisSettingsDefaults.MicrophoneVolume.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneRange.ResetToDefault();
             BasisSettingsDefaults.MicrophoneDenoiser.ResetToDefault();
             BasisSettingsDefaults.UseAutomaticGain.ResetToDefault();
             BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
@@ -1163,13 +1109,12 @@ namespace Basis.BasisUI
             PanelElementDescriptor poseLodGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             poseLodGroup.SetTitle(BasisLocalization.Get("settings.graphics.poseLod.title"));
-            poseLodGroup.SetDescription(BasisLocalization.Get("settings.graphics.poseLod.description"));
+            poseLodGroup.SetDescription(BasisLocalization.Get("settings.graphics.poseLod.bias.description"));
 
             PanelSlider sliderPoseLod = PanelSlider.CreateEntryAndBind(
                 poseLodGroup.ContentParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.graphics.poseLod.bias"), 0, 5, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.PoseLOD);
-            sliderPoseLod.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.poseLod.bias.description"));
 
             PanelElementDescriptor advancedGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1244,6 +1189,55 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            // Avatar visibility limits (relocated from General):
+            //   Avatar Range, Limit Avatars + cap, View Cone Avatars + angle.
+            PanelElementDescriptor avatarVisibilityGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            avatarVisibilityGroup.SetTitle(BasisLocalization.Get("settings.general.ranges.title"));
+            avatarVisibilityGroup.SetDescription(BasisLocalization.Get("settings.general.ranges.description"));
+
+            PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
+                avatarVisibilityGroup,
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
+                BasisSettingsDefaults.AvatarRange);
+
+            PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(avatarVisibilityGroup);
+            toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
+            toggleLimitAvatars.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAvatars"));
+
+            PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
+                avatarVisibilityGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAvatars"), 0, 250, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxVisibleAvatars);
+
+            sliderMaxVisibleAvatars.Descriptor.SetActive(toggleLimitAvatars.Value);
+            toggleLimitAvatars.OnValueChanged += (val) =>
+            {
+                sliderMaxVisibleAvatars.Descriptor.SetActive(val);
+                avatarVisibilityGroup.ForceRebuild();
+            };
+
+            PanelToggle toggleViewCone = PanelToggle.CreateNewEntry(avatarVisibilityGroup);
+            toggleViewCone.AssignBinding(BasisSettingsDefaults.UseViewConeAvatars);
+            toggleViewCone.Descriptor.SetTitle(BasisLocalization.Get("settings.general.viewCone"));
+            toggleViewCone.Descriptor.SetDescription(BasisLocalization.Get("settings.general.viewCone.description"));
+
+            PanelSlider sliderViewConeAngle = PanelSlider.CreateEntryAndBind(
+                avatarVisibilityGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.viewConeAngle"), 30, 360, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ViewConeAngle);
+
+            sliderViewConeAngle.Descriptor.SetActive(toggleViewCone.Value);
+            toggleViewCone.OnValueChanged += (val) =>
+            {
+                sliderViewConeAngle.Descriptor.SetActive(val);
+                avatarVisibilityGroup.ForceRebuild();
+            };
+
+            // Performance limits live in the same tab — formerly its own page,
+            // merged here so users see all rendering / quality / cost controls together.
+            SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container);
+
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.graphics", ResetGraphicsDefaults);
 
@@ -1253,6 +1247,14 @@ namespace Basis.BasisUI
 
         private static void ResetGraphicsDefaults()
         {
+            SettingsProviderPerformanceLimits.ResetPerformanceLimitDefaults();
+
+            BasisSettingsDefaults.AvatarRange.ResetToDefault();
+            BasisSettingsDefaults.UseMaxVisibleAvatars.ResetToDefault();
+            BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
+            BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
+            BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
+
             BasisSettingsDefaults.QualityLevel.ResetToDefault();
             BasisSettingsDefaults.ShadowQuality.ResetToDefault();
             BasisSettingsDefaults.Antialiasing.ResetToDefault();
@@ -1368,8 +1370,21 @@ namespace Basis.BasisUI
                 }
             }
 
+            // Nameplates live in the same tab — formerly its own page, merged here so
+            // chat-adjacent presence settings (notifications, name visibility) are colocated.
+            SettingsProviderNamePlate.BuildNamePlateContent(container);
+
+            AddResetPageButton(container, "settings.tab.chat", ResetChatDefaults);
+
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        private static void ResetChatDefaults()
+        {
+            BasisSettingsDefaults.JoinNotifications.ResetToDefault();
+            BasisSettingsDefaults.LeaveNotifications.ResetToDefault();
+            SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 
         // ------------------
@@ -1393,6 +1408,11 @@ namespace Basis.BasisUI
             toggleBoneTracking.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.boneTracking"));
             toggleBoneTracking.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.boneTracking.description"));
             toggleBoneTracking.AssignBinding(BasisSettingsDefaults.DebugVisuals);
+
+            PanelToggle toggleTrackerGizmos = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
+            toggleTrackerGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.trackerGizmos"));
+            toggleTrackerGizmos.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.trackerGizmos.description"));
+            toggleTrackerGizmos.AssignBinding(BasisSettingsDefaults.TrackerGizmos);
 
             PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleAvatarDistance.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDistance"));
@@ -1569,6 +1589,8 @@ namespace Basis.BasisUI
                 if (on) CreateNetStats();
             };
 
+            SettingsProviderPlatform.BuildAutoSwapUI(container);
+
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.developer", ResetDeveloperDefaults);
 
@@ -1594,6 +1616,7 @@ namespace Basis.BasisUI
         private static void ResetDeveloperDefaults()
         {
             BasisSettingsDefaults.DebugVisuals.ResetToDefault();
+            BasisSettingsDefaults.TrackerGizmos.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();
@@ -1613,6 +1636,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AudioDebugShowJitter.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowSilence.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowViseme.ResetToDefault();
+            BasisSettingsDefaults.SwapMode.ResetToDefault();
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)
