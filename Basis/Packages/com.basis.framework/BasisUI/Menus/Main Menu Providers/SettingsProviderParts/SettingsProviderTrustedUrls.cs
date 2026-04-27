@@ -18,7 +18,7 @@ public static class SettingsProviderTrustedUrls
         infoGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.title"));
         infoGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.description"));
 
-        List<string> urls = BasisTrustedVideoUrls.GetAll();
+        List<string> urls = BasisTrustedUrls.GetAll();
 
         if (urls.Count == 0)
         {
@@ -45,7 +45,7 @@ public static class SettingsProviderTrustedUrls
                     value =>
                     {
                         if (!value) return;
-                        BasisTrustedVideoUrls.ClearAll();
+                        BasisTrustedUrls.ClearAll();
                         BasisMainMenu.Close();
                         SettingsProvider.OpenToTab("settings.tab.trustedurls");
                     });
@@ -74,7 +74,7 @@ public static class SettingsProviderTrustedUrls
                         value =>
                         {
                             if (!value) return;
-                            BasisTrustedVideoUrls.Remove(capturedUrl);
+                            BasisTrustedUrls.Remove(capturedUrl);
                             BasisMainMenu.Close();
                             SettingsProvider.OpenToTab("settings.tab.trustedurls");
                         });
@@ -84,7 +84,7 @@ public static class SettingsProviderTrustedUrls
 
         SettingsProvider.AddResetPageButton(container, "settings.tab.trustedurls", () =>
         {
-            BasisTrustedVideoUrls.Reset();
+            BasisTrustedUrls.Reset();
         });
 
         descriptor.ForceRebuild();

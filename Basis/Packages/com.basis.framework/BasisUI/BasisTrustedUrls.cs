@@ -3,30 +3,19 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace Basis.BasisUI
 {
-    public static class BasisTrustedVideoUrls
+    public static class BasisTrustedUrls
     {
-        public static readonly string[] DefaultTrustedUrls = new string[]
-        {
-            "https://cdn.discordapp.com/*",
-            "https://*.disbridge.com/*",
-            "https://dl.dropbox.com/*",
-            "https://dl.dropboxusercontent.com/*",
-            "https://*.github.io/*",
-            "https://images4.imagebam.com/*",
-            "https://i.ibb.co/*",
-            "https://images2.imgbox.com/*",
-            "https://i.imgur.com/*",
-            "https://i.postimg.cc/*",
-            "https://i.redd.it/*",
-            "https://pbs.twimg.com/*",
-            "https://*.vrcdn.cloud/*"
-        };
+        private const string DefaultsAddress = "BasisDefaultTrustedUrls";
 
-        private const string FileName = "trustedVideoUrls.json";
+        private const string FileName = "trustedUrls.json";
+        private const string LegacyFileName = "trustedVideoUrls.json";
         private static readonly string FilePath = Path.Combine(Application.persistentDataPath, FileName);
+        private static readonly string LegacyFilePath = Path.Combine(Application.persistentDataPath, LegacyFileName);
 
         private static HashSet<string> _cachedUrls;
 
@@ -42,6 +31,11 @@ namespace Basis.BasisUI
         {
             if (_cachedUrls != null) return;
             _cachedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!File.Exists(FilePath) && File.Exists(LegacyFilePath))
+            {
+                try { File.Move(LegacyFilePath, FilePath); }
+                catch (Exception e) { BasisDebug.LogError($"[BasisTrustedUrls] Failed to migrate {LegacyFilePath} to {FilePath}: {e}"); }
+            }
             if (File.Exists(FilePath)) {
                 try
                 {
@@ -59,7 +53,7 @@ namespace Basis.BasisUI
                 }
                 catch (Exception e)
                 {
-                    BasisDebug.LogError($"[BasisTrustedVideoUrls] Failed to load {FilePath}: {e}");
+                    BasisDebug.LogError($"[BasisTrustedUrls] Failed to load {FilePath}: {e}");
                 }
             } else
             {
@@ -78,7 +72,7 @@ namespace Basis.BasisUI
             }
             catch (Exception e)
             {
-                BasisDebug.LogError($"[BasisTrustedVideoUrls] Failed to save {FilePath}: {e}");
+                BasisDebug.LogError($"[BasisTrustedUrls] Failed to save {FilePath}: {e}");
             }
             OnListChanged?.Invoke();
         }
@@ -139,12 +133,29 @@ namespace Basis.BasisUI
         public static void Reset()
         {
             ClearAll();
-            foreach (string url in DefaultTrustedUrls)
+            BasisDefaultTrustedUrlsAsset defaults = LoadDefaults();
+            if (defaults != null && defaults.Urls != null)
             {
-                if (!url.StartsWith("https://")) continue;
-                _cachedUrls.Add(url);
+                foreach (string url in defaults.Urls)
+                {
+                    if (string.IsNullOrEmpty(url)) continue;
+                    if (!url.StartsWith("https://")) continue;
+                    _cachedUrls.Add(url);
+                }
             }
             Save();
+        }
+
+        private static BasisDefaultTrustedUrlsAsset LoadDefaults()
+        {
+            AsyncOperationHandle<BasisDefaultTrustedUrlsAsset> handle =
+                Addressables.LoadAssetAsync<BasisDefaultTrustedUrlsAsset>(DefaultsAddress);
+            BasisDefaultTrustedUrlsAsset asset = handle.WaitForCompletion();
+            if (asset == null)
+            {
+                BasisDebug.LogError($"[BasisTrustedUrls] Could not load defaults asset at address \"{DefaultsAddress}\".");
+            }
+            return asset;
         }
 
         public static void InvalidateCache()
