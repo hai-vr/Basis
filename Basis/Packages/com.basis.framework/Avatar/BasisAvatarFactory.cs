@@ -119,8 +119,9 @@ namespace Basis.Scripts.Avatar
                         Output = BasisLoadableBundle.LoadableGameobject.InSceneItem;
                         Output.transform.SetPositionAndRotation(Position, Rotation);
                         // In-scene avatars never run through ContentPolice, so do a one-shot
-                        // harvest here — this is the only path where a dedicated walk is needed.
-                        HarvestHeadChopFromRoot(Output, harvestedHeadChop);
+                        // harvest+strip here — this is the only path where a dedicated walk
+                        // is needed. The strip keeps BasisHeadChop from persisting at runtime.
+                        HarvestAndStripHeadChop(Output, harvestedHeadChop);
                         break;
 
                     case 0:
@@ -224,6 +225,10 @@ namespace Basis.Scripts.Avatar
                     case 2:
                         Output = BasisLoadableBundle.LoadableGameobject.InSceneItem;
                         Output.transform.SetPositionAndRotation(Position, Rotation);
+                        // In-scene path skips ContentPolice; strip BasisHeadChop so the
+                        // authoring component never persists on a remote avatar. Pass null
+                        // for the destination — remotes never harvest first-person targets.
+                        HarvestAndStripHeadChop(Output, null);
                         break;
 
                     case 0:
@@ -505,22 +510,31 @@ namespace Basis.Scripts.Avatar
         }
 
         /// <summary>
-        /// Appends every <see cref="BasisHeadChop"/> target found under <paramref name="root"/> into
-        /// <paramref name="destination"/>. Used for the in-scene (Mode 2) avatar load path which
-        /// bypasses ContentPolice; other modes harvest during the existing ContentPolice walk.
+        /// Mode 2 (in-scene) avatar bypasses ContentPolice, so this is the only place the
+        /// authoring <see cref="BasisHeadChop"/> components get processed for that path.
+        /// When <paramref name="destination"/> is non-null (local load), targets are appended;
+        /// the components themselves are always destroyed so BasisHeadChop never persists at
+        /// runtime — including on remote in-scene avatars where <paramref name="destination"/>
+        /// is null and only the strip happens.
         /// </summary>
-        private static void HarvestHeadChopFromRoot(GameObject root, List<BasisHeadChop.HeadChopTarget> destination)
+        private static void HarvestAndStripHeadChop(GameObject root, List<BasisHeadChop.HeadChopTarget> destination)
         {
-            if (root == null || destination == null) return;
+            if (root == null) return;
             BasisHeadChop[] components = root.GetComponentsInChildren<BasisHeadChop>(true);
             int length = components.Length;
             for (int Index = 0; Index < length; Index++)
             {
-                BasisHeadChop.HeadChopTarget[] targets = components[Index].Targets;
-                if (targets != null && targets.Length > 0)
+                BasisHeadChop component = components[Index];
+                if (component == null) continue;
+                if (destination != null)
                 {
-                    destination.AddRange(targets);
+                    BasisHeadChop.HeadChopTarget[] targets = component.Targets;
+                    if (targets != null && targets.Length > 0)
+                    {
+                        destination.AddRange(targets);
+                    }
                 }
+                UnityEngine.Object.DestroyImmediate(component);
             }
         }
 

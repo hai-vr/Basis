@@ -46,10 +46,15 @@ public static class ContentPoliceControl
                     switch (component)
                     {
                         case BasisHeadChop headChop:
+                            // Authoring-only component: harvest its targets (when a collector
+                            // was supplied — local-avatar loads only) and then destroy it so
+                            // it never persists at runtime. Remote avatars never harvest, so
+                            // they end up with the component stripped and no chop processing.
                             if (HarvestedHeadChop != null && headChop.Targets != null && headChop.Targets.Length > 0)
                             {
                                 HarvestedHeadChop.AddRange(headChop.Targets);
                             }
+                            GameObject.DestroyImmediate(headChop);
                             break;
                         case Animator animator:
                             // AnimationEvents dispatch via SendMessage(methodName, arg),
