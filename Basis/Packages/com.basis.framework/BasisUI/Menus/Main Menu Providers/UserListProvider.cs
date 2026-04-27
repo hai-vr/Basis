@@ -5,6 +5,7 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -140,6 +141,9 @@ namespace Basis.BasisUI
         {
             public BasisNetworkPlayer NetPlayer;
             public PanelButton Button;
+            // Inline mute/highlight/block row that lives as a sibling immediately after
+            // the player button in GridParent. Null for the local player (no actions apply).
+            public RectTransform ActionRow;
         }
 
         /// <summary>
@@ -320,6 +324,7 @@ namespace Basis.BasisUI
                 foreach (var kvp in _entries)
                 {
                     if (kvp.Value.Button != null) kvp.Value.Button.ReleaseInstance();
+                    if (kvp.Value.ActionRow != null) Destroy(kvp.Value.ActionRow.gameObject);
                 }
                 _entries.Clear();
             }
@@ -351,6 +356,7 @@ namespace Basis.BasisUI
                 btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
                 btn.Descriptor.SetDescription(BuildDescription(netPlayer));
 
+                RectTransform actionRow = null;
                 if (isLocal)
                 {
                     btn.ButtonComponent.interactable = false;
@@ -358,14 +364,102 @@ namespace Basis.BasisUI
                         canvasGroup = btn.gameObject.AddComponent<CanvasGroup>();
                     canvasGroup.alpha = 0.4f;
                 }
+                // Inline Mute / Highlight / Block row disabled pending layout pass — the
+                // per-player IndividualPlayerProvider panel still exposes these actions.
+                // To re-enable, uncomment the branch below and revisit the row's sizing.
+                // else if (netPlayer.Player is BasisRemotePlayer remote)
+                // {
+                //     actionRow = BuildActionRow(GridParent, netPlayer, remote);
+                // }
 
                 btn.OnClicked += () => OnPlayerClicked(netPlayer);
 
                 _entries[netPlayer.playerId] = new PlayerEntry
                 {
                     NetPlayer = netPlayer,
-                    Button = btn
+                    Button = btn,
+                    ActionRow = actionRow,
                 };
+            }
+
+            /// <summary>
+            /// Builds an inline Mute / Highlight / Block row that sits as a sibling of the
+            /// player button in <paramref name="parent"/>. Delegates all three actions to the
+            /// shared static helpers on <see cref="IndividualPlayerProvider"/> so the row
+            /// stays in lockstep with the per-player panel (including the block confirmation
+            /// dialog).
+            /// </summary>
+            private static RectTransform BuildActionRow(RectTransform parent, BasisNetworkPlayer netPlayer, BasisRemotePlayer remote)
+            {
+                var rowGO = new GameObject("PlayerRowActions", typeof(RectTransform));
+                var rowRect = (RectTransform)rowGO.transform;
+                rowRect.SetParent(parent, false);
+
+                // Stretch across the parent's width so the row matches the player button above it.
+                rowRect.anchorMin = new Vector2(0f, 1f);
+                rowRect.anchorMax = new Vector2(1f, 1f);
+                rowRect.pivot = new Vector2(0.5f, 1f);
+
+                var hlg = rowGO.AddComponent<HorizontalLayoutGroup>();
+                hlg.childForceExpandWidth = true;
+                hlg.childForceExpandHeight = false;
+                hlg.childControlWidth = true;
+                hlg.childControlHeight = true;
+                hlg.spacing = 8f;
+                hlg.padding = new RectOffset(8, 8, 4, 8);
+
+                // Make the row size to its tallest child so the parent's vertical layout
+                // gives it a real preferred height instead of treating it as zero-height.
+                var rowFitter = rowGO.AddComponent<ContentSizeFitter>();
+                rowFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+                // Some VerticalLayoutGroups force a child width; this LayoutElement
+                // ensures the row participates in width allocation regardless.
+                var rowLayout = rowGO.AddComponent<LayoutElement>();
+                rowLayout.flexibleWidth = 1f;
+
+                // ---- Mute ----
+                PanelButton muteBtn = PanelButton.CreateNew(rowRect);
+                muteBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.mute"));
+                muteBtn.OnClicked += async () =>
+                {
+                    bool nowMuted = await IndividualPlayerProvider.ToggleMute(remote);
+                    muteBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        nowMuted ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
+                };
+                _ = InitMuteLabelAsync(muteBtn, remote);
+
+                // ---- Highlight ----
+                PanelButton highlightBtn = PanelButton.CreateNew(rowRect);
+                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
+                highlightBtn.OnClicked += () =>
+                {
+                    // SetHighlight already toggles when called on the same target.
+                    IndividualPlayerProvider.SetHighlight(netPlayer);
+                };
+
+                // ---- Block ----
+                PanelButton blockBtn = PanelButton.CreateNew(rowRect);
+                blockBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                    remote.IsBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
+                blockBtn.OnClicked += async () =>
+                {
+                    bool nowBlocked = await IndividualPlayerProvider.ToggleBlockWithConfirmation(remote);
+                    blockBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        nowBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
+                };
+
+                return rowRect;
+            }
+
+            private static async System.Threading.Tasks.Task InitMuteLabelAsync(PanelButton muteBtn, BasisRemotePlayer remote)
+            {
+                bool muted = await IndividualPlayerProvider.IsMutedAsync(remote);
+                if (muteBtn != null)
+                {
+                    muteBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                        muted ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
+                }
             }
 
             private void RemovePlayerEntry(ushort playerId)
@@ -373,6 +467,7 @@ namespace Basis.BasisUI
                 if (_entries.TryGetValue(playerId, out PlayerEntry entry))
                 {
                     if (entry.Button != null) entry.Button.ReleaseInstance();
+                    if (entry.ActionRow != null) Destroy(entry.ActionRow.gameObject);
                     _entries.Remove(playerId);
                 }
             }
@@ -533,11 +628,17 @@ namespace Basis.BasisUI
                 }
                 _orderBuffer.Sort(CompareForCurrentSort);
 
+                // Place the player button followed by its action row, so each player
+                // occupies up to two consecutive sibling slots in GridParent.
+                int sibling = _firstPlayerSiblingIndex;
                 for (int i = 0; i < _orderBuffer.Count; i++)
                 {
-                    if (_entries.TryGetValue(_orderBuffer[i].playerId, out PlayerEntry entry) && entry.Button != null)
+                    if (_entries.TryGetValue(_orderBuffer[i].playerId, out PlayerEntry entry))
                     {
-                        entry.Button.transform.SetSiblingIndex(_firstPlayerSiblingIndex + i);
+                        if (entry.Button != null)
+                            entry.Button.transform.SetSiblingIndex(sibling++);
+                        if (entry.ActionRow != null)
+                            entry.ActionRow.SetSiblingIndex(sibling++);
                     }
                 }
             }
@@ -600,6 +701,7 @@ namespace Basis.BasisUI
                     }
 
                     entry.Button.gameObject.SetActive(show);
+                    if (entry.ActionRow != null) entry.ActionRow.gameObject.SetActive(show);
                 }
 
                 UpdateHeader();
