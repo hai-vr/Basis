@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using Basis.Scripts.BasisSdk;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
@@ -17,7 +18,7 @@ public static class ContentPoliceControl
     /// <param name="Rotation">The rotation to instantiate the cleaned copy.</param>
     /// <param name="Parent">The parent transform for the instantiated copy. Defaults to null.</param>
     /// <returns>A copy of the GameObject with unapproved scripts removed.</returns>
-    public static GameObject ContentControl(GameObject DisabledGameobject, GameObject SearchAndDestroy, ChecksRequired ChecksRequired, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, BundledContentHolder.Selector Selector, Transform Parent = null,int colliderlayer = -1)
+    public static GameObject ContentControl(GameObject DisabledGameobject, GameObject SearchAndDestroy, ChecksRequired ChecksRequired, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, BundledContentHolder.Selector Selector, Transform Parent = null,int colliderlayer = -1, List<BasisHeadChop.HeadChopTarget> HarvestedHeadChop = null)
     {
         if (ChecksRequired.UseContentRemoval)
         {
@@ -34,12 +35,22 @@ public static class ContentPoliceControl
 
             if (BundledContentHolder.Instance.GetSelector(Selector, out ContentPoliceSelector PoliceCheck))
             {
+                // BasisHeadChop is harvested during this walk so the local avatar driver
+                // doesn't need a second GetComponentsInChildren pass at calibration. Harvest
+                // is appended only when the caller passed a non-null collector — that way the
+                // data flows back through the call chain rather than living on BasisAvatar.
                 for (int Index = 0; Index < count; Index++)
                 {
                     Component component = components[Index];
                     //do this first before we nuke stuff
                     switch (component)
                     {
+                        case BasisHeadChop headChop:
+                            if (HarvestedHeadChop != null && headChop.Targets != null && headChop.Targets.Length > 0)
+                            {
+                                HarvestedHeadChop.AddRange(headChop.Targets);
+                            }
+                            break;
                         case Animator animator:
                             // AnimationEvents dispatch via SendMessage(methodName, arg),
                             // which invokes any method of that name on any component on
