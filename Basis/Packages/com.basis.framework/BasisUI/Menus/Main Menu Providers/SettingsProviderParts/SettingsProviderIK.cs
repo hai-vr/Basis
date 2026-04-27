@@ -631,8 +631,17 @@ public static class SettingsProviderIK
             });
         }
 
+        var boneSelectGroup = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            parent);
+        boneSelectGroup.SetTitle("Per-Bone Settings");
+        boneSelectGroup.SetDescription(
+            "Pick a bone to inspect or tune. The toggles and sliders below apply only " +
+            "to the bone you select here — switch bones to see each one's settings."
+        );
+
         var boneNames = _bones.Select(b => b.Name).ToList();
-        _boneDropdown = PanelDropdown.CreateNewEntry(parent);
+        _boneDropdown = PanelDropdown.CreateNewEntry(boneSelectGroup.ContentParent);
         _boneDropdown.Descriptor.SetTitle("Bone");
         _boneDropdown.AssignEntries(boneNames);
         _boneDropdown.AssignBinding(BasisSettingsDefaults.SelectedBone);
@@ -642,6 +651,12 @@ public static class SettingsProviderIK
         _boneEuroEditorGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             parent);
+        _boneEuroEditorGroup.SetTitle("Calibration & Smoothing");
+        _boneEuroEditorGroup.SetDescription(
+            "Controls for the selected bone. Use For Calibration decides whether trackers " +
+            "can be assigned to this role during full-body calibration; the smoothing and " +
+            "Euro filter toggles below shape how the bone reacts to incoming motion."
+        );
 
         _uiUseCalibration = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiUseCalibration.Descriptor.SetTitle("Use For Calibration");

@@ -27,6 +27,15 @@ namespace Basis.BasisUI
             listenerDampenGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.remotePlayers"));
             listenerDampenGroup.SetDescription(BasisLocalization.Get("settings.remoteAudio.remotePlayers.description"));
 
+            // Hearing Range (relocated from General). Lives here because it
+            // governs at what distance any remote player becomes audible.
+            // The "Limit Audio Sources" cap is an advanced control and lives
+            // in the Audio Source group below.
+            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
+                listenerDampenGroup,
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.hearingRange"), 25),
+                BasisSettingsDefaults.HearingRange);
+
             PanelSlider sliderListenerConeAngle = PanelSlider.CreateEntryAndBind(
                 listenerDampenGroup,
                 PanelSlider.SliderSettings.Degrees("Cone of Influence", 30f, 360f, true, 0),
@@ -51,6 +60,22 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             audioSourceGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.audioSource"));
             audioSourceGroup.SetDescription(BasisLocalization.Get("settings.remoteAudio.audioSource.description"));
+
+            PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(audioSourceGroup);
+            toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
+            toggleLimitAudio.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAudio"));
+
+            PanelSlider sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
+                audioSourceGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAudio"), 0, 250, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxAudioSources);
+
+            sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
+            toggleLimitAudio.OnValueChanged += (val) =>
+            {
+                sliderMaxAudioSources.Descriptor.SetActive(val);
+                audioSourceGroup.ForceRebuild();
+            };
 
             PanelSlider sliderMinDistance = PanelSlider.CreateEntryAndBind(
                 audioSourceGroup,

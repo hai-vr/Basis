@@ -262,16 +262,16 @@ public static class SettingsProviderPerformanceLimits
             PanelSlider.SliderSettings.Advanced(sliderTitle, sliderMin, sliderMax, wholeNumbers, decimals, displayMode),
             maxBinding);
 
-        // Seed visibility from the saved toggle state, then keep it in sync when the
-        // user flips the toggle. SetActive on the slider GameObject removes it from
-        // the layout pass entirely — the container re-flows so only active limits
-        // take up vertical space. LayoutRebuilder.ForceRebuildLayoutImmediate is
-        // what actually makes the surrounding groups close the gap / reopen space;
-        // without it the hidden slider leaves dead vertical space behind.
+        // Seed visibility from the saved toggle state, then keep it in sync whenever
+        // the binding flips — including programmatic changes like the reset button.
+        // SetActive on the slider GameObject removes it from the layout pass entirely
+        // so the container re-flows and only active limits take up vertical space;
+        // LayoutRebuilder.ForceRebuildLayoutImmediate is what actually closes / reopens
+        // the gap. PanelToggle.OnValueChanged only fires from user-driven SetValue,
+        // so we hook BasisSettingsBinding.OnChanged here to also catch resets.
         if (slider != null)
         {
-            slider.gameObject.SetActive(useBinding.RawValue);
-            toggle.OnValueChanged += on =>
+            void Sync(bool on)
             {
                 if (slider == null) return;
                 slider.gameObject.SetActive(on);
@@ -279,7 +279,10 @@ public static class SettingsProviderPerformanceLimits
                 {
                     LayoutRebuilder.ForceRebuildLayoutImmediate(_layoutRoot);
                 }
-            };
+            }
+
+            Sync(useBinding.RawValue);
+            useBinding.OnChanged += Sync;
         }
     }
 

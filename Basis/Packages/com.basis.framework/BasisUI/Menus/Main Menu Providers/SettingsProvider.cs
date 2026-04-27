@@ -432,35 +432,8 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.propVolume")),
                 BasisSettingsDefaults.PropVolume);
 
-            // World audio limits (relocated from General):
-            //   Hearing Range, Limit Audio Sources + cap
-            PanelElementDescriptor audioRangeGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            audioRangeGroup.SetTitle(BasisLocalization.Get("settings.general.ranges.title"));
-            audioRangeGroup.SetDescription(BasisLocalization.Get("settings.general.ranges.description"));
-
-            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
-                audioRangeGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.hearingRange"), 25),
-                BasisSettingsDefaults.HearingRange);
-
-            PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(audioRangeGroup);
-            toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
-            toggleLimitAudio.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAudio"));
-
-            PanelSlider sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
-                audioRangeGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAudio"), 0, 250, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MaxAudioSources);
-
-            sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
-            toggleLimitAudio.OnValueChanged += (val) =>
-            {
-                sliderMaxAudioSources.Descriptor.SetActive(val);
-                audioRangeGroup.ForceRebuild();
-            };
-
-            // Remote Players (Spatial Audio) — includes its own Advanced toggle
+            // Remote Players (Spatial Audio) — also hosts Hearing Range and the
+            // Audio Source cap, since both are "how do I hear other players" controls.
             SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
 
             // One reset button for this whole page
@@ -941,6 +914,47 @@ namespace Basis.BasisUI
             qualityGroup.SetTitle(BasisLocalization.Get("settings.graphics.quality.title"));
             qualityGroup.SetDescription(BasisLocalization.Get("settings.graphics.quality.description"));
 
+            // Avatar visibility limits (relocated from General). Lives at the
+            // top of the quality group so users see distance/limit controls
+            // before per-pixel quality knobs.
+            PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
+                qualityGroup,
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
+                BasisSettingsDefaults.AvatarRange);
+
+            PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(qualityGroup);
+            toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
+            toggleLimitAvatars.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAvatars"));
+
+            PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
+                qualityGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAvatars"), 0, 250, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxVisibleAvatars);
+
+            sliderMaxVisibleAvatars.Descriptor.SetActive(toggleLimitAvatars.Value);
+            toggleLimitAvatars.OnValueChanged += (val) =>
+            {
+                sliderMaxVisibleAvatars.Descriptor.SetActive(val);
+                qualityGroup.ForceRebuild();
+            };
+
+            PanelToggle toggleViewCone = PanelToggle.CreateNewEntry(qualityGroup);
+            toggleViewCone.AssignBinding(BasisSettingsDefaults.UseViewConeAvatars);
+            toggleViewCone.Descriptor.SetTitle(BasisLocalization.Get("settings.general.viewCone"));
+            toggleViewCone.Descriptor.SetDescription(BasisLocalization.Get("settings.general.viewCone.description"));
+
+            PanelSlider sliderViewConeAngle = PanelSlider.CreateEntryAndBind(
+                qualityGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.viewConeAngle"), 30, 360, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ViewConeAngle);
+
+            sliderViewConeAngle.Descriptor.SetActive(toggleViewCone.Value);
+            toggleViewCone.OnValueChanged += (val) =>
+            {
+                sliderViewConeAngle.Descriptor.SetActive(val);
+                qualityGroup.ForceRebuild();
+            };
+
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.qualityLevel"));
             dropdownQualityLevel.AssignEntries(new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" });
@@ -1187,51 +1201,6 @@ namespace Basis.BasisUI
                 toggleLocalHeadBlendShapes.Descriptor.SetActive(val);
                 advancedGroup.ForceRebuild();
                 descriptor.ForceRebuild();
-            };
-
-            // Avatar visibility limits (relocated from General):
-            //   Avatar Range, Limit Avatars + cap, View Cone Avatars + angle.
-            PanelElementDescriptor avatarVisibilityGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            avatarVisibilityGroup.SetTitle(BasisLocalization.Get("settings.general.ranges.title"));
-            avatarVisibilityGroup.SetDescription(BasisLocalization.Get("settings.general.ranges.description"));
-
-            PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
-                avatarVisibilityGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
-                BasisSettingsDefaults.AvatarRange);
-
-            PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(avatarVisibilityGroup);
-            toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
-            toggleLimitAvatars.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAvatars"));
-
-            PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
-                avatarVisibilityGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAvatars"), 0, 250, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MaxVisibleAvatars);
-
-            sliderMaxVisibleAvatars.Descriptor.SetActive(toggleLimitAvatars.Value);
-            toggleLimitAvatars.OnValueChanged += (val) =>
-            {
-                sliderMaxVisibleAvatars.Descriptor.SetActive(val);
-                avatarVisibilityGroup.ForceRebuild();
-            };
-
-            PanelToggle toggleViewCone = PanelToggle.CreateNewEntry(avatarVisibilityGroup);
-            toggleViewCone.AssignBinding(BasisSettingsDefaults.UseViewConeAvatars);
-            toggleViewCone.Descriptor.SetTitle(BasisLocalization.Get("settings.general.viewCone"));
-            toggleViewCone.Descriptor.SetDescription(BasisLocalization.Get("settings.general.viewCone.description"));
-
-            PanelSlider sliderViewConeAngle = PanelSlider.CreateEntryAndBind(
-                avatarVisibilityGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.viewConeAngle"), 30, 360, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.ViewConeAngle);
-
-            sliderViewConeAngle.Descriptor.SetActive(toggleViewCone.Value);
-            toggleViewCone.OnValueChanged += (val) =>
-            {
-                sliderViewConeAngle.Descriptor.SetActive(val);
-                avatarVisibilityGroup.ForceRebuild();
             };
 
             // Performance limits live in the same tab — formerly its own page,
