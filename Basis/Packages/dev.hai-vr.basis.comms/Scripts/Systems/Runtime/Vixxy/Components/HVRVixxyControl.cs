@@ -8,6 +8,12 @@ using Basis.Scripts.BasisSdk;
 #endif
 using UnityEngine;
 
+// UGC Rule: GameObjects and Components referenced by this class should be treated defensively as being UGC at runtime:<br/>
+// - There may be null values in the arrays, as they may be unreliable user input or removed as part of a build process (e.g. EditorOnly),<br/>
+// - Non-null values in the array may reference objects that will be destroyed later, so treat objects and components as potentially destroyable,<br/>
+// - Similarly to animation, it is fine for the user to define rules that cannot apply (i.e. setting a material property on a type that isn't a Renderer,
+//   referencing a field on a type that cannot exist, etc.); do not treat those as errors,<br/>
+// - Do not treat anything else defensively than the above points, which are expectations of this specific system.
 namespace HVR.Vixxy
 {
     /// This is a user-accessible toggle system.<br/>
@@ -15,19 +21,12 @@ namespace HVR.Vixxy
     /// This component listens to a value in an address, which toggles and applies user-defined values in the properties of some objects accordingly.<br/>
     /// If there are material properties to be changed, those changes are staged into the HVROrchestrator component, which then applies a material property block
     /// to the renderer once after all changes have been received for that frame.<br/>
-    /// <br/>
-    /// UGC Rule: GameObjects and Components referenced by this class should be treated defensively as being UGC at runtime:<br/>
-    /// - There may be null values in the arrays, as they may be unreliable user input or removed as part of a build process (e.g. EditorOnly),<br/>
-    /// - Non-null values in the array may reference objects that will be destroyed later, so treat objects and components as potentially destroyable,<br/>
-    /// - Similarly to animation, it is fine for the user to define rules that cannot apply (i.e. setting a material property on a type that isn't a Renderer,
-    ///   referencing a field on a type that cannot exist, etc.); do not treat those as errors,<br/>
-    /// - Do not treat anything else defensively than the above points, which are expectations of this specific system.
     public partial class HVRVixxyControl : MonoBehaviour, IHVRVixxyActuator, IHVRInitializable
     {
         // Licensing notes:
         // Portions of the code below originally comes from portions of a proprietary software that I (Haï~) am the author of,
         // and is notably used in "Vixen" (2023-2024).
-        // The code below is released under the same terms as the LICENSE file of dev.hai-vr.basis.vixxy, which is MIT,
+        // The code below is released under the same terms as the LICENSE file of dev.hai-vr.basis.comms, which is MIT,
         // including the specific portions of the code that originally came from "Vixen".
 
         // Runtime only
