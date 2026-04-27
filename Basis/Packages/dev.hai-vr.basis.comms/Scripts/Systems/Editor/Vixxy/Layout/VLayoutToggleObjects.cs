@@ -33,7 +33,38 @@ namespace HVR.Vixxy.Editor
             }
             else
             {
+                for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
+                {
+                    if (string.IsNullOrWhiteSpace(my.choices[choiceIndex].title)) continue;
+
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField("");
+                    if (choiceIndex != 0)
+                    {
+                        for (var i = 0; i < choiceIndex; i++)
+                        {
+                            EditorGUILayout.LabelField("", GUILayout.Width(EditorGUIUtility.singleLineHeight));
+                        }
+                    }
+                    EditorGUILayout.LabelField($"#{choiceIndex + 1} {my.choices[choiceIndex].title}", GUILayout.Width(70 + 60 + 25));
+                    for (var i = choiceIndex; i < my.NumberOfChoices; i++)
+                    {
+                        EditorGUILayout.LabelField("", GUILayout.Width(EditorGUIUtility.singleLineHeight));
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AffectTheseObjectsLabel);
+                for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
+                {
+                    EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(EditorGUIUtility.singleLineHeight));
+                }
+                EditorGUILayout.LabelField("", GUILayout.Width(70));
+                EditorGUILayout.LabelField("", GUILayout.Width(60));
+                EditorGUILayout.LabelField("", GUILayout.Width(25));
+                EditorGUILayout.EndHorizontal();
+
                 DisplayActivations(activationsSp, false, true);
             }
             EditorGUILayout.Separator();
@@ -41,24 +72,19 @@ namespace HVR.Vixxy.Editor
             return false;
         }
 
-        private void DisplayActivations(SerializedProperty activationsSp, bool showThoseActive, bool displayInsideBox)
+        private void DisplayActivations(SerializedProperty activationsSp, bool showThoseActive, bool displayMultiChoice)
         {
             // showThoseActive must be ignored when we have three or more choices
 
             for (var i = 0; i < activationsSp.arraySize; i++)
             {
-                if (displayInsideBox)
-                {
-                    EditorGUILayout.BeginVertical("GroupBox");
-                }
-
                 var activationSp = activationsSp.GetArrayElementAtIndex(i);
                 var choicesSp = activationSp.FindPropertyRelative(nameof(HVRVixxyActivation.choices));
                 var activeChoiceSp = choicesSp.arraySize >= 2 ? choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex) : null;
                 var isWhenActive = activeChoiceSp != null ? activeChoiceSp.boolValue : true;
 
                 var shouldBeDisplayed = isWhenActive == showThoseActive;
-                if (displayInsideBox || shouldBeDisplayed)
+                if (displayMultiChoice || shouldBeDisplayed)
                 {
                     var componentSp = activationSp.FindPropertyRelative(nameof(HVRVixxyActivation.component));
 
@@ -76,6 +102,15 @@ namespace HVR.Vixxy.Editor
                     {
                         EditorGUILayout.PropertyField(componentSp, GUIContent.none);
                     }
+
+                    if (displayMultiChoice)
+                    {
+                        for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
+                        {
+                            EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), GUIContent.none, GUILayout.Width(EditorGUIUtility.singleLineHeight));
+                        }
+                    }
+
                     EditorGUILayout.PropertyField(activationSp.FindPropertyRelative(nameof(HVRVixxyActivation.threshold)), GUIContent.none, GUILayout.Width(70));
 
                     {
@@ -103,11 +138,12 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (!displayInsideBox && GUILayout.Button(HVRUiHelpers.SwapSymbol, GUILayout.Width(25)))
+                    if (!displayMultiChoice && GUILayout.Button(HVRUiHelpers.SwapSymbol, GUILayout.Width(25)))
                     {
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex).boolValue = showThoseActive;
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = !showThoseActive;
                     }
+
                     if (GUILayout.Button(HVRUiHelpers.CrossSymbol, GUILayout.Width(25)))
                     {
                         activationsSp.GetArrayElementAtIndex(i).objectReferenceValue = null;
@@ -116,18 +152,6 @@ namespace HVR.Vixxy.Editor
                     }
 
                     EditorGUILayout.EndHorizontal();
-                    if (displayInsideBox)
-                    {
-                        for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
-                        {
-                            EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, my.choices)));
-                        }
-                    }
-                }
-
-                if (displayInsideBox)
-                {
-                    EditorGUILayout.EndVertical();
                 }
             }
 
