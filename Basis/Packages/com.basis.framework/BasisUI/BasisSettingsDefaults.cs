@@ -454,6 +454,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> LeaveNotifications = new("leavenotifications", new BasisPlatformDefault<bool>(false));
 
+        // ---------------- CHAT ----------------
+        /// <summary>
+        /// Global kill switch for text chat. When true, incoming chat is dropped before
+        /// being applied to nameplates and local sends are short-circuited.
+        /// </summary>
+        public static BasisSettingsBinding<bool> ChatDisabled = new("chatdisabled", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> FalseBinding = new("falsebinding", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> TrueBinding = new("truebinding", new BasisPlatformDefault<bool>(false));
@@ -1029,6 +1036,9 @@ namespace Basis.BasisUI
             // Notifications
             JoinNotifications.LoadBindingValue();
             LeaveNotifications.LoadBindingValue();
+
+            // Chat
+            ChatDisabled.LoadBindingValue();
 
             // UI
             AvatarPreview.LoadBindingValue();

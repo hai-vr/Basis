@@ -1,6 +1,8 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -60,6 +62,23 @@ namespace Basis.BasisUI
             modeDropdown.AssignEntries(new List<string> { "Name", "UUID" });
             modeDropdown.SetValueWithoutNotify("Name");
 
+            // Sort mode dropdown. Entries are stable English identifiers — the
+            // controller switches on the literal string the same way ModeDropdown
+            // does, so adding a translated label here would silently disable sort.
+            PanelDropdown sortDropdown = PanelDropdown.CreateNewEntry(root);
+            sortDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.sortMode"));
+            sortDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.sortMode.description"));
+            sortDropdown.AssignEntries(new List<string> { "Default", "Distance", "Name", "Platform", "Join Time" });
+            sortDropdown.SetValueWithoutNotify("Default");
+
+            // Direction filter dropdown — hide players in front / behind based on
+            // the local camera's horizontal facing.
+            PanelDropdown directionDropdown = PanelDropdown.CreateNewEntry(root);
+            directionDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.directionFilter"));
+            directionDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.directionFilter.description"));
+            directionDropdown.AssignEntries(new List<string> { "All", "In Front", "Behind" });
+            directionDropdown.SetValueWithoutNotify("All");
+
             // Player count header
             var headerGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, root);
@@ -71,6 +90,8 @@ namespace Basis.BasisUI
             _controller.HeaderGroup = headerGroup;
             _controller.SearchField = searchField;
             _controller.ModeDropdown = modeDropdown;
+            _controller.SortDropdown = sortDropdown;
+            _controller.DirectionDropdown = directionDropdown;
             _controller.TabDescriptor = tab.Descriptor;
             _controller.Initialize();
 
@@ -112,6 +133,8 @@ namespace Basis.BasisUI
         // ======== Types ========
 
         private enum SearchMode { Name, UUID }
+        private enum SortMode { Default, Distance, Name, Platform, JoinTime }
+        private enum DirectionFilter { All, InFront, Behind }
 
         private struct PlayerEntry
         {
@@ -120,8 +143,9 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
-        /// Manages the player grid, search/filter, and join/leave events.
-        /// Player buttons live in a dedicated grid container separate from controls.
+        /// Manages the player grid, search/filter, sort, direction filter, and
+        /// join/leave events. Player buttons share their parent with the search
+        /// and sort controls, so reordering is offset past <see cref="_firstPlayerSiblingIndex"/>.
         /// </summary>
         private sealed class UserListController : MonoBehaviour
         {
@@ -129,11 +153,29 @@ namespace Basis.BasisUI
             public PanelElementDescriptor HeaderGroup;
             public PanelTextField SearchField;
             public PanelDropdown ModeDropdown;
+            public PanelDropdown SortDropdown;
+            public PanelDropdown DirectionDropdown;
             public PanelElementDescriptor TabDescriptor;
 
             private readonly Dictionary<ushort, PlayerEntry> _entries = new();
             private SearchMode _searchMode = SearchMode.Name;
+            private SortMode _sortMode = SortMode.Default;
+            private DirectionFilter _directionFilter = DirectionFilter.All;
             private string _lastQuery = string.Empty;
+
+            // Reused buffer for sort comparisons \u2014 avoids per-tick allocation.
+            private readonly List<BasisNetworkPlayer> _orderBuffer = new();
+
+            // Sibling index of the first player button. Captured once after the
+            // controls (search field, dropdowns, header) have been placed so
+            // SetSiblingIndex calls when reordering don't disturb the controls.
+            private int _firstPlayerSiblingIndex;
+
+            // Periodic refresh of distance, direction label, and "joined Xs ago"
+            // text. Players move continuously but the player list is a low-detail
+            // surface \u2014 0.5s feels live without rebuilding text every frame.
+            private float _refreshTimer;
+            private const float RefreshInterval = 0.5f;
 
             public void Initialize()
             {
@@ -143,6 +185,12 @@ namespace Basis.BasisUI
 
                 SearchField.OnValueChanged += OnSearchChanged;
                 ModeDropdown.OnValueChanged += OnModeChanged;
+                SortDropdown.OnValueChanged += OnSortChanged;
+                DirectionDropdown.OnValueChanged += OnDirectionChanged;
+
+                // All controls have already been added to GridParent at this point;
+                // any subsequent children are player buttons.
+                _firstPlayerSiblingIndex = GridParent != null ? GridParent.childCount : 0;
 
                 RebuildFullList();
             }
@@ -155,24 +203,39 @@ namespace Basis.BasisUI
                 ClearAllEntries();
             }
 
+            private void Update()
+            {
+                _refreshTimer += Time.unscaledDeltaTime;
+                if (_refreshTimer < RefreshInterval) return;
+                _refreshTimer = 0f;
+
+                RefreshDescriptions();
+
+                if (_sortMode == SortMode.Distance || _sortMode == SortMode.JoinTime)
+                {
+                    ReorderButtons();
+                }
+
+                if (_directionFilter != DirectionFilter.All)
+                {
+                    ApplyFilter();
+                }
+            }
+
             private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
             {
-                if (netPlayer.Player != null && PinnedPlayers.IsPinned(netPlayer.Player.UUID))
-                {
-                    RebuildFullList();
-                }
-                else
-                {
-                    AddPlayerEntry(netPlayer);
-                    ApplyFilter();
-                    UpdateHeader();
-                }
+                AddPlayerEntry(netPlayer);
+                ReorderButtons();
+                ApplyFilter();
+                UpdateHeader();
                 TabDescriptor.ForceRebuild();
             }
 
             private void OnPinsChanged()
             {
-                RebuildFullList();
+                // Pin status feeds the comparator; just resort, no rebuild needed.
+                RefreshDescriptions();
+                ReorderButtons();
                 TabDescriptor.ForceRebuild();
             }
 
@@ -187,6 +250,33 @@ namespace Basis.BasisUI
             {
                 _searchMode = value == "UUID" ? SearchMode.UUID : SearchMode.Name;
                 UpdateSearchHint();
+                ApplyFilter();
+                TabDescriptor.ForceRebuild();
+            }
+
+            private void OnSortChanged(string value)
+            {
+                _sortMode = value switch
+                {
+                    "Distance" => SortMode.Distance,
+                    "Name" => SortMode.Name,
+                    "Platform" => SortMode.Platform,
+                    "Join Time" => SortMode.JoinTime,
+                    _ => SortMode.Default,
+                };
+                ReorderButtons();
+                RefreshDescriptions();
+                TabDescriptor.ForceRebuild();
+            }
+
+            private void OnDirectionChanged(string value)
+            {
+                _directionFilter = value switch
+                {
+                    "In Front" => DirectionFilter.InFront,
+                    "Behind" => DirectionFilter.Behind,
+                    _ => DirectionFilter.All,
+                };
                 ApplyFilter();
                 TabDescriptor.ForceRebuild();
             }
@@ -216,7 +306,8 @@ namespace Basis.BasisUI
                         visible++;
                 }
 
-                if (visible < total && !string.IsNullOrEmpty(_lastQuery))
+                bool hasFilter = !string.IsNullOrEmpty(_lastQuery) || _directionFilter != DirectionFilter.All;
+                if (visible < total && hasFilter)
                     HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header.filtered", visible, total));
                 else
                     HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header", total));
@@ -238,15 +329,10 @@ namespace Basis.BasisUI
                 ClearAllEntries();
                 foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
                 {
-                    if (player.Player != null && PinnedPlayers.IsPinned(player.Player.UUID))
-                        AddPlayerEntry(player);
-                }
-                foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
-                {
-                    if (player.Player == null || !PinnedPlayers.IsPinned(player.Player.UUID))
-                        AddPlayerEntry(player);
+                    AddPlayerEntry(player);
                 }
                 UpdateSearchHint();
+                ReorderButtons();
                 ApplyFilter();
                 UpdateHeader();
             }
@@ -262,14 +348,8 @@ namespace Basis.BasisUI
                 string name = netPlayer.SafeDisplayName;
                 if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
 
-                string platform = netPlayer.Player != null ? netPlayer.Player.PlayerPlatform : "";
-                string platformLabel = GetPlatformLabel(platform);
-
-                bool isPinned = netPlayer.Player != null && PinnedPlayers.IsPinned(netPlayer.Player.UUID);
-                string descriptionLabel = isPinned ? $"{platformLabel} \u2022 {BasisLocalization.Get("menu.players.pinned")}" : platformLabel;
-
                 btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
-                btn.Descriptor.SetDescription(descriptionLabel);
+                btn.Descriptor.SetDescription(BuildDescription(netPlayer));
 
                 if (isLocal)
                 {
@@ -297,6 +377,171 @@ namespace Basis.BasisUI
                 }
             }
 
+            // ---- Description ----
+
+            private string BuildDescription(BasisNetworkPlayer netPlayer)
+            {
+                BasisPlayer p = netPlayer.Player;
+                bool isPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
+                bool isLocal = p != null && p.IsLocal;
+
+                string platformLabel = GetPlatformLabel(p != null ? p.PlayerPlatform : "");
+
+                var parts = new List<string>(5) { platformLabel };
+
+                if (isPinned)
+                {
+                    parts.Add(BasisLocalization.Get("menu.players.pinned"));
+                }
+
+                // Distance + direction + range only make sense for remote peers.
+                if (!isLocal && p != null && BasisLocalCameraDriver.HasInstance)
+                {
+                    Vector3 localPos = BasisLocalCameraDriver.Position;
+                    Vector3 remotePos = GetRemotePosition(p);
+                    float dist = Vector3.Distance(localPos, remotePos);
+                    parts.Add(BasisLocalization.Get("menu.players.distanceMeters", dist));
+
+                    string dirLabel = ComputeDirectionLabel(localPos, remotePos);
+                    if (!string.IsNullOrEmpty(dirLabel))
+                    {
+                        parts.Add(dirLabel);
+                    }
+
+                    if (p is BasisRemotePlayer remote && remote.OutOfRangeFromLocal)
+                    {
+                        parts.Add(BasisLocalization.Get("menu.players.outOfRange"));
+                    }
+                }
+
+                if (!isLocal)
+                {
+                    parts.Add(FormatJoinedAgo(netPlayer.JoinTime));
+                }
+
+                return string.Join(" \u2022 ", parts);
+            }
+
+            private static string ComputeDirectionLabel(Vector3 localPos, Vector3 remotePos)
+            {
+                Vector3 toRemote = remotePos - localPos;
+                toRemote.y = 0f;
+                if (toRemote.sqrMagnitude < 0.0001f) return string.Empty;
+
+                Vector3 forward = BasisLocalCameraDriver.Forward();
+                forward.y = 0f;
+                if (forward.sqrMagnitude < 0.0001f) return string.Empty;
+
+                forward.Normalize();
+                toRemote.Normalize();
+                float dot = Vector3.Dot(forward, toRemote);
+                return dot > 0f
+                    ? BasisLocalization.Get("menu.players.inFront")
+                    : BasisLocalization.Get("menu.players.behind");
+            }
+
+            private static Vector3 GetRemotePosition(BasisPlayer p)
+            {
+                if (p is BasisRemotePlayer remote && remote.MouthTransform != null)
+                    return remote.MouthTransform.position;
+                return p.transform.position;
+            }
+
+            private static string FormatJoinedAgo(float joinTime)
+            {
+                float ago = Mathf.Max(0f, Time.realtimeSinceStartup - joinTime);
+                if (ago < 60f)
+                    return BasisLocalization.Get("menu.players.joinedAgoSeconds", Mathf.FloorToInt(ago));
+                if (ago < 3600f)
+                    return BasisLocalization.Get("menu.players.joinedAgoMinutes", Mathf.FloorToInt(ago / 60f));
+                int hours = Mathf.FloorToInt(ago / 3600f);
+                int minutes = Mathf.FloorToInt((ago % 3600f) / 60f);
+                return BasisLocalization.Get("menu.players.joinedAgoHours", hours, minutes);
+            }
+
+            private void RefreshDescriptions()
+            {
+                foreach (var kvp in _entries)
+                {
+                    var entry = kvp.Value;
+                    if (entry.Button == null || entry.NetPlayer == null) continue;
+                    entry.Button.Descriptor.SetDescription(BuildDescription(entry.NetPlayer));
+                }
+            }
+
+            // ---- Sorting / Reordering ----
+
+            private static float DistanceTo(BasisPlayer p)
+            {
+                if (p == null || !BasisLocalCameraDriver.HasInstance) return float.MaxValue;
+                return Vector3.Distance(BasisLocalCameraDriver.Position, GetRemotePosition(p));
+            }
+
+            private int CompareForCurrentSort(BasisNetworkPlayer a, BasisNetworkPlayer b)
+            {
+                // Pinned players group above unpinned ones in every sort mode \u2014
+                // the pin is intended as a "keep this person at the top" signal,
+                // so secondary sorting only orders within each group.
+                bool aPinned = a.Player != null && PinnedPlayers.IsPinned(a.Player.UUID);
+                bool bPinned = b.Player != null && PinnedPlayers.IsPinned(b.Player.UUID);
+                if (aPinned != bPinned) return aPinned ? -1 : 1;
+
+                switch (_sortMode)
+                {
+                    case SortMode.Distance:
+                    {
+                        float da = DistanceTo(a.Player);
+                        float db = DistanceTo(b.Player);
+                        return da.CompareTo(db);
+                    }
+                    case SortMode.Name:
+                    {
+                        return string.Compare(
+                            a.SafeDisplayName ?? "",
+                            b.SafeDisplayName ?? "",
+                            StringComparison.OrdinalIgnoreCase);
+                    }
+                    case SortMode.Platform:
+                    {
+                        string pa = a.Player != null ? GetPlatformLabel(a.Player.PlayerPlatform) : "";
+                        string pb = b.Player != null ? GetPlatformLabel(b.Player.PlayerPlatform) : "";
+                        int cmp = string.Compare(pa, pb, StringComparison.OrdinalIgnoreCase);
+                        if (cmp != 0) return cmp;
+                        return string.Compare(
+                            a.SafeDisplayName ?? "",
+                            b.SafeDisplayName ?? "",
+                            StringComparison.OrdinalIgnoreCase);
+                    }
+                    case SortMode.JoinTime:
+                        // Most recent arrival first \u2014 common ask is "who just joined?"
+                        return b.JoinTime.CompareTo(a.JoinTime);
+                    default:
+                        // Default: oldest-first arrival order, mirrors the previous
+                        // pinned-then-append behavior for users who liked it.
+                        return a.JoinTime.CompareTo(b.JoinTime);
+                }
+            }
+
+            private void ReorderButtons()
+            {
+                if (GridParent == null) return;
+
+                _orderBuffer.Clear();
+                foreach (var kvp in _entries)
+                {
+                    if (kvp.Value.NetPlayer != null) _orderBuffer.Add(kvp.Value.NetPlayer);
+                }
+                _orderBuffer.Sort(CompareForCurrentSort);
+
+                for (int i = 0; i < _orderBuffer.Count; i++)
+                {
+                    if (_entries.TryGetValue(_orderBuffer[i].playerId, out PlayerEntry entry) && entry.Button != null)
+                    {
+                        entry.Button.transform.SetSiblingIndex(_firstPlayerSiblingIndex + i);
+                    }
+                }
+            }
+
             // ---- Filter / Search ----
 
             private void ApplyFilter()
@@ -304,6 +549,13 @@ namespace Basis.BasisUI
                 string query = _lastQuery.Trim();
                 bool hasQuery = query.Length > 0;
                 string queryLower = hasQuery ? query.ToLowerInvariant() : string.Empty;
+
+                bool hasCamera = BasisLocalCameraDriver.HasInstance;
+                Vector3 localPos = hasCamera ? BasisLocalCameraDriver.Position : Vector3.zero;
+                Vector3 forward = hasCamera ? BasisLocalCameraDriver.Forward() : Vector3.zero;
+                forward.y = 0f;
+                bool forwardValid = forward.sqrMagnitude > 0.0001f;
+                if (forwardValid) forward.Normalize();
 
                 foreach (var kvp in _entries)
                 {
@@ -324,6 +576,26 @@ namespace Basis.BasisUI
                         {
                             string n = entry.NetPlayer.SafeDisplayName ?? "";
                             show = n.ToLowerInvariant().Contains(queryLower);
+                        }
+                    }
+
+                    // Direction filter: skip the local player (no direction relative
+                    // to itself) and skip when the camera isn't ready yet, otherwise
+                    // a freshly-opened menu would briefly hide everyone.
+                    if (show && _directionFilter != DirectionFilter.All)
+                    {
+                        BasisPlayer p = entry.NetPlayer.Player;
+                        bool isLocal = p != null && p.IsLocal;
+                        if (!isLocal && p != null && forwardValid)
+                        {
+                            Vector3 toRemote = GetRemotePosition(p) - localPos;
+                            toRemote.y = 0f;
+                            if (toRemote.sqrMagnitude > 0.0001f)
+                            {
+                                toRemote.Normalize();
+                                float dot = Vector3.Dot(forward, toRemote);
+                                show = _directionFilter == DirectionFilter.InFront ? dot > 0f : dot <= 0f;
+                            }
                         }
                     }
 

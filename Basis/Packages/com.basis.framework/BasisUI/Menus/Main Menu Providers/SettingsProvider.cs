@@ -1325,10 +1325,22 @@ namespace Basis.BasisUI
             chatGroup.SetTitle(BasisLocalization.Get("settings.tab.chat"));
             chatGroup.SetDescription(BasisLocalization.Get("settings.chat.group.description"));
 
+            PanelToggle toggleChatDisabled = PanelToggle.CreateNewEntry(chatGroup);
+            toggleChatDisabled.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.disable"));
+            toggleChatDisabled.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.disable.description"));
+            toggleChatDisabled.AssignBinding(BasisSettingsDefaults.ChatDisabled);
+
             PanelTextField chatTextField = PanelTextField.CreateNewEntry(chatGroup);
             chatTextField.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.message"));
             chatTextField.SetValueWithoutNotify(string.Empty);
             chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
+
+            chatTextField.Descriptor.SetActive(!BasisSettingsDefaults.ChatDisabled.RawValue);
+            toggleChatDisabled.OnValueChanged += (val) =>
+            {
+                chatTextField.Descriptor.SetActive(!val);
+                chatGroup.ForceRebuild();
+            };
 
             void OnEndEndit(string message)
             {
@@ -1353,6 +1365,7 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.JoinNotifications.ResetToDefault();
             BasisSettingsDefaults.LeaveNotifications.ResetToDefault();
+            BasisSettingsDefaults.ChatDisabled.ResetToDefault();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 
