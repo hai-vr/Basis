@@ -89,7 +89,7 @@ public static class ContentPoliceControl
                         string monoTypeName = monoBehaviour.GetType().FullName;
                         if (!PoliceCheck.ApprovedTypeNames.Contains(monoTypeName))
                         {
-                            Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed.");
+                            Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
                             GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
                         }
                     }
@@ -193,7 +193,7 @@ public static class ContentPoliceControl
                     string monoTypeName = monoBehaviour.GetType().FullName;
                     if (!policeCheck.ApprovedTypeNames.Contains(monoTypeName))
                     {
-                        Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed.");
+                        Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
                         GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
                     }
                 }

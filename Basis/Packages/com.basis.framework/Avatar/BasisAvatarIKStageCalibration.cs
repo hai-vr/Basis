@@ -20,11 +20,69 @@ namespace Basis.Scripts.Avatar
             public static bool TryGet(BasisBoneTrackedRole role, out Vector3 localOffset) => LocalOffset.TryGetValue(role, out localOffset);
             public static void Clear() => LocalOffset.Clear();
         }
+
+        /// <summary>
+        /// Read-only snapshot of the most recent constellation calibration pass. Populated
+        /// each time FullBodyCalibration runs and consumed by the editor visualizer. Live
+        /// runtime never reads this — flipping any field cannot affect avatar behavior.
+        /// </summary>
+        public static class ConstellationDebug
+        {
+            public class DebugSample
+            {
+                public string DeviceId;
+                public Vector3 BodyLocal;        // unscaled, body-relative; z = depth
+                public float HeightRatio;
+                public float LateralRatio;
+                public bool Assigned;
+                public BasisBoneTrackedRole AssignedRole;
+                public float AssignedScore;
+                public BasisBoneTrackedRole BestAnyRole;   // top-scoring role even if rejected
+                public float BestAnyScore;
+            }
+
+            public class DebugPrior
+            {
+                public BasisBoneTrackedRole Role;
+                public float ExpectedHeight;
+                public float ExpectedLateral;
+                public float HeightSigma;
+                public float LateralSigma;
+                public bool Enabled;             // matches BasisSettingsDefaults toggle at calibration time
+                public int AssignedSampleIndex;  // -1 if no tracker bound to this role
+            }
+
+            public static bool HasSnapshot;
+            public static double Timestamp;
+            public static string Status = "no calibration captured yet";
+            public static float EyeHeight;
+            public static float ArmReach;
+            public static Vector3 BodyOrigin;
+            public static Quaternion BodyRotation;
+            public static readonly List<DebugSample> Samples = new List<DebugSample>(16);
+            public static readonly List<DebugPrior> Priors = new List<DebugPrior>(16);
+
+            public static float AcceptThreshold => ConstellationAcceptThreshold;
+
+            public static void Reset(string reason)
+            {
+                HasSnapshot = false;
+                Timestamp = 0;
+                Status = reason;
+                EyeHeight = 0;
+                ArmReach = 0;
+                BodyOrigin = Vector3.zero;
+                BodyRotation = Quaternion.identity;
+                Samples.Clear();
+                Priors.Clear();
+            }
+        }
         private struct TrackerSample
         {
             public BasisInput Input;
             public float HeightRatio;   // y / eyeHeight: 0 ≈ floor, 1 ≈ HMD
             public float LateralRatio;  // signed x / eyeHeight: +x = body's right
+            public Vector3 BodyLocal;   // raw body-relative position (unscaled); z = depth, kept for debug visualization only
         }
 
         private readonly struct BoneRolePrior
@@ -101,8 +159,12 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         private static void ClassifyAndAssignTrackersFromTPose()
         {
+            ConstellationDebug.Reset("calibration in progress");
+            ConstellationDebug.Timestamp = System.DateTime.UtcNow.ToOADate();
+
             if (!TryGetHmdPose(out Vector3 hmdUnscaledPos, out Quaternion hmdUnscaledRot, out BasisInput hmdDevice))
             {
+                ConstellationDebug.Status = "HMD pose unavailable — no trackers assigned";
                 BasisDebug.LogError("FBIK constellation calibration: HMD pose unavailable, no trackers assigned", BasisDebug.LogTag.Input);
                 return;
             }
@@ -127,11 +189,25 @@ namespace Basis.Scripts.Avatar
             Quaternion bodyRotInv = Quaternion.Inverse(bodyRot);
             Vector3 bodyOrigin = new Vector3(hmdUnscaledPos.x, floorY, hmdUnscaledPos.z);
 
+            ConstellationDebug.EyeHeight = eyeHeight;
+            ConstellationDebug.BodyOrigin = bodyOrigin;
+            ConstellationDebug.BodyRotation = bodyRot;
+
             List<TrackerSample> samples = CollectFreeFbTrackerSamples(bodyOrigin, bodyRotInv, eyeHeight, hmdDevice);
-            if (samples.Count == 0) return;
+            CaptureSampleSnapshots(samples);
+
+            if (samples.Count == 0)
+            {
+                ConstellationDebug.Status = "no free FB-trackable devices found";
+                ConstellationDebug.HasSnapshot = true;
+                return;
+            }
 
             float armReach = EstimateArmReach(samples);
+            ConstellationDebug.ArmReach = armReach;
+
             BoneRolePrior[] priors = BuildPriors(armReach);
+            CapturePriorSnapshots(priors);
 
             // Honor per-role calibration toggles from the body-tracking settings UI.
             // Roles with their toggle off are dropped from the prior list so the
@@ -150,6 +226,9 @@ namespace Basis.Scripts.Avatar
             }
             if (priors.Length == 0)
             {
+                ConstellationDebug.Status = "all FB roles disabled in calibration toggles";
+                ComputeBestAnyFits(samples);
+                ConstellationDebug.HasSnapshot = true;
                 return;
             }
 
@@ -158,6 +237,7 @@ namespace Basis.Scripts.Avatar
             // one role per tracker. Trackers that don't fit any role are left unassigned.
             bool[] sampleUsed = new bool[samples.Count];
             bool[] roleUsed = new bool[priors.Length];
+            int assignedCount = 0;
             while (true)
             {
                 float bestScore = ConstellationAcceptThreshold;
@@ -199,6 +279,89 @@ namespace Basis.Scripts.Avatar
                 sampleUsed[bestSampleIdx] = true;
                 roleUsed[bestRoleIdx] = true;
                 HasFBIKTrackers = true;
+
+                RecordAssignment(bestSampleIdx, role, bestScore);
+                assignedCount++;
+            }
+
+            ComputeBestAnyFits(samples);
+            ConstellationDebug.Status = $"{assignedCount} of {samples.Count} tracker(s) assigned";
+            ConstellationDebug.HasSnapshot = true;
+        }
+
+        private static void CaptureSampleSnapshots(List<TrackerSample> samples)
+        {
+            for (int i = 0; i < samples.Count; i++)
+            {
+                TrackerSample s = samples[i];
+                string id = s.Input != null ? s.Input.UniqueDeviceIdentifier : null;
+                ConstellationDebug.Samples.Add(new ConstellationDebug.DebugSample
+                {
+                    DeviceId = string.IsNullOrEmpty(id) ? "(unknown)" : id,
+                    BodyLocal = s.BodyLocal,
+                    HeightRatio = s.HeightRatio,
+                    LateralRatio = s.LateralRatio,
+                    Assigned = false,
+                });
+            }
+        }
+
+        private static void CapturePriorSnapshots(BoneRolePrior[] priors)
+        {
+            for (int i = 0; i < priors.Length; i++)
+            {
+                BoneRolePrior p = priors[i];
+                ConstellationDebug.Priors.Add(new ConstellationDebug.DebugPrior
+                {
+                    Role = p.Role,
+                    ExpectedHeight = p.ExpectedHeightRatio,
+                    ExpectedLateral = p.ExpectedLateralRatio,
+                    HeightSigma = p.HeightSigma,
+                    LateralSigma = p.LateralSigma,
+                    Enabled = Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(p.Role),
+                    AssignedSampleIndex = -1,
+                });
+            }
+        }
+
+        private static void RecordAssignment(int sampleIdx, BasisBoneTrackedRole role, float score)
+        {
+            if (sampleIdx < 0 || sampleIdx >= ConstellationDebug.Samples.Count) return;
+            ConstellationDebug.DebugSample ds = ConstellationDebug.Samples[sampleIdx];
+            ds.Assigned = true;
+            ds.AssignedRole = role;
+            ds.AssignedScore = score;
+            for (int p = 0; p < ConstellationDebug.Priors.Count; p++)
+            {
+                if (ConstellationDebug.Priors[p].Role == role)
+                {
+                    ConstellationDebug.Priors[p].AssignedSampleIndex = sampleIdx;
+                    break;
+                }
+            }
+        }
+
+        private static void ComputeBestAnyFits(List<TrackerSample> samples)
+        {
+            // Best-scoring prior for each sample regardless of acceptance — lets the
+            // visualizer answer "where would this tracker have gone if nothing else
+            // were competing for that role?"
+            for (int s = 0; s < samples.Count; s++)
+            {
+                if (s >= ConstellationDebug.Samples.Count) break;
+                TrackerSample sample = samples[s];
+                float best = float.NegativeInfinity;
+                BasisBoneTrackedRole bestRole = BasisBoneTrackedRole.Hips;
+                for (int p = 0; p < ConstellationDebug.Priors.Count; p++)
+                {
+                    ConstellationDebug.DebugPrior dp = ConstellationDebug.Priors[p];
+                    float dh = (sample.HeightRatio - dp.ExpectedHeight) / dp.HeightSigma;
+                    float dl = (sample.LateralRatio - dp.ExpectedLateral) / dp.LateralSigma;
+                    float score = -(dh * dh + dl * dl);
+                    if (score > best) { best = score; bestRole = dp.Role; }
+                }
+                ConstellationDebug.Samples[s].BestAnyRole = bestRole;
+                ConstellationDebug.Samples[s].BestAnyScore = best;
             }
         }
 
@@ -273,6 +436,7 @@ namespace Basis.Scripts.Avatar
                     Input = input,
                     HeightRatio = local.y / eyeHeight,
                     LateralRatio = local.x / eyeHeight,
+                    BodyLocal = local,
                 });
             }
             return samples;
