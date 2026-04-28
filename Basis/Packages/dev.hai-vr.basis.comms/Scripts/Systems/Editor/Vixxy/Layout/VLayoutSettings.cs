@@ -15,7 +15,7 @@ namespace HVR.Vixxy.Editor
         private readonly SerializedObject serializedObject;
 
         private readonly HVRVixxyControlEditor _editor;
-        private List<HVRVixxyMenuItem> _outsideMenus;
+        private readonly List<HVRVixxyMenuItem> _outsideMenus = new();
 
         internal VLayoutSettings(HVRVixxyControlEditor editor)
         {

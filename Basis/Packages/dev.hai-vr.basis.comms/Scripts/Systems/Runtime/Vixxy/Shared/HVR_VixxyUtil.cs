@@ -133,5 +133,10 @@ namespace HVR.Vixxy
                 .ToLowerInvariant()
                 .Substring(0, length);
         }
+
+        public static bool IsBelowHDR(Color32 color)
+        {
+            return color.r <= 1f && color.g <= 1f && color.b <= 1f;
+        }
     }
 }

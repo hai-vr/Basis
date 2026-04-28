@@ -361,9 +361,9 @@ namespace HVR.Vixxy
             var fromHDR = choices[inactiveIndex];
             var toHDR = choices[activeIndex];
 
-            if (interpolation == HVRVixxyPropertyColor32Interpolation.OklabBestEffort)
+            if (interpolation == HVRVixxyPropertyColor32Interpolation.OklabWhenPossible)
             {
-                if (IsBelowHDR(fromHDR) && IsBelowHDR(toHDR))
+                if (HVR_VixxyUtil.IsBelowHDR(fromHDR) && HVR_VixxyUtil.IsBelowHDR(toHDR))
                 {
                     return HVR_ColorInterpolation.OklabLerp(fromHDR, toHDR, active01);
                 }
@@ -378,11 +378,6 @@ namespace HVR.Vixxy
             }
 
             return Color32.Lerp(fromHDR, toHDR, active01);
-        }
-
-        private static bool IsBelowHDR(Color32 color)
-        {
-            return color.r <= 1f && color.g <= 1f && color.b <= 1f;
         }
     }
 
@@ -431,7 +426,7 @@ namespace HVR.Vixxy
     [Serializable]
     public enum HVRVixxyPropertyColor32Interpolation
     {
-        OklabBestEffort,
+        OklabWhenPossible,
         Unity
     }
 
