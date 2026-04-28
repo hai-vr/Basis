@@ -4,11 +4,12 @@ Changelog
 ## 2026-04-24
 
 New additions:
-- Add a toggle system for avatars using HVRVixxyControl, HVRVixxyMenuItem, and HVRVixxyAggregator.
+- Add a toggle system for avatars using HVRVixxyControl, HVRVixxyMenuItem.
 - The toggles are accessible in-game through "Settings > My Avatar" if at least once VixxyMenuItem component is present on the avatar.
 
 Modifications in Basis SDK:
 - The following types are now allowed in avatars: HVR.Vixxy.HVRVixxyControl, HVR.Vixxy.HVRVixxyMenuItem, and HVR.Vixxy.HVRVixxyAggregator.
+- HVR.Vixxy.HVRVixxyAggregator is not implemented and cannot be used.
 
 Modifications in existing HVR.Basis systems:
 - Acquisition Service now keeps track of values that were sent to it, rather than just emitting events.
