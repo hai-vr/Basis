@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public static class ButterflyGatePreview
+public static class BasisButterflyGatePreview
 {
     // Match the same deadzone math you use for inputs.
     private static float ApplyDeadzone(float v, float dz)
@@ -82,7 +82,7 @@ public static class ButterflyGatePreview
 
         if (_tex != null) GameObject.Destroy(_tex);
 
-        _tex = ButterflyGatePreview.Generate(
+        _tex = BasisButterflyGatePreview.Generate(
             size: 256,
             baseXDeadzone: baseX,
             extraXDeadzoneAtFullY: extraX,

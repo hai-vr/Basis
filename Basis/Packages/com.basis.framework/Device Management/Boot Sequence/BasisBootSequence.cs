@@ -22,7 +22,7 @@ namespace Basis.Scripts.Boot_Sequence
     /// Handles cleanup both on app quit and when leaving Play Mode in the Editor.
     /// </summary>
     [DefaultExecutionOrder(-50)]
-    public static class BootSequence
+    public static class BasisBootSequence
     {
         /// <summary>
         /// Reference to the loaded boot manager instance (framework root) if created.

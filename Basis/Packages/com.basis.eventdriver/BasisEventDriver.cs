@@ -252,7 +252,7 @@ public partial class BasisEventDriver : MonoBehaviour
 
         // ── BTween ──
         ProfileBegin(PROF_BTWEEN);
-        BTweenManager.Simulate(realtimeSinceStartupAsDouble);
+        BasisTweenManager.Simulate(realtimeSinceStartupAsDouble);
         ProfileEnd(PROF_BTWEEN);
 
         // ── Local player ──

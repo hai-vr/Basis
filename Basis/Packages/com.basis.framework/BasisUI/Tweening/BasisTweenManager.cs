@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Basis.BTween
 {
-    public static class BTweenManager
+    public static class BasisTweenManager
     {
         private const int MAX_GROUP_COUNT = 16;
         private static readonly List<Action<double>> _tweenProcessors = new(MAX_GROUP_COUNT);
