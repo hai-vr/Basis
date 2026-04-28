@@ -59,16 +59,18 @@ namespace HVR.Vixxy
             }
             go.SetActive(false);
             var orchestrator = go.AddComponent<HVRVixxyOrchestrator>();
-            orchestrator.acquisitionService = AcquisitionService.SceneInstance;
             orchestrator.context = contextNullable;
             orchestrator.isWearer = isWearer;
             if (contextNullable != null)
             {
 #if HVR_VIXXY_IS_IN_BASIS
+                var commsNullable = contextNullable.GetComponent<HVRAvatarComms>();
+
                 var networking = go.AddComponent<HVRVixxyBasisAvatarNetworking>();
                 networking.orchestrator = orchestrator;
                 networking.avatar = contextNullable.GetComponent<BasisAvatar>();
                 orchestrator.networking = networking;
+                orchestrator.DataProvider = commsNullable != null ? AcquisitionService.SceneInstance.DataProvider : commsNullable.DataProvider;
 #endif
             }
             go.SetActive(true);

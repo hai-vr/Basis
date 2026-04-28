@@ -11,7 +11,6 @@ namespace HVR.Vixxy
         [SerializeField] private string addressB;
         [SerializeField] private string outputAddress;
         public HVRVixxyOrchestrator orchestrator;
-        public AcquisitionService acquisitionService;
 
         private readonly HashSet<HVRVixxyAggregator> _transformerResult = new();
         private readonly HashSet<IHVRVixxyActuator> _actuatorResult = new();
@@ -28,7 +27,6 @@ namespace HVR.Vixxy
 
         private void Awake()
         {
-            acquisitionService = AcquisitionService.SceneInstance;
             _addressIdA = HVRAddressRegistry.AddressToId(addressA);
             _addressIdB = HVRAddressRegistry.AddressToId(addressB);
             _outputAddressId = HVRAddressRegistry.AddressToId(outputAddress);
@@ -45,7 +43,7 @@ namespace HVR.Vixxy
             orchestrator.RegisterAggregator(_addressIdA, this);
             orchestrator.RegisterAggregator(_addressIdB, this);
             // FIXME: Address registration should be inside the orchestrator
-            acquisitionService.RegisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
+            // acquisitionService.RegisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
         }
 
         private void OnDisable()
@@ -53,7 +51,7 @@ namespace HVR.Vixxy
             orchestrator.UnregisterAggregator(_addressIdA, this);
             orchestrator.UnregisterAggregator(_addressIdB, this);
             // FIXME: Address registration should be inside the orchestrator
-            acquisitionService.UnregisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
+            // acquisitionService.UnregisterAddresses(new []{ _addressIdA, _addressIdB }, OnAddressUpdated);
         }
 
         private void OnAddressUpdated(int inputAddressId, float value)

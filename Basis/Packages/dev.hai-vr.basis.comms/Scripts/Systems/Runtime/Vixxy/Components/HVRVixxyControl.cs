@@ -31,6 +31,8 @@ namespace HVR.Vixxy
 
         // Runtime only
         private Component _avatarNullable;
+        private HVRAvatarComms _avatarComms;
+        private HVRDataProvider _dataProvider;
 
         private Transform _context;
         private HVRActuatorRegistrationToken _registeredActuator;
@@ -84,6 +86,10 @@ namespace HVR.Vixxy
 #if HVR_VIXXY_IS_IN_BASIS
             // We need to do this here too, because if the VixxyControl is by default OFF, we need this to initalize ourselves. (WasAvatarReadyApplied is separate from IsInitialized)
             _avatarNullable = GetComponentInParent<BasisAvatar>(true);
+            if (_avatarNullable != null)
+            {
+                _avatarComms = _avatarNullable.GetComponent<HVRAvatarComms>();
+            }
 #endif
 
             orchestrator = VixxySetup.EnsureInitialized(this, isWearer);
@@ -121,10 +127,12 @@ namespace HVR.Vixxy
                 orchestrator.RequireNetworked(AddressId, NetworkingType, defaultValue);
             }
 
+            _dataProvider = _avatarComms != null ? _avatarComms.DataProvider : AcquisitionService.SceneInstance.DataProvider;
+
             IsInitialized = true;
             if (isActiveAndEnabled || AlsoExecutesWhenDisabled)
             {
-                AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(AddressId, defaultValue);
+                _dataProvider.SubmitOrDefineDefaultValue(AddressId, defaultValue);
 
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
                 _value = defaultValue;

@@ -15,20 +15,25 @@ namespace HVR.Vixxy.Editor
             {
                 var my = (AcquisitionService)target;
 
-                EditorGUILayout.LabelField("Registered addresses / listeners", EditorStyles.boldLabel);
-                foreach (var pair in my._dataProvider._addressUpdated)
+                DisplayDataProvider(my.DataProvider);
+            }
+        }
+
+        internal static void DisplayDataProvider(HVRDataProvider dataProvider)
+        {
+            EditorGUILayout.LabelField("Registered addresses / listeners", EditorStyles.boldLabel);
+            foreach (var pair in dataProvider._addressUpdated)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.TextField(HVRAddressRegistry.ResolveKnownAddressFromId(pair.Key));
+                EditorGUILayout.LabelField($"{pair.Value.GetListenersCount()} listeners", GUILayout.Width(80));
+                var currentValue = pair.Value.value;
+                var newValue = EditorGUILayout.FloatField(currentValue, GUILayout.Width(50));
+                if (!Mathf.Approximately(currentValue, newValue))
                 {
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.TextField(HVRAddressRegistry.ResolveKnownAddressFromId(pair.Key));
-                    EditorGUILayout.LabelField($"{pair.Value.GetListenersCount()} listeners", GUILayout.Width(80));
-                    var currentValue = pair.Value.value;
-                    var newValue = EditorGUILayout.FloatField(currentValue, GUILayout.Width(50));
-                    if (!Mathf.Approximately(currentValue, newValue))
-                    {
-                        my.Submit(pair.Key, newValue);
-                    }
-                    EditorGUILayout.EndHorizontal();
+                    dataProvider.Submit(pair.Key, newValue);
                 }
+                EditorGUILayout.EndHorizontal();
             }
         }
     }

@@ -16,9 +16,9 @@ namespace HVR.Vixxy
         // - When data arrives, we mark the aggregators and the actuators of that data.
         // - When all data arrived, and we're starting the update cycle, we wake up all aggregators of that data.
 
-        [SerializeField] public AcquisitionService acquisitionService;
         [SerializeField] public Transform context; // Can be null. If it is null, the orchestrator *is* the context.
         [SerializeField] public bool isWearer;
+        public HVRDataProvider DataProvider;
 
         [SerializeField] public object networking;
 #if HVR_VIXXY_IS_IN_BASIS
@@ -45,12 +45,6 @@ namespace HVR.Vixxy
         /// Contrary to AcquisitionService, which only references data pertaining to the local user, implicit addresses can refer to data
         /// coming from other users to drive that the avatar of that user.
         public delegate void ImplicitAddressUpdated(float value);
-
-        private void Awake()
-        {
-            // TODO: Should we nullify the acquisitionService if it's not locally worn?
-            if (!acquisitionService) acquisitionService = AcquisitionService.SceneInstance;
-        }
 
         public Transform Context()
         {
@@ -181,14 +175,14 @@ namespace HVR.Vixxy
             if (isWearer)
             {
                 HVRDataProvider.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
-                acquisitionService.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
+                DataProvider.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
 
                 return new HVRActuatorRegistrationToken
                 {
                     registeredAddressId = addressId,
                     registeredCallback = addressUpdatedFn,
                     registeredActuator = actuator,
-                    initialValue = acquisitionService.GetValue(addressId)
+                    initialValue = DataProvider.GetValue(addressId)
                 };
             }
             else
@@ -198,7 +192,7 @@ namespace HVR.Vixxy
                     registeredAddressId = addressId,
                     registeredCallback = null, // FIXME: ???
                     registeredActuator = actuator,
-                    initialValue = acquisitionService.GetValue(addressId)
+                    initialValue = DataProvider.GetValue(addressId)
                 };
             }
         }
@@ -212,7 +206,7 @@ namespace HVR.Vixxy
 
             if (isWearer)
             {
-                acquisitionService.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
+                DataProvider.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
             }
         }
 

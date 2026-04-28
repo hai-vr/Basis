@@ -21,6 +21,8 @@ namespace HVR.Basis.Comms
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [SerializeField] private bool isFromPrefab = false;
 
+        public HVRDataProvider DataProvider { get; private set; }
+
         private readonly Nethack _nethack;
 
         private bool _isWearer;
@@ -60,6 +62,7 @@ namespace HVR.Basis.Comms
         private void OnAvatarReady(bool isWearer)
         {
             _isWearer = isWearer;
+            DataProvider = isWearer ? AcquisitionService.SceneInstance.DataProvider : new HVRDataProvider();
 
             var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
             foreach (var initializable in allInitializables)

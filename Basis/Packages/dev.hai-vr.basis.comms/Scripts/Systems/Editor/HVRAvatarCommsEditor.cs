@@ -1,5 +1,6 @@
 using System.Linq;
 using Basis.Scripts.BasisSdk;
+using HVR.Vixxy.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -48,6 +49,9 @@ namespace HVR.Basis.Comms.Editor
                 {
                     EditorGUILayout.HelpBox("Network not ready; host or connect to a server first.", MessageType.Info);
                 }
+                EditorGUILayout.Separator();
+
+                AcquisitionServiceEditor.DisplayDataProvider(my.DataProvider);
             }
         }
 
