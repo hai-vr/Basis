@@ -177,13 +177,11 @@ namespace HVR.Vixxy
             _anythingNeedsUpdating = true;
             _actuatorsToUpdateThisTick.Add(actuator);
 
-            var address = HVRAddressRegistry.ResolveKnownAddressFromId(addressId);
             AcquisitionService.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
-            acquisitionService.RegisterAddresses(new [] { HVRAddressRegistry.AddressToId(address) }, addressUpdatedFn);
+            acquisitionService.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
 
             return new HVRActuatorRegistrationToken
             {
-                registeredAddress = address,
                 registeredAddressId = addressId,
                 registeredCallback = addressUpdatedFn,
                 registeredActuator = actuator,
@@ -197,7 +195,7 @@ namespace HVR.Vixxy
             {
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
             }
-            acquisitionService.UnregisterAddresses(new []{ HVRAddressRegistry.AddressToId(actuatorRegistrationToken.registeredAddress) }, actuatorRegistrationToken.registeredCallback);
+            acquisitionService.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
         }
 
         public void RegisterAggregator(string address, IHVRVixxyAggregator actuator)
@@ -281,7 +279,6 @@ namespace HVR.Vixxy
 
     public class HVRActuatorRegistrationToken
     {
-        public string registeredAddress;
         public int registeredAddressId;
         public AcquisitionService.AddressUpdated registeredCallback;
         public IHVRVixxyActuator registeredActuator;
