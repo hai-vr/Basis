@@ -246,8 +246,11 @@ namespace Cilbox
 			"UnityEngine.LineAlignment",
 			"UnityEngine.LineRenderer",
 			"UnityEngine.LineTextureMode",
+			"UnityEngine.Graphics",
 			"UnityEngine.Renderer",
 			"UnityEngine.Rendering.AmbientMode",
+			"UnityEngine.Rendering.AsyncGPUReadback",
+			"UnityEngine.Rendering.AsyncGPUReadbackRequest",
 			"UnityEngine.Rendering.IndexFormat",
 			"UnityEngine.Rendering.LightProbeUsage",
 			"UnityEngine.Rendering.OpaqueSortMode",
@@ -278,6 +281,8 @@ namespace Cilbox
 			"UnityEngine.TextureWrapMode",
 			"UnityEngine.FilterMode",
 			"UnityEngine.TrailRenderer",
+
+			"Unity.Collections.NativeArray*",
 
 			// Unity types - lighting
 			"UnityEngine.Light",
@@ -491,6 +496,8 @@ namespace Cilbox
 				typeof(GameObject).GetProperty(nameof(GameObject.activeInHierarchy)).GetGetMethod().Name,
 				typeof(GameObject).GetProperty(nameof(GameObject.layer)).GetGetMethod().Name,
 				} },
+			{ typeof(UnityEngine.Graphics), new HashSet<string>{ "Blit" } },
+			{ typeof(UnityEngine.Rendering.AsyncGPUReadback), new HashSet<string>{ "Request" } },
 			{ typeof(Buffer), new HashSet<string>{ "BlockCopy" } },
 			{ typeof(BitConverter), new HashSet<string>{
 				"GetBytes", "ToBoolean", "ToChar", "ToDouble", "ToInt16", "ToInt32",
