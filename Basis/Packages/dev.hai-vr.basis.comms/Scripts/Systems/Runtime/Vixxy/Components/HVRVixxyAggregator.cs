@@ -1,12 +1,12 @@
-﻿using System.Collections.Generic;
-using HVR.Basis.Comms;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace HVR.Vixxy
 {
     [AddComponentMenu("HVR.Basis/Comms/HVRVixxyAggregator")]
-    public class HVRVixxyAggregator : MonoBehaviour, IHVRVixxyAggregator
+    public class HVRVixxyAggregator : MonoBehaviour
+        // , IHVRVixxyAggregator
     {
+#if HVR_AGGREGATOR_IS_AVAILABLE
         [SerializeField] private string addressA;
         [SerializeField] private string addressB;
         [SerializeField] private string outputAddress;
@@ -90,5 +90,6 @@ namespace HVR.Vixxy
             // Even if an input changes, if the output doesn't change, then it will not result in a change on the actuators.
             return false;
         }
+#endif
     }
 }
