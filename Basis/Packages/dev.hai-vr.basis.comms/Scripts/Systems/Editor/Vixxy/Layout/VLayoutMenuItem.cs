@@ -14,15 +14,6 @@ namespace HVR.Vixxy.Editor
             serializedObject = editor.serializedObject;
         }
 
-        public bool LayoutUserView()
-        {
-            EditorGUILayout.Separator();
-            LayoutMenu();
-            EditorGUILayout.Separator();
-
-            return false;
-        }
-
         public bool LayoutCreatorView()
         {
             var controlsOnThis = my.GetComponents<HVRVixxyControl>();
@@ -45,8 +36,9 @@ namespace HVR.Vixxy.Editor
             return false;
         }
 
-        private void LayoutMenu()
+        public bool LayoutMenu()
         {
+            EditorGUILayout.Separator();
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.titleSelection)));
             if (my.titleSelection == HVRVixxyTitleSelection.UseObjectName)
             {
@@ -68,10 +60,13 @@ namespace HVR.Vixxy.Editor
             if (!hasControl)
             {
                 EditorGUILayout.HelpBox("Cannot display choices because no control is assigned to this menu item.", MessageType.Error);
-                return;
+                return false;
             }
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.icon)));
             EditorGUILayout.Separator();
+
+            return false;
         }
     }
 }

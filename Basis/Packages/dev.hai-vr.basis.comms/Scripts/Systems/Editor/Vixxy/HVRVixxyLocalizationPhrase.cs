@@ -15,7 +15,8 @@
         internal const string ChangeTheseObjectsLabel = "Change these objects";
         internal const string ChoicesLabel = "Choices";
         internal const string ControlLabel = "Control";
-        internal const string CreateMenuForThisControlLabel = "Create menu for this control";
+        internal const string CreateMenuOnThisControlLabel = "Create menu on this control";
+        internal const string CreateMenuInASeparateGameObjectLabel = "Create menu in a separate GameObject";
         internal const string CurrentLabel = "(current)";
         internal const string DeveloperViewLabel = "Developer View";
         internal const string DisableTheseWhenActiveLabel = "Disable these when active";

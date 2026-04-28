@@ -10,6 +10,7 @@ namespace HVR.Vixxy
         [SerializeField] [Multiline] internal string title;
         [SerializeField] internal HVRVixxyTitleSelection titleSelection = HVRVixxyTitleSelection.UseObjectName;
         [SerializeField] internal HVRVixxyControlPresentation presentation;
+        [SerializeField] internal Texture2D icon;
 
         [SerializeField] internal HVRVixxyControl control;
 

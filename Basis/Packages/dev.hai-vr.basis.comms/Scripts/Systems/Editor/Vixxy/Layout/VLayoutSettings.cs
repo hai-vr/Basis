@@ -1,4 +1,7 @@
-﻿using HVR.Basis.Comms.Editor;
+﻿using System.Collections.Generic;
+using System.Linq;
+using HVR.Basis.Comms;
+using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -7,31 +10,72 @@ namespace HVR.Vixxy.Editor
 {
     internal class VLayoutSettings
     {
+        private const string MenuLabel = "Menu";
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
 
         private readonly HVRVixxyControlEditor _editor;
+        private List<HVRVixxyMenuItem> _outsideMenus;
 
         internal VLayoutSettings(HVRVixxyControlEditor editor)
         {
             _editor = editor;
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
+
+            if (my.GetComponent<HVRVixxyMenuItem>() == null)
+            {
+                var avatar = HVRCommsUtil.GetAvatar(my);
+                if (avatar != null)
+                {
+                    _outsideMenus = avatar.GetComponentsInChildren<HVRVixxyMenuItem>(true)
+                        .Where(menu => menu.control == my)
+                        .ToList();
+                }
+            }
         }
 
         public bool LayoutSettings()
         {
             EditorGUILayout.Separator();
 
-            var menuItem = my.GetComponent<HVRVixxyMenuItem>();
-            if (menuItem == null)
+            EditorGUILayout.LabelField(MenuLabel, EditorStyles.boldLabel);
+            var menuNullable = my.GetComponent<HVRVixxyMenuItem>();
+            EditorGUI.BeginDisabledGroup(true);
+            foreach (var outsideMenu in _outsideMenus)
             {
-                if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuForThisControlLabel))
+                EditorGUILayout.ObjectField(outsideMenu, typeof(HVRVixxyMenuItem), true);
+            }
+
+            if (menuNullable != null)
+            {
+                EditorGUILayout.ObjectField(menuNullable, typeof(HVRVixxyMenuItem), true);
+            }
+            EditorGUI.EndDisabledGroup();
+
+            if (_outsideMenus.Count == 0 && menuNullable == null)
+            {
+                if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuOnThisControlLabel))
                 {
                     var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
                     ComponentUtility.MoveComponentUp(comp);
                 }
+                if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel))
+                {
+                    var go = new GameObject($"{my.gameObject.name} Menu");
+                    Undo.RegisterCreatedObjectUndo(go, HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel);
+                    go.transform.SetParent(my.transform);
+                    go.transform.localPosition = Vector3.zero;
+                    go.transform.localRotation = Quaternion.identity;
+                    go.transform.localScale = Vector3.one;
+
+                    var comp = Undo.AddComponent<HVRVixxyMenuItem>(go);
+                    comp.control = my;
+
+                    _outsideMenus.Add(comp);
+                }
             }
+            EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ControlLabel, EditorStyles.boldLabel);
             HVRVixxyControlEditor.LayoutAddressSelector(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));

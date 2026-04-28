@@ -34,7 +34,7 @@ namespace HVR.Vixxy.Editor
             _userViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.UserViewLabel, "", _userViewFoldout, ref anyChanged);
             if (_userViewFoldout)
             {
-                if (_menuItem.LayoutUserView()) return;
+                if (_menuItem.LayoutMenu()) return;
             }
             _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorView, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
