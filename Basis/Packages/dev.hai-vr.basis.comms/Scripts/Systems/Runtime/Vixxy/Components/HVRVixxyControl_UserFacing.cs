@@ -426,6 +426,7 @@ namespace HVR.Vixxy
     [Serializable]
     public enum HVRVixxyPropertyColor32Interpolation
     {
+        /// Use Oklab when the two colors are both below HDR.
         OklabWhenPossible,
         Unity
     }

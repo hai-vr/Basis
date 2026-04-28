@@ -134,6 +134,8 @@ namespace HVR.Vixxy
                 .Substring(0, length);
         }
 
+        /// Returns false if any of the RGB components of this color is above 1.
+        /// This is used to determine if we should be using Oklab to interpolate between two HDR colors.
         public static bool IsBelowHDR(Color32 color)
         {
             return color.r <= 1f && color.g <= 1f && color.b <= 1f;

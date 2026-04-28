@@ -7,6 +7,12 @@ namespace HVR.Vixxy
 #if HVR_VIXXY_IS_IN_BASIS
     public static class HVR_ColorInterpolation
     {
+        // Note:
+        // Interpolation using OkLab may not be possible with HDR
+        // https://blog.selfshadow.com/publications/s2025-shading-course/pdi/s2025_pbs_pdi_slides.pdf
+        // page 141
+        //
+        // (Basis Discord) https://discord.com/channels/1239242259392757822/1288184592930570293/1498540178157867018
         public static Color OklabLerp(Color a, Color b, float t)
         {
             var labA = RGBToOklab(a.linear);
