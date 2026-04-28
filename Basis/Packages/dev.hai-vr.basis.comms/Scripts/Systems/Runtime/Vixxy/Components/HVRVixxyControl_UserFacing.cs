@@ -346,7 +346,7 @@ namespace HVR.Vixxy
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             return interpolation == HVRVixxyPropertyColorInterpolation.Oklab
-                ? HVR_ColorInterpolation.OklabLerp(choices[inactiveIndex], choices[activeIndex], active01)
+                ? HVR_VixxyUtil.OklabLerp(choices[inactiveIndex], choices[activeIndex], active01)
                 : Color.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
         }
     }
@@ -365,7 +365,7 @@ namespace HVR.Vixxy
             {
                 if (HVR_VixxyUtil.IsBelowHDR(fromHDR) && HVR_VixxyUtil.IsBelowHDR(toHDR))
                 {
-                    return HVR_ColorInterpolation.OklabLerp(fromHDR, toHDR, active01);
+                    return HVR_VixxyUtil.OklabLerp(fromHDR, toHDR, active01);
                 }
                 else
                 {
