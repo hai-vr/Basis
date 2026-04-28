@@ -10,7 +10,7 @@ namespace HVR.Vixxy
 {
     public class VixxySetup
     {
-        public static HVRVixxyOrchestrator EnsureInitialized(Component comp)
+        public static HVRVixxyOrchestrator EnsureInitialized(Component comp, bool isWearer)
         {
 #if HVR_VIXXY_IS_IN_BASIS
             var avatar = HVRCommsUtil.GetAvatar(comp);
@@ -22,7 +22,7 @@ namespace HVR.Vixxy
             var existingOrchestrator = avatar.GetComponentInChildren<HVRVixxyOrchestrator>(true);
             if (existingOrchestrator != null) return existingOrchestrator;
 
-            var orchestrator = CreateOrchestrator(avatar.transform, "Generated__VixxyAvatar", avatar.transform);
+            var orchestrator = CreateOrchestrator(avatar.transform, "Generated__VixxyAvatar", avatar.transform, isWearer);
             return orchestrator;
 #else
             return EnsureSceneHasNonAvatarOrchestrator();
@@ -45,11 +45,12 @@ namespace HVR.Vixxy
 #endif
             }
 
-            var sceneOrchestrator = CreateOrchestrator(null, "Generated__VixxyScene", null);
+            var receiveEventsFromAcquisitionService = true;
+            var sceneOrchestrator = CreateOrchestrator(null, "Generated__VixxyScene", null, receiveEventsFromAcquisitionService);
             return sceneOrchestrator;
         }
 
-        private static HVRVixxyOrchestrator CreateOrchestrator(Transform contextNullable, string name, Transform parentNullable)
+        private static HVRVixxyOrchestrator CreateOrchestrator(Transform contextNullable, string name, Transform parentNullable, bool isWearer)
         {
             var go = new GameObject(name);
             if (parentNullable != null)
@@ -57,20 +58,21 @@ namespace HVR.Vixxy
                 go.transform.SetParent(parentNullable);
             }
             go.SetActive(false);
-            var sceneOrchestrator = go.AddComponent<HVRVixxyOrchestrator>();
-            sceneOrchestrator.acquisitionService = AcquisitionService.SceneInstance;
-            sceneOrchestrator.context = contextNullable;
+            var orchestrator = go.AddComponent<HVRVixxyOrchestrator>();
+            orchestrator.acquisitionService = AcquisitionService.SceneInstance;
+            orchestrator.context = contextNullable;
+            orchestrator.isWearer = isWearer;
             if (contextNullable != null)
             {
 #if HVR_VIXXY_IS_IN_BASIS
                 var networking = go.AddComponent<HVRVixxyBasisAvatarNetworking>();
-                networking.orchestrator = sceneOrchestrator;
+                networking.orchestrator = orchestrator;
                 networking.avatar = contextNullable.GetComponent<BasisAvatar>();
-                sceneOrchestrator.networking = networking;
+                orchestrator.networking = networking;
 #endif
             }
             go.SetActive(true);
-            return sceneOrchestrator;
+            return orchestrator;
         }
     }
 }
