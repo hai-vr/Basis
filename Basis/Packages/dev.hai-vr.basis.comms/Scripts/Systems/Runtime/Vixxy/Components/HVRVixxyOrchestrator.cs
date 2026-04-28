@@ -180,7 +180,7 @@ namespace HVR.Vixxy
 
             if (isWearer)
             {
-                AcquisitionService.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
+                HVRDataProvider.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
                 acquisitionService.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
 
                 return new HVRActuatorRegistrationToken
@@ -298,7 +298,7 @@ namespace HVR.Vixxy
     public class HVRActuatorRegistrationToken
     {
         public int registeredAddressId;
-        public AcquisitionService.AddressUpdated registeredCallback;
+        public HVRDataProvider.AddressUpdated registeredCallback;
         public IHVRVixxyActuator registeredActuator;
 
         public float initialValue;

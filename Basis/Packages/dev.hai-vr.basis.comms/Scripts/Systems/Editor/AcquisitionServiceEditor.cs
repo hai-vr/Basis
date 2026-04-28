@@ -16,7 +16,7 @@ namespace HVR.Vixxy.Editor
                 var my = (AcquisitionService)target;
 
                 EditorGUILayout.LabelField("Registered addresses / listeners", EditorStyles.boldLabel);
-                foreach (var pair in my._addressUpdated)
+                foreach (var pair in my._dataProvider._addressUpdated)
                 {
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.TextField(HVRAddressRegistry.ResolveKnownAddressFromId(pair.Key));
