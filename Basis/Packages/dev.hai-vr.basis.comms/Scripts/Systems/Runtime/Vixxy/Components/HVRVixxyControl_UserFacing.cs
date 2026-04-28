@@ -358,8 +358,28 @@ namespace HVR.Vixxy
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            // TODO: How to do Oklab interpolation with HDR colors???
-            return Color32.Lerp(choices[inactiveIndex], choices[activeIndex], active01);
+            var fromHDR = choices[inactiveIndex];
+            var toHDR = choices[activeIndex];
+
+            if (interpolation == HVRVixxyPropertyColor32Interpolation.OklabBestEffort)
+            {
+                // TODO: How to do Oklab interpolation with HDR colors???
+                if (IsBelowHDR(fromHDR) && IsBelowHDR(toHDR))
+                {
+                    return HVR_ColorInterpolation.OklabLerp(fromHDR, toHDR, active01);
+                }
+                else
+                {
+                    // TODO: How to do Oklab interpolation with HDR colors???
+                }
+            }
+
+            return Color32.Lerp(fromHDR, toHDR, active01);
+        }
+
+        private static bool IsBelowHDR(Color32 color)
+        {
+            return color.r < 1f && color.g < 1f && color.b < 1f;
         }
     }
 
@@ -408,7 +428,7 @@ namespace HVR.Vixxy
     [Serializable]
     public enum HVRVixxyPropertyColor32Interpolation
     {
-        DefaultShouldBeOklabOnceIFigureOutHDRInterpolation,
+        OklabBestEffort,
         Unity
     }
 
