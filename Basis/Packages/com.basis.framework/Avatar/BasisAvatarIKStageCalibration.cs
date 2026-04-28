@@ -254,6 +254,16 @@ namespace Basis.Scripts.Avatar
                     }
 
                     TrackerSample sample = samples[s];
+                    // A near-origin sample means the device never wrote a real pose into
+                    // UnscaledDeviceCoord (touch-only inputs, controllers polled before the
+                    // first render pose, etc.). At (0,0,0) body-local it scores well for
+                    // Toes and would silently win that role, flipping HasFBIKTrackers to
+                    // true and tricking the rig driver into engaging foot IK on legs that
+                    // have no real tracker.
+                    if (sample.NearOrigin)
+                    {
+                        continue;
+                    }
                     for (int r = 0; r < priors.Length; r++)
                     {
                         if (roleUsed[r])
