@@ -10,14 +10,14 @@ namespace HVR.Basis.Comms
         public float updatesPerSecond = 30;
 
         private AcquisitionService _acquisiton;
-        private Dictionary<int, AcquisitionForAddress> _dict;
+        private Dictionary<int, HVRDataProvider.ListenerState> _dict;
         private float _time;
 
         private void Awake()
         {
             _acquisiton = AcquisitionService.SceneInstance;
             var field = typeof(AcquisitionService).GetField("_addressUpdated", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            _dict = (Dictionary<int, AcquisitionForAddress>)field.GetValue(_acquisiton);
+            _dict = (Dictionary<int, HVRDataProvider.ListenerState>)field.GetValue(_acquisiton);
 
             _time = float.MinValue;
         }

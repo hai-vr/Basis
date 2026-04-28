@@ -9,7 +9,7 @@ namespace HVR.Basis.Comms
     {
         public static MutualizedFeatureInterpolator UsingMutualizedInterpolator(BasisAvatar avatar, List<MutualizedInterpolationRange> mutualized, InterpolatedDataChanged interpolatedDataChanged)
         {
-            var comms = avatar.GetComponentInChildren<HVRAvatarComms>(true);
+            var comms = HVRCommsUtil.GetComms(avatar);
             return comms.NeedsMutualizedInterpolator(mutualized, interpolatedDataChanged);
         }
 

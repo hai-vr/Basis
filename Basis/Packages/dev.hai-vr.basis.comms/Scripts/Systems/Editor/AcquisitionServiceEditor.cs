@@ -22,7 +22,7 @@ namespace HVR.Vixxy.Editor
         internal static void DisplayDataProvider(HVRDataProvider dataProvider)
         {
             EditorGUILayout.LabelField("Registered addresses / listeners", EditorStyles.boldLabel);
-            foreach (var pair in dataProvider._addressUpdated)
+            foreach (var pair in dataProvider._addressIdToListenerState)
             {
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.TextField(HVRAddressRegistry.ResolveKnownAddressFromId(pair.Key));

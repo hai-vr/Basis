@@ -16,13 +16,4 @@ namespace HVR.Basis.Comms
         public void UnregisterAddresses(int[] addressBase, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.UnregisterAddresses(addressBase, onAddressUpdated);
         public float GetValue(int addressId) => DataProvider.GetValue(addressId);
     }
-
-    internal class AcquisitionForAddress
-    {
-        internal event HVRDataProvider.AddressUpdated OnAddressUpdated;
-        internal float value;
-
-        public void Invoke(int address, float value) => OnAddressUpdated?.Invoke(address, value);
-        internal int GetListenersCount() => OnAddressUpdated?.GetInvocationList().Length ?? 0;
-    }
 }

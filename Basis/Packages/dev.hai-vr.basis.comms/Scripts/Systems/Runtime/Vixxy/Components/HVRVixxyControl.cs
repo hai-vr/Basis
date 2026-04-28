@@ -85,11 +85,8 @@ namespace HVR.Vixxy
         {
 #if HVR_VIXXY_IS_IN_BASIS
             // We need to do this here too, because if the VixxyControl is by default OFF, we need this to initalize ourselves. (WasAvatarReadyApplied is separate from IsInitialized)
-            _avatarNullable = GetComponentInParent<BasisAvatar>(true);
-            if (_avatarNullable != null)
-            {
-                _avatarComms = _avatarNullable.GetComponent<HVRAvatarComms>();
-            }
+            _avatarNullable = HVRCommsUtil.GetAvatar(this);
+            _avatarComms = HVRCommsUtil.GetComms(this);
 #endif
 
             orchestrator = VixxySetup.EnsureInitialized(this, isWearer);

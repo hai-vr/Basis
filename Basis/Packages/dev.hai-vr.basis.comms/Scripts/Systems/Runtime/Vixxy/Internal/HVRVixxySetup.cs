@@ -64,7 +64,7 @@ namespace HVR.Vixxy
             if (contextNullable != null)
             {
 #if HVR_VIXXY_IS_IN_BASIS
-                var commsNullable = contextNullable.GetComponent<HVRAvatarComms>();
+                var commsNullable = HVRCommsUtil.GetComms(contextNullable);
 
                 var networking = go.AddComponent<HVRVixxyBasisAvatarNetworking>();
                 networking.orchestrator = orchestrator;

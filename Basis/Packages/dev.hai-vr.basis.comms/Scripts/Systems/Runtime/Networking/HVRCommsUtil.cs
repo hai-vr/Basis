@@ -20,9 +20,17 @@ namespace HVR.Basis.Comms
             return instance;
         }
 
-        public static BasisAvatar GetAvatar(Component component)
+        public static BasisAvatar GetAvatar(Component anyComponentInsideAvatar)
         {
-            return component.GetComponentInParent<BasisAvatar>(true);
+            return anyComponentInsideAvatar.GetComponentInParent<BasisAvatar>(true);
+        }
+
+        public static HVRAvatarComms GetComms(Component anyComponentInsideAvatar)
+        {
+            var avatar = GetAvatar(anyComponentInsideAvatar);
+            if (avatar == null) return null;
+
+            return avatar.GetComponentInChildren<HVRAvatarComms>(true);
         }
 
         /// Semantically used to sanitize a serializable field of objects provided by an End User.<br/>

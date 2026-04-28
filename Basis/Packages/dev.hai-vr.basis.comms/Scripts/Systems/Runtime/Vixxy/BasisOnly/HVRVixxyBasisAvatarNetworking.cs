@@ -44,7 +44,7 @@ namespace HVR.Basis.Comms.Vixxy
         {
             if (avatar != null) // dooly
             {
-                _comms = avatar.GetComponent<HVRAvatarComms>();
+                _comms = HVRCommsUtil.GetComms(avatar);
                 _comms.BindVixxy(this);
             }
         }
