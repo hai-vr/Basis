@@ -363,14 +363,17 @@ namespace HVR.Vixxy
 
             if (interpolation == HVRVixxyPropertyColor32Interpolation.OklabBestEffort)
             {
-                // TODO: How to do Oklab interpolation with HDR colors???
                 if (IsBelowHDR(fromHDR) && IsBelowHDR(toHDR))
                 {
                     return HVR_ColorInterpolation.OklabLerp(fromHDR, toHDR, active01);
                 }
                 else
                 {
-                    // TODO: How to do Oklab interpolation with HDR colors???
+                    // Interpolation using OkLab may not be possible with HDR
+                    // https://blog.selfshadow.com/publications/s2025-shading-course/pdi/s2025_pbs_pdi_slides.pdf
+                    // page 141
+                    //
+                    // (Basis Discord) https://discord.com/channels/1239242259392757822/1288184592930570293/1498540178157867018
                 }
             }
 
@@ -379,7 +382,7 @@ namespace HVR.Vixxy
 
         private static bool IsBelowHDR(Color32 color)
         {
-            return color.r < 1f && color.g < 1f && color.b < 1f;
+            return color.r <= 1f && color.g <= 1f && color.b <= 1f;
         }
     }
 
