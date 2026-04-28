@@ -18,6 +18,7 @@ namespace HVR.Vixxy
         // [SerializeField] internal string rememberTag = "";
 
         private float _value;
+        private HVRAvatarComms _comms;
 
         public bool TryResolveActualControl(out HVRVixxyControl result)
         {
@@ -40,6 +41,8 @@ namespace HVR.Vixxy
 
         public void OnHVRAvatarReady(bool isWearer)
         {
+            _comms = HVRCommsUtil.GetComms(this);
+
             if (!isWearer) return;
 
             control = TryResolveActualControl(out var actualControl) ? actualControl : null;
@@ -107,7 +110,7 @@ namespace HVR.Vixxy
             if (control != null)
             {
                 var actualAddress = control.IsInitialized ? control.AddressId : HVRAddressRegistry.AddressToId(control.CalculateAddress());
-                AcquisitionService.SceneInstance.SubmitOrDefineDefaultValue(actualAddress, _value);
+                _comms.DataProvider.SubmitOrDefineDefaultValue(actualAddress, _value);
             }
         }
     }

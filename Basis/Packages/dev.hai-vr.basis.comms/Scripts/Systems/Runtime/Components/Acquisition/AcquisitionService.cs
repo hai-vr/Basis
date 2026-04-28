@@ -10,6 +10,10 @@ namespace HVR.Basis.Comms
 
         public readonly HVRDataProvider DataProvider = new();
 
+        // Note: All the logic of this service has been moved to HVRDataProvider.
+        // This is because we want components inside an avatar or prop to subscribe to the HVRDataProvider assigned to
+        // that specific avatar or prop, which will be different if we're the wearer of the avatar.
+
         public void Submit(int address, float value) => DataProvider.Submit(address, value);
         public void SubmitOrDefineDefaultValue(int address, float value) => DataProvider.SubmitOrDefineDefaultValue(address, value);
         public void RegisterAddresses(int[] addressBase, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.RegisterAddresses(addressBase, onAddressUpdated);
