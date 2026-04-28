@@ -5,8 +5,6 @@
     <assembly fullname="Basis Framework" preserve="all" />
     <assembly fullname="Basis.Network.Core" preserve="all" />
     <assembly fullname="Basis.OpenLipSync.Runtime" preserve="all" />
-    <assembly fullname="Basis.ZeroMessenger" preserve="all" />
-    <assembly fullname="Basis.ZeroMessenger.Samples" preserve="all" />
     <assembly fullname="Basis.uLipSync.Runtime" preserve="all" />
     <assembly fullname="BasisBundleManagement" preserve="all" />
     <assembly fullname="BasisCommon" preserve="all" />
