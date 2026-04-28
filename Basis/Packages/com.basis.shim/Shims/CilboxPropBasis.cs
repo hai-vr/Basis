@@ -153,6 +153,13 @@ namespace Cilbox
 			"UnityEngine.Vector3Int",
 			"UnityEngine.Vector4",
 
+			// TMPro types
+			"TMPro.TextMeshPro",
+            "TMPro.TextMeshProUGUI",
+            "TMPro.TMP_Text",
+            "TMPro.TMP_Dropdown",
+            "TMPro.TMP_InputField",
+
 			// Unity types - math/spatial structs
 			"UnityEngine.Bounds",
 			"UnityEngine.BoundsInt",

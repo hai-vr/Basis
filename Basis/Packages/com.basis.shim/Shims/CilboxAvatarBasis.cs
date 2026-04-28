@@ -36,6 +36,13 @@ namespace Cilbox
 			// Cilbox types
 			"Cilbox.CilboxPublicUtils",
 
+			// TMPro types
+			"TMPro.TextMeshPro",
+            "TMPro.TextMeshProUGUI",
+            "TMPro.TMP_Text",
+            "TMPro.TMP_Dropdown",
+            "TMPro.TMP_InputField",
+
 			// System types - primitives and core data
 			"System.Action",
 			"System.Action`*", // Action<T1>, Action<T1,T2>, ... (generic delegates)
