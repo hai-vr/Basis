@@ -374,6 +374,11 @@ namespace Cilbox
             "Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject.OnInteractEndEvent",
 			"Basis.BasisNetworkBehaviour.CurrentOwnerId",
 			"Basis.BasisNetworkBehaviour.IsOwnedLocallyOnServer",
+
+			// BasisNetworkPlayer.playerId is a plain public field (was always a field;
+			// see comment in BasisNetworkPlayer.cs explaining why it's not an
+			// auto-property). User scripts emit ldfld for this access.
+			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.playerId",
         };
 
 		static public HashSet<String> GetWhiteListTypes() { return whiteListType; }
@@ -421,8 +426,11 @@ namespace Cilbox
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable), new HashSet<string> { } },
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject), new HashSet<string> { } },
 			{ typeof(Basis.Scripts.Device_Management.Devices.BasisInput), new HashSet<string> { } },
+			// playerId is a plain field — whitelisted via whiteListFields below.
+			// Player is back to a property (forwards to the internal _player field
+			// for backwards compat with already-compiled Cilbox scripts), so its
+			// getter stays here alongside LocalPlayer / displayName.
 			{ typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer), new HashSet<string> {
-				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.playerId)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.Player)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.LocalPlayer)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.displayName)).GetGetMethod().Name,

@@ -34,13 +34,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         private bool _hasReasonToSendAudio;
         public static BasisRangedUshortFloatData RotationCompression = new BasisRangedUshortFloatData(-1f, 1f, 0.001f);
         public const int MuscleCount = 95;
-        // Plain field, not an auto-property: read every frame in the gaze loop,
-        // SimulateNetworkApply, AvatarLoadComplete, and many other hot paths.
-        // Auto-property compiles to a get_Player() method call that Mono in the
-        // editor doesn't inline, showing up in the profiler at thousand-player
-        // scale. Same reasoning as playerId / HasOverridenDestination below.
+        // Backing field for Player, exposed internally so hot loops in this
+        // assembly (gaze loop, SimulateNetworkApply, AvatarLoadComplete, etc.)
+        // can read it as a plain ldfld instead of paying for a property getter
+        // call that Mono in the editor doesn't reliably inline at scale.
+        //
+        // The Player property below is preserved so existing compiled scripts
+        // (e.g. Cilbox-sandboxed avatars whose IL emits `callvirt get_Player()`)
+        // keep working. AggressiveInlining lets the JIT collapse the property to
+        // a single ldfld in retail builds.
+        //
         // [NonSerialized] preserves the auto-property's "Unity won't serialize this"
-        // behavior — Player is always assigned at runtime by the player factory.
+        // behavior — _player is always assigned at runtime by the player factory.
         //
         // Invariant: non-null for any BasisNetworkPlayer that is currently in
         // BasisNetworkPlayers.Players (i.e. published into the dictionary or in
@@ -49,7 +54,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         // Hot loops iterating ReceiversSnapshot can read Player.X directly without
         // a null check; only initialization, UI, or async-lookup paths that may
         // race a despawn need <see cref="TryGetPlayer"/> (the safe accessor).
-        [System.NonSerialized] public BasisPlayer Player;
+        [System.NonSerialized] internal BasisPlayer _player;
+
+        public BasisPlayer Player
+        {
+            [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+            get => _player;
+            [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+            set => _player = value;
+        }
 
         /// <summary>
         /// Safe accessor for callers that may run before the receiver is published
@@ -59,7 +72,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
         public bool TryGetPlayer(out BasisPlayer player)
         {
-            player = Player;
+            player = _player;
             return player != null;
         }
         public bool hasID = false;
@@ -529,7 +542,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             get
             {
-                var p = Player;
+                var p = _player;
                 return p != null ? p.DisplayName : string.Empty;
             }
         }
@@ -538,7 +551,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             get
             {
-                var p = Player;
+                var p = _player;
                 return p != null ? p.SafeDisplayName : string.Empty;
             }
         }
