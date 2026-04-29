@@ -121,6 +121,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.controls", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.chat", () => ChatTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.bodytracking", () => SettingsProviderIK.IKTab(tabGroup));
+            AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerLinking.TrackerLinkingTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.myavatar", () =>
                 MyAvatarTabOverride != null
                     ? MyAvatarTabOverride(tabGroup)

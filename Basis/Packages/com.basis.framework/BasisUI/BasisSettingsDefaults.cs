@@ -840,6 +840,38 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKMaxChestDelta = new("fbikmaxchestdelta", new BasisPlatformDefault<float>(90f));
         public static BasisSettingsBinding<float> FBIKMaxHipDelta = new("fbikmaxhipdelta", new BasisPlatformDefault<float>(90f));
 
+        // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
+        // Confidence falloff for a tracker that's spiking relative to its own
+        // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
+        // Higher = more aggressive shift to the steadier half on a glitch.
+        public static BasisSettingsBinding<float> PairingSurprisePenalty = new("pairing_surprisepenalty", new BasisPlatformDefault<float>(2f));
+        // Surprise multiplier above which the velocity EMA freezes — without this
+        // a sustained glitch would drag the baseline up and stop being detected.
+        public static BasisSettingsBinding<float> PairingSurpriseClamp = new("pairing_surpriseclamp", new BasisPlatformDefault<float>(3f));
+        // Floor added to the velocity EMA when computing surprise so a frozen
+        // tracker (EMA ≈ 0) doesn't treat any tiny twitch as a giant spike.
+        public static BasisSettingsBinding<float> PairingEmaFloor = new("pairing_emafloor", new BasisPlatformDefault<float>(0.005f));
+        // Cap on how far the soft rest-distance pull can drag each half. 0 = no
+        // pull (raw measurements only); 1 would fully snap to a rigid solution.
+        public static BasisSettingsBinding<float> PairingMaxCorrectionStrength = new("pairing_maxcorrection", new BasisPlatformDefault<float>(0.3f));
+        // Distance error at which the soft pull reaches half its cap. Smaller =
+        // tighter rigid behavior; larger = more give for skin/mount flex.
+        public static BasisSettingsBinding<float> PairingSoftSnapHalfLife = new("pairing_softsnaphalflife", new BasisPlatformDefault<float>(0.05f));
+        // Distance-error window inside which the rest-distance EMA is allowed to
+        // track the current value. Outside it the baseline freezes.
+        public static BasisSettingsBinding<float> PairingLockstepTolerance = new("pairing_lockstep", new BasisPlatformDefault<float>(0.05f));
+        // EMA smoothing for the per-tracker velocity baseline. Higher = faster
+        // adaption (more reactive to motion-pattern changes, but spikier).
+        public static BasisSettingsBinding<float> PairingEmaAlpha = new("pairing_emaalpha", new BasisPlatformDefault<float>(0.1f));
+        // EMA smoothing for the inter-tracker rest distance.
+        public static BasisSettingsBinding<float> PairingDistanceEmaAlpha = new("pairing_distemaalpha", new BasisPlatformDefault<float>(0.05f));
+        // EMA smoothing applied to the per-tracker confidence weights themselves.
+        // Without this, weights swing wildly frame-to-frame on motion onset (a
+        // moving tracker briefly looks "surprising" to its own baseline) and the
+        // midpoint snaps. Higher = more reactive (catches glitches faster but
+        // jitters more); lower = smoother (longer to recover from a glitch).
+        public static BasisSettingsBinding<float> PairingWeightSmoothing = new("pairing_weightsmoothing", new BasisPlatformDefault<float>(0.25f));
+
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled = new("np_enabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> NPMenuOnly = new("np_menuonly", new BasisPlatformDefault<bool>

@@ -426,6 +426,11 @@ namespace Basis.Scripts.Avatar
                 // headset to the player's torso.
                 if (input == hmdDevice) continue;
 
+                // Linked half of a tracker pair — the merged virtual midpoint device
+                // emits the sample for the pair, so the physical bases bail out here
+                // and never compete for a role on their own.
+                if (input.IsLinked) continue;
+
                 // Devices the matcher pinned to a role (HMD, named hand controllers) keep
                 // their role no matter what.
                 if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) continue;
