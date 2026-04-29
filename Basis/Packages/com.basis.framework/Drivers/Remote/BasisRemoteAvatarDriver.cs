@@ -157,13 +157,13 @@ namespace Basis.Scripts.Drivers
             var receiver = RemotePlayer.NetworkReceiver;
             Transform animatorRoot = References.AnimatorRoot;
             Vector3 animatorRootPos = animatorRoot.position;
-            // TPose hips localPosition + localRotation feed
-            // ComputeRootFromHipsJob (the inverse derivation that turns the
-            // received hips world pose into a derived root world pose). Hips
-            // world itself is then applied directly via ApplyHipsWorldJob,
-            // which is hierarchy-agnostic — these TPose values are only used
-            // for the (best-effort) root derivation, not for writing the hips
-            // bone's local transform anymore.
+            // TPose hips localPosition + localRotation feed the per-frame
+            // BulkCopyHipsAndDeriveJob (the inline inverse derivation that
+            // turns the received hips world pose into a derived root world
+            // pose). Hips world itself is then applied directly via
+            // ApplyHipsWorldJob, which is hierarchy-agnostic — these TPose
+            // values are only used for the (best-effort) root derivation,
+            // not for writing the hips bone's local transform anymore.
             float3 tposeHipsLocalPos;
             quaternion tposeHipsLocalRot;
             if (References.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var hipsTposeLocal))
@@ -218,11 +218,12 @@ namespace Basis.Scripts.Drivers
             BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
 
             // Derive an approximate root pose using the same inverse math as
-            // ComputeRootFromHipsJob (assumes hips is effectively a child of
+            // BulkCopyHipsAndDeriveJob (assumes hips is effectively a child of
             // root — typical Unity humanoid). Only used to put the hierarchy
             // somewhere sensible; the hips world apply right after this is
             // hierarchy-agnostic and overrides any approximation error.
-            quaternion rootRot = math.mul(hipsWorldRot, math.inverse(tposeHipsLocalRot));
+            // conjugate, not inverse — unit quaternions only.
+            quaternion rootRot = math.mul(hipsWorldRot, math.conjugate(tposeHipsLocalRot));
             float3 scaledLocal = (float3)networkScale * tposeHipsLocalPos;
             float3 rootPos = (float3)hipsWorldPos - math.mul(rootRot, scaledLocal);
             animatorRoot.SetPositionAndRotation(rootPos, rootRot);

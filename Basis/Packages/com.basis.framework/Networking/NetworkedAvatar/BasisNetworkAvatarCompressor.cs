@@ -177,7 +177,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 // slots — hips is what's visually anchored and what the server's
                 // reduction system uses for distance/quality decisions. Root is
                 // derived on the receiver from this pose plus the hips local
-                // delta channels (see ComputeRootFromHipsJob).
+                // delta channels (see BulkCopyHipsAndDeriveJob in the receiver).
                 BasisLocalAvatarDriver.Mapping.Hips.GetPositionAndRotation(out var hipsWorldPos, out var hipsWorldRot);
 
                 // Position (hips world position)

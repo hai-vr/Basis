@@ -373,7 +373,7 @@ public struct ApplySkeletonRotationsJob : IJobParallelForTransform
 /// <summary>
 /// Burst job that writes the avatar root's world position and rotation for all remote
 /// players. Uses the sRoots TransformAccessArray (1 entry per player). Inputs are the
-/// derived root pose computed by <see cref="ComputeRootFromHipsJob"/> from the
+/// derived root pose computed inline by <c>BulkCopyHipsAndDeriveJob</c> from the
 /// network's hips world pose + the local hips deltas — root rides along so the
 /// hips bone lands exactly at the high-precision world pose we received.
 /// </summary>
@@ -389,53 +389,10 @@ public struct ApplyRootJob : IJobParallelForTransform
     }
 }
 
-/// <summary>
-/// Burst job that derives the avatar root's world pose from the network's hips
-/// world pose plus the per-player hips local deltas and scale. Lets the wire
-/// carry the visually anchored hips at the high-precision Position/Rotation
-/// slots (so the server reduction system sees hips for distance) while the
-/// receiver still keeps the hierarchy intact by moving root, not hips, in the
-/// transform tree.
-///
-/// Math (assuming hips is effectively a direct child of root, which is the
-/// typical Unity humanoid layout):
-///   hipsLocalPos = TposeLocalPos + posDelta
-///   hipsLocalRot = TposeLocalRot × rotDelta
-///   rootRot      = hipsWorldRot × inverse(hipsLocalRot)
-///   rootPos      = hipsWorldPos - rootRot × (scale ⊙ hipsLocalPos)
-/// On rigs with a non-identity intermediate node (Armature, etc.) this
-/// derivation is an approximation — root ends up slightly off. That's fine:
-/// hips world is then written directly by <see cref="ApplyHipsWorldJob"/>
-/// via <see cref="TransformAccess.SetPositionAndRotation"/>, which walks the
-/// real parent chain and lands hips exactly at the high-precision world pose
-/// regardless of any approximation in the derived root.
-/// </summary>
-[BurstCompile]
-public struct ComputeRootFromHipsJob : IJobParallelFor
-{
-    [ReadOnly] public NativeArray<float3> HipsWorldPos;
-    [ReadOnly] public NativeArray<quaternion> HipsWorldRot;
-    [ReadOnly] public NativeArray<float3> HipsLocalPosDelta;
-    [ReadOnly] public NativeArray<quaternion> HipsLocalRotDelta;
-    [ReadOnly] public NativeArray<float3> TposeHipsLocalPos;
-    [ReadOnly] public NativeArray<quaternion> TposeHipsLocalRot;
-    [ReadOnly] public NativeArray<float3> Scales;
-    [WriteOnly] public NativeArray<float3> RootPosOut;
-    [WriteOnly] public NativeArray<quaternion> RootRotOut;
-
-    public void Execute(int i)
-    {
-        float3 hipsLocalPos = TposeHipsLocalPos[i] + HipsLocalPosDelta[i];
-        quaternion hipsLocalRot = math.mul(TposeHipsLocalRot[i], HipsLocalRotDelta[i]);
-
-        quaternion rootRot = math.mul(HipsWorldRot[i], math.inverse(hipsLocalRot));
-        float3 scaledLocal = Scales[i] * hipsLocalPos;
-        float3 rootPos = HipsWorldPos[i] - math.mul(rootRot, scaledLocal);
-
-        RootPosOut[i] = rootPos;
-        RootRotOut[i] = rootRot;
-    }
-}
+// ComputeRootFromHipsJob was folded into BasisRemoteNetworkDriver.BulkCopyHipsAndDeriveJob.
+// One Burst dispatch per frame fans out all per-player network state AND derives
+// the root pose in a single pass, instead of three separate jobs round-tripping
+// through temp buffers. See ScheduleBulkCopyHipsAndDerive on the network driver.
 
 /// <summary>
 /// Burst job that writes the hips bone's WORLD position and rotation directly
@@ -560,19 +517,12 @@ public static class RemoteBoneJobSystem
     static NativeArray<quaternion> sTmpHipsWorldRot;
     static NativeArray<float3> sTmpAvatarScales;
     static NativeArray<byte> sTmpScaleChanged;
-    // Per-frame derived root world pose — output of ComputeRootFromHipsJob,
-    // input to ApplyRootJob. Computed such that
+    // Per-frame derived root world pose — written by the combined
+    // BulkCopyHipsAndDeriveJob in one pass alongside the hips world copy and
+    // scale. Input to ApplyRootJob. Computed such that
     //   root.world × hips.local = hips.world (received).
     static NativeArray<float3> sTmpRootDerivedPos;
     static NativeArray<quaternion> sTmpRootDerivedRot;
-    // Per-frame hips local-position delta from the network — used both to
-    // derive root and to write hips.localPosition (= TPose + delta).
-    static NativeArray<float3> sTmpHipsLocalDelta;
-    // Per-frame hips local-rotation delta from the network — used both to
-    // derive root and to write hips.localRotation (= TPose × delta).
-    // Hips is excluded from the bone packet's BONE_WRITE_ORDER so this is the
-    // only channel that twists the hips bone independently of root.
-    static NativeArray<quaternion> sTmpHipsLocalRotDelta;
 
     // Bookkeeping
     /// <summary>Map from external key → internal SoA index. Flat array indexed by ushort player ID; -1 = absent.</summary>
@@ -929,8 +879,6 @@ public static class RemoteBoneJobSystem
         AllocOrResize(ref sTmpRootDerivedRot, count);
         AllocOrResize(ref sTmpAvatarScales, count);
         AllocOrResize(ref sTmpScaleChanged, count);
-        AllocOrResize(ref sTmpHipsLocalDelta, count);
-        AllocOrResize(ref sTmpHipsLocalRotDelta, count);
     }
 
     /// <summary>
@@ -950,8 +898,6 @@ public static class RemoteBoneJobSystem
         if (sTmpRootDerivedRot.IsCreated) sTmpRootDerivedRot.Dispose();
         if (sTmpAvatarScales.IsCreated) sTmpAvatarScales.Dispose();
         if (sTmpScaleChanged.IsCreated) sTmpScaleChanged.Dispose();
-        if (sTmpHipsLocalDelta.IsCreated) sTmpHipsLocalDelta.Dispose();
-        if (sTmpHipsLocalRotDelta.IsCreated) sTmpHipsLocalRotDelta.Dispose();
     }
 
     /// <summary>
@@ -1071,31 +1017,28 @@ public static class RemoteBoneJobSystem
             MouthPositions = sMouthPositions.AsDeferredJobArray()
         }.Schedule(AuthoringLength, simBatch, gathers);
 
-        // ── Schedule the hips-world/scale bulk copy as a Burst job instead of
-        //    running it on main thread. This puts the copy on a worker, frees
-        //    main thread sooner, and keeps more work in flight by the time
-        //    Complete() blocks on main thread — so main thread can pick up
-        //    another pending job (work-stealing) instead of sitting idle while
-        //    ApplySkeletonRotationsJob runs alone on one worker.
-        var bulkHipsScaleJob = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsAndScale(
+        // ── One Burst dispatch fans out ALL per-player network state and
+        //    derives the root pose in a single sequential pass:
+        //      • copies filtered hips world pos/rot
+        //      • copies scale + scale-change flag
+        //      • reads hips local deltas inline (no temp round-trip)
+        //      • reads cached TPose hips local pos/rot
+        //      • computes the derived root pose via the conjugate inverse math
+        //    Replaces what used to be three separate dispatches (bulk hips+scale,
+        //    bulk hips deltas, derive-root). At thousand-player scale this
+        //    saves dispatch overhead and keeps each player's data hot in cache.
+        var bulkAndDeriveJob = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsAndDerive(
             sKeyArray, AuthoringLength,
+            sTPoseHipsLocalPos.AsDeferredJobArray(), sTPoseHipsLocalRot.AsDeferredJobArray(),
             sTmpHipsWorldPos, sTmpHipsWorldRot,
-            sTmpAvatarScales, sTmpScaleChanged);
-
-        // Hips local pos/rot delta bulk copies — only consumer is now
-        // ComputeRootFromHipsJob (used to derive the approximate root pose).
-        // Hips world is applied directly via ApplyHipsWorldJob, so the deltas
-        // no longer drive a separate hips local apply.
-        var hipsDeltaCopy = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsDelta(
-            sKeyArray, AuthoringLength, sTmpHipsLocalDelta);
-        var hipsRotDeltaCopy = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsRotation(
-            sKeyArray, AuthoringLength, sTmpHipsLocalRotDelta);
+            sTmpAvatarScales, sTmpScaleChanged,
+            sTmpRootDerivedPos, sTmpRootDerivedRot);
 
         // Apply pass — parallel branches.
         //
         //   scaleApplyJob ─┬─> nameplateJob
         //                  ├─> mouthJob
-        //                  └─> ComputeRootFromHipsJob ─> rootApplyJob
+        //                  └─> rootApplyJob ─> hipsWorldJob
         //   skeletonJob (independent)
         //
         // Avatar scale and the root pos/rot apply both write the avatar root transform
@@ -1109,7 +1052,7 @@ public static class RemoteBoneJobSystem
         {
             Scales = sTmpAvatarScales,
             HasChange = sTmpScaleChanged,
-        }.Schedule(sAvatarScale, bulkHipsScaleJob);
+        }.Schedule(sAvatarScale, bulkAndDeriveJob);
 
         // Skeleton: split into a fully parallel compute pass + a transform-write pass.
         //
@@ -1179,30 +1122,11 @@ public static class RemoteBoneJobSystem
             MouthRotation = sOut.AsDeferredJobArray(),
         }.Schedule(sMouth, simAndScale);
 
-        // Derive root world pose from the network's hips world pose plus the
-        // hips local deltas + scale. The wire carries hips (visually anchored,
-        // server-side distance source); the receiver moves root such that the
-        // hips bone, sitting at TPose+delta locally, lands exactly at the
-        // received hips world.
-        var deriveRootDeps = JobHandle.CombineDependencies(bulkHipsScaleJob, hipsDeltaCopy);
-        deriveRootDeps = JobHandle.CombineDependencies(deriveRootDeps, hipsRotDeltaCopy);
-        var deriveRootJob = new ComputeRootFromHipsJob
-        {
-            HipsWorldPos = sTmpHipsWorldPos,
-            HipsWorldRot = sTmpHipsWorldRot,
-            HipsLocalPosDelta = sTmpHipsLocalDelta,
-            HipsLocalRotDelta = sTmpHipsLocalRotDelta,
-            TposeHipsLocalPos = sTPoseHipsLocalPos.AsDeferredJobArray(),
-            TposeHipsLocalRot = sTPoseHipsLocalRot.AsDeferredJobArray(),
-            Scales = sTmpAvatarScales,
-            RootPosOut = sTmpRootDerivedPos,
-            RootRotOut = sTmpRootDerivedRot,
-        }.Schedule(AuthoringLength, simBatch, deriveRootDeps);
-
-        // sRoots TAA is shared with GatherRootJob — combine that handle so Unity's
-        // TransformAccessArray safety system sees the chain. scaleApplyJob writes the
-        // same transform (root) via sAvatarScale, so it must finish first.
-        var rootApplyDeps = JobHandle.CombineDependencies(scaleApplyJob, hRoot, deriveRootJob);
+        // Root pose is already derived (inline inside bulkAndDeriveJob), so
+        // we just write it to the root TAA. scaleApplyJob writes the same
+        // transform (sAvatarScale and sRoots are the same Animator transform),
+        // so it must finish first; hRoot is combined for the TAA safety system.
+        var rootApplyDeps = JobHandle.CombineDependencies(scaleApplyJob, hRoot);
         var rootApplyJob = new ApplyRootJob
         {
             Positions = sTmpRootDerivedPos,

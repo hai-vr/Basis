@@ -449,10 +449,11 @@ public static class BasisRemoteNetworkDriver
 
     /// <summary>
     /// Overrides the filtered hips world position and rotation for a player so that
-    /// the bulk copy + ComputeRootFromHipsJob (and thus ApplyRootJob) pick up the
-    /// override instead of the interpolated network data. Position/Rotation in the
-    /// pipeline are hips world (not root world) — the override therefore teleports
-    /// the visually anchored hips, and root is derived from there.
+    /// the combined BulkCopyHipsAndDeriveJob (and thus ApplyRootJob /
+    /// ApplyHipsWorldJob) pick up the override instead of the interpolated network
+    /// data. Position/Rotation in the pipeline are hips world (not root world) —
+    /// the override therefore teleports the visually anchored hips, and root is
+    /// derived from there.
     /// Must be called after Apply() and before Schedule().
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -464,31 +465,60 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Burst job that gathers (hips world) pose/scale/etc per-player data into
-    /// packed dst arrays. Each Execute(i) takes the i-th external player key
-    /// and copies one slot.
+    /// Combined Burst job that does the entire pre-apply pre-compute pass for
+    /// one player in a single sequential pass:
+    ///   1. Copies filtered hips world pos/rot from the network's per-key slot
+    ///   2. Copies scale + scale-change flag
+    ///   3. Reads filtered hips local deltas (no separate temp buffer)
+    ///   4. Reads per-player TPose hips local pos/rot from caller-supplied arrays
+    ///   5. Derives the root world pose via inverse math (conjugate, not inverse)
+    /// Replaces what used to be three separate dispatches (BulkCopyHipsAndScale,
+    /// BulkCopyHipsLocalDeltas, ComputeRootFromHipsJob). Saves dispatch
+    /// overhead at thousand-player scale and removes a round-trip through two
+    /// persistent temp buffers, keeping each player's work in cache.
     /// </summary>
     [BurstCompile]
-    struct BulkCopyHipsAndScaleJob : IJobParallelFor
+    struct BulkCopyHipsAndDeriveJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<int> PlayerKeys;
-        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> SrcPos;
-        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcRot;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> SrcHipsWorldPos;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcHipsWorldRot;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> SrcScale;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<bool> SrcChange;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> SrcHipsLocalPosDelta;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcHipsLocalRotDelta;
+        [ReadOnly] public NativeArray<float3> TposeHipsLocalPos;
+        [ReadOnly] public NativeArray<quaternion> TposeHipsLocalRot;
 
-        [WriteOnly] public NativeArray<float3> DstPos;
-        [WriteOnly] public NativeArray<quaternion> DstRot;
-        [WriteOnly] public NativeArray<float3> DstScale;
+        [WriteOnly] public NativeArray<float3> DstHipsWorldPos;
+        [WriteOnly] public NativeArray<quaternion> DstHipsWorldRot;
+        [WriteOnly] public NativeArray<float3> DstScaleOut;
         [WriteOnly] public NativeArray<byte> DstScaleChanged;
+        [WriteOnly] public NativeArray<float3> DstRootPos;
+        [WriteOnly] public NativeArray<quaternion> DstRootRot;
 
         public void Execute(int i)
         {
-            int idx = PlayerKeys[i];
-            DstPos[i] = SrcPos[idx];
-            DstRot[i] = SrcRot[idx];
-            DstScale[i] = SrcScale[idx];
-            DstScaleChanged[i] = SrcChange[idx] ? (byte)1 : (byte)0;
+            int key = PlayerKeys[i];
+
+            // 1+2: hips world + scale fan-out
+            float3 hipsWorldPos = SrcHipsWorldPos[key];
+            quaternion hipsWorldRot = SrcHipsWorldRot[key];
+            float3 scale = SrcScale[key];
+            DstHipsWorldPos[i] = hipsWorldPos;
+            DstHipsWorldRot[i] = hipsWorldRot;
+            DstScaleOut[i] = scale;
+            DstScaleChanged[i] = SrcChange[key] ? (byte)1 : (byte)0;
+
+            // 3+4+5: derive root from hips world + local deltas + TPose
+            float3 hipsLocalPos = TposeHipsLocalPos[i] + SrcHipsLocalPosDelta[key];
+            quaternion hipsLocalRot = math.mul(TposeHipsLocalRot[i], SrcHipsLocalRotDelta[key]);
+
+            // conjugate, not inverse — every quaternion here is unit-length
+            quaternion rootRot = math.mul(hipsWorldRot, math.conjugate(hipsLocalRot));
+            float3 scaledLocal = scale * hipsLocalPos;
+            DstRootPos[i] = hipsWorldPos - math.mul(rootRot, scaledLocal);
+            DstRootRot[i] = rootRot;
         }
     }
 
@@ -519,126 +549,50 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Schedules a Burst <see cref="BulkCopyHipsAndScaleJob"/> that gathers the
-    /// (hips world) position, rotation, scale, and scale-change flag for a set
-    /// of players. Returning a JobHandle (instead of doing the copy synchronously
-    /// on main thread) lets the caller chain the dependent apply jobs and gives
-    /// the scheduler more in-flight work — important when the caller's Complete()
-    /// is otherwise about to block waiting on a single job.
-    /// The wire's Position/Rotation slots carry hips world directly so the
-    /// receiver derives root from hips via ComputeRootFromHipsJob and the server
-    /// reduction system reads hips for distance/quality decisions.
+    /// Schedules a single Burst <see cref="BulkCopyHipsAndDeriveJob"/> that
+    /// fans out the network's per-player state (hips world pose, scale,
+    /// hips local deltas) into the apply pipeline's packed buffers AND
+    /// derives the root world pose in the same pass. Replaces the old
+    /// ScheduleBulkCopyHipsAndScale + ScheduleBulkCopyHipsLocalDeltas +
+    /// ComputeRootFromHipsJob trio — one dispatch instead of three, and no
+    /// round-trip through hips-delta temp buffers.
     /// playerKeys[i] → internal SoA index; data is written to dst arrays at index i.
+    /// TPose hips local pos/rot are passed in by the caller (per-player cache
+    /// owned by RemoteBoneJobSystem).
     /// </summary>
-    public static JobHandle ScheduleBulkCopyHipsAndScale(
+    public static JobHandle ScheduleBulkCopyHipsAndDerive(
         NativeArray<int> playerKeys, int count,
-        NativeArray<float3> dstPos, NativeArray<quaternion> dstRot,
+        NativeArray<float3> tposeHipsLocalPos, NativeArray<quaternion> tposeHipsLocalRot,
+        NativeArray<float3> dstHipsWorldPos, NativeArray<quaternion> dstHipsWorldRot,
         NativeArray<float3> dstScale, NativeArray<byte> dstScaleChanged,
+        NativeArray<float3> dstRootPos, NativeArray<quaternion> dstRootRot,
         JobHandle deps = default)
-        {
+    {
         if (!_initialized || count == 0) return deps;
 
         int workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
         int batch = math.max(1, count / workers);
 
-        return new BulkCopyHipsAndScaleJob
+        return new BulkCopyHipsAndDeriveJob
         {
             PlayerKeys = playerKeys,
-            SrcPos = _filteredPositions,
-            SrcRot = _filteredRotations,
+            SrcHipsWorldPos = _filteredPositions,
+            SrcHipsWorldRot = _filteredRotations,
             SrcScale = _outScales,
             SrcChange = _HasScaleChange,
-            DstPos = dstPos,
-            DstRot = dstRot,
-            DstScale = dstScale,
+            SrcHipsLocalPosDelta = _outHipsDelta,
+            SrcHipsLocalRotDelta = _outHipsRotDelta,
+            TposeHipsLocalPos = tposeHipsLocalPos,
+            TposeHipsLocalRot = tposeHipsLocalRot,
+            DstHipsWorldPos = dstHipsWorldPos,
+            DstHipsWorldRot = dstHipsWorldRot,
+            DstScaleOut = dstScale,
             DstScaleChanged = dstScaleChanged,
+            DstRootPos = dstRootPos,
+            DstRootRot = dstRootRot,
         }.Schedule(count, batch, deps);
     }
 
-    /// <summary>
-    /// Burst job that copies the per-player interpolated hips local-position
-    /// delta from the network's per-key slot into the packed dst array used by
-    /// the apply pipeline.
-    /// </summary>
-    [BurstCompile]
-    struct BulkCopyHipsDeltaJob : IJobParallelFor
-    {
-        [ReadOnly] public NativeArray<int> PlayerKeys;
-        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> Src;
-        [WriteOnly] public NativeArray<float3> Dst;
-
-        public void Execute(int i)
-        {
-            Dst[i] = Src[PlayerKeys[i]];
-        }
-    }
-
-    /// <summary>
-    /// Schedules a Burst copy of the interpolated hips local-position delta
-    /// per player into the apply pipeline's packed buffer. Pairs with
-    /// <see cref="ScheduleBulkCopyHipsAndScale"/>: hips world (network) + this
-    /// delta together let the receiver derive root world via the inverse math
-    /// in ComputeRootFromHipsJob, then write hips.localPosition.
-    /// </summary>
-    public static JobHandle ScheduleBulkCopyHipsDelta(
-        NativeArray<int> playerKeys, int count,
-        NativeArray<float3> dst,
-        JobHandle deps = default)
-    {
-        if (!_initialized || count == 0) return deps;
-
-        int workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
-        int batch = math.max(1, count / workers);
-
-        return new BulkCopyHipsDeltaJob
-        {
-            PlayerKeys = playerKeys,
-            Src = _outHipsDelta,
-            Dst = dst,
-        }.Schedule(count, batch, deps);
-    }
-
-    /// <summary>
-    /// Burst job that copies the per-player interpolated hips local-rotation
-    /// delta from the network's per-key slot into the packed dst array used
-    /// by the apply pipeline.
-    /// </summary>
-    [BurstCompile]
-    struct BulkCopyHipsRotDeltaJob : IJobParallelFor
-    {
-        [ReadOnly] public NativeArray<int> PlayerKeys;
-        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> Src;
-        [WriteOnly] public NativeArray<quaternion> Dst;
-
-        public void Execute(int i)
-        {
-            Dst[i] = Src[PlayerKeys[i]];
-        }
-    }
-
-    /// <summary>
-    /// Bulk-copies the interpolated hips local-rotation delta per player into
-    /// the apply pipeline's packed buffer. Pairs with
-    /// <see cref="ScheduleBulkCopyHipsDelta"/> so the receiver can apply both
-    /// hips local position and rotation in a single combined apply job.
-    /// </summary>
-    public static JobHandle ScheduleBulkCopyHipsRotation(
-        NativeArray<int> playerKeys, int count,
-        NativeArray<quaternion> dst,
-        JobHandle deps = default)
-    {
-        if (!_initialized || count == 0) return deps;
-
-        int workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
-        int batch = math.max(1, count / workers);
-
-        return new BulkCopyHipsRotDeltaJob
-        {
-            PlayerKeys = playerKeys,
-            Src = _outHipsRotDelta,
-            Dst = dst,
-        }.Schedule(count, batch, deps);
-    }
 
     /// <summary>
     /// Schedules a Burst <see cref="BulkCopySkeletonDeltasJob"/> that copies the filtered
