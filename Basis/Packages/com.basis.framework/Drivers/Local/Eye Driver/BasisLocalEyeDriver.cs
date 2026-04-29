@@ -257,6 +257,14 @@ public class BasisLocalEyeDriver
         {
             var receiver = snapshot[i];
 
+            // Skip players whose face renderer is currently culled — the gaze
+            // system can never visually pick a face we can't see, and the
+            // FaceVisemeMesh visibility check is already maintained per-frame
+            // by BasisMeshRendererCheck. Cuts the bulk of the per-player work
+            // (eye lookup + distance + cone) in crowded scenes.
+            if (receiver.Player == null || !receiver.Player.FaceIsVisible)
+                continue;
+
             if (!RemoteBoneJobSystem.GetOutGoingCenterEye(receiver.playerId, out float3 eyePos, out quaternion eyeRot))
                 continue;
 

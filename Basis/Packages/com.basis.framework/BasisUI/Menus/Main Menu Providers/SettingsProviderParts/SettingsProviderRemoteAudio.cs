@@ -511,7 +511,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             sliderLipSyncSlots.Descriptor.SetDescription(
                 "Number of concurrent OpenLipSync (neural viseme) instances.\n" +
                 "Higher = better lip sync on more players, but more CPU.\n" +
-                "Default: 30. Players beyond this use uLipSync fallback.");
+                "Default: 30. Players beyond this get no visemes until a slot frees up.");
 
             // Only show the slider when the limit toggle is enabled
             sliderLipSyncSlots.Descriptor.SetActive(toggleLimitLipSync.Value);

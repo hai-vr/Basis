@@ -2,28 +2,54 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
+using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
 /// <summary>
 /// Remote Face Management
 /// Multithreaded blink + eye look-around.
-/// Key changes:
-/// - NaN/Inf sanitization happens INSIDE the Burst job.
-/// - Removes per-frame main-thread copy into eyeIn (job uses eyeOut as its running state).
-/// - Safer lerp factor (saturate) to avoid overshoot explosions.
+///
+/// Hot-path optimizations (target: 1k remotes):
+/// - Eye rotation math (asin / AxisAngle / quaternion mul) runs INSIDE the Burst job.
+///   Apply just writes pre-computed localRotation per eye — no math on main thread.
+/// - Blink writes are change-detected against a per-slot cache; identical weight no
+///   longer hits SetBlendShapeWeight (the dominant P/Invoke cost at scale).
+/// - Managed face/eye-array references are cached in Simulate so the Apply loop
+///   doesn't redo receiver→remote→driver chains 1k times per frame.
 /// </summary>
 public static class BasisRemoteFaceManagement
 {
     public static NativeArray<EyeState> eyeStates;
     public static NativeArray<BlinkState> blinkStates;
 
-    // eyeOut is now the authoritative per-remote eye state that the job updates.
+    // Authoritative per-remote eye state. Job updates in-place; Apply reads.
     public static NativeArray<EyeOutput> eyeOut;
     public static NativeArray<float> blinkOut;
+
+    // Per-slot eye calibration + active flag, pushed each Simulate from Face drivers.
+    // useJobEye[i] = 1 when the slot has eye bones AND is not face-tracking-overridden.
+    public static NativeArray<EyeCalibrationBlit> eyeCalLeft;
+    public static NativeArray<EyeCalibrationBlit> eyeCalRight;
+    public static NativeArray<byte> useJobEye;
+
+    // Pre-computed eye localRotation outputs from the burst job.
+    public static NativeArray<quaternion> eyeRotL;
+    public static NativeArray<quaternion> eyeRotR;
+
+    // Last blink weight (0..100) actually written to SkinnedMeshRenderer per slot.
+    // NaN sentinel forces first-write through. Used to skip SetBlendShapeWeight
+    // when the weight hasn't changed since last frame (steady-state: w=0 every frame).
+    public static NativeArray<float> lastBlinkApplied;
+
+    // Managed caches built each Simulate. Indexed [0, count). Avoids
+    // snapshot[i].RemotePlayer.RemoteFaceDriver / .EyesAndMouth dereferences in Apply.
+    public static BasisRemoteFaceDriver[] faceCache = Array.Empty<BasisRemoteFaceDriver>();
+    public static float[][] eyesCache = Array.Empty<float[]>();
 
     public static int capacity;
 
@@ -61,9 +87,10 @@ public static class BasisRemoteFaceManagement
 
     public static JobHandle handle;
     public static BasisNetworkReceiver[] snapshot;
-    public static  int count;
+    public static int count;
     public static bool HasJob = false;
-    public static void Simulate(double t,float dt)
+
+    public static void Simulate(double t, float dt)
     {
         snapshot = BasisNetworkPlayers.ReceiversSnapshot;
         count = BasisNetworkPlayers.ReceiverCount;
@@ -73,9 +100,50 @@ public static class BasisRemoteFaceManagement
         }
 
         EnsureArrays(count, t, snapshot);
+        EnsureManagedCaches(count);
 
-        // No per-frame main-thread copy into a NativeArray.
-        // The job will update eyeOut in-place (as state), and Apply() will write eyeOut back to receivers.
+        // Build per-slot face/eye cache and per-slot calibration / active flag.
+        // Done once per frame on main thread so the Burst job can vectorize the
+        // eye math against pre-laid-out NativeArrays.
+        unsafe
+        {
+            EyeCalibrationBlit* pCalL = (EyeCalibrationBlit*)eyeCalLeft.GetUnsafePtr();
+            EyeCalibrationBlit* pCalR = (EyeCalibrationBlit*)eyeCalRight.GetUnsafePtr();
+            byte* pUse = (byte*)useJobEye.GetUnsafePtr();
+
+            for (int i = 0; i < count; i++)
+            {
+                BasisNetworkReceiver receiver = snapshot[i];
+                BasisRemotePlayer remote = receiver.RemotePlayer;
+                BasisRemoteFaceDriver Face = remote.RemoteFaceDriver;
+
+                faceCache[i] = Face;
+                eyesCache[i] = receiver.EyesAndMouth;
+
+                // The job's pre-computed quaternions are only valid for slots where
+                // eye floats came from our eyeOut state. When OverrideEye is set
+                // (face-tracking is driving EyesAndMouth), Apply takes the legacy
+                // main-thread path so face-tracking values flow through asin/calib.
+                bool useJob = Face.HasEyeBones && !Face.OverrideEye;
+                pUse[i] = useJob ? (byte)1 : (byte)0;
+
+                if (useJob)
+                {
+                    pCalL[i] = new EyeCalibrationBlit
+                    {
+                        basis = Face.calLeft.basis,
+                        invBasis = Face.calLeft.invBasis,
+                        initialRotation = Face.calLeft.initialRotation,
+                    };
+                    pCalR[i] = new EyeCalibrationBlit
+                    {
+                        basis = Face.calRight.basis,
+                        invBasis = Face.calRight.invBasis,
+                        initialRotation = Face.calRight.initialRotation,
+                    };
+                }
+            }
+        }
 
         var job = new RemoteAnimJob
         {
@@ -100,6 +168,12 @@ public static class BasisRemoteFaceManagement
 
             eyeOut = eyeOut,
             blinkOut = blinkOut,
+
+            eyeCalLeft = eyeCalLeft,
+            eyeCalRight = eyeCalRight,
+            useJobEye = useJobEye,
+            eyeRotL = eyeRotL,
+            eyeRotR = eyeRotR,
         };
 
         handle = job.Schedule(count, BatchSize);
@@ -131,15 +205,17 @@ public static class BasisRemoteFaceManagement
         {
             EyeOutput* pEyeOut = (EyeOutput*)eyeOut.GetUnsafeReadOnlyPtr();
             float* pBlinkOut = (float*)blinkOut.GetUnsafeReadOnlyPtr();
+            quaternion* pRotL = (quaternion*)eyeRotL.GetUnsafeReadOnlyPtr();
+            quaternion* pRotR = (quaternion*)eyeRotR.GetUnsafeReadOnlyPtr();
+            byte* pUse = (byte*)useJobEye.GetUnsafeReadOnlyPtr();
+            float* pLastBlink = (float*)lastBlinkApplied.GetUnsafePtr();
 
             for (int Index = 0; Index < count; Index++)
             {
-                BasisNetworkReceiver receiver = snapshot[Index];
-                BasisRemotePlayer remote = receiver.RemotePlayer;
-                BasisRemoteFaceDriver Face = remote.RemoteFaceDriver;
+                BasisRemoteFaceDriver Face = faceCache[Index];
+                float[] eyes = eyesCache[Index];
 
                 // Always write eye floats (cheap, keeps state consistent across range transitions)
-                float[] eyes = receiver.EyesAndMouth;
                 if (!Face.OverrideEye)
                 {
                     EyeOutput e = pEyeOut[Index];
@@ -155,10 +231,29 @@ public static class BasisRemoteFaceManagement
                 // so without this write remote eyes would be frozen at calibration pose.
                 if (Face.HasEyeBones)
                 {
-                    Face.ApplyEyeRotations(eyes[0], eyes[1], eyes[2], eyes[3]);
+                    if (pUse[Index] != 0)
+                    {
+                        // Burst job already produced the final localRotation per eye —
+                        // here it's just two property assignments (one P/Invoke each)
+                        // instead of asin + AxisAngle + 3 quaternion muls per eye.
+                        Transform leftEye = Face.LeftEyeTransform;
+                        Transform rightEye = Face.RightEyeTransform;
+                        if (leftEye != null) leftEye.localRotation = pRotL[Index];
+                        if (rightEye != null) rightEye.localRotation = pRotR[Index];
+                    }
+                    else
+                    {
+                        // OverrideEye: eyes[] was just written by face-tracking, run the
+                        // legacy main-thread path so the asin/calib transform applies.
+                        Face.ApplyEyeRotations(eyes[0], eyes[1], eyes[2], eyes[3]);
+                    }
                 }
 
-                // Skip blink blendshape mesh writes when there is no mesh to write to
+                // BlinkingEnabled is the visibility flag — UpdateFaceVisibility(false)
+                // turns it off when BasisMeshRendererCheck reports the face is culled,
+                // and also resets the mesh's blendshapes to 0 at that moment. So when
+                // this gate is false (invisible / overridden / no mesh) we skip the
+                // SetBlendShapeWeight P/Invoke entirely.
                 if (Face.BlinkingEnabled && !Face.OverrideBlinking && Face.meshRenderer != null)
                 {
                     float w = pBlinkOut[Index];
@@ -166,13 +261,31 @@ public static class BasisRemoteFaceManagement
 
                     float weight100 = w * 100f;
 
-                    for (int b = 0; b < Face.blendShapeCount; b++)
+                    // Change-detection: SetBlendShapeWeight is a P/Invoke that's
+                    // cheap individually but lethal at 1k * blendShapeCount per frame.
+                    // Most frames the weight is identical to last frame (eyes are
+                    // open and were open). NaN sentinel from EnsureArrays guarantees
+                    // the first frame writes through.
+                    if (weight100 != pLastBlink[Index])
                     {
-                        Face.SafeSetBlendShape(Face.blendShapeIndices[b], weight100);
-                    }
+                        pLastBlink[Index] = weight100;
+                        for (int b = 0; b < Face.blendShapeCount; b++)
+                        {
+                            Face.SafeSetBlendShape(Face.blendShapeIndices[b], weight100);
+                        }
 #if UNITY_EDITOR
-                    _blinkWrites++;
+                        _blinkWrites++;
 #endif
+                    }
+                }
+                else
+                {
+                    // Skipping due to invisibility / override / missing mesh.
+                    // UpdateFaceVisibility(false) zeroed the blendshapes when the face
+                    // went hidden, so the cached weight no longer reflects the mesh
+                    // state. Invalidate it so the next frame that does write goes
+                    // through even if it computes the same numeric weight as before.
+                    pLastBlink[Index] = float.NaN;
                 }
             }
         }
@@ -185,7 +298,18 @@ public static class BasisRemoteFaceManagement
         }
 #endif
     }
-    static void EnsureArrays(int requiredCount,double nowTime,BasisNetworkReceiver[] snapshot)
+
+    static void EnsureManagedCaches(int requiredCount)
+    {
+        if (faceCache.Length < requiredCount)
+        {
+            int newSize = math.max(16, math.ceilpow2(requiredCount));
+            Array.Resize(ref faceCache, newSize);
+            Array.Resize(ref eyesCache, newSize);
+        }
+    }
+
+    static void EnsureArrays(int requiredCount, double nowTime, BasisNetworkReceiver[] snapshot)
     {
         // Already sufficient
         if (requiredCount <= capacity && eyeStates.IsCreated)
@@ -206,6 +330,16 @@ public static class BasisRemoteFaceManagement
         var newEyeOut = new NativeArray<EyeOutput>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
         var newBlinkOut = new NativeArray<float>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
 
+        var newEyeCalLeft = new NativeArray<EyeCalibrationBlit>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        var newEyeCalRight = new NativeArray<EyeCalibrationBlit>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        var newUseJobEye = new NativeArray<byte>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        var newEyeRotL = new NativeArray<quaternion>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        var newEyeRotR = new NativeArray<quaternion>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+
+        // lastBlinkApplied uses NaN as "never written" sentinel so the first
+        // computed weight forces a SetBlendShapeWeight call through.
+        var newLastBlinkApplied = new NativeArray<float>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+
         // Copy old live data across if present
         if (eyeStates.IsCreated)
         {
@@ -216,6 +350,13 @@ public static class BasisRemoteFaceManagement
             NativeArray<EyeOutput>.Copy(eyeOut, newEyeOut, copyCount);
             NativeArray<float>.Copy(blinkOut, newBlinkOut, copyCount);
 
+            NativeArray<EyeCalibrationBlit>.Copy(eyeCalLeft, newEyeCalLeft, copyCount);
+            NativeArray<EyeCalibrationBlit>.Copy(eyeCalRight, newEyeCalRight, copyCount);
+            NativeArray<byte>.Copy(useJobEye, newUseJobEye, copyCount);
+            NativeArray<quaternion>.Copy(eyeRotL, newEyeRotL, copyCount);
+            NativeArray<quaternion>.Copy(eyeRotR, newEyeRotR, copyCount);
+            NativeArray<float>.Copy(lastBlinkApplied, newLastBlinkApplied, copyCount);
+
             DisposeArrays();
         }
 
@@ -224,6 +365,13 @@ public static class BasisRemoteFaceManagement
         blinkStates = newBlinkStates;
         eyeOut = newEyeOut;
         blinkOut = newBlinkOut;
+
+        eyeCalLeft = newEyeCalLeft;
+        eyeCalRight = newEyeCalRight;
+        useJobEye = newUseJobEye;
+        eyeRotL = newEyeRotL;
+        eyeRotR = newEyeRotR;
+        lastBlinkApplied = newLastBlinkApplied;
 
         // Seed RNGs + initialize ONLY the new slots
         uint baseSeed = (uint)UnityEngine.Random.Range(1, int.MaxValue);
@@ -234,6 +382,7 @@ public static class BasisRemoteFaceManagement
             BlinkState* pBlinkStates = (BlinkState*)blinkStates.GetUnsafePtr();
             EyeOutput* pEyeOut = (EyeOutput*)eyeOut.GetUnsafePtr();
             float* pBlinkOut = (float*)blinkOut.GetUnsafePtr();
+            float* pLastBlinkApplied = (float*)lastBlinkApplied.GetUnsafePtr();
 
             for (int i = oldCap; i < newCap; i++)
             {
@@ -281,6 +430,7 @@ public static class BasisRemoteFaceManagement
 
                 pEyeOut[i] = startEye;
                 pBlinkOut[i] = 0f;
+                pLastBlinkApplied[i] = float.NaN;
             }
         }
     }
@@ -303,6 +453,13 @@ public static class BasisRemoteFaceManagement
         if (blinkStates.IsCreated) blinkStates.Dispose();
         if (eyeOut.IsCreated) eyeOut.Dispose();
         if (blinkOut.IsCreated) blinkOut.Dispose();
+
+        if (eyeCalLeft.IsCreated) eyeCalLeft.Dispose();
+        if (eyeCalRight.IsCreated) eyeCalRight.Dispose();
+        if (useJobEye.IsCreated) useJobEye.Dispose();
+        if (eyeRotL.IsCreated) eyeRotL.Dispose();
+        if (eyeRotR.IsCreated) eyeRotR.Dispose();
+        if (lastBlinkApplied.IsCreated) lastBlinkApplied.Dispose();
     }
 
     public static void Dispose()
@@ -310,6 +467,9 @@ public static class BasisRemoteFaceManagement
         handle.Complete();
         DisposeArrays();
         capacity = 0;
+
+        faceCache = Array.Empty<BasisRemoteFaceDriver>();
+        eyesCache = Array.Empty<float[]>();
     }
 
     [BurstCompile]
@@ -338,6 +498,15 @@ public static class BasisRemoteFaceManagement
         public NativeArray<EyeOutput> eyeOut;
 
         public NativeArray<float> blinkOut;
+
+        // Per-slot calibration + active flag, written by Simulate.
+        [ReadOnly] public NativeArray<EyeCalibrationBlit> eyeCalLeft;
+        [ReadOnly] public NativeArray<EyeCalibrationBlit> eyeCalRight;
+        [ReadOnly] public NativeArray<byte> useJobEye;
+
+        // Per-slot computed eye bone rotations (canonical→rig). Apply consumes these.
+        [WriteOnly] public NativeArray<quaternion> eyeRotL;
+        [WriteOnly] public NativeArray<quaternion> eyeRotR;
 
         public void Execute(int Index)
         {
@@ -392,6 +561,15 @@ public static class BasisRemoteFaceManagement
             eyeStates[Index] = es;
             eyeOut[Index] = e;
 
+            // Pre-compute eye bone localRotation while the data is hot.
+            // Apply just assigns transform.localRotation = result — no math,
+            // no asin, no quaternion muls on the main thread.
+            if (useJobEye[Index] != 0)
+            {
+                eyeRotL[Index] = ComputeEyeRotation(eyeCalLeft[Index], e.hL, e.vL);
+                eyeRotR[Index] = ComputeEyeRotation(eyeCalRight[Index], e.hR, e.vR);
+            }
+
             // --------------------
             // BLINK
             // --------------------
@@ -445,6 +623,25 @@ public static class BasisRemoteFaceManagement
             blinkOut[Index] = w01;
         }
 
+        // Mirrors BasisRemoteFaceDriver.ApplyOneEye math. Inputs are signed
+        // [-1, 1]; asin maps them into a half-pi yaw/pitch range. Negate y so
+        // positive vertical means look up. The result is a rig-local rotation
+        // ready to assign directly to Transform.localRotation.
+        static quaternion ComputeEyeRotation(EyeCalibrationBlit cal, float x, float y)
+        {
+            x = math.clamp(math.isfinite(x) ? x : 0f, -1f, 1f);
+            y = math.clamp(math.isfinite(y) ? y : 0f, -1f, 1f);
+
+            float xRad = math.asin(x);
+            float yRad = math.asin(-y);
+            quaternion yaw = quaternion.AxisAngle(new float3(0f, 1f, 0f), xRad);
+            quaternion pitch = quaternion.AxisAngle(new float3(1f, 0f, 0f), yRad);
+            quaternion canonical = math.mul(yaw, pitch);
+
+            quaternion rigOffset = math.mul(math.mul(cal.basis, canonical), cal.invBasis);
+            return math.mul(cal.initialRotation, rigOffset);
+        }
+
         static float Sanitize(float x)
         {
             // Burst-friendly finite check
@@ -479,5 +676,16 @@ public static class BasisRemoteFaceManagement
     public struct EyeOutput
     {
         public float vL, hL, vR, hR;
+    }
+
+    /// <summary>
+    /// Blittable copy of <see cref="BasisEyeCalibration"/> so the Burst job can
+    /// read calibration via NativeArray (no managed reference indirection).
+    /// </summary>
+    public struct EyeCalibrationBlit
+    {
+        public quaternion basis;
+        public quaternion invBasis;
+        public quaternion initialRotation;
     }
 }

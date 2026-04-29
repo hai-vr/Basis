@@ -145,15 +145,6 @@
         "com.unity.collections": "2.0.0"
       }
     },
-    "com.hecomi.basisulipsync": {
-      "version": "file:com.hecomi.ulipsync",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {
-        "com.unity.burst": "1.4.11",
-        "com.unity.mathematics": "1.2.5"
-      }
-    },
     "com.llealloo.audiolink": {
       "version": "file:com.llealloo.audiolink",
       "depth": 0,

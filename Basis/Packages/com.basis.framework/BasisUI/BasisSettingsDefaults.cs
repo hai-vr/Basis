@@ -102,7 +102,7 @@ namespace Basis.BasisUI
 
         /// <summary>
         /// Maximum number of OpenLipSync (neural viseme) slots when <see cref="UseOpenLipSyncLimit"/> is enabled.
-        /// Players beyond this limit fall back to the lighter uLipSync backend.
+        /// Players beyond this limit get no visemes until a slot frees up.
         /// Higher values look better in crowds but cost more CPU.
         /// </summary>
         public static BasisSettingsBinding<float> OpenLipSyncMaxSlots = new("openlipsyncmaxslots", new BasisPlatformDefault<float>(30));

@@ -95,6 +95,10 @@ namespace Basis.Scripts.Drivers
             for (int Index = 0; Index < count; Index++)
             {
                 BasisAudioAndVisemeDriver VisemeDriver = Drivers[Index];
+                // Hoisted out of the inner Simulate so the call is skipped
+                // entirely for out-of-range remotes — saves the vcall + the
+                // field reads inside the early-out at thousand-player scale.
+                if (!VisemeDriver.InVisemeRange) continue;
                 VisemeDriver.Simulate(DeltaTime);
             }
 
@@ -109,6 +113,7 @@ namespace Basis.Scripts.Drivers
             for (int Index = 0; Index < count; Index++)
             {
                 BasisAudioAndVisemeDriver VisemeDriver = Drivers[Index];
+                if (!VisemeDriver.InVisemeRange) continue;
                 VisemeDriver.Apply();
             }
         }

@@ -15,7 +15,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
-using uLipSync;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreAvatarKeys;
@@ -184,11 +183,6 @@ namespace Basis.Scripts.Device_Management
         public string ForcedDefault = string.Empty;
 
         /// <summary>
-        /// Optional LipSync profile used by audio-driven facial animation systems.
-        /// </summary>
-        public Profile LipSyncProfile;
-
-        /// <summary>
         /// The VR mode that was active before a soft swap switched to Desktop.
         /// Used to restore the correct VR mode when the headset is detected again.
         /// </summary>
@@ -245,7 +239,6 @@ namespace Basis.Scripts.Device_Management
             BasisPlayerFactory.DeInitalize();
             StopAllDevices();
             UnsubscribeEvents();
-            BasisUlipSyncDriver.DisposeShared();
         }
         public void Simulate()
         {
@@ -275,7 +268,6 @@ namespace Basis.Scripts.Device_Management
             BasisPlayerFactory.Initalize();
             BasisXRManagement.Initalize();
             BasisCommandLineArgs.Initialize(BakedInCommandLineArgs, out ForcedDefault);
-            BasisUlipSyncDriver.Initialize(BasisDeviceManagement.Instance.LipSyncProfile);
 
             //legacy!!! delete in a few months!
             if (File.Exists(BasisDataStoreAvatarKeys.FilePath))

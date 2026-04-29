@@ -546,7 +546,7 @@
     { "key": "settings.remoteAudio.reflections.description", "value": "Environment reflections on voice audio. Requires baked scene data for best results." },
     { "key": "settings.remoteAudio.applyHrtfReflections", "value": "Apply HRTF to Reflections" },
     { "key": "settings.remoteAudio.lipSync", "value": "Lip Sync" },
-    { "key": "settings.remoteAudio.lipSync.description", "value": "Controls how many players use high-quality neural lip sync (OpenLipSync).\nPlayers beyond this limit fall back to the lighter uLipSync backend." },
+    { "key": "settings.remoteAudio.lipSync.description", "value": "Controls how many players use neural lip sync (OpenLipSync).\nPlayers beyond this limit get no visemes until a slot frees up." },
     { "key": "settings.remoteAudio.limitLipSync", "value": "Limit OpenLipSync Slots" },
 
     { "key": "settings.developer.visualHelpers.title", "value": "Visual Helpers" },
