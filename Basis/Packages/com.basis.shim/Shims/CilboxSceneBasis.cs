@@ -550,7 +550,6 @@ namespace Cilbox
 			{ typeof(UnityEngine.GameObject),          new HashSet<string>{ nameof(GameObject.SetActive), nameof(GameObject.GetComponents) } },
 			{ typeof(System.Type),                     new HashSet<string>() }, // nothing allowed
 			{ typeof(BasisNetworkPlayer), new HashSet<string> {
-				typeof(BasisNetworkPlayer).GetProperty(nameof(BasisNetworkPlayer.playerId)).GetGetMethod().Name,
 				typeof(BasisNetworkPlayer).GetProperty(nameof(BasisNetworkPlayer.LocalPlayer)).GetGetMethod().Name,
 				typeof(BasisNetworkPlayer).GetProperty(nameof(BasisNetworkPlayer.Player)).GetGetMethod().Name,
 				typeof(BasisNetworkPlayer).GetProperty(nameof(BasisNetworkPlayer.displayName)).GetGetMethod().Name,
