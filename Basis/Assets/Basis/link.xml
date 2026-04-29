@@ -112,13 +112,19 @@
     <assembly fullname="Unity.XR.OpenXR.Features.OculusQuestSupport" preserve="all" />
     <assembly fullname="Unity.XR.OpenXR.Features.RuntimeDebugger" preserve="all" />
     <assembly fullname="Unity.XR.OpenXR.TestTooling" preserve="all" />
+    <assembly fullname="UnityEngine" preserve="all" />
+    <assembly fullname="UnityEngine.AIModule" preserve="all" />
     <assembly fullname="UnityEngine.AnimationModule" preserve="all" />
     <assembly fullname="UnityEngine.AudioModule" preserve="all" />
     <assembly fullname="UnityEngine.CoreModule" preserve="all" />
     <assembly fullname="UnityEngine.ParticleSystemModule" preserve="all" />
+    <assembly fullname="UnityEngine.Physics2DModule" preserve="all" />
     <assembly fullname="UnityEngine.PhysicsModule" preserve="all" />
     <assembly fullname="UnityEngine.SpatialTracking" preserve="all" />
+    <assembly fullname="UnityEngine.TextRenderingModule" preserve="all" />
     <assembly fullname="UnityEngine.UI" preserve="all" />
+    <assembly fullname="UnityEngine.UIModule" preserve="all" />
+    <assembly fullname="UnityEngine.VehiclesModule" preserve="all" />
     <assembly fullname="UnityEngine.XR.LegacyInputHelpers" preserve="all" />
     <assembly fullname="VRC.Udon" preserve="all" />
     <assembly fullname="XRSDKOpenVR" preserve="all" />

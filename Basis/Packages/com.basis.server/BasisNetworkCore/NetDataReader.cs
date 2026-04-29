@@ -607,11 +607,19 @@ namespace Basis.Network.Core {
 
         public string PeekString()
         {
+            // Defensive: callers (e.g., HandleDisconnectionReason) sometimes
+            // hand us a buffer that doesn't actually contain a length-prefixed
+            // string — a version-mismatch reject or any other malformed
+            // additional-data payload would otherwise tip GetString into an
+            // ArgumentOutOfRangeException. Validate before reading.
+            if (AvailableBytes < 2) return string.Empty;
             ushort size = PeekUShort();
             if (size == 0)
                 return string.Empty;
 
             int actualSize = size - 1;
+            if (actualSize < 0 || _position + 2 + actualSize > _data.Length)
+                return string.Empty;
             return NetDataWriter.uTF8Encoding.Value.GetString(_data, _position + 2, actualSize);
         }
         #endregion

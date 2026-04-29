@@ -517,13 +517,9 @@ public static class BasisNetworkEvents
         if (disconnectInfo.Reason == DisconnectReason.RemoteConnectionClose)
         {
 #if UNITY_SERVER
-            string reason = null;
-            if (disconnectInfo.AdditionalData != null &&
-                !string.IsNullOrEmpty(disconnectInfo.AdditionalData.PeekString()))
-            {
-                reason = disconnectInfo.AdditionalData.PeekString();
-            }
-
+            // PeekString is now defensive — a malformed additional-data payload
+            // returns "" instead of throwing. Read once and re-use.
+            string reason = disconnectInfo.AdditionalData?.PeekString();
             if (!string.IsNullOrEmpty(reason))
             {
                 if (canShowMenu)
@@ -543,9 +539,12 @@ public static class BasisNetworkEvents
                 BasisDebug.Log($"Unexpected Failure Of Reason {disconnectInfo.Reason}");
             }
 #else
-            if (disconnectInfo.AdditionalData != null && !string.IsNullOrEmpty(disconnectInfo.AdditionalData.PeekString()))
+            // Read the reason once (PeekString is now defensive against
+            // malformed additional-data, but reading it twice still wastes a
+            // GetString call).
+            string Reason = disconnectInfo.AdditionalData?.PeekString();
+            if (!string.IsNullOrEmpty(Reason))
             {
-                string Reason = disconnectInfo.AdditionalData.PeekString();
                 BasisMainMenu.Open();
                 if (BasisMainMenu.Instance != null)
                 {

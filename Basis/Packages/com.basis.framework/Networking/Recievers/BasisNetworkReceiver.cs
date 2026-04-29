@@ -357,6 +357,8 @@ namespace Basis.Scripts.Networking.Receivers
                         first.Position, last.Position,
                         first.Scale, last.Scale,
                         first.Rotation, last.Rotation,
+                        first.HipsLocalDelta, last.HipsLocalDelta,
+                        first.HipsLocalRotation, last.HipsLocalRotation,
                         first.BoneRotations, last.BoneRotations
                     );
                     IsDataReady = true;
