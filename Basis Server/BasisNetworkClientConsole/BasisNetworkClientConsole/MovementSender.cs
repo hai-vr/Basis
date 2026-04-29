@@ -126,14 +126,14 @@ namespace Basis.Network
         /// </summary>
         private static void WriteIdentityQuaternion(byte[] dst, int offset)
         {
-            const ushort midpoint = 32768; // QuantizeSmall(0f) = (0 + InvSqrt2) / (2*InvSqrt2) * 65535 = 32767~32768
+            // QuantizeSmall(0f) = midpoint = 32768 = 0x8000 → lo 0x00, hi 0x80
             dst[offset] = 3;
-            dst[offset + 1] = (byte)midpoint;
-            dst[offset + 2] = (byte)(midpoint >> 8);
-            dst[offset + 3] = (byte)midpoint;
-            dst[offset + 4] = (byte)(midpoint >> 8);
-            dst[offset + 5] = (byte)midpoint;
-            dst[offset + 6] = (byte)(midpoint >> 8);
+            dst[offset + 1] = 0x00;
+            dst[offset + 2] = 0x80;
+            dst[offset + 3] = 0x00;
+            dst[offset + 4] = 0x80;
+            dst[offset + 5] = 0x00;
+            dst[offset + 6] = 0x80;
         }
         private static void WriteScaleUShort(ushort value, byte[] buffer, int byteOffset)
         {
