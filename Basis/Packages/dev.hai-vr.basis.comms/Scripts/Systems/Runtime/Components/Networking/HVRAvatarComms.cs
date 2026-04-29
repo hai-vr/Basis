@@ -31,9 +31,11 @@ namespace HVR.Basis.Comms
         private readonly List<HVRNeedsInterpolationCallback> _needsInterpolation = new();
         private readonly List<HVRToSubmitLater> _toStoreLater = new();
 
-        private AvatarMessageProcessing avatarMessageProcessing;
+        private AvatarMessageProcessing _streamedMessageProcessing;
+        private AvatarMessageProcessing _lowFrequencyMessageProcessing;
         internal StreamedAvatarFeature _streamedLateInit;
         private HVRVixxyBasisAvatarNetworking _vixxyNetworkingNullable; // May remain null if Vixxy is not used in the avatar.
+        private LowFrequencyFeature _lowFrequencyCompNullable;
 
         public HVRAvatarComms()
         {
@@ -107,16 +109,19 @@ namespace HVR.Basis.Comms
             var (highFrequency, lowFrequency) = _ranges.Partition(range => range.isHighFrequency);
             if (highFrequency.Any())
             {
-                DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0], true, highFrequency);
+                DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0], highFrequency);
             }
             if (lowFrequency.Any())
             {
+                DeclareLowFrequencyReceiver(isWearer, carriers[VixxyNetworking1], lowFrequency);
             }
+
+            StartCoroutine(SendInitialPacketNextFrame());
         }
 
-        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier, bool isHighFrequency, List<MutualizedInterpolationRangeStorage> partitionRanges)
+        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier, List<MutualizedInterpolationRangeStorage> partitionRanges)
         {
-            var holder = new GameObject($"Streamed-Mutualized-{(isHighFrequency ? "HF" : "LF")}")
+            var holder = new GameObject($"Generated__Streamed-Mutualized")
             {
                 transform = { parent = avatar.transform }
             };
@@ -153,16 +158,32 @@ namespace HVR.Basis.Comms
                 }
             };
 
-            avatarMessageProcessing = AvatarMessageProcessing.ForFeature(carrier, isWearer, avatar.LinkedPlayerID, new HVRRedirectToStreamed(_streamedLateInit));
+            _streamedMessageProcessing = AvatarMessageProcessing.ForFeature(carrier, isWearer, avatar.LinkedPlayerID, new HVRRedirectToStreamed(_streamedLateInit));
+        }
 
-            StartCoroutine(SendInitialPacketNextFrame());
+        private void DeclareLowFrequencyReceiver(bool isWearer, HVRNetworkingCarrier carrier, List<MutualizedInterpolationRangeStorage> lowFrequency)
+        {
+            var holder = new GameObject($"Generated__LowFrequency")
+            {
+                transform = { parent = avatar.transform }
+            };
+            holder.SetActive(false);
+            _lowFrequencyCompNullable = holder.AddComponent<LowFrequencyFeature>();
+            _lowFrequencyCompNullable.transmitter = carrier;
+            _lowFrequencyCompNullable.isWearer = isWearer;
+            _lowFrequencyCompNullable.InitializeNormalizedValues(BuildNeutralNormalizedValues(lowFrequency));
+            _lowFrequencyCompNullable.OnDataChanged += (index, value) =>
+            {
+            };
+
+            _lowFrequencyMessageProcessing = AvatarMessageProcessing.ForFeature(carrier, isWearer, avatar.LinkedPlayerID, new HVRRedirectToLowFrequency(_lowFrequencyCompNullable));
         }
 
         IEnumerator SendInitialPacketNextFrame()
         {
             // We want to send the initial packet when all BasisAvatarMonoBehaviours have been initialized.
             yield return null;
-            avatarMessageProcessing.SendInitialPacket();
+            _streamedMessageProcessing.SendInitialPacket();
         }
 
         public MutualizedFeatureInterpolator NeedsMutualizedInterpolator(List<MutualizedInterpolationRange> inputRanges, CommsNetworking.InterpolatedDataChanged interpolatedDataChanged)
@@ -178,7 +199,7 @@ namespace HVR.Basis.Comms
                     _ranges.Add(new MutualizedInterpolationRangeStorage
                     {
                         index = mutualizedIndex,
-                        isHighFrequency = true,
+                        isHighFrequency = inputRange.isHighFrequency,
                         addressId = address,
                         lower = inputRange.lower,
                         upper = inputRange.upper,
@@ -236,7 +257,7 @@ namespace HVR.Basis.Comms
             {
                 case AvatarMessageProcessingCarrier0:
                 {
-                    avatarMessageProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
+                    _streamedMessageProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
                     break;
                 }
                 case VixxyNetworking1:
@@ -257,7 +278,7 @@ namespace HVR.Basis.Comms
             {
                 case AvatarMessageProcessingCarrier0:
                 {
-                    avatarMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
+                    _streamedMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
                     break;
                 }
                 case VixxyNetworking1:
@@ -295,26 +316,19 @@ namespace HVR.Basis.Comms
         private class HVRRedirectToStreamed : IFeatureReceiver
         {
             private readonly StreamedAvatarFeature streamed;
+            public HVRRedirectToStreamed(StreamedAvatarFeature streamed) => this.streamed = streamed;
+            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) => streamed.OnPacketReceived(data);
+            public void OnResyncEveryoneRequested() => streamed.OnResyncEveryoneRequested();
+            public void OnResyncRequested(ushort[] whoAsked) => streamed.OnResyncRequested(whoAsked);
+        }
 
-            public HVRRedirectToStreamed(StreamedAvatarFeature streamed)
-            {
-                this.streamed = streamed;
-            }
-
-            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
-            {
-                streamed.OnPacketReceived(data);
-            }
-
-            public void OnResyncEveryoneRequested()
-            {
-                streamed.OnResyncEveryoneRequested();
-            }
-
-            public void OnResyncRequested(ushort[] whoAsked)
-            {
-                streamed.OnResyncRequested(whoAsked);
-            }
+        private class HVRRedirectToLowFrequency : IFeatureReceiver
+        {
+            private readonly LowFrequencyFeature lowFrequency;
+            public HVRRedirectToLowFrequency(LowFrequencyFeature lowFrequency) => this.lowFrequency = lowFrequency;
+            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) => lowFrequency.OnPacketReceived(data);
+            public void OnResyncEveryoneRequested() => lowFrequency.OnResyncEveryoneRequested();
+            public void OnResyncRequested(ushort[] whoAsked) => lowFrequency.OnResyncRequested(whoAsked);
         }
 
         private class HVRNeedsInterpolationCallback

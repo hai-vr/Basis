@@ -109,10 +109,10 @@ namespace HVR.Basis.Comms
 
             var mutualizedInterpolationRanges = new List<MutualizedInterpolationRange>
             {
-                new MutualizedInterpolationRange { addressId = _eyeLeftXAddress, lower = -1f, upper = 1f },
-                new MutualizedInterpolationRange { addressId = _eyeRightXAddress, lower = -1f, upper = 1f },
-                new MutualizedInterpolationRange { addressId = _eyeYAddress, lower = -1f, upper = 1f },
-                new MutualizedInterpolationRange { addressId = _eyeTrackingActiveAddress, lower = 0f, upper = 1f }
+                new() { addressId = _eyeLeftXAddress, lower = -1f, upper = 1f, isHighFrequency = true },
+                new() { addressId = _eyeRightXAddress, lower = -1f, upper = 1f, isHighFrequency = true },
+                new() { addressId = _eyeYAddress, lower = -1f, upper = 1f, isHighFrequency = true },
+                new() { addressId = _eyeTrackingActiveAddress, lower = 0f, upper = 1f, isHighFrequency = true }
             };
             featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(avatar, mutualizedInterpolationRanges, OnInterpolatedDataChanged);
             bool shouldApply = ShouldApplyEyeTracking();

@@ -136,11 +136,12 @@ namespace HVR.Basis.Comms
             _isWearer = isWearer;
             featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(avatar, new List<MutualizedInterpolationRange>
             {
-                new MutualizedInterpolationRange
+                new()
                 {
                     addressId = ActivityAddressId,
                     lower = 0f,
                     upper = 1f,
+                    isHighFrequency = true
                 }
             }, OnInterpolatedDataChanged);
 

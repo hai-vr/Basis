@@ -257,6 +257,7 @@ namespace HVR.Basis.Comms
                         addressId = address,
                         lower = lower,
                         upper = upper,
+                        isHighFrequency = true
                     };
                 })
                 .ToList();

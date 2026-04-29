@@ -7,6 +7,10 @@ namespace HVR.Basis.Comms
 {
     public class CommsNetworking
     {
+        public static void RequireNetworking(List<MutualizedInterpolationRange> mutualized)
+        {
+        }
+
         public static MutualizedFeatureInterpolator UsingMutualizedInterpolator(BasisAvatar avatar, List<MutualizedInterpolationRange> mutualized, InterpolatedDataChanged interpolatedDataChanged)
         {
             var comms = HVRCommsUtil.GetComms(avatar);
@@ -33,6 +37,7 @@ namespace HVR.Basis.Comms
         public int addressId;
         public float lower;
         public float upper;
+        public bool isHighFrequency;
     }
 
     public class MutualizedInterpolationRangeStorage
