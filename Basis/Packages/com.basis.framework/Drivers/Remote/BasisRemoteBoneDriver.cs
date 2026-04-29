@@ -527,10 +527,9 @@ public static class RemoteBoneJobSystem
     // Bookkeeping
     /// <summary>Map from external key → internal SoA index. Flat array indexed by ushort player ID; -1 = absent.</summary>
     static int[] sKeyToIndex;
-    /// <summary>Reverse map: internal SoA index → external key. Used for O(1) swap-back removal.</summary>
-    static readonly List<int> sIndexToKey = new List<int>();
-    /// <summary>Cached snapshot of sIndexToKey for bounds-check-free indexing in Schedule.
-    /// NativeArray (not int[]) so it can be passed directly to Burst bulk-copy jobs.</summary>
+    /// <summary>Reverse map: internal SoA index → external key. Maintained directly by Add/Remove,
+    /// so Schedule does not need to snapshot a managed List each frame. Sized to the high-water
+    /// mark of <see cref="AuthoringLength"/>; consumers always pair it with an explicit count.</summary>
     static NativeArray<int> sKeyArray;
     /// <summary>Pending job handle chain.</summary>
     static JobHandle sPending;
@@ -575,7 +574,7 @@ public static class RemoteBoneJobSystem
 
         sKeyToIndex = new int[65536];
         Array.Fill(sKeyToIndex, -1);
-        sIndexToKey.Clear();
+        EnsureKeyArrayCapacity(math.max(initialCapacity, 16));
 
         sInitialized = true;
     }
@@ -617,7 +616,6 @@ public static class RemoteBoneJobSystem
         if (sKeyArray.IsCreated) sKeyArray.Dispose();
 
         if (sKeyToIndex != null) Array.Fill(sKeyToIndex, -1);
-        sIndexToKey.Clear();
         sInitialized = false;
     }
 
@@ -743,7 +741,8 @@ public static class RemoteBoneJobSystem
         }
 
         sKeyToIndex[key] = idx;
-        sIndexToKey.Add(key);
+        EnsureKeyArrayCapacity(idx + 1);
+        sKeyArray[idx] = key;
         AuthoringLength = sAuthoring.Length;
         return key;
     }
@@ -785,9 +784,9 @@ public static class RemoteBoneJobSystem
             sHips.RemoveAtSwapBack(idx);
 
             // O(1) reverse lookup instead of iterating the dictionary
-            int movedKey = sIndexToKey[last];
+            int movedKey = sKeyArray[last];
             sKeyToIndex[movedKey] = idx;
-            sIndexToKey[idx] = movedKey;
+            sKeyArray[idx] = movedKey;
         }
         else
         {
@@ -836,7 +835,8 @@ public static class RemoteBoneJobSystem
         sTPoseHipsLocalPos.RemoveAt(last);
         sTPoseHipsLocalRot.RemoveAt(last);
         sKeyToIndex[key] = -1;
-        sIndexToKey.RemoveAt(last);
+        // sKeyArray's slot at `last` is now stale, but consumers gate on AuthoringLength
+        // (count), so the unused tail slot is harmless. No truncation needed.
         AuthoringLength = sAuthoring.Length;
         return true;
     }
@@ -920,6 +920,25 @@ public static class RemoteBoneJobSystem
     }
 
     /// <summary>
+    /// Grows the persistent reverse-key NativeArray, preserving existing entries.
+    /// Doubling growth so a steadily increasing avatar count amortises to O(1) per add.
+    /// </summary>
+    static void EnsureKeyArrayCapacity(int needed)
+    {
+        if (sKeyArray.IsCreated && sKeyArray.Length >= needed) return;
+
+        int newCap = math.max(needed, sKeyArray.IsCreated ? sKeyArray.Length * 2 : 16);
+        var next = new NativeArray<int>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        if (sKeyArray.IsCreated)
+        {
+            int preserve = math.min(sKeyArray.Length, AuthoringLength);
+            if (preserve > 0) NativeArray<int>.Copy(sKeyArray, 0, next, 0, preserve);
+            sKeyArray.Dispose();
+        }
+        sKeyArray = next;
+    }
+
+    /// <summary>
     /// Schedules the entire simulation pipeline for the current set of avatars:
     /// gather → simulate → apply (nameplate/mouth/hips/skeleton).
     /// </summary>
@@ -945,25 +964,11 @@ public static class RemoteBoneJobSystem
         // conflicting with the new BasisRemoteBoneJob (writer of sOut).
         CompletePending();
 
-        // Snapshot the key list into a NativeArray for bounds-check-free indexing AND so
-        // it can be passed straight to Burst bulk-copy jobs.
-        if (!sKeyArray.IsCreated || sKeyArray.Length < AuthoringLength)
-        {
-            if (sKeyArray.IsCreated) sKeyArray.Dispose();
-            sKeyArray = new NativeArray<int>(
-                Unity.Mathematics.math.max(AuthoringLength, 16),
-                Allocator.Persistent,
-                NativeArrayOptions.UninitializedMemory);
-        }
-
-        unsafe
-        {
-            int* dst = (int*)sKeyArray.GetUnsafePtr();
-            for (int i = 0; i < AuthoringLength; i++)
-            {
-                dst[i] = sIndexToKey[i];
-            }
-        }
+        // sKeyArray is maintained directly by AddRemotePlayer / RemoveRemotePlayer,
+        // so no per-frame snapshot is needed. The previous code copied each entry
+        // out of a managed List<int> via List<T>.get_Item, which was the dominant
+        // cost of Schedule() — the indexer's bounds check showed up by name in the
+        // profiler.
 
         EnsureTempBuffers(AuthoringLength);
 
@@ -1191,13 +1196,35 @@ public static class RemoteBoneJobSystem
         return true;
     }
     /// <summary>
+    /// Resolves an avatar key to its dense index in <c>sOut</c> without reading the frame.
+    /// Used by callers that hand the index to a Burst job so the job can read frames directly.
+    /// Returns <c>false</c> when the system isn't initialized yet or the key is unknown.
+    /// </summary>
+    public static bool TryGetSOutIndex(int key, out int idx)
+    {
+        if (!sInitialized || sKeyToIndex == null || (uint)key >= (uint)sKeyToIndex.Length) { idx = -1; return false; }
+        idx = sKeyToIndex[key];
+        return idx >= 0;
+    }
+
+    /// <summary>
+    /// Returns <c>sOut</c> as a NativeArray for Burst-job consumption.
+    /// Returns a default (uncreated) NativeArray when the system isn't initialized yet —
+    /// callers must check <see cref="NativeArray{T}.IsCreated"/> before scheduling a
+    /// reader job. Only valid for the current frame; NativeList memory may move on
+    /// Add/RemoveAt so the array must be re-acquired each frame.
+    /// </summary>
+    public static NativeArray<RemoteFrameOutput> GetRemoteFrameArray()
+        => sInitialized && sOut.IsCreated ? sOut.AsArray() : default;
+
+    /// <summary>
     /// Returns the computed outgoing/world center-eye position and rotation for an avatar by key.
     /// </summary>
     /// <param name="key">Avatar key used when adding the player.</param>
     /// <param name="position">On success, the center-eye world position.</param>
     /// <param name="rotation">On success, the center-eye world rotation.</param>
     /// <returns><c>true</c> if the key is found; otherwise <c>false</c>.</returns>
-    public static bool GetOutGoingCenterEye(int key, out float3 position, out quaternion rotation)
+    public static unsafe bool GetOutGoingCenterEye(int key, out float3 position, out quaternion rotation)
     {
         if ((uint)key >= (uint)sKeyToIndex.Length)
         {
@@ -1212,7 +1239,10 @@ public static class RemoteBoneJobSystem
             rotation = default;
             return false;
         }
-        var frame = sOut[idx];
+        // Pointer access avoids NativeList<T>.get_Item — that indexer carries
+        // bounds + safety-handle overhead that shows up under the gaze loop's
+        // hot path when iterating many remote players.
+        var frame = ((RemoteFrameOutput*)Unity.Collections.LowLevel.Unsafe.NativeListUnsafeUtility.GetUnsafeReadOnlyPtr(sOut))[idx];
         position = frame.pos_CenterEye;
         rotation = frame.rot_CenterEye;
         return true;

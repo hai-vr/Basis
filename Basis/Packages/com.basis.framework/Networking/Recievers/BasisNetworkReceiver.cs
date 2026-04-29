@@ -184,7 +184,10 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void PostCompute()
         {
-            AudioReceiverModule?.ApplyAudioState();
+            // AudioReceiverModule is field-initialized at construction and never
+            // assigned null; the lifecycle guarantees this. Drop the ?. so the
+            // per-receiver hot path doesn't pay the null check.
+            AudioReceiverModule.ApplyAudioState();
         }
 
         /// <summary>
@@ -198,7 +201,7 @@ namespace Basis.Scripts.Networking.Receivers
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.BeginSample("ComputeData.AudioDecode");
 #endif
-            AudioReceiverModule?.DrainAndDecodeThreadSafe();
+            AudioReceiverModule.DrainAndDecodeThreadSafe();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.EndSample();
 #endif
@@ -524,7 +527,7 @@ namespace Basis.Scripts.Networking.Receivers
                 hasEvents = false;
             }
 
-            AudioReceiverModule?.OnDestroy();
+            AudioReceiverModule.OnDestroy();
         }
 
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)

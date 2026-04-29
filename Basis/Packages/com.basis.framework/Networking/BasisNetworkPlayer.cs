@@ -34,7 +34,34 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         private bool _hasReasonToSendAudio;
         public static BasisRangedUshortFloatData RotationCompression = new BasisRangedUshortFloatData(-1f, 1f, 0.001f);
         public const int MuscleCount = 95;
-        public BasisPlayer Player {get; set; }
+        // Plain field, not an auto-property: read every frame in the gaze loop,
+        // SimulateNetworkApply, AvatarLoadComplete, and many other hot paths.
+        // Auto-property compiles to a get_Player() method call that Mono in the
+        // editor doesn't inline, showing up in the profiler at thousand-player
+        // scale. Same reasoning as playerId / HasOverridenDestination below.
+        // [NonSerialized] preserves the auto-property's "Unity won't serialize this"
+        // behavior — Player is always assigned at runtime by the player factory.
+        //
+        // Invariant: non-null for any BasisNetworkPlayer that is currently in
+        // BasisNetworkPlayers.Players (i.e. published into the dictionary or in
+        // ReceiversSnapshot). The factory writes Player before publishing the
+        // entry, and the entry is removed before Player is cleared on teardown.
+        // Hot loops iterating ReceiversSnapshot can read Player.X directly without
+        // a null check; only initialization, UI, or async-lookup paths that may
+        // race a despawn need <see cref="TryGetPlayer"/> (the safe accessor).
+        [System.NonSerialized] public BasisPlayer Player;
+
+        /// <summary>
+        /// Safe accessor for callers that may run before the receiver is published
+        /// or after it has started teardown — UI, async ownership lookups, etc.
+        /// Hot per-frame paths should read <see cref="Player"/> directly.
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        public bool TryGetPlayer(out BasisPlayer player)
+        {
+            player = Player;
+            return player != null;
+        }
         public bool hasID = false;
         public bool HasReasonToSendAudio
         {
@@ -53,13 +80,19 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
             }
         }
-        public ushort playerId {get; protected set; }
+        // Plain field, not an auto-property: this is read thousands of times per
+        // frame in hot loops (SimulateNetworkApply, SetSkipMuscles, nameplate
+        // gather, etc.). Auto-property compiles to a get_playerId() method call
+        // that Mono in the editor does not inline, showing up in the profiler as
+        // a measurable per-call cost at 1k+ remotes. Subclasses still assign it
+        // directly (Receiver/Transmitter/UnInitalized constructors).
+        public ushort playerId;
         /// <summary>
         /// Local realtime (Time.realtimeSinceStartup) at which this player was constructed.
         /// Used to sort the players UI by arrival order and to display "joined Xs ago".
         /// Captured here because the server doesn't send a join timestamp.
         /// </summary>
-        public float JoinTime { get; protected set; } = Time.realtimeSinceStartup;
+        public float JoinTime = Time.realtimeSinceStartup;
         public Dictionary<byte, ServerAvatarDataMessageQueue> NextMessages = new Dictionary<byte, ServerAvatarDataMessageQueue>();
         public struct ServerAvatarDataMessageQueue
         {
@@ -406,9 +439,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return Quaternion.identity;
             }
         }
-        public bool HasOverridenDestination { get; private set; } = false;
-        public float3 OverridenPosition { get; private set; } = float3.zero;
-        public Quaternion OverridenRotation { get; private set; } = Quaternion.identity;
+        // Plain fields — read once per receiver per frame in
+        // BasisNetworkManagement.SimulateNetworkApply (and SetFilteredHipsOverride).
+        // Same reasoning as playerId: auto-property getters were showing up in
+        // the profiler at scale because Mono editor builds don't inline them.
+        // Writes are still funneled through OverridenDestinationOfRoot /
+        // ProvidedDestinationOfRoot, so the "private set" intent is preserved
+        // by convention even though the field is technically writable.
+        public bool HasOverridenDestination = false;
+        public float3 OverridenPosition = float3.zero;
+        public Quaternion OverridenRotation = Quaternion.identity;
         public void OverridenDestinationOfRoot(bool hasOverridenDestination)
         {
             if (Player.IsLocal)
@@ -489,29 +529,17 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             get
             {
-                if (Player != null)
-                {
-                    return Player.DisplayName;
-                }
-                else
-                {
-                    return string.Empty;
-                }
+                var p = Player;
+                return p != null ? p.DisplayName : string.Empty;
             }
         }
-        
+
         public string SafeDisplayName
         {
             get
             {
-                if (Player != null)
-                {
-                    return Player.SafeDisplayName;
-                }
-                else
-                {
-                    return string.Empty;
-                }
+                var p = Player;
+                return p != null ? p.SafeDisplayName : string.Empty;
             }
         }
     }

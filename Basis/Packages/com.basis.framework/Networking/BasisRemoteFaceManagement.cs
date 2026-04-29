@@ -9,6 +9,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Jobs;
 
 /// <summary>
 /// Remote Face Management
@@ -50,6 +51,23 @@ public static class BasisRemoteFaceManagement
     // snapshot[i].RemotePlayer.RemoteFaceDriver / .EyesAndMouth dereferences in Apply.
     public static BasisRemoteFaceDriver[] faceCache = Array.Empty<BasisRemoteFaceDriver>();
     public static float[][] eyesCache = Array.Empty<float[]>();
+
+    // ── IJobParallelForTransform state for eye-bone writes ─────────────────
+    // The TransformAccessArray contains 2 transforms per included slot
+    // (left, right), and the per-pair pairToSlot map points each pair back to
+    // the receiver slot index so the job can index eyeRotL / eyeRotR / useJobEye.
+    // Membership is "slot has eye bones AND both transforms non-null" — OverrideEye
+    // is checked dynamically inside the job via useJobEye, so flipping override
+    // does NOT trigger a rebuild.
+    public static TransformAccessArray eyeTransforms;
+    public static NativeArray<int> pairToSlot;
+    public static int eyeTransformPairCount;
+    // lastHasEyeBones[i] mirrors the slot's eye-bones-presence as it was when we
+    // last built eyeTransforms. Compared against the current value during Simulate
+    // to detect avatar reloads / player swaps cheaply.
+    public static NativeArray<byte> lastHasEyeBones;
+    public static int lastBuiltCount;
+    public static bool eyeTransformJobScheduled;
 
     public static int capacity;
 
@@ -102,14 +120,18 @@ public static class BasisRemoteFaceManagement
         EnsureArrays(count, t, snapshot);
         EnsureManagedCaches(count);
 
-        // Build per-slot face/eye cache and per-slot calibration / active flag.
-        // Done once per frame on main thread so the Burst job can vectorize the
-        // eye math against pre-laid-out NativeArrays.
+        // Build per-slot face/eye cache, per-slot calibration / active flag, and
+        // simultaneously detect whether the TransformAccessArray membership needs
+        // a rebuild. Rebuild is required when count changes, when a slot's face
+        // driver reference changes (player swap or avatar reload), or when a
+        // slot's "has valid eye bones" presence flips.
+        bool needRebuild = !eyeTransforms.isCreated || lastBuiltCount != count;
         unsafe
         {
             EyeCalibrationBlit* pCalL = (EyeCalibrationBlit*)eyeCalLeft.GetUnsafePtr();
             EyeCalibrationBlit* pCalR = (EyeCalibrationBlit*)eyeCalRight.GetUnsafePtr();
             byte* pUse = (byte*)useJobEye.GetUnsafePtr();
+            byte* pLastHas = (byte*)lastHasEyeBones.GetUnsafePtr();
 
             for (int i = 0; i < count; i++)
             {
@@ -117,14 +139,35 @@ public static class BasisRemoteFaceManagement
                 BasisRemotePlayer remote = receiver.RemotePlayer;
                 BasisRemoteFaceDriver Face = remote.RemoteFaceDriver;
 
+                // "Slot has valid eye bones we can drive from a job":
+                // requires both calibrated bones AND non-null transforms.
+                bool hasValidEyeBones = Face.HasEyeBones
+                    && Face.LeftEyeTransform != null
+                    && Face.RightEyeTransform != null;
+                byte hasValidByte = hasValidEyeBones ? (byte)1 : (byte)0;
+
+                // Detect change against last-built snapshot before overwriting caches.
+                if (!needRebuild)
+                {
+                    if (i >= lastBuiltCount
+                        || !ReferenceEquals(faceCache[i], Face)
+                        || pLastHas[i] != hasValidByte)
+                    {
+                        needRebuild = true;
+                    }
+                }
+
                 faceCache[i] = Face;
                 eyesCache[i] = receiver.EyesAndMouth;
+                pLastHas[i] = hasValidByte;
 
                 // The job's pre-computed quaternions are only valid for slots where
                 // eye floats came from our eyeOut state. When OverrideEye is set
                 // (face-tracking is driving EyesAndMouth), Apply takes the legacy
                 // main-thread path so face-tracking values flow through asin/calib.
-                bool useJob = Face.HasEyeBones && !Face.OverrideEye;
+                // OverrideEye flipping is checked dynamically by the transform-write
+                // job via useJobEye — it does NOT force a TransformAccessArray rebuild.
+                bool useJob = hasValidEyeBones && !Face.OverrideEye;
                 pUse[i] = useJob ? (byte)1 : (byte)0;
 
                 if (useJob)
@@ -143,6 +186,11 @@ public static class BasisRemoteFaceManagement
                     };
                 }
             }
+        }
+
+        if (needRebuild)
+        {
+            RebuildEyeTransformsArray();
         }
 
         var job = new RemoteAnimJob
@@ -176,8 +224,89 @@ public static class BasisRemoteFaceManagement
             eyeRotR = eyeRotR,
         };
 
-        handle = job.Schedule(count, BatchSize);
+        JobHandle animHandle = job.Schedule(count, BatchSize);
+
+        // Chain the transform-write job: worker threads write Transform.localRotation
+        // for every eye-having slot in parallel, leaving Apply with no main-thread
+        // localRotation P/Invokes for non-overridden remotes.
+        if (eyeTransforms.isCreated && eyeTransformPairCount > 0)
+        {
+            var writeJob = new EyeTransformWriteJob
+            {
+                pairToSlot = pairToSlot,
+                useJobEye = useJobEye,
+                eyeRotL = eyeRotL,
+                eyeRotR = eyeRotR,
+            };
+            handle = writeJob.Schedule(eyeTransforms, animHandle);
+            eyeTransformJobScheduled = true;
+        }
+        else
+        {
+            handle = animHandle;
+            eyeTransformJobScheduled = false;
+        }
         HasJob = true;
+    }
+
+    /// <summary>
+    /// Rebuild <see cref="eyeTransforms"/> + <see cref="pairToSlot"/> for the
+    /// current snapshot. Only includes slots whose face driver reports both
+    /// <c>HasEyeBones</c> and non-null left/right transforms. Must be called
+    /// from the main thread, and any in-flight job using these arrays must
+    /// already be complete (caller's responsibility).
+    /// </summary>
+    static void RebuildEyeTransformsArray()
+    {
+        // Stop any in-flight transform job before we mutate the structure
+        // it's reading. handle is the chain (anim → transform write); waiting
+        // on it covers both.
+        if (HasJob)
+        {
+            handle.Complete();
+            HasJob = false;
+            eyeTransformJobScheduled = false;
+        }
+
+        if (eyeTransforms.isCreated)
+        {
+            eyeTransforms.Dispose();
+        }
+
+        // Count the included slots so we can size the TransformAccessArray.
+        int validCount = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (lastHasEyeBones[i] != 0) validCount++;
+        }
+
+        eyeTransforms = new TransformAccessArray(validCount * 2);
+
+        if (pairToSlot.IsCreated && pairToSlot.Length < validCount)
+        {
+            pairToSlot.Dispose();
+        }
+        if (!pairToSlot.IsCreated || pairToSlot.Length < validCount)
+        {
+            pairToSlot = new NativeArray<int>(math.max(16, math.ceilpow2(math.max(1, validCount))), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        }
+
+        int pair = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (lastHasEyeBones[i] == 0) continue;
+            BasisRemoteFaceDriver Face = faceCache[i];
+            // hasValidEyeBones already verified both transforms non-null at gather time;
+            // re-checking here costs nothing and protects against teardown races.
+            if (Face.LeftEyeTransform == null || Face.RightEyeTransform == null) continue;
+
+            eyeTransforms.Add(Face.LeftEyeTransform);
+            eyeTransforms.Add(Face.RightEyeTransform);
+            pairToSlot[pair++] = i;
+        }
+
+        eyeTransformPairCount = pair;
+        lastBuiltCount = count;
     }
 
     public static void Apply()
@@ -205,8 +334,6 @@ public static class BasisRemoteFaceManagement
         {
             EyeOutput* pEyeOut = (EyeOutput*)eyeOut.GetUnsafeReadOnlyPtr();
             float* pBlinkOut = (float*)blinkOut.GetUnsafeReadOnlyPtr();
-            quaternion* pRotL = (quaternion*)eyeRotL.GetUnsafeReadOnlyPtr();
-            quaternion* pRotR = (quaternion*)eyeRotR.GetUnsafeReadOnlyPtr();
             byte* pUse = (byte*)useJobEye.GetUnsafeReadOnlyPtr();
             float* pLastBlink = (float*)lastBlinkApplied.GetUnsafePtr();
 
@@ -229,24 +356,15 @@ public static class BasisRemoteFaceManagement
                 // Apply the eye floats to the actual eye bones. Eye bones are excluded
                 // from the network bone sync (BasisBoneRotationCompression.SyncBoneCount = 51),
                 // so without this write remote eyes would be frozen at calibration pose.
-                if (Face.HasEyeBones)
+                //
+                // For useJobEye = 1 slots the IJobParallelForTransform already wrote
+                // both eye transforms on a worker thread — main thread does nothing.
+                // For useJobEye = 0 slots (OverrideEye / face-tracking active), the
+                // job skipped them and we do the legacy asin+calib path here so
+                // EyesAndMouth values from EyeTrackingBoneActuation flow through.
+                if (Face.HasEyeBones && pUse[Index] == 0)
                 {
-                    if (pUse[Index] != 0)
-                    {
-                        // Burst job already produced the final localRotation per eye —
-                        // here it's just two property assignments (one P/Invoke each)
-                        // instead of asin + AxisAngle + 3 quaternion muls per eye.
-                        Transform leftEye = Face.LeftEyeTransform;
-                        Transform rightEye = Face.RightEyeTransform;
-                        if (leftEye != null) leftEye.localRotation = pRotL[Index];
-                        if (rightEye != null) rightEye.localRotation = pRotR[Index];
-                    }
-                    else
-                    {
-                        // OverrideEye: eyes[] was just written by face-tracking, run the
-                        // legacy main-thread path so the asin/calib transform applies.
-                        Face.ApplyEyeRotations(eyes[0], eyes[1], eyes[2], eyes[3]);
-                    }
+                    Face.ApplyEyeRotations(eyes[0], eyes[1], eyes[2], eyes[3]);
                 }
 
                 // BlinkingEnabled is the visibility flag — UpdateFaceVisibility(false)
@@ -336,6 +454,10 @@ public static class BasisRemoteFaceManagement
         var newEyeRotL = new NativeArray<quaternion>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
         var newEyeRotR = new NativeArray<quaternion>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
 
+        // lastHasEyeBones starts at 0 for every slot so the first Simulate after a
+        // grow will compare-mismatch any new eye-having receiver and trigger a rebuild.
+        var newLastHasEyeBones = new NativeArray<byte>(newCap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+
         // lastBlinkApplied uses NaN as "never written" sentinel so the first
         // computed weight forces a SetBlendShapeWeight call through.
         var newLastBlinkApplied = new NativeArray<float>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
@@ -355,6 +477,7 @@ public static class BasisRemoteFaceManagement
             NativeArray<byte>.Copy(useJobEye, newUseJobEye, copyCount);
             NativeArray<quaternion>.Copy(eyeRotL, newEyeRotL, copyCount);
             NativeArray<quaternion>.Copy(eyeRotR, newEyeRotR, copyCount);
+            NativeArray<byte>.Copy(lastHasEyeBones, newLastHasEyeBones, copyCount);
             NativeArray<float>.Copy(lastBlinkApplied, newLastBlinkApplied, copyCount);
 
             DisposeArrays();
@@ -371,6 +494,7 @@ public static class BasisRemoteFaceManagement
         useJobEye = newUseJobEye;
         eyeRotL = newEyeRotL;
         eyeRotR = newEyeRotR;
+        lastHasEyeBones = newLastHasEyeBones;
         lastBlinkApplied = newLastBlinkApplied;
 
         // Seed RNGs + initialize ONLY the new slots
@@ -459,6 +583,7 @@ public static class BasisRemoteFaceManagement
         if (useJobEye.IsCreated) useJobEye.Dispose();
         if (eyeRotL.IsCreated) eyeRotL.Dispose();
         if (eyeRotR.IsCreated) eyeRotR.Dispose();
+        if (lastHasEyeBones.IsCreated) lastHasEyeBones.Dispose();
         if (lastBlinkApplied.IsCreated) lastBlinkApplied.Dispose();
     }
 
@@ -466,6 +591,11 @@ public static class BasisRemoteFaceManagement
     {
         handle.Complete();
         DisposeArrays();
+        if (eyeTransforms.isCreated) eyeTransforms.Dispose();
+        if (pairToSlot.IsCreated) pairToSlot.Dispose();
+        eyeTransformPairCount = 0;
+        eyeTransformJobScheduled = false;
+        lastBuiltCount = 0;
         capacity = 0;
 
         faceCache = Array.Empty<BasisRemoteFaceDriver>();
@@ -652,6 +782,36 @@ public static class BasisRemoteFaceManagement
         {
             if (!math.isfinite(x)) return 0f;
             return math.saturate(x);
+        }
+    }
+
+    /// <summary>
+    /// Writes pre-computed eye localRotations to the receivers' eye Transforms on
+    /// worker threads. Iterates a <see cref="TransformAccessArray"/> built once
+    /// per change-of-membership; pairs (2 transforms per eye-having slot) are
+    /// laid out [L0, R0, L1, R1, …] so <c>index &gt;&gt; 1</c> recovers the pair
+    /// and <c>index &amp; 1</c> picks left vs. right. Per-pair the slot in the
+    /// underlying NativeArrays comes from <see cref="pairToSlot"/>; OverrideEye
+    /// slots are skipped here so Apply can run the legacy main-thread path.
+    /// </summary>
+    [BurstCompile]
+    public struct EyeTransformWriteJob : IJobParallelForTransform
+    {
+        [ReadOnly] public NativeArray<int> pairToSlot;
+        [ReadOnly] public NativeArray<byte> useJobEye;
+        [ReadOnly] public NativeArray<quaternion> eyeRotL;
+        [ReadOnly] public NativeArray<quaternion> eyeRotR;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            int pair = index >> 1;
+            int slot = pairToSlot[pair];
+            // Slot turned OverrideEye between Simulate and now — main-thread Apply
+            // will write face-tracking values for this slot; leave the transform alone.
+            if (useJobEye[slot] == 0) return;
+
+            bool isLeft = (index & 1) == 0;
+            transform.localRotation = isLeft ? eyeRotL[slot] : eyeRotR[slot];
         }
     }
 

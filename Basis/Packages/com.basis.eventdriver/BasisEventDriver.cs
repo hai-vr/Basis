@@ -450,7 +450,7 @@ public partial class BasisEventDriver : MonoBehaviour
         switch (section)
         {
             case PROF_REMOTE_AUDIO_SIMULATE:
-                BasisEventDriverProfilerData.RemoteAudioDriverCount = BasisRemoteAudioDriver.Drivers.Count;
+                BasisEventDriverProfilerData.RemoteAudioDriverCount = BasisRemoteAudioDriver.DriversCount;
                 break;
             case PROF_NAMEPLATE_COMPLETE:
                 BasisEventDriverProfilerData.NamePlateJobWasIncomplete = !BasisRemoteNamePlateDriver.handle.IsCompleted;

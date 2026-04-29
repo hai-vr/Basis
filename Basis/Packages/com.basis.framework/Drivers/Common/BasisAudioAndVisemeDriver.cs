@@ -262,8 +262,16 @@ namespace Basis.Scripts.Drivers
         /// Set by BasisTransmissionResults: false when the player is too far away
         /// for lip-sync to be visually meaningful (beyond half the hearing range).
         /// Checked in Simulate and ProcessAudioSamples to skip expensive work.
+        /// Mutate via <see cref="BasisRemoteAudioDriver.SetVisemeRange"/> so the
+        /// active-driver list stays in sync.
         /// </summary>
         public volatile bool InVisemeRange = true;
+
+        // Slot in BasisRemoteAudioDriver.Drivers; -1 when not registered.
+        [System.NonSerialized] internal int RegisteredIndex = -1;
+
+        // Slot in BasisRemoteAudioDriver.ActiveDrivers; -1 when out of range.
+        [System.NonSerialized] internal int ActiveIndex = -1;
 
         /// <summary>
         /// Callback that updates whether viseme processing is active based on face visibility.

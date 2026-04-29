@@ -363,7 +363,7 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource.maxDistance = Distance;
         }
 
-        public async Task LoadAudioSource(BasisNetworkPlayer networkedPlayer, Transform MouthParent, float MaxDistance)
+        public async Task LoadAudioSource(BasisNetworkReceiver networkedPlayer, Transform MouthParent, float MaxDistance)
         {
             if (AudioSourceTransform == null || audioSource == null)
             {
@@ -389,7 +389,9 @@ namespace Basis.Scripts.Networking.Receivers
             try
             {
                 var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
-                bool tempBlocked = networkedPlayer.Player is BasisRemotePlayer rp && rp.TempBlocked;
+                // BasisAudioReceiver only ever wraps a remote player; use the pre-cast
+                // RemotePlayer field instead of repeating `is BasisRemotePlayer`.
+                bool tempBlocked = networkedPlayer.RemotePlayer.TempBlocked;
                 bool muted = settings.IsBlocked || tempBlocked;
                 ChangeRemotePlayersVolumeSettings(muted ? 0f : settings.VolumeLevel);
             }
