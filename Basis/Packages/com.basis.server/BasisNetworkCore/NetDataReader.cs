@@ -4,6 +4,7 @@
 //  - <https://github.com/RevenantX/LiteNetLib/blob/6a9e5e39d15642a07482b1c883220cffe5823ce6/LiteNetLib/Utils/NetDataReader.cs>
 
 using System;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -235,7 +236,7 @@ namespace Basis.Network.Core {
 
         public T[] GetArray<T>(ushort size)
         {
-            ushort length = BitConverter.ToUInt16(_data, _position);
+            ushort length = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(_position));
             _position += 2;
             T[] result = new T[length];
             length *= size;
@@ -351,58 +352,58 @@ namespace Basis.Network.Core {
 
         public ushort GetUShort()
         {
-            ushort result = BitConverter.ToUInt16(_data, _position);
+            ushort result = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(_position));
             _position += 2;
             return result;
         }
 
         public short GetShort()
         {
-            short result = BitConverter.ToInt16(_data, _position);
+            short result = BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan(_position));
             _position += 2;
             return result;
         }
 
         public long GetLong()
         {
-            long result = BitConverter.ToInt64(_data, _position);
+            long result = BinaryPrimitives.ReadInt64LittleEndian(_data.AsSpan(_position));
             _position += 8;
             return result;
         }
 
         public ulong GetULong()
         {
-            ulong result = BitConverter.ToUInt64(_data, _position);
+            ulong result = BinaryPrimitives.ReadUInt64LittleEndian(_data.AsSpan(_position));
             _position += 8;
             return result;
         }
 
         public int GetInt()
         {
-            int result = BitConverter.ToInt32(_data, _position);
+            int result = BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(_position));
             _position += 4;
             return result;
         }
 
         public uint GetUInt()
         {
-            uint result = BitConverter.ToUInt32(_data, _position);
+            uint result = BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(_position));
             _position += 4;
             return result;
         }
 
         public float GetFloat()
         {
-            float result = BitConverter.ToSingle(_data, _position);
+            int bits = BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(_position));
             _position += 4;
-            return result;
+            return BitConverter.Int32BitsToSingle(bits);
         }
 
         public double GetDouble()
         {
-            double result = BitConverter.ToDouble(_data, _position);
+            long bits = BinaryPrimitives.ReadInt64LittleEndian(_data.AsSpan(_position));
             _position += 8;
-            return result;
+            return BitConverter.Int64BitsToDouble(bits);
         }
 
         /// <summary>
@@ -552,42 +553,42 @@ namespace Basis.Network.Core {
 
         public ushort PeekUShort()
         {
-            return BitConverter.ToUInt16(_data, _position);
+            return BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(_position));
         }
 
         public short PeekShort()
         {
-            return BitConverter.ToInt16(_data, _position);
+            return BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan(_position));
         }
 
         public long PeekLong()
         {
-            return BitConverter.ToInt64(_data, _position);
+            return BinaryPrimitives.ReadInt64LittleEndian(_data.AsSpan(_position));
         }
 
         public ulong PeekULong()
         {
-            return BitConverter.ToUInt64(_data, _position);
+            return BinaryPrimitives.ReadUInt64LittleEndian(_data.AsSpan(_position));
         }
 
         public int PeekInt()
         {
-            return BitConverter.ToInt32(_data, _position);
+            return BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(_position));
         }
 
         public uint PeekUInt()
         {
-            return BitConverter.ToUInt32(_data, _position);
+            return BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(_position));
         }
 
         public float PeekFloat()
         {
-            return BitConverter.ToSingle(_data, _position);
+            return BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(_position)));
         }
 
         public double PeekDouble()
         {
-            return BitConverter.ToDouble(_data, _position);
+            return BitConverter.Int64BitsToDouble(BinaryPrimitives.ReadInt64LittleEndian(_data.AsSpan(_position)));
         }
 
         /// <summary>
