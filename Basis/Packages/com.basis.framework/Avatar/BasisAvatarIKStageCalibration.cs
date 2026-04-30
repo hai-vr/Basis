@@ -513,12 +513,12 @@ namespace Basis.Scripts.Avatar
                 new BoneRolePrior(BasisBoneTrackedRole.Chest,          h: 0.78f, lat: 0f,                 hSigma: 0.08f, latSigma: 0.10f),
 
                 // Legs — toes near floor, feet just above, knees mid-shin.
-                new BoneRolePrior(BasisBoneTrackedRole.LeftToes,       h: 0.02f, lat: -0.10f,             hSigma: 0.04f, latSigma: 0.12f),
-                new BoneRolePrior(BasisBoneTrackedRole.RightToes,      h: 0.02f, lat: +0.10f,             hSigma: 0.04f, latSigma: 0.12f),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftFoot,       h: 0.05f, lat: -0.10f,             hSigma: 0.08f, latSigma: 0.12f),
-                new BoneRolePrior(BasisBoneTrackedRole.RightFoot,      h: 0.05f, lat: +0.10f,             hSigma: 0.08f, latSigma: 0.12f),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerLeg,   h: 0.27f, lat: -0.10f,             hSigma: 0.10f, latSigma: 0.12f),
-                new BoneRolePrior(BasisBoneTrackedRole.RightLowerLeg,  h: 0.27f, lat: +0.10f,             hSigma: 0.10f, latSigma: 0.12f),
+                new BoneRolePrior(BasisBoneTrackedRole.LeftToes,       h: 0.02f, lat: -0.10f,             hSigma: 0.04f, latSigma: 0.07f),
+                new BoneRolePrior(BasisBoneTrackedRole.RightToes,      h: 0.02f, lat: +0.10f,             hSigma: 0.04f, latSigma: 0.07f),
+                new BoneRolePrior(BasisBoneTrackedRole.LeftFoot,       h: 0.05f, lat: -0.10f,             hSigma: 0.08f, latSigma: 0.07f),
+                new BoneRolePrior(BasisBoneTrackedRole.RightFoot,      h: 0.05f, lat: +0.10f,             hSigma: 0.08f, latSigma: 0.07f),
+                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerLeg,   h: 0.27f, lat: -0.10f,             hSigma: 0.10f, latSigma: 0.07f),
+                new BoneRolePrior(BasisBoneTrackedRole.RightLowerLeg,  h: 0.27f, lat: +0.10f,             hSigma: 0.10f, latSigma: 0.07f),
 
                 // Arms in T-pose share approximate height; lateral position discriminates
                 // shoulder vs elbow vs (the implied hand controller out past the elbow).
@@ -533,8 +533,8 @@ namespace Basis.Scripts.Avatar
                 // any armReach value.
                 new BoneRolePrior(BasisBoneTrackedRole.LeftShoulder,   h: 0.88f, lat: -armReach * 0.30f,  hSigma: 0.08f, latSigma: armReach * 0.08f),
                 new BoneRolePrior(BasisBoneTrackedRole.RightShoulder,  h: 0.88f, lat: +armReach * 0.30f,  hSigma: 0.08f, latSigma: armReach * 0.08f),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerArm,   h: 0.88f, lat: -armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.08f),
-                new BoneRolePrior(BasisBoneTrackedRole.RightLowerArm,  h: 0.88f, lat: +armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.08f),
+                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerArm,   h: 0.88f, lat: -armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.12f),
+                new BoneRolePrior(BasisBoneTrackedRole.RightLowerArm,  h: 0.88f, lat: +armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.12f),
             };
         }
 
