@@ -510,24 +510,51 @@ namespace Basis.Scripts.Drivers
                     DrawGizmos(Controls[Index]);
                 }
             }
-            if (SMModuleDebugOptions.UseCalibrationSpheres)
+            if (SMModuleDebugOptions.UseCalibrationSpheres
+                && GizmoBones.Count > 0
+                && BasisAvatarIKStageCalibration.TryGetCalibrationVisualizationFrame(
+                    out Vector3 bodyOrigin,
+                    out Quaternion bodyRot,
+                    out float eyeHeight,
+                    out _))
             {
+                // Body frame is recomputed every frame from the live HMD pose so
+                // the regions track wherever the player is now. The visualization
+                // helper picks snapshot priors when a calibration has run, default
+                // priors otherwise — either way the gizmos appear immediately.
+
                 for (int i = 0; i < GizmoBones.Count; i++)
                 {
                     GizmoBone GizmoBone = GizmoBones[i];
-                    if (GizmoBone.GizmoTransform != null)
-                    {
-                        // Single Transform read for both pos+rot, single write
-                        // on the gizmo side — halves the marshalling cost vs
-                        // .position / .rotation property pairs.
-                        GizmoBone.GizmoTransform.GetPositionAndRotation(out Vector3 bonePos, out Quaternion boneRot);
-                        float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * SMModuleCalibration.GetSphereScale(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
-                        BasisGizmoManager.UpdateSphereGizmo(
-                            GizmoBone.GizmoReference,
-                            bonePos,
-                            boneRot,
-                            Vector3.one * ScaledDistance);
-                    }
+
+                    // Center of the acceptance region in body-local playspace:
+                    // X = lateral * eye, Y = vertical * eye, Z = 0 (depth is not
+                    // scored, so we anchor on the body-frame plane).
+                    Vector3 localOffset = new Vector3(
+                        GizmoBone.ExpectedLateral * eyeHeight,
+                        GizmoBone.ExpectedHeight * eyeHeight,
+                        0f);
+                    Vector3 worldPos = bodyOrigin + bodyRot * localOffset;
+
+                    // 3σ acceptance radius in each scoring axis × 2 = diameter for
+                    // the unit-diameter sphere mesh. Depth is unconstrained by
+                    // ScoreSampleAgainstRole, so we use the larger of the two
+                    // scoring axes — keeps the ellipsoid visible from any angle
+                    // without implying depth gates classification.
+                    float latDiameter = 6f * GizmoBone.LateralSigma * eyeHeight;
+                    float vertDiameter = 6f * GizmoBone.HeightSigma * eyeHeight;
+                    float depthDiameter = Mathf.Max(latDiameter, vertDiameter);
+
+                    // Per-bone CalibSphereScale stays useful as a visualization
+                    // size knob — multiplies all three axes uniformly.
+                    float vizMul = SMModuleCalibration.GetSphereScale(GizmoBone.Control);
+                    Vector3 scale = new Vector3(latDiameter, vertDiameter, depthDiameter) * vizMul;
+
+                    BasisGizmoManager.UpdateSphereGizmo(
+                        GizmoBone.GizmoReference,
+                        worldPos,
+                        bodyRot,
+                        scale);
                 }
             }
         }
@@ -778,41 +805,67 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
-            BasisLocalPlayer player = BasisLocalPlayer.Instance;
-            if (player == null || player.LocalAvatarDriver == null)
-            {
-                return;
-            }
-            Dictionary<BasisBoneTrackedRole, Transform> storedRoles = player.LocalAvatarDriver.StoredRolesTransforms;
-            if (storedRoles == null)
+            // Pull the prior list via the visualization helper so we get either
+            // snapshot priors (when a calibration has run) or default-armReach
+            // priors (when it hasn't). Body frame from the helper is unused here
+            // — it's recomputed every frame in DrawGizmos so regions track the
+            // live HMD pose.
+            if (!BasisAvatarIKStageCalibration.TryGetCalibrationVisualizationFrame(
+                out _,
+                out _,
+                out _,
+                out IReadOnlyList<BasisAvatarIKStageCalibration.ConstellationDebug.DebugPrior> priors))
             {
                 return;
             }
 
+            // Build a role → bone-control lookup so each region picks up the
+            // matching bone's rainbow color. Some priors (e.g. arm roles) may
+            // not have a 1:1 control in the avatar; those fall through to a
+            // neutral tint instead of pulling a wrong color.
+            Dictionary<BasisBoneTrackedRole, BasisLocalBoneControl> controlByRole = new Dictionary<BasisBoneTrackedRole, BasisLocalBoneControl>(ControlsLength);
             for (int i = 0; i < ControlsLength; i++)
             {
-                BasisBoneTrackedRole role = trackedRoles[i];
-                if (BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(role) <= 0f)
+                controlByRole[trackedRoles[i]] = Controls[i];
+            }
+
+            for (int i = 0; i < priors.Count; i++)
+            {
+                BasisAvatarIKStageCalibration.ConstellationDebug.DebugPrior prior = priors[i];
+                // We deliberately do NOT skip disabled priors here. The body-tracking
+                // calibration toggles control whether the *classifier* tries to bind
+                // a tracker to a role, but for the visualization we want users to
+                // see the full acceptance map — including regions for roles they
+                // could opt in to (e.g. shoulders, which default off). Skipping them
+                // hides parts of the body the user might want to enable.
+
+                Color regionColor;
+                if (controlByRole.TryGetValue(prior.Role, out BasisLocalBoneControl Control))
                 {
-                    continue;
+                    // GizmoMaterial uses additive blending — RGB intensity directly
+                    // controls brightness. Bone colors at full intensity stack
+                    // opaquely on top of the avatar, so dim them to keep regions
+                    // legible without drowning the view.
+                    regionColor = Control.Color * CalibrationSphereTint;
+                    regionColor.a = Control.Color.a;
                 }
-                if (!storedRoles.TryGetValue(role, out Transform target) || target == null)
+                else
                 {
-                    continue;
+                    regionColor = new Color(CalibrationSphereTint, CalibrationSphereTint, CalibrationSphereTint, 1f);
                 }
 
-                BasisLocalBoneControl Control = Controls[i];
-                // GizmoMaterial uses additive blending — RGB intensity directly
-                // controls how bright the sphere lights up the scene. Bone colors
-                // at full intensity stack opaquely on top of the avatar, so dim
-                // them to keep the spheres legible without drowning the view.
-                Color sphereColor = Control.Color * CalibrationSphereTint;
-                sphereColor.a = Control.Color.a;
-                AddGizmo($"{Control.name} IK Calibration Sphere", target, 1f, sphereColor, role);
+                AddCalibrationRegion(
+                    $"{prior.Role} Calibration Region",
+                    prior.Role,
+                    prior.ExpectedHeight,
+                    prior.ExpectedLateral,
+                    prior.HeightSigma,
+                    prior.LateralSigma,
+                    regionColor);
             }
 
             // Honor the sub-toggle's current state — gizmos are created visible,
-            // so hide them now if the user already had spheres turned off.
+            // so hide them now if the user already had regions turned off.
             ApplyCalibrationSphereVisibility();
         }
 
@@ -904,13 +957,22 @@ namespace Basis.Scripts.Drivers
         {
             return BasisHelpers.ConvertToLocalSpace(WorldSpace, Transform.position);
         }
+        /// <summary>
+        /// One per-role calibration region. Position/rotation/scale are all derived
+        /// from the captured body frame + prior data each frame in DrawGizmos —
+        /// the gizmo itself stores only the IDs and the prior values, not a bone
+        /// Transform, because the classifier scores tracker positions in body-local
+        /// playspace, not at the avatar's bone.
+        /// </summary>
         [System.Serializable]
         public class GizmoBone
         {
             public int GizmoReference;
-            public Transform GizmoTransform;
             public BasisBoneTrackedRole Control;
-
+            public float ExpectedHeight;   // ratio: y / eyeHeight at the role's expected position
+            public float ExpectedLateral;  // ratio: signed x / eyeHeight (+x = body right)
+            public float HeightSigma;      // 1σ in HeightRatio space
+            public float LateralSigma;     // 1σ in LateralRatio space
         }
         [SerializeField]
         public List<GizmoBone> GizmoBones = new List<GizmoBone>();
@@ -928,15 +990,27 @@ namespace Basis.Scripts.Drivers
                 BasisGizmoManager.UpdateLineGizmo(Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position);
             }
         }
-        public void AddGizmo(string Name, Transform Transform, float Scale, Color Color, BasisBoneTrackedRole Bone)
+        /// <summary>
+        /// Creates a sphere-mesh gizmo whose non-uniform scale renders as an ellipsoid
+        /// representing one role's calibration acceptance region. The mesh is unit
+        /// diameter, so per-frame scale will be in meters across each axis.
+        /// </summary>
+        public void AddCalibrationRegion(string Name, BasisBoneTrackedRole role, float expectedHeight, float expectedLateral, float heightSigma, float lateralSigma, Color color)
         {
-            GizmoBone GizmoBone = new GizmoBone();
-            if (BasisGizmoManager.CreateSphereGizmo(Name, out int LinkedID, Transform.position, Scale, Color))
+            // Initial pose is a placeholder; DrawGizmos overwrites it next frame from
+            // ConstellationDebug.BodyOrigin/BodyRotation. Scale of 1 keeps the placeholder
+            // visually inert if the first DrawGizmos pass is delayed.
+            if (BasisGizmoManager.CreateSphereGizmo(Name, out int LinkedID, Vector3.zero, 1f, color))
             {
-                GizmoBone.GizmoReference = LinkedID;
-                GizmoBone.GizmoTransform = Transform;
-                GizmoBone.Control = Bone;
-                GizmoBones.Add(GizmoBone);
+                GizmoBones.Add(new GizmoBone
+                {
+                    GizmoReference = LinkedID,
+                    Control = role,
+                    ExpectedHeight = expectedHeight,
+                    ExpectedLateral = expectedLateral,
+                    HeightSigma = heightSigma,
+                    LateralSigma = lateralSigma,
+                });
             }
         }
     }

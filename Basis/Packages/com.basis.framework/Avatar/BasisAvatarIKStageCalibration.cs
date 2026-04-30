@@ -664,6 +664,156 @@ namespace Basis.Scripts.Avatar
                     return 0;
             }
         }
+
+        // Cache for the default-armReach prior list. Rebuilt only when eyeHeight
+        // moves enough to change the armReach scaling — avoids per-frame allocs
+        // while still picking up calibration / scale changes.
+        private static readonly List<ConstellationDebug.DebugPrior> _defaultPriorsCache = new List<ConstellationDebug.DebugPrior>(16);
+        private static float _defaultPriorsArmReach = -1f;
+
+        /// <summary>
+        /// Returns the body-frame anchor and per-role priors used to render
+        /// calibration acceptance-region gizmos. Always prefers a live HMD pose
+        /// so the regions track wherever the player is now (rather than freezing
+        /// at the last calibration snapshot). Falls back to the snapshot frame if
+        /// no HMD device is available, or returns false if there's no usable
+        /// frame source at all.
+        /// </summary>
+        /// <param name="bodyOrigin">World-space anchor: HMD position projected to the floor.</param>
+        /// <param name="bodyRotation">Body forward rotation: HMD facing flattened to horizontal.</param>
+        /// <param name="eyeHeight">Eye height (meters), used to convert ratio-space priors to world distances.</param>
+        /// <param name="priors">Per-role priors. Snapshot priors when a calibration has run, default-armReach priors otherwise.</param>
+        public static bool TryGetCalibrationVisualizationFrame(
+            out Vector3 bodyOrigin,
+            out Quaternion bodyRotation,
+            out float eyeHeight,
+            out IReadOnlyList<ConstellationDebug.DebugPrior> priors)
+        {
+            // The classifier scores in playspace ratios of PlayerEyeHeight, so
+            // the visualization is sized in player-space too — never the avatar's
+            // scale. Avatar scale only matters for the per-bone calibration
+            // offset that maps tracker pose onto avatar bones; the acceptance
+            // region itself is player-relative, regardless of avatar size.
+            float playerEye = Mathf.Max(BasisHeightDriver.PlayerEyeHeight, 1.0f);
+
+            IReadOnlyList<ConstellationDebug.DebugPrior> resolvedPriors =
+                (ConstellationDebug.HasSnapshot && ConstellationDebug.Priors.Count > 0)
+                    ? (IReadOnlyList<ConstellationDebug.DebugPrior>)ConstellationDebug.Priors
+                    : BuildDefaultPriorsList(playerEye);
+
+            // Anchor on the HMD pose. Read passively from UnscaledDeviceCoord —
+            // we deliberately do NOT call LatePollData because that would
+            // re-run the device poll mid-render and stomp on height calibration
+            // (and anything else reading device state in the same frame).
+            // The cached value reflects the most recent normal frame poll, which
+            // is plenty fresh for visualization.
+            if (TryReadHmdPosePassive(out Vector3 hmdPosPlayspace, out Quaternion hmdRotPlayspace))
+            {
+                Vector3 fwd = hmdRotPlayspace * Vector3.forward;
+                fwd.y = 0f;
+                if (fwd.sqrMagnitude < 1e-4f)
+                {
+                    fwd = Vector3.forward;
+                }
+                fwd.Normalize();
+                Quaternion bodyRotPlayspace = Quaternion.LookRotation(fwd, Vector3.up);
+
+                // Lift playspace → world through the player's locomotion matrix
+                // so regions follow teleport / smooth-move. The matrix's scale
+                // is the player root's lossyScale (typically 1) — avatar scale
+                // is applied to the avatar transform inside the root and is
+                // intentionally not reflected here.
+                Matrix4x4 l2w = BasisLocalPlayer.localToWorldMatrix;
+                Vector3 hmdWorld = l2w.MultiplyPoint3x4(hmdPosPlayspace);
+                bodyRotation = l2w.rotation * bodyRotPlayspace;
+                bodyOrigin = new Vector3(hmdWorld.x, hmdWorld.y - playerEye, hmdWorld.z);
+                eyeHeight = playerEye;
+                priors = resolvedPriors;
+                return true;
+            }
+
+            // Last-ditch: snapshot frame lifted to world for the case where
+            // HMD pose isn't available (e.g., before device discovery).
+            if (ConstellationDebug.HasSnapshot)
+            {
+                Matrix4x4 l2w = BasisLocalPlayer.localToWorldMatrix;
+                bodyOrigin = l2w.MultiplyPoint3x4(ConstellationDebug.BodyOrigin);
+                bodyRotation = l2w.rotation * ConstellationDebug.BodyRotation;
+                eyeHeight = playerEye;
+                priors = ConstellationDebug.Priors;
+                return true;
+            }
+
+            bodyOrigin = Vector3.zero;
+            bodyRotation = Quaternion.identity;
+            eyeHeight = 1f;
+            priors = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Passive HMD pose read — same lookup as <see cref="TryGetHmdPose"/>
+        /// but without the <c>LatePollData()</c> call. Safe to invoke from
+        /// per-frame render paths since it never re-runs the device poll.
+        /// </summary>
+        private static bool TryReadHmdPosePassive(out Vector3 unscaledPos, out Quaternion unscaledRot)
+        {
+            BasisDeviceManagement manager = BasisDeviceManagement.Instance;
+            if (manager == null)
+            {
+                unscaledPos = Vector3.zero;
+                unscaledRot = Quaternion.identity;
+                return false;
+            }
+
+            BasisObservableList<BasisInput> devices = manager.AllInputDevices;
+            int count = devices.Count;
+            for (int i = 0; i < count; i++)
+            {
+                BasisInput input = devices[i];
+                if (input == null) continue;
+                if (!input.TryGetRole(out BasisBoneTrackedRole role)) continue;
+                if (role == BasisBoneTrackedRole.CenterEye || role == BasisBoneTrackedRole.Head)
+                {
+                    unscaledPos = input.UnscaledDeviceCoord.position;
+                    unscaledRot = input.UnscaledDeviceCoord.rotation;
+                    return true;
+                }
+            }
+
+            unscaledPos = Vector3.zero;
+            unscaledRot = Quaternion.identity;
+            return false;
+        }
+
+        private static IReadOnlyList<ConstellationDebug.DebugPrior> BuildDefaultPriorsList(float eyeHeight)
+        {
+            float armReach = ConstellationDefaultArmReachRatio * eyeHeight;
+            // Re-build only when armReach moves enough to matter — guards against
+            // every-frame allocations from the per-frame DrawGizmos path.
+            if (_defaultPriorsArmReach < 0f || Mathf.Abs(armReach - _defaultPriorsArmReach) > 0.001f)
+            {
+                _defaultPriorsCache.Clear();
+                BoneRolePrior[] built = BuildPriors(armReach);
+                for (int i = 0; i < built.Length; i++)
+                {
+                    BoneRolePrior p = built[i];
+                    _defaultPriorsCache.Add(new ConstellationDebug.DebugPrior
+                    {
+                        Role = p.Role,
+                        ExpectedHeight = p.ExpectedHeightRatio,
+                        ExpectedLateral = p.ExpectedLateralRatio,
+                        HeightSigma = p.HeightSigma,
+                        LateralSigma = p.LateralSigma,
+                        Enabled = Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(p.Role),
+                        AssignedSampleIndex = -1,
+                    });
+                }
+                _defaultPriorsArmReach = armReach;
+            }
+            return _defaultPriorsCache;
+        }
+
         /// <summary>
         /// Legacy ordered role list from the radius-based matcher. The constellation
         /// classifier no longer reads this — kept public for external consumers that
