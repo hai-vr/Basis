@@ -866,10 +866,10 @@ namespace Basis.Scripts.Drivers
             BasisLocalBoneDriver.ChestControl.OnHasRigChanged += (hasRig) =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
+                d.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
+            data.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
 
             // Chest (head hint)
             BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += (hasRig) =>
@@ -929,7 +929,7 @@ namespace Basis.Scripts.Drivers
                 // data.EnabledRightHand = false;
                 data.HintWeightLeftHand = false;
                 data.HintWeightRightHand = false;
-                data.HintWeightHead = false;
+                data.WeightChest = false;
                 data.EnabledLeftShoulder = false;
                 data.EnabledRightShoulder = false;
                 BasisFullIKConstraint.data = data;

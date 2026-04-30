@@ -256,7 +256,7 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_CollisionsEnabled;
         [SyncSceneToStream, SerializeField] bool m_ProtectElbow;
 
-        [SyncSceneToStream, SerializeField] bool m_HintHeadEnabled;
+        [SyncSceneToStream, SerializeField] bool m_HintChestEnabled;
         [SyncSceneToStream, SerializeField] bool m_SpineIKEnabled;
 
         // IK Lock Mode: 0 = LockHips, 1 = LockHead, 2 = LockBoth (see BasisIKLockMode enum)
@@ -326,7 +326,7 @@ namespace UnityEngine.Animations.Rigging
         public Transform LeftShoulder { get => m_LeftShoulder; set => m_LeftShoulder = value; }
         public Transform RightShoulder { get => m_RightShoulder; set => m_RightShoulder = value; }
         public string EnabledPropertySpineIK => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineIKEnabled));
-        public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintHeadEnabled));
+        public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintChestEnabled));
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
         public string PropertyChestPosition => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
@@ -393,7 +393,7 @@ namespace UnityEngine.Animations.Rigging
         public string StruggleEndFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleEnd));
         public string MaxHipDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxHipDeltaDeg));
         public string MaxChestDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
-        public bool HintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
+        public bool WeightChest { get => m_HintChestEnabled; set => m_HintChestEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public float IKLockMode { get => m_IKLockMode; set => m_IKLockMode = value; }
         public string IKLockModeFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_IKLockMode));
@@ -466,7 +466,7 @@ namespace UnityEngine.Animations.Rigging
 
             m_Hips = null;
 
-            m_HintHeadEnabled = true;
+            m_HintChestEnabled = true;
             m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
             m_SpineIKEnabled = true;
             m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
@@ -680,7 +680,7 @@ namespace UnityEngine.Animations.Rigging
         {
             base.OnValidate();
             // force serialize dirty for animated bools
-            m_Data.HintWeightHead = m_Data.HintWeightHead;
+            m_Data.WeightChest = m_Data.WeightChest;
             m_Data.EnableLeftLowerLeg = m_Data.EnableLeftLowerLeg;
             m_Data.EnableRightLowerLeg = m_Data.EnableRightLowerLeg;
             m_Data.EnabledSpineIK = m_Data.EnabledSpineIK;
@@ -723,10 +723,7 @@ targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
 leftDrivenTargetPos, rightDrivenTargetPos,
 targetPositionLeftHand, hintPositionLeftHand,
-targetPositionRightHand, hintPositionRightHand,
-p0, p1, p2, p3, p4, p5, p6, p7, p8, p9,
-p10, p11, p12, p13, p14, p15, p16, p17, p18, p19,
-p20, p54;
+targetPositionRightHand, hintPositionRightHand;
 
         public Vector4Property targetRotationHead, targetChestRotation,
 targetRotationLeftLowerLeg, hintRotationLeftLowerLeg,
@@ -735,13 +732,15 @@ targetRotationHips, offsetRotationHips,
 leftDrivenTargetRot, rightDrivenTargetRot,
 targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
-TargetRotationLeftShoulder, TargetRotationRightShoulder,
-r0, r1, r2, r3, r4, r5, r6, r7, r8, r9,
-r10, r11, r12, r13, r14, r15, r16, r17, r18, r19,
-r20, r54,
-o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
-o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
-o20, o54;
+TargetRotationLeftShoulder, TargetRotationRightShoulder;
+
+        // Per-slot generic bone overrides (22 slots: indices 0..20 + 54).
+        // Bound from BasisFullBodyData.TargetPosition{N}/TargetRotation{N}/OffsetRotation{N}/Weight{N}.
+        public NativeArray<ReadWriteTransformHandle> SlotBones;
+        public NativeArray<Vector3Property> SlotTargetPositions;
+        public NativeArray<Vector4Property> SlotTargetRotations;
+        public NativeArray<Vector4Property> SlotOffsetRotations;
+        public NativeArray<BoolProperty> SlotWeights;
 
         // Arm bend lookup tables (HVR-IK inspired)
         public NativeArray<Vector3> ArmBendLookupLeft;
@@ -764,24 +763,7 @@ leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand, enabledLeftHand,
 hintWeightRightHand, enabledRightHand,
 useHandCapsule, protectElbow,
-collisionsEnabled,
-w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
-w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
-w20, w54;
-        public NativeArray<ReadWriteTransformHandle> ChainChestToHead;
-        public NativeArray<ReadWriteTransformHandle> ChainHeadToSpine;
-        public NativeArray<float> ChainChestToHeadLengths;
-        public NativeArray<float> ChainHeadToSpineLengths;
-        public NativeArray<Vector3> ChainChestToHeadLinkPositions;
-        public NativeArray<Vector3> ChainHeadToSpineLinkPositions;
-        public float MaxReachSpineTohead;
-        public float MaxReachHeadToChest;
-        // optional tuning (can be constants or properties)
-        public CacheIndex spineToleranceIdx;
-        public CacheIndex spineMaxIterationsIdx;
-        public AnimationJobCache spineCache;
-        public Vector3 TposeLengthHeadToChest;
-        public Vector3 TposeLengthHeadToHips;
+collisionsEnabled;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty shoulderElevationFactor, shoulderProtractionFactor;
         public FloatProperty ikLockMode;
@@ -830,28 +812,11 @@ w20, w54;
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
 
             // 6) Generic per-bone overrides (direct tracker control)
-            Apply(stream, HandleHips, p0, r0, o0, w0);
-            Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
-            Apply(stream, HandleRightUpperLeg, p2, r2, o2, w2);
-            Apply(stream, HandleLeftLowerLeg, p3, r3, o3, w3);
-            Apply(stream, HandleRightLowerLeg, p4, r4, o4, w4);
-            Apply(stream, HandleLeftFoot, p5, r5, o5, w5);
-            Apply(stream, HandleRightFoot, p6, r6, o6, w6);
-            Apply(stream, HandleSpine, p7, r7, o7, w7);
-            Apply(stream, HandleChest, p8, r8, o8, w8);
-            Apply(stream, HandleNeck, p9, r9, o9, w9);
-            Apply(stream, HandleHead, p10, r10, o10, w10);
-            Apply(stream, HandleLeftShoulder, p11, r11, o11, w11);
-            Apply(stream, HandleRightShoulder, p12, r12, o12, w12);
-            Apply(stream, HandleLeftUpperArm, p13, r13, o13, w13);
-            Apply(stream, HandleRightUpperArm, p14, r14, o14, w14);
-            Apply(stream, HandleLeftLowerArm, p15, r15, o15, w15);
-            Apply(stream, HandleRightLowerArm, p16, r16, o16, w16);
-            Apply(stream, HandleLeftHand, p17, r17, o17, w17);
-            Apply(stream, HandleRightHand, p18, r18, o18, w18);
-            Apply(stream, HandleLeftToe, p19, r19, o19, w19);
-            Apply(stream, HandleRightToe, p20, r20, o20, w20);
-            Apply(stream, HandleUpperChest, p54, r54, o54, w54);
+            int slotCount = SlotBones.Length;
+            for (int i = 0; i < slotCount; i++)
+            {
+                Apply(stream, SlotBones[i], SlotTargetPositions[i], SlotTargetRotations[i], SlotOffsetRotations[i], SlotWeights[i]);
+            }
         }
         public void SolveSpine(AnimationStream stream)
         {
@@ -1716,6 +1681,15 @@ w20, w54;
     }
     public class BasisFullBodyJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullBodyData>
     {
+        // Slot index (0..21) → semantic index in BasisFullBodyData property names.
+        // Slots 0..20 map directly; slot 21 maps to legacy semantic 54 (UpperChest).
+        static readonly int[] SlotSemanticIndices =
+        {
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            20, 54,
+        };
+
         public override BasisFullIKConstraintJob Create(Animator animator, ref BasisFullBodyData data, Component component)
         {
             var job = new BasisFullIKConstraintJob
@@ -1842,102 +1816,50 @@ w20, w54;
                 TposeShoulderToHandRight = (data.RightShoulder != null && data.RightHand != null)
                     ? Vector3.Distance(data.RightShoulder.position, data.RightHand.position) : 0.6f,
             };
-            // Bind positions
-            job.p0 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(0));
-            job.p1 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(1));
-            job.p2 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(2));
-            job.p3 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(3));
-            job.p4 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(4));
-            job.p5 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(5));
-            job.p6 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(6));
-            job.p7 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(7));
-            job.p8 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(8));
-            job.p9 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(9));
-            job.p10 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(10));
-            job.p11 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(11));
-            job.p12 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(12));
-            job.p13 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(13));
-            job.p14 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(14));
-            job.p15 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(15));
-            job.p16 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(16));
-            job.p17 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(17));
-            job.p18 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(18));
-            job.p19 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(19));
-            job.p20 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(20));
-            job.p54 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(54));
-            // Bind rotations (as Vector4)
-            job.r0 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(0));
-            job.r1 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(1));
-            job.r2 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(2));
-            job.r3 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(3));
-            job.r4 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(4));
-            job.r5 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(5));
-            job.r6 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(6));
-            job.r7 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(7));
-            job.r8 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(8));
-            job.r9 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(9));
-            job.r10 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(10));
-            job.r11 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(11));
-            job.r12 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(12));
-            job.r13 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(13));
-            job.r14 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(14));
-            job.r15 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(15));
-            job.r16 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(16));
-            job.r17 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(17));
-            job.r18 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(18));
-            job.r19 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(19));
-            job.r20 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(20));
-            job.r54 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(54));
-            // Bind offsets
-            job.o0 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(0));
-            job.o1 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(1));
-            job.o2 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(2));
-            job.o3 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(3));
-            job.o4 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(4));
-            job.o5 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(5));
-            job.o6 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(6));
-            job.o7 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(7));
-            job.o8 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(8));
-            job.o9 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(9));
-            job.o10 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(10));
-            job.o11 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(11));
-            job.o12 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(12));
-            job.o13 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(13));
-            job.o14 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(14));
-            job.o15 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(15));
-            job.o16 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(16));
-            job.o17 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(17));
-            job.o18 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(18));
-            job.o19 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(19));
-            job.o20 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(20));
-            job.o54 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(54));
-            // Bind per-slot weights
-            job.w0 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(0));
-            job.w1 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(1));
-            job.w2 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(2));
-            job.w3 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(3));
-            job.w4 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(4));
-            job.w5 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(5));
-            job.w6 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(6));
-            job.w7 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(7));
-            job.w8 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(8));
-            job.w9 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(9));
-            job.w10 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(10));
-            job.w11 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(11));
-            job.w12 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(12));
-            job.w13 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(13));
-            job.w14 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(14));
-            job.w15 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(15));
-            job.w16 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(16));
-            job.w17 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(17));
-            job.w18 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(18));
-            job.w19 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(19));
-            job.w20 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(20));
-            job.w54 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(54));
+            // Bind per-slot generic bone overrides. Slot index → semantic index in BasisFullBodyData.
+            // Order matches the bone array below; UpperChest is slot 21 / semantic 54 for legacy reasons.
+            int slotCount = SlotSemanticIndices.Length;
+            job.SlotBones = new NativeArray<ReadWriteTransformHandle>(slotCount, Allocator.Persistent);
+            job.SlotTargetPositions = new NativeArray<Vector3Property>(slotCount, Allocator.Persistent);
+            job.SlotTargetRotations = new NativeArray<Vector4Property>(slotCount, Allocator.Persistent);
+            job.SlotOffsetRotations = new NativeArray<Vector4Property>(slotCount, Allocator.Persistent);
+            job.SlotWeights = new NativeArray<BoolProperty>(slotCount, Allocator.Persistent);
 
+            ReadWriteTransformHandle[] slotBones =
+            {
+                job.HandleHips,         // 0
+                job.HandleLeftUpperLeg, // 1
+                job.HandleRightUpperLeg,// 2
+                job.HandleLeftLowerLeg, // 3
+                job.HandleRightLowerLeg,// 4
+                job.HandleLeftFoot,     // 5
+                job.HandleRightFoot,    // 6
+                job.HandleSpine,        // 7
+                job.HandleChest,        // 8
+                job.HandleNeck,         // 9
+                job.HandleHead,         // 10
+                job.HandleLeftShoulder, // 11
+                job.HandleRightShoulder,// 12
+                job.HandleLeftUpperArm, // 13
+                job.HandleRightUpperArm,// 14
+                job.HandleLeftLowerArm, // 15
+                job.HandleRightLowerArm,// 16
+                job.HandleLeftHand,     // 17
+                job.HandleRightHand,    // 18
+                job.HandleLeftToe,      // 19
+                job.HandleRightToe,     // 20
+                job.HandleUpperChest,   // 54
+            };
+            for (int i = 0; i < slotCount; i++)
+            {
+                int s = SlotSemanticIndices[i];
+                job.SlotBones[i] = slotBones[i];
+                job.SlotTargetPositions[i] = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(s));
+                job.SlotTargetRotations[i] = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(s));
+                job.SlotOffsetRotations[i] = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(s));
+                job.SlotWeights[i] = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(s));
+            }
 
-            GenerateHeadToSpine(animator, ref job, ref data);
-            GenerateChestToHead(animator, ref job, ref data);
 
             // Generate arm bend lookup tables
             var leftTable = BasisArmBendLookup.GenerateDefaultTable(true);
@@ -1946,86 +1868,19 @@ w20, w54;
             job.ArmBendLookupRight = new NativeArray<Vector3>(rightTable, Allocator.Persistent);
             job.HasArmBendLookup = true;
 
-            var cacheBuilder = new AnimationJobCacheBuilder();
-
-            job.spineMaxIterationsIdx = cacheBuilder.Add(20);
-            job.spineToleranceIdx = cacheBuilder.Add(0.001f);
-            job.spineCache = cacheBuilder.Build();
-
-
-
             return job;
-        }
-        public void GenerateHeadToSpine(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
-        {
-            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
-            int SpineToHeadLength = HeadToSpine.Length;
-            job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
-            job.ChainHeadToSpineLengths = new NativeArray<float>(SpineToHeadLength, Allocator.Persistent);
-            job.ChainHeadToSpineLinkPositions = new NativeArray<Vector3>(SpineToHeadLength, Allocator.Persistent);
-
-            job.MaxReachSpineTohead = 0f;
-
-            int tip = SpineToHeadLength - 1;
-            for (int i = 0; i < SpineToHeadLength; i++)
-            {
-                job.ChainHeadToSpine[i] = ReadWriteTransformHandle.Bind(animator, HeadToSpine[i]);
-                job.ChainHeadToSpineLengths[i] = (i != tip) ? Vector3.Distance(HeadToSpine[i].position, HeadToSpine[i + 1].position) : 0f;
-
-                job.MaxReachSpineTohead += job.ChainHeadToSpineLengths[i];
-            }
-            if (data.hips != null && data.head != null)
-            {
-                job.TposeLengthHeadToHips = (data.head.position - data.hips.position);
-            }
-            else
-            {
-                job.TposeLengthHeadToHips = Vector3.zero;
-            }
-        }
-        public void GenerateChestToHead(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
-        {
-
-            var ChestToHead = new Transform[] { data.chest, data.neck, data.head };
-            int ChestToHeadLength = ChestToHead.Length;
-            job.ChainChestToHead = new NativeArray<ReadWriteTransformHandle>(ChestToHeadLength, Allocator.Persistent);
-            job.ChainChestToHeadLengths = new NativeArray<float>(ChestToHeadLength, Allocator.Persistent);
-            job.ChainChestToHeadLinkPositions = new NativeArray<Vector3>(ChestToHeadLength, Allocator.Persistent);
-            job.MaxReachHeadToChest = 0f;
-
-            int tip = ChestToHeadLength - 1;
-            for (int i = 0; i < ChestToHeadLength; i++)
-            {
-                job.ChainChestToHead[i] = ReadWriteTransformHandle.Bind(animator, ChestToHead[i]);
-
-                job.ChainChestToHeadLengths[i] = (i != tip) ? Vector3.Distance(ChestToHead[i].position, ChestToHead[i + 1].position) : 0f;
-
-                job.MaxReachHeadToChest += job.ChainChestToHeadLengths[i];
-            }
-            if (data.head != null && data.chest != null)
-            {
-                job.TposeLengthHeadToChest = (data.head.position - data.chest.position);
-            }
-            else
-            {
-                job.TposeLengthHeadToChest = Vector3.zero;
-            }
         }
         static ReadWriteTransformHandle BindHandle(Animator animator, Transform t) => (t != null) ? ReadWriteTransformHandle.Bind(animator, t) : default;
         public override void Destroy(BasisFullIKConstraintJob job)
         {
-            if (job.ChainHeadToSpine.IsCreated) job.ChainHeadToSpine.Dispose();
-            if (job.ChainHeadToSpineLengths.IsCreated) job.ChainHeadToSpineLengths.Dispose();
-            if (job.ChainHeadToSpineLinkPositions.IsCreated) job.ChainHeadToSpineLinkPositions.Dispose();
-
-            if (job.ChainChestToHead.IsCreated) job.ChainChestToHead.Dispose();
-            if (job.ChainChestToHeadLengths.IsCreated) job.ChainChestToHeadLengths.Dispose();
-            if (job.ChainChestToHeadLinkPositions.IsCreated) job.ChainChestToHeadLinkPositions.Dispose();
-
             if (job.ArmBendLookupLeft.IsCreated) job.ArmBendLookupLeft.Dispose();
             if (job.ArmBendLookupRight.IsCreated) job.ArmBendLookupRight.Dispose();
 
-            job.spineCache.Dispose();
+            if (job.SlotBones.IsCreated) job.SlotBones.Dispose();
+            if (job.SlotTargetPositions.IsCreated) job.SlotTargetPositions.Dispose();
+            if (job.SlotTargetRotations.IsCreated) job.SlotTargetRotations.Dispose();
+            if (job.SlotOffsetRotations.IsCreated) job.SlotOffsetRotations.Dispose();
+            if (job.SlotWeights.IsCreated) job.SlotWeights.Dispose();
         }
     }
 }
