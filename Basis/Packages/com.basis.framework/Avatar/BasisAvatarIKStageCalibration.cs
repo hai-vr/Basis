@@ -523,10 +523,18 @@ namespace Basis.Scripts.Avatar
                 // Arms in T-pose share approximate height; lateral position discriminates
                 // shoulder vs elbow vs (the implied hand controller out past the elbow).
                 // Lateral priors scale with measured reach so this works for any arm length.
-                new BoneRolePrior(BasisBoneTrackedRole.LeftShoulder,   h: 0.88f, lat: -armReach * 0.30f,  hSigma: 0.08f, latSigma: 0.10f),
-                new BoneRolePrior(BasisBoneTrackedRole.RightShoulder,  h: 0.88f, lat: +armReach * 0.30f,  hSigma: 0.08f, latSigma: 0.10f),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerArm,   h: 0.88f, lat: -armReach * 0.65f,  hSigma: 0.10f, latSigma: 0.10f),
-                new BoneRolePrior(BasisBoneTrackedRole.RightLowerArm,  h: 0.88f, lat: +armReach * 0.65f,  hSigma: 0.10f, latSigma: 0.10f),
+                //
+                // Lateral sigma is also scaled by armReach (×0.08) so the 3σ acceptance
+                // band can never cross the body midline. Shoulder/lower-arm trackers are
+                // physically anchored to one side of the body — letting them score
+                // against the opposite-side prior is just noise. Concretely with
+                // ×0.08: shoulder 3σ extent = armReach × [0.06, 0.54], lower-arm 3σ
+                // extent = armReach × [0.41, 0.89] — both clear of the midline for
+                // any armReach value.
+                new BoneRolePrior(BasisBoneTrackedRole.LeftShoulder,   h: 0.88f, lat: -armReach * 0.30f,  hSigma: 0.08f, latSigma: armReach * 0.08f),
+                new BoneRolePrior(BasisBoneTrackedRole.RightShoulder,  h: 0.88f, lat: +armReach * 0.30f,  hSigma: 0.08f, latSigma: armReach * 0.08f),
+                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerArm,   h: 0.88f, lat: -armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.08f),
+                new BoneRolePrior(BasisBoneTrackedRole.RightLowerArm,  h: 0.88f, lat: +armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.08f),
             };
         }
 
@@ -689,12 +697,19 @@ namespace Basis.Scripts.Avatar
             out float eyeHeight,
             out IReadOnlyList<ConstellationDebug.DebugPrior> priors)
         {
-            // The classifier scores in playspace ratios of PlayerEyeHeight, so
-            // the visualization is sized in player-space too — never the avatar's
-            // scale. Avatar scale only matters for the per-bone calibration
-            // offset that maps tracker pose onto avatar bones; the acceptance
-            // region itself is player-relative, regardless of avatar size.
+            // The classifier scores in playspace (real-world) ratios of
+            // PlayerEyeHeight. After it picks roles, each tracker pose is
+            // lifted onto the avatar via DeviceScale (BasisInput.ConvertToScaledDeviceCoord:
+            // scaledPos = OffsetCoords + unscaledPos * DeviceScale). The
+            // visualization mirrors that pipeline: priors stay cached against
+            // PlayerEyeHeight (real-world), but body anchor + region sizing
+            // get the same DeviceScale projection real trackers get post-
+            // classification. Without the multiply, regions sit at the player's
+            // real-world position (e.g. ~0.09 m world) instead of on the avatar.
             float playerEye = Mathf.Max(BasisHeightDriver.PlayerEyeHeight, 1.0f);
+            float deviceScale = BasisHeightDriver.DeviceScale;
+            if (deviceScale <= 0f) deviceScale = 1f;
+            float worldEyeHeight = playerEye * deviceScale;
 
             IReadOnlyList<ConstellationDebug.DebugPrior> resolvedPriors =
                 (ConstellationDebug.HasSnapshot && ConstellationDebug.Priors.Count > 0)
@@ -718,16 +733,17 @@ namespace Basis.Scripts.Avatar
                 fwd.Normalize();
                 Quaternion bodyRotPlayspace = Quaternion.LookRotation(fwd, Vector3.up);
 
-                // Lift playspace → world through the player's locomotion matrix
-                // so regions follow teleport / smooth-move. The matrix's scale
-                // is the player root's lossyScale (typically 1) — avatar scale
-                // is applied to the avatar transform inside the root and is
-                // intentionally not reflected here.
+                // Lift HMD playspace → avatar-world. Multiplying by DeviceScale
+                // before the locomotion matrix matches BasisInput.ConvertToScaledDeviceCoord
+                // (scaledPos = OffsetCoords + unscaledPos * DeviceScale). The
+                // matrix carries position + rotation from teleport / smooth-move;
+                // its lossyScale stays 1 because avatar scale lives on the
+                // avatar transform inside the root, applied here via DeviceScale.
                 Matrix4x4 l2w = BasisLocalPlayer.localToWorldMatrix;
-                Vector3 hmdWorld = l2w.MultiplyPoint3x4(hmdPosPlayspace);
+                Vector3 hmdWorld = l2w.MultiplyPoint3x4(hmdPosPlayspace * deviceScale);
                 bodyRotation = l2w.rotation * bodyRotPlayspace;
-                bodyOrigin = new Vector3(hmdWorld.x, hmdWorld.y - playerEye, hmdWorld.z);
-                eyeHeight = playerEye;
+                bodyOrigin = new Vector3(hmdWorld.x, hmdWorld.y - worldEyeHeight, hmdWorld.z);
+                eyeHeight = worldEyeHeight;
                 priors = resolvedPriors;
                 return true;
             }
@@ -737,9 +753,9 @@ namespace Basis.Scripts.Avatar
             if (ConstellationDebug.HasSnapshot)
             {
                 Matrix4x4 l2w = BasisLocalPlayer.localToWorldMatrix;
-                bodyOrigin = l2w.MultiplyPoint3x4(ConstellationDebug.BodyOrigin);
+                bodyOrigin = l2w.MultiplyPoint3x4(ConstellationDebug.BodyOrigin * deviceScale);
                 bodyRotation = l2w.rotation * ConstellationDebug.BodyRotation;
-                eyeHeight = playerEye;
+                eyeHeight = worldEyeHeight;
                 priors = ConstellationDebug.Priors;
                 return true;
             }
