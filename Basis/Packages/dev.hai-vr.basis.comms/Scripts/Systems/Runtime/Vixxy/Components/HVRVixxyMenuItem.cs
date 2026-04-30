@@ -1,4 +1,5 @@
-﻿using HVR.Basis.Comms;
+﻿using System.Collections.Generic;
+using HVR.Basis.Comms;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -112,6 +113,11 @@ namespace HVR.Vixxy
                 var actualAddress = control.IsInitialized ? control.AddressId : HVRAddressRegistry.AddressToId(control.CalculateAddress());
                 _comms.DataProvider.SubmitOrDefineDefaultValue(actualAddress, _value);
             }
+        }
+
+        public List<Object> ListAssets()
+        {
+            return icon != null ? new List<Object> { icon } : new List<Object>();
         }
     }
 }

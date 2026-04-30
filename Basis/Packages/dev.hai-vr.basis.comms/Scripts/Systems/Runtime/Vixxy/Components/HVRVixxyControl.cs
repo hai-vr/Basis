@@ -7,6 +7,7 @@ using HVR.Basis.Comms;
 using Basis.Scripts.BasisSdk;
 #endif
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 // UGC Rule: GameObjects and Components referenced by this class should be treated defensively as being UGC at runtime:<br/>
 // - There may be null values in the arrays, as they may be unreliable user input or removed as part of a build process (e.g. EditorOnly),<br/>
@@ -140,6 +141,21 @@ namespace HVR.Vixxy
         public string CalculateAddress()
         {
             return address.TryResolvePath(out var resolvedPath) ? resolvedPath : GenerateAddressFromPath();
+        }
+
+        public List<Object> ListAssets()
+        {
+            var results = choices
+                .Select(control => control.icon as Object)
+                .Concat(subjects
+                    .SelectMany(subject => subject.properties)
+                    .SelectMany(property => property.ListAssets())
+                )
+                .Where(that => that != null)
+                .Distinct()
+                .ToList();
+
+            return results;
         }
 
         private void FigureOutActualNumberOfChoices(out bool hasMoreThanTwoChoices, out int actualNumberOfChoices)

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using HVR.Basis.Comms;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace HVR.Vixxy
 {
@@ -165,7 +166,7 @@ namespace HVR.Vixxy
                 else
                 {
                     var k = choices.Length - 1;
-                    if (k <= 0)
+                    if (k >= 0)
                     {
                         newChoices[i] = choices[k];
                     }
@@ -178,6 +179,19 @@ namespace HVR.Vixxy
         public override void RemoveChoiceAtIndex(int choiceIndex)
         {
             choices = choices.Where((_, i) => i != choiceIndex).ToArray();
+        }
+
+        public override List<Object> ListAssets()
+        {
+            if (typeof(Object).IsAssignableFrom(typeof(T)) && typeof(T) != typeof(GameObject) && typeof(T) != typeof(Component))
+            {
+                return choices
+                    .Select(choice => choice as Object)
+                    .Where(choice => choice != null)
+                    .Distinct()
+                    .ToList();
+            }
+            return new List<Object>();
         }
 
         internal T ApplyThresholdFunction(float active01, int inactiveIndex, int activeIndex, float threshold)
@@ -233,6 +247,7 @@ namespace HVR.Vixxy
                 case float[] lerpFloatArrayValue: materialPropertyBlock.SetFloatArray(ShaderMaterialProperty, lerpFloatArrayValue); break;
             }
         }
+        public virtual List<Object> ListAssets() { return new List<Object>(); }
     }
 
     [Serializable]
