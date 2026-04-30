@@ -337,11 +337,12 @@ public partial class BasisEventDriver : MonoBehaviour
         BasisJoinLeaveNotification.Simulate(TimeAsDouble);
         IndividualPlayerProvider.SimulateBeacon(DeltaTime);
 
-        if (SMModuleDebugOptions.UseGizmos)
+        bool drawJiggle = SMModuleDebugOptions.UseGizmos && SMModuleDebugOptions.UseJiggleVisuals;
+        if (drawJiggle)
         {
             JigglePhysics.ScheduleRender();
         }
-        if (SMModuleDebugOptions.UseGizmos)
+        if (drawJiggle)
         {
             JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
         }

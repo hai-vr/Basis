@@ -170,6 +170,23 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Toggles a gizmo's GameObject visibility without destroying it. Used by
+    /// sub-toggles that hide/show subsets of gizmos under the master ShowGizmos.
+    /// </summary>
+    public static void SetGizmoActive(int linkedID, bool active)
+    {
+        if (Gizmos.TryGetValue(linkedID, out BasisGizmos gizmo) && gizmo != null)
+        {
+            gizmo.gameObject.SetActive(active);
+            return;
+        }
+        if (GizmosLine.TryGetValue(linkedID, out BasisLineGizmos lineGizmo) && lineGizmo != null)
+        {
+            lineGizmo.gameObject.SetActive(active);
+        }
+    }
+
+    /// <summary>
     /// Destroys a gizmo with the specified ID.
     /// </summary>
     public static void DestroyGizmo(int linkedID)

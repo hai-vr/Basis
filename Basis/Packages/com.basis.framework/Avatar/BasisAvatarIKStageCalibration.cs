@@ -154,6 +154,11 @@ namespace Basis.Scripts.Avatar
             BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
             BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
             BasisLocalPlayer.Instance.LocalAnimatorDriver.AssignHipsFBTracker();
+
+            // Refresh the per-role calibration spheres so they re-anchor to the
+            // newly stored avatar bone transforms. No-op when the ShowGizmos
+            // master toggle is off; the toggle path rebuilds when it flips on.
+            BasisLocalPlayer.Instance.LocalBoneDriver.RebuildCalibrationSpheres();
         }
 
         /// <summary>

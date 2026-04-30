@@ -77,6 +77,14 @@ namespace Basis.BasisUI
             headerGroup.SetTitle(BasisLocalization.Get("trackerLinking.header.title"));
             headerGroup.SetDescription(BasisLocalization.Get("trackerLinking.header.description"));
 
+            // Advanced toggle — hides the tuning sliders behind an opt-in so
+            // the page stays approachable for users who only want to link
+            // trackers. Same pattern as SettingsProviderIK's advancedToggle.
+            PanelToggle advancedToggle = PanelToggle.CreateNewEntry(tabRoot);
+            advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.advanced"));
+            advancedToggle.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.advanced.description"));
+            advancedToggle.AssignBinding(BasisSettingsDefaults.TrackerLinkingAdvancedVisible);
+
             // Static tuning group — bound to BasisSettingsDefaults bindings, so values
             // persist across menu reopens and across sessions. Built once.
             PanelElementDescriptor tuningGroup = PanelElementDescriptor.CreateNew(
@@ -84,10 +92,6 @@ namespace Basis.BasisUI
             tuningGroup.SetTitle(BasisLocalization.Get("trackerLinking.tuning.title"));
             tuningGroup.SetDescription(BasisLocalization.Get("trackerLinking.tuning.description"));
             BuildTuningSliders(tuningGroup.ContentParent);
-
-            // Reset for the tuning section. The shared helper closes and re-opens
-            // Settings on the same tab so the sliders re-bind to default values.
-            SettingsProvider.AddResetPageButton(tuningGroup.ContentParent, TabKey, ResetTrackerLinkingDefaults);
 
             // Dynamic per-tracker section — updates on device/pair changes. Lives
             // in its own container so the tuning sliders above aren't touched.
@@ -130,6 +134,21 @@ namespace Basis.BasisUI
                 state.Ids.Clear();
                 state.EntryDropdowns.Clear();
                 state.EntryDescriptors.Clear();
+            };
+
+            // Page-level reset stays on tabRoot (not inside tuningGroup) so it
+            // remains reachable when the advanced toggle hides the sliders.
+            SettingsProvider.AddResetPageButton(tabRoot, TabKey, ResetTrackerLinkingDefaults);
+
+            // Initial visibility + OnValueChanged gating. Two-step rebuild
+            // (inner group, then tab descriptor) matches the existing pattern
+            // in HandleChange so nested LayoutGroups settle correctly.
+            tuningGroup.gameObject.SetActive(BasisSettingsDefaults.TrackerLinkingAdvancedVisible.RawValue);
+            advancedToggle.OnValueChanged += visible =>
+            {
+                tuningGroup.gameObject.SetActive(visible);
+                tuningGroup.ForceRebuild();
+                tabDesc.ForceRebuild();
             };
 
             handleChange();
@@ -434,6 +453,7 @@ namespace Basis.BasisUI
 
         private static void ResetTrackerLinkingDefaults()
         {
+            BasisSettingsDefaults.TrackerLinkingAdvancedVisible.ResetToDefault();
             BasisSettingsDefaults.PairingSurprisePenalty.ResetToDefault();
             BasisSettingsDefaults.PairingSurpriseClamp.ResetToDefault();
             BasisSettingsDefaults.PairingEmaFloor.ResetToDefault();

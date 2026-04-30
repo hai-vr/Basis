@@ -115,7 +115,7 @@ namespace Basis.BasisUI
                 listenerDampenGroup.ForceRebuild();
             };
 
-            // ─────────────── VOICE BUFFER GROUP (always visible) ───────────────
+            // ─────────────── VOICE BUFFER GROUP (advanced) ───────────────
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.
             // Buffer is 20 ms per frame, so 1 ≈ 20 ms.
@@ -522,6 +522,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             };
 
             // Hide all advanced groups by default
+            voiceBufferGroup.SetActive(false);
             audioSourceGroup.SetActive(false);
             hrtfGroup.SetActive(false);
             propagationGroup.SetActive(false);
@@ -535,6 +536,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             advancedToggle.SetValueWithoutNotify(false);
             advancedToggle.OnValueChanged += (val) =>
             {
+                voiceBufferGroup.SetActive(val);
                 audioSourceGroup.SetActive(val);
                 hrtfGroup.SetActive(val);
                 propagationGroup.SetActive(val);

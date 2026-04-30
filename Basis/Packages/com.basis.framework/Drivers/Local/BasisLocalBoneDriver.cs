@@ -24,6 +24,13 @@ namespace Basis.Scripts.Drivers
     [System.Serializable]
     public class BasisLocalBoneDriver
     {
+        /// <summary>
+        /// RGB scalar applied to each bone color before it becomes a calibration
+        /// sphere tint. The gizmo material is additive (One/One blend), so a
+        /// lower value means a less-blown-out sphere on the avatar.
+        /// </summary>
+        private const float CalibrationSphereTint = 0.25f;
+
         /// <summary>Cached control for the neck bone.</summary>
         public static BasisLocalBoneControl NeckControl;
 
@@ -491,21 +498,28 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Draws gizmos for all controls using the current avatar scale.
+        /// Draws gizmos for all controls using the current avatar scale. Lines (skeleton) and
+        /// calibration spheres are gated by independent sub-toggles under the ShowGizmos master.
         /// </summary>
         public void DrawGizmos()
         {
-            for (int Index = 0; Index < ControlsLength; Index++)
+            if (SMModuleDebugOptions.UseSkeletonLines)
             {
-                DrawGizmos(Controls[Index]);
-            }
-            for (int i = 0; i < GizmoBones.Count; i++)
-            {
-                GizmoBone GizmoBone = GizmoBones[i];
-                if (GizmoBone.GizmoTransform != null)
+                for (int Index = 0; Index < ControlsLength; Index++)
                 {
-                    float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * SMModuleCalibration.GetSphereScale(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
-                    BasisGizmoManager.UpdateSphereGizmo(GizmoBone.GizmoReference, GizmoBone.GizmoTransform.position, Vector3.one * ScaledDistance);
+                    DrawGizmos(Controls[Index]);
+                }
+            }
+            if (SMModuleDebugOptions.UseCalibrationSpheres)
+            {
+                for (int i = 0; i < GizmoBones.Count; i++)
+                {
+                    GizmoBone GizmoBone = GizmoBones[i];
+                    if (GizmoBone.GizmoTransform != null)
+                    {
+                        float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * SMModuleCalibration.GetSphereScale(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
+                        BasisGizmoManager.UpdateSphereGizmo(GizmoBone.GizmoReference, GizmoBone.GizmoTransform.position, Vector3.one * ScaledDistance);
+                    }
                 }
             }
         }
@@ -681,20 +695,128 @@ namespace Basis.Scripts.Drivers
         public void UpdateGizmoUsage(bool State)
         {
             BasisDebug.Log("Running Bone Driver Gizmos", BasisDebug.LogTag.Gizmo);
+            if (!State)
+            {
+                // Manager wiped its pool when ShowGizmos went off — drop cached
+                // calibration-sphere IDs so DrawGizmos doesn't UpdateSphereGizmo
+                // a stale entry next frame.
+                GizmoBones.Clear();
+                return;
+            }
+
             float Size = BasisHeightDriver.ScaledToMatchValue;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
                 BasisLocalBoneControl Control = Controls[Index];
-                if (State)
+                Vector3 BonePosition = Control.OutgoingWorldData.position;
+                if (Control.HasTarget)
                 {
-                    Vector3 BonePosition = Control.OutgoingWorldData.position;
-                    if (Control.HasTarget)
+                    if (BasisGizmoManager.CreateLineGizmo(trackedRoles[Index].ToString(), out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.05f * Size, Control.Color))
                     {
-                        if (BasisGizmoManager.CreateLineGizmo(trackedRoles[Index].ToString(), out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.05f * Size, Control.Color))
-                        {
-                            Control.HasLineDraw = true;
-                        }
+                        Control.HasLineDraw = true;
                     }
+                }
+            }
+
+            // Lines are created visible — match the sub-toggle's current state.
+            ApplySkeletonLineVisibility();
+            RebuildCalibrationSpheres();
+        }
+
+        /// <summary>
+        /// Drops and recreates the per-role calibration spheres drawn around each
+        /// tracked avatar bone. Idempotent: safe to call from <see cref="UpdateGizmoUsage"/>
+        /// (when ShowGizmos turns on) and from
+        /// <see cref="BasisAvatarIKStageCalibration.FullBodyCalibration"/>
+        /// (so an avatar reload swaps to the new bone transforms). Skips creation
+        /// silently when the master ShowGizmos toggle is off — the toggle path will
+        /// call back in here once it's flipped on.
+        /// </summary>
+        public void RebuildCalibrationSpheres()
+        {
+            // DestroyGizmo on a stale ID logs a warning, so only call it when the
+            // manager's pool actually still holds the IDs we cached.
+            if (SMModuleDebugOptions.UseGizmos)
+            {
+                for (int i = 0; i < GizmoBones.Count; i++)
+                {
+                    BasisGizmoManager.DestroyGizmo(GizmoBones[i].GizmoReference);
+                }
+            }
+            GizmoBones.Clear();
+
+            if (!SMModuleDebugOptions.UseGizmos)
+            {
+                return;
+            }
+
+            BasisLocalPlayer player = BasisLocalPlayer.Instance;
+            if (player == null || player.LocalAvatarDriver == null)
+            {
+                return;
+            }
+            Dictionary<BasisBoneTrackedRole, Transform> storedRoles = player.LocalAvatarDriver.StoredRolesTransforms;
+            if (storedRoles == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < ControlsLength; i++)
+            {
+                BasisBoneTrackedRole role = trackedRoles[i];
+                if (BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(role) <= 0f)
+                {
+                    continue;
+                }
+                if (!storedRoles.TryGetValue(role, out Transform target) || target == null)
+                {
+                    continue;
+                }
+
+                BasisLocalBoneControl Control = Controls[i];
+                // GizmoMaterial uses additive blending — RGB intensity directly
+                // controls how bright the sphere lights up the scene. Bone colors
+                // at full intensity stack opaquely on top of the avatar, so dim
+                // them to keep the spheres legible without drowning the view.
+                Color sphereColor = Control.Color * CalibrationSphereTint;
+                sphereColor.a = Control.Color.a;
+                AddGizmo($"{Control.name} IK Calibration Sphere", target, 1f, sphereColor, role);
+            }
+
+            // Honor the sub-toggle's current state — gizmos are created visible,
+            // so hide them now if the user already had spheres turned off.
+            ApplyCalibrationSphereVisibility();
+        }
+
+        /// <summary>
+        /// Toggles visibility on every cached calibration-sphere gizmo. Called by
+        /// <see cref="SMModuleDebugOptions"/> when the calibration-spheres sub-toggle
+        /// flips so the spheres actually appear and disappear in the scene.
+        /// </summary>
+        public void ApplyCalibrationSphereVisibility()
+        {
+            bool visible = SMModuleDebugOptions.UseCalibrationSpheres;
+            for (int i = 0; i < GizmoBones.Count; i++)
+            {
+                BasisGizmoManager.SetGizmoActive(GizmoBones[i].GizmoReference, visible);
+            }
+        }
+
+        /// <summary>
+        /// Toggles visibility on every per-control skeleton-line gizmo. Mirror of
+        /// <see cref="ApplyCalibrationSphereVisibility"/> — flag alone gates the
+        /// per-frame UpdateLineGizmo call, but the line GameObjects need an
+        /// explicit hide/show to actually appear/disappear.
+        /// </summary>
+        public void ApplySkeletonLineVisibility()
+        {
+            bool visible = SMModuleDebugOptions.UseSkeletonLines;
+            for (int i = 0; i < ControlsLength; i++)
+            {
+                BasisLocalBoneControl Control = Controls[i];
+                if (Control.HasLineDraw)
+                {
+                    BasisGizmoManager.SetGizmoActive(Control.LineDrawIndex, visible);
                 }
             }
         }

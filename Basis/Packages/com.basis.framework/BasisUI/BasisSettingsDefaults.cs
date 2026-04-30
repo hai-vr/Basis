@@ -194,7 +194,15 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> Antialiasing = new("antialiasing", new BasisPlatformDefault<string>("msaa 2x"));
 
-        public static BasisSettingsBinding<bool> DebugVisuals = new("debugvisuals", new BasisPlatformDefault<bool>(false));
+        // Master gizmo gate. When off, every gizmo sub-toggle below is inert and
+        // BasisGizmoManager tears down its parent + cached gizmo dictionaries.
+        public static BasisSettingsBinding<bool> ShowGizmos = new("showgizmos", new BasisPlatformDefault<bool>(false));
+
+        // Sub-gizmos default on so flipping ShowGizmos preserves the pre-split
+        // experience (skeleton lines + calibration spheres + jiggle render all visible).
+        public static BasisSettingsBinding<bool> GizmoSkeletonLines = new("gizmoskeletonlines", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> GizmoCalibrationSpheres = new("gizmocalibrationspheres", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> GizmoJiggleVisuals = new("gizmojigglevisuals", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 
@@ -841,6 +849,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKMaxHipDelta = new("fbikmaxhipdelta", new BasisPlatformDefault<float>(90f));
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
+        // Hides the pairing tuning sliders behind an advanced toggle so the
+        // tracker linking page stays approachable for the common case.
+        public static BasisSettingsBinding<bool> TrackerLinkingAdvancedVisible = new("trackerlinking_advancedvisible", new BasisPlatformDefault<bool>(false));
         // Confidence falloff for a tracker that's spiking relative to its own
         // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
         // Higher = more aggressive shift to the steadier half on a glitch.
@@ -1022,7 +1033,10 @@ namespace Basis.BasisUI
             ShadowQuality.LoadBindingValue();
             HDRSupport.LoadBindingValue();
             Antialiasing.LoadBindingValue();
-            DebugVisuals.LoadBindingValue();
+            ShowGizmos.LoadBindingValue();
+            GizmoSkeletonLines.LoadBindingValue();
+            GizmoCalibrationSpheres.LoadBindingValue();
+            GizmoJiggleVisuals.LoadBindingValue();
             TrackerGizmos.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             DisableLogging.LoadBindingValue();
@@ -1234,6 +1248,9 @@ namespace Basis.BasisUI
             FBIKStruggleEnd.LoadBindingValue();
             FBIKMaxChestDelta.LoadBindingValue();
             FBIKMaxHipDelta.LoadBindingValue();
+
+            // Tracker pairing
+            TrackerLinkingAdvancedVisible.LoadBindingValue();
 
             // Remote Nameplate
             NPEnabled.LoadBindingValue();

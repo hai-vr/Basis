@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Basis.BasisUI;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -10,9 +11,19 @@ public class SMModuleDebugOptions : BasisSettingsBase
     public static bool UseGizmos = false;
     public static bool UseTrackerGizmos = false;
 
+    // Sub-toggles under ShowGizmos. Default true so the master switch alone restores
+    // the pre-split behavior (lines + spheres + jiggle render) for users who never
+    // touch the granular controls.
+    public static bool UseSkeletonLines = true;
+    public static bool UseCalibrationSpheres = true;
+    public static bool UseJiggleVisuals = true;
+
     // --- Canonical setting keys (from defaults) ---
-    private static string K_DEBUG_VISUALS => BasisSettingsDefaults.DebugVisuals.BindingKey;     // "debugvisuals"
-    private static string K_TRACKER_GIZMOS => BasisSettingsDefaults.TrackerGizmos.BindingKey;   // "trackergizmos"
+    private static string K_SHOW_GIZMOS => BasisSettingsDefaults.ShowGizmos.BindingKey;                       // "showgizmos"
+    private static string K_GIZMO_SKELETON_LINES => BasisSettingsDefaults.GizmoSkeletonLines.BindingKey;       // "gizmoskeletonlines"
+    private static string K_GIZMO_CALIB_SPHERES => BasisSettingsDefaults.GizmoCalibrationSpheres.BindingKey;   // "gizmocalibrationspheres"
+    private static string K_GIZMO_JIGGLE_VISUALS => BasisSettingsDefaults.GizmoJiggleVisuals.BindingKey;       // "gizmojigglevisuals"
+    private static string K_TRACKER_GIZMOS => BasisSettingsDefaults.TrackerGizmos.BindingKey;                  // "trackergizmos"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -43,9 +54,44 @@ public class SMModuleDebugOptions : BasisSettingsBase
 
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (matchedSettingName == K_DEBUG_VISUALS)
+        if (matchedSettingName == K_SHOW_GIZMOS)
         {
-            HandleDebugVisuals(optionValue);
+            HandleShowGizmos(optionValue);
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_SKELETON_LINES)
+        {
+            if (bool.TryParse(optionValue, out UseSkeletonLines))
+            {
+                BasisLocalPlayer player = BasisLocalPlayer.Instance;
+                if (player != null && player.LocalBoneDriver != null)
+                {
+                    player.LocalBoneDriver.ApplySkeletonLineVisibility();
+                }
+            }
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_CALIB_SPHERES)
+        {
+            if (bool.TryParse(optionValue, out UseCalibrationSpheres))
+            {
+                // Flag alone only gates per-frame UpdateSphereGizmo calls — the
+                // gizmo GameObjects need an explicit hide/show to actually
+                // appear/disappear in the scene.
+                BasisLocalPlayer player = BasisLocalPlayer.Instance;
+                if (player != null && player.LocalBoneDriver != null)
+                {
+                    player.LocalBoneDriver.ApplyCalibrationSphereVisibility();
+                }
+            }
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_JIGGLE_VISUALS)
+        {
+            bool.TryParse(optionValue, out UseJiggleVisuals);
             return;
         }
 
@@ -55,7 +101,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
     }
 
-    private void HandleDebugVisuals(string optionValue)
+    private void HandleShowGizmos(string optionValue)
     {
         if (!bool.TryParse(optionValue, out bool selected))
         {

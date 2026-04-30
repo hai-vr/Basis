@@ -126,8 +126,7 @@ namespace Basis.BasisUI
                 MyAvatarTabOverride != null
                     ? MyAvatarTabOverride(tabGroup)
                     : SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.downloadscache", () => SettingsProviderStorage.StorageTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.trustedurls", () => SettingsProviderTrustedUrls.TrustedUrlsTab(tabGroup));
+            AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
 
@@ -1382,20 +1381,54 @@ namespace Basis.BasisUI
             RectTransform container = descriptor.ContentParent;
 
 
+            // ---- Gizmos (master + per-gizmo sub-toggles) ----
+            PanelElementDescriptor gizmosGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            gizmosGroup.SetTitle(BasisLocalization.Get("settings.developer.gizmos.title"));
+            gizmosGroup.SetDescription(BasisLocalization.Get("settings.developer.gizmos.description"));
+
+            PanelToggle toggleShowGizmos = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleShowGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.showGizmos"));
+            toggleShowGizmos.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.showGizmos.description"));
+            toggleShowGizmos.AssignBinding(BasisSettingsDefaults.ShowGizmos);
+
+            PanelToggle toggleSkeletonLines = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleSkeletonLines.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.skeletonLines"));
+            toggleSkeletonLines.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.skeletonLines.description"));
+            toggleSkeletonLines.AssignBinding(BasisSettingsDefaults.GizmoSkeletonLines);
+
+            PanelToggle toggleCalibrationSpheres = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleCalibrationSpheres.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationSpheres"));
+            toggleCalibrationSpheres.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.calibrationSpheres.description"));
+            toggleCalibrationSpheres.AssignBinding(BasisSettingsDefaults.GizmoCalibrationSpheres);
+
+            PanelToggle toggleJiggleVisuals = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleJiggleVisuals.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.jiggleVisuals"));
+            toggleJiggleVisuals.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.jiggleVisuals.description"));
+            toggleJiggleVisuals.AssignBinding(BasisSettingsDefaults.GizmoJiggleVisuals);
+
+            PanelToggle toggleTrackerGizmos = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleTrackerGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.trackerGizmos"));
+            toggleTrackerGizmos.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.trackerGizmos.description"));
+            toggleTrackerGizmos.AssignBinding(BasisSettingsDefaults.TrackerGizmos);
+
+            // Hide sub-toggles when the master is off — they're meaningless without it
+            // and shouldn't clutter the page.
+            void RefreshGizmoSubVisibility(bool masterOn)
+            {
+                toggleSkeletonLines.Descriptor.SetActive(masterOn);
+                toggleCalibrationSpheres.Descriptor.SetActive(masterOn);
+                toggleJiggleVisuals.Descriptor.SetActive(masterOn);
+                toggleTrackerGizmos.Descriptor.SetActive(masterOn);
+                gizmosGroup.ForceRebuild();
+            }
+            RefreshGizmoSubVisibility(toggleShowGizmos.Value);
+            toggleShowGizmos.OnValueChanged += RefreshGizmoSubVisibility;
+
             PanelElementDescriptor debugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             debugGroup.SetTitle(BasisLocalization.Get("settings.developer.visualHelpers.title"));
             debugGroup.SetDescription(BasisLocalization.Get("settings.developer.visualHelpers.description"));
-
-            PanelToggle toggleBoneTracking = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
-            toggleBoneTracking.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.boneTracking"));
-            toggleBoneTracking.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.boneTracking.description"));
-            toggleBoneTracking.AssignBinding(BasisSettingsDefaults.DebugVisuals);
-
-            PanelToggle toggleTrackerGizmos = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
-            toggleTrackerGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.trackerGizmos"));
-            toggleTrackerGizmos.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.trackerGizmos.description"));
-            toggleTrackerGizmos.AssignBinding(BasisSettingsDefaults.TrackerGizmos);
 
             PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleAvatarDistance.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDistance"));
@@ -1598,7 +1631,10 @@ namespace Basis.BasisUI
 
         private static void ResetDeveloperDefaults()
         {
-            BasisSettingsDefaults.DebugVisuals.ResetToDefault();
+            BasisSettingsDefaults.ShowGizmos.ResetToDefault();
+            BasisSettingsDefaults.GizmoSkeletonLines.ResetToDefault();
+            BasisSettingsDefaults.GizmoCalibrationSpheres.ResetToDefault();
+            BasisSettingsDefaults.GizmoJiggleVisuals.ResetToDefault();
             BasisSettingsDefaults.TrackerGizmos.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
