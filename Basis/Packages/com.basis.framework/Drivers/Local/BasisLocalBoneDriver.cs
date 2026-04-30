@@ -217,10 +217,10 @@ namespace Basis.Scripts.Drivers
         public void Simulate(float deltaTime, Matrix4x4 parentMatrix)
         {
             RunSimulation(parentMatrix, deltaTime, seedLastRunFromOutgoing: false);
-            if (SMModuleDebugOptions.UseGizmos)
-            {
-                DrawGizmos();
-            }
+            // Gizmo drawing intentionally deferred to AfterSimulateOnRender —
+            // running it here would read bone Transform.position before Unity's
+            // Animator has updated bones for this frame, leaving the spheres a
+            // frame stale relative to the avatar.
         }
 
         /// <summary>
@@ -517,8 +517,16 @@ namespace Basis.Scripts.Drivers
                     GizmoBone GizmoBone = GizmoBones[i];
                     if (GizmoBone.GizmoTransform != null)
                     {
+                        // Single Transform read for both pos+rot, single write
+                        // on the gizmo side — halves the marshalling cost vs
+                        // .position / .rotation property pairs.
+                        GizmoBone.GizmoTransform.GetPositionAndRotation(out Vector3 bonePos, out Quaternion boneRot);
                         float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * SMModuleCalibration.GetSphereScale(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
-                        BasisGizmoManager.UpdateSphereGizmo(GizmoBone.GizmoReference, GizmoBone.GizmoTransform.position, Vector3.one * ScaledDistance);
+                        BasisGizmoManager.UpdateSphereGizmo(
+                            GizmoBone.GizmoReference,
+                            bonePos,
+                            boneRot,
+                            Vector3.one * ScaledDistance);
                     }
                 }
             }
@@ -671,20 +679,40 @@ namespace Basis.Scripts.Drivers
             FillOutBasicInformation(BasisBoneControl, role.ToString(), Color);
         }
 
+        // Priority for the per-frame gizmo render callback. Runs late so the
+        // Animator (PreLateUpdate) and any IK/movement effectors that mutate
+        // bone Transforms have already settled by the time we read them.
+        private const int RenderGizmosPriority = 250;
+
         /// <summary>
-        /// Subscribes to gizmo usage changes so this driver can create/update gizmos.
+        /// Subscribes to gizmo usage changes and the render-time callback so
+        /// this driver can create/update gizmos. Render-time is required so
+        /// gizmo position/rotation reflect the post-Animator bone Transforms
+        /// instead of last frame's stale values.
         /// </summary>
         public void InitializeGizmos()
         {
             BasisGizmoManager.OnUseGizmosChanged += UpdateGizmoUsage;
+            BasisLocalPlayer.AfterSimulateOnRender.AddAction(RenderGizmosPriority, RenderGizmos);
         }
 
         /// <summary>
-        /// Unsubscribes from gizmo usage changes.
+        /// Unsubscribes from gizmo usage changes and the render-time callback.
         /// </summary>
         public void DeInitializeGizmos()
         {
             BasisGizmoManager.OnUseGizmosChanged -= UpdateGizmoUsage;
+            BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(RenderGizmosPriority, RenderGizmos);
+        }
+
+        /// <summary>
+        /// Per-frame render-time gizmo refresh, gated by the master ShowGizmos
+        /// toggle so the no-op early out is cheap.
+        /// </summary>
+        private void RenderGizmos()
+        {
+            if (!SMModuleDebugOptions.UseGizmos) return;
+            DrawGizmos();
         }
 
         /// <summary>

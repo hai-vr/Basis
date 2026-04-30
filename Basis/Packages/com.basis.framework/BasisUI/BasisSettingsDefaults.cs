@@ -228,6 +228,12 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> AvatarShowTrackerRoles = new("avatarshowtrackerroles", new BasisPlatformDefault<bool>(false));
 
+        // Debug toggles for the avatar diagnostics on the Developer tab. Separate
+        // from EnableFaceTracking / EnableEyeTracking — those drive the actual
+        // avatar; these only gate the visibility of the diagnostic panels.
+        public static BasisSettingsBinding<bool> DevDebugFaceTracking = new("devdebugfacetracking", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevDebugEyeTracking = new("devdebugeyetracking", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
@@ -1039,6 +1045,9 @@ namespace Basis.BasisUI
             GizmoJiggleVisuals.LoadBindingValue();
             TrackerGizmos.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
+            AvatarShowTextureStats.LoadBindingValue();
+            DevDebugFaceTracking.LoadBindingValue();
+            DevDebugEyeTracking.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;

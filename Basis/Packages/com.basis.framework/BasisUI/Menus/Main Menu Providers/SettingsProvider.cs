@@ -28,9 +28,19 @@ namespace Basis.BasisUI
         public static readonly List<(string TabName, Func<PanelTabGroup, PanelTabPage> Builder)> ExternalTabs = new();
 
         /// <summary>
-        /// When set by an external package, replaces the default My Avatar tab builder.
+        /// External hook for the Developer tab's "Debug Face Tracking" section.
+        /// The comms package owns the face tracking pipeline types (relays, OSC,
+        /// blendshape actuation) and registers a builder here that populates the
+        /// passed-in container with live diagnostic fields.
         /// </summary>
-        public static Func<PanelTabGroup, PanelTabPage> MyAvatarTabOverride;
+        public static Action<RectTransform> FaceTrackingDebugBuilder;
+
+        /// <summary>
+        /// External hook for the Developer tab's "Debug Eye Tracking" section.
+        /// Same shape as <see cref="FaceTrackingDebugBuilder"/> — the comms
+        /// package registers a builder that populates the container.
+        /// </summary>
+        public static Action<RectTransform> EyeTrackingDebugBuilder;
 
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
@@ -122,10 +132,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.chat", () => ChatTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.bodytracking", () => SettingsProviderIK.IKTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerLinking.TrackerLinkingTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.myavatar", () =>
-                MyAvatarTabOverride != null
-                    ? MyAvatarTabOverride(tabGroup)
-                    : SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
+            AddLazyTab(tabGroup, "settings.tab.myavatar", () => SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
@@ -1559,6 +1566,35 @@ namespace Basis.BasisUI
             RefreshAudioDebugSubVisibility(toggleAudioDebug.Value);
             toggleAudioDebug.OnValueChanged += RefreshAudioDebugSubVisibility;
 
+            // ---- Avatar Debug (face/eye tracking diagnostics + texture and tracker info) ----
+            // The face / eye tracking section builders are owned by the comms
+            // package because they reference HVR types the framework can't see;
+            // the framework holds Action<RectTransform> hooks they register into.
+            PanelElementDescriptor avatarDebugGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            avatarDebugGroup.SetTitle(BasisLocalization.Get("settings.developer.avatarDebug.title"));
+            avatarDebugGroup.SetDescription(BasisLocalization.Get("settings.developer.avatarDebug.description"));
+
+            PanelToggle toggleDebugFace = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
+            toggleDebugFace.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
+            toggleDebugFace.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.debugFaceTracking.description"));
+            toggleDebugFace.AssignBinding(BasisSettingsDefaults.DevDebugFaceTracking);
+
+            PanelToggle toggleDebugEye = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
+            toggleDebugEye.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
+            toggleDebugEye.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.debugEyeTracking.description"));
+            toggleDebugEye.AssignBinding(BasisSettingsDefaults.DevDebugEyeTracking);
+
+            PanelToggle toggleTextureStats = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
+            toggleTextureStats.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.textureStats"));
+            toggleTextureStats.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.textureStats.description"));
+            toggleTextureStats.AssignBinding(BasisSettingsDefaults.AvatarShowTextureStats);
+
+            PanelToggle toggleAssignedTrackers = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
+            toggleAssignedTrackers.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.assignedTrackers"));
+            toggleAssignedTrackers.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.assignedTrackers.description"));
+            toggleAssignedTrackers.AssignBinding(BasisSettingsDefaults.AvatarShowTrackerRoles);
+
             // ---- Collapsible sections (toggled by section visibility) ----
             // Helper: collect all new children added to container by a builder call
             static List<GameObject> CollectNewChildren(RectTransform parent, int countBefore)
@@ -1622,6 +1658,80 @@ namespace Basis.BasisUI
                 if (on) CreateNetStats();
             };
 
+            // Avatar Debug — Face Tracking diagnostics
+            PanelElementDescriptor faceTrackingSection = null;
+            void CreateFaceTrackingSection()
+            {
+                if (FaceTrackingDebugBuilder == null)
+                {
+                    faceTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                    faceTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
+                    faceTrackingSection.SetDescription(BasisLocalization.Get("settings.developer.debugFaceTracking.unavailable"));
+                    return;
+                }
+                faceTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                faceTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
+                FaceTrackingDebugBuilder(faceTrackingSection.ContentParent);
+            }
+            if (BasisSettingsDefaults.DevDebugFaceTracking.RawValue) CreateFaceTrackingSection();
+            toggleDebugFace.OnValueChanged += on =>
+            {
+                if (faceTrackingSection != null) { UnityEngine.Object.Destroy(faceTrackingSection.gameObject); faceTrackingSection = null; }
+                if (on) CreateFaceTrackingSection();
+            };
+
+            // Avatar Debug — Eye Tracking diagnostics
+            PanelElementDescriptor eyeTrackingSection = null;
+            void CreateEyeTrackingSection()
+            {
+                if (EyeTrackingDebugBuilder == null)
+                {
+                    eyeTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                    eyeTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
+                    eyeTrackingSection.SetDescription(BasisLocalization.Get("settings.developer.debugEyeTracking.unavailable"));
+                    return;
+                }
+                eyeTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                eyeTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
+                EyeTrackingDebugBuilder(eyeTrackingSection.ContentParent);
+            }
+            if (BasisSettingsDefaults.DevDebugEyeTracking.RawValue) CreateEyeTrackingSection();
+            toggleDebugEye.OnValueChanged += on =>
+            {
+                if (eyeTrackingSection != null) { UnityEngine.Object.Destroy(eyeTrackingSection.gameObject); eyeTrackingSection = null; }
+                if (on) CreateEyeTrackingSection();
+            };
+
+            // Avatar Debug — Texture Statistics
+            PanelElementDescriptor textureStatsSection = null;
+            void CreateTextureStatsSection()
+            {
+                textureStatsSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                textureStatsSection.SetTitle(BasisLocalization.Get("settings.developer.textureStats"));
+                SettingsProviderAvatarStats.PopulateStatsInto(textureStatsSection.ContentParent);
+            }
+            if (BasisSettingsDefaults.AvatarShowTextureStats.RawValue) CreateTextureStatsSection();
+            toggleTextureStats.OnValueChanged += on =>
+            {
+                if (textureStatsSection != null) { UnityEngine.Object.Destroy(textureStatsSection.gameObject); textureStatsSection = null; }
+                if (on) CreateTextureStatsSection();
+            };
+
+            // Avatar Debug — Assigned Trackers list
+            PanelElementDescriptor assignedTrackersSection = null;
+            void CreateAssignedTrackersSection()
+            {
+                assignedTrackersSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                assignedTrackersSection.SetTitle(BasisLocalization.Get("settings.developer.assignedTrackers"));
+                SettingsProviderAvatarStats.PopulateTrackerRoles(assignedTrackersSection);
+            }
+            if (BasisSettingsDefaults.AvatarShowTrackerRoles.RawValue) CreateAssignedTrackersSection();
+            toggleAssignedTrackers.OnValueChanged += on =>
+            {
+                if (assignedTrackersSection != null) { UnityEngine.Object.Destroy(assignedTrackersSection.gameObject); assignedTrackersSection = null; }
+                if (on) CreateAssignedTrackersSection();
+            };
+
             SettingsProviderPlatform.BuildAutoSwapUI(container);
 
             // One reset button for this whole page
@@ -1672,6 +1782,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AudioDebugShowJitter.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowSilence.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowViseme.ResetToDefault();
+            BasisSettingsDefaults.DevDebugFaceTracking.ResetToDefault();
+            BasisSettingsDefaults.DevDebugEyeTracking.ResetToDefault();
+            BasisSettingsDefaults.AvatarShowTextureStats.ResetToDefault();
+            BasisSettingsDefaults.AvatarShowTrackerRoles.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
         }
 

@@ -102,6 +102,25 @@ public static class BasisGizmoManager
         gizmo.UpdateSize(Scale);
         return true;
     }
+
+    /// <summary>
+    /// Updates an existing sphere gizmo with rotation included. Use this when
+    /// the gizmo is anchored to a bone whose orientation matters
+    /// (e.g. calibration spheres so they roll with the avatar's bone instead
+    /// of staying axis-aligned in world space).
+    /// </summary>
+    public static bool UpdateSphereGizmo(int linkedID, Vector3 position, Quaternion rotation, Vector3 Scale)
+    {
+        if (!Gizmos.TryGetValue(linkedID, out BasisGizmos gizmo))
+        {
+            BasisDebug.LogError($"No SphereGizmo found with ID {linkedID}. Use CreateSphereGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+
+        gizmo.UpdatePositionAndRotation(position, rotation);
+        gizmo.UpdateSize(Scale);
+        return true;
+    }
     public static bool CreateLineGizmo(string GizmoName,int linkedID, Vector3 start, Vector3 end, float width, Color color,GameObject Reference)
     {
         TryCreateParent();
