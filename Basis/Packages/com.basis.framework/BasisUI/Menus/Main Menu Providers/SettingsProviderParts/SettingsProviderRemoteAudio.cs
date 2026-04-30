@@ -4,6 +4,7 @@ using SteamAudio;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Basis.Scripts.Settings;
 
 namespace Basis.BasisUI
 {

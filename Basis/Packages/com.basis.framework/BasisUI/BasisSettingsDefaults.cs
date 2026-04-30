@@ -1,4 +1,5 @@
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.Settings;
 
 namespace Basis.BasisUI
 {
@@ -858,6 +859,11 @@ namespace Basis.BasisUI
         // Hides the pairing tuning sliders behind an advanced toggle so the
         // tracker linking page stays approachable for the common case.
         public static BasisSettingsBinding<bool> TrackerLinkingAdvancedVisible = new("trackerlinking_advancedvisible", new BasisPlatformDefault<bool>(false));
+        // Hides the per-tracker connector list (linking + role-override
+        // dropdowns) until the user opts in. The page is mostly useful once
+        // for setup; routine open/close shouldn't have to scroll past the
+        // full device list.
+        public static BasisSettingsBinding<bool> TrackerLinkingConnectorVisible = new("trackerlinking_connectorvisible", new BasisPlatformDefault<bool>(false));
         // Confidence falloff for a tracker that's spiking relative to its own
         // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
         // Higher = more aggressive shift to the steadier half on a glitch.
@@ -1260,6 +1266,7 @@ namespace Basis.BasisUI
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();
+            TrackerLinkingConnectorVisible.LoadBindingValue();
 
             // Remote Nameplate
             NPEnabled.LoadBindingValue();

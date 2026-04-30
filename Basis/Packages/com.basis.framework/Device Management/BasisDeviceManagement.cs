@@ -19,6 +19,7 @@ using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreAvatarKeys;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
+using Basis.Scripts.Settings;
 namespace Basis.Scripts.Device_Management
 {
     /// <summary>

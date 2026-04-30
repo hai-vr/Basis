@@ -11,27 +11,57 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Settings tab that lists every connected full-body-eligible tracker and lets
-    /// the user link any two of them. The constellation classifier in
-    /// BasisAvatarIKStageCalibration reads the resulting pairings and feeds each
-    /// pair to calibration as a single midpoint sample, so e.g. a front + back hip
-    /// tracker pair gets bound to the Hips role together.
+    /// the user (a) link any two of them into a virtual midpoint pair and (b) force
+    /// a body role on a tracker so calibration binds it without going through
+    /// constellation discovery. The constellation classifier in
+    /// BasisAvatarIKStageCalibration consumes both: pairings via BasisTrackerPairing,
+    /// forced roles via BasisTrackerRoleOverride.
     ///
     /// Layout: a static intro + tuning section at the top (built once when the tab
     /// is created and bound to settings so values persist), then a dynamic list of
-    /// per-tracker pair-pickers below that updates whenever devices come or go or
-    /// the pairing graph changes.
+    /// per-tracker entries below — each entry has a "linked with" dropdown and a
+    /// "force role" dropdown.
     ///
-    /// Pairing-graph updates only refresh the *selected value* of each existing
-    /// dropdown — they do NOT tear the dropdowns down. Tearing down a dropdown
-    /// while the user is mid-click on one of its options destroys the GameObject
-    /// the click is being routed to and makes the whole entry list flicker out.
-    /// A full rebuild only happens when the set of eligible trackers actually
-    /// changes (a tracker connected or disconnected).
+    /// Pairing/override-graph updates only refresh the *selected value* of each
+    /// existing dropdown — they do NOT tear the dropdowns down. Tearing down a
+    /// dropdown while the user is mid-click on one of its options destroys the
+    /// GameObject the click is being routed to and makes the whole entry list
+    /// flicker out. A full rebuild only happens when the set of eligible trackers
+    /// actually changes (a tracker connected or disconnected).
     /// </summary>
-    public static class SettingsProviderTrackerLinking
+    public static class SettingsProviderTrackerSettings
     {
         private const string UnlinkedLabel = "(unlinked)";
+        // Localization key — kept as the historical "trackerlinking" so existing
+        // translations and any saved last-tab pointers still resolve.
         private const string TabKey = "settings.tab.trackerlinking";
+
+        // Roles we let the user force a tracker into. Mirrors the FB-tracker priors
+        // in BasisAvatarIKStageCalibration.BuildPriors so anything you can pick here
+        // is something the constellation classifier would have considered anyway.
+        private static readonly BasisBoneTrackedRole[] OverrideableRoles =
+        {
+            BasisBoneTrackedRole.Hips,
+            BasisBoneTrackedRole.Chest,
+            BasisBoneTrackedRole.LeftShoulder,
+            BasisBoneTrackedRole.RightShoulder,
+            BasisBoneTrackedRole.LeftLowerArm,
+            BasisBoneTrackedRole.RightLowerArm,
+            BasisBoneTrackedRole.LeftLowerLeg,
+            BasisBoneTrackedRole.RightLowerLeg,
+            BasisBoneTrackedRole.LeftFoot,
+            BasisBoneTrackedRole.RightFoot,
+            BasisBoneTrackedRole.LeftToes,
+            BasisBoneTrackedRole.RightToes,
+        };
+
+        private sealed class TabEntry
+        {
+            public string Id;
+            public PanelElementDescriptor Group;
+            public PanelDropdown LinkDropdown;
+            public PanelDropdown RoleDropdown;
+        }
 
         // Per-tab-instance state captured in a closure. One instance per Settings
         // open; cleared in OnInstanceReleased so reopening Settings starts fresh.
@@ -54,15 +84,10 @@ namespace Basis.BasisUI
             // a full rebuild on the initial call even when there are zero
             // trackers (so the "no trackers" panel actually gets created).
             public bool HasBuilt;
-            // Parallel lists kept in lockstep: Ids[i] is the device shown by
-            // EntryDropdowns[i] / EntryDescriptors[i]. Used to detect whether
-            // an event needs a full rebuild or just a value refresh.
-            public readonly List<string> Ids = new List<string>();
-            public readonly List<PanelDropdown> EntryDropdowns = new List<PanelDropdown>();
-            public readonly List<PanelElementDescriptor> EntryDescriptors = new List<PanelElementDescriptor>();
+            public readonly List<TabEntry> Entries = new List<TabEntry>();
         }
 
-        public static PanelTabPage TrackerLinkingTab(PanelTabGroup tabGroup)
+        public static PanelTabPage TrackerSettingsTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tabPage = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor tabDesc = tabPage.Descriptor;
@@ -71,11 +96,20 @@ namespace Basis.BasisUI
 
             RectTransform tabRoot = tabDesc.ContentParent;
 
-            // Static intro — explains what pairing does and survives device-list rebuilds.
+            // Static intro — explains what this tab is for and survives device-list rebuilds.
             PanelElementDescriptor headerGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             headerGroup.SetTitle(BasisLocalization.Get("trackerLinking.header.title"));
             headerGroup.SetDescription(BasisLocalization.Get("trackerLinking.header.description"));
+
+            // Connector trackers toggle — hides the per-tracker list (linking +
+            // role override dropdowns) so a configured player doesn't have to
+            // scroll past every device on every visit. Same opt-in pattern as
+            // the advanced toggle below; user touches it once to set things up.
+            PanelToggle connectorToggle = PanelToggle.CreateNewEntry(tabRoot);
+            connectorToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.connectorTrackers"));
+            connectorToggle.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.connectorTrackers.description"));
+            connectorToggle.AssignBinding(BasisSettingsDefaults.TrackerLinkingConnectorVisible);
 
             // Advanced toggle — hides the tuning sliders behind an opt-in so
             // the page stays approachable for users who only want to link
@@ -93,8 +127,8 @@ namespace Basis.BasisUI
             tuningGroup.SetDescription(BasisLocalization.Get("trackerLinking.tuning.description"));
             BuildTuningSliders(tuningGroup.ContentParent);
 
-            // Dynamic per-tracker section — updates on device/pair changes. Lives
-            // in its own container so the tuning sliders above aren't touched.
+            // Dynamic per-tracker section — updates on device/pair/override changes.
+            // Lives in its own container so the tuning sliders above aren't touched.
             PanelElementDescriptor trackersGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             trackersGroup.SetTitle(BasisLocalization.Get("trackerLinking.trackers.title"));
@@ -106,10 +140,11 @@ namespace Basis.BasisUI
                 TabDescriptor = tabDesc,
             };
 
-            // Single change handler routes both list and pairing events. Decides
-            // whether a full rebuild is necessary by diffing the eligible-id set,
-            // and otherwise just refreshes the existing dropdowns' selected values
-            // and per-entry role descriptions in place.
+            // Single change handler routes list, pairing, and override events.
+            // Decides whether a full rebuild is necessary by diffing the
+            // eligible-id set, and otherwise just refreshes the existing
+            // dropdowns' selected values and per-entry role descriptions in
+            // place.
             Action handleChange = () => HandleChange(state);
 
             BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance?.AllInputDevices;
@@ -118,6 +153,7 @@ namespace Basis.BasisUI
                 devices.OnListChanged += handleChange;
             }
             BasisTrackerPairing.OnPairingsChanged += handleChange;
+            BasisTrackerRoleOverride.OnOverridesChanged += handleChange;
 
             tabPage.OnInstanceReleased += () =>
             {
@@ -127,18 +163,17 @@ namespace Basis.BasisUI
                     currentDevices.OnListChanged -= handleChange;
                 }
                 BasisTrackerPairing.OnPairingsChanged -= handleChange;
+                BasisTrackerRoleOverride.OnOverridesChanged -= handleChange;
                 state.TrackersContainer = null;
                 state.TrackersGroup = null;
                 state.TabDescriptor = null;
                 state.HasBuilt = false;
-                state.Ids.Clear();
-                state.EntryDropdowns.Clear();
-                state.EntryDescriptors.Clear();
+                state.Entries.Clear();
             };
 
             // Page-level reset stays on tabRoot (not inside tuningGroup) so it
             // remains reachable when the advanced toggle hides the sliders.
-            SettingsProvider.AddResetPageButton(tabRoot, TabKey, ResetTrackerLinkingDefaults);
+            SettingsProvider.AddResetPageButton(tabRoot, TabKey, ResetTrackerSettingsDefaults);
 
             // Initial visibility + OnValueChanged gating. Two-step rebuild
             // (inner group, then tab descriptor) matches the existing pattern
@@ -148,6 +183,14 @@ namespace Basis.BasisUI
             {
                 tuningGroup.gameObject.SetActive(visible);
                 tuningGroup.ForceRebuild();
+                tabDesc.ForceRebuild();
+            };
+
+            trackersGroup.gameObject.SetActive(BasisSettingsDefaults.TrackerLinkingConnectorVisible.RawValue);
+            connectorToggle.OnValueChanged += visible =>
+            {
+                trackersGroup.gameObject.SetActive(visible);
+                trackersGroup.ForceRebuild();
                 tabDesc.ForceRebuild();
             };
 
@@ -172,16 +215,16 @@ namespace Basis.BasisUI
             // tracker set has changed (a tracker connected, disconnected, or
             // shifted position in the device list — every case where the
             // dropdown rows need to be added/removed/reordered), and as a
-            // self-healing fallback if the cached dropdown count has somehow
+            // self-healing fallback if the cached entry count has somehow
             // gone out of sync with the tracker count.
             //
-            // Otherwise — pairing graph changed but eligible trackers are the
-            // same set in the same order — we update the existing dropdowns
-            // in place. This is the path that protects the user's mid-click
-            // dropdown from being torn down underneath them.
+            // Otherwise — pairing/override graph changed but eligible trackers
+            // are the same set in the same order — we update the existing
+            // dropdowns in place. This is the path that protects the user's
+            // mid-click dropdown from being torn down underneath them.
             bool needsRebuild = !state.HasBuilt
-                || !IdsMatch(state.Ids, newIds)
-                || state.EntryDropdowns.Count != trackers.Count;
+                || !IdsMatch(state.Entries, newIds)
+                || state.Entries.Count != trackers.Count;
 
             if (needsRebuild)
             {
@@ -205,20 +248,20 @@ namespace Basis.BasisUI
                 return;
             }
 
-            RefreshExistingEntries(state, trackers);
+            RefreshExistingEntries(state, trackers, newIds);
         }
 
-        private static bool IdsMatch(List<string> a, List<string> b)
+        private static bool IdsMatch(List<TabEntry> entries, List<string> b)
         {
-            if (a.Count != b.Count) return false;
-            for (int i = 0; i < a.Count; i++)
+            if (entries.Count != b.Count) return false;
+            for (int i = 0; i < entries.Count; i++)
             {
-                if (a[i] != b[i]) return false;
+                if (entries[i].Id != b[i]) return false;
             }
             return true;
         }
 
-        private static void RefreshExistingEntries(TabState state, List<BasisInput> trackers)
+        private static void RefreshExistingEntries(TabState state, List<BasisInput> trackers, List<string> ids)
         {
             state.SuppressDropdownEvents[0] = true;
             for (int i = 0; i < trackers.Count; i++)
@@ -226,18 +269,20 @@ namespace Basis.BasisUI
                 BasisInput input = trackers[i];
                 string id = input.UniqueDeviceIdentifier;
 
-                if (i >= state.EntryDropdowns.Count) continue;
-                PanelDropdown dropdown = state.EntryDropdowns[i];
-                PanelElementDescriptor descriptor = state.EntryDescriptors[i];
+                if (i >= state.Entries.Count) continue;
+                TabEntry entry = state.Entries[i];
 
-                if (descriptor != null && !descriptor.IsReleased)
+                if (entry.Group != null && !entry.Group.IsReleased)
                 {
-                    descriptor.SetDescription(BuildEntryDescription(input));
+                    entry.Group.SetDescription(BuildEntryDescription(input));
                 }
-                if (dropdown != null && !dropdown.IsReleased)
+                if (entry.LinkDropdown != null && !entry.LinkDropdown.IsReleased)
                 {
-                    string current = ResolveCurrentSelection(id, state.Ids);
-                    dropdown.SetValueWithoutNotify(current);
+                    entry.LinkDropdown.SetValueWithoutNotify(ResolveCurrentLink(id, ids));
+                }
+                if (entry.RoleDropdown != null && !entry.RoleDropdown.IsReleased)
+                {
+                    entry.RoleDropdown.SetValueWithoutNotify(ResolveCurrentRoleOverride(id));
                 }
             }
             state.SuppressDropdownEvents[0] = false;
@@ -268,9 +313,7 @@ namespace Basis.BasisUI
                 }
             }
 
-            state.Ids.Clear();
-            state.EntryDropdowns.Clear();
-            state.EntryDescriptors.Clear();
+            state.Entries.Clear();
 
             if (trackers.Count == 0)
             {
@@ -281,8 +324,6 @@ namespace Basis.BasisUI
                 return;
             }
 
-            state.Ids.AddRange(newIds);
-
             // Suppress dropdown change events while we set initial values —
             // without this, AssignEntries + SetValueWithoutNotify can still fire
             // callbacks depending on prefab configuration, and we'd recursively
@@ -290,12 +331,12 @@ namespace Basis.BasisUI
             state.SuppressDropdownEvents[0] = true;
             for (int i = 0; i < trackers.Count; i++)
             {
-                BuildEntryFor(state, trackers[i]);
+                BuildEntryFor(state, trackers[i], newIds);
             }
             state.SuppressDropdownEvents[0] = false;
         }
 
-        private static void BuildEntryFor(TabState state, BasisInput input)
+        private static void BuildEntryFor(TabState state, BasisInput input, List<string> allIds)
         {
             string id = input.UniqueDeviceIdentifier;
 
@@ -304,23 +345,22 @@ namespace Basis.BasisUI
             group.SetTitle(id);
             group.SetDescription(BuildEntryDescription(input));
 
-            PanelDropdown dropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
-            dropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.linkLabel"));
-            dropdown.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.linkDescription"));
+            PanelDropdown linkDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
+            linkDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.linkLabel"));
+            linkDropdown.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.linkDescription"));
 
-            List<string> entries = new List<string>(state.Ids.Count) { UnlinkedLabel };
-            for (int i = 0; i < state.Ids.Count; i++)
+            List<string> linkEntries = new List<string>(allIds.Count) { UnlinkedLabel };
+            for (int i = 0; i < allIds.Count; i++)
             {
-                if (state.Ids[i] == id) continue;
-                entries.Add(state.Ids[i]);
+                if (allIds[i] == id) continue;
+                linkEntries.Add(allIds[i]);
             }
-            dropdown.AssignEntries(entries);
-            dropdown.SetValueWithoutNotify(ResolveCurrentSelection(id, state.Ids));
+            linkDropdown.AssignEntries(linkEntries);
+            linkDropdown.SetValueWithoutNotify(ResolveCurrentLink(id, allIds));
 
-            // Capture by value so the closure is stable across rebuilds.
             string capturedId = id;
             bool[] suppressFlag = state.SuppressDropdownEvents;
-            dropdown.OnValueChanged += newValue =>
+            linkDropdown.OnValueChanged += newValue =>
             {
                 if (suppressFlag[0]) return;
                 if (string.IsNullOrEmpty(newValue) || newValue == UnlinkedLabel)
@@ -333,8 +373,35 @@ namespace Basis.BasisUI
                 }
             };
 
-            state.EntryDescriptors.Add(group);
-            state.EntryDropdowns.Add(dropdown);
+            PanelDropdown roleDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
+            roleDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.roleOverrideLabel"));
+            roleDropdown.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.roleOverrideDescription"));
+
+            List<string> roleEntries = BuildRoleEntries();
+            roleDropdown.AssignEntries(roleEntries);
+            roleDropdown.SetValueWithoutNotify(ResolveCurrentRoleOverride(id));
+
+            roleDropdown.OnValueChanged += newValue =>
+            {
+                if (suppressFlag[0]) return;
+                if (string.IsNullOrEmpty(newValue) || newValue == AutoRoleLabel())
+                {
+                    BasisTrackerRoleOverride.ClearOverride(capturedId);
+                    return;
+                }
+                if (TryParseOverrideRole(newValue, out BasisBoneTrackedRole parsed))
+                {
+                    BasisTrackerRoleOverride.SetOverride(capturedId, parsed);
+                }
+            };
+
+            state.Entries.Add(new TabEntry
+            {
+                Id = id,
+                Group = group,
+                LinkDropdown = linkDropdown,
+                RoleDropdown = roleDropdown,
+            });
         }
 
         private static string BuildEntryDescription(BasisInput input)
@@ -346,13 +413,48 @@ namespace Basis.BasisUI
             return BasisLocalization.Get("trackerLinking.entry.unassigned");
         }
 
-        private static string ResolveCurrentSelection(string id, List<string> eligibleIds)
+        private static string ResolveCurrentLink(string id, List<string> eligibleIds)
         {
             if (BasisTrackerPairing.TryGetPartner(id, out string partner) && eligibleIds.Contains(partner))
             {
                 return partner;
             }
             return UnlinkedLabel;
+        }
+
+        private static string ResolveCurrentRoleOverride(string id)
+        {
+            if (BasisTrackerRoleOverride.TryGetOverride(id, out BasisBoneTrackedRole role))
+            {
+                return role.ToString();
+            }
+            return AutoRoleLabel();
+        }
+
+        private static string AutoRoleLabel() => BasisLocalization.Get("trackerLinking.roleOverride.auto");
+
+        private static List<string> BuildRoleEntries()
+        {
+            List<string> list = new List<string>(OverrideableRoles.Length + 1) { AutoRoleLabel() };
+            for (int i = 0; i < OverrideableRoles.Length; i++)
+            {
+                list.Add(OverrideableRoles[i].ToString());
+            }
+            return list;
+        }
+
+        private static bool TryParseOverrideRole(string value, out BasisBoneTrackedRole role)
+        {
+            for (int i = 0; i < OverrideableRoles.Length; i++)
+            {
+                if (OverrideableRoles[i].ToString() == value)
+                {
+                    role = OverrideableRoles[i];
+                    return true;
+                }
+            }
+            role = BasisBoneTrackedRole.CenterEye;
+            return false;
         }
 
         private static void BuildTuningSliders(RectTransform parent)
@@ -451,9 +553,10 @@ namespace Basis.BasisUI
             }
         }
 
-        private static void ResetTrackerLinkingDefaults()
+        private static void ResetTrackerSettingsDefaults()
         {
             BasisSettingsDefaults.TrackerLinkingAdvancedVisible.ResetToDefault();
+            BasisSettingsDefaults.TrackerLinkingConnectorVisible.ResetToDefault();
             BasisSettingsDefaults.PairingSurprisePenalty.ResetToDefault();
             BasisSettingsDefaults.PairingSurpriseClamp.ResetToDefault();
             BasisSettingsDefaults.PairingEmaFloor.ResetToDefault();

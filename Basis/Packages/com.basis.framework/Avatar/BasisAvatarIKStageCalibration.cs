@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Device_Management.Devices.Pairing;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
@@ -246,6 +247,13 @@ namespace Basis.Scripts.Avatar
             bool[] sampleUsed = new bool[samples.Count];
             bool[] roleUsed = new bool[priors.Length];
             int assignedCount = 0;
+
+            // User-forced overrides come first. Each sample whose tracker (or, for a
+            // virtual midpoint, either physical half) has a stored role override is
+            // bound straight to that role and removed from the candidate pool — the
+            // classifier never scores it. This lets a user lock e.g. a problem hip
+            // tracker to Hips so calibration can't reassign it under any pose.
+            assignedCount += ApplyForcedRoleOverrides(samples, priors, sampleUsed, roleUsed);
             while (true)
             {
                 float bestScore = ConstellationAcceptThreshold;
@@ -305,6 +313,93 @@ namespace Basis.Scripts.Avatar
             ComputeBestAnyFits(samples);
             ConstellationDebug.Status = $"{assignedCount} of {samples.Count} tracker(s) assigned";
             ConstellationDebug.HasSnapshot = true;
+        }
+
+        /// <summary>
+        /// Walks samples, applies any user-set role override for each tracker
+        /// directly (skipping the constellation scoring), and marks both the
+        /// sample and the chosen role as used so the greedy classifier can't
+        /// touch them. For virtual midpoint samples we also accept an override
+        /// recorded against either physical half — the user pairs trackers in
+        /// the UI by physical id, and the merged virtual is what calibration
+        /// sees, so we have to bridge between the two ids here.
+        /// </summary>
+        private static int ApplyForcedRoleOverrides(List<TrackerSample> samples, BoneRolePrior[] priors, bool[] sampleUsed, bool[] roleUsed)
+        {
+            int forced = 0;
+            for (int s = 0; s < samples.Count; s++)
+            {
+                if (sampleUsed[s]) continue;
+                TrackerSample sample = samples[s];
+                if (sample.Input == null) continue;
+                if (sample.NearOrigin) continue;
+
+                if (!TryResolveOverride(sample.Input, out BasisBoneTrackedRole forcedRole))
+                {
+                    continue;
+                }
+
+                int roleIdx = -1;
+                for (int r = 0; r < priors.Length; r++)
+                {
+                    if (priors[r].Role == forcedRole)
+                    {
+                        roleIdx = r;
+                        break;
+                    }
+                }
+                // Override targets a role the classifier wouldn't normally
+                // assign (toggled off, or off-list like Spine). The user
+                // explicitly asked for it, so honor the override and just skip
+                // the roleUsed bookkeeping — the classifier was never going to
+                // pick that role anyway.
+                if (roleIdx >= 0 && roleUsed[roleIdx])
+                {
+                    BasisDebug.Log($"FBIK constellation: override for '{sample.Input.UniqueDeviceIdentifier}' -> {forcedRole} skipped (role already taken by another override)", BasisDebug.LogTag.Input);
+                    continue;
+                }
+
+                BasisDebug.Log($"FBIK constellation: '{sample.Input.UniqueDeviceIdentifier}' -> {forcedRole} (forced override)", BasisDebug.LogTag.Input);
+                sample.Input.ApplyTrackerCalibration(forcedRole);
+                sampleUsed[s] = true;
+                if (roleIdx >= 0) roleUsed[roleIdx] = true;
+                HasFBIKTrackers = true;
+
+                // ConstellationDebug records the assignment with score=+inf to
+                // mark "this didn't go through scoring". Negative scores in the
+                // visualizer mean "tight fit"; +inf reads as "no fit needed".
+                RecordAssignment(s, forcedRole, float.PositiveInfinity);
+                forced++;
+            }
+            return forced;
+        }
+
+        /// <summary>
+        /// Resolves a user-set override for the given input. Plain inputs use
+        /// their own id. Virtual midpoints check both physical halves so an
+        /// override saved against either tracker before pairing still applies.
+        /// </summary>
+        private static bool TryResolveOverride(BasisInput input, out BasisBoneTrackedRole role)
+        {
+            if (BasisTrackerRoleOverride.TryGetOverride(input.UniqueDeviceIdentifier, out role))
+            {
+                return true;
+            }
+            if (input is BasisVirtualMidpointInput midpoint)
+            {
+                if (midpoint.PartnerA != null
+                    && BasisTrackerRoleOverride.TryGetOverride(midpoint.PartnerA.UniqueDeviceIdentifier, out role))
+                {
+                    return true;
+                }
+                if (midpoint.PartnerB != null
+                    && BasisTrackerRoleOverride.TryGetOverride(midpoint.PartnerB.UniqueDeviceIdentifier, out role))
+                {
+                    return true;
+                }
+            }
+            role = BasisBoneTrackedRole.CenterEye;
+            return false;
         }
 
         private static void CaptureSampleSnapshots(List<TrackerSample> samples)

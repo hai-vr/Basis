@@ -10,12 +10,15 @@ using Basis.Scripts.Networking.Transmitters;
 using Basis.BasisUI;
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.NamePlate;
+using Basis.Scripts.Profiler;
 using GatorDragonGames.JigglePhysics;
 using SteamAudio;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+namespace Basis.EventDriver
+{
 /// <summary>
 /// Central per-frame driver that coordinates device actions, networking compute/apply,
 /// physics scheduling for JigglePhysics, and various local simulation hooks.
@@ -535,4 +538,5 @@ public partial class BasisEventDriver : MonoBehaviour
         BasisEventDriverProfilerData.OnBeforeRenderMs = _beforeRenderSW.Elapsed.TotalMilliseconds;
     }
 #endif
+}
 }
