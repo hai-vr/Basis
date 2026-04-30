@@ -1542,6 +1542,23 @@ namespace Basis.BasisUI
             toggleViseme.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.viseme.description"));
             toggleViseme.AssignBinding(BasisSettingsDefaults.AudioDebugShowViseme);
 
+            // Hide per-section sub-toggles when the master is off — same pattern
+            // as RefreshGizmoSubVisibility above. They don't drive any rendering
+            // unless the master is on, so leaving them visible just clutters the
+            // page.
+            void RefreshAudioDebugSubVisibility(bool masterOn)
+            {
+                toggleAudioSource.Descriptor.SetActive(masterOn);
+                toggleVolumeChain.Descriptor.SetActive(masterOn);
+                toggleRingBuffer.Descriptor.SetActive(masterOn);
+                toggleJitter.Descriptor.SetActive(masterOn);
+                toggleSilence.Descriptor.SetActive(masterOn);
+                toggleViseme.Descriptor.SetActive(masterOn);
+                audioDebugGroup.ForceRebuild();
+            }
+            RefreshAudioDebugSubVisibility(toggleAudioDebug.Value);
+            toggleAudioDebug.OnValueChanged += RefreshAudioDebugSubVisibility;
+
             // ---- Collapsible sections (toggled by section visibility) ----
             // Helper: collect all new children added to container by a builder call
             static List<GameObject> CollectNewChildren(RectTransform parent, int countBefore)
