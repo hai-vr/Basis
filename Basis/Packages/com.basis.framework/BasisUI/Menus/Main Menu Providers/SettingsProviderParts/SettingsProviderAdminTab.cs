@@ -1,6 +1,8 @@
+using Basis.Scripts.Networking;
 using BasisNetworkCore.Security;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 
@@ -123,6 +125,12 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetServerMotd(serverMotdField.Value ?? string.Empty);
             };
 
+            // Pre-populate the Server Name and MOTD fields with whatever the
+            // connected server is currently advertising, so the admin can see
+            // and tweak the live values instead of typing into blank fields.
+            // Fire-and-forget; failure is silent (the fields just stay blank).
+            _ = PrefillServerInfoFieldsAsync(serverNameField, serverMotdField);
+
             PanelToggle whitelistToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
             whitelistToggle.Descriptor.SetTitle("Whitelist Only");
             whitelistToggle.Descriptor.SetDescription("When on, only UUIDs in BasisWhiteList.txt may connect. Setting persists to config.xml.");
@@ -162,6 +170,40 @@ namespace Basis.BasisUI
 
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        /// <summary>
+        /// Fire a one-shot info-query against the currently connected server and
+        /// drop the response's name/MOTD into the admin fields. Lets admins see
+        /// the live values instead of guessing what's in config.xml.
+        /// </summary>
+        private static async System.Threading.Tasks.Task PrefillServerInfoFieldsAsync(
+            PanelTextField nameField, PanelTextField motdField)
+        {
+            BasisNetworkManagement nm = BasisNetworkManagement.Instance;
+            if (nm == null) return;
+            string ip = nm.Ip;
+            ushort port = nm.Port;
+            if (string.IsNullOrEmpty(ip) || port == 0) return;
+
+            try
+            {
+                using CancellationTokenSource cts = new CancellationTokenSource(3500);
+                BasisServerInfoClient.ServerInfoResult result =
+                    await BasisServerInfoClient.QueryAsync(ip, port, 3000, cts.Token);
+                if (result == null || !result.Reachable) return;
+
+                // Only fill if the field is still empty — don't clobber an admin
+                // who started typing while the query was in flight.
+                if (nameField != null && string.IsNullOrEmpty(nameField.Value))
+                    nameField.SetValueWithoutNotify(result.Info.Name ?? string.Empty);
+                if (motdField != null && string.IsNullOrEmpty(motdField.Value))
+                    motdField.SetValueWithoutNotify(result.Info.Motd ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogWarning($"Server info prefill failed: {ex.Message}");
+            }
         }
 
         // Modes mirror BundledContentHolder.Mode (Avatar=0, World=1, Prop=2).

@@ -68,6 +68,7 @@ namespace Basis.BasisUI
         private PanelButton _editSaveButton;
         private PanelButton _editCancelButton;
         private PanelButton _editShareButton;
+        private PanelButton _editRemoveButton;
         private PanelTextField _usernameField;
         private PanelButton _addServerButton;
         private PanelButton _refreshAllButton;
@@ -245,6 +246,30 @@ namespace Basis.BasisUI
             _editCancelButton = PanelButton.CreateNew(editorActions);
             _editCancelButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.cancel"));
             _editCancelButton.OnClicked += HideEditor;
+
+            // Remove also lives inside the editor — destructive actions stay
+            // gated behind the Edit step so the row's surface stays small.
+            _editRemoveButton = PanelButton.CreateNew(editorActions);
+            _editRemoveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.remove"));
+            _editRemoveButton.OnClicked += () => _ = OnEditRemoveClickedAsync();
+        }
+
+        private async Task OnEditRemoveClickedAsync()
+        {
+            if (string.IsNullOrEmpty(_editingId)) return;
+            string idAtClick = _editingId;
+            SavedServerEntry target = _servers?.Find(s => s.Id == idAtClick);
+            if (target == null) return;
+
+            await ConfirmAndRemoveAsync(target);
+
+            // Close the editor only if the entry actually got deleted; otherwise
+            // (user cancelled the confirm dialog) leave the editor open so they
+            // can keep editing.
+            if (_servers != null && _servers.Find(s => s.Id == idAtClick) == null)
+            {
+                HideEditor();
+            }
         }
 
         private void ShowEditor(SavedServerEntry existing)
@@ -262,6 +287,12 @@ namespace Basis.BasisUI
             {
                 bool canShare = existing != null && BasisNetworkConnection.LocalPlayerIsConnected;
                 _editShareButton.gameObject.SetActive(canShare);
+            }
+            // Remove only applies to existing entries — there's nothing to remove
+            // when adding a new one.
+            if (_editRemoveButton != null)
+            {
+                _editRemoveButton.gameObject.SetActive(existing != null);
             }
             _editorSection.SetActive(true);
         }
@@ -347,7 +378,6 @@ namespace Basis.BasisUI
             public PanelElementDescriptor Group;
             public PanelButton ConnectButton;
             public PanelButton EditButton;
-            public PanelButton RemoveButton;
         }
 
         private void RebuildRows()
@@ -400,13 +430,6 @@ namespace Basis.BasisUI
                 row.EditButton = PanelButton.CreateNew(actions);
                 row.EditButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.edit"));
                 row.EditButton.OnClicked += () => ShowEditor(entry);
-            }
-
-            if (!isDefault)
-            {
-                row.RemoveButton = PanelButton.CreateNew(actions);
-                row.RemoveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.remove"));
-                row.RemoveButton.OnClicked += () => _ = ConfirmAndRemoveAsync(entry);
             }
 
             _rows[entry.Id] = row;
@@ -538,9 +561,17 @@ namespace Basis.BasisUI
                     name,
                     OnlineColor,
                     playerCount));
-                row.Group.SetDescription(string.Format("{0}  •  {1}",
+
+                string description = string.Format("{0}  •  {1}",
                     string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port),
-                    string.Format(BasisLocalization.Get("menu.servers.list.ping"), info.RoundTripMs)));
+                    string.Format(BasisLocalization.Get("menu.servers.list.ping"), info.RoundTripMs));
+                // MOTD on its own line at 85% size — keeps the dense address/ping
+                // header readable while the server's own copy gets a visual break.
+                if (!string.IsNullOrEmpty(info.Motd))
+                {
+                    description += $"\n<size=85%>{info.Motd}</size>";
+                }
+                row.Group.SetDescription(description);
             }
             else
             {
