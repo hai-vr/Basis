@@ -254,8 +254,29 @@ namespace Basis.BasisUI
 
         private void SaveEditor()
         {
-            string address = _editAddress.Value?.Trim();
-            if (!ushort.TryParse(_editPort.Value, out ushort port) || port == 0)
+            string addressInput = _editAddress.Value?.Trim();
+            string address = addressInput;
+            ushort? parsedPortOverride = null;
+            string parsedPasswordOverride = null;
+
+            // If the user pasted a connection string into the Address field
+            // (address:port#password), split it so port/password get the parsed
+            // values too instead of the user having to fill three fields.
+            if (!string.IsNullOrEmpty(addressInput)
+                && (addressInput.IndexOf(':') >= 0 || addressInput.IndexOf('#') >= 0)
+                && TryParseConnectionString(addressInput, out string pAddr, out ushort pPort, out bool portProvided, out string pPassword))
+            {
+                address = pAddr;
+                if (portProvided) parsedPortOverride = pPort;
+                if (!string.IsNullOrEmpty(pPassword)) parsedPasswordOverride = pPassword;
+            }
+
+            ushort port;
+            if (parsedPortOverride.HasValue)
+            {
+                port = parsedPortOverride.Value;
+            }
+            else if (!ushort.TryParse(_editPort.Value, out port) || port == 0)
             {
                 ReportConnectionError("Port must be 1-65535");
                 return;
@@ -287,8 +308,9 @@ namespace Basis.BasisUI
             entry.DisplayName = string.Empty;
             entry.Address = address;
             entry.Port = port;
-            entry.HasPassword = true;
-            entry.Password = _editPassword.Password ?? string.Empty;
+            string finalPassword = parsedPasswordOverride ?? (_editPassword.Password ?? string.Empty);
+            entry.Password = finalPassword;
+            entry.HasPassword = !string.IsNullOrEmpty(finalPassword);
 
             SavedServerStore.Save(_servers);
 
@@ -542,7 +564,9 @@ namespace Basis.BasisUI
             // Validate sync inputs first so the user can correct without losing the
             // panel — only commit to the loading-bar takeover once we have something
             // worth attempting.
-            string userName = _usernameField._inputField.text;
+            string userName = _usernameField != null
+                ? _usernameField._inputField.text
+                : BasisDataStore.LoadString(UsernameFileName, string.Empty);
             if (string.IsNullOrEmpty(userName))
             {
                 ReportConnectionError(BasisLocalization.Get("menu.servers.error.emptyName"));
@@ -554,6 +578,17 @@ namespace Basis.BasisUI
             BasisMainMenu.Close();
             BasisCursorManagement.OnReset();
 
+            await PerformConnectionAsync(entry, userName, isHostMode);
+        }
+
+        /// <summary>
+        /// Panel-independent connection routine. Reports progress through the loading bar,
+        /// disconnects any existing session, sets the network manager fields, loads the
+        /// asset bundle, and triggers the connection. Both the per-row Connect button and
+        /// the <c>--connection=</c> CLI bootstrap call this directly.
+        /// </summary>
+        public static async Task PerformConnectionAsync(SavedServerEntry entry, string userName, bool isHostMode = false)
+        {
             try
             {
                 ReportConnectionProgress(5f, BasisLocalization.Get("menu.servers.status.initializing"));
@@ -589,7 +624,7 @@ namespace Basis.BasisUI
                 BasisNetworkManagement.Instance.IsHostMode = isHostMode;
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
-                await CreateAssetBundle();
+                await LoadDefaultAssetBundleAsync();
 
                 ReportConnectionProgress(90f, BasisLocalization.Get("menu.servers.status.connecting"));
                 BasisNetworkManagement.Instance.Connect();
@@ -611,7 +646,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public async Task CreateAssetBundle()
+        public static async Task LoadDefaultAssetBundleAsync()
         {
             if (BundledContentHolder.Instance.UseSceneProvidedHere)
             {
@@ -627,6 +662,127 @@ namespace Basis.BasisUI
                     await BasisSceneLoad.LoadSceneAssetBundle(BundledContentHolder.Instance.DefaultScene);
                 }
             }
+        }
+
+        // ── --connection=address:port#password CLI bootstrap ──────────────────
+        // Format of the value (everything after `=`):
+        //   address           → port defaults to 4296, no password
+        //   address:port      → custom port, no password
+        //   address#password  → default port, custom password
+        //   address:port#password
+        // Both `:` and `#` are required *literally*; the parser tolerates them in
+        // either order only as written above. Hostnames and IPv4 work; IPv6 needs
+        // `[::1]:4296` brackets (port-detection uses LastIndexOf(':')).
+
+        private const string ConnectionArgPrefix = "--connection=";
+        private const string CommandLineEntryId = "__cmdline__";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void RegisterCommandLineAutoConnect()
+        {
+            if (!TryGetCommandLineConnection(out SavedServerEntry target)) return;
+
+            void Trigger()
+            {
+                if (_autoConnectAttempted) return;
+                _autoConnectAttempted = true;
+
+                if (BasisNetworkConnection.LocalPlayerIsConnected) return;
+
+                string userName = BasisDataStore.LoadString(UsernameFileName, string.Empty);
+                if (string.IsNullOrEmpty(userName))
+                {
+                    BasisDebug.LogWarning(
+                        $"--connection arg ignored: no saved username yet. Set one via the Servers panel and relaunch.");
+                    return;
+                }
+
+                _ = PerformConnectionAsync(target, userName);
+            }
+
+            if (BasisNetworkManagement.Instance != null) Trigger();
+            else BasisNetworkManagement.OnIstanceCreated += Trigger;
+        }
+
+        private static bool TryGetCommandLineConnection(out SavedServerEntry entry)
+        {
+            entry = null;
+            string[] args;
+            try { args = Environment.GetCommandLineArgs(); }
+            catch { return false; }
+            if (args == null) return false;
+
+            foreach (string arg in args)
+            {
+                if (string.IsNullOrEmpty(arg)) continue;
+                if (!arg.StartsWith(ConnectionArgPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+                string value = arg.Substring(ConnectionArgPrefix.Length);
+                if (!TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
+                {
+                    BasisDebug.LogWarning($"--connection arg could not be parsed: {arg}");
+                    return false;
+                }
+
+                entry = new SavedServerEntry
+                {
+                    Id = CommandLineEntryId,
+                    DisplayName = string.Empty,
+                    Address = addr,
+                    Port = port,
+                    HasPassword = !string.IsNullOrEmpty(password),
+                    Password = password ?? string.Empty,
+                };
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Splits a connection string of the form <c>address[:port][#password]</c>.
+        /// Returns false if the address segment ends up empty.
+        /// </summary>
+        private static bool TryParseConnectionString(
+            string raw, out string address, out ushort port, out bool portProvided, out string password)
+        {
+            address = string.Empty;
+            port = 4296;
+            portProvided = false;
+            password = string.Empty;
+            if (string.IsNullOrEmpty(raw)) return false;
+
+            // Password is anything after the first '#'.
+            string left = raw;
+            int hashIdx = raw.IndexOf('#');
+            if (hashIdx >= 0)
+            {
+                password = raw.Substring(hashIdx + 1);
+                left = raw.Substring(0, hashIdx);
+            }
+
+            // Port is what follows the LAST ':' — works for hostnames and IPv4, and
+            // for bracketed IPv6 (`[::1]:4296`) since the closing bracket sits before
+            // the port colon.
+            int colonIdx = left.LastIndexOf(':');
+            if (colonIdx > 0
+                && colonIdx < left.Length - 1
+                && ushort.TryParse(left.Substring(colonIdx + 1), out ushort parsedPort)
+                && parsedPort > 0)
+            {
+                address = left.Substring(0, colonIdx).Trim();
+                port = parsedPort;
+                portProvided = true;
+            }
+            else
+            {
+                address = left.Trim();
+            }
+
+            // Strip IPv6 brackets if the user wrote them.
+            if (address.StartsWith("[") && address.EndsWith("]") && address.Length >= 2)
+                address = address.Substring(1, address.Length - 2);
+
+            return !string.IsNullOrEmpty(address);
         }
     }
 }
