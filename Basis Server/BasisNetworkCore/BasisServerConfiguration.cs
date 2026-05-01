@@ -12,6 +12,10 @@ public class Configuration
     public const string InitialResourcesFolderName = "initialresources";
     public int PeerLimit = ushort.MaxValue;
     public ushort SetPort = 4296;
+    /// <summary>Display name returned by the unconnected server-info query — what shows up as the row title in a client server-list UI.</summary>
+    public string ServerName = "Basis Server";
+    /// <summary>Short MOTD returned alongside the server name in the info query response. Two short lines render cleanly in the list UI.</summary>
+    public string ServerMotd = "";
     public bool UseNativeSockets = true;
     public bool NatPunchEnabled = false;
     public int PingInterval = 1500;

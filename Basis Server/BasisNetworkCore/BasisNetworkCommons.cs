@@ -173,6 +173,22 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte CompressedAvatarBundleChannel = 52;
 
+        // ── Server info unconnected query ────────────────────────────────────
+        // Out-of-band UDP probe: a client can hit the server's port without
+        // authenticating and get back a name/online/max/MOTD payload — same
+        // shape as a Minecraft server-list-ping. Travels via LiteNetLib's
+        // SendUnconnectedMessage so it never enters the channel/peer pipeline.
+        /// <summary>Magic header for the unconnected info query packet from the client.</summary>
+        public const uint ServerInfoQueryMagic = 0xBA515101u;
+        /// <summary>Magic header for the unconnected info response packet from the server.</summary>
+        public const uint ServerInfoResponseMagic = 0xBA515102u;
+        /// <summary>Wire-format version for the info query payload. Bump when the layout changes.</summary>
+        public const ushort ServerInfoProtocolVersion = 1;
+        /// <summary>Hard cap on the server name length the client/server will read or write.</summary>
+        public const int ServerInfoNameMaxLength = 64;
+        /// <summary>Hard cap on the MOTD length the client/server will read or write.</summary>
+        public const int ServerInfoMotdMaxLength = 256;
+
         /// <summary>
         /// Maps quality index (0‑3) + additional data presence → byte-ID channel.
         /// </summary>

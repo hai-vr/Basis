@@ -31,6 +31,7 @@ namespace BasisServerHandle
             NetworkServer.Listener.PeerDisconnectedEvent += HandlePeerDisconnected;
             NetworkServer.Listener.NetworkReceiveEvent += BasisNetworkMessageProcessor.ProcessMessage;
             NetworkServer.Listener.NetworkErrorEvent += OnNetworkError;
+            BasisServerInfoQuery.Subscribe();
         }
 
         public static void UnsubscribeServerEvents()
@@ -39,6 +40,7 @@ namespace BasisServerHandle
             NetworkServer.Listener.PeerDisconnectedEvent -= HandlePeerDisconnected;
             NetworkServer.Listener.NetworkReceiveEvent -= BasisNetworkMessageProcessor.ProcessMessage;
             NetworkServer.Listener.NetworkErrorEvent -= OnNetworkError;
+            BasisServerInfoQuery.Unsubscribe();
         }
 
         public static void StopWorker()
