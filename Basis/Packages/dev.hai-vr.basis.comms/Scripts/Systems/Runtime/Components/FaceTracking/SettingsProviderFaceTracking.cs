@@ -1,5 +1,7 @@
+using System.Linq;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
+using HVR.Vixxy;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -21,6 +23,8 @@ namespace HVR.Basis.Comms
             descriptor.SetDescription("Face tracking diagnostics and avatar statistics.");
 
             RectTransform container = descriptor.ContentParent;
+
+            InitializeVixxyPanel(container);
 
             // ── Tracking Master Switches ──
             PanelElementDescriptor trackingTogglesGroup =
@@ -278,6 +282,107 @@ namespace HVR.Basis.Comms
             field.SetTitle(title);
             field.SetDescription(initialValue);
             return field;
+        }
+
+        private static void InitializeVixxyPanel(RectTransform container)
+        {
+            var localPlayer = BasisLocalPlayer.Instance;
+            var avatar = localPlayer?.BasisAvatar;
+            if (avatar == null) return;
+
+            var menuItems = avatar.GetComponentsInChildren<HVRVixxyMenuItem>(true);
+            if (menuItems.Length <= 0) return;
+
+            var menuGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            menuGroup.SetTitle("Vixxy");
+            menuGroup.SetDescription("Trigger effects on this avatar.");
+
+            foreach (var menuItem in menuItems)
+            {
+                var hasControl = menuItem.TryResolveActualControl(out var control);
+                if (!hasControl) continue;
+
+                if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
+                {
+                    BuildSlider(menuGroup, control, menuItem);
+                }
+                else
+                {
+                    if (!control.HasThreeOrMoreChoices)
+                    {
+                        BuildToggle(menuGroup, menuItem, control);
+                    }
+                    else
+                    {
+                        BuildDropdown(control, menuGroup, menuItem);
+                    }
+                }
+            }
+        }
+
+        private static void BuildToggle(PanelElementDescriptor menuGroup, HVRVixxyMenuItem menuItem, HVRVixxyControl control)
+        {
+            var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
+            toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+            toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+            toggle.OnValueChanged += value =>
+            {
+                menuItem.ApplyValue(value ? control.Max() : control.Min());
+                toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+            };
+            toggle.SetValueWithoutNotify(!Mathf.Approximately(menuItem.GetValue(), control.Min()));
+        }
+
+        private static void BuildSlider(PanelElementDescriptor menuGroup, HVRVixxyControl control, HVRVixxyMenuItem menuItem)
+        {
+            var slider = PanelSlider.CreateNew(menuGroup.ContentParent);
+            slider.SetSliderSettings(new PanelSlider.SliderSettings
+            {
+                SliderMin = control.Min(),
+                SliderMax = control.Max(),
+                DecimalPlaces = 2,
+                DisplayMode = ValueDisplayMode.Percentage,
+            });
+            slider.Descriptor.SetTitle(menuItem.ResolveTitle());
+            slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+            void WhenValueChanged(float value)
+            {
+                menuItem.ApplyValue(value);
+                slider.Descriptor.SetTitle(menuItem.ResolveTitle());
+                slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+            }
+            slider.SliderComponent.onValueChanged.AddListener(WhenValueChanged);
+            slider.OnValueChanged += WhenValueChanged;
+            slider.SetValueWithoutNotify(menuItem.GetValue());
+        }
+
+        private static void BuildDropdown(HVRVixxyControl control, PanelElementDescriptor menuGroup, HVRVixxyMenuItem menuItem)
+        {
+            var choiceStrings = control.choices.Select((choice, i) =>
+            {
+                if (string.IsNullOrWhiteSpace(choice.title)) return $"Option #{(i + 1)}";
+                return $"{choice.title} (#{i + 1})";
+            }).ToList();
+
+            var dropdown = PanelDropdown.CreateNewEntry(menuGroup.ContentParent);
+            dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
+            dropdown.AssignEntries(choiceStrings);
+            dropdown.OnValueChanged += choice =>
+            {
+                var valueForThatChoice = control.choices[choiceStrings.IndexOf(choice)].value;
+                BasisDebug.Log($"Selected {choice}, value is {valueForThatChoice}");
+                menuItem.ApplyValue(valueForThatChoice);
+                dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
+            };
+            var currentValue = (int)menuItem.GetValue();
+            var matchingChoice = control.choices.FirstOrDefault(choice => Mathf.Approximately(choice.value, currentValue));
+            var currentChoice = matchingChoice != null ? control.choices.ToList().IndexOf(matchingChoice) : -1;
+            BasisDebug.Log($"Current choice is {currentChoice}, choicestring count is {choiceStrings.Count}");
+            if (currentChoice >= 0 && currentChoice < choiceStrings.Count)
+            {
+                dropdown.SetValueWithoutNotify(choiceStrings[currentChoice]);
+            }
         }
     }
 }
