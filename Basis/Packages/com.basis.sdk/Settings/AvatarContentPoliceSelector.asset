@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b20bf104ec1d97d4c99fe5d73dd78d0d, type: 3}
   m_Name: AvatarContentPoliceSelector
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   AudioMixer: {fileID: -8890091482760681975, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
   selectedTypes:
   - BasisVideoPlayer
@@ -177,3 +177,6 @@ MonoBehaviour:
   - Basis.Shims.BasisNetworkShim
   - Cilbox.CilboxProxy
   - Basis.Scripts.BasisSdk.BasisHeadChop
+  - HVR.Vixxy.HVRVixxyControl
+  - HVR.Vixxy.HVRVixxyMenuItem
+  - HVR.Vixxy.HVRVixxyAggregator
