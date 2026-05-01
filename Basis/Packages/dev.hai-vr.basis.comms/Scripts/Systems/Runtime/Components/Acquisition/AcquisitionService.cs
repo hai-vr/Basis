@@ -15,9 +15,7 @@ namespace HVR.Basis.Comms
         // that specific avatar or prop, which will be different if we're the wearer of the avatar.
 
         public void Submit(int addressId, float value) => DataProvider.Submit(addressId, value);
-        public void SubmitOrDefineDefaultValue(int addressId, float value) => DataProvider.SubmitOrDefineDefaultValue(addressId, value);
         public void RegisterAddresses(int[] addressIds, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.RegisterAddresses(addressIds, onAddressUpdated);
         public void UnregisterAddresses(int[] addressIds, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.UnregisterAddresses(addressIds, onAddressUpdated);
-        public float GetValue(int addressId) => DataProvider.GetValue(addressId);
     }
 }
