@@ -4,7 +4,6 @@ using System.Collections;
 using System.Collections.Generic;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
-using HVR.Basis.Comms.Vixxy;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -14,7 +13,7 @@ namespace HVR.Basis.Comms
     public class HVRAvatarComms : BasisAvatarMonoBehaviour
     {
         private const int AvatarMessageProcessingCarrier0 = 0;
-        private const int VixxyNetworking1 = 1;
+        private const int VariableStateCarrier = 1;
 
         new public static bool VisibleInAvatarMenu = false;
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
@@ -32,7 +31,8 @@ namespace HVR.Basis.Comms
 
         private AvatarMessageProcessing avatarMessageProcessing;
         internal StreamedAvatarFeature _streamedLateInit;
-        private HVRVixxyBasisAvatarNetworking _vixxyNetworkingNullable; // May remain null if Vixxy is not used in the avatar.
+
+        private AvatarMessageProcessing variableStateProcessing;
 
         public HVRAvatarComms()
         {
@@ -91,12 +91,6 @@ namespace HVR.Basis.Comms
                 carrier.index = index;
             }
 
-            if (_vixxyNetworkingNullable != null)
-            {
-                // This should be bound before calling OnHVRReadyBothAvatarAndNetwork below.
-                _vixxyNetworkingNullable.transmitter = carriers[VixxyNetworking1];
-            }
-
             var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
             foreach (var initializable in allInitializables)
             {
@@ -104,6 +98,9 @@ namespace HVR.Basis.Comms
             }
 
             DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0]);
+
+            var variableState = gameObject.AddComponent<HVRVariableState>();
+            variableStateProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableStateCarrier], isWearer, avatar.LinkedPlayerID, variableState);
         }
 
         private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)
@@ -155,6 +152,7 @@ namespace HVR.Basis.Comms
             // We want to send the initial packet when all BasisAvatarMonoBehaviours have been initialized.
             yield return null;
             avatarMessageProcessing.SendInitialPacket();
+            variableStateProcessing.SendInitialPacket();
         }
 
         public MutualizedFeatureInterpolator NeedsMutualizedInterpolator(List<MutualizedInterpolationRange> inputRanges, CommsNetworking.InterpolatedDataChanged interpolatedDataChanged)
@@ -233,13 +231,9 @@ namespace HVR.Basis.Comms
                     avatarMessageProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
                     break;
                 }
-                case VixxyNetworking1:
+                case VariableStateCarrier:
                 {
-                    if (_vixxyNetworkingNullable != null)
-                    {
-                        _vixxyNetworkingNullable.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
-                    }
-
+                    variableStateProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
                     break;
                 }
             }
@@ -250,18 +244,13 @@ namespace HVR.Basis.Comms
             switch (carrierIndex)
             {
                 case AvatarMessageProcessingCarrier0:
-            {
-                avatarMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
+                {
+                    avatarMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
                     break;
                 }
-                case VixxyNetworking1:
+                case VariableStateCarrier:
                 {
-                    if (_vixxyNetworkingNullable != null)
-                    {
-                        // Vixxy does not use the server reduction system, but declare it anyway.
-                        _vixxyNetworkingNullable.OnNetworkMessageServerReductionSystem(buffer);
-                    }
-
+                    variableStateProcessing.OnNetworkMessageServerReductionSystem(buffer);
                     break;
                 }
             }
@@ -279,11 +268,6 @@ namespace HVR.Basis.Comms
             }
 
             return normalized;
-        }
-
-        public void BindVixxy(HVRVixxyBasisAvatarNetworking vixxyNetworking)
-        {
-            _vixxyNetworkingNullable = vixxyNetworking;
         }
 
         private class HVRRedirectToStreamed : IFeatureReceiver

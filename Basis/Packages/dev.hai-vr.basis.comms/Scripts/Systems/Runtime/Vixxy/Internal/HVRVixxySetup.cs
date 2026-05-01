@@ -3,7 +3,6 @@ using UnityEngine;
 #if HVR_VIXXY_IS_IN_BASIS
 using Basis.Scripts.BasisSdk;
 using HVR.Basis.Comms;
-using HVR.Basis.Comms.Vixxy;
 #endif
 
 namespace HVR.Vixxy
@@ -65,11 +64,6 @@ namespace HVR.Vixxy
             {
 #if HVR_VIXXY_IS_IN_BASIS
                 var commsNullable = HVRCommsUtil.GetComms(contextNullable);
-
-                var networking = go.AddComponent<HVRVixxyBasisAvatarNetworking>();
-                networking.orchestrator = orchestrator;
-                networking.avatar = contextNullable.GetComponent<BasisAvatar>();
-                orchestrator.networking = networking;
                 orchestrator.DataProvider = commsNullable != null ? AcquisitionService.SceneInstance.DataProvider : commsNullable.DataProvider;
 #endif
             }

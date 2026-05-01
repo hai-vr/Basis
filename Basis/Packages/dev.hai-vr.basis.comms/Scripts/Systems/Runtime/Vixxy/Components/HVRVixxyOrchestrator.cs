@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using HVR.Basis.Comms;
-using HVR.Basis.Comms.Vixxy;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -19,11 +18,6 @@ namespace HVR.Vixxy
         [SerializeField] public Transform context; // Can be null. If it is null, the orchestrator *is* the context.
         [SerializeField] public bool isWearer;
         public HVRDataProvider DataProvider;
-
-        [SerializeField] public object networking;
-#if HVR_VIXXY_IS_IN_BASIS
-        public HVRVixxyBasisAvatarNetworking Networking => (HVRVixxyBasisAvatarNetworking)networking;
-#endif
 
         private readonly HashSet<IHVRVixxyAggregator> _aggregatorsToUpdateThisTick = new();
         private readonly HashSet<IHVRVixxyActuator> _actuatorsToUpdateThisTick = new();

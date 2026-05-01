@@ -15,24 +15,16 @@ namespace HVR.Basis.Comms
 
         private IHVRVariableBehaviour _behaviour;
 
+        private void Awake() => _behaviour = isWearer ? new HVRVariableState_Wearer(this) : new HVRVariableState_Remote(this);
+        public void Update() => _behaviour.Update();
+
+        public void RequireVariable(HVRVariable variable) => _behaviour.RequireVariable(variable);
+
         public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) => _behaviour.OnPacketReceived(localIdentifier, data);
         public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
         public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
 
-        public void RequireVariable(HVRVariable variable)
-        {
-            _behaviour.RequireVariable(variable);
-        }
-
-        private void Awake()
-        {
-            _behaviour = isWearer ? new HVRVariableState_Wearer(this) : new HVRVariableState_Remote(this);
-        }
-
-        public void Update()
-        {
-            _behaviour.Update();
-        }
+        private void WhenAddressUpdated(int addressId, float currentValue) => comms.DataProvider.Submit(addressId, currentValue);
 
         private interface IHVRVariableBehaviour : IFeatureReceiver
         {
@@ -61,9 +53,7 @@ namespace HVR.Basis.Comms
             {
             }
 
-            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
-            {
-            }
+            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) { } // Not applicable
 
             public void OnResyncEveryoneRequested()
             {
@@ -400,8 +390,8 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            public void OnResyncEveryoneRequested() { }
-            public void OnResyncRequested(ushort[] whoAsked) { }
+            public void OnResyncEveryoneRequested() { } // Not applicable
+            public void OnResyncRequested(ushort[] whoAsked) { } // Not applicable
 
             private void WhenNewVariablesReceived(HVR_VariableState_NewVariables packet)
             {
@@ -481,11 +471,6 @@ namespace HVR.Basis.Comms
                 public ushort networkId;
                 public object currentValue;
             }
-        }
-
-        private void WhenAddressUpdated(int addressId, float currentValue)
-        {
-            comms.DataProvider.Submit(addressId, currentValue);
         }
     }
 
