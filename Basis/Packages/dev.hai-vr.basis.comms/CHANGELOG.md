@@ -12,11 +12,10 @@ Modifications in Basis SDK:
 - HVR.Vixxy.HVRVixxyAggregator is not implemented and cannot be used.
 
 Modifications in existing HVR.Basis systems:
-- Acquisition Service now keeps track of values that were sent to it, rather than just emitting events.
 - The SettingsProvider avatar tab override now integrates with Vixxy menu items.
-- HVRAvatarComms now uses the networking carrier at index 1 (this means the second one) for networking Vixxy-specific messages.
+- HVRAvatarComms now uses the networking carrier at index 1 (this means the second one) for networking messages related to avatar state.
 - Remove "Avatar" from the display name of the package, so that is now "HVR Basis Comms".
-- Renamed HVRAddress to HVRAddressRegistry, so that the name HVRAddress can be used for a new addition.
+- Renamed HVRAddress to HVRAddressRegistry, so that the name HVRAddress can be used as a scriptable object asset.
 
 Editor modifications in existing HVR.Basis systems:
 - Most HVR components now show additional information in Play Mode about their internal state.
