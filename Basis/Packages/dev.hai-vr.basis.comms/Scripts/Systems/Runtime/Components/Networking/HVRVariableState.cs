@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 using Basis.Network.Core;
 using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
@@ -9,20 +9,16 @@ namespace HVR.Basis.Comms
 {
     public class HVRVariableState : MonoBehaviour
     {
+        public HVRAvatarComms comms;
         public bool isWearer;
         public ushort wearerNetId;
         public IHVRTransmitter transmitter;
-
-        private readonly List<int> _declaredAddressesInOrder = new();
 
         private IHVRVariableBehaviour _behaviour;
 
         public void RequireVariable(HVRVariable variable)
         {
-            if (isWearer)
-            {
-                _behaviour.RequireVariable(variable);
-            }
+            _behaviour.RequireVariable(variable);
         }
 
         private void Awake()
@@ -62,6 +58,7 @@ namespace HVR.Basis.Comms
             private readonly Dictionary<int, HVRVariableHolder> _addressIdToHolder = new();
             private readonly List<int> _newVariablesAddressIds = new();
             private readonly HashSet<int> _addressIdsWithNewValue = new();
+            private ushort _networkId = 0;
 
             public HVRVariableState_Wearer(HVRVariableState state)
             {
@@ -91,6 +88,7 @@ namespace HVR.Basis.Comms
                 _addressIdToHolder.Add(variable.addressId, new HVRVariableHolder
                 {
                     variable = variable,
+                    networkId = ++_networkId,
                     currentValue = variable.initialValue,
                     lastTransmittedValue = variable.initialValue,
                     valueWithGreatestDeltaSinceLastTransmittedValue = variable.initialValue
@@ -123,7 +121,6 @@ namespace HVR.Basis.Comms
                     var packet = BuildNewVariablesPacket();
                     _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
 
-                    _state._declaredAddressesInOrder.AddRange(_newVariablesAddressIds);
                     _newVariablesAddressIds.Clear();
                 }
 
@@ -136,7 +133,7 @@ namespace HVR.Basis.Comms
 
                 var addressIdsThatNeedToBeResentLater = new HashSet<int>();
 
-                var valuesToTransmit = new Dictionary<int, object>();
+                var addressIdsToValueToTransmit = new Dictionary<int, object>();
                 foreach (var addressId in _addressIdsWithNewValue)
                 {
                     var holder = _addressIdToHolder[addressId];
@@ -145,7 +142,7 @@ namespace HVR.Basis.Comms
                     // Reminder: We network the value with the greatest delta, which is not necessarily the current value.
                     // Networking the value with the greatest delta helps networking short-lived events such as the eyes blinking.
                     var valueToBeTransmitted = holder.valueWithGreatestDeltaSinceLastTransmittedValue;
-                    valuesToTransmit.Add(addressId, valueToBeTransmitted);
+                    addressIdsToValueToTransmit.Add(addressId, valueToBeTransmitted);
 
                     holder.lastTransmittedValue = valueToBeTransmitted;
                     holder.valueWithGreatestDeltaSinceLastTransmittedValue = currentValue;
@@ -158,15 +155,73 @@ namespace HVR.Basis.Comms
                     }
                 }
 
-                BuildUpdatedVariablesPacket(valuesToTransmit);
+                if (addressIdsToValueToTransmit.Count > 0)
+                {
+                    BuildUpdatedVariablesPacket(addressIdsToValueToTransmit);
+                }
 
                 _addressIdsWithNewValue.Clear();
                 _addressIdsWithNewValue.UnionWith(addressIdsThatNeedToBeResentLater);
             }
 
-            private void BuildUpdatedVariablesPacket(Dictionary<int, object> valuesToTransmit)
+            private byte[] BuildUpdatedVariablesPacket(Dictionary<int, object> addressIdsToValueToTransmit)
             {
-                var packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables;
+                var zeroesNetworkIds = new List<ushort>();
+                var onesNetworkIds = new List<ushort>();
+                var otherAddressIds = new List<int>();
+
+                foreach (var (addressId, value) in addressIdsToValueToTransmit)
+                {
+                    var networkId = _addressIdToHolder[addressId].networkId;
+                    if (value is float f)
+                    {
+                        if (Mathf.Approximately(f, 0f))
+                        {
+                            zeroesNetworkIds.Add(networkId);
+                        }
+                        else if (Mathf.Approximately(f, 1f))
+                        {
+                            onesNetworkIds.Add(networkId);
+                        }
+                        else
+                        {
+                            otherAddressIds.Add(addressId);
+                        }
+                    }
+                    else
+                    {
+                        otherAddressIds.Add(addressId);
+                    }
+                }
+
+                if (otherAddressIds.Count > 0)
+                {
+                    return new HVR_VariableState_UpdatedVariables_Mixed
+                    {
+                        numberOfZeroes = (ushort)zeroesNetworkIds.Count,
+                        networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList(),
+                        other = otherAddressIds.Select(addressId => new HVR_VariableState_UpdatedVariables_Mixed.HVR_VariableState_UpdatedValue
+                        {
+                            networkId = _addressIdToHolder[addressId].networkId,
+                            value = addressIdsToValueToTransmit[addressId]
+                        }).ToList()
+                    }.Serialize();
+                }
+
+                if (zeroesNetworkIds.Count > 0 && onesNetworkIds.Count > 0)
+                {
+                    return new HVR_VariableState_UpdatedVariables_ZeroesAndOnes
+                    {
+                        numberOfZeroes = (ushort)zeroesNetworkIds.Count,
+                        networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList()
+                    }.Serialize();
+                }
+
+                return new HVR_VariableState_UpdatedVariables_ZeroesOrOnes
+                {
+                    packetType = zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
+                    networkIds = zeroesNetworkIds
+                }.Serialize();
             }
 
             public void OnNetworkMessageReceived(ushort remoteUser, byte[] unsafeBuffer, DeliveryMethod deliveryMethod)
@@ -181,62 +236,64 @@ namespace HVR.Basis.Comms
 
             private byte[] BuildNewVariablesPacket()
             {
-                var packetType = AvatarMessageProcessing.NewNet_WearerSubmitsNewVariables;
+                var allHolders = _newVariablesAddressIds
+                    .Select(addressId => _addressIdToHolder[addressId])
+                    .ToList();
 
-                var totalLength = 1 + 2; // packetType + count
-                var addressBytesList = new List<byte[]>(_newVariablesAddressIds.Count);
-                foreach (var newVariableAddressId in _newVariablesAddressIds)
+                var other = new List<HVR_VariableState_NewVariables.HVR_VariableState_NewVariable>();
+                var zeroes = new List<HVR_VariableState_NewVariables.HVR_VariableState_NewQuickVariable>();
+                var ones = new List<HVR_VariableState_NewVariables.HVR_VariableState_NewQuickVariable>();
+
+                foreach (var holder in allHolders)
                 {
-                    var address = HVRAddressRegistry.ResolveKnownAddressFromId(newVariableAddressId);
-                    var addressBytes = Encoding.UTF8.GetBytes(address);
-                    addressBytesList.Add(addressBytes);
-
-                    totalLength += 2 + addressBytes.Length + 1 + 4;
+                    var isFloat = holder.variable.variableTypeCode == HVRVariableTypeCode.Float;
+                    if (isFloat
+                        && (Mathf.Approximately((float)holder.variable.initialValue, 0f)
+                            || Mathf.Approximately((float)holder.variable.initialValue, 1f)))
+                    {
+                        var quickVar = new HVR_VariableState_NewVariables.HVR_VariableState_NewQuickVariable
+                        {
+                            address = HVRAddressRegistry.ResolveKnownAddressFromId(holder.variable.addressId),
+                            networkId = holder.networkId,
+                        };
+                        (Mathf.Approximately((float)holder.variable.initialValue, 1f) ? ones : zeroes)
+                            .Add(quickVar);
+                    }
+                    else
+                    {
+                        other.Add(new HVR_VariableState_NewVariables.HVR_VariableState_NewVariable
+                        {
+                            address = HVRAddressRegistry.ResolveKnownAddressFromId(holder.variable.addressId),
+                            networkId = holder.networkId,
+                            variableTypeCode = (byte)holder.variable.variableTypeCode,
+                            initialValue = holder.currentValue
+                        });
+                    }
                 }
 
-                var result = new byte[totalLength];
-                result[0] = packetType;
-                var count = (ushort)_newVariablesAddressIds.Count;
-                result[1] = (byte)(count & 0xFF);
-                result[2] = (byte)((count >> 8) & 0xFF);
-                var offset = 3;
-
-                for (var i = 0; i < _newVariablesAddressIds.Count; i++)
+                return new HVR_VariableState_NewVariables
                 {
-                    var newVariableAddressId = _newVariablesAddressIds[i];
-                    var holder = _addressIdToHolder[newVariableAddressId];
-                    var addressBytes = addressBytesList[i];
+                    newGeneralVariables = other,
+                    floatZero = zeroes,
+                    floatOne = ones,
+                }.Serialize();
+            }
 
-                    var m0_addressLength = (ushort)addressBytes.Length;
-                    var m1_addressBytes = addressBytes;
-                    var m2_variableTypeCode = (byte)holder.variable.variableTypeCode;
-                    var m3_initialValue = (float)holder.currentValue;
-
-                    // Address length (ushort - 2 bytes)
-                    result[offset++] = (byte)(m0_addressLength & 0xFF);
-                    result[offset++] = (byte)((m0_addressLength >> 8) & 0xFF);
-
-                    // Address bytes
-                    Buffer.BlockCopy(m1_addressBytes, 0, result, offset, m1_addressBytes.Length);
-                    offset += m1_addressBytes.Length;
-
-                    // Variable type code (byte - 1 byte)
-                    result[offset++] = m2_variableTypeCode;
-
-                    // Initial value (float - 4 bytes)
-                    // (Assuming we are in a Little Endian environment as common for Unity platforms)
-                    var valueBytes = BitConverter.GetBytes(m3_initialValue);
-                    Buffer.BlockCopy(valueBytes, 0, result, offset, 4);
-                    offset += 4;
-                }
-
-                return result;
+            private class HVRVariableHolder
+            {
+                public HVRVariable variable;
+                public ushort networkId;
+                public object currentValue;
+                public object lastTransmittedValue;
+                public object valueWithGreatestDeltaSinceLastTransmittedValue;
             }
         }
 
         private class HVRVariableState_Remote : IHVRVariableBehaviour
         {
             private readonly HVRVariableState _state;
+            private readonly Dictionary<int, HVRVariableHolder> _addressIdToHolder = new();
+            private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
 
             public HVRVariableState_Remote(HVRVariableState state)
             {
@@ -261,41 +318,77 @@ namespace HVR.Basis.Comms
                 {
                     if (remoteUser != _state.wearerNetId) { HVRLogging.ProtocolError("Illegal sender."); return; }
 
-                    if (unsafeBuffer.Length < 3) { HVRLogging.ProtocolError("Unexpected end of packet (count)."); return; }
-                    var count = (ushort)(unsafeBuffer[1] | (unsafeBuffer[2] << 8));
-                    var offset = 3;
-                    for (var i = 0; i < count; i++)
+                    var packet = HVR_VariableState_NewVariables.Deserialize(unsafeBuffer);
+                    if (packet == null) return;
+
+                    WhenNewVariablesReceived(packet);
+                }
+            }
+
+            private void WhenNewVariablesReceived(HVR_VariableState_NewVariables packet)
+            {
+                var newlyAddedAddresses = new List<int>();
+
+                foreach (var variable in packet.newGeneralVariables)
+                {
+                    var addressId = HVRAddressRegistry.AddressToId(variable.address);
+                    _addressIdToHolder[addressId] = new HVRVariableHolder
                     {
-                        if (offset + 2 > unsafeBuffer.Length) { HVRLogging.ProtocolError("Unexpected end of packet (address length)."); return; }
-                        var addressLength = (ushort)(unsafeBuffer[offset] | (unsafeBuffer[offset + 1] << 8));
-                        offset += 2;
-
-                        if (offset + addressLength > unsafeBuffer.Length) { HVRLogging.ProtocolError("Unexpected end of packet (address)."); return; }
-                        var address = Encoding.UTF8.GetString(unsafeBuffer, offset, addressLength);
-                        offset += addressLength;
-
-                        if (offset + 1 > unsafeBuffer.Length) { HVRLogging.ProtocolError("Unexpected end of packet (variable type)."); return; }
-                        var variableTypeCode = (HVRVariableTypeCode)unsafeBuffer[offset++];
-
-                        if (offset + 4 > unsafeBuffer.Length) { HVRLogging.ProtocolError("Unexpected end of packet (initial value)."); return; }
-                        var initialValue = BitConverter.ToSingle(unsafeBuffer, offset);
-                        offset += 4;
-
-                        var addressId = HVRAddressRegistry.AddressToId(address);
-                        _state.RequireVariable(new HVRVariable
+                        variable = new HVRVariable
                         {
                             addressId = addressId,
-                            variableTypeCode = variableTypeCode,
-                            initialValue = initialValue
-                        });
+                            variableTypeCode = (HVRVariableTypeCode)variable.variableTypeCode,
+                            initialValue = (float)variable.initialValue
+                        },
+                        networkId = variable.networkId,
+                        currentValue = (float)variable.initialValue
+                    };
 
-                        _state._declaredAddressesInOrder.Add(addressId);
-                    }
+                    _networkIdToAddressId[variable.networkId] = addressId;
+                    newlyAddedAddresses.Add(addressId);
+                }
 
-                    if (offset != unsafeBuffer.Length)
+                foreach (var variable in packet.floatZero)
+                {
+                    var addressId = HVRAddressRegistry.AddressToId(variable.address);
+                    _addressIdToHolder[addressId] = new HVRVariableHolder
                     {
-                        HVRLogging.ProtocolError("Packet length mismatch.");
-                    }
+                        variable = new HVRVariable
+                        {
+                            addressId = addressId,
+                            variableTypeCode = HVRVariableTypeCode.Float,
+                            initialValue = 0f
+                        },
+                        networkId = variable.networkId,
+                        currentValue = 0f
+                    };
+
+                    _networkIdToAddressId[variable.networkId] = addressId;
+                    newlyAddedAddresses.Add(addressId);
+                }
+
+                foreach (var variable in packet.floatOne)
+                {
+                    var addressId = HVRAddressRegistry.AddressToId(variable.address);
+                    _addressIdToHolder[addressId] = new HVRVariableHolder
+                    {
+                        variable = new HVRVariable
+                        {
+                            addressId = addressId,
+                            variableTypeCode = HVRVariableTypeCode.Float,
+                            initialValue = 1f
+                        },
+                        networkId = variable.networkId,
+                        currentValue = 1f
+                    };
+
+                    _networkIdToAddressId[variable.networkId] = addressId;
+                    newlyAddedAddresses.Add(addressId);
+                }
+
+                foreach (var newlyAddedAddress in newlyAddedAddresses)
+                {
+                    _state.WhenAddressUpdated(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
                 }
             }
 
@@ -306,22 +399,26 @@ namespace HVR.Basis.Comms
 
             public void RequireVariable(HVRVariable variable)
             {
-                throw new NotImplementedException();
+                // Do nothing.
             }
+
+            private class HVRVariableHolder
+            {
+                public HVRVariable variable;
+                public ushort networkId;
+                public object currentValue;
+            }
+        }
+
+        private void WhenAddressUpdated(int addressId, float currentValue)
+        {
+            comms.DataProvider.Submit(addressId, currentValue);
         }
     }
 
     public enum HVRVariableTypeCode
     {
-        Float = 0,
-    }
-
-    public class HVRVariableHolder
-    {
-        public HVRVariable variable;
-        public object currentValue;
-        public object lastTransmittedValue;
-        public object valueWithGreatestDeltaSinceLastTransmittedValue;
+        Float = 1,
     }
 
     public class HVRVariable

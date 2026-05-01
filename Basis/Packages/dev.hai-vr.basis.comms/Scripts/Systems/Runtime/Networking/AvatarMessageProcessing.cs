@@ -15,8 +15,11 @@ namespace HVR.Basis.Comms
         public const byte NewNet_WearerReady = 1;
         public const byte NewNet_RemoteRequestsInitialization = 2;
 
-        public const byte NewNet_WearerSubmitsNewVariables = 10;
-        public const byte NewNet_WearerSubmitsUpdatedVariables = 11;
+        public const byte NewNet_WearerSubmitsNewVariables = 8;
+        public const byte NewNet_WearerSubmitsUpdatedVariables_Zeroes = 10;
+        public const byte NewNet_WearerSubmitsUpdatedVariables_Ones = 11;
+        public const byte NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes = 12;
+        public const byte NewNet_WearerSubmitsUpdatedVariables_Mixed = 13;
 
         private readonly IHVRTransmitter _transmitter;
         private readonly bool _isWearer;
