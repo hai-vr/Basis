@@ -164,7 +164,8 @@ namespace HVR.Basis.Comms
 
                 if (addressIdsToValueToTransmit.Count > 0)
                 {
-                    BuildUpdatedVariablesPacket(addressIdsToValueToTransmit);
+                    var packet = BuildUpdatedVariablesPacket(addressIdsToValueToTransmit);
+                    _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
                 }
 
                 _addressIdsWithNewValue.Clear();
@@ -467,10 +468,6 @@ namespace HVR.Basis.Comms
                 {
                     _state.WhenAddressUpdated(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
                 }
-            }
-
-            public void OnNetworkMessageServerReductionSystem(byte[] unsafeBuffer)
-            {
             }
 
             public void RequireVariable(HVRVariable variable)
