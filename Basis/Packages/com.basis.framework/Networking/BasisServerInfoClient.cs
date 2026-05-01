@@ -108,10 +108,15 @@ namespace Basis.Scripts.Networking
                 // server's listening port, but our outbound port doesn't matter.
                 manager.Start(IPAddress.Any, IPAddress.IPv6Any, 0);
 
-                NetDataWriter writer = new NetDataWriter(true, 8);
+                NetDataWriter writer = new NetDataWriter(true, BasisNetworkCommons.ServerInfoMinRequestBytes);
                 writer.Put(BasisNetworkCommons.ServerInfoQueryMagic);
                 writer.Put(BasisNetworkCommons.ServerInfoProtocolVersion);
                 writer.Put(nonce);
+                // Pad up to the server's minimum-request threshold. The server drops
+                // anything smaller — the padding is what makes this query unattractive
+                // as a UDP reflection/amplification vector (response size <= request size).
+                int padBytes = BasisNetworkCommons.ServerInfoMinRequestBytes - writer.Length;
+                if (padBytes > 0) writer.Put(new byte[padBytes]);
 
                 rtt.Start();
                 if (!manager.SendUnconnectedMessage(writer, endpoint))

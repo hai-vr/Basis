@@ -188,6 +188,15 @@ namespace Basis.Network.Core
         public const int ServerInfoNameMaxLength = 64;
         /// <summary>Hard cap on the MOTD length the client/server will read or write.</summary>
         public const int ServerInfoMotdMaxLength = 256;
+        /// <summary>
+        /// Minimum total request size (in bytes) the server will accept on an
+        /// unconnected info query. Clients pad their query up to this size with
+        /// zeros so the response is never larger than the request — that removes
+        /// the bandwidth-amplification factor that makes UDP discovery protocols
+        /// attractive as DDoS reflectors. Worst-case response is ~340 bytes
+        /// (full-length name + MOTD), so 384 keeps the amp ratio &lt; 1.
+        /// </summary>
+        public const int ServerInfoMinRequestBytes = 384;
 
         /// <summary>
         /// Maps quality index (0‑3) + additional data presence → byte-ID channel.
