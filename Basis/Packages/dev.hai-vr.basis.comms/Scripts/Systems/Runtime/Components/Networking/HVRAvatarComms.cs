@@ -33,6 +33,7 @@ namespace HVR.Basis.Comms
         internal StreamedAvatarFeature _streamedLateInit;
 
         private AvatarMessageProcessing variableStateProcessing;
+        private HVRVariableState _variableState;
 
         public HVRAvatarComms()
         {
@@ -91,6 +92,17 @@ namespace HVR.Basis.Comms
                 carrier.index = index;
             }
 
+            var holder = new GameObject("Generated__VariableState")
+            {
+                transform = { parent = avatar.transform }
+            };
+            holder.SetActive(false);
+            _variableState = gameObject.AddComponent<HVRVariableState>();
+            _variableState.isWearer = isWearer;
+            _variableState.comms = this;
+            _variableState.transmitter = carriers[VariableStateCarrier];
+            holder.SetActive(true);
+
             var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
             foreach (var initializable in allInitializables)
             {
@@ -99,8 +111,14 @@ namespace HVR.Basis.Comms
 
             DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0]);
 
-            var variableState = gameObject.AddComponent<HVRVariableState>();
-            variableStateProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableStateCarrier], isWearer, avatar.LinkedPlayerID, variableState);
+            variableStateProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableStateCarrier], isWearer, avatar.LinkedPlayerID, _variableState);
+        }
+
+        public void RequireVariable(HVRVariable variable)
+        {
+            if (_variableState == null) throw new InvalidOperationException("Broke assumption: VariableState is not yet initialized, it may have been called before OnHVRReadyBothAvatarAndNetwork was called?");
+
+            _variableState.RequireVariable(variable);
         }
 
         private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)

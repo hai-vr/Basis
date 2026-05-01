@@ -122,7 +122,7 @@ namespace HVR.Vixxy
 
             if (Networked)
             {
-                orchestrator.RequireNetworked(AddressId, NetworkingType, defaultValue);
+                orchestrator.RequireNetworked(AddressId, NetworkingType, defaultValue, Min(), Max());
             }
 
             _dataProvider = _avatarComms != null ? _avatarComms.DataProvider : AcquisitionService.SceneInstance.DataProvider;
@@ -166,6 +166,7 @@ namespace HVR.Vixxy
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
+            orchestrator.SignalHVRReadyBothAvatarAndNetwork(isWearer);
         }
 
         private void OnDestroy()

@@ -32,9 +32,8 @@ namespace HVR.Vixxy
 
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
-        private List<HVRVixxyToBeNetworked> _toBeNetworked = new();
-        public event NetworkDataUpdateRequired OnNetworkDataUpdateRequired;
-        public delegate void NetworkDataUpdateRequired();
+        private readonly List<HVRVixxyToBeNetworked> _toBeNetworked = new();
+        private bool _alreadyCalledReadyBothAvatarAndNetwork;
 
         /// Contrary to AcquisitionService, which only references data pertaining to the local user, implicit addresses can refer to data
         /// coming from other users to drive that the avatar of that user.
@@ -272,14 +271,35 @@ namespace HVR.Vixxy
             _stagedBlocks.Add(bakedObject);
         }
 
-        public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue)
+        public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue, float min, float max)
         {
             _toBeNetworked.Add(new HVRVixxyToBeNetworked
             {
                 addressId = addressId,
                 networkingType = networkingType,
-                defaultValue = defaultValue
+                defaultValue = defaultValue,
+                min = min,
+                max = max,
             });
+        }
+
+        public void SignalHVRReadyBothAvatarAndNetwork(bool isWearer)
+        {
+            if (_alreadyCalledReadyBothAvatarAndNetwork) return;
+            _alreadyCalledReadyBothAvatarAndNetwork = true;
+
+            var comms = HVRCommsUtil.GetComms(this);
+            foreach (var toBeNetworked in _toBeNetworked)
+            {
+                comms.RequireVariable(new HVRVariable
+                {
+                    addressId = toBeNetworked.addressId,
+                    initialValue = toBeNetworked.defaultValue,
+                    variableTypeCode = HVRVariableTypeCode.Float,
+                    min = toBeNetworked.min,
+                    max = toBeNetworked.max
+                });
+            }
         }
     }
 
@@ -297,5 +317,7 @@ namespace HVR.Vixxy
         public int addressId;
         public HVRVixxyNetworkingType networkingType;
         public float defaultValue;
+        public float min;
+        public float max;
     }
 }
