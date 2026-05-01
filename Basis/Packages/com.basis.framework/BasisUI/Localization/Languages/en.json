@@ -327,6 +327,7 @@
     { "key": "settings.tab.downloadsurls", "value": "Downloads & URLs" },
     { "key": "settings.tab.developer", "value": "Developer" },
     { "key": "settings.tab.admin", "value": "Admin" },
+    { "key": "settings.tab.moderator", "value": "Moderator" },
     { "key": "settings.tab.uistyle", "value": "UI Style" },
     { "key": "settings.general.avatarRange", "value": "Avatar Visibility Range" },
     { "key": "settings.general.hearingRange", "value": "Hearing Range" },
