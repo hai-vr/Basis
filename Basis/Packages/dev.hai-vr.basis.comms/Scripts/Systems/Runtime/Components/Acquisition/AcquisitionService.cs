@@ -14,10 +14,10 @@ namespace HVR.Basis.Comms
         // This is because we want components inside an avatar or prop to subscribe to the HVRDataProvider assigned to
         // that specific avatar or prop, which will be different if we're the wearer of the avatar.
 
-        public void Submit(int address, float value) => DataProvider.Submit(address, value);
-        public void SubmitOrDefineDefaultValue(int address, float value) => DataProvider.SubmitOrDefineDefaultValue(address, value);
-        public void RegisterAddresses(int[] addressBase, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.RegisterAddresses(addressBase, onAddressUpdated);
-        public void UnregisterAddresses(int[] addressBase, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.UnregisterAddresses(addressBase, onAddressUpdated);
+        public void Submit(int addressId, float value) => DataProvider.Submit(addressId, value);
+        public void SubmitOrDefineDefaultValue(int addressId, float value) => DataProvider.SubmitOrDefineDefaultValue(addressId, value);
+        public void RegisterAddresses(int[] addressIds, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.RegisterAddresses(addressIds, onAddressUpdated);
+        public void UnregisterAddresses(int[] addressIds, HVRDataProvider.AddressUpdated onAddressUpdated) => DataProvider.UnregisterAddresses(addressIds, onAddressUpdated);
         public float GetValue(int addressId) => DataProvider.GetValue(addressId);
     }
 }
