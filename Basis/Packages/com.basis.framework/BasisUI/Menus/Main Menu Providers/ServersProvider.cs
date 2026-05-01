@@ -422,7 +422,17 @@ namespace Basis.BasisUI
             RectTransform actions = BuildActionRow(row.Group.ContentParent);
 
             row.ConnectButton = PanelButton.CreateNew(actions);
-            row.ConnectButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.connect"));
+            // If this row points at the server we're already in, surface "Reconnect"
+            // so the user knows clicking will tear down + redial the same target,
+            // not switch to a fresh server. Other rows stay "Connect" since clicking
+            // them is a switch.
+            bool isCurrentServer =
+                BasisNetworkConnection.LocalPlayerIsConnected
+                && BasisNetworkManagement.Instance != null
+                && string.Equals(BasisNetworkManagement.Instance.Ip, entry.Address, StringComparison.OrdinalIgnoreCase)
+                && BasisNetworkManagement.Instance.Port == entry.Port;
+            row.ConnectButton.Descriptor.SetTitle(BasisLocalization.Get(
+                isCurrentServer ? "menu.servers.reconnect" : "menu.servers.connect"));
             row.ConnectButton.OnClicked += () => _ = ConnectToAsync(entry);
 
             if (!isDefault)
@@ -430,9 +440,24 @@ namespace Basis.BasisUI
                 row.EditButton = PanelButton.CreateNew(actions);
                 row.EditButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.edit"));
                 row.EditButton.OnClicked += () => ShowEditor(entry);
+
+                // Weight the row 7:1 so Connect dominates and Edit is the small
+                // tag-along action. Zeroing min/preferred lets HorizontalLayoutGroup
+                // distribute strictly by flexibleWidth ratio instead of biasing the
+                // share toward the prefab's default preferredWidth.
+                ApplyRowButtonWeight(row.ConnectButton, 7f);
+                ApplyRowButtonWeight(row.EditButton, 1f);
             }
 
             _rows[entry.Id] = row;
+        }
+
+        private static void ApplyRowButtonWeight(PanelButton button, float flex)
+        {
+            if (button == null || button.Layout == null) return;
+            button.Layout.minWidth = 0f;
+            button.Layout.preferredWidth = 0f;
+            button.Layout.flexibleWidth = flex;
         }
 
         private static string BuildConnectionString(SavedServerEntry entry)

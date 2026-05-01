@@ -71,6 +71,7 @@
 
     { "key": "menu.servers.username", "value": "Username" },
     { "key": "menu.servers.connect", "value": "Connect" },
+    { "key": "menu.servers.reconnect", "value": "Reconnect" },
     { "key": "menu.servers.host", "value": "Host" },
     { "key": "menu.servers.ipAddress", "value": "IP Address" },
     { "key": "menu.servers.port", "value": "Port" },
