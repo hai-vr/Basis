@@ -97,7 +97,7 @@ namespace HVR.Basis.Comms
                 transform = { parent = avatar.transform }
             };
             holder.SetActive(false);
-            _variableState = gameObject.AddComponent<HVRVariableState>();
+            _variableState = holder.AddComponent<HVRVariableState>();
             _variableState.isWearer = isWearer;
             _variableState.comms = this;
             _variableState.transmitter = carriers[VariableStateCarrier];

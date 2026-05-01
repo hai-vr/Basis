@@ -17,6 +17,7 @@ namespace HVR.Basis.Comms
 
         private void Awake() => _behaviour = isWearer ? new HVRVariableState_Wearer(this) : new HVRVariableState_Remote(this);
         public void Update() => _behaviour.Update();
+        private void OnDestroy() => _behaviour.OnDestroy();
 
         public void RequireVariable(HVRVariable variable) => _behaviour.RequireVariable(variable);
 
@@ -31,6 +32,7 @@ namespace HVR.Basis.Comms
             public void Awake();
             public void Update();
             void RequireVariable(HVRVariable variable);
+            void OnDestroy();
         }
 
         private class HVRVariableState_Wearer : IHVRVariableBehaviour
@@ -59,12 +61,14 @@ namespace HVR.Basis.Comms
             {
                 var packet = BuildNewVariablesPacket(_addressIdToHolder.Keys.ToList());
                 _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                HVRLogging.ProtocolDebug("(OnResyncEveryoneRequested) Sending NewVariablesPacket.");
             }
 
             public void OnResyncRequested(ushort[] whoAsked)
             {
                 var packet = BuildNewVariablesPacket(_addressIdToHolder.Keys.ToList());
                 _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced, whoAsked);
+                HVRLogging.ProtocolDebug("(OnResyncRequested) Sending NewVariablesPacket.");
             }
 
             public void RequireVariable(HVRVariable variable)
@@ -94,6 +98,11 @@ namespace HVR.Basis.Comms
                 _newVariablesAddressIds.Add(variable.addressId);
             }
 
+            public void OnDestroy()
+            {
+                _acquisitionService.UnregisterAddresses(_addressIdToHolder.Keys.ToArray(), OnAddressUpdated);
+            }
+
             private void OnAddressUpdated(int addressId, float value)
             {
                 if (_addressIdToHolder.TryGetValue(addressId, out var holder))
@@ -117,6 +126,7 @@ namespace HVR.Basis.Comms
                 {
                     var packet = BuildNewVariablesPacket(_newVariablesAddressIds);
                     _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                    HVRLogging.ProtocolDebug("(Update) Sending NewVariablesPacket.");
 
                     _newVariablesAddressIds.Clear();
                 }
@@ -156,6 +166,7 @@ namespace HVR.Basis.Comms
                 {
                     var packet = BuildUpdatedVariablesPacket(addressIdsToValueToTransmit);
                     _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                    HVRLogging.ProtocolDebug("(Update) Sending UpdatedVariablesPacket.");
                 }
 
                 _addressIdsWithNewValue.Clear();
@@ -194,6 +205,7 @@ namespace HVR.Basis.Comms
 
                 if (otherAddressIds.Count > 0)
                 {
+                    HVRLogging.ProtocolDebug("(BuildUpdatedVariablesPacket) Building a UpdatedVariables_Mixed packet.");
                     return new HVR_VariableState_UpdatedVariables_Mixed
                     {
                         numberOfZeroes = (ushort)zeroesNetworkIds.Count,
@@ -208,6 +220,7 @@ namespace HVR.Basis.Comms
 
                 if (zeroesNetworkIds.Count > 0 && onesNetworkIds.Count > 0)
                 {
+                    HVRLogging.ProtocolDebug("(BuildUpdatedVariablesPacket) Building a UpdatedVariables_ZeroesAndOnes packet.");
                     return new HVR_VariableState_UpdatedVariables_ZeroesAndOnes
                     {
                         numberOfZeroes = (ushort)zeroesNetworkIds.Count,
@@ -215,6 +228,7 @@ namespace HVR.Basis.Comms
                     }.Serialize();
                 }
 
+                HVRLogging.ProtocolDebug($"(BuildUpdatedVariablesPacket) Building a {(zeroesNetworkIds.Count > 0 ? "UpdatedVariables_Zeroes" : "UpdatedVariables_Ones")} packet.");
                 return new HVR_VariableState_UpdatedVariables_ZeroesOrOnes
                 {
                     packetType = zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
@@ -288,14 +302,8 @@ namespace HVR.Basis.Comms
                 _state = state;
             }
 
-            public void Awake()
-            {
-                _state.transmitter.NetworkMessageSend(new[] { AvatarMessageProcessing.NewNet_RemoteRequestsInitialization }, DeliveryMethod.ReliableSequenced);
-            }
-
-            public void Update()
-            {
-            }
+            public void Awake() { }
+            public void Update() { }
 
             public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
             {
@@ -309,6 +317,7 @@ namespace HVR.Basis.Comms
                         var packet = HVR_VariableState_NewVariables.Deserialize(data);
                         if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize NewVariables packet."); return; }
 
+                        HVRLogging.ProtocolDebug("(OnPacketReceived) Receiving NewVariables packet.");
                         WhenNewVariablesReceived(packet);
                         break;
                     }
@@ -317,6 +326,7 @@ namespace HVR.Basis.Comms
                         var packet = HVR_VariableState_UpdatedVariables_ZeroesOrOnes.Deserialize(data, packetType);
                         if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Zeroes packet."); return; }
 
+                        HVRLogging.ProtocolDebug("(OnPacketReceived) Receiving UpdatedVariables_Zeroes packet.");
                         foreach (var networkId in packet.networkIds)
                         {
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
@@ -332,6 +342,7 @@ namespace HVR.Basis.Comms
                         var packet = HVR_VariableState_UpdatedVariables_ZeroesOrOnes.Deserialize(data, packetType);
                         if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Ones packet."); return; }
 
+                        HVRLogging.ProtocolDebug("(OnPacketReceived) Receiving UpdatedVariables_Ones packet.");
                         foreach (var networkId in packet.networkIds)
                         {
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
@@ -347,6 +358,7 @@ namespace HVR.Basis.Comms
                         var packet = HVR_VariableState_UpdatedVariables_ZeroesAndOnes.Deserialize(data);
                         if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_ZeroesAndOnes packet."); return; }
 
+                        HVRLogging.ProtocolDebug("(OnPacketReceived) Receiving UpdatedVariables_ZeroesAndOnes packet.");
                         for (var index = 0; index < packet.networkIds.Count; index++)
                         {
                             if (_networkIdToAddressId.TryGetValue(packet.networkIds[index], out var addressId))
@@ -363,6 +375,7 @@ namespace HVR.Basis.Comms
                         var packet = HVR_VariableState_UpdatedVariables_Mixed.Deserialize(data);
                         if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Mixed packet."); return; }
 
+                        HVRLogging.ProtocolDebug("(OnPacketReceived) Receiving UpdatedVariables_Mixed packet.");
                         for (var index = 0; index < packet.networkIds.Count; index++)
                         {
                             if (_networkIdToAddressId.TryGetValue(packet.networkIds[index], out var addressId))
@@ -463,6 +476,10 @@ namespace HVR.Basis.Comms
             public void RequireVariable(HVRVariable variable)
             {
                 // Do nothing.
+            }
+
+            public void OnDestroy()
+            {
             }
 
             private class HVRVariableHolder
