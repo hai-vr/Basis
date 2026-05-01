@@ -73,7 +73,22 @@ namespace Basis.BasisUI
         private PanelToggle _advancedToggle;
         private PanelButton _hostButton;
         private PanelToggle _autoConnectToggle;
-        private PanelElementDescriptor _info;
+
+        // Stable key the loading bar uses to merge updates for the same connection
+        // attempt, distinct from the bundle-load key BasisSceneLoad reports under.
+        private const string ConnectionProgressKey = "BasisServerConnection";
+
+        private static void ReportConnectionProgress(float progress, string message) =>
+            BasisSceneLoad.progressCallback.ReportProgress(ConnectionProgressKey, progress, message ?? string.Empty);
+
+        // Hold the bar at <100 with an error message so BasisUILoadingBar's 5-second
+        // idle auto-destroy clears it. Reaching 100 would dismiss it instantly and
+        // the user would never see what failed.
+        private static void ReportConnectionError(string message) =>
+            BasisSceneLoad.progressCallback.ReportProgress(ConnectionProgressKey, 99f, message ?? string.Empty);
+
+        private static void CompleteConnectionProgress() =>
+            BasisSceneLoad.progressCallback.ReportProgress(ConnectionProgressKey, 100f, string.Empty);
 
         private CancellationTokenSource _queryCts;
 
@@ -107,10 +122,6 @@ namespace Basis.BasisUI
             _emptyState = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             _emptyState.SetTitle(BasisLocalization.Get("menu.servers.list.empty"));
             _emptyState.SetDescription(string.Empty);
-
-            _info = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            _info.SetTitle(string.Empty);
-            _info.SetDescription(string.Empty);
 
             BuildAdvancedSection(container);
 
@@ -146,14 +157,14 @@ namespace Basis.BasisUI
             _usernameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.username"));
             _usernameField.SetValueWithoutNotify(BasisDataStore.LoadString(UsernameFileName, string.Empty));
 
-            _addServerButton = PanelButton.CreateNew(container);
+            RectTransform headerActions = BuildActionRow(container);
+
+            _addServerButton = PanelButton.CreateNew(headerActions);
             _addServerButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.addServer"));
-            _addServerButton.Descriptor.SetHeight(70);
             _addServerButton.OnClicked += () => ShowEditor(null);
 
-            _refreshAllButton = PanelButton.CreateNew(container);
+            _refreshAllButton = PanelButton.CreateNew(headerActions);
             _refreshAllButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.refreshAll"));
-            _refreshAllButton.Descriptor.SetHeight(60);
             _refreshAllButton.OnClicked += () => _ = RefreshAllAsync();
         }
 
@@ -212,11 +223,13 @@ namespace Basis.BasisUI
             _editPassword = PanelPasswordField.CreateNewEntry(editorContent);
             _editPassword.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.password"));
 
-            _editSaveButton = PanelButton.CreateNew(editorContent);
+            RectTransform editorActions = BuildActionRow(editorContent);
+
+            _editSaveButton = PanelButton.CreateNew(editorActions);
             _editSaveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.save"));
             _editSaveButton.OnClicked += SaveEditor;
 
-            _editCancelButton = PanelButton.CreateNew(editorContent);
+            _editCancelButton = PanelButton.CreateNew(editorActions);
             _editCancelButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.cancel"));
             _editCancelButton.OnClicked += HideEditor;
         }
@@ -244,14 +257,12 @@ namespace Basis.BasisUI
             string address = _editAddress.Value?.Trim();
             if (!ushort.TryParse(_editPort.Value, out ushort port) || port == 0)
             {
-                _info.SetTitle(BasisLocalization.Get("ui.error"));
-                _info.SetDescription("Port must be 1-65535");
+                ReportConnectionError("Port must be 1-65535");
                 return;
             }
             if (string.IsNullOrEmpty(address))
             {
-                _info.SetTitle(BasisLocalization.Get("ui.error"));
-                _info.SetDescription(BasisLocalization.Get("menu.servers.ipAddress"));
+                ReportConnectionError(BasisLocalization.Get("menu.servers.ipAddress"));
                 return;
             }
 
@@ -326,7 +337,9 @@ namespace Basis.BasisUI
             row.Group = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, _listContainer);
             // Slot the row just above the status info element so rows live between the
             // empty-state hint and the advanced section.
-            row.Group.transform.SetSiblingIndex(_info.transform.GetSiblingIndex());
+            // Slot the row just above the advanced section so it lives between the
+            // empty-state hint (or other rows) and the host/auto-connect controls.
+            row.Group.transform.SetSiblingIndex(_advancedToggle.transform.GetSiblingIndex());
 
             string baseTitle = string.IsNullOrEmpty(entry.DisplayName) ? entry.Address : entry.DisplayName;
             row.Group.SetTitle(isDefault
@@ -461,9 +474,11 @@ namespace Basis.BasisUI
                 if (string.IsNullOrEmpty(name)) name = entry.Address;
                 if (IsDefault(entry))
                     name = string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name);
-                row.Group.SetTitle(string.Format("{0} - {1}",
+                string playerCount = string.Format(BasisLocalization.Get("menu.servers.list.players"), info.Online, info.Max);
+                row.Group.SetTitle(string.Format("{0} - <color={1}>{2}</color>",
                     name,
-                    string.Format(BasisLocalization.Get("menu.servers.list.players"), info.Online, info.Max)));
+                    OnlineColor,
+                    playerCount));
                 row.Group.SetDescription(string.Format("{0}  •  {1}",
                     string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port),
                     string.Format(BasisLocalization.Get("menu.servers.list.ping"), info.RoundTripMs)));
@@ -475,11 +490,16 @@ namespace Basis.BasisUI
                 if (IsDefault(entry))
                     name = string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name);
                 row.Group.SetTitle(name);
-                row.Group.SetDescription(string.Format("{0}  •  {1}",
+                row.Group.SetDescription(string.Format("{0}  •  <color={1}>{2}</color>",
                     string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port),
+                    OfflineColor,
                     BasisLocalization.Get("menu.servers.list.offline")));
             }
         }
+
+        // TMP rich-text colors for the live online/offline indicators in each row.
+        private const string OnlineColor = "#22c55e";
+        private const string OfflineColor = "#ef4444";
 
         // ── Connection ───────────────────────────────────────────────────────
 
@@ -519,23 +539,28 @@ namespace Basis.BasisUI
 
         private async Task ConnectToAsync(SavedServerEntry entry, bool isHostMode = false)
         {
+            // Validate sync inputs first so the user can correct without losing the
+            // panel — only commit to the loading-bar takeover once we have something
+            // worth attempting.
+            string userName = _usernameField._inputField.text;
+            if (string.IsNullOrEmpty(userName))
+            {
+                ReportConnectionError(BasisLocalization.Get("menu.servers.error.emptyName"));
+                return;
+            }
+
+            // Hand off to the global loading bar — close the menu so it owns the
+            // user's attention until the connection completes (or auto-clears on error).
+            BasisMainMenu.Close();
+            BasisCursorManagement.OnReset();
+
             try
             {
-                _info.SetTitle(BasisLocalization.Get("menu.servers.status.connecting"));
-                _info.SetDescription(BasisLocalization.Get("menu.servers.status.initializing"));
-
-                string userName = _usernameField._inputField.text;
-                if (string.IsNullOrEmpty(userName))
-                {
-                    _info.SetTitle(BasisLocalization.Get("ui.error"));
-                    _info.SetDescription(BasisLocalization.Get("menu.servers.error.emptyName"));
-                    return;
-                }
+                ReportConnectionProgress(5f, BasisLocalization.Get("menu.servers.status.initializing"));
 
                 if (BasisNetworkConnection.LocalPlayerIsConnected)
                 {
-                    _info.SetTitle(BasisLocalization.Get("menu.servers.status.disconnecting"));
-                    _info.SetDescription(BasisLocalization.Get("menu.servers.status.disconnecting"));
+                    ReportConnectionProgress(15f, BasisLocalization.Get("menu.servers.status.disconnecting"));
                     BasisDebug.Log("Disconnecting from current connection", BasisDebug.LogTag.Networking);
 
                     using CancellationTokenSource cts = new CancellationTokenSource();
@@ -547,45 +572,41 @@ namespace Basis.BasisUI
 
                 if (BasisNetworkManagement.Instance == null)
                 {
-                    _info.SetTitle(BasisLocalization.Get("ui.error"));
-                    _info.SetDescription(BasisLocalization.Get("menu.servers.error.noNetworkLayer"));
+                    ReportConnectionError(BasisLocalization.Get("menu.servers.error.noNetworkLayer"));
                     BasisDebug.LogError("Missing Networking layer!");
                     return;
                 }
 
-                _info.SetTitle(BasisLocalization.Get("menu.servers.status.connecting"));
-                _info.SetDescription(BasisLocalization.Get("menu.servers.status.preparing"));
+                ReportConnectionProgress(40f, BasisLocalization.Get("menu.servers.status.preparing"));
                 BasisLocalPlayer.Instance.DisplayName = userName;
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, UsernameFileName);
                 BasisDataStore.SaveString(entry.Id, LastConnectedServerIdFile);
-
-                _info.SetDescription(BasisLocalization.Get("menu.servers.status.loadingBundle"));
 
                 BasisNetworkManagement.Instance.Port = entry.Port;
                 BasisNetworkManagement.Instance.Ip = entry.Address;
                 BasisNetworkManagement.Instance.Password = entry.HasPassword ? entry.Password : string.Empty;
                 BasisNetworkManagement.Instance.IsHostMode = isHostMode;
 
-                BasisMainMenu.Close();
-                BasisCursorManagement.OnReset();
+                ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
                 await CreateAssetBundle();
+
+                ReportConnectionProgress(90f, BasisLocalization.Get("menu.servers.status.connecting"));
                 BasisNetworkManagement.Instance.Connect();
                 if (BasisDesktopEye.Instance != null)
                 {
                     BasisDesktopEye.Instance.LockEye();
                 }
+                CompleteConnectionProgress();
             }
             catch (TimeoutException tex)
             {
-                _info.SetTitle(BasisLocalization.Get("ui.error"));
-                _info.SetDescription(BasisLocalization.Get("menu.servers.error.timeout"));
+                ReportConnectionError(BasisLocalization.Get("menu.servers.error.timeout"));
                 BasisDebug.LogError(tex.ToString());
             }
             catch (Exception ex)
             {
-                _info.SetTitle(BasisLocalization.Get("ui.error"));
-                _info.SetDescription(BasisLocalization.Get("menu.servers.error.connectFailed"));
+                ReportConnectionError(BasisLocalization.Get("menu.servers.error.connectFailed"));
                 BasisDebug.LogError(ex.ToString());
             }
         }
