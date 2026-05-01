@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HVR.Basis.Comms;
+using HVR.Basis.Comms.HVRUtility;
 #if HVR_VIXXY_IS_IN_BASIS
 using Basis.Scripts.BasisSdk;
 #endif
@@ -487,6 +488,8 @@ namespace HVR.Vixxy
 
         private void OnImplicitAddressUpdated(float value)
         {
+            HVRLogging.ProtocolDebug($"OnImplicitAddressUpdated was called on control {gameObject.name} with value ({value})");
+
             // FIXME: This is a bypass so that we don't update an address that hasn't changed.
             // Ideally, the orchestrator should instead provide us a guarantee of calling us only when the value changes.
             if (Mathf.Approximately(value, _previousValue)) return;

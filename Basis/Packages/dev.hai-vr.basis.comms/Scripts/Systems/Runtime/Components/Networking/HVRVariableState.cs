@@ -25,7 +25,13 @@ namespace HVR.Basis.Comms
         public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
         public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
 
-        private void WhenAddressUpdated(int addressId, float currentValue) => comms.DataProvider.Submit(addressId, currentValue);
+        private void WhenAddressUpdated(int addressId, float currentValue)
+        {
+            HVRLogging.ProtocolDebug($"Updating address {HVRAddressRegistry.ResolveKnownAddressFromId(addressId)} to value {currentValue}.");
+            comms.DataProvider.Submit(addressId, currentValue);
+        }
+
+        private const float TransmissionDeltaSeconds = 0.1f;
 
         private interface IHVRVariableBehaviour : IFeatureReceiver
         {
@@ -44,6 +50,8 @@ namespace HVR.Basis.Comms
             private readonly List<int> _newVariablesAddressIds = new();
             private readonly HashSet<int> _addressIdsWithNewValue = new();
             private ushort _networkId = 0;
+
+            private float _timeLeft;
 
             public HVRVariableState_Wearer(HVRVariableState state)
             {
@@ -131,7 +139,12 @@ namespace HVR.Basis.Comms
                     _newVariablesAddressIds.Clear();
                 }
 
-                DoTick();
+                _timeLeft += Time.deltaTime;
+                if (_timeLeft > TransmissionDeltaSeconds)
+                {
+                    DoTick();
+                    _timeLeft = 0;
+                }
             }
 
             private void DoTick()
@@ -166,7 +179,7 @@ namespace HVR.Basis.Comms
                 {
                     var packet = BuildUpdatedVariablesPacket(addressIdsToValueToTransmit);
                     _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
-                    HVRLogging.ProtocolDebug("(Update) Sending UpdatedVariablesPacket.");
+                    HVRLogging.ProtocolDebug($"(Update) Sending UpdatedVariablesPacket (at T={Time.time:0.00}).");
                 }
 
                 _addressIdsWithNewValue.Clear();
@@ -232,7 +245,7 @@ namespace HVR.Basis.Comms
                 return new HVR_VariableState_UpdatedVariables_ZeroesOrOnes
                 {
                     packetType = zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
-                    networkIds = zeroesNetworkIds
+                    networkIds = zeroesNetworkIds.Count > 0 ? zeroesNetworkIds : onesNetworkIds
                 }.Serialize();
             }
 
@@ -250,15 +263,15 @@ namespace HVR.Basis.Comms
                 {
                     var isFloat = holder.variable.variableTypeCode == HVRVariableTypeCode.Float;
                     if (isFloat
-                        && (Mathf.Approximately((float)holder.variable.initialValue, 0f)
-                            || Mathf.Approximately((float)holder.variable.initialValue, 1f)))
+                        && (Mathf.Approximately((float)holder.currentValue, 0f)
+                            || Mathf.Approximately((float)holder.currentValue, 1f)))
                     {
                         var quickVar = new HVR_VariableState_NewVariables.HVR_VariableState_NewQuickVariable
                         {
                             address = HVRAddressRegistry.ResolveKnownAddressFromId(holder.variable.addressId),
                             networkId = holder.networkId,
                         };
-                        (Mathf.Approximately((float)holder.variable.initialValue, 1f) ? ones : zeroes)
+                        (Mathf.Approximately((float)holder.currentValue, 1f) ? ones : zeroes)
                             .Add(quickVar);
                     }
                     else
@@ -331,7 +344,7 @@ namespace HVR.Basis.Comms
                         {
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
-                                _state.WhenAddressUpdated(_networkIdToAddressId[networkId], 0f);
+                                _state.WhenAddressUpdated(addressId, 0f);
                             }
                         }
 
@@ -499,7 +512,7 @@ namespace HVR.Basis.Comms
     public class HVRVariable
     {
         public int addressId;
-        public object initialValue;
+        public object initialValue; // This is not necessarily the default value, it is the value that was current when the variable was created on a specific remote; every user might have a different initialValue.
         public HVRVariableTypeCode variableTypeCode;
 
         // If float:

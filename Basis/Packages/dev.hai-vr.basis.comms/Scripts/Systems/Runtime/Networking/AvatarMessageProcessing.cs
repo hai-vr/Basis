@@ -27,17 +27,18 @@ namespace HVR.Basis.Comms
         private readonly ResyncEveryoneRequestedDelegate _onResyncEveryoneRequested;
         private readonly ResyncRequestedDelegate _onResyncRequested;
         private readonly PacketReceivedDelegate _onPacketReceived;
+        private readonly bool _useExtended;
 
         public delegate void ResyncEveryoneRequestedDelegate();
         public delegate void ResyncRequestedDelegate(ushort remoteUser);
         public delegate void PacketReceivedDelegate(byte localIdentifier, ArraySegment<byte> subBuffer);
 
-        public static AvatarMessageProcessing ForFeature(IHVRTransmitter transmitter, bool isWearer, ushort wearerNetId, IFeatureReceiver receiver)
+        public static AvatarMessageProcessing ForFeature(IHVRTransmitter transmitter, bool isWearer, ushort wearerNetId, IFeatureReceiver receiver, bool useExtended = false)
         {
-            return new AvatarMessageProcessing(transmitter, isWearer, wearerNetId, receiver.OnResyncEveryoneRequested, remoteUser => receiver.OnResyncRequested(new[] { remoteUser }), receiver.OnPacketReceived);
+            return new AvatarMessageProcessing(transmitter, isWearer, wearerNetId, receiver.OnResyncEveryoneRequested, remoteUser => receiver.OnResyncRequested(new[] { remoteUser }), receiver.OnPacketReceived, useExtended);
         }
 
-        public AvatarMessageProcessing(IHVRTransmitter transmitter, bool isWearer, ushort wearerNetId, ResyncEveryoneRequestedDelegate onResyncEveryoneRequested, ResyncRequestedDelegate onResyncRequested, PacketReceivedDelegate onPacketReceived)
+        public AvatarMessageProcessing(IHVRTransmitter transmitter, bool isWearer, ushort wearerNetId, ResyncEveryoneRequestedDelegate onResyncEveryoneRequested, ResyncRequestedDelegate onResyncRequested, PacketReceivedDelegate onPacketReceived, bool useExtended = false)
         {
             _transmitter = transmitter;
             _isWearer = isWearer;
@@ -45,6 +46,7 @@ namespace HVR.Basis.Comms
             _onResyncEveryoneRequested = onResyncEveryoneRequested;
             _onResyncRequested = onResyncRequested;
             _onPacketReceived = onPacketReceived;
+            _useExtended = useExtended;
         }
 
         public void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod _)
@@ -76,14 +78,31 @@ namespace HVR.Basis.Comms
                     // This can be received without the server reduction system after we requested initialization.
                     if (_isWearer) { HVRLogging.ProtocolError("Illegal recipient."); return; }
                     if (remoteUser != _wearerNetId) { HVRLogging.ProtocolError("Illegal sender."); return; }
-                    if (buffer.Length < 2) { HVRLogging.ProtocolError("Illegal buffer length."); return; }
-                    var localIdentifier = buffer[1];
-                    _onPacketReceived.Invoke(localIdentifier, SubBuffer(buffer));
+
+                    if (!_useExtended)
+                    {
+                        if (buffer.Length < 2) { HVRLogging.ProtocolError("Illegal buffer length."); return; }
+                        var localIdentifier = buffer[1];
+                        _onPacketReceived.Invoke(localIdentifier, SubBuffer(buffer));
+                    }
+                    else
+                    {
+                        _onPacketReceived.Invoke(0, buffer);
+                    }
                     break;
                 }
                 default:
                 {
-                    HVRLogging.ProtocolError("Illegal message.");
+                    if (!_useExtended)
+                    {
+                        HVRLogging.ProtocolError("Illegal message.");
+                    }
+                    else
+                    {
+                        if (_isWearer) { HVRLogging.ProtocolError("Illegal recipient."); return; }
+                        if (remoteUser != _wearerNetId) { HVRLogging.ProtocolError("Illegal sender."); return; }
+                        _onPacketReceived.Invoke(0, buffer);
+                    }
                     break;
                 }
             }
@@ -123,13 +142,29 @@ namespace HVR.Basis.Comms
                 {
                     if (_isWearer) { HVRLogging.ProtocolError("Illegal recipient."); return; }
                     if (buffer.Length < 2) { HVRLogging.ProtocolError("Illegal buffer length."); return; }
-                    var localIdentifier = buffer[1];
-                    _onPacketReceived.Invoke(localIdentifier, SubBuffer(buffer));
+
+                    if (!_useExtended)
+                    {
+                        var localIdentifier = buffer[1];
+                        _onPacketReceived.Invoke(localIdentifier, SubBuffer(buffer));
+                    }
+                    else
+                    {
+                        _onPacketReceived.Invoke(0, buffer);
+                    }
                     break;
                 }
                 default:
                 {
-                    HVRLogging.ProtocolError("Illegal message.");
+                    if (!_useExtended)
+                    {
+                        HVRLogging.ProtocolError("Illegal message.");
+                    }
+                    else
+                    {
+                        if (_isWearer) { HVRLogging.ProtocolError("Illegal recipient."); return; }
+                        _onPacketReceived.Invoke(0, buffer);
+                    }
                     break;
                 }
             }

@@ -165,29 +165,16 @@ namespace HVR.Vixxy
             _anythingNeedsUpdating = true;
             _actuatorsToUpdateThisTick.Add(actuator);
 
-            if (isWearer)
-            {
-                HVRDataProvider.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
-                DataProvider.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
+            HVRDataProvider.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
+            DataProvider.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
 
-                return new HVRActuatorRegistrationToken
-                {
-                    registeredAddressId = addressId,
-                    registeredCallback = addressUpdatedFn,
-                    registeredActuator = actuator,
-                    initialValue = DataProvider.GetValue(addressId)
-                };
-            }
-            else
+            return new HVRActuatorRegistrationToken
             {
-                return new HVRActuatorRegistrationToken
-                {
-                    registeredAddressId = addressId,
-                    registeredCallback = null, // FIXME: ???
-                    registeredActuator = actuator,
-                    initialValue = DataProvider.GetValue(addressId)
-                };
-            }
+                registeredAddressId = addressId,
+                registeredCallback = addressUpdatedFn,
+                registeredActuator = actuator,
+                initialValue = DataProvider.GetValue(addressId)
+            };
         }
 
         public void UnregisterActuator(HVRActuatorRegistrationToken actuatorRegistrationToken)
@@ -197,10 +184,7 @@ namespace HVR.Vixxy
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
             }
 
-            if (isWearer)
-            {
-                DataProvider.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
-            }
+            DataProvider.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
         }
 
         public void RegisterAggregator(string address, IHVRVixxyAggregator actuator)
@@ -294,7 +278,7 @@ namespace HVR.Vixxy
                 comms.RequireVariable(new HVRVariable
                 {
                     addressId = toBeNetworked.addressId,
-                    initialValue = toBeNetworked.defaultValue,
+                    initialValue = DataProvider.GetValue(toBeNetworked.addressId),
                     variableTypeCode = HVRVariableTypeCode.Float,
                     min = toBeNetworked.min,
                     max = toBeNetworked.max

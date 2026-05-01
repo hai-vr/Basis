@@ -3,6 +3,7 @@ using UnityEngine;
 #if HVR_VIXXY_IS_IN_BASIS
 using Basis.Scripts.BasisSdk;
 using HVR.Basis.Comms;
+using HVR.Basis.Comms.HVRUtility;
 #endif
 
 namespace HVR.Vixxy
@@ -64,7 +65,16 @@ namespace HVR.Vixxy
             {
 #if HVR_VIXXY_IS_IN_BASIS
                 var commsNullable = HVRCommsUtil.GetComms(contextNullable);
-                orchestrator.DataProvider = commsNullable != null ? AcquisitionService.SceneInstance.DataProvider : commsNullable.DataProvider;
+                if (commsNullable != null)
+                {
+                    HVRLogging.ProtocolDebug("Assigning Comms DataProvider to VixxyOrchestrator.");
+                    orchestrator.DataProvider = commsNullable.DataProvider;
+                }
+                else
+                {
+                    HVRLogging.ProtocolDebug("Assigning SceneInstance DataProvider to VixxyOrchestrator.");
+                    orchestrator.DataProvider = AcquisitionService.SceneInstance.DataProvider;
+                }
 #endif
             }
             go.SetActive(true);

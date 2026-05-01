@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
+using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -62,7 +63,17 @@ namespace HVR.Basis.Comms
         private void OnAvatarReady(bool isWearer)
         {
             _isWearer = isWearer;
-            DataProvider = isWearer ? AcquisitionService.SceneInstance.DataProvider : new HVRDataProvider();
+            if (isWearer)
+            {
+                DataProvider = AcquisitionService.SceneInstance.DataProvider;
+                HVRLogging.ProtocolDebug($"Assigning SceneInstance to AvatarComms of {avatar.name}");
+            }
+            else
+            {
+                DataProvider = new HVRDataProvider();
+                HVRLogging.ProtocolDebug($"Assigning new instance of DataProvider to AvatarComms of {avatar.name}");
+            }
+
 
             var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
             foreach (var initializable in allInitializables)
@@ -111,7 +122,7 @@ namespace HVR.Basis.Comms
 
             DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0]);
 
-            variableStateProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableStateCarrier], isWearer, avatar.LinkedPlayerID, _variableState);
+            variableStateProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableStateCarrier], isWearer, avatar.LinkedPlayerID, _variableState, true);
         }
 
         public void RequireVariable(HVRVariable variable)
