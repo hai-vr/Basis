@@ -111,6 +111,7 @@
     { "key": "menu.servers.list.confirmRemove", "value": "Tap Remove again to confirm." },
     { "key": "menu.servers.list.default", "value": "Default Basis Server" },
     { "key": "menu.servers.list.defaultBadge", "value": "★ {0}" },
+    { "key": "menu.servers.list.share", "value": "Share" },
 
     { "key": "menu.players.search.byName", "value": "Filter by display name." },
     { "key": "menu.players.search.byUuid", "value": "Filter by player UUID." },

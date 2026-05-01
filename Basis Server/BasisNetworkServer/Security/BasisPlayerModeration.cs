@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Serialization;
+using BasisNetworking.InitalData;
+using BasisNetworking.InitialData;
 using BasisServerHandle;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static BasisPermissions.PermissionManager;
@@ -332,6 +334,11 @@ namespace BasisNetworkServer.Security
                         HandleGlobalToggle(peer, "World", BasisGlobalLockManager.ToggleWorlds()));
                     break;
 
+                case AdminRequestMode.GlobalToggleServers:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Server share", BasisGlobalLockManager.ToggleServers()));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessAudio:
                     Require(peer, PermNodes.ModerationHeadlessAudio, () =>
                         HandleHeadlessAudioSet(peer, reader));
@@ -393,6 +400,16 @@ namespace BasisNetworkServer.Security
                     Require(peer, PermNodes.ModerationWhitelist, () =>
                         SendBackMessage(peer, ApplyWhitelistRemove(reader.GetString())));
                     break;
+
+                case AdminRequestMode.AddDefaultLibraryItem:
+                    Require(peer, PermNodes.ConfigurationEditor, () =>
+                    {
+                        byte itemMode = reader.GetByte();
+                        string itemUrl = reader.GetString();
+                        string itemPassword = reader.GetString();
+                        SendBackMessage(peer, ApplyAddDefaultLibraryItem(itemMode, itemUrl, itemPassword));
+                    });
+                    break;
             }
 
             reader.Recycle();
@@ -453,6 +470,31 @@ namespace BasisNetworkServer.Security
             if (NetworkServer.Whitelist == null) return "Whitelist not initialized.";
             _ = NetworkServer.Whitelist.RemoveFromWhitelistAsync(uuid);
             return $"Removed {uuid} from whitelist.";
+        }
+
+        private static string ApplyAddDefaultLibraryItem(byte mode, string url, string password)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "URL was empty.";
+            // Mode is the client's BundledContentHolder.Mode: 0=Avatar, 1=World, 2=Prop.
+            if (mode > 2) return $"Unknown library mode {mode} (expected 0=Avatar, 1=World, 2=Prop).";
+
+            BasisDefaultLibraryConfiguration config = new BasisDefaultLibraryConfiguration
+            {
+                Mode = mode,
+                Url = url,
+                Password = password ?? string.Empty,
+            };
+
+            string written = BasisDefaultLibraryLoader.SaveItem(Configuration.DefaultLibraryFolderName, config);
+            if (string.IsNullOrEmpty(written))
+            {
+                return "Failed to persist default library entry — see server log.";
+            }
+
+            // Push the updated list to every connected client so the new entry shows
+            // up in their library immediately, not just on next connect.
+            BasisNetworkServerLibrary.BroadcastLibraryToAll();
+            return $"Default library entry added ({Path.GetFileName(written)}).";
         }
 
         private static void SaveConfig()

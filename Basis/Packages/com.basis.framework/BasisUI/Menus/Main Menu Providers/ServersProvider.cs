@@ -67,6 +67,7 @@ namespace Basis.BasisUI
         private PanelPasswordField _editPassword;
         private PanelButton _editSaveButton;
         private PanelButton _editCancelButton;
+        private PanelButton _editShareButton;
         private PanelTextField _usernameField;
         private PanelButton _addServerButton;
         private PanelButton _refreshAllButton;
@@ -229,6 +230,18 @@ namespace Basis.BasisUI
             _editSaveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.save"));
             _editSaveButton.OnClicked += SaveEditor;
 
+            // Share lives inside the editor (only visible when editing an existing
+            // entry while connected) instead of on the row, so it doesn't crowd the
+            // top-level Connect/Edit/Remove action row.
+            _editShareButton = PanelButton.CreateNew(editorActions);
+            _editShareButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.share"));
+            _editShareButton.OnClicked += () =>
+            {
+                if (string.IsNullOrEmpty(_editingId)) return;
+                SavedServerEntry target = _servers?.Find(s => s.Id == _editingId);
+                if (target != null) ShareEntry(target);
+            };
+
             _editCancelButton = PanelButton.CreateNew(editorActions);
             _editCancelButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.cancel"));
             _editCancelButton.OnClicked += HideEditor;
@@ -243,6 +256,13 @@ namespace Basis.BasisUI
             _editAddress.SetValueWithoutNotify(existing?.Address ?? string.Empty);
             _editPort.SetValueWithoutNotify((existing?.Port ?? (ushort)4296).ToString());
             _editPassword.SetPassword(existing?.Password ?? "default_password");
+            // Share only makes sense when editing an existing entry AND we have a
+            // live peer to ride the share message on.
+            if (_editShareButton != null)
+            {
+                bool canShare = existing != null && BasisNetworkConnection.LocalPlayerIsConnected;
+                _editShareButton.gameObject.SetActive(canShare);
+            }
             _editorSection.SetActive(true);
         }
 
@@ -264,7 +284,7 @@ namespace Basis.BasisUI
             // values too instead of the user having to fill three fields.
             if (!string.IsNullOrEmpty(addressInput)
                 && (addressInput.IndexOf(':') >= 0 || addressInput.IndexOf('#') >= 0)
-                && TryParseConnectionString(addressInput, out string pAddr, out ushort pPort, out bool portProvided, out string pPassword))
+                && SavedServerStore.TryParseConnectionString(addressInput, out string pAddr, out ushort pPort, out bool portProvided, out string pPassword))
             {
                 address = pAddr;
                 if (portProvided) parsedPortOverride = pPort;
@@ -380,13 +400,30 @@ namespace Basis.BasisUI
                 row.EditButton = PanelButton.CreateNew(actions);
                 row.EditButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.edit"));
                 row.EditButton.OnClicked += () => ShowEditor(entry);
+            }
 
+            if (!isDefault)
+            {
                 row.RemoveButton = PanelButton.CreateNew(actions);
                 row.RemoveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.remove"));
                 row.RemoveButton.OnClicked += () => _ = ConfirmAndRemoveAsync(entry);
             }
 
             _rows[entry.Id] = row;
+        }
+
+        private static string BuildConnectionString(SavedServerEntry entry)
+        {
+            string s = $"{entry.Address}:{entry.Port}";
+            if (entry.HasPassword && !string.IsNullOrEmpty(entry.Password))
+                s += "#" + entry.Password;
+            return s;
+        }
+
+        private void ShareEntry(SavedServerEntry entry)
+        {
+            if (entry == null) return;
+            BasisContentShareManager.ShareServerConnection(BuildConnectionString(entry));
         }
 
         private async Task ConfirmAndRemoveAsync(SavedServerEntry entry)
@@ -718,7 +755,7 @@ namespace Basis.BasisUI
                 if (!arg.StartsWith(ConnectionArgPrefix, StringComparison.OrdinalIgnoreCase)) continue;
 
                 string value = arg.Substring(ConnectionArgPrefix.Length);
-                if (!TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
+                if (!SavedServerStore.TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
                 {
                     BasisDebug.LogWarning($"--connection arg could not be parsed: {arg}");
                     return false;
@@ -738,51 +775,5 @@ namespace Basis.BasisUI
             return false;
         }
 
-        /// <summary>
-        /// Splits a connection string of the form <c>address[:port][#password]</c>.
-        /// Returns false if the address segment ends up empty.
-        /// </summary>
-        private static bool TryParseConnectionString(
-            string raw, out string address, out ushort port, out bool portProvided, out string password)
-        {
-            address = string.Empty;
-            port = 4296;
-            portProvided = false;
-            password = string.Empty;
-            if (string.IsNullOrEmpty(raw)) return false;
-
-            // Password is anything after the first '#'.
-            string left = raw;
-            int hashIdx = raw.IndexOf('#');
-            if (hashIdx >= 0)
-            {
-                password = raw.Substring(hashIdx + 1);
-                left = raw.Substring(0, hashIdx);
-            }
-
-            // Port is what follows the LAST ':' — works for hostnames and IPv4, and
-            // for bracketed IPv6 (`[::1]:4296`) since the closing bracket sits before
-            // the port colon.
-            int colonIdx = left.LastIndexOf(':');
-            if (colonIdx > 0
-                && colonIdx < left.Length - 1
-                && ushort.TryParse(left.Substring(colonIdx + 1), out ushort parsedPort)
-                && parsedPort > 0)
-            {
-                address = left.Substring(0, colonIdx).Trim();
-                port = parsedPort;
-                portProvided = true;
-            }
-            else
-            {
-                address = left.Trim();
-            }
-
-            // Strip IPv6 brackets if the user wrote them.
-            if (address.StartsWith("[") && address.EndsWith("]") && address.Length >= 2)
-                address = address.Substring(1, address.Length - 2);
-
-            return !string.IsNullOrEmpty(address);
-        }
     }
 }

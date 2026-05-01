@@ -347,6 +347,7 @@ namespace BasisServerHandle
                 SendRemoteSpawnMessage(newPeer, ReadyMessage);
 
                 BasisNetworkResourceManagement.SendOutAllResources(newPeer);
+                BasisNetworkServerLibrary.SendLibraryToPeer(newPeer);
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
                 BasisNetworkPIPCamera.SendPIPStateToPeer(newPeer);
                 BasisNetworkContentShare.SendAllSpheresToPeer(newPeer);

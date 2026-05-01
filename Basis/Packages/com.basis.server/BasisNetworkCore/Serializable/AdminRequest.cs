@@ -78,6 +78,14 @@ namespace BasisNetworkCore.Serializable
             SetWhitelistMode, // admin: set Configuration.BasisUserRestrictionMode + persist. Payload: [byte BasisUserRestrictionMode]
             AddWhitelist,     // admin: add UUID to BasisWhiteList.txt. Payload: [string uuid]
             RemoveWhitelist,  // admin: remove UUID from BasisWhiteList.txt. Payload: [string uuid]
+
+            GlobalToggleServers, // admin: toggle global server-share lock (BasisGlobalLockManager.ServersLocked).
+
+            // ── Default library (server-pushed library items, persisted to disk) ──
+            // Payload: [byte mode (0=Avatar,1=World,2=Prop)][string url][string password]
+            // Gated by PermNodes.ConfigurationEditor. Writes a new XML file under the
+            // server's defaultlibrary/ folder and rebroadcasts the updated list.
+            AddDefaultLibraryItem,
         }
     }
 }

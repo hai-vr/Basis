@@ -147,6 +147,10 @@ namespace Basis.BasisUI
                 AddLazyTab(tabGroup, ext.TabName, () => ext.Builder(tabGroup));
             }
 
+            if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PlayerModeration))
+            {
+                AddLazyTab(tabGroup, "settings.tab.moderator", () => SettingsProviderModeratorTab.ModeratorTab(tabGroup));
+            }
             if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView))
             {
                 AddLazyTab(tabGroup, "settings.tab.admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));

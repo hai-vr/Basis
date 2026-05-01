@@ -173,6 +173,14 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte CompressedAvatarBundleChannel = 52;
 
+        // ── Server-provided default library ──────────────────────────────────
+        /// <summary>
+        /// Server pushes a list of default library entries (avatars / props / worlds)
+        /// to each client on connect. Items live in the client's library only while
+        /// connected to that server and are cleared on disconnect.
+        /// </summary>
+        public const byte ServerLibraryChannel = 53;
+
         // ── Server info unconnected query ────────────────────────────────────
         // Out-of-band UDP probe: a client can hit the server's port without
         // authenticating and get back a name/online/max/MOTD payload — same

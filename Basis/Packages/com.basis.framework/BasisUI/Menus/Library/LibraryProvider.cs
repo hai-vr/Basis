@@ -48,6 +48,28 @@ namespace Basis.BasisUI
 
             // once we have the cache now invoke the task to build pinned providers
             PinnedItemProvider.RefreshPinnedProviders();
+
+            // Refresh the open library tab when the server's default library
+            // changes (push on connect, clear on disconnect).
+            BasisServerProvidedItems.OnChanged -= OnServerLibraryChanged;
+            BasisServerProvidedItems.OnChanged += OnServerLibraryChanged;
+        }
+
+        private static async void OnServerLibraryChanged()
+        {
+            if (panel == null || BasisMainMenu.ActiveMenuTitle != BasisLocalization.Get("menu.provider.library"))
+                return;
+
+            try
+            {
+                await CachedMetaData.PreloadMetaForItems(BasisServerProvidedItems.Items);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError(ex);
+            }
+
+            await RefreshCurrentTab();
         }
 
         public override void OnReleaseEvent()
@@ -421,9 +443,11 @@ namespace Basis.BasisUI
             {
                 try
                 {
-                    // build data to be used
+                    // build data to be used — local persisted keys plus any
+                    // session-scoped entries pushed by the current server.
                     var data = BasisDataStoreItemKeys.DisplayKeys()
                         .Where(k => k.Mode == mode)
+                        .Concat(BasisServerProvidedItems.Items.Where(k => k.Mode == mode))
                         .ToList();
 
                     // Preload metadata for items in this tab so that filtering/sorting

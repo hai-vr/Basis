@@ -10,6 +10,7 @@ public class Configuration
     public const string ConfigFolderName = "config";
     public const string LogsFolderName = "logs";
     public const string InitialResourcesFolderName = "initialresources";
+    public const string DefaultLibraryFolderName = "defaultlibrary";
     public int PeerLimit = ushort.MaxValue;
     public ushort SetPort = 4296;
     /// <summary>Display name returned by the unconnected server-info query — what shows up as the row title in a client server-list UI.</summary>
@@ -78,6 +79,13 @@ public class Configuration
     public bool AvatarsLocked = false;
     public bool PropsLocked = false;
     public bool WorldsLocked = true;
+    /// <summary>
+    /// When true, peers may not share saved-server entries through the content
+    /// share system. Toggled live via the admin panel and persisted to config.xml
+    /// alongside the other content lockouts. Default off so existing deployments
+    /// behave as before.
+    /// </summary>
+    public bool ServersLocked = false;
     /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath
     /// </summary>

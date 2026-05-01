@@ -31,6 +31,8 @@ namespace BasisPermissions
         public const string ResourceLockBypassAvatar = "basis.resource.lockbypass.avatar";
         public const string ResourceLockBypassProp = "basis.resource.lockbypass.prop";
         public const string ResourceLockBypassWorld = "basis.resource.lockbypass.world";
+        /// <summary>Bypass <c>ServersLocked</c> when initiating a server share.</summary>
+        public const string ResourceLockBypassServer = "basis.resource.lockbypass.server";
 
         public const string OwnershipTransfer = "basis.ownership.transfer";
         public const string OwnershipRemove = "basis.ownership.remove";
@@ -780,6 +782,7 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.ResourceLockBypassAvatar);
                     adm.Nodes.Add(PermNodes.ResourceLockBypassProp);
                     adm.Nodes.Add(PermNodes.ResourceLockBypassWorld);
+                    adm.Nodes.Add(PermNodes.ResourceLockBypassServer);
 
                     _store.Groups["moderator"] = adm;
                 }
