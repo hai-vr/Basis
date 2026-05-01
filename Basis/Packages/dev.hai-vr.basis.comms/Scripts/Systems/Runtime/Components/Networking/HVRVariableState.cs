@@ -7,14 +7,17 @@ using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
-    public class HVRVariableState : MonoBehaviour
+    public class HVRVariableState : MonoBehaviour, IFeatureReceiver
     {
         public HVRAvatarComms comms;
         public bool isWearer;
-        public ushort wearerNetId;
         public IHVRTransmitter transmitter;
 
         private IHVRVariableBehaviour _behaviour;
+
+        public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) => _behaviour.OnPacketReceived(localIdentifier, data);
+        public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
+        public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
 
         public void RequireVariable(HVRVariable variable)
         {
@@ -31,22 +34,10 @@ namespace HVR.Basis.Comms
             _behaviour.Update();
         }
 
-        public virtual void OnNetworkMessageReceived(ushort RemoteUser, byte[] unsafeBuffer, DeliveryMethod DeliveryMethod)
-        {
-            _behaviour.OnNetworkMessageReceived(RemoteUser, unsafeBuffer, DeliveryMethod);
-        }
-
-        public virtual void OnNetworkMessageServerReductionSystem(byte[] unsafeBuffer)
-        {
-            _behaviour.OnNetworkMessageServerReductionSystem(unsafeBuffer);
-        }
-
-        private interface IHVRVariableBehaviour
+        private interface IHVRVariableBehaviour : IFeatureReceiver
         {
             public void Awake();
             public void Update();
-            void OnNetworkMessageReceived(ushort remoteUser, byte[] unsafeBuffer, DeliveryMethod deliveryMethod);
-            void OnNetworkMessageServerReductionSystem(byte[] unsafeBuffer);
             void RequireVariable(HVRVariable variable);
         }
 
@@ -68,6 +59,22 @@ namespace HVR.Basis.Comms
 
             public void Awake()
             {
+            }
+
+            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
+            {
+            }
+
+            public void OnResyncEveryoneRequested()
+            {
+                var packet = BuildNewVariablesPacket(_addressIdToHolder.Keys.ToList());
+                _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+            }
+
+            public void OnResyncRequested(ushort[] whoAsked)
+            {
+                var packet = BuildNewVariablesPacket(_addressIdToHolder.Keys.ToList());
+                _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced, whoAsked);
             }
 
             public void RequireVariable(HVRVariable variable)
@@ -118,7 +125,7 @@ namespace HVR.Basis.Comms
             {
                 if (_newVariablesAddressIds.Count > 0)
                 {
-                    var packet = BuildNewVariablesPacket();
+                    var packet = BuildNewVariablesPacket(_newVariablesAddressIds);
                     _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
 
                     _newVariablesAddressIds.Clear();
@@ -224,19 +231,9 @@ namespace HVR.Basis.Comms
                 }.Serialize();
             }
 
-            public void OnNetworkMessageReceived(ushort remoteUser, byte[] unsafeBuffer, DeliveryMethod deliveryMethod)
+            private byte[] BuildNewVariablesPacket(List<int> newVariablesAddressIds)
             {
-                throw new NotImplementedException();
-            }
-
-            public void OnNetworkMessageServerReductionSystem(byte[] unsafeBuffer)
-            {
-                throw new NotImplementedException();
-            }
-
-            private byte[] BuildNewVariablesPacket()
-            {
-                var allHolders = _newVariablesAddressIds
+                var allHolders = newVariablesAddressIds
                     .Select(addressId => _addressIdToHolder[addressId])
                     .ToList();
 
@@ -309,21 +306,101 @@ namespace HVR.Basis.Comms
             {
             }
 
-            public void OnNetworkMessageReceived(ushort remoteUser, byte[] unsafeBuffer, DeliveryMethod deliveryMethod)
+            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
             {
-                if (unsafeBuffer.Length < 1) return;
+                if (data.Count < 1) { HVRLogging.ProtocolError("Data buffer is empty."); return; }
 
-                var packetType = unsafeBuffer[0];
-                if (packetType == AvatarMessageProcessing.NewNet_WearerSubmitsNewVariables)
+                var packetType = data[0];
+                switch (packetType)
                 {
-                    if (remoteUser != _state.wearerNetId) { HVRLogging.ProtocolError("Illegal sender."); return; }
+                    case AvatarMessageProcessing.NewNet_WearerSubmitsNewVariables:
+                    {
+                        var packet = HVR_VariableState_NewVariables.Deserialize(data);
+                        if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize NewVariables packet."); return; }
 
-                    var packet = HVR_VariableState_NewVariables.Deserialize(unsafeBuffer);
-                    if (packet == null) return;
+                        WhenNewVariablesReceived(packet);
+                        break;
+                    }
+                    case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes:
+                    {
+                        var packet = HVR_VariableState_UpdatedVariables_ZeroesOrOnes.Deserialize(data, packetType);
+                        if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Zeroes packet."); return; }
 
-                    WhenNewVariablesReceived(packet);
+                        foreach (var networkId in packet.networkIds)
+                        {
+                            if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
+                            {
+                                _state.WhenAddressUpdated(_networkIdToAddressId[networkId], 0f);
+                            }
+                        }
+
+                        break;
+                    }
+                    case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones:
+                    {
+                        var packet = HVR_VariableState_UpdatedVariables_ZeroesOrOnes.Deserialize(data, packetType);
+                        if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Ones packet."); return; }
+
+                        foreach (var networkId in packet.networkIds)
+                        {
+                            if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
+                            {
+                                _state.WhenAddressUpdated(addressId, 1f);
+                            }
+                        }
+
+                        break;
+                    }
+                    case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes:
+                    {
+                        var packet = HVR_VariableState_UpdatedVariables_ZeroesAndOnes.Deserialize(data);
+                        if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_ZeroesAndOnes packet."); return; }
+
+                        for (var index = 0; index < packet.networkIds.Count; index++)
+                        {
+                            if (_networkIdToAddressId.TryGetValue(packet.networkIds[index], out var addressId))
+                            {
+                                var isZero = index < packet.numberOfZeroes;
+                                _state.WhenAddressUpdated(addressId, isZero ? 0f : 1f);
+                            }
+                        }
+
+                        break;
+                    }
+                    case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Mixed:
+                    {
+                        var packet = HVR_VariableState_UpdatedVariables_Mixed.Deserialize(data);
+                        if (packet == null) { HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Mixed packet."); return; }
+
+                        for (var index = 0; index < packet.networkIds.Count; index++)
+                        {
+                            if (_networkIdToAddressId.TryGetValue(packet.networkIds[index], out var addressId))
+                            {
+                                var isZero = index < packet.numberOfZeroes;
+                                _state.WhenAddressUpdated(addressId, isZero ? 0f : 1f);
+                            }
+                        }
+                        foreach (var other in packet.other)
+                        {
+                            if (_networkIdToAddressId.TryGetValue(other.networkId, out var addressId))
+                            {
+                                if (_addressIdToHolder[addressId].variable.variableTypeCode == HVRVariableTypeCode.Float && other.value is float f)
+                                {
+                                    _state.WhenAddressUpdated(addressId, f);
+                                }
+                            }
+                        }
+
+                        break;
+                    }
+                    default:
+                        HVRLogging.ProtocolError($"Unknown packet type {packetType}.");
+                        break;
                 }
             }
+
+            public void OnResyncEveryoneRequested() { }
+            public void OnResyncRequested(ushort[] whoAsked) { }
 
             private void WhenNewVariablesReceived(HVR_VariableState_NewVariables packet)
             {
@@ -394,7 +471,6 @@ namespace HVR.Basis.Comms
 
             public void OnNetworkMessageServerReductionSystem(byte[] unsafeBuffer)
             {
-                throw new NotImplementedException();
             }
 
             public void RequireVariable(HVRVariable variable)

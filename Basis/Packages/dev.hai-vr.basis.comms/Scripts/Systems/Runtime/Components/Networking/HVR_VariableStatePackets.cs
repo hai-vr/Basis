@@ -141,9 +141,9 @@ namespace HVR.Basis.Comms
             return result;
         }
 
-        public static HVR_VariableState_NewVariables Deserialize(byte[] data)
+        public static HVR_VariableState_NewVariables Deserialize(ArraySegment<byte> data)
         {
-            if (data.Length < 3) return null;
+            if (data.Count < 3) return null;
             var packet = new HVR_VariableState_NewVariables
             {
                 newGeneralVariables = new List<HVR_VariableState_NewVariable>(),
@@ -154,29 +154,29 @@ namespace HVR.Basis.Comms
             var offset = 1;
 
             // General Variables
-            if (offset + 2 > data.Length) return packet;
+            if (offset + 2 > data.Count) return packet;
             var countGeneral = (ushort)(data[offset] | (data[offset + 1] << 8));
             offset += 2;
 
             for (var i = 0; i < countGeneral; i++)
             {
-                if (offset + 2 > data.Length) break;
+                if (offset + 2 > data.Count) break;
                 var addressLength = (ushort)(data[offset] | (data[offset + 1] << 8));
                 offset += 2;
 
-                if (offset + addressLength > data.Length) break;
-                var address = Encoding.UTF8.GetString(data, offset, addressLength);
+                if (offset + addressLength > data.Count) break;
+                var address = Encoding.UTF8.GetString(data.Array, data.Offset + offset, addressLength);
                 offset += addressLength;
 
-                if (offset + 2 > data.Length) break;
+                if (offset + 2 > data.Count) break;
                 var networkId = (ushort)(data[offset] | (data[offset + 1] << 8));
                 offset += 2;
 
-                if (offset + 1 > data.Length) break;
+                if (offset + 1 > data.Count) break;
                 var variableTypeCode = data[offset++];
 
-                if (offset + 4 > data.Length) break;
-                var initialValue = BitConverter.ToSingle(data, offset);
+                if (offset + 4 > data.Count) break;
+                var initialValue = BitConverter.ToSingle(data.Array, data.Offset + offset);
                 offset += 4;
 
                 packet.newGeneralVariables.Add(new HVR_VariableState_NewVariable
@@ -189,21 +189,21 @@ namespace HVR.Basis.Comms
             }
 
             // Float Zero Variables
-            if (offset + 2 > data.Length) return packet;
+            if (offset + 2 > data.Count) return packet;
             var countZero = (ushort)(data[offset] | (data[offset + 1] << 8));
             offset += 2;
 
             for (var i = 0; i < countZero; i++)
             {
-                if (offset + 2 > data.Length) break;
+                if (offset + 2 > data.Count) break;
                 var addressLength = (ushort)(data[offset] | (data[offset + 1] << 8));
                 offset += 2;
 
-                if (offset + addressLength > data.Length) break;
-                var address = Encoding.UTF8.GetString(data, offset, addressLength);
+                if (offset + addressLength > data.Count) break;
+                var address = Encoding.UTF8.GetString(data.Array, data.Offset + offset, addressLength);
                 offset += addressLength;
 
-                if (offset + 2 > data.Length) break;
+                if (offset + 2 > data.Count) break;
                 var networkId = (ushort)(data[offset] | (data[offset + 1] << 8));
                 offset += 2;
 
@@ -215,21 +215,21 @@ namespace HVR.Basis.Comms
             }
 
             // Float One Variables
-            if (offset + 2 > data.Length) return packet;
+            if (offset + 2 > data.Count) return packet;
             var countOne = (ushort)(data[offset] | (data[offset + 1] << 8));
             offset += 2;
 
             for (var i = 0; i < countOne; i++)
             {
-                if (offset + 2 > data.Length) break;
+                if (offset + 2 > data.Count) break;
                 var addressLength = (ushort)(data[offset] | (data[offset + 1] << 8));
                 offset += 2;
 
-                if (offset + addressLength > data.Length) break;
-                var address = Encoding.UTF8.GetString(data, offset, addressLength);
+                if (offset + addressLength > data.Count) break;
+                var address = Encoding.UTF8.GetString(data.Array, data.Offset + offset, addressLength);
                 offset += addressLength;
 
-                if (offset + 2 > data.Length) break;
+                if (offset + 2 > data.Count) break;
                 var networkId = (ushort)(data[offset] | (data[offset + 1] << 8));
                 offset += 2;
 
@@ -270,6 +270,17 @@ namespace HVR.Basis.Comms
 
             return result;
         }
+
+        public static HVR_VariableState_UpdatedVariables_ZeroesOrOnes Deserialize(ArraySegment<byte> data, byte packetType)
+        {
+            if (data.Count < 3) return null;
+            var packet = new HVR_VariableState_UpdatedVariables_ZeroesOrOnes
+            {
+                packetType = packetType,
+                networkIds = new List<ushort>(),
+            };
+            return packet;
+        }
     }
 
     internal class HVR_VariableState_UpdatedVariables_ZeroesAndOnes
@@ -301,6 +312,18 @@ namespace HVR.Basis.Comms
             }
 
             return result;
+        }
+
+        public static HVR_VariableState_UpdatedVariables_ZeroesAndOnes Deserialize(ArraySegment<byte> data)
+        {
+            if (data.Count < 5) return null;
+
+            var packet = new HVR_VariableState_UpdatedVariables_ZeroesAndOnes
+            {
+                numberOfZeroes = (ushort)(data[1] | (data[2] << 8)),
+                networkIds = new List<ushort>()
+            };
+            return packet;
         }
     }
 
@@ -357,6 +380,70 @@ namespace HVR.Basis.Comms
             }
 
             return result;
+        }
+
+        public static HVR_VariableState_UpdatedVariables_Mixed Deserialize(ArraySegment<byte> data)
+        {
+            if (data.Count < 5) return null;
+
+            var packet = new HVR_VariableState_UpdatedVariables_Mixed
+            {
+                numberOfZeroes = (ushort)(data[1] | (data[2] << 8)),
+                networkIds = new List<ushort>(),
+                other = new List<HVR_VariableState_UpdatedValue>()
+            };
+
+            var offset = 1;
+
+            offset += 2; // Skip numberOfZeroes
+
+            if (offset + 2 > data.Count) return packet;
+            var count = (ushort)(data[offset] | (data[offset + 1] << 8));
+            offset += 2;
+
+            for (var i = 0; i < count; i++)
+            {
+                if (offset + 2 > data.Count) break;
+                var networkId = (ushort)(data[offset] | (data[offset + 1] << 8));
+                offset += 2;
+
+                packet.networkIds.Add(networkId);
+            }
+
+            if (offset + 2 > data.Count) return packet;
+            var otherCount = (ushort)(data[offset] | (data[offset + 1] << 8));
+            offset += 2;
+
+            for (var i = 0; i < otherCount; i++)
+            {
+                if (offset + 2 > data.Count) break;
+                var networkId = (ushort)(data[offset] | (data[offset + 1] << 8));
+                offset += 2;
+
+                if (offset + 4 > data.Count) break;
+                var value = BitConverter.ToSingle(data.Array, data.Offset + offset);
+                offset += 4;
+
+                packet.other.Add(new HVR_VariableState_UpdatedValue
+                {
+                    networkId = networkId,
+                    value = value
+                });
+            }
+
+            return packet;
+        }
+    }
+
+    internal class HVR_VariableState_UpgradeFloatToHighFrequency
+    {
+        public List<HVR_VariableState_UpgradeToHighFrequency_Item> items;
+
+        internal class HVR_VariableState_UpgradeToHighFrequency_Item
+        {
+            public ushort networkId;
+            public float min;
+            public float max;
         }
     }
 }
