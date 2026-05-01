@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -29,11 +30,12 @@ namespace Basis.BasisUI
         public static string UsernameFileName = "CachedUserName.BAS";
         public static string LastConnectedServerIdFile = "LastConnectedServerId.BAS";
 
-        // Built-in default — kept in sync with the field initializers on BasisNetworkManagement.
-        // This entry is virtual: always rendered at the top of the list, never persisted to disk,
-        // and not editable/removable from the UI.
+        // Built-in default. This entry is virtual: always rendered at the top of the list,
+        // never persisted to disk, and not editable/removable from the UI. The address is a
+        // hostname so the official server can be re-IP'd without shipping a client update —
+        // BasisServerInfoClient and LiteNetLib both resolve it via DNS at connect time.
         private const string DefaultServerId = "__default__";
-        private const string DefaultServerAddress = "170.64.184.249";
+        private const string DefaultServerAddress = "server1.basisvr.org";
         private const ushort DefaultServerPort = 4296;
         private const string DefaultServerPassword = "default_password";
 
@@ -56,12 +58,12 @@ namespace Basis.BasisUI
             entry != null && entry.Id == DefaultServerId;
 
         // ── Static UI references rebuilt every RunAction() ────────────────────
+        private BasisMenuPanel _panel;
         private RectTransform _listContainer;
         private PanelElementDescriptor _editorSection;
         private PanelElementDescriptor _emptyState;
         private PanelTextField _editAddress;
         private PanelTextField _editPort;
-        private PanelToggle _editUsePassword;
         private PanelPasswordField _editPassword;
         private PanelButton _editSaveButton;
         private PanelButton _editCancelButton;
@@ -69,7 +71,7 @@ namespace Basis.BasisUI
         private PanelButton _addServerButton;
         private PanelButton _refreshAllButton;
         private PanelToggle _advancedToggle;
-        private PanelToggle _hostModeToggle;
+        private PanelButton _hostButton;
         private PanelToggle _autoConnectToggle;
         private PanelElementDescriptor _info;
 
@@ -89,6 +91,7 @@ namespace Basis.BasisUI
                 BasisMenuPanel.PanelData.Standard(Title),
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
+            _panel = panel;
 
             panel.OnInstanceReleased += OnPanelClosed;
 
@@ -132,6 +135,7 @@ namespace Basis.BasisUI
             _queryCts = null;
             _rows.Clear();
             _servers = null;
+            _panel = null;
         }
 
         // ── Header ───────────────────────────────────────────────────────────
@@ -159,29 +163,38 @@ namespace Basis.BasisUI
             _advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("ui.advanced"));
             _advancedToggle.SetValueWithoutNotify(false);
 
-            _hostModeToggle = PanelToggle.CreateNewEntry(container);
-            _hostModeToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostMode"));
-            _hostModeToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.hostMode.description"));
+            _hostButton = PanelButton.CreateNew(container);
+            _hostButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.host"));
+            _hostButton.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.hostMode.description"));
+            _hostButton.Descriptor.SetHeight(70);
+            _hostButton.OnClicked += () => _ = ConnectToAsync(CreateHostEntry(), isHostMode: true);
 
             _autoConnectToggle = PanelToggle.CreateNewEntry(container);
             _autoConnectToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.autoConnect"));
             _autoConnectToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.autoConnect.description"));
             _autoConnectToggle.AssignBinding(BasisSettingsDefaults.AutoConnect);
 
-            _hostModeToggle.gameObject.SetActive(false);
+            _hostButton.gameObject.SetActive(false);
             _autoConnectToggle.gameObject.SetActive(false);
-
-            if (BasisNetworkManagement.Instance != null)
-            {
-                _hostModeToggle.SetValueWithoutNotify(BasisNetworkManagement.Instance.IsHostMode);
-            }
 
             _advancedToggle.OnValueChanged += (val) =>
             {
-                _hostModeToggle.gameObject.SetActive(val);
+                _hostButton.gameObject.SetActive(val);
                 _autoConnectToggle.gameObject.SetActive(val);
             };
         }
+
+        // Synthetic entry used by the Host button — same shape as a saved server but
+        // pointing at localhost so the in-process BasisNetworkServerRunner is the peer.
+        private static SavedServerEntry CreateHostEntry() => new SavedServerEntry
+        {
+            Id = "__host__",
+            DisplayName = string.Empty,
+            Address = "localhost",
+            Port = DefaultServerPort,
+            Password = DefaultServerPassword,
+            HasPassword = true,
+        };
 
         // ── Add/Edit form ────────────────────────────────────────────────────
 
@@ -196,9 +209,6 @@ namespace Basis.BasisUI
             _editPort = PanelTextField.CreateNewEntry(editorContent);
             _editPort.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.port"));
 
-            _editUsePassword = PanelToggle.CreateNewEntry(editorContent);
-            _editUsePassword.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.usePassword"));
-
             _editPassword = PanelPasswordField.CreateNewEntry(editorContent);
             _editPassword.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.password"));
 
@@ -209,8 +219,6 @@ namespace Basis.BasisUI
             _editCancelButton = PanelButton.CreateNew(editorContent);
             _editCancelButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.cancel"));
             _editCancelButton.OnClicked += HideEditor;
-
-            _editUsePassword.OnValueChanged += val => _editPassword.gameObject.SetActive(val);
         }
 
         private void ShowEditor(SavedServerEntry existing)
@@ -221,10 +229,7 @@ namespace Basis.BasisUI
                 : "menu.servers.list.editing"));
             _editAddress.SetValueWithoutNotify(existing?.Address ?? string.Empty);
             _editPort.SetValueWithoutNotify((existing?.Port ?? (ushort)4296).ToString());
-            bool hasPassword = existing?.HasPassword ?? true;
-            _editUsePassword.SetValueWithoutNotify(hasPassword);
             _editPassword.SetPassword(existing?.Password ?? "default_password");
-            _editPassword.gameObject.SetActive(hasPassword);
             _editorSection.SetActive(true);
         }
 
@@ -271,8 +276,8 @@ namespace Basis.BasisUI
             entry.DisplayName = string.Empty;
             entry.Address = address;
             entry.Port = port;
-            entry.HasPassword = _editUsePassword.Value;
-            entry.Password = _editUsePassword.Value ? _editPassword.Password : string.Empty;
+            entry.HasPassword = true;
+            entry.Password = _editPassword.Password ?? string.Empty;
 
             SavedServerStore.Save(_servers);
 
@@ -290,7 +295,6 @@ namespace Basis.BasisUI
             public PanelButton ConnectButton;
             public PanelButton EditButton;
             public PanelButton RemoveButton;
-            public bool RemoveArmed;
         }
 
         private void RebuildRows()
@@ -330,43 +334,69 @@ namespace Basis.BasisUI
                 : baseTitle);
             row.Group.SetDescription(string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port));
 
-            RectTransform rowContent = row.Group.ContentParent;
+            RectTransform actions = BuildActionRow(row.Group.ContentParent);
 
-            row.ConnectButton = PanelButton.CreateNew(rowContent);
+            row.ConnectButton = PanelButton.CreateNew(actions);
             row.ConnectButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.connect"));
             row.ConnectButton.OnClicked += () => _ = ConnectToAsync(entry);
-            // Pre-select the default — same indicator the toolbar uses to mark an active option.
-            if (isDefault && row.ConnectButton.ButtonStyling != null)
-            {
-                row.ConnectButton.ButtonStyling.ShowIndicator(true);
-            }
 
             if (!isDefault)
             {
-                row.EditButton = PanelButton.CreateNew(rowContent);
+                row.EditButton = PanelButton.CreateNew(actions);
                 row.EditButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.edit"));
                 row.EditButton.OnClicked += () => ShowEditor(entry);
 
-                row.RemoveButton = PanelButton.CreateNew(rowContent);
+                row.RemoveButton = PanelButton.CreateNew(actions);
                 row.RemoveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.remove"));
-                row.RemoveButton.OnClicked += () =>
-                {
-                    if (!row.RemoveArmed)
-                    {
-                        row.RemoveArmed = true;
-                        _info.SetTitle(string.Empty);
-                        _info.SetDescription(BasisLocalization.Get("menu.servers.list.confirmRemove"));
-                        return;
-                    }
-                    _servers.RemoveAll(s => s.Id == entry.Id);
-                    SavedServerStore.Save(_servers);
-                    _info.SetTitle(string.Empty);
-                    _info.SetDescription(string.Empty);
-                    RebuildRows();
-                };
+                row.RemoveButton.OnClicked += () => _ = ConfirmAndRemoveAsync(entry);
             }
 
             _rows[entry.Id] = row;
+        }
+
+        private async Task ConfirmAndRemoveAsync(SavedServerEntry entry)
+        {
+            if (_panel == null) return;
+            string label = string.IsNullOrEmpty(entry.DisplayName) ? entry.Address : entry.DisplayName;
+            bool confirmed = await LibraryProviderDialogRemove.PromptUserForRemoval(_panel, label, "Server");
+            if (!confirmed) return;
+            // Panel may have closed while the dialog was open — bail out cleanly.
+            if (_servers == null) return;
+            _servers.RemoveAll(s => s.Id == entry.Id);
+            SavedServerStore.Save(_servers);
+            RebuildRows();
+        }
+
+        /// <summary>
+        /// Inline horizontal action row — same pattern UserListProvider.BuildActionRow
+        /// uses for the per-player Mute/Highlight/Block buttons. Lives as a child of
+        /// the row's content parent so it gets destroyed with the row.
+        /// </summary>
+        private static RectTransform BuildActionRow(RectTransform parent)
+        {
+            GameObject rowGO = new GameObject("ServerRowActions", typeof(RectTransform));
+            RectTransform rowRect = (RectTransform)rowGO.transform;
+            rowRect.SetParent(parent, false);
+
+            rowRect.anchorMin = new Vector2(0f, 1f);
+            rowRect.anchorMax = new Vector2(1f, 1f);
+            rowRect.pivot = new Vector2(0.5f, 1f);
+
+            HorizontalLayoutGroup hlg = rowGO.AddComponent<HorizontalLayoutGroup>();
+            hlg.childForceExpandWidth = true;
+            hlg.childForceExpandHeight = false;
+            hlg.childControlWidth = true;
+            hlg.childControlHeight = true;
+            hlg.spacing = 8f;
+            hlg.padding = new RectOffset(8, 8, 4, 8);
+
+            ContentSizeFitter fitter = rowGO.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            LayoutElement layout = rowGO.AddComponent<LayoutElement>();
+            layout.flexibleWidth = 1f;
+
+            return rowRect;
         }
 
         // ── Querying ─────────────────────────────────────────────────────────
@@ -487,7 +517,7 @@ namespace Basis.BasisUI
             return CreateDefaultEntry();
         }
 
-        private async Task ConnectToAsync(SavedServerEntry entry)
+        private async Task ConnectToAsync(SavedServerEntry entry, bool isHostMode = false)
         {
             try
             {
@@ -535,7 +565,7 @@ namespace Basis.BasisUI
                 BasisNetworkManagement.Instance.Port = entry.Port;
                 BasisNetworkManagement.Instance.Ip = entry.Address;
                 BasisNetworkManagement.Instance.Password = entry.HasPassword ? entry.Password : string.Empty;
-                BasisNetworkManagement.Instance.IsHostMode = _hostModeToggle != null && _hostModeToggle.Value;
+                BasisNetworkManagement.Instance.IsHostMode = isHostMode;
 
                 BasisMainMenu.Close();
                 BasisCursorManagement.OnReset();
