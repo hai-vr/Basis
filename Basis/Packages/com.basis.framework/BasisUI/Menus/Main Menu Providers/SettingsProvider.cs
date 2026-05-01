@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
+using BasisNetworkClient;
 using BasisPermissions;
 using System;
 using System.Collections.Generic;
@@ -1436,6 +1437,31 @@ namespace Basis.BasisUI
             }
             RefreshGizmoSubVisibility(toggleShowGizmos.Value);
             toggleShowGizmos.OnValueChanged += RefreshGizmoSubVisibility;
+
+            // ---- Identity (DID) ----
+            // The user's DID/UUID is the long-lived id the server keys ban,
+            // permission, and content-share entries against. We render it through
+            // PanelPasswordField so the value is masked by default and the user
+            // has to tap the eye icon to reveal — same UX as a server password.
+            // Read-only because DIDs are persisted to PlayerPrefs and rotated
+            // through BasisDIDAuthIdentityClient, not edited inline.
+            PanelElementDescriptor didGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            didGroup.SetTitle(BasisLocalization.Get("settings.developer.didKey.title"));
+            didGroup.SetDescription(BasisLocalization.Get("settings.developer.didKey.description"));
+
+            PanelPasswordField didField = PanelPasswordField.CreateNewEntry(didGroup.ContentParent);
+            didField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.didKey.field"));
+            if (didField._inputField != null) didField._inputField.readOnly = true;
+            try
+            {
+                didField.SetPassword(BasisDIDAuthIdentityClient.GetOrSaveDID() ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogWarning($"Failed to load DID for developer panel: {ex.Message}");
+                didField.SetPassword(string.Empty);
+            }
 
             PanelElementDescriptor debugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
