@@ -104,6 +104,36 @@ public class Configuration
     }
 
     /// <summary>
+    /// Persist this configuration back to <paramref name="filePath"/>. Used by the
+    /// admin panel to make in-game changes (server name, MOTD, whitelist mode)
+    /// survive a restart. Writes via a sibling temp file + atomic move so a crash
+    /// mid-write doesn't corrupt the live config.
+    /// </summary>
+    public void SaveToXml(string filePath)
+    {
+        var serializer = new XmlSerializer(typeof(Configuration));
+        string dir = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+        string tempPath = filePath + ".tmp";
+        using (var writer = new StreamWriter(tempPath))
+        {
+            serializer.Serialize(writer, this);
+        }
+        if (File.Exists(filePath)) File.Replace(tempPath, filePath, null);
+        else File.Move(tempPath, filePath);
+    }
+
+    /// <summary>
+    /// Resolve the canonical config.xml path under <c>{BaseDirectory}/{ConfigFolderName}/config.xml</c>
+    /// — same path the bootstrappers (BasisServerConsole.Program / Unity host runner) read on startup.
+    /// </summary>
+    public static string GetDefaultPath()
+    {
+        return Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, ConfigFolderName, "config.xml");
+    }
+
+    /// <summary>
     /// This code will override what is written in the config.xml if it finds
     /// an Environmental Variable with the same name as a public config field.
     ///

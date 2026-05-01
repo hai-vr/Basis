@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using BasisNetworkCore;
+using BasisNetworkCore.Security;
 using BasisPermissions;
 using System;
 using System.Collections.Concurrent;
@@ -366,9 +367,104 @@ namespace BasisNetworkServer.Security
                     Require(peer, PermNodes.PermissionsEdit, () =>
                         HandlePermissionEdit(mode, peer, reader));
                     break;
+
+                // ===== SERVER CONFIG =====
+                case AdminRequestMode.SetServerName:
+                    Require(peer, PermNodes.ConfigurationEditor, () =>
+                        SendBackMessage(peer, ApplyServerName(reader.GetString())));
+                    break;
+
+                case AdminRequestMode.SetServerMotd:
+                    Require(peer, PermNodes.ConfigurationEditor, () =>
+                        SendBackMessage(peer, ApplyServerMotd(reader.GetString())));
+                    break;
+
+                case AdminRequestMode.SetWhitelistMode:
+                    Require(peer, PermNodes.ConfigurationEditor, () =>
+                        SendBackMessage(peer, ApplyWhitelistMode(reader.GetByte())));
+                    break;
+
+                case AdminRequestMode.AddWhitelist:
+                    Require(peer, PermNodes.ModerationWhitelist, () =>
+                        SendBackMessage(peer, ApplyWhitelistAdd(reader.GetString())));
+                    break;
+
+                case AdminRequestMode.RemoveWhitelist:
+                    Require(peer, PermNodes.ModerationWhitelist, () =>
+                        SendBackMessage(peer, ApplyWhitelistRemove(reader.GetString())));
+                    break;
             }
 
             reader.Recycle();
+        }
+
+        // =========================
+        // Server-config admin operations
+        // =========================
+        // Each mutation updates the live Configuration field (read on the next info-query
+        // response, ServerMetaDataMessage, or connection check) and then persists the
+        // current state of Configuration to config/config.xml so the change survives a
+        // restart. SaveConfig is intentionally fire-and-forget on the calling thread —
+        // the XML is small and admin operations are rare.
+
+        private static string ApplyServerName(string newName)
+        {
+            if (newName == null) return "Name was null.";
+            if (newName.Length > BasisNetworkCommons.ServerInfoNameMaxLength)
+                newName = newName.Substring(0, BasisNetworkCommons.ServerInfoNameMaxLength);
+            NetworkServer.Configuration.ServerName = newName;
+            SaveConfig();
+            return $"Server name set to '{newName}'.";
+        }
+
+        private static string ApplyServerMotd(string newMotd)
+        {
+            if (newMotd == null) newMotd = string.Empty;
+            if (newMotd.Length > BasisNetworkCommons.ServerInfoMotdMaxLength)
+                newMotd = newMotd.Substring(0, BasisNetworkCommons.ServerInfoMotdMaxLength);
+            NetworkServer.Configuration.ServerMotd = newMotd;
+            SaveConfig();
+            return "Server MOTD updated.";
+        }
+
+        private static string ApplyWhitelistMode(byte mode)
+        {
+            if (!Enum.IsDefined(typeof(BasisUserRestrictionMode), mode))
+                return $"Unknown restriction mode value {mode}.";
+            BasisUserRestrictionMode parsed = (BasisUserRestrictionMode)mode;
+            NetworkServer.Configuration.BasisUserRestrictionMode = parsed;
+            SaveConfig();
+            return $"Restriction mode set to {parsed}.";
+        }
+
+        private static string ApplyWhitelistAdd(string uuid)
+        {
+            if (string.IsNullOrWhiteSpace(uuid)) return "UUID was empty.";
+            if (NetworkServer.Whitelist == null) return "Whitelist not initialized.";
+            // Fire-and-forget: BasisWhiteList.AddToWhitelistAsync appends one line and
+            // is safe to leave running while we report the operation back to the admin.
+            _ = NetworkServer.Whitelist.AddToWhitelistAsync(uuid);
+            return $"Added {uuid} to whitelist.";
+        }
+
+        private static string ApplyWhitelistRemove(string uuid)
+        {
+            if (string.IsNullOrWhiteSpace(uuid)) return "UUID was empty.";
+            if (NetworkServer.Whitelist == null) return "Whitelist not initialized.";
+            _ = NetworkServer.Whitelist.RemoveFromWhitelistAsync(uuid);
+            return $"Removed {uuid} from whitelist.";
+        }
+
+        private static void SaveConfig()
+        {
+            try
+            {
+                NetworkServer.Configuration.SaveToXml(Configuration.GetDefaultPath());
+            }
+            catch (Exception e)
+            {
+                BNL.LogError($"Failed to persist server configuration: {e.Message}");
+            }
         }
 
         // =========================

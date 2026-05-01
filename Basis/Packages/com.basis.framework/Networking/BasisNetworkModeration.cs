@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
+using BasisNetworkCore.Security;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -143,6 +144,37 @@ public static class BasisNetworkModeration
     {
         SendAdminRequest(AdminRequestMode.TeleportPlayer,
             w => w.Put(uuid));
+    }
+
+    // ── Server config / whitelist (admin) ────────────────────────────────────
+    // Each of these triggers a server-side write to config/config.xml or
+    // BasisWhiteList.txt so the change is durable across restarts.
+
+    public static void SetServerName(string name)
+    {
+        SendAdminRequest(AdminRequestMode.SetServerName, w => w.Put(name ?? string.Empty));
+    }
+
+    public static void SetServerMotd(string motd)
+    {
+        SendAdminRequest(AdminRequestMode.SetServerMotd, w => w.Put(motd ?? string.Empty));
+    }
+
+    public static void SetWhitelistMode(BasisUserRestrictionMode mode)
+    {
+        SendAdminRequest(AdminRequestMode.SetWhitelistMode, w => w.Put((byte)mode));
+    }
+
+    public static void AddWhitelist(string uuid)
+    {
+        if (!ValidateString(uuid, nameof(uuid))) return;
+        SendAdminRequest(AdminRequestMode.AddWhitelist, w => w.Put(uuid));
+    }
+
+    public static void RemoveWhitelist(string uuid)
+    {
+        if (!ValidateString(uuid, nameof(uuid))) return;
+        SendAdminRequest(AdminRequestMode.RemoveWhitelist, w => w.Put(uuid));
     }
 
     public static void DisplayMessage(string message)

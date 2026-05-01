@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
+using BasisNetworkCore.Security;
 using System;
 using System.Collections.Generic;
 using TMPro;
@@ -365,6 +366,75 @@ namespace Basis.BasisUI
             controller.HeadlessAudioToggle = headlessAudioToggle;
             controller.HeadlessDisallowToggle = disallowHeadlessToggle;
             controller.OpusPacketLossSlider = opusPacketLossSlider;
+
+            // --- Server configuration (persisted to config.xml on every change) ---
+            // Fields here mutate the live Configuration on the server and write it back
+            // to disk, so a restart preserves whatever the admin set in-game.
+            PanelElementDescriptor serverGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            serverGroup.SetTitle("Server Configuration");
+            serverGroup.SetDescription("Display name and MOTD returned by the server-info query, plus whitelist controls. Changes are saved to config.xml.");
+
+            PanelTextField serverNameField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
+            serverNameField.Descriptor.SetTitle("Server Name");
+            serverNameField.Descriptor.SetDescription("Public name returned to clients in the server list.");
+
+            PanelButton applyServerName = PanelButton.CreateNew(serverGroup.ContentParent);
+            applyServerName.Descriptor.SetTitle("Apply Server Name");
+            applyServerName.OnClicked += () =>
+            {
+                BasisNetworkModeration.SetServerName(serverNameField.Value ?? string.Empty);
+            };
+
+            PanelTextField serverMotdField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
+            serverMotdField.Descriptor.SetTitle("MOTD");
+            serverMotdField.Descriptor.SetDescription("Short message of the day shown next to the server name. Leave blank to clear.");
+
+            // Allow long MOTDs to wrap onto multiple lines in the input.
+            TMP_InputField motdInput = serverMotdField.GetComponentInChildren<TMP_InputField>(true);
+            if (motdInput)
+            {
+                motdInput.lineType = TMP_InputField.LineType.MultiLineNewline;
+                motdInput.scrollSensitivity = 2f;
+            }
+
+            PanelButton applyServerMotd = PanelButton.CreateNew(serverGroup.ContentParent);
+            applyServerMotd.Descriptor.SetTitle("Apply MOTD");
+            applyServerMotd.OnClicked += () =>
+            {
+                BasisNetworkModeration.SetServerMotd(serverMotdField.Value ?? string.Empty);
+            };
+
+            PanelToggle whitelistToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
+            whitelistToggle.Descriptor.SetTitle("Whitelist Only");
+            whitelistToggle.Descriptor.SetDescription("When on, only UUIDs in BasisWhiteList.txt may connect. Setting persists to config.xml.");
+            whitelistToggle.OnValueChanged += value =>
+            {
+                BasisNetworkModeration.SetWhitelistMode(
+                    value ? BasisUserRestrictionMode.WhiteList : BasisUserRestrictionMode.Normal);
+            };
+
+            PanelTextField whitelistUuidField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
+            whitelistUuidField.Descriptor.SetTitle("Whitelist UUID");
+            whitelistUuidField.Descriptor.SetDescription("Player UUID to add or remove from BasisWhiteList.txt.");
+
+            PanelButton addWhitelistButton = PanelButton.CreateNew(serverGroup.ContentParent);
+            addWhitelistButton.Descriptor.SetTitle("Add to Whitelist");
+            addWhitelistButton.OnClicked += () =>
+            {
+                string uuid = whitelistUuidField.Value?.Trim();
+                if (string.IsNullOrEmpty(uuid)) return;
+                BasisNetworkModeration.AddWhitelist(uuid);
+            };
+
+            PanelButton removeWhitelistButton = PanelButton.CreateNew(serverGroup.ContentParent);
+            removeWhitelistButton.Descriptor.SetTitle("Remove from Whitelist");
+            removeWhitelistButton.OnClicked += () =>
+            {
+                string uuid = whitelistUuidField.Value?.Trim();
+                if (string.IsNullOrEmpty(uuid)) return;
+                BasisNetworkModeration.RemoveWhitelist(uuid);
+            };
 
             // Permissions section
             SettingsProviderPermissionsTab.BuildPermissionsUI(container, tab.gameObject);
