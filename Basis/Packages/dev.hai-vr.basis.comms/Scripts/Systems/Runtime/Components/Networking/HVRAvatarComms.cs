@@ -2,7 +2,6 @@ using Basis.Scripts.BasisSdk;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
 using HVR.Basis.Comms.Vixxy;
@@ -104,31 +103,24 @@ namespace HVR.Basis.Comms
                 initializable.OnHVRReadyBothAvatarAndNetwork(isWearer);
             }
 
-            var (highFrequency, lowFrequency) = _ranges.Partition(range => range.isHighFrequency);
-            if (highFrequency.Any())
-            {
-                DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0], true, highFrequency);
-            }
-            if (lowFrequency.Any())
-            {
-            }
+            DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0]);
         }
 
-        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier, bool isHighFrequency, List<MutualizedInterpolationRangeStorage> partitionRanges)
+        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)
         {
-            var holder = new GameObject($"Streamed-Mutualized-{(isHighFrequency ? "HF" : "LF")}")
+            var holder = new GameObject("Streamed-Mutualized")
             {
                 transform = { parent = avatar.transform }
             };
             holder.SetActive(false);
             _streamedLateInit = holder.AddComponent<StreamedAvatarFeature>();
-            _streamedLateInit.valueArraySize = (byte)partitionRanges.Count; // TODO: Sanitize count to be within bounds
+            _streamedLateInit.valueArraySize = (byte)_ranges.Count; // TODO: Sanitize count to be within bounds
             _streamedLateInit.transmitter = carrier;
             _streamedLateInit.isWearer = isWearer;
             _streamedLateInit.localIdentifier = 0;
             var pendingStores = _toStoreLater.ToArray();
             holder.SetActive(true);
-            _streamedLateInit.InitializeNormalizedValues(BuildNeutralNormalizedValues(partitionRanges));
+            _streamedLateInit.InitializeNormalizedValues(BuildNeutralNormalizedValues());
             // StreamedAvatarFeature only gets the ability to store data AFTER Awake() runs, so order matters here.
             foreach (var toStoreLater in pendingStores)
             {
@@ -191,10 +183,12 @@ namespace HVR.Basis.Comms
                     {
                         storedRange.isHighFrequency = true;
                     }
+
                     if (inputRange.lower < storedRange.lower)
                     {
                         storedRange.lower = inputRange.lower;
                     }
+
                     if (inputRange.upper > storedRange.upper)
                     {
                         storedRange.upper = inputRange.upper;
@@ -256,8 +250,8 @@ namespace HVR.Basis.Comms
             switch (carrierIndex)
             {
                 case AvatarMessageProcessingCarrier0:
-                {
-                    avatarMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
+            {
+                avatarMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
                     break;
                 }
                 case VixxyNetworking1:
@@ -273,12 +267,12 @@ namespace HVR.Basis.Comms
             }
         }
 
-        private float[] BuildNeutralNormalizedValues(List<MutualizedInterpolationRangeStorage> partitionRanges)
+        private float[] BuildNeutralNormalizedValues()
         {
-            var normalized = new float[partitionRanges.Count];
-            for (int index = 0; index < partitionRanges.Count; index++)
+            var normalized = new float[_ranges.Count];
+            for (int index = 0; index < _ranges.Count; index++)
             {
-                var range = partitionRanges[index];
+                var range = _ranges[index];
                 normalized[index] = range.lower <= 0f && range.upper >= 0f
                     ? Mathf.Clamp01(range.AbsoluteToRange(0f))
                     : 0f;
