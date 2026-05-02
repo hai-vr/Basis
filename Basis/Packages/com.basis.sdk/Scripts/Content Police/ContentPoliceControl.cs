@@ -288,6 +288,11 @@ public static class ContentPoliceControl
                     }
                 }
             }
+
+            if (checks.ScrubPersistentUnityEvents)
+            {
+                ScrubDangerousPersistentListeners(roots[RootIndex], policeCheck);
+            }
         }
 
         // Warm shaders for every renderer we just collected. One call per scene scrub.
