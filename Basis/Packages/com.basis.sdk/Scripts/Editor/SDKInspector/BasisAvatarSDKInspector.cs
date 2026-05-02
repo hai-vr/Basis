@@ -1,4 +1,5 @@
 using System;
+using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Helpers.Editor;
 using Basis.Scripts.Editor;
@@ -122,10 +123,14 @@ public partial class BasisAvatarSDKInspector : Editor
             uiElementsRoot = visualTree.CloneTree();
             rootElement.Add(uiElementsRoot);
             BasisAvatarValidator = new BasisAvatarValidator(Avatar, rootElement);
-            Button button = DocumentationButton(rootElement, "Open Avatar Documentation");
+            Button button = DocumentationButton(rootElement, BasisEditorLocalization.Get("sdk.avatar.documentation.button"));
             button.clicked += delegate
             {
-                if (EditorUtility.DisplayDialog("Open Documentation", "Proceed in opening the documentation in a web browser?", "Yes", "No"))
+                if (EditorUtility.DisplayDialog(
+                        BasisEditorLocalization.Get("sdk.common.dialog.openDocumentation.title"),
+                        BasisEditorLocalization.Get("sdk.common.dialog.openDocumentation.body"),
+                        BasisEditorLocalization.Get("sdk.common.dialog.yes"),
+                        BasisEditorLocalization.Get("sdk.common.dialog.no")))
                 {
                     Application.OpenURL(BasisSDKConstants.AvatarDocumentationURL);
                 }
@@ -236,7 +241,7 @@ public partial class BasisAvatarSDKInspector : Editor
     {
         Undo.RecordObject(Avatar, "Toggle Eye Position Gizmo");
         AvatarEyePositionState = !AvatarEyePositionState;
-        Button.text = "Eye Position Gizmo " + AvatarHelper.BoolToText(AvatarEyePositionState);
+        Button.text = BasisEditorLocalization.Get("sdk.avatar.eyeGizmo.label", AvatarHelper.BoolToText(AvatarEyePositionState));
         EditorUtility.SetDirty(Avatar);
         ButtonClicked?.Invoke();
     }
@@ -244,7 +249,7 @@ public partial class BasisAvatarSDKInspector : Editor
     {
         Undo.RecordObject(Avatar, "Toggle Mouth Position Gizmo");
         AvatarMouthPositionState = !AvatarMouthPositionState;
-        Button.text = "Mouth Position Gizmo " + AvatarHelper.BoolToText(AvatarMouthPositionState);
+        Button.text = BasisEditorLocalization.Get("sdk.avatar.mouthGizmo.label", AvatarHelper.BoolToText(AvatarMouthPositionState));
         EditorUtility.SetDirty(Avatar);
         ButtonClicked?.Invoke();
     }
@@ -412,8 +417,8 @@ public partial class BasisAvatarSDKInspector : Editor
         faceVisemeMeshField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(evt => EventCallbackFaceVisemeMesh(evt, ref Avatar.FaceVisemeMesh));
 
         // Update Button Text
-        avatarEyePositionClick.text = "Eye Position Gizmo " + AvatarHelper.BoolToText(AvatarEyePositionState);
-        avatarMouthPositionClick.text = "Mouth Position Gizmo " + AvatarHelper.BoolToText(AvatarMouthPositionState);
+        avatarEyePositionClick.text = BasisEditorLocalization.Get("sdk.avatar.eyeGizmo.label", AvatarHelper.BoolToText(AvatarEyePositionState));
+        avatarMouthPositionClick.text = BasisEditorLocalization.Get("sdk.avatar.mouthGizmo.label", AvatarHelper.BoolToText(AvatarMouthPositionState));
     }
 
     private void OnIconFieldChanged(ChangeEvent<UnityEngine.Object> evt)
@@ -495,12 +500,12 @@ public partial class BasisAvatarSDKInspector : Editor
             resultLabel.style.color = Color.black; // Error message color
             if (BundleCreatedState.success)
             {
-                resultLabel.text = "Build successful";
+                resultLabel.text = BasisEditorLocalization.Get("sdk.common.build.success");
                 resultLabel.style.backgroundColor = Color.green;
             }
             else
             {
-                resultLabel.text = $"Build failed: {BundleCreatedState.message}";
+                resultLabel.text = BasisEditorLocalization.Get("sdk.common.build.failed", BundleCreatedState.message);
                 resultLabel.style.backgroundColor = Color.red;
             }
 
@@ -510,7 +515,11 @@ public partial class BasisAvatarSDKInspector : Editor
         }
         else
         {
-            if (!EditorUtility.DisplayDialog("Avatar Build Error", $"Please resolve the following issues, or consult the documentation. \n {string.Join("\n", Errors)}", "OK", "Open Documentation"))
+            if (!EditorUtility.DisplayDialog(
+                    BasisEditorLocalization.Get("sdk.avatar.buildError.title"),
+                    BasisEditorLocalization.Get("sdk.avatar.buildError.body", string.Join("\n", Errors)),
+                    BasisEditorLocalization.Get("sdk.common.dialog.ok"),
+                    BasisEditorLocalization.Get("sdk.common.dialog.openDocumentation")))
             {
                 Application.OpenURL(BasisSDKConstants.AvatarDocumentationURL);
             }
@@ -589,8 +598,8 @@ public partial class BasisAvatarSDKInspector : Editor
                 foreach (var path in modelPathsNeedingReimport)
                 {
                     if (EditorUtility.DisplayCancelableProgressBar(
-                            "Reimporting Models (Mesh LODs)",
-                            $"{i + 1}/{total}: {path}",
+                            BasisEditorLocalization.Get("sdk.avatar.lod.reimport.title"),
+                            BasisEditorLocalization.Get("sdk.avatar.lod.reimport.progress", i + 1, total, path),
                             (float)i / total))
                     {
                         Debug.LogWarning("GenerateMeshLODs: Canceled by user.");
@@ -620,7 +629,11 @@ public partial class BasisAvatarSDKInspector : Editor
     {
         if (!Application.isPlaying)
         {
-            bool result = EditorUtility.DisplayDialog("Confirmation", "This feature requires the Editor to be in Play Mode. Proceed in entering Play Mode and running Test In Editor? Ensure that a floor is placed in the scene.", "Yes", "No");
+            bool result = EditorUtility.DisplayDialog(
+                BasisEditorLocalization.Get("sdk.common.dialog.confirm"),
+                BasisEditorLocalization.Get("sdk.avatar.testInEditor.confirm.body"),
+                BasisEditorLocalization.Get("sdk.common.dialog.yes"),
+                BasisEditorLocalization.Get("sdk.common.dialog.no"));
             if (result)
             {
                 SetPendingTestInEditorAvatarId(GlobalObjectId.GetGlobalObjectIdSlow(Avatar).ToString());
