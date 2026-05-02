@@ -33,6 +33,8 @@ namespace Cilbox
 			"Basis.Shims.BasisCilboxInstantiateShim", // Restrictive, only used as a type and for Instantiate methods.
 			"Basis.Shims.BasisDebugPropsShim", // Restrictive, only used as a type and for logging methods.
 
+			"HVR.Vixxy.HVRVixxyMenuItem", // Restrictive, see method whitelist.
+
 			// Cilbox types
 			"Cilbox.CilboxPublicUtils",
 
@@ -414,6 +416,10 @@ namespace Cilbox
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable), new HashSet<string> { } },
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject), new HashSet<string> { } },
 			{ typeof(Basis.Scripts.Device_Management.Devices.BasisInput), new HashSet<string> { } },
+			{ typeof(HVR.Vixxy.HVRVixxyMenuItem), new HashSet<string> {
+				nameof(HVR.Vixxy.HVRVixxyMenuItem.GetValue),
+				nameof(HVR.Vixxy.HVRVixxyMenuItem.ApplyValue),
+				} },
 			// playerId is a plain field — whitelisted via whiteListFields below.
 			// Player is back to a property (forwards to the internal _player field
 			// for backwards compat with already-compiled Cilbox scripts), so its
