@@ -53,7 +53,7 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUI.EndDisabledGroup();
 
-            if (_outsideMenus.Count == 0 && menuNullable == null)
+            if (_outsideMenus.Count == 0 && menuNullable == null && !my.externalProgram)
             {
                 if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuOnThisControlLabel))
                 {
@@ -75,6 +75,7 @@ namespace HVR.Vixxy.Editor
                     _outsideMenus.Add(comp);
                 }
             }
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.externalProgram)));
             EditorGUILayout.Separator();
 
             {
