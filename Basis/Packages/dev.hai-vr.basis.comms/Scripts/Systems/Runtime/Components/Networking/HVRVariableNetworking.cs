@@ -27,9 +27,27 @@ namespace HVR.Basis.Comms
         public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
         public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
 
-        private void WhenAddressUpdated(int addressId, float currentValue)
+        private void WhenDataReceived(int addressId, float currentValue)
         {
-            if (PrintDebug) HVRLogging.ProtocolDebug($"Updating address {HVRAddress.ResolveKnownAddressFromId(addressId)} to value {currentValue}.");
+            if (PrintDebug) HVRLogging.ProtocolDebug($"Received data for address {HVRAddress.ResolveKnownAddressFromId(addressId)} with value {currentValue}.");
+
+            // TODO: IF APPLICABLE (address doesn't have a "no delay" flag + controls need to be able to define if it uses network interpolation), then:
+            // - Put this data into the proper interpolation tape for that address, for that tick (we need to add the time delta inside the packet),
+            // - then on the remote, play back the tape every frame on Update.
+            // - QUESTION: Should the variable store be responsible for the interpolation tape?
+            // :
+            // ASSUMING we reuse the variable store to contain the interpolation tape:
+            // -> When value is received, append to the tape with the delay inside the Variable Store.
+            // -> The Variable Store keeps tracks of the addresses that have a non-empty interpolation tape.
+            // -> Every frame, AvatarComms asks the Variable Store to advance the tape by (delaySinceLastFrame)
+            // -> the Variable Store re-emits OnAddressUpdated events with the new interpolated value.
+            // :
+            // If it's exposed as a slider in a MENU ITEM, then it MUST be interpolated
+            // --> We need to mark the control itself as interpolated. Sliders must suggest to mark the control as interpolated.
+            // Toggles SHOULD NOT BE interpolated.
+            // Multiple choices SHOULD NOT BE interpolated.
+            // --> Toggles and multiple choices should suggest to mark the control as non-interpolated.
+
             comms.VariableStore.Submit(addressId, currentValue);
         }
 
@@ -361,7 +379,7 @@ namespace HVR.Basis.Comms
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
                                 _addressIdToHolder[addressId].currentValue = 0f;
-                                _state.WhenAddressUpdated(addressId, 0f);
+                                _state.WhenDataReceived(addressId, 0f);
                             }
                         }
 
@@ -378,7 +396,7 @@ namespace HVR.Basis.Comms
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
                                 _addressIdToHolder[addressId].currentValue = 1f;
-                                _state.WhenAddressUpdated(addressId, 1f);
+                                _state.WhenDataReceived(addressId, 1f);
                             }
                         }
 
@@ -397,7 +415,7 @@ namespace HVR.Basis.Comms
                                 var isZero = index < packet.numberOfZeroes;
                                 var value = isZero ? 0f : 1f;
                                 _addressIdToHolder[addressId].currentValue = value;
-                                _state.WhenAddressUpdated(addressId, value);
+                                _state.WhenDataReceived(addressId, value);
                             }
                         }
 
@@ -416,7 +434,7 @@ namespace HVR.Basis.Comms
                                 var isZero = index < packet.numberOfZeroes;
                                 var value = isZero ? 0f : 1f;
                                 _addressIdToHolder[addressId].currentValue = value;
-                                _state.WhenAddressUpdated(addressId, value);
+                                _state.WhenDataReceived(addressId, value);
                             }
                         }
                         foreach (var other in packet.other)
@@ -426,7 +444,7 @@ namespace HVR.Basis.Comms
                                 if (_addressIdToHolder[addressId].variable.variableTypeCode == HVRVariableTypeCode.Float && other.value is float f)
                                 {
                                     _addressIdToHolder[addressId].currentValue = f;
-                                    _state.WhenAddressUpdated(addressId, f);
+                                    _state.WhenDataReceived(addressId, f);
                                 }
                             }
                         }
@@ -505,7 +523,7 @@ namespace HVR.Basis.Comms
 
                 foreach (var newlyAddedAddress in newlyAddedAddresses)
                 {
-                    _state.WhenAddressUpdated(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
+                    _state.WhenDataReceived(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
                 }
             }
 
