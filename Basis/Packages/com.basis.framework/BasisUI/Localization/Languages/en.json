@@ -814,6 +814,8 @@
     { "key": "settings.perf.lineRenderers.slider", "value": "Max Line Renderers" },
     { "key": "settings.perf.animators.toggle", "value": "Limit Animators" },
     { "key": "settings.perf.animators.slider", "value": "Max Animators" },
+    { "key": "settings.perf.cilboxBehaviours.toggle", "value": "Limit Cilbox Avatar Behaviours" },
+    { "key": "settings.perf.cilboxBehaviours.slider", "value": "Max Cilbox Avatar Behaviours" },
 
     { "key": "menu.individualPlayer.perfFilter.title", "value": "Performance Filter" },
     { "key": "menu.individualPlayer.perfFilter.bypassedDescription", "value": "Bypassed for this player — performance limits ignored until you toggle off or reconnect." },

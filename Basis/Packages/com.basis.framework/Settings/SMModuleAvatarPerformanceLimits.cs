@@ -292,5 +292,8 @@ public static class SMModuleAvatarPerformanceLimits
 
         BasisAvatarPerformanceLimits.UseLimitColliders = BasisSettingsDefaults.UsePerfLimitColliders.RawValue;
         BasisAvatarPerformanceLimits.LimitColliders = Mathf.Max(0, Mathf.RoundToInt(BasisSettingsDefaults.MaxPerfColliders.RawValue));
+
+        BasisAvatarPerformanceLimits.UseLimitCilboxBehaviours = BasisSettingsDefaults.UsePerfLimitCilboxBehaviours.RawValue;
+        BasisAvatarPerformanceLimits.LimitCilboxBehaviours = Mathf.Max(0, Mathf.RoundToInt(BasisSettingsDefaults.MaxPerfCilboxBehaviours.RawValue));
     }
 }

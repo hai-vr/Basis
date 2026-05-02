@@ -393,6 +393,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UsePerfLimitColliders = new("useperflimitcolliders", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> MaxPerfColliders = new("maxperfcolliders", new BasisPlatformDefault<float>(1));
 
+        // Cilbox script behaviours default on at 5 — every CilboxProxy on a remote
+        // avatar is one sandboxed MonoBehaviour with its own Update/FixedUpdate tick.
+        public static BasisSettingsBinding<bool> UsePerfLimitCilboxBehaviours = new("useperflimitcilboxbehaviours", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> MaxPerfCilboxBehaviours = new("maxperfcilboxbehaviours", new BasisPlatformDefault<float>(5));
+
         public static BasisSettingsBinding<float> AvatarMeshLOD = new("avatarmeshlod", new BasisPlatformDefault<float>
         {
             windows = 0.05f,
