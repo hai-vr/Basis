@@ -181,6 +181,11 @@ namespace HVR.Vixxy
             choices = choices.Where((_, i) => i != choiceIndex).ToArray();
         }
 
+        public override object GetValueForChoice(int choice)
+        {
+            return choices[choice];
+        }
+
         public override List<Object> ListAssets()
         {
             if (typeof(Object).IsAssignableFrom(typeof(T)) && typeof(T) != typeof(GameObject) && typeof(T) != typeof(Component))
@@ -228,6 +233,7 @@ namespace HVR.Vixxy
         public virtual void PruneArrays(int actualNumberOfChoices) {}
         public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
         public virtual object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue) { throw new NotImplementedException(); }
+        public virtual object GetValueForChoice(int choice) { throw new NotImplementedException(); }
         public virtual void ApplyMaterialProperty(MaterialPropertyBlock materialPropertyBlock, object resolvedValue)
         {
             switch (resolvedValue)
