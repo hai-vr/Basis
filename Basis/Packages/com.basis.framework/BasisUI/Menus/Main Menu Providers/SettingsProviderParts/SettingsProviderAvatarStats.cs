@@ -23,6 +23,8 @@ namespace Basis.BasisUI
             descriptor.SetIcon(AddressableAssets.Sprites.Settings);
             descriptor.SetTitle(BasisLocalization.Get("settings.tab.myavatar"));
             descriptor.ForceRebuild();
+
+            SettingsProvider.AvatarCustomizationBuilder(tab.Descriptor.ContentParent);
             return tab;
         }
 
