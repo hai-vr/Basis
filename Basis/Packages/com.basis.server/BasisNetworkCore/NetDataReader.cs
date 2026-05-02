@@ -247,7 +247,7 @@ namespace Basis.Network.Core {
 
         // public T[] GetArray<T>() where T : INetSerializable, new()
         // {
-        //     ushort length = BitConverter.ToUInt16(_data, _position);
+        //     ushort length = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(_position));
         //     _position += 2;
         //     T[] result = new T[length];
         //     for (int i = 0; i < length; i++)
@@ -261,7 +261,7 @@ namespace Basis.Network.Core {
         
         // public T[] GetArray<T>(Func<T> constructor) where T : class, INetSerializable
         // {
-        //     ushort length = BitConverter.ToUInt16(_data, _position);
+        //     ushort length = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(_position));
         //     _position += 2;
         //     T[] result = new T[length];
         //     for (int i = 0; i < length; i++)
