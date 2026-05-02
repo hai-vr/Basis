@@ -509,13 +509,10 @@ namespace HVR.Vixxy
 
         private void OnImplicitAddressUpdated(float value)
         {
-            // FIXME: This is a bypass so that we don't update an address that hasn't changed.
-            // Ideally, the orchestrator should instead provide us a guarantee of calling us only when the value changes.
+            // This function can be called multiple times with the same value (e.g. values submitted by an external program).
+            // Only proceed if there's a substantial change.
             if (Mathf.Approximately(value, _previousValue)) return;
             _previousValue = value;
-
-            // FIXME: Storing that value is probably not a good idea to do at this specific stage of the processing.
-            //           For comparison, we can't do this for aggregators (which can have multiple input values), it's not their responsibility.
             _value = value;
 
             orchestrator.PassAddressUpdated(AddressId);

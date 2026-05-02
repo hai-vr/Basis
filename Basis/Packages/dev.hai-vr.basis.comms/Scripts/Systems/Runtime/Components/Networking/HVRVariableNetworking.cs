@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Basis.Network.Core;
 using HVR.Basis.Comms.HVRUtility;
+using HVR.State;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -26,12 +27,6 @@ namespace HVR.Basis.Comms
         public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) => _behaviour.OnPacketReceived(localIdentifier, data);
         public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
         public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
-
-        private void WhenAddressUpdated(int addressId, float currentValue)
-        {
-            if (PrintDebug) HVRLogging.ProtocolDebug($"Updating address {HVRAddress.ResolveKnownAddressFromId(addressId)} to value {currentValue}.");
-            comms.VariableStore.Submit(addressId, currentValue);
-        }
 
         private const float TransmissionDeltaSeconds = 0.1f;
 
@@ -323,16 +318,78 @@ namespace HVR.Basis.Comms
 
         internal class HVRVariableBehaviour_Remote : IHVRVariableBehaviour
         {
+            private const bool UseInterpolationTape = true;
+
             private readonly HVRVariableNetworking _state;
             internal readonly Dictionary<int, HVRVariableHolder> _addressIdToHolder = new();
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
+
+            internal readonly Dictionary<int, InterpolationTape<FloatInterpolable>> _addressIdToInterpolationTape = new();
+            private readonly HashSet<int> _flagPendingInterpolationAddresses = new();
 
             public HVRVariableBehaviour_Remote(HVRVariableNetworking state)
             {
                 _state = state;
             }
 
-            public void Update() { }
+            private void WhenDataReceived(int addressId, float currentValue)
+            {
+                if (PrintDebug) HVRLogging.ProtocolDebug($"Received data for address {HVRAddress.ResolveKnownAddressFromId(addressId)} with value {currentValue}.");
+
+                // TODO: IF APPLICABLE (address doesn't have a "no delay" flag + controls need to be able to define if it uses network interpolation), then:
+                // - Put this data into the proper interpolation tape for that address, for that tick (we need to add the time delta inside the packet),
+                // - then on the remote, play back the tape every frame on Update.
+                // - QUESTION: Should the variable store be responsible for the interpolation tape?
+                // --------------- NO. Interpolation is handled by the networking module.
+                // :
+                // -> When value is received, append to the tape with the delay.
+                // -> The Variable Networking keeps tracks of the addresses that have a non-empty interpolation tape.
+                // -> Every frame, Variable Networking advance the non-empty tapes by (delaySinceLastFrame)
+                // -> the Variable Networking then emits Submit events with the new interpolated value to the Value Store.
+                // :
+                // If it's exposed as a slider in a MENU ITEM, then it MUST be interpolated
+                // --> We need to mark the control itself as interpolated. Sliders must suggest to mark the control as interpolated.
+                // Toggles SHOULD NOT BE interpolated.
+                // Multiple choices SHOULD NOT BE interpolated.
+                // --> Toggles and multiple choices should suggest to mark the control as non-interpolated.
+
+                if (UseInterpolationTape)
+                {
+                    var TODO_DeltaTimeInsidePacket = 0.1f; // TODO: Pass the delta time fractional inside the packet
+                    _addressIdToInterpolationTape[addressId].Enqueue(new FloatInterpolable
+                    {
+                        DeltaTime = TODO_DeltaTimeInsidePacket,
+                        FloatValues = new[] { currentValue } // TODO: Creating an array is not acceptable
+                    });
+                    _flagPendingInterpolationAddresses.Add(addressId);
+                }
+                else
+                {
+                    _state.comms.VariableStore.Submit(addressId, currentValue);
+                }
+            }
+
+            private void WhenDataReceived_BypassInterpolationTape(int addressId, float currentValue)
+            {
+                _state.comms.VariableStore.Submit(addressId, currentValue);
+            }
+
+            public void Update()
+            {
+                if (UseInterpolationTape)
+                {
+                    foreach (var addressId in _flagPendingInterpolationAddresses)
+                    {
+                        var interpolationTape = _addressIdToInterpolationTape[addressId];
+                        interpolationTape.Advance();
+
+                        if (interpolationTape.IsOutOfTape)
+                        {
+                            _flagPendingInterpolationAddresses.Remove(addressId);
+                        }
+                    }
+                }
+            }
 
             public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
             {
@@ -361,7 +418,7 @@ namespace HVR.Basis.Comms
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
                                 _addressIdToHolder[addressId].currentValue = 0f;
-                                _state.WhenAddressUpdated(addressId, 0f);
+                                WhenDataReceived(addressId, 0f);
                             }
                         }
 
@@ -378,7 +435,7 @@ namespace HVR.Basis.Comms
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
                                 _addressIdToHolder[addressId].currentValue = 1f;
-                                _state.WhenAddressUpdated(addressId, 1f);
+                                WhenDataReceived(addressId, 1f);
                             }
                         }
 
@@ -397,7 +454,7 @@ namespace HVR.Basis.Comms
                                 var isZero = index < packet.numberOfZeroes;
                                 var value = isZero ? 0f : 1f;
                                 _addressIdToHolder[addressId].currentValue = value;
-                                _state.WhenAddressUpdated(addressId, value);
+                                WhenDataReceived(addressId, value);
                             }
                         }
 
@@ -416,7 +473,7 @@ namespace HVR.Basis.Comms
                                 var isZero = index < packet.numberOfZeroes;
                                 var value = isZero ? 0f : 1f;
                                 _addressIdToHolder[addressId].currentValue = value;
-                                _state.WhenAddressUpdated(addressId, value);
+                                WhenDataReceived(addressId, value);
                             }
                         }
                         foreach (var other in packet.other)
@@ -426,7 +483,7 @@ namespace HVR.Basis.Comms
                                 if (_addressIdToHolder[addressId].variable.variableTypeCode == HVRVariableTypeCode.Float && other.value is float f)
                                 {
                                     _addressIdToHolder[addressId].currentValue = f;
-                                    _state.WhenAddressUpdated(addressId, f);
+                                    WhenDataReceived(addressId, f);
                                 }
                             }
                         }
@@ -460,6 +517,13 @@ namespace HVR.Basis.Comms
                         networkId = variable.networkId,
                         currentValue = (float)variable.initialValue
                     };
+
+                    if (UseInterpolationTape)
+                    {
+                        var newInterpolationTape = new InterpolationTape<FloatInterpolable>(new FloatInterpolable());
+                        _addressIdToInterpolationTape[addressId] = newInterpolationTape;
+                        newInterpolationTape.OnInterpolatedDataChanged += data => WhenInterpolationTapeAdvanceDataChanged(addressId, data);
+                    }
 
                     _networkIdToAddressId[variable.networkId] = addressId;
                     newlyAddedAddresses.Add(addressId);
@@ -505,8 +569,13 @@ namespace HVR.Basis.Comms
 
                 foreach (var newlyAddedAddress in newlyAddedAddresses)
                 {
-                    _state.WhenAddressUpdated(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
+                    WhenDataReceived_BypassInterpolationTape(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
                 }
+            }
+
+            private void WhenInterpolationTapeAdvanceDataChanged(int addressId, FloatInterpolable current)
+            {
+                _state.comms.VariableStore.Submit(addressId, current.FloatValues[0]); // TODO: Getting the array is not acceptable.
             }
 
             public void RequireVariable(HVRVariable variable)
