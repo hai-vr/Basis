@@ -650,15 +650,8 @@ namespace HVR.Vixxy
                     // TODO: Rather than do that check every time, bake the applicable properties into an internal field.
                     if (!property.IsApplicable) continue;
 
-                    object lerpValue = property switch
-                    {
-                        HVRVixxyProperty<float> valueFloat => valueFloat.choices[choice],
-                        HVRVixxyProperty<Color> valueColor => valueColor.choices[choice],
-                        HVRVixxyProperty<Vector4> valueVector4 => valueVector4.choices[choice],
-                        HVRVixxyProperty<Vector3> valueVector3 => valueVector3.choices[choice],
-                        _ => null
-                    };
-                    Apply(property, lerpValue, out var propertyNeedsCleanup);
+                    object value = property.GetValueForChoice(choice);
+                    Apply(property, value, out var propertyNeedsCleanup);
 
                     if (propertyNeedsCleanup)
                     {
