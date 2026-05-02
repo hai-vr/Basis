@@ -83,11 +83,35 @@ namespace Basis.BasisUI
         private static void ReportConnectionProgress(float progress, string message) =>
             BasisSceneLoad.progressCallback.ReportProgress(ConnectionProgressKey, progress, message ?? string.Empty);
 
-        // Hold the bar at <100 with an error message so BasisUILoadingBar's 5-second
-        // idle auto-destroy clears it. Reaching 100 would dismiss it instantly and
-        // the user would never see what failed.
-        private static void ReportConnectionError(string message) =>
-            BasisSceneLoad.progressCallback.ReportProgress(ConnectionProgressKey, 99f, message ?? string.Empty);
+        private static void ReportConnectionError(string message)
+        {
+            CompleteConnectionProgress();
+
+            string body = message ?? string.Empty;
+            bool menuWasAlreadyOpen = BasisMainMenu.Instance != null;
+
+            if (!menuWasAlreadyOpen)
+            {
+                BasisMainMenu.Open();
+            }
+            else if (BasisMainMenu.Instance.Dialogue)
+            {
+                BasisMainMenu.Instance.Dialogue.ReleaseInstance();
+            }
+
+            if (BasisMainMenu.Instance != null)
+            {
+                BasisMainMenu.Instance.OpenDialogue(
+                    "Server Error",
+                    body,
+                    BasisLocalization.Get("ui.ok"),
+                    _ => { });
+            }
+            else
+            {
+                BasisDebug.LogError(body);
+            }
+        }
 
         private static void CompleteConnectionProgress() =>
             BasisSceneLoad.progressCallback.ReportProgress(ConnectionProgressKey, 100f, string.Empty);

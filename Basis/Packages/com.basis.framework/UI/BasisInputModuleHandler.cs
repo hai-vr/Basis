@@ -214,7 +214,9 @@ namespace Basis.Scripts.UI
         }
         public bool KeyboardRequired()
         {
-            return (BasisDeviceManagement.IsCurrentModeVR() || ForceKeyboard || BasisDeviceManagement.IsCurrentModeVR() == false && BasisDeviceManagement.IsMobileHardware());
+            if (ForceKeyboard) return true;
+            if (TouchScreenKeyboard.isSupported) return false;
+            return BasisDeviceManagement.IsCurrentModeVR();
         }
 
         /// <summary>

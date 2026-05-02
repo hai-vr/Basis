@@ -130,11 +130,11 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.audio", () => AudioTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.microphone", () => MicrophoneTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.graphics", () => GraphicsTab(tabGroup));
+            AddLazyTab(tabGroup, "settings.tab.myavatar", () => SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.controls", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.chat", () => ChatTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.bodytracking", () => SettingsProviderIK.IKTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerSettings.TrackerSettingsTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.myavatar", () => SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
@@ -414,36 +414,43 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.MainVolume);
             sliderMainVolume.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.masterVolume"));
             sliderMainVolume.Descriptor.SetDescription(BasisLocalization.Get("settings.audio.masterVolume.description"));
+            sliderMainVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyMainVolume);
 
             PanelSlider sliderMenuVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.menuVolume")),
                 BasisSettingsDefaults.MenuVolume);
+            sliderMenuVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyMenuVolume);
 
             PanelSlider sliderWorldVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.worldVolume")),
                 BasisSettingsDefaults.WorldVolume);
+            sliderWorldVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyWorldVolume);
 
             PanelSlider sliderVideoVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.mediaVolume")),
                 BasisSettingsDefaults.MediaVolume);
+            sliderVideoVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyMediaVolume);
 
             PanelSlider sliderVoiceVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.voiceVolume")),
                 BasisSettingsDefaults.VoiceVolume);
+            sliderVoiceVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyVoiceVolume);
 
             PanelSlider sliderAvatarVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.avatarVolume")),
                 BasisSettingsDefaults.AvatarVolume);
+            sliderAvatarVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyAvatarVolume);
 
             PanelSlider sliderPropVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.propVolume")),
                 BasisSettingsDefaults.PropVolume);
+            sliderPropVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyPropVolume);
 
             // Remote Players (Spatial Audio) — also hosts Hearing Range and the
             // Audio Source cap, since both are "how do I hear other players" controls.
@@ -575,6 +582,20 @@ namespace Basis.BasisUI
                 BasisLocalMicrophoneDriver.SettingStartRememberLast,
             });
             dropdownMicStartBehavior.AssignBinding(BasisSettingsDefaults.MicStartBehavior);
+
+            PanelElementDescriptor muteBehaviorGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            muteBehaviorGroup.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior.title"));
+            muteBehaviorGroup.SetDescription(BasisLocalization.Get("settings.microphone.muteBehavior.description"));
+
+            PanelDropdown dropdownMicMuteBehavior = PanelDropdown.CreateNewEntry(muteBehaviorGroup);
+            dropdownMicMuteBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior"));
+            dropdownMicMuteBehavior.AssignEntries(new List<string>
+            {
+                BasisLocalMicrophoneDriver.SettingMuteShutdown,
+                BasisLocalMicrophoneDriver.SettingMuteSuppress,
+            });
+            dropdownMicMuteBehavior.AssignBinding(BasisSettingsDefaults.MicMuteBehavior);
 
             // -------------------- DSP SETTINGS --------------------
 
@@ -827,6 +848,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MicrophoneDenoiser.ResetToDefault();
             BasisSettingsDefaults.UseAutomaticGain.ResetToDefault();
             BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
+            BasisSettingsDefaults.MicMuteBehavior.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetX.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIconOffsetY.ResetToDefault();

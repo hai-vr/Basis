@@ -90,6 +90,65 @@ namespace BasisNetworking.InitalData
             }
         }
 
+        /// <summary>
+        /// Removes every persisted default-library XML whose Url matches (case-insensitive)
+        /// and drops matching entries from the in-memory list. Returns the number of files
+        /// deleted; 0 if nothing matched (treated as success on the caller side).
+        /// </summary>
+        public static int RemoveItem(string folderName, string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                BNL.LogError("Refusing to remove default library entry with empty Url.");
+                return 0;
+            }
+
+            int removed = 0;
+            try
+            {
+                string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folderName);
+                if (Directory.Exists(folder))
+                {
+                    var serializer = new XmlSerializer(typeof(BasisDefaultLibraryConfiguration));
+                    foreach (var file in Directory.GetFiles(folder, "*.xml"))
+                    {
+                        BasisDefaultLibraryConfiguration config;
+                        try
+                        {
+                            using var reader = new StreamReader(file);
+                            config = (BasisDefaultLibraryConfiguration)serializer.Deserialize(reader);
+                        }
+                        catch (Exception ex)
+                        {
+                            BNL.LogError($"Skipping unreadable default library file {file}: {ex.Message}");
+                            continue;
+                        }
+
+                        if (config != null && string.Equals(config.Url, url, StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                File.Delete(file);
+                                removed++;
+                                BNL.Log($"Default library entry removed: {file}");
+                            }
+                            catch (Exception ex)
+                            {
+                                BNL.LogError($"Failed to delete default library file {file}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+
+                LoadedItems.RemoveAll(c => c != null && string.Equals(c.Url, url, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                BNL.LogError($"Failed to remove default library entry: {ex.Message}");
+            }
+            return removed;
+        }
+
         private static string BuildUniqueFileName(string folder, BasisDefaultLibraryConfiguration config)
         {
             string modeName = config.Mode switch

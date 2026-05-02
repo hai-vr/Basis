@@ -21,6 +21,21 @@ namespace Basis.BasisUI
         /// <summary>Fired after items change so any open UI can refresh.</summary>
         public static event Action OnChanged;
 
+        /// <summary>
+        /// True if the given key was created by <see cref="SetFromServer"/> in the
+        /// current session. Reference-equality keeps this O(n) on a list that has at
+        /// most a handful of entries; fast enough for the UI to gate per-card actions.
+        /// </summary>
+        public static bool IsServerProvided(BasisDataStoreItemKeys.ItemKey key)
+        {
+            if (key == null) return false;
+            for (int i = 0; i < _items.Count; i++)
+            {
+                if (ReferenceEquals(_items[i], key)) return true;
+            }
+            return false;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Hook()
         {

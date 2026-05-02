@@ -218,32 +218,62 @@ namespace Basis.BasisUI
 
             PanelTextField urlField = PanelTextField.CreateNewEntry(group.ContentParent);
             urlField.Descriptor.SetTitle("BEE URL");
-            urlField.Descriptor.SetDescription("Direct URL to the .bee file the server should hand out.");
+            urlField.Descriptor.SetDescription("Direct URL to the .bee file the server should hand out. Pasting a url#password share string will be split automatically.");
 
             PanelTextField passwordField = PanelTextField.CreateNewEntry(group.ContentParent);
             passwordField.Descriptor.SetTitle("Password");
-            passwordField.Descriptor.SetDescription("Optional unlock password for encrypted bundles. Leave blank if none.");
+            passwordField.Descriptor.SetDescription("Optional unlock password for encrypted bundles. Leave blank if none, or if the URL already carries a #password fragment.");
 
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
             modeDropdown.Descriptor.SetTitle("Type");
-            modeDropdown.Descriptor.SetDescription("Which library tab the entry will appear in.");
+            modeDropdown.Descriptor.SetDescription("Which library tab the entry will appear in. Auto-detected from the BEE metadata when possible; this dropdown is only used as a fallback for legacy bundles.");
             modeDropdown.AssignEntries(new List<string>(DefaultLibraryModeNames));
             modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[0]);
 
             PanelButton addButton = PanelButton.CreateNew(group.ContentParent);
             addButton.Descriptor.SetTitle("Add to Server Defaults");
             addButton.Descriptor.SetDescription("Persist this entry on the server and push it to every connected client.");
-            addButton.OnClicked += () =>
+            addButton.OnClicked += async () =>
             {
-                string url = urlField.Value?.Trim() ?? string.Empty;
-                if (string.IsNullOrEmpty(url))
+                string rawUrl = urlField.Value ?? string.Empty;
+                string rawPassword = passwordField.Value ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(rawUrl))
                 {
                     BasisDebug.LogError("Default library URL is empty.");
                     return;
                 }
 
-                byte mode = ModeNameToByte(modeDropdown.Value);
-                string password = passwordField.Value ?? string.Empty;
+                // Peel #password fragment off the URL using the same splitter the in-game
+                // add dialog uses, so a copy-pasted share string lands in the right fields.
+                InputValidation.SplitUrlFragmentPassword(rawUrl, rawPassword, out string url, out string password);
+
+                // Try auto-detecting the content type from the bundle metadata. If that
+                // succeeds, override the dropdown — admins can leave the dropdown alone.
+                // If detection fails (legacy bundle, unreachable URL), fall back to whatever
+                // the admin picked.
+                BundledContentHolder.Mode detected;
+                try
+                {
+                    detected = await LibraryProvider.TryDetectModeFromUrl(url, password);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogWarning($"Default library mode detection failed for {url}: {ex.Message}");
+                    detected = BundledContentHolder.Mode.Legacy;
+                }
+
+                byte mode = detected switch
+                {
+                    BundledContentHolder.Mode.Avatar => (byte)0,
+                    BundledContentHolder.Mode.World => (byte)1,
+                    BundledContentHolder.Mode.Prop => (byte)2,
+                    _ => ModeNameToByte(modeDropdown.Value),
+                };
+
+                // Reflect the resolved mode back into the dropdown so the admin can see what
+                // they're about to commit before they confirm.
+                if (mode < DefaultLibraryModeNames.Length)
+                    modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[mode]);
 
                 WithConfirm(
                     "Add to server defaults?",
@@ -251,6 +281,28 @@ namespace Basis.BasisUI
                     "Add",
                     "Cancel",
                     () => BasisNetworkModeration.AddDefaultLibraryItem(mode, url, password));
+            };
+
+            PanelButton removeButton = PanelButton.CreateNew(group.ContentParent);
+            removeButton.Descriptor.SetTitle("Remove from Server Defaults");
+            removeButton.Descriptor.SetDescription("Drop every default-library entry whose URL matches the BEE URL field above. Entry is deleted on disk and removed from every connected client.");
+            removeButton.OnClicked += () =>
+            {
+                string rawUrl = urlField.Value ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(rawUrl))
+                {
+                    BasisDebug.LogError("Default library URL is empty.");
+                    return;
+                }
+
+                InputValidation.SplitUrlFragmentPassword(rawUrl, string.Empty, out string url, out _);
+
+                WithConfirm(
+                    "Remove from server defaults?",
+                    $"Drop every default-library entry matching '{url}'? The change is immediate and propagates to every connected player.",
+                    "Remove",
+                    "Cancel",
+                    () => BasisNetworkModeration.RemoveDefaultLibraryItem(url));
             };
         }
 

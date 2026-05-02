@@ -410,6 +410,14 @@ namespace BasisNetworkServer.Security
                         SendBackMessage(peer, ApplyAddDefaultLibraryItem(itemMode, itemUrl, itemPassword));
                     });
                     break;
+
+                case AdminRequestMode.RemoveDefaultLibraryItem:
+                    Require(peer, PermNodes.ConfigurationEditor, () =>
+                    {
+                        string removeUrl = reader.GetString();
+                        SendBackMessage(peer, ApplyRemoveDefaultLibraryItem(removeUrl));
+                    });
+                    break;
             }
 
             reader.Recycle();
@@ -478,6 +486,30 @@ namespace BasisNetworkServer.Security
             // Mode is the client's BundledContentHolder.Mode: 0=Avatar, 1=World, 2=Prop.
             if (mode > 2) return $"Unknown library mode {mode} (expected 0=Avatar, 1=World, 2=Prop).";
 
+            // Defensive split of `url#fragment` — if the admin pasted a copy-able share
+            // string with the password baked into the URL fragment, peel it off here so
+            // the password lands in the Password field instead of the URL field. The
+            // client UI normally splits this before sending, but this catches admins
+            // who skipped that path or used an older client.
+            int hashIndex = url.IndexOf('#');
+            if (hashIndex >= 0)
+            {
+                string fragment = url.Substring(hashIndex + 1);
+                url = url.Substring(0, hashIndex);
+                if (string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(fragment))
+                {
+                    try
+                    {
+                        password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(fragment));
+                    }
+                    catch
+                    {
+                        // Fragment wasn't valid base64; leave password empty rather than
+                        // storing the raw fragment bytes.
+                    }
+                }
+            }
+
             BasisDefaultLibraryConfiguration config = new BasisDefaultLibraryConfiguration
             {
                 Mode = mode,
@@ -495,6 +527,20 @@ namespace BasisNetworkServer.Security
             // up in their library immediately, not just on next connect.
             BasisNetworkServerLibrary.BroadcastLibraryToAll();
             return $"Default library entry added ({Path.GetFileName(written)}).";
+        }
+
+        private static string ApplyRemoveDefaultLibraryItem(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "URL was empty.";
+
+            int removed = BasisDefaultLibraryLoader.RemoveItem(Configuration.DefaultLibraryFolderName, url);
+            if (removed <= 0)
+            {
+                return $"No default library entry matched URL '{url}'.";
+            }
+
+            BasisNetworkServerLibrary.BroadcastLibraryToAll();
+            return $"Removed {removed} default library entry(ies) for URL '{url}'.";
         }
 
         private static void SaveConfig()

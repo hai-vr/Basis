@@ -86,6 +86,10 @@ namespace BasisNetworkCore.Serializable
             // Gated by PermNodes.ConfigurationEditor. Writes a new XML file under the
             // server's defaultlibrary/ folder and rebroadcasts the updated list.
             AddDefaultLibraryItem,
+
+            // Payload: [string url]
+            // Removes every defaultlibrary/ XML whose URL matches and rebroadcasts.
+            RemoveDefaultLibraryItem,
         }
     }
 }

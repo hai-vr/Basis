@@ -191,6 +191,17 @@ public static class BasisNetworkModeration
             w => w.Put(password ?? string.Empty));
     }
 
+    /// <summary>
+    /// Ask the server to drop every default-library entry whose URL matches and
+    /// rebroadcast the updated list. Server-gated by PermNodes.ConfigurationEditor.
+    /// </summary>
+    public static void RemoveDefaultLibraryItem(string url)
+    {
+        if (!ValidateString(url, nameof(url))) return;
+        SendAdminRequest(AdminRequestMode.RemoveDefaultLibraryItem,
+            w => w.Put(url));
+    }
+
     public static void DisplayMessage(string message)
     {
         if (ValidateString(message, nameof(message)))
