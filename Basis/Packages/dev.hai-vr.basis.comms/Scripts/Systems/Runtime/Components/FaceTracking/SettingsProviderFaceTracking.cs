@@ -20,6 +20,7 @@ namespace HVR.Basis.Comms
         {
             SettingsProvider.FaceTrackingDebugBuilder = BuildFaceTrackingSection;
             SettingsProvider.EyeTrackingDebugBuilder = BuildEyeTrackingSection;
+            SettingsProvider.AvatarCustomizationBuilder = BuildAvatarCustomizationSection;
         }
 
         static void BuildFaceTrackingSection(RectTransform parent)
@@ -56,6 +57,11 @@ namespace HVR.Basis.Comms
                 fieldEyeLeftX, fieldEyeRightX, fieldEyeY);
             refreshButton.OnClicked += Refresh;
             Refresh();
+        }
+
+        static void BuildAvatarCustomizationSection(RectTransform parent)
+        {
+            InitializeVixxyPanel(parent);
         }
 
         static void RefreshFaceState(

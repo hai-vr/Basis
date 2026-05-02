@@ -44,6 +44,8 @@ namespace Basis.BasisUI
         /// </summary>
         public static Action<RectTransform> EyeTrackingDebugBuilder;
 
+        public static Action<RectTransform> AvatarCustomizationBuilder;
+
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
