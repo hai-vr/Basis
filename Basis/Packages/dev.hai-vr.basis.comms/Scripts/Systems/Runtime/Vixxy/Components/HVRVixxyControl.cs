@@ -475,7 +475,7 @@ namespace HVR.Vixxy
             // If this was true, we have already enabled this in OnHVRAvatarReady.
             if (AlsoExecutesWhenDisabled) return;
 
-            _previousValue = float.MinValue + 1.23456789f;
+            _previousValue = HVR_VixxyUtil.BogusInitializationNumber;
             if (IsInitialized && _registeredActuator == null)
             {
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);

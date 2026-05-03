@@ -50,6 +50,8 @@ namespace HVR.Basis.Comms.Editor
                 EditorGUILayout.Separator();
 
                 AcquisitionServiceEditor.DisplayVariableStore(my.VariableStore);
+
+                Repaint();
             }
         }
 
