@@ -134,7 +134,7 @@ namespace HVR.Vixxy.Editor
 
                         foreach (var type in _types)
                         {
-                            _typeToWhichOpened.Add(type, -1);
+                            _typeToWhichOpened[type] = -1;
                         }
 
                         if (targetObject.GetComponent<SkinnedMeshRenderer>() is { } smr)
