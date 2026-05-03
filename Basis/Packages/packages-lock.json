@@ -564,7 +564,7 @@
       "dependencies": {}
     },
     "dev.hai-vr.basis.ndmf": {
-      "version": "file:HVRBasisNDMF",
+      "version": "file:dev.hai-vr.basis.ndmf",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
