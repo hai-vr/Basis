@@ -9,6 +9,8 @@ namespace HVR.Vixxy
 {
     public static class HVR_VixxyUtil
     {
+        public const float BogusInitializationNumber = float.MinValue + 1.23456789f;
+
         [HideInCallstack]
         public static void Log(object caller, string str)
         {

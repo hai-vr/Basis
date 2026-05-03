@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using HVR.Vixxy;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -48,6 +49,14 @@ namespace HVR.Basis.Comms
         {
             if (IdToAddressDict.TryGetValue(knownAddressId, out var id)) return id;
             throw new IndexOutOfRangeException();
+        }
+
+        /// Generates an address in the form of (path@sha1+componentIndexOnThisType).
+        public static string GenerateAddressFromPath<T>(T discriminatorComponent, Transform context) where T : Component
+        {
+            var componentIndex = Array.IndexOf(discriminatorComponent.GetComponents<T>(), discriminatorComponent);
+            var path = HVR_VixxyUtil.ResolveRelativePath(context, discriminatorComponent.transform);
+            return $"{path}@{HVR_VixxyUtil.SimpleSha1(path)}+{componentIndex}";
         }
     }
 }
