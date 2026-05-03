@@ -51,16 +51,30 @@ namespace HVR.Basis.Comms.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.spherecastRadius)));
             }
 
-            if (my.measurementType != HVRMeasureType.Angle)
+            if (my.measurementType == HVRMeasureType.Speed)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.speedMeasurement)));
+                if (my.speedMeasurement != HVRMeasureSpeedKind.ThreeDimensional)
+                {
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.speedProjection)));
+                }
+            }
+
+            if (my.measurementType == HVRMeasureType.Speed)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent("(Optional) Relative to"));
             }
-            else
+            else if (my.measurementType == HVRMeasureType.Angle)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)), new GUIContent("Origin"));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent("Target A"));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target2)), new GUIContent("Target B"));
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)));
             }
 
             if (isRaycastOrSpherecast && my.target != null)
@@ -90,8 +104,13 @@ namespace HVR.Basis.Comms.Editor
             {
                 LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.hitAddress)), "Hit", () => {});
             }
-            LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.distanceAddress)), "Distance", () => {});
-            LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.changeOverTimeAddress)), "Change over time", () =>
+
+            var distanceAddressLabel = my.measurementType == HVRMeasureType.Speed ? "Speed" : "Distance";
+            // NOTE: The rate of change of speed is not the acceleration in 3D, as the acceleration can be nonzero on a curved path of constant speed,
+            // so do not call this acceleration.
+            var changeOverTimeAddressLabel = my.measurementType == HVRMeasureType.Speed ? "Rate of change of speed" : "Change over time";
+            LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.distanceAddress)), distanceAddressLabel, () => {});
+            LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.changeOverTimeAddress)), changeOverTimeAddressLabel, () =>
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.differenceAbsoluteValue)), new GUIContent(AbsoluteValueLabel));
             });
@@ -102,6 +121,10 @@ namespace HVR.Basis.Comms.Editor
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DeveloperViewLabel, EditorStyles.boldLabel);
                 EditorGUILayout.FloatField("Value before post-processing", my.LastIntermediateValue);
                 EditorGUILayout.FloatField("Value", my.LastSentValue);
+                if (my.clampToBounds)
+                {
+                    EditorGUILayout.Slider(my.LastSentValue, Mathf.Min(my.remapTo.x, my.remapTo.y), Mathf.Max(my.remapTo.x, my.remapTo.y));
+                }
                 if (my.changeOverTimeAddress.isActive)
                 {
                     EditorGUILayout.FloatField("Change over time", my.LastChangeOverTime);

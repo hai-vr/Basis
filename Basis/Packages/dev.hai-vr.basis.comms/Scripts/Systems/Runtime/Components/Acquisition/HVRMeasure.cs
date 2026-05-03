@@ -22,6 +22,10 @@ namespace HVR.Basis.Comms
         // Spherecast
         public float spherecastRadius = 0.5f;
 
+        // Speed
+        public HVRMeasureSpeedKind speedMeasurement;
+        public Vector3 speedProjection = Vector3.up;
+
         // Common
         public Transform source;
         public Transform target;
@@ -47,12 +51,18 @@ namespace HVR.Basis.Comms
         [NonSerialized] internal float LastChangeOverTime;
         private bool _needToEvaluateDifferenceNextFrame;
         [NonSerialized] internal bool DebugForceUpdate;
+        private bool _isFirstDerivative;
+        private Vector3 _previousVectorInAnySpace;
 
         public void PruneUnusedReferences()
         {
             if (measurementType != HVRMeasureType.Angle)
             {
                 target2 = null;
+            }
+            if (measurementType != HVRMeasureType.Raycast && measurementType != HVRMeasureType.Spherecast)
+            {
+                hitAddress.isActive = false;
             }
         }
 
@@ -124,6 +134,7 @@ namespace HVR.Basis.Comms
         {
             LastSentValue = HVR_VixxyUtil.BogusInitializationNumber;
             LastIntermediateValue = HVR_VixxyUtil.BogusInitializationNumber;
+            _isFirstDerivative = true;
         }
 
         private void Update()
@@ -147,7 +158,6 @@ namespace HVR.Basis.Comms
                 var intermediateValue = angleDeg;
 
                 ProcessAndSubmit(intermediateValue, true);
-
             }
             else if (measurementType == HVRMeasureType.ComplexRotationAngle)
             {
@@ -167,6 +177,34 @@ namespace HVR.Basis.Comms
                     ProcessAndSubmit(intermediateValue, true);
                 }
             }
+            else if (measurementType == HVRMeasureType.Speed)
+            {
+                var vectorInAnySpace = target != null
+                    ? target.InverseTransformPoint(from.position) // Measurement done in local space
+                    : from.position; // Measurement done in world space
+
+                // Note: Since we're projecting after calculating the position, and that position is stored in any space, the projection
+                // is effectively done in target's local space if it is defined.
+                if (speedMeasurement == HVRMeasureSpeedKind.ProjectOnNormal2D)
+                {
+                    vectorInAnySpace = Vector3.ProjectOnPlane(vectorInAnySpace, speedProjection);
+                }
+                else if (speedMeasurement == HVRMeasureSpeedKind.ProjectOnLine1D)
+                {
+                    vectorInAnySpace = Vector3.Project(vectorInAnySpace, speedProjection);
+                }
+
+                if (_isFirstDerivative)
+                {
+                    ProcessAndSubmit(0f, true);
+                }
+                else
+                {
+                    var speed = (vectorInAnySpace - _previousVectorInAnySpace).magnitude / Time.deltaTime;
+                    ProcessAndSubmit(speed, true);
+                }
+                _previousVectorInAnySpace = vectorInAnySpace;
+            }
             else if (measurementType is HVRMeasureType.Raycast or HVRMeasureType.Spherecast)
             {
                 Vector3 transformationVectorInWorldSpace;
@@ -182,10 +220,11 @@ namespace HVR.Basis.Comms
                 }
                 else
                 {
+                    transformerUnit = from.TransformVector(raycastDirection.normalized).magnitude;
+
                     var targetPosition = target.position;
-                    transformationVectorInWorldSpace = from.position - targetPosition;
-                    transformerUnit = transformationVectorInWorldSpace.magnitude;
-                    allowedMaximumDistanceInWorldSpace = transformationVectorInWorldSpace.magnitude;
+                    transformationVectorInWorldSpace = targetPosition - from.position;
+                    allowedMaximumDistanceInWorldSpace = Mathf.Min(transformationVectorInWorldSpace.magnitude, MaximumRaycastDistanceInWorldSpace);
                 }
 
                 var needsActualRaycast = distanceAddress.isActive || changeOverTimeAddress.isActive;
@@ -206,17 +245,31 @@ namespace HVR.Basis.Comms
 
                     if (hit)
                     {
-                        var worldSpaceVector = raycastDirection.normalized * hitInfo.distance;
-                        var localSpaceVector = from.InverseTransformVector(worldSpaceVector);
-                        var intermediateValue = localSpaceVector.magnitude;
+                        if (target != null)
+                        {
+                            var worldSpaceVector = raycastDirection.normalized * hitInfo.distance;
+                            var localSpaceVector = from.InverseTransformVector(worldSpaceVector);
+                            var intermediateValue = localSpaceVector.magnitude;
 
-                        ProcessAndSubmit(intermediateValue, true);
+                            ProcessAndSubmit(intermediateValue, true);
+                        }
+                        else
+                        {
+                            var intermediateValue = hitInfo.distance / transformationVectorInWorldSpace.magnitude;
+                            ProcessAndSubmit(intermediateValue, true);
+                        }
                     }
                     else
                     {
                         // TODO: Behaviour on miss
-
-                        ProcessAndSubmit(allowedMaximumDistanceInWorldSpace, false);
+                        if (target != null)
+                        {
+                            ProcessAndSubmit(allowedMaximumDistanceInWorldSpace, false);
+                        }
+                        else
+                        {
+                            ProcessAndSubmit(1f, false);
+                        }
                     }
                 }
                 else
@@ -248,6 +301,8 @@ namespace HVR.Basis.Comms
                     ProcessAndSubmit(hit ? 1f : 0f, hit);
                 }
             }
+
+            if (_isFirstDerivative) _isFirstDerivative = false;
         }
 
         private static Vector3 CalculateEndPositionInWorldSpace(Transform from, Vector3 transformationVectorInWorldSpace, float allowedMaximumDistanceInWorldSpace)
@@ -274,8 +329,16 @@ namespace HVR.Basis.Comms
                 if (hitAddress.isActive) FinallySubmit(HitAddressId, hit ? 1f : 0f);
                 if (changeOverTimeAddress.isActive)
                 {
-                    var changeOverTime = (finalValue - LastSentValue) / Time.deltaTime;
-                    LastChangeOverTime = differenceAbsoluteValue ? Mathf.Abs(changeOverTime) : changeOverTime;
+                    if (!_isFirstDerivative)
+                    {
+                        var changeOverTime = (finalValue - LastSentValue) / Time.deltaTime;
+                        LastChangeOverTime = differenceAbsoluteValue ? Mathf.Abs(changeOverTime) : changeOverTime;
+                    }
+                    else
+                    {
+                        LastChangeOverTime = 0f;
+                    }
+
                     FinallySubmit(DifferenceAddressId, LastChangeOverTime);
                 }
 
@@ -348,6 +411,9 @@ namespace HVR.Basis.Comms
         Raycast,
         /// Same as raycast, but it's a sphere. The sphere radius is in source's local space.
         Spherecast,
+        /// Measures the speed of the object, in target's (!!!) local space if it is defined, or in world space otherwise.<br/>
+        /// Projection is done in the target's local space if it is defined, or in world space otherwise.<br/>
+        Speed,
     }
 
     [Serializable]
@@ -355,5 +421,13 @@ namespace HVR.Basis.Comms
     {
         DoNotIncludeRoll,
         IncludeRoll,
+    }
+
+    [Serializable]
+    public enum HVRMeasureSpeedKind
+    {
+        ThreeDimensional,
+        ProjectOnNormal2D,
+        ProjectOnLine1D,
     }
 }
