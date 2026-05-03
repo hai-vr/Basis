@@ -18,9 +18,10 @@ namespace HVR.Basis.Comms
         // Raycast
         public Vector3 raycastDirection = Vector3.forward;
         public float raycastMaximumDistance = 100f;
+        public bool raycastIsSpherecast;
 
-        // Spherecast
-        public float spherecastRadius = 0.5f;
+        // Raycast/Spherecast
+        public float physicsSphereRadius = 0.5f;
 
         // Speed
         public HVRMeasureSpeedKind speedMeasurement;
@@ -60,7 +61,7 @@ namespace HVR.Basis.Comms
             {
                 target2 = null;
             }
-            if (measurementType != HVRMeasureType.Raycast && measurementType != HVRMeasureType.Spherecast)
+            if (measurementType != HVRMeasureType.Raycast)
             {
                 hitAddress.isActive = false;
             }
@@ -91,7 +92,7 @@ namespace HVR.Basis.Comms
                     Gizmos.DrawLine(from.position, to.position);
                     Gizmos.DrawLine(from.position, to2.position);
                 }
-                else if (measurementType is HVRMeasureType.Raycast or HVRMeasureType.Spherecast)
+                else if (measurementType == HVRMeasureType.Raycast)
                 {
                     if (target == null)
                     {
@@ -104,7 +105,7 @@ namespace HVR.Basis.Comms
                         Gizmos.DrawLine(from.position, to.position);
                     }
 
-                    if (measurementType == HVRMeasureType.Spherecast)
+                    if (raycastIsSpherecast)
                     {
                         var transformationVectorInWorldSpace = from.TransformVector(raycastDirection.normalized);
                         var transformerUnit = transformationVectorInWorldSpace.magnitude;
@@ -205,7 +206,7 @@ namespace HVR.Basis.Comms
                 }
                 _previousVectorInAnySpace = vectorInAnySpace;
             }
-            else if (measurementType is HVRMeasureType.Raycast or HVRMeasureType.Spherecast)
+            else if (measurementType == HVRMeasureType.Raycast)
             {
                 Vector3 transformationVectorInWorldSpace;
                 float transformerUnit;
@@ -234,11 +235,11 @@ namespace HVR.Basis.Comms
 
                     RaycastHit hitInfo;
                     bool hit;
-                    if (measurementType == HVRMeasureType.Raycast)
+                    if (!raycastIsSpherecast || physicsSphereRadius <= 0f)
                     {
                         hit = Physics.Raycast(ray, out hitInfo, allowedMaximumDistanceInWorldSpace);
                     }
-                    else // Spherecast
+                    else
                     {
                         hit = Physics.SphereCast(ray, CalculateSpherecastRadiusInWorldSpace(transformerUnit), out hitInfo, allowedMaximumDistanceInWorldSpace);
                     }
@@ -276,14 +277,14 @@ namespace HVR.Basis.Comms
                 {
                     // If we don't need an actual raycast, just use the physics intersection methods.
                     bool hit;
-                    if (measurementType == HVRMeasureType.Raycast)
+                    if (!raycastIsSpherecast || physicsSphereRadius <= 0f)
                     {
                         var endPosition = target != null
                             ? target.position
                             : CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace);
                         hit = Physics.Linecast(from.position, endPosition);
                     }
-                    else // Spherecast
+                    else
                     {
                         if (allowedMaximumDistanceInWorldSpace == 0f)
                         {
@@ -312,7 +313,7 @@ namespace HVR.Basis.Comms
 
         private float CalculateSpherecastRadiusInWorldSpace(float transformerUnit)
         {
-            return transformerUnit * spherecastRadius;
+            return transformerUnit * physicsSphereRadius;
         }
 
         private void ProcessAndSubmit(float intermediateValue, bool hit)
@@ -409,8 +410,6 @@ namespace HVR.Basis.Comms
         /// - If no target is specified, the maximum distance is the value of the constant HVRMeasure.MaximumRaycastDistanceInWorldSpace, or the maximum distance of the raycast, whichever is smaller.<br/>
         /// - If a target is specified, the maximum distance is 1, where 1 corresponds to the distance between the source and the target.
         Raycast,
-        /// Same as raycast, but it's a sphere. The sphere radius is in source's local space.
-        Spherecast,
         /// Measures the speed of the object, in target's (!!!) local space if it is defined, or in world space otherwise.<br/>
         /// Projection is done in the target's local space if it is defined, or in world space otherwise.<br/>
         Speed,

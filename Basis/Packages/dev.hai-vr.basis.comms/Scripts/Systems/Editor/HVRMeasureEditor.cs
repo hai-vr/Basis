@@ -8,12 +8,25 @@ namespace HVR.Basis.Comms.Editor
     [CustomEditor(typeof(HVRMeasure))]
     public class HVRMeasureEditor : UnityEditor.Editor
     {
-        private const string MeasurementLabel = "Measurement";
-        private const string PostProcessingLabel = "Post-processing";
-        private const string OutputLabel = "Output";
-        private const string IrrelevantLabel = "Irrelevant";
         private const string AbsoluteValueLabel = "Absolute Value";
+        private const string ChangeOverTimeLabel = "Change over time";
+        private const string DistanceLabel = "Distance";
+        private const string HitLabel = "Hit";
+        private const string IrrelevantLabel = "Irrelevant";
+        private const string IsSpherecastLabel = "Is Spherecast";
+        private const string MeasurementLabel = "Measurement";
         private const string MsgRaycastIsBasedOnTargetPosition = "A target is defined, so raycast direction and maximum distance do not matter.";
+        private const string OriginLabel = "Origin";
+        private const string OutputLabel = "Output";
+        private const string PostProcessingLabel = "Post-processing";
+        private const string RateOfChangeOfSpeedLabel = "Rate of change of speed";
+        private const string RelativeToLabel = "(Optional) Relative to";
+        private const string SpeedLabel = "Speed";
+        private const string TargetALabel = "Target A";
+        private const string TargetBLabel = "Target B";
+        private const string ValueBeforePostProcessingLabel = "Value before post-processing";
+        private const string ValueLabel = "Value";
+        private const string SpherecastRadiusLabel = "Spherecast Radius";
 
         private HVRMeasure my;
 
@@ -22,15 +35,23 @@ namespace HVR.Basis.Comms.Editor
             my = (HVRMeasure)target;
             HVRAvatarCommsEditor.EnsureAvatarHasPrefab(my.transform);
 
-            var isRaycastOrSpherecast = my.measurementType is HVRMeasureType.Raycast or HVRMeasureType.Spherecast;
-
             EditorGUILayout.LabelField(MeasurementLabel, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.measurementType)));
+            var description = my.measurementType switch
+            {
+                HVRMeasureType.Distance => "Distance between two objects, in source's local space.",
+                HVRMeasureType.Angle => "Angle between two lines drawn from two target objects towards a origin object, in degrees.",
+                HVRMeasureType.ComplexRotationAngle => "Compares the rotation of two objects, in degrees.\nIf roll is not included, it uses the forward direction of each object to measure the angle.",
+                HVRMeasureType.Raycast => "Raycast from a source object. Distance is measured in source's local space.",
+                HVRMeasureType.Speed => "Speed of an object.\nIf a relative object is specified, speed is measured in the relative object's local space, and projection is also done in that relative object's local space. Otherwise, speed and projection is in world space.",
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            EditorGUILayout.HelpBox(description, MessageType.None);
             if (my.measurementType == HVRMeasureType.ComplexRotationAngle)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.angleMeasurement)));
             }
-            if (isRaycastOrSpherecast)
+            if (my.measurementType == HVRMeasureType.Raycast)
             {
                 if (my.target == null)
                 {
@@ -44,11 +65,12 @@ namespace HVR.Basis.Comms.Editor
                     EditorGUILayout.TextField(ObjectNames.NicifyVariableName(nameof(HVRMeasure.raycastMaximumDistance)), IrrelevantLabel);
                     EditorGUI.EndDisabledGroup();
                 }
-            }
 
-            if (my.measurementType == HVRMeasureType.Spherecast)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.spherecastRadius)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.raycastIsSpherecast)), new GUIContent(IsSpherecastLabel));
+                if (my.raycastIsSpherecast)
+                {
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.physicsSphereRadius)), new GUIContent(SpherecastRadiusLabel));
+                }
             }
 
             if (my.measurementType == HVRMeasureType.Speed)
@@ -63,13 +85,13 @@ namespace HVR.Basis.Comms.Editor
             if (my.measurementType == HVRMeasureType.Speed)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent("(Optional) Relative to"));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent(RelativeToLabel));
             }
             else if (my.measurementType == HVRMeasureType.Angle)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)), new GUIContent("Origin"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent("Target A"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target2)), new GUIContent("Target B"));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)), new GUIContent(OriginLabel));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent(TargetALabel));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target2)), new GUIContent(TargetBLabel));
             }
             else
             {
@@ -77,7 +99,7 @@ namespace HVR.Basis.Comms.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)));
             }
 
-            if (isRaycastOrSpherecast && my.target != null)
+            if (my.measurementType == HVRMeasureType.Raycast && my.target != null)
             {
                 EditorGUILayout.HelpBox(MsgRaycastIsBasedOnTargetPosition, MessageType.Info);
             }
@@ -85,30 +107,22 @@ namespace HVR.Basis.Comms.Editor
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField(PostProcessingLabel, EditorStyles.boldLabel);
-            if (my.measurementType == HVRMeasureType.ComplexRotationAngle)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.remapFrom)));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.remapTo)));
-            }
-            else
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.remapFrom)));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.remapTo)));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.clampToBounds)));
-            }
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.remapFrom)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.remapTo)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.clampToBounds)));
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField(OutputLabel, EditorStyles.boldLabel);
 
-            if (isRaycastOrSpherecast)
+            if (my.measurementType == HVRMeasureType.Raycast)
             {
-                LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.hitAddress)), "Hit", () => {});
+                LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.hitAddress)), HitLabel, () => {});
             }
 
-            var distanceAddressLabel = my.measurementType == HVRMeasureType.Speed ? "Speed" : "Distance";
+            var distanceAddressLabel = my.measurementType == HVRMeasureType.Speed ? SpeedLabel : DistanceLabel;
             // NOTE: The rate of change of speed is not the acceleration in 3D, as the acceleration can be nonzero on a curved path of constant speed,
             // so do not call this acceleration.
-            var changeOverTimeAddressLabel = my.measurementType == HVRMeasureType.Speed ? "Rate of change of speed" : "Change over time";
+            var changeOverTimeAddressLabel = my.measurementType == HVRMeasureType.Speed ? RateOfChangeOfSpeedLabel : ChangeOverTimeLabel;
             LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.distanceAddress)), distanceAddressLabel, () => {});
             LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.changeOverTimeAddress)), changeOverTimeAddressLabel, () =>
             {
@@ -119,15 +133,15 @@ namespace HVR.Basis.Comms.Editor
             {
                 EditorGUILayout.Separator();
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DeveloperViewLabel, EditorStyles.boldLabel);
-                EditorGUILayout.FloatField("Value before post-processing", my.LastIntermediateValue);
-                EditorGUILayout.FloatField("Value", my.LastSentValue);
+                EditorGUILayout.FloatField(ValueBeforePostProcessingLabel, my.LastIntermediateValue);
+                EditorGUILayout.FloatField(ValueLabel, my.LastSentValue);
                 if (my.clampToBounds)
                 {
                     EditorGUILayout.Slider(my.LastSentValue, Mathf.Min(my.remapTo.x, my.remapTo.y), Mathf.Max(my.remapTo.x, my.remapTo.y));
                 }
                 if (my.changeOverTimeAddress.isActive)
                 {
-                    EditorGUILayout.FloatField("Change over time", my.LastChangeOverTime);
+                    EditorGUILayout.FloatField(ChangeOverTimeLabel, my.LastChangeOverTime);
                 }
 
                 // This forces the inspector to re-draw every frame when the application is playing with this inspector open,
