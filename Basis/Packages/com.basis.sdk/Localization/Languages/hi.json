@@ -265,6 +265,19 @@
     { "key": "sdk.linkGenerator.progress.buildingXml", "value": "XML बना रहा है..." },
     { "key": "sdk.linkGenerator.progress.ensuringFolder", "value": "आउटपुट फ़ोल्डर सुनिश्चित कर रहा है..." },
     { "key": "sdk.linkGenerator.progress.savingLinkXml", "value": "link.xml सहेज रहा है (केवल बदलाव होने पर)..." },
-    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "link.xml आयात कर रहा है..." }
+    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "link.xml आयात कर रहा है..." },
+
+    { "key": "projectSetup.window.title", "value": "Basis प्रोजेक्ट सेटअप" },
+    { "key": "projectSetup.header.title", "value": "Basis प्रोजेक्ट विज़ार्ड" },
+    { "key": "projectSetup.header.subtitle", "value": "क्रिएटर-फर्स्ट • रचनात्मक स्वतंत्रता\nओपन-सोर्स (MIT) • नेटवर्किंग • इनपुट • उपस्थिति" },
+    { "key": "projectSetup.tab.welcome", "value": "स्वागत है" },
+    { "key": "projectSetup.tab.buildModules", "value": "बिल्ड और मॉड्यूल" },
+    { "key": "projectSetup.tab.platformQuality", "value": "प्लेटफ़ॉर्म और गुणवत्ता" },
+    { "key": "projectSetup.tab.playXR", "value": "प्ले और XR" },
+    { "key": "projectSetup.tab.docs", "value": "डॉक्स" },
+    { "key": "projectSetup.tab.scenes", "value": "दृश्य" },
+    { "key": "projectSetup.firstRun.notice", "value": "पहली बार यहाँ! जो आप सेट कर रहे हैं उसे चुनें, बिल्ड मॉड्यूल (IL2CPP सहित) सत्यापित करें, और बिल्ड करने या प्ले दबाने से पहले अपना लक्ष्य प्लेटफ़ॉर्म चुनें।" },
+    { "key": "projectSetup.button.close", "value": "बंद करें" },
+    { "key": "projectSetup.language.label", "value": "भाषा" }
   ]
 }

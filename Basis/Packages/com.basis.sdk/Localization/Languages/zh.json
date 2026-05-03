@@ -265,6 +265,19 @@
     { "key": "sdk.linkGenerator.progress.buildingXml", "value": "正在建置 XML..." },
     { "key": "sdk.linkGenerator.progress.ensuringFolder", "value": "正在確保輸出資料夾存在..." },
     { "key": "sdk.linkGenerator.progress.savingLinkXml", "value": "正在儲存 link.xml（僅在變更時）..." },
-    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "正在匯入 link.xml..." }
+    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "正在匯入 link.xml..." },
+
+    { "key": "projectSetup.window.title", "value": "Basis 專案設定" },
+    { "key": "projectSetup.header.title", "value": "Basis 專案精靈" },
+    { "key": "projectSetup.header.subtitle", "value": "創作者優先 • 創意自由\n開源 (MIT) • 網路 • 輸入 • 臨場感" },
+    { "key": "projectSetup.tab.welcome", "value": "歡迎" },
+    { "key": "projectSetup.tab.buildModules", "value": "建置與模組" },
+    { "key": "projectSetup.tab.platformQuality", "value": "平台與品質" },
+    { "key": "projectSetup.tab.playXR", "value": "執行與 XR" },
+    { "key": "projectSetup.tab.docs", "value": "文件" },
+    { "key": "projectSetup.tab.scenes", "value": "場景" },
+    { "key": "projectSetup.firstRun.notice", "value": "首次使用！請選擇您要設定的內容，驗證建置模組（包括 IL2CPP），然後在建置或按下播放之前選擇目標平台。" },
+    { "key": "projectSetup.button.close", "value": "關閉" },
+    { "key": "projectSetup.language.label", "value": "語言" }
   ]
 }

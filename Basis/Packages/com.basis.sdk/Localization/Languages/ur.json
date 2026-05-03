@@ -265,6 +265,19 @@
     { "key": "sdk.linkGenerator.progress.buildingXml", "value": "XML بنا رہا ہے..." },
     { "key": "sdk.linkGenerator.progress.ensuringFolder", "value": "آؤٹ پٹ فولڈر کو یقینی بنا رہا ہے..." },
     { "key": "sdk.linkGenerator.progress.savingLinkXml", "value": "link.xml محفوظ کر رہا ہے (صرف تبدیلی پر)..." },
-    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "link.xml درآمد کر رہا ہے..." }
+    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "link.xml درآمد کر رہا ہے..." },
+
+    { "key": "projectSetup.window.title", "value": "Basis پروجیکٹ سیٹ اپ" },
+    { "key": "projectSetup.header.title", "value": "Basis پروجیکٹ وزرڈ" },
+    { "key": "projectSetup.header.subtitle", "value": "تخلیق کار-اول • تخلیقی آزادی\nاوپن سورس (MIT) • نیٹ ورکنگ • ان پٹ • موجودگی" },
+    { "key": "projectSetup.tab.welcome", "value": "خوش آمدید" },
+    { "key": "projectSetup.tab.buildModules", "value": "بلڈ اور ماڈیولز" },
+    { "key": "projectSetup.tab.platformQuality", "value": "پلیٹ فارم اور کوالٹی" },
+    { "key": "projectSetup.tab.playXR", "value": "پلے اور XR" },
+    { "key": "projectSetup.tab.docs", "value": "دستاویزات" },
+    { "key": "projectSetup.tab.scenes", "value": "مناظر" },
+    { "key": "projectSetup.firstRun.notice", "value": "پہلی بار یہاں! آپ جو سیٹ اپ کر رہے ہیں اسے منتخب کریں، بلڈ ماڈیولز (IL2CPP سمیت) کی تصدیق کریں، اور بلڈ کرنے یا پلے دبانے سے پہلے اپنا ٹارگٹ پلیٹ فارم منتخب کریں۔" },
+    { "key": "projectSetup.button.close", "value": "بند کریں" },
+    { "key": "projectSetup.language.label", "value": "زبان" }
   ]
 }

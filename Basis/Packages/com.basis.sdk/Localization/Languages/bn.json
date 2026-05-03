@@ -265,6 +265,19 @@
     { "key": "sdk.linkGenerator.progress.buildingXml", "value": "XML বিল্ড করা হচ্ছে..." },
     { "key": "sdk.linkGenerator.progress.ensuringFolder", "value": "আউটপুট ফোল্ডার নিশ্চিত করা হচ্ছে..." },
     { "key": "sdk.linkGenerator.progress.savingLinkXml", "value": "link.xml সংরক্ষণ করা হচ্ছে (শুধুমাত্র পরিবর্তিত হলে)..." },
-    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "link.xml আমদানি করা হচ্ছে..." }
+    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "link.xml আমদানি করা হচ্ছে..." },
+
+    { "key": "projectSetup.window.title", "value": "Basis প্রোজেক্ট সেটআপ" },
+    { "key": "projectSetup.header.title", "value": "Basis প্রোজেক্ট উইজার্ড" },
+    { "key": "projectSetup.header.subtitle", "value": "ক্রিয়েটর-ফার্স্ট • সৃজনশীল স্বাধীনতা\nওপেন-সোর্স (MIT) • নেটওয়ার্কিং • ইনপুট • উপস্থিতি" },
+    { "key": "projectSetup.tab.welcome", "value": "স্বাগতম" },
+    { "key": "projectSetup.tab.buildModules", "value": "বিল্ড এবং মডিউল" },
+    { "key": "projectSetup.tab.platformQuality", "value": "প্ল্যাটফর্ম এবং গুণমান" },
+    { "key": "projectSetup.tab.playXR", "value": "প্লে এবং XR" },
+    { "key": "projectSetup.tab.docs", "value": "ডকস" },
+    { "key": "projectSetup.tab.scenes", "value": "দৃশ্য" },
+    { "key": "projectSetup.firstRun.notice", "value": "প্রথমবার এখানে! আপনি যা সেট আপ করছেন তা বেছে নিন, বিল্ড মডিউল (IL2CPP সহ) যাচাই করুন এবং বিল্ড করার বা প্লে চাপার আগে আপনার টার্গেট প্ল্যাটফর্ম বেছে নিন।" },
+    { "key": "projectSetup.button.close", "value": "বন্ধ করুন" },
+    { "key": "projectSetup.language.label", "value": "ভাষা" }
   ]
 }

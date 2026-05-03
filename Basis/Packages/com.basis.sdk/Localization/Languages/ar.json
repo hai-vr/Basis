@@ -265,6 +265,19 @@
     { "key": "sdk.linkGenerator.progress.buildingXml", "value": "بناء XML..." },
     { "key": "sdk.linkGenerator.progress.ensuringFolder", "value": "ضمان وجود مجلد الإخراج..." },
     { "key": "sdk.linkGenerator.progress.savingLinkXml", "value": "حفظ link.xml (فقط في حالة التغيير)..." },
-    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "استيراد link.xml..." }
+    { "key": "sdk.linkGenerator.progress.importingLinkXml", "value": "استيراد link.xml..." },
+
+    { "key": "projectSetup.window.title", "value": "إعداد مشروع Basis" },
+    { "key": "projectSetup.header.title", "value": "معالج مشروع Basis" },
+    { "key": "projectSetup.header.subtitle", "value": "المُنشئ أولاً • حرية إبداعية\nمفتوح المصدر (MIT) • شبكة • إدخال • حضور" },
+    { "key": "projectSetup.tab.welcome", "value": "مرحبًا" },
+    { "key": "projectSetup.tab.buildModules", "value": "البناء والوحدات" },
+    { "key": "projectSetup.tab.platformQuality", "value": "النظام الأساسي والجودة" },
+    { "key": "projectSetup.tab.playXR", "value": "التشغيل و XR" },
+    { "key": "projectSetup.tab.docs", "value": "الوثائق" },
+    { "key": "projectSetup.tab.scenes", "value": "المشاهد" },
+    { "key": "projectSetup.firstRun.notice", "value": "أول مرة هنا! اختر ما تقوم بإعداده، وتحقق من وحدات البناء (بما في ذلك IL2CPP)، واختر النظام الأساسي المستهدف قبل البناء أو الضغط على تشغيل." },
+    { "key": "projectSetup.button.close", "value": "إغلاق" },
+    { "key": "projectSetup.language.label", "value": "اللغة" }
   ]
 }
