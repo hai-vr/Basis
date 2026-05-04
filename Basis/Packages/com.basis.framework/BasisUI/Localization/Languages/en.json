@@ -835,8 +835,8 @@
     { "key": "settings.perf.contentTags.custom.description", "value": "Block your own tag strings. Type a tag and press Enter or Add to start blocking it. Toggle a custom tag off to remove it." },
     { "key": "settings.perf.contentTags.custom.addLabel", "value": "Tag" },
     { "key": "settings.perf.contentTags.custom.addButton", "value": "Add" },
-    { "key": "settings.developer.didKey.description", "value": "Your DID — the long-lived identifier the server keys bans, permissions, and content shares against. Read-only; tap the eye icon to reveal." },
-    { "key": "settings.developer.didKey.field", "value": "DID" },
+    { "key": "settings.developer.didKey.description", "value": "Your UUID — the long-lived identifier the server keys bans, permissions, and content shares against. Read-only; tap the eye icon to reveal." },
+    { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
     { "key": "settings.moderator.title", "value": "Moderator" }
