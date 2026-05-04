@@ -10,7 +10,8 @@
         "HVR.Basis.Comms.HVRUtility",
         "Unity.Addressables",
         "Unity.ResourceManager",
-        "BasisNetworkClient"
+        "BasisNetworkClient",
+        "BasisBundleManagement"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
