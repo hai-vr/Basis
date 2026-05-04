@@ -13,7 +13,8 @@ namespace HVR.Vixxy.Editor
         public static List<string> ListAllBlendshapes(SkinnedMeshRenderer renderer)
         {
             var results = new List<string>();
-            if (renderer.sharedMesh is { } mesh)
+            var mesh = renderer.sharedMesh;
+            if (mesh != null)
             {
                 for (var i = 0; i < mesh.blendShapeCount; i++)
                 {
