@@ -38,7 +38,7 @@ namespace HVR.Basis.Comms
         public bool clampToBounds;
 
         // Output
-        public HVRAddressSelectorToggle distanceAddress;
+        public HVRAddressSelectorToggle valueAddress;
         public HVRAddressSelectorToggle hitAddress;
         public HVRAddressSelectorToggle changeOverTimeAddress;
         public bool differenceAbsoluteValue;
@@ -126,7 +126,7 @@ namespace HVR.Basis.Comms
 
             PruneUnusedReferences();
 
-            (DistanceAddress, DistanceAddressId) = distanceAddress.isActive ? distanceAddress.address.ResolvePathOrDefaultToAvatar(this) : ("", 0);
+            (DistanceAddress, DistanceAddressId) = valueAddress.isActive ? valueAddress.address.ResolvePathOrDefaultToAvatar(this) : ("", 0);
             (HitAddress, HitAddressId) = hitAddress.isActive ? hitAddress.address.ResolvePathOrDefaultToAvatar(this) : ("", 0);
             (DifferenceAddress, DifferenceAddressId) = changeOverTimeAddress.isActive ? changeOverTimeAddress.address.ResolvePathOrDefaultToAvatar(this) : ("", 0);
         }
@@ -228,7 +228,7 @@ namespace HVR.Basis.Comms
                     allowedMaximumDistanceInWorldSpace = Mathf.Min(transformationVectorInWorldSpace.magnitude, MaximumRaycastDistanceInWorldSpace);
                 }
 
-                var needsActualRaycast = distanceAddress.isActive || changeOverTimeAddress.isActive;
+                var needsActualRaycast = valueAddress.isActive || changeOverTimeAddress.isActive;
                 if (needsActualRaycast)
                 {
                     var ray = new Ray(from.position, transformationVectorInWorldSpace);
@@ -326,7 +326,7 @@ namespace HVR.Basis.Comms
                     finalValue = Mathf.Clamp(finalValue, remapTo.x, remapTo.y);
                 }
 
-                if (distanceAddress.isActive) FinallySubmit(DistanceAddressId, finalValue);
+                if (valueAddress.isActive) FinallySubmit(DistanceAddressId, finalValue);
                 if (hitAddress.isActive) FinallySubmit(HitAddressId, hit ? 1f : 0f);
                 if (changeOverTimeAddress.isActive)
                 {
