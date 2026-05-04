@@ -36,6 +36,8 @@ namespace HVR.Basis.Comms
         private AvatarMessageProcessing variableNetworkingProcessing;
         private HVRVariableNetworking _variableNetworking;
 
+        private List<GameObject> _netObjects;
+
         public HVRAvatarComms()
         {
             _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
@@ -101,10 +103,20 @@ namespace HVR.Basis.Comms
                 carrier.index = index;
             }
 
-            var holder = new GameObject("Generated__VariableNetworking")
+            if (_netObjects != null)
+            {
+                foreach (var netObject in _netObjects)
+                {
+                    if (null != netObject) Destroy(netObject);
+                }
+            }
+            _netObjects = new List<GameObject>();
+
+            var holder = new GameObject("GeneratedNetworking__VariableNetworking")
             {
                 transform = { parent = avatar.transform }
             };
+            _netObjects.Add(holder);
             holder.SetActive(false);
             _variableNetworking = holder.AddComponent<HVRVariableNetworking>();
             _variableNetworking.isWearer = isWearer;
@@ -132,10 +144,11 @@ namespace HVR.Basis.Comms
 
         private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)
         {
-            var holder = new GameObject("Streamed-Mutualized")
+            var holder = new GameObject("GeneratedNetworking__Streamed-Mutualized")
             {
                 transform = { parent = avatar.transform }
             };
+            _netObjects.Add(holder);
             holder.SetActive(false);
             _streamedLateInit = holder.AddComponent<StreamedAvatarFeature>();
             _streamedLateInit.valueArraySize = (byte)_ranges.Count; // TODO: Sanitize count to be within bounds
