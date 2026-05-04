@@ -101,8 +101,9 @@ public static class BasisAssetBundlePipeline
                         if (forAvatar.asset == null) throw new InvalidOperationException("Cannot bundle null additional assets.");
                         if (forAvatar.asset is GameObject or Transform or Component) throw new InvalidOperationException("Cannot bundle GameObjects, Transforms, or Components as additional assets.");
 
-                        var additionalAssetPath = AssetDatabase.GetAssetPath(forAvatar.asset);
-                        if (string.IsNullOrEmpty(additionalAssetPath)) throw new InvalidOperationException("Cannot bundle additional assets that are not in the project.");
+                        // We cannot just use AssetDatabase.AddObjectToAsset because the asset path of a Mesh is very often the path of the .fbx, which is a GameObject.
+                        // We're using SaveAssetToTemporaryStorage to create a container that references the asset.
+                        var additionalAssetPath = TemporaryStorageHandler.SaveAssetToTemporaryStorage(forAvatar.asset, settings, out _);
                         additionalAssetPaths.Add(additionalAssetPath);
 
                         // Dereference it so that it doesn't get bundled into main.
