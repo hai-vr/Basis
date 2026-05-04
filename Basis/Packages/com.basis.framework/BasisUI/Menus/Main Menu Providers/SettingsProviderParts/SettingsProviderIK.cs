@@ -500,7 +500,9 @@ public static class SettingsProviderIK
     // ------------------
     // Debug Info
     // ------------------
-    private static readonly List<(string label, PanelElementDescriptor descriptor)> _debugEntries = new();
+    // One card per category. Each card's description holds all of its metrics as
+    // "Label: value" lines, so the panel collapses from ~27 group cards to 6.
+    private static readonly List<(string title, string[] labels, PanelElementDescriptor descriptor)> _debugCategories = new();
 
     private static void BuildDebugSection(PanelElementDescriptor tabDesc)
     {
@@ -518,54 +520,32 @@ public static class SettingsProviderIK
 
         var debugParent = debugGroup.ContentParent;
 
-        _debugEntries.Clear();
+        _debugCategories.Clear();
 
-        // Player Metrics
-        AddDebugHeader(debugParent, "Player Metrics");
-        AddDebugEntry(debugParent, "Player Eye Height");
-        AddDebugEntry(debugParent, "Player Arm Span");
-        AddDebugEntry(debugParent, "Additional Player Height");
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.playerMetrics"),
+            "Player Eye Height", "Player Arm Span", "Additional Player Height");
 
-        // Avatar Metrics
-        AddDebugHeader(debugParent, "Avatar Metrics");
-        AddDebugEntry(debugParent, "Avatar Eye Height");
-        AddDebugEntry(debugParent, "Avatar Arm Span");
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.avatarMetrics"),
+            "Avatar Eye Height", "Avatar Arm Span");
 
-        // Scaled Heights
-        AddDebugHeader(debugParent, "Scaled Heights");
-        AddDebugEntry(debugParent, "Scaled Player Height");
-        AddDebugEntry(debugParent, "Scaled Avatar Height");
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.scaledHeights"),
+            "Scaled Player Height", "Scaled Avatar Height");
 
-        // Unscaled Heights
-        AddDebugHeader(debugParent, "Unscaled Heights");
-        AddDebugEntry(debugParent, "Unscaled Player Height");
-        AddDebugEntry(debugParent, "Unscaled Avatar Height");
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.unscaledHeights"),
+            "Unscaled Player Height", "Unscaled Avatar Height");
 
-        // Ratios & Scaling
-        AddDebugHeader(debugParent, "Ratios & Scaling");
-        AddDebugEntry(debugParent, "Player to Avatar Ratio");
-        AddDebugEntry(debugParent, "Avatar to Player Ratio");
-        AddDebugEntry(debugParent, "Device Scale");
-        AddDebugEntry(debugParent, "Applied Up Scale");
-        AddDebugEntry(debugParent, "Scaled to Match Value");
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.ratiosScaling"),
+            "Player to Avatar Ratio", "Avatar to Player Ratio", "Device Scale", "Applied Up Scale", "Scaled to Match Value");
 
-        // Calibration State
-        AddDebugHeader(debugParent, "Calibration State");
-        AddDebugEntry(debugParent, "Height Mode");
-        AddDebugEntry(debugParent, "Seated Mode");
-        AddDebugEntry(debugParent, "Seated Height Delta");
-        AddDebugEntry(debugParent, "Pitch Calibration Enabled");
-        AddDebugEntry(debugParent, "Has Pitch Calibrated Height");
-        AddDebugEntry(debugParent, "Pitch Calibrated Eye Height");
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.calibrationState"),
+            "Height Mode", "Seated Mode", "Seated Height Delta", "Pitch Calibration Enabled", "Has Pitch Calibrated Height", "Pitch Calibrated Eye Height");
 
-        // Refresh button
         var refreshButton = PanelButton.CreateNew(debugParent);
         refreshButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.refreshDebug"));
         refreshButton.OnClicked += RefreshDebugData;
 
         RefreshDebugData();
 
-        // Start hidden, toggle controls visibility
         debugGroup.gameObject.SetActive(false);
         debugToggle.SetValueWithoutNotify(false);
         debugToggle.OnValueChanged += visible =>
@@ -579,57 +559,55 @@ public static class SettingsProviderIK
         };
     }
 
-    private static void AddDebugHeader(RectTransform parent, string title)
+    private static void AddDebugCategory(RectTransform parent, string title, params string[] labels)
     {
-        var header = PanelElementDescriptor.CreateNew(
+        var card = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             parent);
-        header.SetTitle(title);
-        header.SetDescription("");
-    }
-
-    private static void AddDebugEntry(RectTransform parent, string label)
-    {
-        var entry = PanelElementDescriptor.CreateNew(
-            PanelElementDescriptor.ElementStyles.Group,
-            parent);
-        entry.SetTitle(label);
-        entry.SetDescription("--");
-        _debugEntries.Add((label, entry));
+        card.SetTitle(title);
+        card.SetDescription("");
+        _debugCategories.Add((title, labels, card));
     }
 
     private static void RefreshDebugData()
     {
-        foreach (var (label, descriptor) in _debugEntries)
+        var sb = new System.Text.StringBuilder();
+        foreach (var (title, labels, descriptor) in _debugCategories)
         {
-            string value = label switch
+            sb.Clear();
+            for (int i = 0; i < labels.Length; i++)
             {
-                "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
-                "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
-                "Additional Player Height" => $"{BasisHeightDriver.AdditionalPlayerHeight:F4} m",
-                "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
-                "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
-                "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
-                "Scaled Avatar Height" => $"{BasisHeightDriver.SelectedScaledAvatarHeight:F4} m",
-                "Unscaled Player Height" => $"{BasisHeightDriver.SelectedUnScaledPlayerHeight:F4} m",
-                "Unscaled Avatar Height" => $"{BasisHeightDriver.SelectedUnScaledAvatarHeight:F4} m",
-                "Player to Avatar Ratio" => $"{BasisHeightDriver.PlayerToAvatarRatioScaled:F4}",
-                "Avatar to Player Ratio" => $"{BasisHeightDriver.AvatarToPlayerRatioScaled:F4}",
-                "Device Scale" => $"{BasisHeightDriver.DeviceScale:F4}",
-                "Applied Up Scale" => $"{BasisHeightDriver.AppliedUpScale:F4}",
-                "Scaled to Match Value" => $"{BasisHeightDriver.ScaledToMatchValue:F4}",
-                "Height Mode" => $"{SMModuleCalibration.HeightMode}",
-                "Seated Mode" => SMModuleSitStand.IsSteatedMode ? "Seated" : "Standing",
-                "Seated Height Delta" => $"{SMModuleSitStand.MissingHeightDelta:F4} m",
-                "Pitch Calibration Enabled" => SMModuleCalibration.PitchCalibrationEnabled ? "Yes" : "No",
-                "Has Pitch Calibrated Height" => BasisHeightDriver.HasPitchCalibratedHeight ? "Yes" : "No",
-                "Pitch Calibrated Eye Height" => $"{BasisHeightDriver.PitchCalibratedEyeHeight:F4} m",
-                _ => "--"
-            };
-
-            descriptor.SetDescription(value);
+                if (i > 0) sb.Append('\n');
+                sb.Append(labels[i]).Append(": ").Append(GetDebugMetric(labels[i]));
+            }
+            descriptor.SetDescription(sb.ToString());
         }
     }
+
+    private static string GetDebugMetric(string label) => label switch
+    {
+        "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
+        "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
+        "Additional Player Height" => $"{BasisHeightDriver.AdditionalPlayerHeight:F4} m",
+        "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
+        "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
+        "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
+        "Scaled Avatar Height" => $"{BasisHeightDriver.SelectedScaledAvatarHeight:F4} m",
+        "Unscaled Player Height" => $"{BasisHeightDriver.SelectedUnScaledPlayerHeight:F4} m",
+        "Unscaled Avatar Height" => $"{BasisHeightDriver.SelectedUnScaledAvatarHeight:F4} m",
+        "Player to Avatar Ratio" => $"{BasisHeightDriver.PlayerToAvatarRatioScaled:F4}",
+        "Avatar to Player Ratio" => $"{BasisHeightDriver.AvatarToPlayerRatioScaled:F4}",
+        "Device Scale" => $"{BasisHeightDriver.DeviceScale:F4}",
+        "Applied Up Scale" => $"{BasisHeightDriver.AppliedUpScale:F4}",
+        "Scaled to Match Value" => $"{BasisHeightDriver.ScaledToMatchValue:F4}",
+        "Height Mode" => $"{SMModuleCalibration.HeightMode}",
+        "Seated Mode" => SMModuleSitStand.IsSteatedMode ? "Seated" : "Standing",
+        "Seated Height Delta" => $"{SMModuleSitStand.MissingHeightDelta:F4} m",
+        "Pitch Calibration Enabled" => SMModuleCalibration.PitchCalibrationEnabled ? "Yes" : "No",
+        "Has Pitch Calibrated Height" => BasisHeightDriver.HasPitchCalibratedHeight ? "Yes" : "No",
+        "Pitch Calibrated Eye Height" => $"{BasisHeightDriver.PitchCalibratedEyeHeight:F4} m",
+        _ => "--"
+    };
 
     private static void ResetIkDefaults()
     {

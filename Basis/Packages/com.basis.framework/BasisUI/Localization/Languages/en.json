@@ -511,6 +511,12 @@
     { "key": "settings.bodyTracking.section.smoothing.description", "value": "Global smoothing strength, per-axis Hz, and One Euro filter parameters." },
     { "key": "settings.bodyTracking.section.perBone.title", "value": "Per-Bone Settings" },
     { "key": "settings.bodyTracking.section.perBone.description", "value": "Calibration assignments and per-bone smoothing for each tracker role." },
+    { "key": "settings.bodyTracking.debug.playerMetrics", "value": "Player Metrics" },
+    { "key": "settings.bodyTracking.debug.avatarMetrics", "value": "Avatar Metrics" },
+    { "key": "settings.bodyTracking.debug.scaledHeights", "value": "Scaled Heights" },
+    { "key": "settings.bodyTracking.debug.unscaledHeights", "value": "Unscaled Heights" },
+    { "key": "settings.bodyTracking.debug.ratiosScaling", "value": "Ratios & Scaling" },
+    { "key": "settings.bodyTracking.debug.calibrationState", "value": "Calibration State" },
 
     { "key": "settings.bodyTracking.fbt.description", "value": "Master switch for hip / chest / foot / knee trackers. Turning this off immediately drops back to head + hands + foot IK. Re-enable and re-calibrate to use trackers again." },
     { "key": "settings.bodyTracking.osc.description", "value": "Open Sound Control input on UDP 9000 / 9001 for face tracking and avatar parameters from external programs (VRCFT, etc)." },
