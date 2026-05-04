@@ -23,6 +23,20 @@ namespace Basis.Scripts.Behaviour
         {
 
         }
+        public void OnNetworkUnassign()
+        {
+            if (!IsInitalized)
+            {
+                return;
+            }
+            IsInitalized = false;
+            bool wasLocallyOwned = NetworkedPlayer != null && NetworkedPlayer.Player != null && NetworkedPlayer.Player.IsLocal;
+            OnNetworkTerminated(wasLocallyOwned);
+        }
+        public virtual void OnNetworkTerminated(bool WasLocallyOwned)
+        {
+
+        }
         public virtual void OnNetworkMessageReceived(ushort RemoteUser, byte[] buffer, DeliveryMethod DeliveryMethod)
         {
          //   BasisDebug.LogError("Data was Received but nothing interpreted it! OnNetworkMessageReceived", this.gameObject, BasisDebug.LogTag.Avatar);
