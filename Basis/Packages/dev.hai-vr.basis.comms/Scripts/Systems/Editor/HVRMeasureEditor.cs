@@ -27,6 +27,7 @@ namespace HVR.Basis.Comms.Editor
         private const string ValueBeforePostProcessingLabel = "Value before post-processing";
         private const string ValueLabel = "Value";
         private const string SpherecastRadiusLabel = "Spherecast Radius";
+        private const string AngleLabel = "Angle";
 
         private HVRMeasure my;
 
@@ -119,11 +120,15 @@ namespace HVR.Basis.Comms.Editor
                 LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.hitAddress)), HitLabel, () => {});
             }
 
-            var distanceAddressLabel = my.measurementType == HVRMeasureType.Speed ? SpeedLabel : DistanceLabel;
+            var valueAddressLabel = my.measurementType == HVRMeasureType.Speed
+                ? SpeedLabel
+                : my.measurementType is HVRMeasureType.Angle or HVRMeasureType.ComplexRotationAngle
+                ? AngleLabel
+                : DistanceLabel;
             // NOTE: The rate of change of speed is not the acceleration in 3D, as the acceleration can be nonzero on a curved path of constant speed,
             // so do not call this acceleration.
             var changeOverTimeAddressLabel = my.measurementType == HVRMeasureType.Speed ? RateOfChangeOfSpeedLabel : ChangeOverTimeLabel;
-            LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.distanceAddress)), distanceAddressLabel, () => {});
+            LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.valueAddress)), valueAddressLabel, () => {});
             LayoutAddressToggleSelector(serializedObject.FindProperty(nameof(HVRMeasure.changeOverTimeAddress)), changeOverTimeAddressLabel, () =>
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.differenceAbsoluteValue)), new GUIContent(AbsoluteValueLabel));
@@ -134,14 +139,14 @@ namespace HVR.Basis.Comms.Editor
                 EditorGUILayout.Separator();
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DeveloperViewLabel, EditorStyles.boldLabel);
                 EditorGUILayout.FloatField(ValueBeforePostProcessingLabel, my.LastIntermediateValue);
-                EditorGUILayout.FloatField(ValueLabel, my.LastSentValue);
+                EditorGUILayout.FloatField(valueAddressLabel, my.LastSentValue);
                 if (my.clampToBounds)
                 {
                     EditorGUILayout.Slider(my.LastSentValue, Mathf.Min(my.remapTo.x, my.remapTo.y), Mathf.Max(my.remapTo.x, my.remapTo.y));
                 }
                 if (my.changeOverTimeAddress.isActive)
                 {
-                    EditorGUILayout.FloatField(ChangeOverTimeLabel, my.LastChangeOverTime);
+                    EditorGUILayout.FloatField(changeOverTimeAddressLabel, my.LastChangeOverTime);
                 }
 
                 // This forces the inspector to re-draw every frame when the application is playing with this inspector open,
