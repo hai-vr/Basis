@@ -1,6 +1,24 @@
 Changelog
 =====
 
+## 2025-05-04
+
+*Authored by Haï~*
+
+Fixes:
+- Fix editor was unable to switch between object groups or delete one because a key already exists.
+- Fix rejoining or joining multiple servers with the same avatar was incorrectly not submitting the state of the avatar to other users.
+- Workaround initialization packet was exceeding the maximum size when a large number of toggles was created.
+  - The initialization packet is now chunked into groups of 10 toggles per packet.
+
+## 2025-05-02
+
+*Authored by Haï~*
+
+Modifications in existing HVR.Basis systems:
+- The Basis Framework has changed the "My Avatar" settings tab and its API.
+- Re-integrate Vixxy into the new "Avatar Customization" settings tab.
+
 ## 2026-05-01
 
 *Authored by Haï~*
