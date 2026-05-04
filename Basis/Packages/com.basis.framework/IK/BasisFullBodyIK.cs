@@ -183,6 +183,13 @@ namespace UnityEngine.Animations.Rigging
         [SerializeField] Transform m_LeftShoulder;
         [SerializeField] Transform m_RightShoulder;
 
+        // Twist bones — derived bones that absorb a fraction of wrist/elbow roll for natural
+        // forearm/upper-arm deformation. Optional per rig; when null, the side is skipped.
+        [SerializeField] Transform m_LeftUpperArmTwist;
+        [SerializeField] Transform m_LeftLowerArmTwist;
+        [SerializeField] Transform m_RightUpperArmTwist;
+        [SerializeField] Transform m_RightLowerArmTwist;
+
         // Head
         [SyncSceneToStream, SerializeField] public Vector3 PositionHead;
         [SyncSceneToStream, SerializeField] public Quaternion RotationHead;
@@ -326,6 +333,11 @@ namespace UnityEngine.Animations.Rigging
         // tracker — when one is present, it owns chest rotation directly.
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_ChestArmSwingFactor;
         [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestArmSwingMaxDeg;
+        // Arm twist distribution: fractions of the wrist/elbow roll absorbed by the optional
+        // forearm/upper-arm twist bones. Without these, the wrist eats 100% of the roll and the
+        // mesh pinches around the elbow ("candy-wrap" deformation).
+        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_LowerArmTwistFraction;
+        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_UpperArmTwistFraction;
 
         public float minHeadSpineHeight
         {
@@ -356,6 +368,10 @@ namespace UnityEngine.Animations.Rigging
         public Transform upperChest { get => m_UpperChest; set => m_UpperChest = value; }
         public Transform LeftShoulder { get => m_LeftShoulder; set => m_LeftShoulder = value; }
         public Transform RightShoulder { get => m_RightShoulder; set => m_RightShoulder = value; }
+        public Transform LeftUpperArmTwist { get => m_LeftUpperArmTwist; set => m_LeftUpperArmTwist = value; }
+        public Transform LeftLowerArmTwist { get => m_LeftLowerArmTwist; set => m_LeftLowerArmTwist = value; }
+        public Transform RightUpperArmTwist { get => m_RightUpperArmTwist; set => m_RightUpperArmTwist = value; }
+        public Transform RightLowerArmTwist { get => m_RightLowerArmTwist; set => m_RightLowerArmTwist = value; }
         public string EnabledPropertySpineIK => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineIKEnabled));
         public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintHeadEnabled));
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
@@ -478,6 +494,8 @@ namespace UnityEngine.Animations.Rigging
         public float SpineSquishBoost { get => m_SpineSquishBoost; set => m_SpineSquishBoost = value; }
         public float ChestArmSwingFactor { get => m_ChestArmSwingFactor; set => m_ChestArmSwingFactor = value; }
         public float ChestArmSwingMaxDeg { get => m_ChestArmSwingMaxDeg; set => m_ChestArmSwingMaxDeg = value; }
+        public float LowerArmTwistFraction { get => m_LowerArmTwistFraction; set => m_LowerArmTwistFraction = value; }
+        public float UpperArmTwistFraction { get => m_UpperArmTwistFraction; set => m_UpperArmTwistFraction = value; }
         public string SpineBendPitchFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendPitch));
         public string SpineBendYawFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendYaw));
         public string SpineBendRollFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendRoll));
@@ -494,6 +512,8 @@ namespace UnityEngine.Animations.Rigging
         public string SpineSquishBoostFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineSquishBoost));
         public string ChestArmSwingFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingFactor));
         public string ChestArmSwingMaxDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingMaxDeg));
+        public string LowerArmTwistFractionFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LowerArmTwistFraction));
+        public string UpperArmTwistFractionFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UpperArmTwistFraction));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -586,6 +606,8 @@ namespace UnityEngine.Animations.Rigging
             m_SpineSquishBoost = 0.5f;
             m_ChestArmSwingFactor = 0.3f;
             m_ChestArmSwingMaxDeg = 15f;
+            m_LowerArmTwistFraction = 0.5f;
+            m_UpperArmTwistFraction = 0.3f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -795,7 +817,9 @@ namespace UnityEngine.Animations.Rigging
 
   HandleLeftToe, HandleRightToe,
   HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
-  HandleRightUpperArm, HandleRightLowerArm, HandleRightHand;
+  HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
+  HandleLeftUpperArmTwist, HandleLeftLowerArmTwist,
+  HandleRightUpperArmTwist, HandleRightLowerArmTwist;
 
         public Vector3Property targetPositionHead, TargetChestPosition, bendNormalHead, playerUp, KneeBendPrefLeft, KneeBendPrefRight, ElbowBendPrefLeft, ElbowBendPrefRight,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
@@ -871,6 +895,7 @@ w20, w54;
         public FloatProperty spineMaxForwardDeg, spineMaxBackwardDeg, spineMaxLateralDeg;
         public FloatProperty spineSquishBoost;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
+        public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -915,6 +940,15 @@ w20, w54;
             // 4) Hands: two-bone IK with collision + elbow protection
             SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
             SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+
+            // 4b) Arm twist distribution: spread wrist/elbow roll along the optional twist bones
+            // so the mesh doesn't pinch at the wrist when the hand rotates.
+            float lowerTwist = lowerArmTwistFraction.Get(stream);
+            float upperTwist = upperArmTwistFraction.Get(stream);
+            SolveArmTwist(stream, HandleLeftLowerArm, HandleLeftHand, HandleLeftLowerArmTwist, lowerTwist);
+            SolveArmTwist(stream, HandleRightLowerArm, HandleRightHand, HandleRightLowerArmTwist, lowerTwist);
+            SolveArmTwist(stream, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftUpperArmTwist, upperTwist);
+            SolveArmTwist(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightUpperArmTwist, upperTwist);
 
             // 5) Toes
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
@@ -1265,6 +1299,52 @@ w20, w54;
 
             Quaternion deltaWorld = hipsRot * Quaternion.AngleAxis(yawDeg, Vector3.up) * invHips;
             HandleChest.SetRotation(stream, deltaWorld * HandleChest.GetRotation(stream));
+        }
+        // Distributes a fraction of the child bone's roll (around the parent bone's longitudinal
+        // axis) onto a twist bone that sits as a child of the parent. Uses swing-twist quaternion
+        // decomposition: the child's local rotation is split into a "swing" (axis perpendicular to
+        // the bone) and a "twist" (axis along the bone). We apply only the twist component, scaled
+        // by `fraction`, to the twist bone — the original child bone's rotation is not changed.
+        // No-op when the twist handle isn't bound (rig has no twist bone) or fraction is zero.
+        void SolveArmTwist(AnimationStream stream, ReadWriteTransformHandle parent, ReadWriteTransformHandle child, ReadWriteTransformHandle twist, float fraction)
+        {
+            if (!twist.IsValid(stream) || fraction <= 0f)
+                return;
+            if (!parent.IsValid(stream) || !child.IsValid(stream))
+                return;
+
+            Quaternion parentRot = parent.GetRotation(stream);
+            Quaternion childRot = child.GetRotation(stream);
+
+            // Bone-local longitudinal axis: direction from parent origin to child origin in
+            // parent's local frame. This adapts to whatever axis the rig uses (X, Y, or Z).
+            Vector3 worldDir = child.GetPosition(stream) - parent.GetPosition(stream);
+            if (worldDir.sqrMagnitude < k_SqrEpsilon)
+                return;
+            Vector3 axis = (Quaternion.Inverse(parentRot) * worldDir).normalized;
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            // Child's rotation in parent-local space, then twist component around `axis`.
+            Quaternion childLocal = Quaternion.Inverse(parentRot) * childRot;
+            Quaternion twistOnly = ExtractTwist(childLocal, axis);
+            Quaternion partialTwist = Quaternion.Slerp(Quaternion.identity, twistOnly, Mathf.Clamp01(fraction));
+
+            // Twist bone is a child of `parent`, so its world rotation is parent * partial.
+            twist.SetRotation(stream, parentRot * partialTwist);
+        }
+        // Swing-twist decomposition: extracts the rotation of `q` around `axis` (unit vector).
+        // q = swing * twist, where twist's axis is parallel to `axis`.
+        static Quaternion ExtractTwist(Quaternion q, Vector3 axis)
+        {
+            Vector3 ra = new Vector3(q.x, q.y, q.z);
+            Vector3 p = Vector3.Project(ra, axis);
+            Quaternion twist = new Quaternion(p.x, p.y, p.z, q.w);
+            float magSq = twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
+            if (magSq < k_SqrEpsilon)
+                return Quaternion.identity;
+            float invMag = 1f / Mathf.Sqrt(magSq);
+            return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
         }
         static Vector3 SignedEuler(Vector3 e)
         {
@@ -2077,6 +2157,10 @@ w20, w54;
                 HandleRightUpperArm = BindHandle(animator, data.RightUpperArm),
                 HandleRightLowerArm = BindHandle(animator, data.RightLowerArm),
                 HandleRightHand = BindHandle(animator, data.RightHand),
+                HandleLeftUpperArmTwist = BindHandle(animator, data.LeftUpperArmTwist),
+                HandleLeftLowerArmTwist = BindHandle(animator, data.LeftLowerArmTwist),
+                HandleRightUpperArmTwist = BindHandle(animator, data.RightUpperArmTwist),
+                HandleRightLowerArmTwist = BindHandle(animator, data.RightLowerArmTwist),
                 HandleSpine = BindHandle(animator, data.spine),
                 HandleUpperChest = BindHandle(animator, data.upperChest),
                 HandleLeftShoulder = BindHandle(animator, data.LeftShoulder),
@@ -2182,6 +2266,8 @@ w20, w54;
                 spineSquishBoost = FloatProperty.Bind(animator, component, data.SpineSquishBoostFloatProperty),
                 chestArmSwingFactor = FloatProperty.Bind(animator, component, data.ChestArmSwingFactorFloatProperty),
                 chestArmSwingMaxDeg = FloatProperty.Bind(animator, component, data.ChestArmSwingMaxDegFloatProperty),
+                lowerArmTwistFraction = FloatProperty.Bind(animator, component, data.LowerArmTwistFractionFloatProperty),
+                upperArmTwistFraction = FloatProperty.Bind(animator, component, data.UpperArmTwistFractionFloatProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

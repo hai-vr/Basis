@@ -890,6 +890,9 @@ namespace Basis.BasisUI
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
+        // Arm twist distribution: fraction of wrist/elbow roll absorbed by twist bones
+        public static BasisSettingsBinding<float> FBIKLowerArmTwistFraction = new("fbiklowerarmtwistfraction", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> FBIKUpperArmTwistFraction = new("fbikupperarmtwistfraction", new BasisPlatformDefault<float>(0.3f));
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
         // Hides the pairing tuning sliders behind an advanced toggle so the
@@ -1374,6 +1377,8 @@ namespace Basis.BasisUI
             FBIKSpineSquishBoost.LoadBindingValue();
             FBIKChestArmSwingFactor.LoadBindingValue();
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
+            FBIKLowerArmTwistFraction.LoadBindingValue();
+            FBIKUpperArmTwistFraction.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();

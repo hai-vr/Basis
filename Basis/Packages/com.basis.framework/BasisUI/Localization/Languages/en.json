@@ -517,6 +517,12 @@
     { "key": "settings.bodyTracking.debug.unscaledHeights", "value": "Unscaled Heights" },
     { "key": "settings.bodyTracking.debug.ratiosScaling", "value": "Ratios & Scaling" },
     { "key": "settings.bodyTracking.debug.calibrationState", "value": "Calibration State" },
+    { "key": "settings.bodyTracking.section.armTwist.title", "value": "Arm Twist" },
+    { "key": "settings.bodyTracking.section.armTwist.description", "value": "Distributes wrist and elbow roll along optional twist bones to prevent the mesh from pinching at the wrist when the hand rotates. No effect on rigs without twist bones." },
+    { "key": "settings.bodyTracking.lowerArmTwist.title", "value": "Forearm Twist Fraction" },
+    { "key": "settings.bodyTracking.lowerArmTwist.description", "value": "Fraction of the wrist's roll absorbed by the forearm twist bone. Default: 0.5" },
+    { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Upper Arm Twist Fraction" },
+    { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fraction of the elbow's roll absorbed by the upper arm twist bone. Default: 0.3" },
 
     { "key": "settings.bodyTracking.fbt.description", "value": "Master switch for hip / chest / foot / knee trackers. Turning this off immediately drops back to head + hands + foot IK. Re-enable and re-calibrate to use trackers again." },
     { "key": "settings.bodyTracking.osc.description", "value": "Open Sound Control input on UDP 9000 / 9001 for face tracking and avatar parameters from external programs (VRCFT, etc)." },

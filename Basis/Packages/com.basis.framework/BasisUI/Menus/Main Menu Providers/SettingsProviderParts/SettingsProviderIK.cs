@@ -263,6 +263,26 @@ public static class SettingsProviderIK
                 shoulderProtSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.shoulderProtraction.description"));
         });
 
+        // ============== Arm Twist ==============
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.armTwist.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.armTwist.description"), false, twistParent =>
+        {
+            var lowerArmTwist = PanelSlider.CreateAndBind(
+                twistParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lowerArmTwist.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLowerArmTwistFraction);
+            if (lowerArmTwist != null)
+                lowerArmTwist.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lowerArmTwist.description"));
+
+            var upperArmTwist = PanelSlider.CreateAndBind(
+                twistParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.upperArmTwist.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKUpperArmTwistFraction);
+            if (upperArmTwist != null)
+                upperArmTwist.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.upperArmTwist.description"));
+        });
+
         // ============== Spine: Reach Limits ==============
         CreateCollapsibleSection(tabDesc, colliderGroup,
             BasisLocalization.Get("settings.bodyTracking.section.spineReach.title"),
@@ -668,6 +688,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKSpineSquishBoost.ResetToDefault();
         BasisSettingsDefaults.FBIKChestArmSwingFactor.ResetToDefault();
         BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLowerArmTwistFraction.ResetToDefault();
+        BasisSettingsDefaults.FBIKUpperArmTwistFraction.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)
