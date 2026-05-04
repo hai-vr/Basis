@@ -283,6 +283,25 @@ public static class SettingsProviderIK
                 upperArmTwist.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.upperArmTwist.description"));
         });
 
+        // ============== Anatomy (Experimental) ==============
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.anatomy.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.anatomy.description"), false, anatomyParent =>
+        {
+            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatDifferentialStiffness,
+                "settings.bodyTracking.anat.diffStiffness.title",
+                "settings.bodyTracking.anat.diffStiffness.description");
+            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatShoulderSlide,
+                "settings.bodyTracking.anat.shoulderSlide.title",
+                "settings.bodyTracking.anat.shoulderSlide.description");
+            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatCervicalLordosis,
+                "settings.bodyTracking.anat.cervicalLordosis.title",
+                "settings.bodyTracking.anat.cervicalLordosis.description");
+            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
+                "settings.bodyTracking.anat.pelvicTwistRouting.title",
+                "settings.bodyTracking.anat.pelvicTwistRouting.description");
+        });
+
         // ============== Spine: Reach Limits ==============
         CreateCollapsibleSection(tabDesc, colliderGroup,
             BasisLocalization.Get("settings.bodyTracking.section.spineReach.title"),
@@ -690,6 +709,10 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKLowerArmTwistFraction.ResetToDefault();
         BasisSettingsDefaults.FBIKUpperArmTwistFraction.ResetToDefault();
+        BasisSettingsDefaults.FBIKAnatDifferentialStiffness.ResetToDefault();
+        BasisSettingsDefaults.FBIKAnatShoulderSlide.ResetToDefault();
+        BasisSettingsDefaults.FBIKAnatCervicalLordosis.ResetToDefault();
+        BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)
@@ -857,6 +880,14 @@ public static class SettingsProviderIK
 
         bool allOn = _bones.All(b => b.EuroPos.RawValue && b.EuroRot.RawValue);
         BasisSettingsDefaults.FBIKEuroAll.SetValue(allOn);
+    }
+
+    private static void AddExperimentalToggle(RectTransform parent, BasisSettingsBinding<bool> binding, string titleKey, string descriptionKey)
+    {
+        var toggle = PanelToggle.CreateNewEntry(parent);
+        toggle.Descriptor.SetTitle(BasisLocalization.Get(titleKey));
+        toggle.Descriptor.SetDescription(BasisLocalization.Get(descriptionKey));
+        toggle.AssignBinding(binding);
     }
 
     private static void CreateCollapsibleSection(PanelElementDescriptor tabDesc, PanelElementDescriptor parentGroup, string title, string description, bool defaultOpen, Action<RectTransform> addContent)

@@ -894,6 +894,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKLowerArmTwistFraction = new("fbiklowerarmtwistfraction", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> FBIKUpperArmTwistFraction = new("fbikupperarmtwistfraction", new BasisPlatformDefault<float>(0.3f));
 
+        // Anatomy (Experimental) — opt-in IK refinements modeled on real biomechanics. All off
+        // by default because they change spine / shoulder / foot behavior in subtle ways that
+        // some users may prefer to tune manually via the existing per-axis sliders.
+        public static BasisSettingsBinding<bool> FBIKAnatDifferentialStiffness = new("fbikanatdiffstiffness", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting", new BasisPlatformDefault<bool>(false));
+
+
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
         // Hides the pairing tuning sliders behind an advanced toggle so the
         // tracker linking page stays approachable for the common case.
@@ -1379,6 +1388,10 @@ namespace Basis.BasisUI
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
             FBIKLowerArmTwistFraction.LoadBindingValue();
             FBIKUpperArmTwistFraction.LoadBindingValue();
+            FBIKAnatDifferentialStiffness.LoadBindingValue();
+            FBIKAnatShoulderSlide.LoadBindingValue();
+            FBIKAnatCervicalLordosis.LoadBindingValue();
+            FBIKAnatPelvicTwistRouting.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();

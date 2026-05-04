@@ -339,6 +339,13 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_LowerArmTwistFraction;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_UpperArmTwistFraction;
 
+        // Anatomy (Experimental): opt-in IK refinements modeled on real biomechanics. Off by
+        // default — enable via the settings panel. Each toggle gates its own solver pass.
+        [SyncSceneToStream, SerializeField] bool m_AnatDifferentialStiffness;
+        [SyncSceneToStream, SerializeField] bool m_AnatShoulderSlide;
+        [SyncSceneToStream, SerializeField] bool m_AnatCervicalLordosis;
+        [SyncSceneToStream, SerializeField] bool m_AnatPelvicTwistRouting;
+
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -496,6 +503,10 @@ namespace UnityEngine.Animations.Rigging
         public float ChestArmSwingMaxDeg { get => m_ChestArmSwingMaxDeg; set => m_ChestArmSwingMaxDeg = value; }
         public float LowerArmTwistFraction { get => m_LowerArmTwistFraction; set => m_LowerArmTwistFraction = value; }
         public float UpperArmTwistFraction { get => m_UpperArmTwistFraction; set => m_UpperArmTwistFraction = value; }
+        public bool AnatDifferentialStiffness { get => m_AnatDifferentialStiffness; set => m_AnatDifferentialStiffness = value; }
+        public bool AnatShoulderSlide { get => m_AnatShoulderSlide; set => m_AnatShoulderSlide = value; }
+        public bool AnatCervicalLordosis { get => m_AnatCervicalLordosis; set => m_AnatCervicalLordosis = value; }
+        public bool AnatPelvicTwistRouting { get => m_AnatPelvicTwistRouting; set => m_AnatPelvicTwistRouting = value; }
         public string SpineBendPitchFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendPitch));
         public string SpineBendYawFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendYaw));
         public string SpineBendRollFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendRoll));
@@ -514,6 +525,10 @@ namespace UnityEngine.Animations.Rigging
         public string ChestArmSwingMaxDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingMaxDeg));
         public string LowerArmTwistFractionFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LowerArmTwistFraction));
         public string UpperArmTwistFractionFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UpperArmTwistFraction));
+        public string AnatDifferentialStiffnessProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatDifferentialStiffness));
+        public string AnatShoulderSlideProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatShoulderSlide));
+        public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
+        public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -608,6 +623,11 @@ namespace UnityEngine.Animations.Rigging
             m_ChestArmSwingMaxDeg = 15f;
             m_LowerArmTwistFraction = 0.5f;
             m_UpperArmTwistFraction = 0.3f;
+
+            m_AnatDifferentialStiffness = false;
+            m_AnatShoulderSlide = false;
+            m_AnatCervicalLordosis = false;
+            m_AnatPelvicTwistRouting = false;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -896,6 +916,7 @@ w20, w54;
         public FloatProperty spineSquishBoost;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
+        public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -921,6 +942,9 @@ w20, w54;
             // 1) Spine: hips + chest/neck/head chain
             SolveSpine(stream);
 
+            // 1b) Anatomy modifiers that act on the spine after the main solve.
+            if (anatCervicalLordosis.Get(stream)) ApplyCervicalLordosis(stream);
+
             // 2) Shoulder pre-solve: elevate/protract based on hand targets before arm IK
             if (shoulderSolveEnabled.Get(stream))
             {
@@ -932,6 +956,7 @@ w20, w54;
                 ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
                 ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             }
+            if (anatShoulderSlide.Get(stream)) ApplyShoulderSlide(stream);
 
             // 3) Legs: two-bone IK with bend normal preference
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
@@ -1125,12 +1150,35 @@ w20, w54;
             float bendT = Mathf.Clamp01((bendMag - k_BendDeadbandDeg) / k_BendDeadbandWidthDeg);
             float bendGate = Mathf.SmoothStep(0f, 1f, bendT);
 
+            // Effective per-axis fractions. Anatomy toggles re-route the user weights in two ways:
+            //   - DifferentialStiffness: lumbar (spine) is twist-resistant; route most twist to
+            //     upperChest by halving spine yaw and boosting upperChest yaw.
+            //   - PelvicTwistRouting: when hip vs chest twist is the dominant source, distribute
+            //     it ~75% upperChest / 25% spine, mimicking real thoracic-dominant axial rotation.
+            float spinePitchEff = Mathf.Clamp01(spineBendPitch.Get(stream));
+            float spineYawEff = Mathf.Clamp01(spineBendYaw.Get(stream));
+            float spineRollEff = Mathf.Clamp01(spineBendRoll.Get(stream));
+            float upperPitchEff = Mathf.Clamp01(upperChestBendPitch.Get(stream));
+            float upperYawEff = Mathf.Clamp01(upperChestBendYaw.Get(stream));
+            float upperRollEff = Mathf.Clamp01(upperChestBendRoll.Get(stream));
+            if (anatDifferentialStiffness.Get(stream))
+            {
+                spineYawEff *= 0.4f;
+                upperYawEff = Mathf.Clamp01(upperYawEff * 1.5f);
+            }
+            if (anatPelvicTwistRouting.Get(stream))
+            {
+                float total = spineYawEff + upperYawEff;
+                spineYawEff = total * 0.25f;
+                upperYawEff = total * 0.75f;
+            }
+
             if (hasSpine)
             {
                 Vector3 e = new Vector3(
-                    bendEuler.x * Mathf.Clamp01(spineBendPitch.Get(stream)) * squishMult * bendGate,
-                    twistY * Mathf.Clamp01(spineBendYaw.Get(stream)) * squishMult,
-                    bendEuler.z * Mathf.Clamp01(spineBendRoll.Get(stream)) * squishMult * bendGate
+                    bendEuler.x * spinePitchEff * squishMult * bendGate,
+                    twistY * spineYawEff * squishMult,
+                    bendEuler.z * spineRollEff * squishMult * bendGate
                 );
                 e = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 Quaternion deltaWorld = hipsRot * Quaternion.Euler(e) * invHips;
@@ -1139,9 +1187,9 @@ w20, w54;
             if (hasUpper)
             {
                 Vector3 e = new Vector3(
-                    bendEuler.x * Mathf.Clamp01(upperChestBendPitch.Get(stream)) * squishMult * bendGate,
-                    twistY * Mathf.Clamp01(upperChestBendYaw.Get(stream)) * squishMult,
-                    bendEuler.z * Mathf.Clamp01(upperChestBendRoll.Get(stream)) * squishMult * bendGate
+                    bendEuler.x * upperPitchEff * squishMult * bendGate,
+                    twistY * upperYawEff * squishMult,
+                    bendEuler.z * upperRollEff * squishMult * bendGate
                 );
                 e = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 Quaternion deltaWorld = hipsRot * Quaternion.Euler(e) * invHips;
@@ -1257,6 +1305,49 @@ w20, w54;
                 return hipsRot;
             hingeAxis.Normalize();
             return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
+        }
+        // Anatomy: cervical lordosis. Real heads sit a few centimeters forward of the neck axis;
+        // adds a small forward pitch to the neck so the head reads more naturally during look-down
+        // poses where the rig's stiff vertical neck would otherwise feel stilted.
+        void ApplyCervicalLordosis(AnimationStream stream)
+        {
+            if (!HandleNeck.IsValid(stream))
+                return;
+            // ~5° forward pitch in neck-local space (around its own X axis).
+            Quaternion neckRot = HandleNeck.GetRotation(stream);
+            Quaternion delta = Quaternion.AngleAxis(5f, neckRot * Vector3.right);
+            HandleNeck.SetRotation(stream, delta * neckRot);
+        }
+        // Anatomy: shoulder slide. Shoulders don't fully follow chest twist past ~30° because the
+        // scapula slides on the rib cage. Counter-yaw both shoulders by a fraction of the chest's
+        // twist relative to hips, capped at 15°.
+        void ApplyShoulderSlide(AnimationStream stream)
+        {
+            if (!HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
+                return;
+
+            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            Quaternion chestRot = HandleChest.GetRotation(stream);
+            Quaternion chestLocal = Quaternion.Inverse(hipsRot) * chestRot;
+            float chestYaw = SignedEuler(chestLocal.eulerAngles).y;
+
+            const float threshold = 30f;
+            const float maxCounter = 15f;
+            const float fraction = 0.4f;
+            float excess = Mathf.Abs(chestYaw) - threshold;
+            if (excess <= 0f)
+                return;
+
+            float counterYaw = -Mathf.Sign(chestYaw) * Mathf.Min(excess * fraction, maxCounter);
+            ApplyShoulderYaw(stream, HandleLeftShoulder, hipsRot, counterYaw);
+            ApplyShoulderYaw(stream, HandleRightShoulder, hipsRot, counterYaw);
+        }
+        void ApplyShoulderYaw(AnimationStream stream, ReadWriteTransformHandle shoulder, Quaternion hipsRot, float yawDeg)
+        {
+            if (!shoulder.IsValid(stream))
+                return;
+            Quaternion delta = hipsRot * Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.Inverse(hipsRot);
+            shoulder.SetRotation(stream, delta * shoulder.GetRotation(stream));
         }
         // Yaw the chest toward the hand-target midpoint relative to hips. Applied around the
         // hips-local Y axis, which is approximately the spine "twist" axis in normal stances —
@@ -2268,6 +2359,11 @@ w20, w54;
                 chestArmSwingMaxDeg = FloatProperty.Bind(animator, component, data.ChestArmSwingMaxDegFloatProperty),
                 lowerArmTwistFraction = FloatProperty.Bind(animator, component, data.LowerArmTwistFractionFloatProperty),
                 upperArmTwistFraction = FloatProperty.Bind(animator, component, data.UpperArmTwistFractionFloatProperty),
+
+                anatDifferentialStiffness = BoolProperty.Bind(animator, component, data.AnatDifferentialStiffnessProperty),
+                anatShoulderSlide = BoolProperty.Bind(animator, component, data.AnatShoulderSlideProperty),
+                anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
+                anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

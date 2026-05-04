@@ -524,6 +524,18 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Upper Arm Twist Fraction" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fraction of the elbow's roll absorbed by the upper arm twist bone. Default: 0.3" },
 
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomy (Experimental)" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Opt-in IK refinements modeled on real biomechanics. All off by default — enable to test." },
+    { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Differential Lumbar / Thoracic Stiffness" },
+    { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Routes spine twist preferentially to the upper chest (thoracic) since the lumbar is biomechanically twist-resistant. Cuts spine yaw weight, boosts upper chest yaw." },
+    { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Shoulder Slide on Chest Twist" },
+    { "key": "settings.bodyTracking.anat.shoulderSlide.description", "value": "Counter-yaws shoulders past 30° of chest twist, mimicking the way the scapula slides on the rib cage during torso turns." },
+    { "key": "settings.bodyTracking.anat.cervicalLordosis.title", "value": "Cervical Lordosis" },
+    { "key": "settings.bodyTracking.anat.cervicalLordosis.description", "value": "Adds a small forward pitch to the neck so the head sits more naturally forward of the neck axis." },
+    { "key": "settings.bodyTracking.anat.pelvicTwistRouting.title", "value": "Pelvic-Thoracic Twist Routing" },
+    { "key": "settings.bodyTracking.anat.pelvicTwistRouting.description", "value": "Forces hip-to-chest twist to distribute 75% upper chest / 25% spine — the real anatomical ratio for axial rotation." },
+
+
     { "key": "settings.bodyTracking.fbt.description", "value": "Master switch for hip / chest / foot / knee trackers. Turning this off immediately drops back to head + hands + foot IK. Re-enable and re-calibrate to use trackers again." },
     { "key": "settings.bodyTracking.osc.description", "value": "Open Sound Control input on UDP 9000 / 9001 for face tracking and avatar parameters from external programs (VRCFT, etc)." },
     { "key": "settings.bodyTracking.faceTracking.title", "value": "Face Tracking" },
