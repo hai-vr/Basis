@@ -219,6 +219,8 @@ public static class BasisSceneFactory
 
             Data.volumeTrigger = AdditionalCameraData.volumeTrigger;
         }
+
+        BasisLocalCameraDriver.RaiseRenderSettingsApplied();
     }
     public static void AttachMixerToAllSceneAudioSources()
     {
