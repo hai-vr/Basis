@@ -207,6 +207,12 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 
+        // Yellow line gizmo drawn between the two physical trackers of every
+        // active linked pair. Off by default; toggled separately from
+        // TrackerGizmos so a user debugging the pairing system can see only
+        // the link visualization without the tracker spheres cluttering the view.
+        public static BasisSettingsBinding<bool> LinkedTrackerLines = new("linkedtrackerlines", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> EnableStatistics = new("enablestatistics", new BasisPlatformDefault<bool>(false));
 
         /// <summary>

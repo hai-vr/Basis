@@ -602,6 +602,8 @@
     { "key": "settings.developer.jiggleVisuals.description", "value": "Renders the jiggle physics simulation points so you can see what the solver is doing." },
     { "key": "settings.developer.trackerGizmos", "value": "Tracker Gizmos" },
     { "key": "settings.developer.trackerGizmos.description", "value": "Show sphere gizmos at the physical position of each tracker bound to a body role." },
+    { "key": "settings.developer.linkedTrackerLines", "value": "Linked Tracker Lines" },
+    { "key": "settings.developer.linkedTrackerLines.description", "value": "Draw a yellow line between the two physical trackers of every active linked pair." },
     { "key": "settings.developer.avatarDistance", "value": "Avatar Distance" },
     { "key": "settings.developer.avatarDistance.description", "value": "Show avatar visibility range circle at your feet." },
     { "key": "settings.developer.enableStatistics", "value": "Enable Statistics" },
