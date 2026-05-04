@@ -905,8 +905,8 @@ namespace Basis.Scripts.Drivers
                 data.SetTargetRotation(slot, t.rotation);
             }
             data.MaxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
-            data.MinFactor = 1f;
-            data.MaxFactor = 1f;
+            data.MinFactor = 0.95f;
+            data.MaxFactor = 1.05f;
             data.StruggleStart = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleStart.RawValue;
             data.StruggleEnd = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleEnd.RawValue;
             data.MaxChestDelta = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxChestDelta.RawValue;

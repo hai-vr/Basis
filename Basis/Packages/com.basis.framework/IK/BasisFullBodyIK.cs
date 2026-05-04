@@ -1084,12 +1084,19 @@ w20, w54;
             // Squish coupling: compress → fold more, stretch → straighten.
             float squishMult = ComputeSquishMultiplier(stream, smoothedHead - hipsPos);
 
+            // Deadband on the bend (pitch+roll) so tracker / rest-pose micro-misalignments don't
+            // get amplified into a visible chest tilt at rest. Twist is unaffected because it's
+            // driven by head facing — not by the small chest-vs-head positional offset.
+            float bendMag = Mathf.Sqrt(bendEuler.x * bendEuler.x + bendEuler.z * bendEuler.z);
+            float bendT = Mathf.Clamp01((bendMag - k_BendDeadbandDeg) / k_BendDeadbandWidthDeg);
+            float bendGate = Mathf.SmoothStep(0f, 1f, bendT);
+
             if (hasSpine)
             {
                 Vector3 e = new Vector3(
-                    bendEuler.x * Mathf.Clamp01(spineBendPitch.Get(stream)) * squishMult,
+                    bendEuler.x * Mathf.Clamp01(spineBendPitch.Get(stream)) * squishMult * bendGate,
                     twistY * Mathf.Clamp01(spineBendYaw.Get(stream)) * squishMult,
-                    bendEuler.z * Mathf.Clamp01(spineBendRoll.Get(stream)) * squishMult
+                    bendEuler.z * Mathf.Clamp01(spineBendRoll.Get(stream)) * squishMult * bendGate
                 );
                 e = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 Quaternion deltaWorld = hipsRot * Quaternion.Euler(e) * invHips;
@@ -1098,15 +1105,17 @@ w20, w54;
             if (hasUpper)
             {
                 Vector3 e = new Vector3(
-                    bendEuler.x * Mathf.Clamp01(upperChestBendPitch.Get(stream)) * squishMult,
+                    bendEuler.x * Mathf.Clamp01(upperChestBendPitch.Get(stream)) * squishMult * bendGate,
                     twistY * Mathf.Clamp01(upperChestBendYaw.Get(stream)) * squishMult,
-                    bendEuler.z * Mathf.Clamp01(upperChestBendRoll.Get(stream)) * squishMult
+                    bendEuler.z * Mathf.Clamp01(upperChestBendRoll.Get(stream)) * squishMult * bendGate
                 );
                 e = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 Quaternion deltaWorld = hipsRot * Quaternion.Euler(e) * invHips;
                 HandleUpperChest.SetRotation(stream, deltaWorld * HandleUpperChest.GetRotation(stream));
             }
         }
+        const float k_BendDeadbandDeg = 3f;
+        const float k_BendDeadbandWidthDeg = 7f;
         // Maps the head-to-hips compression ratio to a per-axis weight multiplier. At rest the
         // multiplier is 1; compressed → up to (1+boost), stretched → down to (1-boost). The 0.7→1.3
         // window covers the range users actually hit (deep crouch to overhead reach).
@@ -1128,6 +1137,8 @@ w20, w54;
         }
         // Critically-damped spring on the head target consumed by DistributeSpineBend. Lets the
         // body lag slightly behind quick head moves without affecting the head bone itself.
+        // Uses implicit Euler so it stays stable at high Hz / low fps where explicit Euler blows
+        // up (omega * dt > 1 → divergent oscillation → NaN → corrupted quaternions downstream).
         Vector3 ApplyChestSpring(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!chestSpringState.IsCreated || !chestSpringInit.IsCreated)
@@ -1155,16 +1166,35 @@ w20, w54;
 
             float damping = Mathf.Max(0f, chestSpringDamping.Get(stream));
             float omega = 2f * Mathf.PI * hz;
+            float omegaSq = omega * omega;
+            float twoOmegaDamping = 2f * omega * damping;
+
             Vector3 pos = chestSpringState[0];
             Vector3 vel = chestSpringState[1];
-            Vector3 err = headTargetPos - pos;
-            Vector3 acc = err * (omega * omega) - vel * (2f * omega * damping);
-            vel += acc * dt;
-            pos += vel * dt;
-            chestSpringState[0] = pos;
-            chestSpringState[1] = vel;
-            return pos;
+
+            // Implicit Euler: solve (vel_new, pos_new = pos + dt*vel_new) such that
+            //   vel_new = vel + dt * (omega² * (target - pos_new) - 2*omega*damping * vel_new)
+            // Substituting pos_new gives the closed-form denom below. Always stable.
+            float denom = 1f + dt * twoOmegaDamping + dt * dt * omegaSq;
+            Vector3 newVel = (vel + dt * omegaSq * (headTargetPos - pos)) / denom;
+            Vector3 newPos = pos + dt * newVel;
+
+            // Defensive: if upstream input has produced a NaN, re-seed instead of poisoning the rig.
+            if (!IsFinite(newPos) || !IsFinite(newVel))
+            {
+                chestSpringState[0] = headTargetPos;
+                chestSpringState[1] = Vector3.zero;
+                return headTargetPos;
+            }
+
+            chestSpringState[0] = newPos;
+            chestSpringState[1] = newVel;
+            return newPos;
         }
+        static bool IsFinite(Vector3 v) =>
+            !float.IsNaN(v.x) && !float.IsInfinity(v.x) &&
+            !float.IsNaN(v.y) && !float.IsInfinity(v.y) &&
+            !float.IsNaN(v.z) && !float.IsInfinity(v.z);
         // Pelvis tilts forward to share the lean past the threshold. Without this, a deep forward
         // reach makes the spine swallow the entire bend and everything above the hips folds.
         Quaternion ApplyHipHinge(AnimationStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
