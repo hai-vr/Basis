@@ -30,7 +30,10 @@ namespace HVR.Basis.Comms
 
         public void AfterNetworkReady(bool isLocallyOwned)
         {
-            if (_networkReady) return;
+            // Note: AfterNetworkReady may be called multiple times when re-joining or swapping servers,
+            // so we do not skip if _networkReady is already true.
+            //
+
             _networkReady = true;
             _isLocallyOwned = isLocallyOwned;
             if (_avatarReady && _networkReady) _onReadyBothAvatarAndNetwork(_isLocallyOwned);
