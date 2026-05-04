@@ -68,6 +68,9 @@
     { "key": "calibration.pitch.up", "value": "Look UP, pull triggers" },
     { "key": "calibration.pitch.down", "value": "Look DOWN, pull triggers" },
     { "key": "calibration.pitch.forward", "value": "Look FORWARD, pull triggers" },
+    { "key": "calibration.reset", "value": "Reset Calibration" },
+    { "key": "calibration.resetDescription", "value": "Restore calibration defaults: clears Pitch Calibration, additional height, and any captured pitch correction." },
+    { "key": "calibration.resetConfirm", "value": "Reset all calibration settings to defaults? You will need to recalibrate full-body tracking afterwards." },
 
     { "key": "menu.servers.username", "value": "Username" },
     { "key": "menu.servers.connect", "value": "Connect" },
