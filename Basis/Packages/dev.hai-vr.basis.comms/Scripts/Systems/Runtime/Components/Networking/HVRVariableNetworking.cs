@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Basis.Network.Core;
 using HVR.Basis.Comms.HVRUtility;
-using HVR.State;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     public class HVRVariableNetworking : MonoBehaviour, IFeatureReceiver
     {
-        private const bool PrintDebug = false;
+        private const bool PrintDebug = true;
 
         public HVRAvatarComms comms;
         public bool isWearer;
@@ -39,6 +38,8 @@ namespace HVR.Basis.Comms
 
         internal class HVRVariableBehaviour_Wearer : IHVRVariableBehaviour
         {
+            private const bool UseInterpolationTape = false;
+
             private readonly HVRVariableNetworking _state;
             private readonly AcquisitionService _acquisitionService;
 
@@ -324,8 +325,8 @@ namespace HVR.Basis.Comms
             internal readonly Dictionary<int, HVRVariableHolder> _addressIdToHolder = new();
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
 
-            internal readonly Dictionary<int, InterpolationTape<FloatInterpolable>> _addressIdToInterpolationTape = new();
-            private readonly HashSet<int> _flagPendingInterpolationAddresses = new();
+            private HVRInterpolationTimer _interpolationTimer;
+            private HVRInterpolationData _interpolationDataThisFrame;
 
             public HVRVariableBehaviour_Remote(HVRVariableNetworking state)
             {
@@ -355,13 +356,22 @@ namespace HVR.Basis.Comms
 
                 if (UseInterpolationTape)
                 {
-                    var TODO_DeltaTimeInsidePacket = 0.1f; // TODO: Pass the delta time fractional inside the packet
-                    _addressIdToInterpolationTape[addressId].Enqueue(new FloatInterpolable
+                    if (true
+                        // _addressIdToHolder[addressId].needsInterpolation
+                       )
                     {
-                        DeltaTime = TODO_DeltaTimeInsidePacket,
-                        FloatValues = new[] { currentValue } // TODO: Creating an array is not acceptable
-                    });
-                    _flagPendingInterpolationAddresses.Add(addressId);
+                        var TODO_DeltaTimeInsidePacket = 0.1f; // TODO: Pass the delta time fractional inside the packet
+                        if (_interpolationDataThisFrame == null)
+                        {
+                            _interpolationDataThisFrame = new HVRInterpolationData(TODO_DeltaTimeInsidePacket);
+                        }
+
+                        _interpolationDataThisFrame.Add(addressId, currentValue);
+                    }
+                    else
+                    {
+                        _state.comms.VariableStore.Submit(addressId, currentValue);
+                    }
                 }
                 else
                 {
@@ -378,16 +388,13 @@ namespace HVR.Basis.Comms
             {
                 if (UseInterpolationTape)
                 {
-                    foreach (var addressId in _flagPendingInterpolationAddresses)
+                    if (_interpolationDataThisFrame != null)
                     {
-                        var interpolationTape = _addressIdToInterpolationTape[addressId];
-                        interpolationTape.Advance();
-
-                        if (interpolationTape.IsOutOfTape)
-                        {
-                            _flagPendingInterpolationAddresses.Remove(addressId);
-                        }
+                        _interpolationTimer.Enqueue(_interpolationDataThisFrame);
+                        _interpolationDataThisFrame = null;
                     }
+
+                    _interpolationTimer.Advance(Time.deltaTime);
                 }
             }
 
@@ -518,13 +525,6 @@ namespace HVR.Basis.Comms
                         currentValue = (float)variable.initialValue
                     };
 
-                    if (UseInterpolationTape)
-                    {
-                        var newInterpolationTape = new InterpolationTape<FloatInterpolable>(new FloatInterpolable());
-                        _addressIdToInterpolationTape[addressId] = newInterpolationTape;
-                        newInterpolationTape.OnInterpolatedDataChanged += data => WhenInterpolationTapeAdvanceDataChanged(addressId, data);
-                    }
-
                     _networkIdToAddressId[variable.networkId] = addressId;
                     newlyAddedAddresses.Add(addressId);
                 }
@@ -573,11 +573,6 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            private void WhenInterpolationTapeAdvanceDataChanged(int addressId, FloatInterpolable current)
-            {
-                _state.comms.VariableStore.Submit(addressId, current.FloatValues[0]); // TODO: Getting the array is not acceptable.
-            }
-
             public void RequireVariable(HVRVariable variable)
             {
                 // Do nothing.
@@ -593,6 +588,103 @@ namespace HVR.Basis.Comms
                 public ushort networkId;
                 public object currentValue;
             }
+        }
+    }
+
+    internal class HVRInterpolationData
+    {
+        public float DeltaTime { get; }
+
+        public HVRInterpolationData(float deltaTime)
+        {
+            DeltaTime = deltaTime;
+        }
+
+        public void Add(int addressId, float currentValue)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    internal class HVRInterpolationTimer
+    {
+        private const float DeltaTimeUsedForResyncs = 1 / 29f; // 29 is just a random number I picked. It really doesn't matter what value we're using for resyncs.
+
+        private readonly Queue<HVRInterpolationData> _queue = new();
+        private float _totalQueueSeconds;
+        private int _numberOfEnqueues;
+
+        private float _timeLeft;
+        private bool _isOutOfTape;
+        private bool _writtenThisFrame;
+        private float _effectiveDeltaTime;
+
+        public void Enqueue(HVRInterpolationData newData)
+        {
+            _queue.Enqueue(newData);
+            _totalQueueSeconds += newData.DeltaTime;
+            _numberOfEnqueues++;
+            if (_numberOfEnqueues % 1_000 == 0)
+            {
+                // Recalculate the queue duration for precision loss concerns.
+                _numberOfEnqueues = 0;
+                _totalQueueSeconds = 0f;
+                foreach (var data in _queue)
+                {
+                    _totalQueueSeconds += data.DeltaTime;
+                }
+            }
+        }
+
+        public void Advance(float deltaTime)
+        {
+            /*
+            _timeLeft -= deltaTime;
+
+            while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
+            {
+                _totalQueueSeconds -= eval.DeltaTime;
+                if (_totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
+
+                // If the queue is small or the total queue duration is short, use the delta from the queue
+                var effectiveDeltaTime = _queue.Count <= 5 || _totalQueueSeconds < 0.2f
+                    ? eval.DeltaTime
+                    // Otherwise, we fast-forward the queue.
+                    // NOTE: I actually can't remember why the fast-forward is defined in this way. It may be complete nonsense.
+                    : (eval.DeltaTime * Mathf.Lerp(0.66f, 0.05f, Mathf.InverseLerp(DeltaTimeUsedForResyncs, 4f, _totalQueueSeconds)));
+
+                _timeLeft += effectiveDeltaTime;
+                _previous = _target;
+                _target = eval;
+                _effectiveDeltaTime = effectiveDeltaTime;
+                _isOutOfTape = false;
+            }
+
+            var isDepleted = _timeLeft <= 0;
+            if (isDepleted)
+            {
+                if (!_isOutOfTape)
+                {
+                    _isOutOfTape = true;
+
+                    _current = _target; // FIXME: INTERPOLABLE REFACTOR. Does this have side effects?
+                    _writtenThisFrame = true;
+                }
+                else
+                {
+                    _writtenThisFrame = false;
+                }
+                _timeLeft = 0;
+            }
+            else
+            {
+                _isOutOfTape = false;
+
+                var progression01 = 1 - Mathf.Clamp01(_timeLeft / _effectiveDeltaTime);
+                _current.MutateLerp(_previous, _target, progression01);
+                _writtenThisFrame = true;
+            }
+        */
         }
     }
 
