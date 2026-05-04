@@ -64,16 +64,12 @@ namespace HVR.Basis.Comms
 
             public void OnResyncEveryoneRequested()
             {
-                var packet = BuildNewVariablesPacket(_addressIdToHolder.Keys.ToList());
-                _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
-                if (PrintDebug) HVRLogging.ProtocolDebug("(OnResyncEveryoneRequested) Sending NewVariablesPacket.");
+                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncEveryoneRequested");
             }
 
             public void OnResyncRequested(ushort[] whoAsked)
             {
-                var packet = BuildNewVariablesPacket(_addressIdToHolder.Keys.ToList());
-                _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced, whoAsked);
-                if (PrintDebug) HVRLogging.ProtocolDebug("(OnResyncRequested) Sending NewVariablesPacket.");
+                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncRequested");
             }
 
             public void RequireVariable(HVRVariable variable)
@@ -129,10 +125,7 @@ namespace HVR.Basis.Comms
             {
                 if (_newVariablesAddressIds.Count > 0)
                 {
-                    var packet = BuildNewVariablesPacket(_newVariablesAddressIds);
-                    _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
-                    if (PrintDebug) HVRLogging.ProtocolDebug("(Update) Sending NewVariablesPacket.");
-
+                    SubmitNewVariablesPacket(_newVariablesAddressIds, "Update");
                     _newVariablesAddressIds.Clear();
                 }
 
@@ -141,6 +134,33 @@ namespace HVR.Basis.Comms
                 {
                     DoTick();
                     _timeLeft = 0;
+                }
+            }
+
+            private void SubmitNewVariablesPacket(List<int> addressIds, string hook)
+            {
+                if (addressIds.Count > 0)
+                {
+                    var groupSize = 10;
+                    for (var i = 0; i < addressIds.Count; i += groupSize)
+                    {
+                        var group = addressIds.Skip(i).Take(groupSize).ToList();
+                        var packet = BuildNewVariablesPacket(group);
+                        _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                        if (PrintDebug)
+                        {
+                            HVRLogging.ProtocolDebug($"({hook}) Sending NewVariablesPacket (group {i / groupSize + 1}).");
+                        }
+                    }
+                }
+                else
+                {
+                    var packet = BuildNewVariablesPacket(addressIds);
+                    _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                    if (PrintDebug)
+                    {
+                        HVRLogging.ProtocolDebug($"({hook}) Sending NewVariablesPacket (empty).");
+                    }
                 }
             }
 
