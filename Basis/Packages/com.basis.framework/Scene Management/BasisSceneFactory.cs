@@ -31,6 +31,7 @@ public static class BasisSceneFactory
         BasisScene.Destroyed += BasisSceneDestroyed;
         SceneManager.sceneUnloaded -= OnSceneUnloaded;
         SceneManager.sceneUnloaded += OnSceneUnloaded;
+
     }
     private static void OnSceneUnloaded(Scene unloadedScene)
     {
@@ -270,6 +271,10 @@ public static class BasisSceneFactory
         if (timeSinceLastCheck > RespawnCheckTimer)
         {
             timeSinceLastCheck = 0f; // Reset timer
+            if (BasisLocalPlayer == null)
+            {
+                BasisLocalPlayer = BasisLocalPlayer.Instance;
+            }
             if (BasisLocalPlayer.PlayerSelf.position.y < RespawnHeight)
             {
                 SpawnPlayer(BasisLocalPlayer);

@@ -284,6 +284,50 @@ namespace Basis.Scripts.Avatar
                             continue;
                         }
 
+                        // Secondary roles only release once their default counterpart is filled.
+                        // Hips anchors the torso/legs — Chest and LowerLeg wait on it so a stray
+                        // stomach or thigh tracker doesn't snipe its slot. Toes waits on Foot —
+                        // otherwise a single low tracker per side wins Toes and leaves
+                        // FootControl.HasTracked false, which kicks BasisLocalRigDriver into
+                        // procedural foot IK. Shoulder waits on LowerArm so the default elbow
+                        // tracker isn't lost to the tighter-to-the-body Shoulder prior.
+                        BasisBoneTrackedRole role = priors[r].Role;
+                        if (role == BasisBoneTrackedRole.Chest
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
+                        {
+                            continue;
+                        }
+                        if (role == BasisBoneTrackedRole.LeftLowerLeg
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
+                        {
+                            continue;
+                        }
+                        if (role == BasisBoneTrackedRole.RightLowerLeg
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
+                        {
+                            continue;
+                        }
+                        if (role == BasisBoneTrackedRole.LeftToes
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.LeftFoot))
+                        {
+                            continue;
+                        }
+                        if (role == BasisBoneTrackedRole.RightToes
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.RightFoot))
+                        {
+                            continue;
+                        }
+                        if (role == BasisBoneTrackedRole.LeftShoulder
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.LeftLowerArm))
+                        {
+                            continue;
+                        }
+                        if (role == BasisBoneTrackedRole.RightShoulder
+                            && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.RightLowerArm))
+                        {
+                            continue;
+                        }
+
                         float score = ScoreSampleAgainstRole(sample, priors[r]);
                         if (score > bestScore)
                         {
@@ -631,6 +675,20 @@ namespace Basis.Scripts.Avatar
                 new BoneRolePrior(BasisBoneTrackedRole.LeftLowerArm,   h: 0.88f, lat: -armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.12f),
                 new BoneRolePrior(BasisBoneTrackedRole.RightLowerArm,  h: 0.88f, lat: +armReach * 0.65f,  hSigma: 0.10f, latSigma: armReach * 0.12f),
             };
+        }
+
+        // Returns true when dependsOn is already taken, or isn't in the prior list at all
+        // (the toggle disabled it, so there's nothing for the dependent role to wait on).
+        private static bool IsRolePreconditionMet(BoneRolePrior[] priors, bool[] roleUsed, BasisBoneTrackedRole dependsOn)
+        {
+            for (int i = 0; i < priors.Length; i++)
+            {
+                if (priors[i].Role == dependsOn)
+                {
+                    return roleUsed[i];
+                }
+            }
+            return true;
         }
 
         private static float ScoreSampleAgainstRole(TrackerSample sample, BoneRolePrior prior)

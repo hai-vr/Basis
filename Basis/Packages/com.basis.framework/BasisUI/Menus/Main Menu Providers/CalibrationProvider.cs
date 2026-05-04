@@ -330,15 +330,23 @@ namespace Basis.BasisUI
         {
             base.OnButtonCreated(button);
             BasisDeviceManagement.OnBootModeChanged += BootModeChanged;
-            BoundButton.OnInstanceReleased += () => BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
-            CheckUserForVR();
+            BasisSettingsDefaults.EnableFBT.OnChanged += FBTToggleChanged;
+            BoundButton.OnInstanceReleased += () =>
+            {
+                BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
+                BasisSettingsDefaults.EnableFBT.OnChanged -= FBTToggleChanged;
+            };
+            EvaluateButtonVisibility();
         }
 
-        private void BootModeChanged(string _) => CheckUserForVR();
+        private void BootModeChanged(string _) => EvaluateButtonVisibility();
+        private void FBTToggleChanged(bool _) => EvaluateButtonVisibility();
 
-        private void CheckUserForVR()
+        private void EvaluateButtonVisibility()
         {
-            BoundButton.gameObject.SetActive(!BasisDeviceManagement.IsUserInDesktop());
+            bool inVR = !BasisDeviceManagement.IsUserInDesktop();
+            bool fbtEnabled = BasisSettingsDefaults.EnableFBT.RawValue;
+            BoundButton.gameObject.SetActive(inVR && fbtEnabled);
         }
     }
 }
