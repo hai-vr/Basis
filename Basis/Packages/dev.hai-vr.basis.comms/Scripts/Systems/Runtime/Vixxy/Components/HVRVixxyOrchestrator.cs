@@ -31,7 +31,6 @@ namespace HVR.Vixxy
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
         private readonly List<HVRVixxyToBeNetworked> _toBeNetworked = new();
-        private bool _alreadyCalledReadyBothAvatarAndNetwork;
 
         /// Contrary to AcquisitionService, which only references data pertaining to the local user, implicit addresses can refer to data
         /// coming from other users to drive that the avatar of that user.
@@ -252,9 +251,6 @@ namespace HVR.Vixxy
 
         public void SignalHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
-            if (_alreadyCalledReadyBothAvatarAndNetwork) return;
-            _alreadyCalledReadyBothAvatarAndNetwork = true;
-
             var comms = HVRCommsUtil.GetComms(this);
             foreach (var toBeNetworked in _toBeNetworked)
             {
