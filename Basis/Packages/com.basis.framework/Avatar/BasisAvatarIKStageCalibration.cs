@@ -291,38 +291,38 @@ namespace Basis.Scripts.Avatar
                         // FootControl.HasTracked false, which kicks BasisLocalRigDriver into
                         // procedural foot IK. Shoulder waits on LowerArm so the default elbow
                         // tracker isn't lost to the tighter-to-the-body Shoulder prior.
-                        BasisBoneTrackedRole role = priors[r].Role;
-                        if (role == BasisBoneTrackedRole.Chest
+                        BasisBoneTrackedRole priorrole = priors[r].Role;
+                        if (priorrole == BasisBoneTrackedRole.Chest
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
                         {
                             continue;
                         }
-                        if (role == BasisBoneTrackedRole.LeftLowerLeg
+                        if (priorrole == BasisBoneTrackedRole.LeftLowerLeg
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
                         {
                             continue;
                         }
-                        if (role == BasisBoneTrackedRole.RightLowerLeg
+                        if (priorrole == BasisBoneTrackedRole.RightLowerLeg
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
                         {
                             continue;
                         }
-                        if (role == BasisBoneTrackedRole.LeftToes
+                        if (priorrole == BasisBoneTrackedRole.LeftToes
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.LeftFoot))
                         {
                             continue;
                         }
-                        if (role == BasisBoneTrackedRole.RightToes
+                        if (priorrole == BasisBoneTrackedRole.RightToes
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.RightFoot))
                         {
                             continue;
                         }
-                        if (role == BasisBoneTrackedRole.LeftShoulder
+                        if (priorrole == BasisBoneTrackedRole.LeftShoulder
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.LeftLowerArm))
                         {
                             continue;
                         }
-                        if (role == BasisBoneTrackedRole.RightShoulder
+                        if (priorrole == BasisBoneTrackedRole.RightShoulder
                             && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.RightLowerArm))
                         {
                             continue;
