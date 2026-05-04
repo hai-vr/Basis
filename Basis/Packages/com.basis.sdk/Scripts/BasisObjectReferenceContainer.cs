@@ -1,6 +1,10 @@
 ﻿using UnityEngine;
 
-public class BasisObjectReferenceContainer : ScriptableObject
+namespace Basis.Scripts.BasisSdk
 {
-    public Object[] references;
+    [System.Serializable]
+    public class BasisObjectReferenceContainer : ScriptableObject
+    {
+        public Object[] references;
+    }
 }
