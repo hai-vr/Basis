@@ -8,6 +8,8 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/HVR Measure")]
     public class HVRMeasure : MonoBehaviour
     {
+        private const bool INVALID_RaycastCanHaveTarget = false; // Forced to false because we're not doing the correct calculations. It's too confusing
+
         private const int MaximumRaycastDistanceInWorldSpace = 10_000;
         private const float Distance = 0.5f;
         public HVRMeasureType measurementType;
@@ -94,7 +96,7 @@ namespace HVR.Basis.Comms
                 }
                 else if (measurementType == HVRMeasureType.Raycast)
                 {
-                    if (target == null)
+                    if (target == null && INVALID_RaycastCanHaveTarget)
                     {
                         Gizmos.color = Color.cyan;
                         Gizmos.DrawLine(from.position, from.position + from.TransformVector(raycastDirection).normalized * Distance);
@@ -110,7 +112,7 @@ namespace HVR.Basis.Comms
                         var transformationVectorInWorldSpace = from.TransformVector(raycastDirection.normalized);
                         var transformerUnit = transformationVectorInWorldSpace.magnitude;
                         Gizmos.DrawWireSphere(from.position, CalculateSpherecastRadiusInWorldSpace(transformerUnit));
-                        if (target != null)
+                        if (!(target == null && INVALID_RaycastCanHaveTarget))
                         {
                             Gizmos.DrawWireSphere(to.position, CalculateSpherecastRadiusInWorldSpace(transformerUnit));
                         }
@@ -212,7 +214,7 @@ namespace HVR.Basis.Comms
                 float transformerUnit;
                 float allowedMaximumDistanceInWorldSpace;
 
-                if (target == null)
+                if (target == null && INVALID_RaycastCanHaveTarget)
                 {
                     transformationVectorInWorldSpace = from.TransformVector(raycastDirection.normalized);
                     transformerUnit = transformationVectorInWorldSpace.magnitude;
@@ -246,7 +248,12 @@ namespace HVR.Basis.Comms
 
                     if (hit)
                     {
-                        if (target != null)
+                        if (target == null && INVALID_RaycastCanHaveTarget)
+                        {
+                            var intermediateValue = hitInfo.distance / transformationVectorInWorldSpace.magnitude;
+                            ProcessAndSubmit(intermediateValue, true);
+                        }
+                        else
                         {
                             var worldSpaceVector = raycastDirection.normalized * hitInfo.distance;
                             var localSpaceVector = from.InverseTransformVector(worldSpaceVector);
@@ -254,22 +261,17 @@ namespace HVR.Basis.Comms
 
                             ProcessAndSubmit(intermediateValue, true);
                         }
-                        else
-                        {
-                            var intermediateValue = hitInfo.distance / transformationVectorInWorldSpace.magnitude;
-                            ProcessAndSubmit(intermediateValue, true);
-                        }
                     }
                     else
                     {
                         // TODO: Behaviour on miss
-                        if (target != null)
+                        if (target == null && INVALID_RaycastCanHaveTarget)
                         {
-                            ProcessAndSubmit(allowedMaximumDistanceInWorldSpace, false);
+                            ProcessAndSubmit(1f, false);
                         }
                         else
                         {
-                            ProcessAndSubmit(1f, false);
+                            ProcessAndSubmit(allowedMaximumDistanceInWorldSpace, false);
                         }
                     }
                 }
@@ -279,9 +281,9 @@ namespace HVR.Basis.Comms
                     bool hit;
                     if (!raycastIsSpherecast || physicsSphereRadius <= 0f)
                     {
-                        var endPosition = target != null
-                            ? target.position
-                            : CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace);
+                        var endPosition = target == null && INVALID_RaycastCanHaveTarget
+                            ? CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace)
+                            : target.position;
                         hit = Physics.Linecast(from.position, endPosition);
                     }
                     else
@@ -292,9 +294,9 @@ namespace HVR.Basis.Comms
                         }
                         else
                         {
-                            var endPosition = target != null
-                                ? target.position
-                                : CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace);
+                            var endPosition = target == null && INVALID_RaycastCanHaveTarget
+                                ? CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace)
+                                : target.position;
                             hit = Physics.CheckCapsule(from.position, endPosition, CalculateSpherecastRadiusInWorldSpace(transformerUnit));
                         }
                     }
