@@ -640,51 +640,48 @@ namespace HVR.Basis.Comms
         {
             _timeLeft -= deltaTime;
 
-            if (_timeLeft <= 0f)
+            while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
             {
-                while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
+                _totalQueueSeconds -= eval.DeltaTime;
+                if (_totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
+
+                // If the queue is small or the total queue duration is short, use the delta from the queue
+                var effectiveDeltaTime = _queue.Count <= 5 || _totalQueueSeconds < 0.2f
+                    ? eval.DeltaTime
+                    // Otherwise, we fast-forward the queue.
+                    // NOTE: I actually can't remember why the fast-forward is defined in this way. It may be complete nonsense.
+                    : (eval.DeltaTime * Mathf.Lerp(0.66f, 0.05f, Mathf.InverseLerp(DeltaTimeUsedForResyncs, 4f, _totalQueueSeconds)));
+
+                _timeLeft += effectiveDeltaTime;
+                _previous = _target;
+                _target = eval;
+                _effectiveDeltaTime = effectiveDeltaTime;
+                _isOutOfTape = false;
+            }
+
+            var isDepleted = _timeLeft <= 0;
+            if (isDepleted)
+            {
+                if (!_isOutOfTape)
                 {
-                    _totalQueueSeconds -= eval.DeltaTime;
-                    if (_totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
+                    _isOutOfTape = true;
 
-                    // If the queue is small or the total queue duration is short, use the delta from the queue
-                    var effectiveDeltaTime = _queue.Count <= 5 || _totalQueueSeconds < 0.2f
-                        ? eval.DeltaTime
-                        // Otherwise, we fast-forward the queue.
-                        // NOTE: I actually can't remember why the fast-forward is defined in this way. It may be complete nonsense.
-                        : (eval.DeltaTime * Mathf.Lerp(0.66f, 0.05f, Mathf.InverseLerp(DeltaTimeUsedForResyncs, 4f, _totalQueueSeconds)));
-
-                    _timeLeft += effectiveDeltaTime;
-                    _previous = _target;
-                    _target = eval;
-                    _effectiveDeltaTime = effectiveDeltaTime;
-                    _isOutOfTape = false;
-                }
-
-                var isDepleted = _timeLeft <= 0;
-                if (isDepleted)
-                {
-                    if (!_isOutOfTape)
-                    {
-                        _isOutOfTape = true;
-
-                        _current = _target; // FIXME: INTERPOLABLE REFACTOR. Does this have side effects?
-                        _writtenThisFrame = true;
-                    }
-                    else
-                    {
-                        _writtenThisFrame = false;
-                    }
-                    _timeLeft = 0;
+                    _current = _target; // FIXME: INTERPOLABLE REFACTOR. Does this have side effects?
+                    _writtenThisFrame = true;
                 }
                 else
                 {
-                    _isOutOfTape = false;
-
-                    var progression01 = 1 - Mathf.Clamp01(_timeLeft / _effectiveDeltaTime);
-                    _current.MutateLerp(_previous, _target, progression01);
-                    _writtenThisFrame = true;
+                    _writtenThisFrame = false;
                 }
+                _timeLeft = 0;
+            }
+            else
+            {
+                _isOutOfTape = false;
+
+                var progression01 = 1 - Mathf.Clamp01(_timeLeft / _effectiveDeltaTime);
+                _current.MutateLerp(_previous, _target, progression01);
+                _writtenThisFrame = true;
             }
         }
     }
