@@ -41,7 +41,7 @@ namespace HVR.Basis.Comms.Editor
             var description = my.measurementType switch
             {
                 HVRMeasureType.Distance => "Distance between two objects, in source's local space.",
-                HVRMeasureType.Angle => "Angle between two lines drawn from two target objects towards a origin object, in degrees.",
+                HVRMeasureType.Angle => "Angle that separates Target A and Target B measured at the Origin object, in degrees.",
                 HVRMeasureType.ComplexRotationAngle => "Compares the rotation of two objects, in degrees.\nIf roll is not included, it uses the forward direction of each object to measure the angle.",
                 HVRMeasureType.Raycast => "Raycast from a source object. Distance is measured in source's local space.",
                 HVRMeasureType.Speed => "Speed of an object.\nIf a relative object is specified, speed is measured in the relative object's local space, and projection is also done in that relative object's local space. Otherwise, speed and projection is in world space.",
