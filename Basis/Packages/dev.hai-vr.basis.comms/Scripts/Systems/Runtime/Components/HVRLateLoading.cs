@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
@@ -49,6 +50,32 @@ namespace HVR.Basis.Comms
                 return;
             }
 
+            var assetMaterials = new List<Material>();
+            foreach (var materialAssetKey in materialAssetKeys)
+            {
+                var deferredMaterial = TryFindKey(avatar.BundleAdditionalAssets, materialAssetKey, out var foundMaterial) ? foundMaterial : null;
+                if (deferredMaterial == null)
+                {
+                    BasisDebug.LogError($"Deferred material {materialAssetKey} not found, late loading will continue anyways.");
+                    assetMaterials.Add(null);
+                }
+                else
+                {
+                    var assetMaterial = deferredMaterial.asset != null
+                        ? deferredMaterial.asset
+                        : (await BasisLoadHandler.LoadAdditionalAssetInAlreadyLoadedBundle(player.AvatarMetaData, deferredMesh.assetPath, false));
+                    if (assetMaterial is Material material)
+                    {
+                        assetMaterials.Add(material);
+                    }
+                    else
+                    {
+                        BasisDebug.LogError("Deferred asset is not a material, late loading will continue anyways.");
+                        assetMaterials.Add(null);
+                    }
+                }
+            }
+
             foreach (var meshRenderer in meshRenderers)
             {
                 if (null == meshRenderer) continue;
@@ -58,6 +85,17 @@ namespace HVR.Basis.Comms
                 {
                     meshFilter.sharedMesh = mesh;
                 }
+
+                var sharedMaterials = meshRenderer.sharedMaterials;
+                for (var index = 0; index < assetMaterials.Count; index++)
+                {
+                    var assetMaterial = assetMaterials[index];
+                    if (index < sharedMaterials.Length)
+                    {
+                        sharedMaterials[index] = assetMaterial;
+                    }
+                }
+                meshRenderer.sharedMaterials = sharedMaterials;
             }
             foreach (var skinnedMeshRenderer in skinnedMeshRenderers)
             {
@@ -65,49 +103,19 @@ namespace HVR.Basis.Comms
                 {
                     skinnedMeshRenderer.sharedMesh = mesh;
                 }
-            }
 
-            for (var materialIndex = 0; materialIndex < materialAssetKeys.Length; materialIndex++)
-            {
-                var materialAssetKey = materialAssetKeys[materialIndex];
-                if (!TryFindKey(avatar.BundleAdditionalAssets, materialAssetKey, out var deferredMaterial))
+                if (null == skinnedMeshRenderer) continue;
+
+                var sharedMaterials = skinnedMeshRenderer.sharedMaterials;
+                for (var index = 0; index < assetMaterials.Count; index++)
                 {
-                    BasisDebug.LogError($"Deferred asset for material {materialAssetKey} not found, will continue anyway.");
-                    continue;
-                }
-
-                var assetMaterial = deferredMaterial.asset != null
-                    ? deferredMaterial.asset
-                    : await BasisLoadHandler.LoadAdditionalAssetInAlreadyLoadedBundle(player.AvatarMetaData, deferredMaterial.assetPath, true);
-                if (assetMaterial is not Material material)
-                {
-                    BasisDebug.LogError("Deferred asset is not a mesh. Will continue anyway.");
-                    continue;
-                }
-
-                BasisDebug.Log($"Late loading material {material.name} for mesh {mesh.name} at index {materialIndex}.");
-                foreach (var meshRenderer in meshRenderers)
-                {
-                    if (null == meshRenderer) continue;
-
-                    if (materialIndex < meshRenderer.sharedMaterials.Length)
+                    var assetMaterial = assetMaterials[index];
+                    if (index < sharedMaterials.Length)
                     {
-                        var sharedMaterials = meshRenderer.sharedMaterials;
-                        sharedMaterials[materialIndex] = material;
-                        meshRenderer.sharedMaterials = sharedMaterials;
+                        sharedMaterials[index] = assetMaterial;
                     }
                 }
-                foreach (var skinnedMeshRenderer in skinnedMeshRenderers)
-                {
-                    if (null == skinnedMeshRenderer) continue;
-
-                    if (materialIndex < skinnedMeshRenderer.sharedMaterials.Length)
-                    {
-                        var sharedMaterials = skinnedMeshRenderer.sharedMaterials;
-                        sharedMaterials[materialIndex] = material;
-                        skinnedMeshRenderer.sharedMaterials = sharedMaterials;
-                    }
-                }
+                skinnedMeshRenderer.sharedMaterials = sharedMaterials;
             }
         }
 

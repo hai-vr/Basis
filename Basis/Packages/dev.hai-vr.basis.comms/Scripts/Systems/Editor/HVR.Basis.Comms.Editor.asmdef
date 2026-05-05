@@ -5,7 +5,8 @@
         "BasisSDK",
         "HVR.Basis.Comms",
         "HVR.Basis.Comms.Networking",
-        "Basis Framework"
+        "Basis Framework",
+        "nadena.dev.ndmf"
     ],
     "includePlatforms": [
         "Editor"
@@ -16,6 +17,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "nadena.dev.ndmf",
+            "expression": "",
+            "define": "HVR_NDMF_IS_INSTALLED"
+        }
+    ],
     "noEngineReferences": false
 }
