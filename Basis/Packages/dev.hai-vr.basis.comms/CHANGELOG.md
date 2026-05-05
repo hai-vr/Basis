@@ -5,6 +5,9 @@ Changelog
 
 *Authored by Haï~*
 
+Modifications in existing HVR.Basis systems:
+- Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
+
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
 - Fix editor must not use the "GetComponent<SkinnedMeshRenderer>() is { } smr" syntax as this can return true despite the object not having a SkinnedMeshRenderer component.
