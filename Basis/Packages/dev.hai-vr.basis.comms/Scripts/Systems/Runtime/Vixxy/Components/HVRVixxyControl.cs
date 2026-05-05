@@ -50,6 +50,7 @@ namespace HVR.Vixxy
         [NonSerialized] internal bool WasAvatarReadyApplied;
         [NonSerialized] internal bool IsWearer;
         [NonSerialized] internal bool AlsoExecutesWhenDisabled;
+        [NonSerialized] internal List<int> ChoiceIndexOrderedByValue;
 
         [NonSerialized] internal bool Networked;
         [NonSerialized] internal HVRVixxyNetworkingType NetworkingType;
@@ -202,6 +203,14 @@ namespace HVR.Vixxy
 
         private void BakeControlSubjectsAndActivationsForRuntime()
         {
+            {
+                var choiceList = choices.ToList();
+                ChoiceIndexOrderedByValue = choiceList
+                    .OrderBy(choice => choice.value)
+                    .Select(choice => choiceList.IndexOf(choice))
+                    .ToList();
+            }
+
             // In this phase, we do all the checks, so that when actuation is requested (this might be as expensive
             // as running every frame), we don't need to do type checks or other work.
             // This means that we need to catch all invalid cases.
@@ -519,19 +528,59 @@ namespace HVR.Vixxy
             }
             else
             {
-                int storedIntValue = Mathf.RoundToInt(_value);
-                int outValue;
-                if (storedIntValue < 0) outValue = 0;
-                else if (storedIntValue >= ActualNumberOfChoices) outValue = ActualNumberOfChoices - 1;
-                else outValue = storedIntValue;
-
                 if (!InterpolateFromChoiceApplies)
                 {
-                    SetActivation(outValue);
-                    SetSubjects(outValue);
+                    var lerpFromChoiceIndex = -1;
+                    var lerpToChoiceIndex = -1;
+                    if (_value > choices[ChoiceIndexOrderedByValue[0]].value)
+                    {
+                        for (var i = 0; i < ChoiceIndexOrderedByValue.Count - 1; i++)
+                        {
+                            var toChoiceIndex = ChoiceIndexOrderedByValue[i + 1];
+                            var toChoice = choices[toChoiceIndex];
+                            if (_value < toChoice.value)
+                            {
+                                // We're between two choices
+                                lerpFromChoiceIndex = ChoiceIndexOrderedByValue[i];
+                                lerpToChoiceIndex = toChoiceIndex;
+                                break;
+                            }
+                        }
+
+                        if (lerpToChoiceIndex == -1)
+                        {
+                            // We're above the maximum value
+                            lerpFromChoiceIndex = ChoiceIndexOrderedByValue[^1];
+                            lerpToChoiceIndex = ChoiceIndexOrderedByValue[^1];
+                        }
+                    }
+                    else
+                    {
+                        // We're below the minimum value
+                        lerpFromChoiceIndex = ChoiceIndexOrderedByValue[0];
+                        lerpToChoiceIndex = lerpFromChoiceIndex;
+                    }
+
+                    if (lerpFromChoiceIndex != lerpToChoiceIndex)
+                    {
+                        var amount01 = Mathf.InverseLerp(choices[lerpFromChoiceIndex].value, choices[lerpToChoiceIndex].value, _value);
+                        ActuateActivationsBasedOnChoices(amount01, lerpFromChoiceIndex, lerpToChoiceIndex);
+                        ActuateSubjects(amount01, lerpFromChoiceIndex, lerpToChoiceIndex);
+                    }
+                    else
+                    {
+                        SetActivation(lerpFromChoiceIndex);
+                        SetSubjects(lerpFromChoiceIndex);
+                    }
                 }
                 else
                 {
+                     int storedIntValue = Mathf.RoundToInt(_value);
+                     int outValue;
+                     if (storedIntValue < 0) outValue = 0;
+                     else if (storedIntValue >= ActualNumberOfChoices) outValue = ActualNumberOfChoices - 1;
+                     else outValue = storedIntValue;
+
                     ActuateActivationsBasedOnChoices(InterpolateFromChoiceAmount01, InterpolateFromChoice, outValue);
                     ActuateSubjects(InterpolateFromChoiceAmount01, InterpolateFromChoice, outValue);
                 }
