@@ -638,6 +638,7 @@ namespace HVR.Basis.Comms
 
         public void Advance(float deltaTime)
         {
+            /*
             _timeLeft -= deltaTime;
 
             while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
@@ -683,6 +684,7 @@ namespace HVR.Basis.Comms
                 _current.MutateLerp(_previous, _target, progression01);
                 _writtenThisFrame = true;
             }
+        */
         }
     }
 
