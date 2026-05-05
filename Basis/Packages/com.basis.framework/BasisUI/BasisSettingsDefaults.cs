@@ -185,6 +185,45 @@ namespace Basis.BasisUI
         public const float BLOOM_INTENSITY_MIN = 0f;
         public const float BLOOM_INTENSITY_MAX = 5f;
 
+        /// <summary>
+        /// When enabled, ReflectionProbe components in the scene whose mode is Realtime are
+        /// driven by Basis at the rate selected by <see cref="RealtimeReflectionProbeRate"/>.
+        /// When disabled, Basis does not modify any probe state.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseRealtimeReflectionProbes = new("userealtimereflectionprobes", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Tick rate for realtime reflection probes when <see cref="UseRealtimeReflectionProbes"/>
+        /// is on. "Match Render" delegates to Unity's per-frame mode; the others use ViaScripting
+        /// and Basis calls RenderProbe at the chosen interval.
+        /// </summary>
+        public static BasisSettingsBinding<string> RealtimeReflectionProbeRate = new("realtimereflectionproberate", new BasisPlatformDefault<string>("30hz"));
+
+        /// <summary>
+        /// When enabled, the local camera requests per-frame motion vectors. On for Android
+        /// because the OpenXR SpaceWarp / MetaXR SpaceWarp features (Application Space Warp)
+        /// are enabled there and consume motion vectors. Off elsewhere — Basis does not use
+        /// TAA / motion blur / SSR on Desktop or Linux.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseMotionVectors = new("usemotionvectors", new BasisPlatformDefault<bool>
+        {
+            windows = false,
+            android = true,
+            linux = false,
+            other = false
+        });
+
+        /// <summary>
+        /// Adaptive Probe Volume runtime memory budget. Quest defaults to Low; PC to High.
+        /// </summary>
+        public static BasisSettingsBinding<string> APVMemoryBudget = new("apvmemorybudget", new BasisPlatformDefault<string>
+        {
+            windows = "high",
+            android = "low",
+            linux = "high",
+            other = "medium"
+        });
+
         public static BasisSettingsBinding<bool> MicrophoneDenoiser = new("voicedenoiser", new BasisPlatformDefault<bool>
         {
             windows = true,
@@ -1118,6 +1157,10 @@ namespace Basis.BasisUI
             Antialiasing.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
             BloomIntensity.LoadBindingValue();
+            UseRealtimeReflectionProbes.LoadBindingValue();
+            RealtimeReflectionProbeRate.LoadBindingValue();
+            UseMotionVectors.LoadBindingValue();
+            APVMemoryBudget.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
             GizmoSkeletonLines.LoadBindingValue();
             GizmoCalibrationSpheres.LoadBindingValue();

@@ -1161,6 +1161,52 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            // --- Realtime Reflection Probes ---
+            PanelElementDescriptor realtimeReflectionGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            realtimeReflectionGroup.SetTitle(BasisLocalization.Get("settings.graphics.realtimeReflection.title"));
+            realtimeReflectionGroup.SetDescription(BasisLocalization.Get("settings.graphics.realtimeReflection.description"));
+
+            PanelToggle toggleRealtimeReflection = PanelToggle.CreateNewEntry(realtimeReflectionGroup.ContentParent);
+            toggleRealtimeReflection.AssignBinding(BasisSettingsDefaults.UseRealtimeReflectionProbes);
+            toggleRealtimeReflection.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.realtimeReflection.toggle"));
+            toggleRealtimeReflection.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.realtimeReflection.toggle.description"));
+
+            PanelDropdown dropdownReflectionRate = PanelDropdown.CreateNewEntry(realtimeReflectionGroup.ContentParent);
+            dropdownReflectionRate.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.realtimeReflection.rate"));
+            dropdownReflectionRate.AssignEntries(new List<string> { "Match Render", "30hz", "15hz", "10hz", "5hz", "1hz" });
+            dropdownReflectionRate.AssignBinding(BasisSettingsDefaults.RealtimeReflectionProbeRate);
+
+            dropdownReflectionRate.Descriptor.SetActive(toggleRealtimeReflection.Value);
+            toggleRealtimeReflection.OnValueChanged += (val) =>
+            {
+                dropdownReflectionRate.Descriptor.SetActive(val);
+                realtimeReflectionGroup.ForceRebuild();
+                descriptor.ForceRebuild();
+            };
+
+            // --- Motion Vectors ---
+            PanelElementDescriptor motionVectorsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            motionVectorsGroup.SetTitle(BasisLocalization.Get("settings.graphics.motionVectors.title"));
+            motionVectorsGroup.SetDescription(BasisLocalization.Get("settings.graphics.motionVectors.description"));
+
+            PanelToggle toggleMotionVectors = PanelToggle.CreateNewEntry(motionVectorsGroup.ContentParent);
+            toggleMotionVectors.AssignBinding(BasisSettingsDefaults.UseMotionVectors);
+            toggleMotionVectors.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.motionVectors.toggle"));
+            toggleMotionVectors.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.motionVectors.toggle.description"));
+
+            // --- APV Memory Budget ---
+            PanelElementDescriptor apvBudgetGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            apvBudgetGroup.SetTitle(BasisLocalization.Get("settings.graphics.apvBudget.title"));
+            apvBudgetGroup.SetDescription(BasisLocalization.Get("settings.graphics.apvBudget.description"));
+
+            PanelDropdown dropdownAPVBudget = PanelDropdown.CreateNewEntry(apvBudgetGroup.ContentParent);
+            dropdownAPVBudget.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.apvBudget.level"));
+            dropdownAPVBudget.AssignEntries(new List<string> { "low", "medium", "high" });
+            dropdownAPVBudget.AssignBinding(BasisSettingsDefaults.APVMemoryBudget);
+
             // --- Camera Near/Far Override ---
             PanelElementDescriptor cameraClipGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1320,6 +1366,10 @@ namespace Basis.BasisUI
 
             BasisSettingsDefaults.UseBloomOverride.ResetToDefault();
             BasisSettingsDefaults.BloomIntensity.ResetToDefault();
+            BasisSettingsDefaults.UseRealtimeReflectionProbes.ResetToDefault();
+            BasisSettingsDefaults.RealtimeReflectionProbeRate.ResetToDefault();
+            BasisSettingsDefaults.UseMotionVectors.ResetToDefault();
+            BasisSettingsDefaults.APVMemoryBudget.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.

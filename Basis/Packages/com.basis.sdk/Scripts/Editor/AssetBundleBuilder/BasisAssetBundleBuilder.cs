@@ -33,7 +33,8 @@ public static class AssetBundleBuilder
         if (manifest != null)
         {
             Hash = await ProcessAssetBundles(targetDirectory, settings, manifest, password, isEncrypted);
-            BasisBundleGenerated = new BasisBundleGenerated(Hash.bundleHash.ToString(), mode, assetBundleName, Hash.CRC, true, password, buildTarget.ToString(), Hash.Length);
+            string[] graphicsAPIs = ResolveGraphicsAPIs(buildTarget);
+            BasisBundleGenerated = new BasisBundleGenerated(Hash.bundleHash.ToString(), mode, assetBundleName, Hash.CRC, true, password, buildTarget.ToString(), Hash.Length, graphicsAPIs);
             DeleteManifestFiles(targetDirectory, buildTarget.ToString());
 #if UNITY_6000_0_OR_NEWER
             BuildReport Reports = BuildReport.GetLatestReport();
@@ -47,6 +48,34 @@ public static class AssetBundleBuilder
         EditorUtility.ClearProgressBar();
         return new(BasisBundleGenerated, Hash);
     }
+
+    // Returns the graphics APIs PlayerSettings will compile shaders for on the given
+    // target. When AutoGraphicsAPI is on, Unity hides the explicit list in the UI but
+    // GetGraphicsAPIs still returns the resolved order — that's what actually ends up
+    // in the bundle.
+    private static string[] ResolveGraphicsAPIs(BuildTarget buildTarget)
+    {
+        try
+        {
+            var apis = PlayerSettings.GetGraphicsAPIs(buildTarget);
+            if (apis == null || apis.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+            string[] names = new string[apis.Length];
+            for (int i = 0; i < apis.Length; i++)
+            {
+                names[i] = apis[i].ToString();
+            }
+            return names;
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogWarning($"Failed to resolve graphics APIs for {buildTarget}: {ex.Message}");
+            return Array.Empty<string>();
+        }
+    }
+
     [System.Serializable]
     public class SerializableBuildReport
     {

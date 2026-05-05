@@ -146,6 +146,8 @@ public static class ContentPoliceControl
                     }
                 }
 
+                BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader);
+
                 // Compile shader variants for everything we just walked before we set the clone
                 // active, so the first frame it's visible doesn't stall on a hitch.
                 BasisShaderPrewarm.Warm(renderersForPrewarm, SearchAndDestroy.name);
@@ -189,7 +191,9 @@ public static class ContentPoliceControl
             }
             // No content-removal walk happened, so a dedicated Renderer-typed walk is the only
             // way to feed the prewarm here. Cheaper than the full Component[] walk above.
-            BasisShaderPrewarm.Warm(SearchAndDestroy.GetComponentsInChildren<Renderer>(true), SearchAndDestroy.name);
+            Renderer[] rawRenderers = SearchAndDestroy.GetComponentsInChildren<Renderer>(true);
+            BasisShaderFallback.MaterialCorrection(rawRenderers, BundledContentHolder.Instance.UrpShader);
+            BasisShaderPrewarm.Warm(rawRenderers, SearchAndDestroy.name);
         }
         return SearchAndDestroy;
     }
@@ -294,6 +298,11 @@ public static class ContentPoliceControl
                 ScrubDangerousPersistentListeners(roots[RootIndex], policeCheck);
             }
         }
+
+        // Replace materials with broken shaders before warming, so prewarm runs against the
+        // fallback material instead of the magenta InternalErrorShader. Scene scrub is only
+        // ever called for World content, so no avatar-skip gate is needed here.
+        BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader);
 
         // Warm shaders for every renderer we just collected. One call per scene scrub.
         BasisShaderPrewarm.Warm(renderersForPrewarm, targetScene.name);

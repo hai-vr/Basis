@@ -8,7 +8,9 @@
         "com.gator-dragon-games.jigglephysics",
         "SteamAudioUnity",
         "Basis.OpenLipSync.Runtime",
-        "BasisProfiler"
+        "BasisProfiler",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

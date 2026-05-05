@@ -175,6 +175,7 @@ public class BasisBeeExplorerWindow : EditorWindow
         DrawField("Materials", connector.MetaData.MaterialCount.ToString("N0"));
         DrawField("Bones", connector.MetaData.BonesCount.ToString("N0"));
         DrawField("Texture Memory", FormatByteSize(connector.MetaData.TextureMemoryBytes));
+        DrawField("Graphics Pipeline", string.IsNullOrEmpty(connector.MetaData.GraphicsPipeline) ? "(unknown)" : connector.MetaData.GraphicsPipeline);
 
         if (connector.MetaData.ComponentNames != null && connector.MetaData.ComponentNames.Length > 0)
         {
@@ -253,6 +254,7 @@ public class BasisBeeExplorerWindow : EditorWindow
             DrawField("Encrypted", bundle.IsEncrypted.ToString());
             DrawField("Password", string.IsNullOrEmpty(bundle.Password) ? "(none)" : bundle.Password);
             DrawField("Size (bytes)", bundle.EndByte.ToString("N0"));
+            DrawField("Graphics APIs", bundle.GraphicsAPIs != null && bundle.GraphicsAPIs.Length > 0 ? string.Join(", ", bundle.GraphicsAPIs) : "(unknown)");
             EditorGUI.indentLevel--;
 
             EditorGUILayout.EndVertical();

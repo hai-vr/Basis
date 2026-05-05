@@ -87,6 +87,7 @@ namespace Basis.Scripts.Drivers
             RemotePlayer.BasisAvatar.Animator.applyRootMotion = false;
             RemotePlayer.BasisAvatar.Animator.updateMode = AnimatorUpdateMode.Normal;
             RemotePlayer.BasisAvatar.Animator.speed = 0;
+            RemotePlayer.BasisAvatar.Animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
             AvatarInitalScale = Player.BasisAvatar.transform.localScale;
 
             // Auto-detect bone refs and record TPose. Pass Animator.transform so
