@@ -5,6 +5,9 @@ Changelog
 
 *Authored by Haï~*
 
+Modifications in existing HVR.Basis systems:
+- Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
+
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
 - Fix rejoining or joining multiple servers with the same avatar was incorrectly not submitting the state of the avatar to other users.
