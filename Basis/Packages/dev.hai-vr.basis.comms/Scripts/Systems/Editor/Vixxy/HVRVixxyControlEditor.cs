@@ -17,6 +17,7 @@ namespace HVR.Vixxy.Editor
         internal const float DeleteButtonWidth = 40;
 
         public static bool _settingsFoldout;
+        public static bool _advancedSettingsFoldout;
         public static bool _toggleObjectsFoldout;
         public static bool _changePropertiesFoldout;
         public static bool _developerViewFoldout;
@@ -65,6 +66,13 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AdvancedLabel, EditorStyles.boldLabel);
+            _advancedSettingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.AdvancedSettingsLabel, "", _advancedSettingsFoldout, ref anyChanged);
+            if (_advancedSettingsFoldout)
+            {
+                if (_settings.LayoutAdvancedSettings()) return;
+            }
+            EditorGUILayout.Separator();
+            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DebugLabel, EditorStyles.boldLabel);
             _developerViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
             if (_developerViewFoldout)
             {
