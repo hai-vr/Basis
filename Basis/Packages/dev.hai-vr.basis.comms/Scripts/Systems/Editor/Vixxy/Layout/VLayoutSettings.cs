@@ -77,19 +77,6 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ControlLabel, EditorStyles.boldLabel);
-            HVRVixxyControlEditor.LayoutAddressSelector(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
-            if (my.networked)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
-                if (my.advancedNetworking == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
-                {
-                    EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgNetworkingUsesHighFrequency, MessageType.Warning);
-                }
-            }
-            EditorGUILayout.Separator();
-
             {
                 EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
                 LayoutDefaultValueSlider();
@@ -141,6 +128,27 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField("", GUILayout.Width(20));
                 EditorGUILayout.EndHorizontal();
 
+            }
+            EditorGUILayout.Separator();
+
+            return false;
+        }
+
+        public bool LayoutAdvancedSettings()
+        {
+            EditorGUILayout.HelpBox("These settings usually do not need to be changed, unless you are specifically instructed to do so.\nThe Address field can be left empty.", MessageType.Warning);
+            EditorGUILayout.Separator();
+
+            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ControlLabel, EditorStyles.boldLabel);
+            HVRVixxyControlEditor.LayoutAddressSelector(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
+            if (my.networked)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
+                if (my.advancedNetworking == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
+                {
+                    EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgNetworkingUsesHighFrequency, MessageType.Warning);
+                }
             }
             EditorGUILayout.Separator();
 
