@@ -7,6 +7,7 @@ Changelog
 
 Modifications in existing HVR.Basis systems:
 - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
+- Minimum and maximum values for a control are now baked at runtime.
 
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
