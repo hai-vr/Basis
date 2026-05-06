@@ -56,12 +56,6 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.title)));
             }
 
-            var hasControl = my.TryResolveActualControl(out var control);
-            if (!hasControl)
-            {
-                EditorGUILayout.HelpBox("Cannot display choices because no control is assigned to this menu item.", MessageType.Error);
-                return false;
-            }
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.icon)));
             EditorGUILayout.Separator();
