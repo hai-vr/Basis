@@ -263,24 +263,17 @@ namespace HVR.Vixxy.Editor
             if (inheritsFromVixxyProperty)
             {
                 var choicesSp = propertySp.FindPropertyRelative(nameof(HVRVixxyProperty<object>.choices));
-                if (my.IsRegularToggle)
-                {
-                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.InactiveIndex), new GUIContent("Inactive"));
-                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex), new GUIContent("Active"));
-                }
-                else
-                {
-                    var choices = my.choices;
-                    if (choicesSp.arraySize < my.NumberOfChoices)
-                    {
-                        choicesSp.arraySize = my.NumberOfChoices;
-                    }
 
-                    for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
-                    {
-                        var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
-                        EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
-                    }
+                var choices = my.choices;
+                if (choicesSp.arraySize < my.NumberOfChoices)
+                {
+                    choicesSp.arraySize = my.NumberOfChoices;
+                }
+
+                for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
+                {
+                    var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
+                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
                 }
             }
 
