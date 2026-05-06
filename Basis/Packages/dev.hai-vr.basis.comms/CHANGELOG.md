@@ -7,6 +7,7 @@ Changelog
 
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
+- Fix editor must not use the "GetComponent<SkinnedMeshRenderer>() is { } smr" syntax as this can return true despite the object not having a SkinnedMeshRenderer component.
 - Fix rejoining or joining multiple servers with the same avatar was incorrectly not submitting the state of the avatar to other users.
 - Workaround initialization packet was exceeding the maximum size when a large number of toggles was created.
   - The initialization packet is now chunked into groups of 10 toggles per packet.
