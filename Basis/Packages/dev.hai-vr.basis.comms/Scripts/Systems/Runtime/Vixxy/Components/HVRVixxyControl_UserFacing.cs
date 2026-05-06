@@ -28,8 +28,8 @@ namespace HVR.Vixxy
                                        && Mathf.Approximately(choices[HVRVixxyPropertyBase.InactiveIndex].value, 0f);
 
         [SerializeField] public HVRVixxyChoiceControl[] choices = {
-            new() { title = "", icon = null, value = 0f },
-            new() { title = "", icon = null, value = 1f }
+            new() { title = "OFF", icon = null, value = 0f },
+            new() { title = "ON", icon = null, value = 1f }
         };
         [SerializeField] public float defaultValue = 0f;
 

@@ -9,6 +9,10 @@ Modifications in existing HVR.Basis systems:
 - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
 - Minimum and maximum values for a control are now baked at runtime.
 - Avoid GetComponent call in Menu Item.
+- When a Vixxy Control is created, the choices are named by default to "OFF" and "ON"
+- In the Toggle Objects UI, "Enable these when active" has been replaced with "Affect these objects" and now uses the same system as multiple choices.
+- In the Subjects UI, "Inactive" and "Active" have now use the same system as multiple choices.
+- Address and Networking have been moved to their own "Advanced Settings" tab since they don't need to be touched.
 
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
