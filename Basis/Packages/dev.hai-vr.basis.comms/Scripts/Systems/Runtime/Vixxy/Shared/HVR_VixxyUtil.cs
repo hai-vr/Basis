@@ -202,5 +202,27 @@ namespace HVR.Vixxy
 
             return new Color(r, g, b, alpha);
         }
+
+        public static T[] PruneArrays<T>(T[] ts, int actualNumberOfChoices)
+        {
+            var newChoices = new T[actualNumberOfChoices];
+            for (var i = 0; i < actualNumberOfChoices; i++)
+            {
+                if (i < ts.Length)
+                {
+                    newChoices[i] = ts[i];
+                }
+                else
+                {
+                    var k = ts.Length - 1;
+                    if (k >= 0)
+                    {
+                        newChoices[i] = ts[k];
+                    }
+                }
+            }
+
+            return newChoices;
+        }
     }
 }
