@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using GatorDragonGames.JigglePhysics;
 using HVR.Basis.Comms;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -158,24 +159,7 @@ namespace HVR.Vixxy
 
         public override void PruneArrays(int actualNumberOfChoices)
         {
-            var newChoices = new T[actualNumberOfChoices];
-            for (var i = 0; i < actualNumberOfChoices; i++)
-            {
-                if (i < choices.Length)
-                {
-                    newChoices[i] = choices[i];
-                }
-                else
-                {
-                    var k = choices.Length - 1;
-                    if (k >= 0)
-                    {
-                        newChoices[i] = choices[k];
-                    }
-                }
-            }
-
-            choices = newChoices;
+            choices = HVR_VixxyUtil.PruneArrays(choices, actualNumberOfChoices);
         }
 
         public override void RemoveChoiceAtIndex(int choiceIndex)
@@ -229,6 +213,7 @@ namespace HVR.Vixxy
         [NonSerialized] internal int ShaderMaterialProperty; // only relevant if HVRKindMarker is AffectsMaterialPropertyBlock
         [NonSerialized] internal FieldInfo FieldIfMarkedAsFieldAccess; // null if HVRKindMarker is not FieldAccess
         [NonSerialized] internal PropertyInfo TPropertyIfMarkedAsTPropertyAccess; // null if HVRKindMarker is not PropertyAccess
+        [NonSerialized] internal Action<Component, object> SpecialIfMarkedAsSpecialAccessFn; // null if HVRKindMarker is not SpecialAccess
         [NonSerialized] internal Dictionary<SkinnedMeshRenderer, int> SmrToBlendshapeIndex; // null if HVRKindMarker is not BlendShape
 
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
@@ -434,6 +419,93 @@ namespace HVR.Vixxy
             var result = ApplyThresholdFunction(active01, inactiveIndex, activeIndex, threshold);
 
             return result != null ? string.Format(CultureInfo.InvariantCulture, result, absoluteValue, absoluteValue * 100f, active01) : null;
+        }
+    }
+
+    [Serializable]
+    public class HVRVixxyPropertyJiggleRigTransform : HVRVixxyPropertyBase
+    {
+        public Transform[] bonesInJiggleRig;
+        public JiggleRigTransformation[] choices = new JiggleRigTransformation[2];
+        private FieldInfo _segmentField;
+
+        private int[] _ourBoneIndicesToJiggleRigTreeIndices;
+
+        public override bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => choices.Length >= actualNumberOfChoices;
+        public override void PruneArrays(int actualNumberOfChoices) => choices = HVR_VixxyUtil.PruneArrays(choices, actualNumberOfChoices);
+
+        public override void RemoveChoiceAtIndex(int choiceIndex)
+        {
+            choices = choices.Where((_, i) => i != choiceIndex).ToArray();
+        }
+
+        public override object GetValueForChoice(int choice)
+        {
+            return choices[choice];
+        }
+
+        public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
+        {
+            var newLocalRotations = new Quaternion[bonesInJiggleRig.Length];
+            for (var indexOfBone = 0; indexOfBone < bonesInJiggleRig.Length; indexOfBone++)
+            {
+                // TODO: Bake the euler angles
+                var from = Quaternion.Euler(choices[inactiveIndex].localRotations[indexOfBone]);
+                var to = Quaternion.Euler(choices[activeIndex].localRotations[indexOfBone]);
+
+                newLocalRotations[indexOfBone] = Quaternion.Slerp(from, to, active01);
+            }
+
+            return newLocalRotations;
+        }
+
+        public void Apply(Component component, object resolvedValue)
+        {
+#if HVR_HAS_JIGGLEPHYSICS
+            var jiggleRig = component as JiggleRig;
+            var newLocalRotations = (Quaternion[])resolvedValue;
+
+            EnsureInitialized(jiggleRig);
+            JiggleTreeSegment segment = (JiggleTreeSegment)_segmentField!.GetValue(jiggleRig);
+
+            for (var indexInOurBone = 0; indexInOurBone < _ourBoneIndicesToJiggleRigTreeIndices.Length; indexInOurBone++)
+            {
+                var indexInJiggleRig = _ourBoneIndicesToJiggleRigTreeIndices[indexInOurBone];
+                if (indexInJiggleRig == -1) return;
+
+                segment.jiggleTree.bones[indexInJiggleRig].localRotation = newLocalRotations[indexInOurBone];
+            }
+#endif
+        }
+
+        private void EnsureInitialized(JiggleRig jiggleRig)
+        {
+            if (_ourBoneIndicesToJiggleRigTreeIndices != null) return;
+
+            _segmentField = typeof(JiggleRig).GetField("segment", BindingFlags.NonPublic | BindingFlags.Instance);
+            JiggleTreeSegment segment = (JiggleTreeSegment)_segmentField!.GetValue(jiggleRig);
+
+            _ourBoneIndicesToJiggleRigTreeIndices = new int[bonesInJiggleRig.Length];
+            for (var ourBoneIndex = 0; ourBoneIndex < bonesInJiggleRig.Length; ourBoneIndex++)
+            {
+                var ourBone = bonesInJiggleRig[ourBoneIndex];
+                _ourBoneIndicesToJiggleRigTreeIndices[ourBoneIndex] = -1;
+                for (var jiggleRigTreeIndex = 0; jiggleRigTreeIndex < segment.jiggleTree.bones.Length; jiggleRigTreeIndex++)
+                {
+                    var jiggleTreeBone = segment.jiggleTree.bones[jiggleRigTreeIndex];
+                    if (jiggleTreeBone == ourBone)
+                    {
+                        _ourBoneIndicesToJiggleRigTreeIndices[ourBoneIndex] = jiggleRigTreeIndex;
+                        break;
+                    }
+                }
+            }
+        }
+
+        [Serializable]
+        public struct JiggleRigTransformation
+        {
+            public Vector3[] localRotations;
         }
     }
 
