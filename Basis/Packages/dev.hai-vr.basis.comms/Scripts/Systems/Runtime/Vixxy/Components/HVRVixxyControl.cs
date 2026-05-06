@@ -471,36 +471,65 @@ namespace HVR.Vixxy
             }
             else
             {
-                var fieldInfoNullable = GetFieldInfoOrNull(foundType, property.propertyName);
-                if (fieldInfoNullable != null)
+                var foundSpecialProperty = false;
+                if (property.fullClassName == HVR_VixxyPermitted.JiggleRigFullClassName
+                    && property.propertyName == HVR_VixxyPermitted.SpecialProperties_Vixxy_ChangeTransform)
                 {
-                    if (!HVR_VixxyPermitted.AllowArbitraryFieldAccess
-                        && !HVR_VixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
+                    if (property is HVRVixxyPropertyJiggleRigTransform propertyJiggleRigTransform)
                     {
-                        return HVRVixxyPropertyBakeResult.FieldAccessIsNotPermitted;
+                        if (HVR_VixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
+                        {
+                            property.SpecialIfMarkedAsSpecialAccessFn = (component, resolvedValue) =>
+                            {
+                                propertyJiggleRigTransform.Apply(component, resolvedValue);
+                            };
+                            property.KindMarker = HVRKindMarker.SpecialAccess;
+                            foundSpecialProperty = true;
+                        }
+                        else
+                        {
+                            return HVRVixxyPropertyBakeResult.SpecialPropertyIsNotPermitted;
+                        }
                     }
-
-                    property.FieldIfMarkedAsFieldAccess = fieldInfoNullable;
-                    property.KindMarker = HVRKindMarker.FieldAccess;
+                    else
+                    {
+                        return HVRVixxyPropertyBakeResult.PropertyTypeDoesNotApplyToThisSetup;
+                    }
                 }
-                else
+
+                if (!foundSpecialProperty)
                 {
-                    if (!HVR_VixxyPermitted.AllowArbitraryPropertyAccess
-                        && !HVR_VixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
+                    var fieldInfoNullable = GetFieldInfoOrNull(foundType, property.propertyName);
+                    if (fieldInfoNullable != null)
                     {
-                        return HVRVixxyPropertyBakeResult.PropertyAccessIsNotPermitted;
+                        if (!HVR_VixxyPermitted.AllowArbitraryFieldAccess
+                            && !HVR_VixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
+                        {
+                            return HVRVixxyPropertyBakeResult.FieldAccessIsNotPermitted;
+                        }
+
+                        property.FieldIfMarkedAsFieldAccess = fieldInfoNullable;
+                        property.KindMarker = HVRKindMarker.FieldAccess;
                     }
-
-                    var propertyInfoNullable = GetPropertyInfoOrNull(foundType, property.propertyName);
-                    if (propertyInfoNullable == null) return HVRVixxyPropertyBakeResult.NoFieldNorPropertyMatches;
-
-                    if (typeof(Array).IsAssignableFrom(propertyInfoNullable.PropertyType))
+                    else
                     {
-                        // TODO: Add special handling for modifying the slots of arrays?
-                    }
+                        if (!HVR_VixxyPermitted.AllowArbitraryPropertyAccess
+                            && !HVR_VixxyPermitted.IsStandardAccessPermitted(property.fullClassName, property.propertyName))
+                        {
+                            return HVRVixxyPropertyBakeResult.PropertyAccessIsNotPermitted;
+                        }
 
-                    property.TPropertyIfMarkedAsTPropertyAccess = propertyInfoNullable;
-                    property.KindMarker = HVRKindMarker.PropertyAccess;
+                        var propertyInfoNullable = GetPropertyInfoOrNull(foundType, property.propertyName);
+                        if (propertyInfoNullable == null) return HVRVixxyPropertyBakeResult.NoFieldNorPropertyMatches;
+
+                        if (typeof(Array).IsAssignableFrom(propertyInfoNullable.PropertyType))
+                        {
+                            // TODO: Add special handling for modifying the slots of arrays?
+                        }
+
+                        property.TPropertyIfMarkedAsTPropertyAccess = propertyInfoNullable;
+                        property.KindMarker = HVRKindMarker.PropertyAccess;
+                    }
                 }
             }
 
@@ -835,6 +864,11 @@ namespace HVR.Vixxy
                             propertyInfo.SetValue(component, resolvedValue);
                             break;
                         }
+                        case HVRKindMarker.SpecialAccess:
+                        {
+                            property.SpecialIfMarkedAsSpecialAccessFn.Invoke(component, resolvedValue);
+                            break;
+                        }
                         case HVRKindMarker.Undefined:
                         default:
                             throw new ArgumentException("We tried to access an Undefined property, but Undefined properties are not supposed" +
@@ -910,7 +944,8 @@ namespace HVR.Vixxy
         AffectsMaterialPropertyBlock,
         BlendShape,
         FieldAccess,
-        PropertyAccess
+        PropertyAccess,
+        SpecialAccess,
     }
 
     /// When baking properties, the user may have misconfigured the property, or the property configuration may not apply to a
@@ -932,6 +967,8 @@ namespace HVR.Vixxy
         NoFieldNorPropertyMatches,
         FieldAccessIsNotPermitted,
         PropertyAccessIsNotPermitted,
+        SpecialPropertyIsNotPermitted,
+        PropertyTypeDoesNotApplyToThisSetup,
     }
 
     internal enum HVRVixxySubjectsBakeResult

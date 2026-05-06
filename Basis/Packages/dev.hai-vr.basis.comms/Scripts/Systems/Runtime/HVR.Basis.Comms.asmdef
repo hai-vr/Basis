@@ -10,7 +10,8 @@
         "HVR.Basis.Comms.HVRUtility",
         "Unity.Addressables",
         "Unity.ResourceManager",
-        "BasisNetworkClient"
+        "BasisNetworkClient",
+        "com.gator-dragon-games.jigglephysics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -29,6 +30,11 @@
             "name": "dev.hai-vr.hvr.core",
             "expression": "0.0.1",
             "define": "HVR_HAS_HVR_INTEGRATION"
+        },
+        {
+            "name": "com.gator-dragon-games.jigglephysics",
+            "expression": "0.0.1",
+            "define": "HVR_HAS_JIGGLEPHYSICS"
         }
     ],
     "noEngineReferences": false
