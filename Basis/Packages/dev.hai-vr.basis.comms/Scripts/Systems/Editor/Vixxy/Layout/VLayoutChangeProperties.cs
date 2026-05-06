@@ -296,6 +296,11 @@ namespace HVR.Vixxy.Editor
             {
                 EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyQuaternion.interpolation)));
             }
+            if (managedReferenceValueType == typeof(HVRVixxyPropertyJiggleRigTransform))
+            {
+                EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyJiggleRigTransform.bonesInJiggleRig)));
+                EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyJiggleRigTransform.choices)));
+            }
 
             EditorGUILayout.EndVertical();
             return false;
@@ -429,6 +434,24 @@ namespace HVR.Vixxy.Editor
 
             if (showProperties)
             {
+
+                if (targetedType.FullName == HVR_VixxyPermitted.JiggleRigFullClassName)
+                {
+                    if (GUILayout.Button("Add Change Transforms in JiggleRig"))
+                    {
+                        var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
+
+                        var indexToPutData = propertiesSp.arraySize;
+                        propertiesSp.arraySize = indexToPutData + 1;
+                        propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = new HVRVixxyPropertyJiggleRigTransform
+                        {
+                            fullClassName = targetedType.FullName,
+                            variant = HVRVixxyPropertyVariant.Standard,
+                            propertyName = HVR_VixxyPermitted.SpecialProperties_Vixxy_ChangeTransform,
+                        };
+                    }
+                }
+
                 List<VProp> props = new List<VProp>()
                     // .Concat(targetedType.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic)
                     //     .Where(field => !field.IsInitOnly && !field.IsLiteral)

@@ -52,7 +52,7 @@ namespace HVR.Vixxy
             // Renderers
             "UnityEngine.Rendering.Universal.DecalProjector",
             // Jiggle
-            "GatorDragonGames.JigglePhysics.JiggleRig",
+            JiggleRigFullClassName,
             // UI
             "TMPro.TextMeshPro",
             "TMPro.TextMeshProUGUI",
@@ -75,8 +75,15 @@ namespace HVR.Vixxy
             (
                 new List<string> { typeof(Text).FullName, "TMPro.TextMeshPro", "TMPro.TextMeshProUGUI" },
                 new List<string> { "text" }
+            ),
+            (
+                new List<string> { JiggleRigFullClassName },
+                new List<string> { SpecialProperties_Vixxy_ChangeTransform }
             )
         };
+
+        public const string JiggleRigFullClassName = "GatorDragonGames.JigglePhysics.JiggleRig";
+        public const string SpecialProperties_Vixxy_ChangeTransform = "Vixxy_ChangeTransform";
 
         static HVR_VixxyPermitted()
         {
@@ -100,7 +107,8 @@ namespace HVR.Vixxy
                 or HVRVixxyPropertyColor32
                 or HVRVixxyPropertyTexture
                 or HVRVixxyPropertyMesh
-                or HVRVixxyPropertyString;
+                or HVRVixxyPropertyString
+                or HVRVixxyPropertyJiggleRigTransform;
         }
 
         public static bool IsStandardAccessPermitted(string typeName, string propertyName)
