@@ -21,7 +21,7 @@ namespace HVR.Vixxy
         private float _value;
         private HVRAvatarComms _comms;
 
-        public bool TryResolveActualControl(out HVRVixxyControl result)
+        private bool TryResolveActualControl(out HVRVixxyControl result)
         {
             var controlsOnThis = GetComponents<HVRVixxyControl>(); // This may return 0 elements.
             if (controlsOnThis.Length == 1)
@@ -83,9 +83,9 @@ namespace HVR.Vixxy
 
         private string ResolveComplexTitle()
         {
-            if (!TryResolveActualControl(out var actualControl)) return title;
+            if (control == null) return title;
 
-            var choices = actualControl.choices;
+            var choices = control.choices;
             if (choices == null) return title;
 
             var index = (int)_value;
