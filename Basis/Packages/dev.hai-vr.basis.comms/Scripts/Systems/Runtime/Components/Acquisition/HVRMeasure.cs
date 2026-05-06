@@ -8,7 +8,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/HVR Measure")]
     public class HVRMeasure : MonoBehaviour
     {
-        private const bool INVALID_RaycastCanHaveTarget = false; // Forced to false because we're not doing the correct calculations. It's too confusing
+        private const bool TODO_INVALID_RaycastCanHaveTarget = false; // Forced to false because we're not doing the correct calculations. It's too confusing
 
         private const int MaximumRaycastDistanceInWorldSpace = 10_000;
         private const float Distance = 0.5f;
@@ -61,11 +61,22 @@ namespace HVR.Basis.Comms
         {
             if (measurementType != HVRMeasureType.Angle)
             {
+                // Only Angle has target2
                 target2 = null;
             }
+
             if (measurementType != HVRMeasureType.Raycast)
             {
+                // Only Raycast has hitAddress
                 hitAddress.isActive = false;
+            }
+            else
+            {
+                if (!TODO_INVALID_RaycastCanHaveTarget)
+                {
+                    // Raycast does not have target
+                    target = null;
+                }
             }
         }
 
@@ -96,7 +107,7 @@ namespace HVR.Basis.Comms
                 }
                 else if (measurementType == HVRMeasureType.Raycast)
                 {
-                    if (target == null && INVALID_RaycastCanHaveTarget)
+                    if (target == null && TODO_INVALID_RaycastCanHaveTarget)
                     {
                         Gizmos.color = Color.cyan;
                         Gizmos.DrawLine(from.position, from.position + from.TransformVector(raycastDirection).normalized * Distance);
@@ -112,7 +123,7 @@ namespace HVR.Basis.Comms
                         var transformationVectorInWorldSpace = from.TransformVector(raycastDirection.normalized);
                         var transformerUnit = transformationVectorInWorldSpace.magnitude;
                         Gizmos.DrawWireSphere(from.position, CalculateSpherecastRadiusInWorldSpace(transformerUnit));
-                        if (!(target == null && INVALID_RaycastCanHaveTarget))
+                        if (!(target == null && TODO_INVALID_RaycastCanHaveTarget))
                         {
                             Gizmos.DrawWireSphere(to.position, CalculateSpherecastRadiusInWorldSpace(transformerUnit));
                         }
@@ -214,7 +225,7 @@ namespace HVR.Basis.Comms
                 float transformerUnit;
                 float allowedMaximumDistanceInWorldSpace;
 
-                if (target == null && INVALID_RaycastCanHaveTarget)
+                if (target == null && TODO_INVALID_RaycastCanHaveTarget)
                 {
                     transformationVectorInWorldSpace = from.TransformVector(raycastDirection.normalized);
                     transformerUnit = transformationVectorInWorldSpace.magnitude;
@@ -248,7 +259,7 @@ namespace HVR.Basis.Comms
 
                     if (hit)
                     {
-                        if (target == null && INVALID_RaycastCanHaveTarget)
+                        if (target == null && TODO_INVALID_RaycastCanHaveTarget)
                         {
                             var intermediateValue = hitInfo.distance / transformationVectorInWorldSpace.magnitude;
                             ProcessAndSubmit(intermediateValue, true);
@@ -265,7 +276,7 @@ namespace HVR.Basis.Comms
                     else
                     {
                         // TODO: Behaviour on miss
-                        if (target == null && INVALID_RaycastCanHaveTarget)
+                        if (target == null && TODO_INVALID_RaycastCanHaveTarget)
                         {
                             ProcessAndSubmit(1f, false);
                         }
@@ -281,7 +292,7 @@ namespace HVR.Basis.Comms
                     bool hit;
                     if (!raycastIsSpherecast || physicsSphereRadius <= 0f)
                     {
-                        var endPosition = target == null && INVALID_RaycastCanHaveTarget
+                        var endPosition = target == null && TODO_INVALID_RaycastCanHaveTarget
                             ? CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace)
                             : target.position;
                         hit = Physics.Linecast(from.position, endPosition);
@@ -294,7 +305,7 @@ namespace HVR.Basis.Comms
                         }
                         else
                         {
-                            var endPosition = target == null && INVALID_RaycastCanHaveTarget
+                            var endPosition = target == null && TODO_INVALID_RaycastCanHaveTarget
                                 ? CalculateEndPositionInWorldSpace(from, transformationVectorInWorldSpace, allowedMaximumDistanceInWorldSpace)
                                 : target.position;
                             hit = Physics.CheckCapsule(from.position, endPosition, CalculateSpherecastRadiusInWorldSpace(transformerUnit));
@@ -415,6 +426,9 @@ namespace HVR.Basis.Comms
         /// Measures the speed of the object, in target's (!!!) local space if it is defined, or in world space otherwise.<br/>
         /// Projection is done in the target's local space if it is defined, or in world space otherwise.<br/>
         Speed,
+        //UnityColliderTrigger,
+        //UnityColliderPhysics,
+        //ParticleCollision,
     }
 
     [Serializable]
