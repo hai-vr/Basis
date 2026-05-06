@@ -51,6 +51,8 @@ namespace HVR.Vixxy
         [NonSerialized] internal bool IsWearer;
         [NonSerialized] internal bool AlsoExecutesWhenDisabled;
         [NonSerialized] internal List<int> ChoiceIndexOrderedByValue;
+        [NonSerialized] internal float MinimumValue;
+        [NonSerialized] internal float MaximumValue;
 
         [NonSerialized] internal bool Networked;
         [NonSerialized] internal HVRVixxyNetworkingType NetworkingType;
@@ -98,9 +100,12 @@ namespace HVR.Vixxy
             Address = CalculateAddress();
             AddressId = HVRAddress.AddressToId(Address);
 
+            // Bake the choices.
             FigureOutActualNumberOfChoices(out var hasMoreThanTwoChoices, out var actualNumberOfChoices);
             HasMoreThanTwoChoices = hasMoreThanTwoChoices;
             ActualNumberOfChoices = actualNumberOfChoices;
+            MinimumValue = Min();
+            MaximumValue = Max();
 
             InterpolateFromChoiceApplies = false;
             InterpolateFromChoice = 0;
@@ -111,10 +116,10 @@ namespace HVR.Vixxy
             Networked = networked;
             NetworkingType = networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
 
+            // Bake the subjects
             // UGC Rule: Sanitize arrays.
             activations ??= Array.Empty<HVRVixxyActivation>();
             subjects ??= Array.Empty<HVRVixxySubject>();
-
             BakeControlSubjectsAndActivationsForRuntime();
 
             if (_avatarNullable != null)
@@ -819,8 +824,8 @@ namespace HVR.Vixxy
             return null;
         }
 
-        public float Min() => choices.Select(control => control.value).Min();
-        public float Max() => choices.Select(control => control.value).Max();
+        public float Min() => IsInitialized ? MinimumValue : choices.Select(control => control.value).Min();
+        public float Max() => IsInitialized ? MaximumValue : choices.Select(control => control.value).Max();
     }
 
     internal enum HVRKindMarker
