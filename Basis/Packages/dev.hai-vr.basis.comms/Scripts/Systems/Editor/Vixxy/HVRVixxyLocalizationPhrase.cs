@@ -19,9 +19,7 @@
         internal const string CreateMenuInASeparateGameObjectLabel = "Create menu in a separate GameObject";
         internal const string CurrentLabel = "(current)";
         internal const string DeveloperViewLabel = "Developer View";
-        internal const string DisableTheseWhenActiveLabel = "Disable these when active";
         internal const string DoNotChangeTheseObjectsLabel = "Do not change these objects";
-        internal const string EnableTheseWhenActiveLabel = "Enable these when active";
         internal const string EverythingLabel = "Everything";
         internal const string InactiveLabel = "Inactive";
         internal const string JustPropertiesLabel = "Properties";
@@ -45,9 +43,11 @@
         internal const string SampleFromLabel = "Sample from";
         internal const string SearchLabel = "Search";
         internal const string SettingsLabel = "Settings";
+        internal const string AdvancedSettingsLabel = "Advanced Settings";
         internal const string ToggleObjectsViewLabel = "Toggle Objects";
         internal const string TypeSelectionLabel = "Type...";
         internal const string UserViewLabel = "User View";
         internal const string DefaultLabel = "Default";
+        internal const string DebugLabel = "Debug";
     }
 }
