@@ -137,7 +137,9 @@ namespace HVR.Vixxy.Editor
                             _typeToWhichOpened[type] = -1;
                         }
 
-                        if (targetObject.GetComponent<SkinnedMeshRenderer>() is { } smr)
+                        // Note to self: the "<SkinnedMeshRenderer>() is { } smr" syntax can return true even if there is no SkinnedMeshRenderer, so don't use that.
+                        var smr = targetObject.GetComponent<SkinnedMeshRenderer>();
+                        if (targetObject.GetComponent<SkinnedMeshRenderer>())
                         {
                             _blendshapes = HVR_EditorHelpers.ListAllBlendshapes(smr);
                         }
@@ -145,7 +147,9 @@ namespace HVR.Vixxy.Editor
                         {
                             _blendshapes = null;
                         }
-                        if (targetObject.GetComponent<Renderer>() is { } renderer)
+
+                        var renderer = targetObject.GetComponent<Renderer>();
+                        if (renderer != null)
                         {
                             _materialProperties = HVR_EditorHelpers.ListMostMaterialProperties(renderer);
                         }
