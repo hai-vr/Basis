@@ -20,50 +20,39 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             var activationsSp = serializedObject.FindProperty(nameof(HVRVixxyControl.activations));
-            if (my.IsRegularToggle)
+            for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
             {
-                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.EnableTheseWhenActiveLabel);
-                DisplayActivations(activationsSp, true, false);
-                EditorGUILayout.Separator();
-                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DisableTheseWhenActiveLabel);
-                DisplayActivations(activationsSp, false, false);
-            }
-            else
-            {
-                for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
-                {
-                    if (string.IsNullOrWhiteSpace(my.choices[choiceIndex].title)) continue;
+                if (string.IsNullOrWhiteSpace(my.choices[choiceIndex].title)) continue;
 
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("");
-                    if (choiceIndex != 0)
-                    {
-                        for (var i = 0; i < choiceIndex; i++)
-                        {
-                            EditorGUILayout.LabelField("", GUILayout.Width(EditorGUIUtility.singleLineHeight));
-                        }
-                    }
-                    EditorGUILayout.LabelField($"#{choiceIndex + 1} {my.choices[choiceIndex].title}", GUILayout.Width(70 + 60 + 25));
-                    for (var i = choiceIndex; i < my.NumberOfChoices; i++)
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("");
+                if (choiceIndex != 0)
+                {
+                    for (var i = 0; i < choiceIndex; i++)
                     {
                         EditorGUILayout.LabelField("", GUILayout.Width(EditorGUIUtility.singleLineHeight));
                     }
-                    EditorGUILayout.EndHorizontal();
                 }
-
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AffectTheseObjectsLabel);
-                for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
+                EditorGUILayout.LabelField($"#{choiceIndex + 1} {my.choices[choiceIndex].title}", GUILayout.Width(70 + 60 + 25));
+                for (var i = choiceIndex; i < my.NumberOfChoices; i++)
                 {
-                    EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(EditorGUIUtility.singleLineHeight));
+                    EditorGUILayout.LabelField("", GUILayout.Width(EditorGUIUtility.singleLineHeight));
                 }
-                EditorGUILayout.LabelField("", GUILayout.Width(70));
-                EditorGUILayout.LabelField("", GUILayout.Width(60));
-                EditorGUILayout.LabelField("", GUILayout.Width(25));
                 EditorGUILayout.EndHorizontal();
-
-                DisplayActivations(activationsSp, false, true);
             }
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AffectTheseObjectsLabel);
+            for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
+            {
+                EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(EditorGUIUtility.singleLineHeight));
+            }
+            EditorGUILayout.LabelField("", GUILayout.Width(70));
+            EditorGUILayout.LabelField("", GUILayout.Width(60));
+            EditorGUILayout.LabelField("", GUILayout.Width(25));
+            EditorGUILayout.EndHorizontal();
+
+            DisplayActivations(activationsSp, false, true);
             EditorGUILayout.Separator();
 
             return false;
