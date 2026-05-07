@@ -51,11 +51,11 @@ namespace HVR.Basis.Comms
             throw new IndexOutOfRangeException();
         }
 
-        /// Generates an address in the form of (path@sha1+componentIndexOnThisType).
+        /// Generates an address in the form of (pathlike@sha1+componentIndexOnThisType).
         public static string GenerateAddressFromPath<T>(T discriminatorComponent, Transform context) where T : Component
         {
             var componentIndex = Array.IndexOf(discriminatorComponent.GetComponents<T>(), discriminatorComponent);
-            var path = HVR_VixxyUtil.ResolveRelativePath(context, discriminatorComponent.transform);
+            var path = HVR_VixxyUtil.GenerateRelativeLikePath(context, discriminatorComponent.transform);
             return $"{path}@{HVR_VixxyUtil.SimpleSha1(path)}+{componentIndex}";
         }
     }
