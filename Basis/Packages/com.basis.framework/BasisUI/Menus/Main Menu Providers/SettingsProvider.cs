@@ -46,6 +46,8 @@ namespace Basis.BasisUI
 
         public static Action<RectTransform> AvatarCustomizationBuilder;
 
+        public static Action<RectTransform> LicensesBuilder;
+
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -140,6 +142,20 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
+            if (SettingsProvider.LicensesBuilder != null)
+            {
+                AddLazyTab(tabGroup, "settings.tab.thirdpartylicenses", () =>
+                {
+                    PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+                    PanelElementDescriptor descriptor = tab.Descriptor;
+                    descriptor.SetIcon(AddressableAssets.Sprites.Settings);
+                    descriptor.SetTitle(BasisLocalization.Get("settings.tab.thirdpartylicenses"));
+                    descriptor.ForceRebuild();
+
+                    SettingsProvider.LicensesBuilder.Invoke(tab.Descriptor.ContentParent);
+                    return tab;
+                });
+            }
 
             // External package tabs (registered via SettingsProvider.ExternalTabs).
             // TabName is treated as a localization key — packages that don't localize
