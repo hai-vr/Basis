@@ -1,14 +1,12 @@
 {
-    "name": "BasisEventDriver",
-    "rootNamespace": "",
+    "name": "Basis.Shims.Samples",
+    "rootNamespace": "Basis.Shims.Samples",
     "references": [
-        "BasisConsoleDisplay",
+        "BasisShims",
         "Basis Framework",
-        "Unity.InputSystem",
-        "com.gator-dragon-games.jigglephysics",
-        "SteamAudioUnity",
-        "Basis.OpenLipSync.Runtime",
-        "BasisProfiler",
+        "BasisSDK",
+        "BasisNetworkCore",
+        "Cilbox",
         "HVR.Basis.Comms"
     ],
     "includePlatforms": [],
