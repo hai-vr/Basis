@@ -56,7 +56,7 @@ to disable booting a VR mode.
 to force a VR mode from boot.
  --force-OpenXRLoader
  --force-OpenVRLoader
- 
+
 1. Make sure you have the correct Unity version installed.
 2. Clone the repository
    ```sh
@@ -117,7 +117,8 @@ This project includes third-party software under the following licenses:
 - [OpusSharp](https://github.com/AvionBlock/OpusSharp) - Copyright 2026 AvionBlock. See `Basis/Packages/com.avionblock.opussharp/LICENSE.txt`
 - [URP Volumetric Fog](https://github.com/cqf2186863072/URP-Volumetric-Fog) - Copyright 2025 Cristian Qiu Felez. See `Basis/Packages/com.cqf.urpvolumetricfog/LICENSE.md`
 - [RNNoise.Net](https://github.com/Yellow-Dog-Man/RNNoise.Net) - Copyright 2023 Yellow Dog Man Studios. See `Basis/Packages/com.xiph.rnnoise/LICENSE`
-- [Basis Comms](https://github.com/hai-vr/basis-comms) - Copyright 2025 Hai~ and MR LUKE B DOOLAN. See `Basis/Packages/dev.hai-vr.basis.comms/LICENSE`
+- [HVR Basis Comms](https://github.com/BasisVR/Basis/tree/developer/Basis/Packages/dev.hai-vr.basis.comms) - Copyright 2025 Hai~ and MR LUKE B DOOLAN. See `Basis/Packages/dev.hai-vr.basis.comms/LICENSE`
+- [HVR Basis NDMF](https://github.com/BasisVR/Basis/tree/developer/Basis/Packages/dev.hai-vr.basis.ndmf) - Copyright (c) 2025 Haï~. See `Basis/Packages/dev.hai-vr.basis.ndmf/LICENSE`
 - [MeaMod.DNS](https://github.com/meamod/MeaMod.DNS) - Copyright 2021 James Weston. See `Basis/Packages/nuget.meamod.dns/LICENSE`
 - [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - Copyright 2007 James Newton-King. See `Basis/Packages/org.basisvr.newtonsoft.json/LICENSE`
 - [BouncyCastle](https://github.com/bcgit/bc-csharp) - Copyright 2000-2024 The Legion of the Bouncy Castle Inc. See `Basis/Packages/org.basisvr.bouncycastle/LICENSE`
@@ -134,9 +135,6 @@ This project includes third-party software under the following licenses:
 - [Inter](https://github.com/rsms/inter) - Copyright 2020 The Inter Project Authors. See `Basis/Packages/com.basis.sdk/LICENSE-Inter-OFL.txt`.
 - [Poppins](https://github.com/itfoundry/Poppins) - Copyright 2020 The Poppins Project Authors. See `Basis/Packages/com.basis.sdk/LICENSE-Poppins-OFL.txt`.
 - [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP) - Copyright 2014-2021 Adobe, with Reserved Font Name 'Source'. See `Basis/Packages/com.basis.sdk/LICENSE-NotoSansJP-OFL.txt`.
-
-### Other
-- [HVRBasisNDMF](https://github.com/hai-vr/ndmf) - See upstream for license terms
 
 ### Trademarks
 
