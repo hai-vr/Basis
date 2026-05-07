@@ -125,6 +125,42 @@ namespace HVR.Vixxy
             return child.name;
         }
 
+
+        /// Generates a path-like string, which is like a relative path, but adds a "//N" suffix whenever a member of the path has a
+        /// sibling of the same name. The first gets no suffix, the second gets "//1", the third gets "//2", etc.<br/>
+        /// This path-like string is not meant to be used to resolve the transform back, it is used to generate addresses.
+        public static string GenerateRelativeLikePath(Transform root, Transform child)
+        {
+            if (root == null) throw new ArgumentNullException(nameof(root)); // Explicitly disallow null for this public method.
+
+            return GenerateMashPathInternal(root, child);
+        }
+
+        private static string GenerateMashPathInternal(Transform rootNullable, Transform child)
+        {
+            if (rootNullable == child) return "";
+
+            var currentChildName = child.name;
+            var increment = 0;
+            foreach (Transform o in child.parent)
+            {
+                if (o == child)
+                {
+                    break;
+                }
+                if (o.name == currentChildName)
+                {
+                    increment++;
+                }
+            }
+
+            var thisLevel = increment == 0 ? currentChildName : $"{currentChildName}//{increment}";
+
+            if (child.parent != rootNullable && child.parent != null) return $"{GenerateMashPathInternal(rootNullable, child.parent)}/{thisLevel}";
+
+            return thisLevel;
+        }
+
         // Calculates a SHA1 hash of a string, to mimic hashes of commits. The default length is 7, to mimic the default length of
         // short hashes on git. Do not use this for cryptographic purposes, this is meant for use in the creation of unique names for
         // parameters.
@@ -135,6 +171,20 @@ namespace HVR.Vixxy
                 .Replace("-", "")
                 .ToLowerInvariant()
                 .Substring(0, length);
+        }
+
+        // Calculates a SHA1 hash of a string, which is 20 bytes.
+        public static byte[] FullSha1(string str)
+        {
+            using var sha = SHA1.Create();
+            return sha.ComputeHash(new UTF8Encoding().GetBytes(str));
+        }
+
+        public static string FromSha1ToString(byte[] fullShaBytes)
+        {
+            return BitConverter.ToString(fullShaBytes)
+                .Replace("-", "")
+                .ToLowerInvariant();
         }
 
         /// Returns false if any of the RGB components of this color is above 1.
