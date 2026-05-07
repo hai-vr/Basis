@@ -333,6 +333,7 @@
     { "key": "settings.tab.admin", "value": "Admin" },
     { "key": "settings.tab.moderator", "value": "Moderator" },
     { "key": "settings.tab.uistyle", "value": "UI Style" },
+    { "key": "settings.tab.thirdpartylicenses", "value": "Third-Party Licenses" },
     { "key": "settings.general.avatarRange", "value": "Avatar Visibility Range" },
     { "key": "settings.general.hearingRange", "value": "Hearing Range" },
     { "key": "settings.general.microphoneRange", "value": "Microphone Range" },
@@ -874,6 +875,8 @@
     { "key": "settings.console.clearLogs", "value": "Clear Logs" },
     { "key": "settings.console.openCrashReport", "value": "Open Latest Crash Report" },
     { "key": "settings.console.output", "value": "Output" },
+
+    { "key": "settings.thirdpartylicenses.openlicenseurl", "value": "Open license URL" },
 
     { "key": "settings.uiStyle.title", "value": "UI Style" },
     { "key": "settings.uiStyle.background1", "value": "Background 1" },
