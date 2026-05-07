@@ -16,6 +16,7 @@ namespace HVR.Basis.Comms
         public const byte NewNet_RemoteRequestsInitialization = 2;
 
         public const byte NewNet_WearerSubmitsNewVariables = 8;
+
         public const byte NewNet_WearerSubmitsUpdatedVariables_Zeroes = 10;
         public const byte NewNet_WearerSubmitsUpdatedVariables_Ones = 11;
         public const byte NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes = 12;
