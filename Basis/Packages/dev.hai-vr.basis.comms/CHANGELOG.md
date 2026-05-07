@@ -13,6 +13,7 @@ New additions:
 Modifications in existing HVR.Basis systems:
 - Functional:
   - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
+  - Addresses chosen automatically for controls now account for objects having the same name.
 - Usability:
   - When a Vixxy Control is created, the choices are named by default to "OFF" and "ON"
   - In the Toggle Objects UI, "Enable these when active" has been replaced with "Affect these objects" and now uses the same system as multiple choices.
