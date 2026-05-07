@@ -201,6 +201,11 @@ namespace HVR.Basis.Comms
 
             private byte[] BuildUpdatedVariablesPacket(Dictionary<int, object> addressIdsToValueToTransmit)
             {
+                // In our system, we currently only handle floats (this may change in the future to support strings and Color).
+                // We do not handle booleans. Instead, this is what happens:
+                // The float values of 0.0 and 1.0 are considered to be special. Instead of networking the value of 0.0 and 1.0,
+                // we transmit a list of networkIds for those zeroes and ones and using four different packet types.
+                // Only values that change are transmitted, so we do not deal with bitfields or anything like that.
                 var zeroesNetworkIds = new List<ushort>();
                 var onesNetworkIds = new List<ushort>();
                 var otherAddressIds = new List<int>();
