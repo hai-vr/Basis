@@ -207,6 +207,11 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 
+        // Eye-gaze ray + endpoint-target gizmo. Off by default — only relevant on
+        // headsets that surface gaze through OpenXR EyeGazeInteraction or a SteamVR
+        // pose action, and the line in your face is noisy.
+        public static BasisSettingsBinding<bool> GizmoEyeGaze = new("gizmoeyegaze", new BasisPlatformDefault<bool>(false));
+
         // Yellow line gizmo drawn between the two physical trackers of every
         // active linked pair. Off by default; toggled separately from
         // TrackerGizmos so a user debugging the pairing system can see only
@@ -1124,6 +1129,7 @@ namespace Basis.BasisUI
             GizmoJiggleVisuals.LoadBindingValue();
             TrackerGizmos.LoadBindingValue();
             LinkedTrackerLines.LoadBindingValue();
+            GizmoEyeGaze.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
             EnableStatistics.LoadBindingValue();

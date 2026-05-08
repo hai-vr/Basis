@@ -21,6 +21,21 @@ public struct BasisDistanceJobParallel : IJobParallelFor
     /// <summary>Normalized = d2 * ReductionMultiplier (caller defines scaling)</summary>
     public float ReductionMultiplier;
 
+    /// <summary>When true, the LOD calculation scales squared distance down for players
+    /// inside the gaze cone so they get a higher-detail mesh LOD even at distance.</summary>
+    public bool UseEyeGaze;
+
+    /// <summary>World-space gaze forward vector (unit length). Only consumed when <see cref="UseEyeGaze"/> is true.</summary>
+    public float3 GazeForward;
+
+    /// <summary>Cosine of the half-angle of the gaze cone. Players with dot(gazeForward, dir) above this threshold
+    /// get the foveation boost.</summary>
+    public float CosHalfGazeCone;
+
+    /// <summary>Multiplier applied to squared distance for players at the cone center; players at the cone edge
+    /// receive no boost. Lower values = stronger foveation. Identity boost is 1.0.</summary>
+    public float GazeBoostFactor;
+
     [ReadOnly] public float3 referencePosition;
     [ReadOnly] public NativeArray<float3> targetPositions;
 
@@ -69,7 +84,19 @@ public struct BasisDistanceJobParallel : IJobParallelFor
         hearingRange[i] = hearing;
         AvatarRange[i] = avatar;
 
-        float normalized = d2 * ReductionMultiplier;
+        float effectiveD2 = d2;
+        if (UseEyeGaze && d2 > 1e-6f)
+        {
+            float3 dir = diff * math.rsqrt(d2);
+            float gazeDot = math.dot(GazeForward, dir);
+            if (gazeDot >= CosHalfGazeCone)
+            {
+                float t = (gazeDot - CosHalfGazeCone) / math.max(1f - CosHalfGazeCone, 1e-6f);
+                effectiveD2 = d2 * math.lerp(1f, GazeBoostFactor, t);
+            }
+        }
+
+        float normalized = effectiveD2 * ReductionMultiplier;
         int lod = (int)math.floor(normalized * 4f);
         lod = math.clamp(lod, 0, 3);
         short newLod = (short)lod;

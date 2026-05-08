@@ -58,6 +58,11 @@ public class BasisOpenXRHeadInput : BasisInput
         ControlOnlyAsDevice();
         ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
         UpdateInputEvents();
+
+        if (BasisOpenXRInputEye != null)
+        {
+            BasisOpenXRInputEye.Simulate();
+        }
     }
     public override void ShowTrackedVisual()
     {
