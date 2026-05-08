@@ -72,24 +72,9 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
         }
 #endif
 
-        if (BasisDeviceManagement.IsCurrentModeVR())
+        if (asset != null && asset.renderScale != RenderScale)
         {
-            if (asset != null && !Mathf.Approximately(asset.renderScale, 1f))
-            {
-                asset.renderScale = 1f;
-            }
-            XRSettings.renderViewportScale = Mathf.Clamp(option, 0.1f, 1f);
-        }
-        else
-        {
-            if (!Mathf.Approximately(XRSettings.renderViewportScale, 1f))
-            {
-                XRSettings.renderViewportScale = 1f;
-            }
-            if (asset != null && asset.renderScale != RenderScale)
-            {
-                asset.renderScale = RenderScale;
-            }
+            asset.renderScale = RenderScale;
         }
     }
 
