@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
+using Basis.Network.Core;
 using BasisNetworkClient;
 using BasisPermissions;
 using System;
@@ -13,8 +14,13 @@ namespace Basis.BasisUI
 {
     public partial class SettingsProvider : BasisMenuActionProvider<BasisMainMenu>
     {
+        private const string ChatTabKey = "settings.tab.chat";
         private static string _pendingTabKey;
         private static string _lastSelectedTabKey;
+        private static PanelTextField _chatTextField;
+        private static string _pendingChatComposerText;
+        private static bool _pendingChatComposerFocus;
+        private static bool _pendingChatComposerPlaySound;
 
         /// <summary>
         /// Maps a tab localization key to the index of its button inside
@@ -93,6 +99,14 @@ namespace Basis.BasisUI
             OpenToTab("settings.tab.bodytracking");
         }
 
+        public static void OpenChatComposer(string presetText, bool focusInput, bool playSound)
+        {
+            _pendingChatComposerText = BasisChatSanitizer.Sanitize(presetText);
+            _pendingChatComposerFocus = focusInput;
+            _pendingChatComposerPlaySound = playSound;
+            OpenToTab(ChatTabKey);
+        }
+
         private static void NavigateToTab(PanelTabGroup tabGroup, string tabKey)
         {
             if (string.IsNullOrEmpty(tabKey))
@@ -105,6 +119,11 @@ namespace Basis.BasisUI
             {
                 PanelButton button = tabGroup.SelectionButtons[index];
                 button?.OnClicked?.Invoke();
+
+                if (tabKey == ChatTabKey)
+                {
+                    ApplyPendingChatComposerRequest();
+                }
             }
         }
 
@@ -114,7 +133,8 @@ namespace Basis.BasisUI
 
             BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),
-                BasisMenuPanel.PanelStyles.Page);
+                BasisMenuPanel.PanelStyles.Page,
+                this);
 
             TextMeshProUGUI TitleLabel = panel.Descriptor.TitleLabel;
             BasisFrameRateVisualization FRV = TitleLabel.gameObject.AddComponent<BasisFrameRateVisualization>();
@@ -136,7 +156,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.graphics", () => GraphicsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.myavatar", () => SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.controls", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.chat", () => ChatTab(tabGroup));
+            AddLazyTab(tabGroup, ChatTabKey, () => ChatTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.bodytracking", () => SettingsProviderIK.IKTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerSettings.TrackerSettingsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
@@ -188,6 +208,11 @@ namespace Basis.BasisUI
             }
 
             panel.Descriptor.ForceRebuild();
+        }
+
+        public override void OnReleaseEvent()
+        {
+            ClearChatComposerReference();
         }
 
         /// <summary>
@@ -1418,9 +1443,12 @@ namespace Basis.BasisUI
             toggleChatDisabled.AssignBinding(BasisSettingsDefaults.ChatDisabled);
 
             PanelTextField chatTextField = PanelTextField.CreateNewEntry(chatGroup);
+            _chatTextField = chatTextField;
             chatTextField.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.message"));
             chatTextField.SetValueWithoutNotify(string.Empty);
+            chatTextField._inputField.characterLimit = BasisChatSanitizer.MaxMessageCharacters;
             chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
+            ApplyPendingChatComposerRequest();
 
             chatTextField.Descriptor.SetActive(!BasisSettingsDefaults.ChatDisabled.RawValue);
             toggleChatDisabled.OnValueChanged += (val) =>
@@ -1454,6 +1482,39 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.LeaveNotifications.ResetToDefault();
             BasisSettingsDefaults.ChatDisabled.ResetToDefault();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
+        }
+
+        private static void ApplyPendingChatComposerRequest()
+        {
+            if (_chatTextField == null || _chatTextField._inputField == null)
+            {
+                return;
+            }
+
+            if (_pendingChatComposerText != null)
+            {
+                _chatTextField.SetValueWithoutNotify(_pendingChatComposerText);
+                _pendingChatComposerText = null;
+            }
+
+            if (_pendingChatComposerPlaySound)
+            {
+                BasisNetworkHandleChat.PlayChatNotification();
+                _pendingChatComposerPlaySound = false;
+            }
+
+            if (_pendingChatComposerFocus)
+            {
+                TMP_InputField input = _chatTextField._inputField;
+                input.Select();
+                input.ActivateInputField();
+                _pendingChatComposerFocus = false;
+            }
+        }
+
+        private static void ClearChatComposerReference()
+        {
+            _chatTextField = null;
         }
 
         // ------------------

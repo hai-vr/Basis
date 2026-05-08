@@ -45,6 +45,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// Created dynamically at runtime positioned above the name mesh.
         /// </summary>
         public TextMeshPro ChatText;
+        public TextMeshPro TypingText;
 
         /// <summary>
         /// The MeshFilter for the chat text bubble background.
@@ -65,6 +66,9 @@ namespace Basis.Scripts.UI.NamePlate
         /// Whether there is an active chat message being displayed.
         /// </summary>
         private bool hasChatMessage;
+        private bool wantsTypingIndicator;
+        private int typingAnimationFrame = -1;
+        private double typingAnimationStartTime;
 
         // --------- Update-driven "talk pulse" state (replaces coroutine) ---------
         private bool isPulsingTalk;
@@ -92,6 +96,8 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Create chat text display above nameplate
             CreateChatTextDisplay();
+            CreateTypingIndicatorDisplay();
+            SetTypingIndicatorVisible(BasisRemotePlayer.IsChatTyping);
 
             if (!BasisRemoteNamePlateDriver.ShouldPlateBeActive(this))
             {
@@ -165,8 +171,7 @@ namespace Basis.Scripts.UI.NamePlate
             // Create the chat bubble background object
             GameObject chatBubbleObj = new GameObject("ChatBubble");
             chatBubbleObj.transform.SetParent(Self, false);
-            chatBubbleObj.transform.localPosition = new Vector3(0, 12f, 0);
-            chatBubbleObj.transform.localRotation = Quaternion.identity;
+            chatBubbleObj.transform.SetLocalPositionAndRotation(new Vector3(0, 12f, 0), Quaternion.identity);
             chatBubbleObj.transform.localScale = Vector3.one;
             chatBubbleObj.layer = gameObject.layer;
 
@@ -186,8 +191,7 @@ namespace Basis.Scripts.UI.NamePlate
             GameObject chatTextObj = new GameObject("ChatText");
             chatTextObj.transform.SetParent(Self, false);
             // Position above the nameplate (nameplate is at y=0, half height ~4.5 units)
-            chatTextObj.transform.localPosition = new Vector3(0, 12f, 0.04f);
-            chatTextObj.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            chatTextObj.transform.SetLocalPositionAndRotation(new Vector3(0, 12f, 0.04f), Quaternion.Euler(0, 180, 0));
             chatTextObj.transform.localScale = Vector3.one;
             chatTextObj.layer = gameObject.layer;
 
@@ -208,10 +212,44 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             // Size the rect to fit above nameplate
-            RectTransform chatRect = ChatText.GetComponent<RectTransform>();
-            chatRect.sizeDelta = new Vector2(58, 10);
+            if (ChatText.TryGetComponent(out RectTransform chatRect))
+            {
+                chatRect.sizeDelta = new Vector2(58, 10);
+            }
 
             chatTextObj.SetActive(false);
+        }
+
+        private void CreateTypingIndicatorDisplay()
+        {
+            GameObject typingTextObj = new GameObject("TypingText");
+            typingTextObj.transform.SetParent(Self, false);
+            typingTextObj.transform.SetLocalPositionAndRotation(new Vector3(0, 12f, 0.04f), Quaternion.Euler(0, 180, 0));
+            typingTextObj.transform.localScale = Vector3.one;
+            typingTextObj.layer = gameObject.layer;
+
+            TypingText = typingTextObj.AddComponent<TextMeshPro>();
+            TypingText.alignment = TextAlignmentOptions.Center;
+            TypingText.fontSize = 28;
+            TypingText.enableAutoSizing = true;
+            TypingText.fontSizeMin = 14;
+            TypingText.fontSizeMax = 28;
+            TypingText.color = Color.white;
+            TypingText.textWrappingMode = TextWrappingModes.NoWrap;
+            TypingText.overflowMode = TextOverflowModes.Overflow;
+            TypingText.text = "...";
+
+            if (LoadingText != null && LoadingText.font != null)
+            {
+                TypingText.font = LoadingText.font;
+            }
+
+            if (TypingText.TryGetComponent(out RectTransform typingRect))
+            {
+                typingRect.sizeDelta = new Vector2(24, 10);
+            }
+
+            typingTextObj.SetActive(false);
         }
 
         public void DeInitalize()
@@ -227,8 +265,10 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Clean up chat display
             if (ChatText != null) Destroy(ChatText.gameObject);
+            if (TypingText != null) Destroy(TypingText.gameObject);
             if (ChatBubbleFilter != null) Destroy(ChatBubbleFilter.gameObject);
             hasChatMessage = false;
+            wantsTypingIndicator = false;
 
             // Clean up rendering resources
             DeInitalizeCallToRender();
@@ -376,24 +416,19 @@ namespace Basis.Scripts.UI.NamePlate
             if (string.IsNullOrEmpty(message))
             {
                 ChatText.gameObject.SetActive(false);
-                if (ChatBubbleFilter != null)
-                    ChatBubbleFilter.gameObject.SetActive(false);
                 hasChatMessage = false;
+                UpdateTypingIndicatorVisual();
+                UpdateBubbleVisual();
                 return;
             }
 
             ChatText.text = message;
             ChatText.gameObject.SetActive(true);
 
-            // Rebuild chat bubble background to fit text
-            if (ChatBubbleFilter != null && BasisRemoteNamePlateDriver.Instance != null)
-            {
-                BasisRemoteNamePlateDriver.Instance.GenerateChatBubble(this);
-                ChatBubbleFilter.gameObject.SetActive(true);
-            }
-
             chatMessageSetTime = Time.timeAsDouble;
             hasChatMessage = true;
+            UpdateTypingIndicatorVisual();
+            UpdateBubbleVisual();
         }
 
         /// <summary>
@@ -407,6 +442,93 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 SetChatText(null);
             }
+        }
+
+        public void SetTypingIndicatorVisible(bool visible)
+        {
+            wantsTypingIndicator = visible;
+            if (visible)
+            {
+                typingAnimationStartTime = Time.timeAsDouble;
+                typingAnimationFrame = -1;
+            }
+
+            UpdateTypingIndicatorVisual();
+            UpdateBubbleVisual();
+        }
+
+        public void UpdateTypingIndicatorAnimation()
+        {
+            if (!wantsTypingIndicator || hasChatMessage || TypingText == null || !TypingText.gameObject.activeSelf)
+            {
+                return;
+            }
+
+            int frame = (int)((Time.timeAsDouble - typingAnimationStartTime) / 0.4d) % 3;
+            if (frame == typingAnimationFrame)
+            {
+                return;
+            }
+
+            typingAnimationFrame = frame;
+            TypingText.text = frame switch
+            {
+                0 => ".",
+                1 => "..",
+                _ => "...",
+            };
+            UpdateBubbleVisual();
+        }
+
+        public TextMeshPro GetBubbleSourceText()
+        {
+            if (hasChatMessage && ChatText != null && ChatText.gameObject.activeSelf)
+            {
+                return ChatText;
+            }
+
+            if (wantsTypingIndicator && TypingText != null && TypingText.gameObject.activeSelf)
+            {
+                return TypingText;
+            }
+
+            return null;
+        }
+
+        private void UpdateTypingIndicatorVisual()
+        {
+            if (TypingText == null)
+            {
+                return;
+            }
+
+            bool shouldShow = wantsTypingIndicator && !hasChatMessage;
+            if (shouldShow)
+            {
+                TypingText.gameObject.SetActive(true);
+                UpdateTypingIndicatorAnimation();
+            }
+            else
+            {
+                TypingText.gameObject.SetActive(false);
+            }
+        }
+
+        private void UpdateBubbleVisual()
+        {
+            if (ChatBubbleFilter == null)
+            {
+                return;
+            }
+
+            if (GetBubbleSourceText() == null || BasisRemoteNamePlateDriver.Instance == null)
+            {
+                ChatBubbleFilter.gameObject.SetActive(false);
+                return;
+            }
+
+            BasisRemoteNamePlateDriver.Instance.GenerateChatBubble(this);
+            ChatBubbleFilter.gameObject.SetActive(true);
         }
 
         public void DeInitalizeCallToRender()
@@ -514,7 +636,7 @@ namespace Basis.Scripts.UI.NamePlate
                 }
                 else
                 {
-                    Debug.LogWarning("Input source interacted with ReparentInteractable without highlighting first.");
+                    BasisDebug.LogWarning(nameof(BasisRemoteNamePlate) + " input source interacted without highlighting first.");
                 }
             }
             else
