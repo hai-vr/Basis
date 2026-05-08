@@ -333,6 +333,7 @@
     { "key": "settings.tab.admin", "value": "Administrador" },
     { "key": "settings.tab.moderator", "value": "Moderador" },
     { "key": "settings.tab.uistyle", "value": "Estilo de interfaz" },
+    { "key": "settings.tab.thirdpartylicenses", "value": "Licencias de terceros" },
     { "key": "settings.general.avatarRange", "value": "Rango de visibilidad del avatar" },
     { "key": "settings.general.hearingRange", "value": "Rango de audición" },
     { "key": "settings.general.microphoneRange", "value": "Rango del micrófono" },
@@ -744,6 +745,8 @@
     { "key": "settings.developer.trackerGizmos.description", "value": "Muestra gizmos esfera en la posición física de cada tracker asignado a un rol corporal." },
     { "key": "settings.developer.linkedTrackerLines", "value": "Líneas de trackers vinculados" },
     { "key": "settings.developer.linkedTrackerLines.description", "value": "Dibuja una línea amarilla entre los dos trackers físicos de cada par vinculado activo." },
+    { "key": "settings.developer.eyeGazeGizmo", "value": "Rayo de mirada" },
+    { "key": "settings.developer.eyeGazeGizmo.description", "value": "Visualiza la pose de mirada de OpenXR / SteamVR como un rayo cian desde el ojo con una esfera en el punto final. Solo aparece cuando el runtime reporta una mirada rastreada." },
     { "key": "settings.developer.avatarDistance", "value": "Distancia del avatar" },
     { "key": "settings.developer.avatarDistance.description", "value": "Muestra el círculo de rango de visibilidad del avatar a tus pies." },
     { "key": "settings.developer.enableStatistics", "value": "Activar estadísticas" },
@@ -874,6 +877,8 @@
     { "key": "settings.console.clearLogs", "value": "Borrar registros" },
     { "key": "settings.console.openCrashReport", "value": "Abrir último informe de fallos" },
     { "key": "settings.console.output", "value": "Salida" },
+
+    { "key": "settings.thirdpartylicenses.openlicenseurl", "value": "Abrir URL de licencia" },
 
     { "key": "settings.uiStyle.title", "value": "Estilo de interfaz" },
     { "key": "settings.uiStyle.background1", "value": "Fondo 1" },

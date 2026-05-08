@@ -17,10 +17,12 @@ namespace Cilbox
 			"Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable", // Restrictive (See below), only access field.
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject", // Restrictive (See below), only access field.
 			"Basis.BasisNetworkBehaviour",
+			"Basis.Shims.BasisOsc*",
 			"Basis.Network.Core.DeliveryMethod",
 			"Basis.SafeUtil",
 			"Basis.Scripts.BasisSdk.Players.BasisLocalPlayer",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer",
+			"HVR.Basis.Comms.OSC*",
 
 			// Cilbox types
 			"Cilbox.CilboxPublicUtils",
@@ -273,7 +275,6 @@ namespace Cilbox
 			"UnityEngine.EventSystems.BaseEventData",
 			"UnityEngine.EventSystems.EventTrigger",
 			"UnityEngine.EventSystems.EventTrigger+Entry",
-			"UnityEngine.EventSystems.EventTrigger+TriggerEvent",
 			"UnityEngine.EventSystems.EventTriggerType",
 			"UnityEngine.EventSystems.PointerEventData",
 			"UnityEngine.EventSystems.PointerEventData+InputButton",
@@ -334,6 +335,13 @@ namespace Cilbox
 			"Basis.BasisNetworkBehaviour.CurrentOwnerId",
 			"Basis.BasisNetworkBehaviour.IsOwnedLocallyOnServer",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.playerId",
+			
+			// Unity Event Systems fields
+			"UnityEngine.EventSystems.EventTrigger+Entry.eventID",
+			"UnityEngine.EventSystems.PointerEventData.hovered",
+			"UnityEngine.EventSystems.EventTriggerType.*",
+			"UnityEngine.EventSystems.PointerEventData+InputButton.*",
+			"UnityEngine.EventSystems.RaycastResult.*",
 		};
 
 		protected static readonly Dictionary<Type, HashSet<string>> commonMethodWhitelist = new Dictionary<Type, HashSet<string>>()
@@ -348,6 +356,7 @@ namespace Cilbox
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.Player)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.LocalPlayer)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.displayName)).GetGetMethod().Name,
+				"get_playerId",
 				} },
 			{ typeof(UnityEngine.GameObject),          new HashSet<string>{
 				nameof(UnityEngine.GameObject.SetActive),

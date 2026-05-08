@@ -333,6 +333,7 @@
     { "key": "settings.tab.admin", "value": "Admin" },
     { "key": "settings.tab.moderator", "value": "Moderator" },
     { "key": "settings.tab.uistyle", "value": "UI-Stil" },
+    { "key": "settings.tab.thirdpartylicenses", "value": "Third-Party Licenses" },
     { "key": "settings.general.avatarRange", "value": "Avatar-Sichtreichweite" },
     { "key": "settings.general.hearingRange", "value": "Hörreichweite" },
     { "key": "settings.general.microphoneRange", "value": "Mikrofon-Reichweite" },
@@ -744,6 +745,8 @@
     { "key": "settings.developer.trackerGizmos.description", "value": "Zeigt Kugel-Gizmos an der physischen Position jedes Trackers, der einer Körperrolle zugeordnet ist." },
     { "key": "settings.developer.linkedTrackerLines", "value": "Verknüpfte Tracker-Linien" },
     { "key": "settings.developer.linkedTrackerLines.description", "value": "Zeichnet eine gelbe Linie zwischen den zwei physischen Trackern jedes aktiven verknüpften Paars." },
+    { "key": "settings.developer.eyeGazeGizmo", "value": "Eye Gaze Ray" },
+    { "key": "settings.developer.eyeGazeGizmo.description", "value": "Visualizes the OpenXR / SteamVR eye-gaze pose as a cyan ray from the eye with a sphere at the endpoint. Only appears when the runtime reports a tracked gaze." },
     { "key": "settings.developer.avatarDistance", "value": "Avatar-Entfernung" },
     { "key": "settings.developer.avatarDistance.description", "value": "Zeigt einen Kreis der Avatar-Sichtreichweite zu deinen Füßen an." },
     { "key": "settings.developer.enableStatistics", "value": "Statistiken aktivieren" },
@@ -874,6 +877,8 @@
     { "key": "settings.console.clearLogs", "value": "Logs löschen" },
     { "key": "settings.console.openCrashReport", "value": "Letzten Crash-Report öffnen" },
     { "key": "settings.console.output", "value": "Ausgabe" },
+
+    { "key": "settings.thirdpartylicenses.openlicenseurl", "value": "Open license URL" },
 
     { "key": "settings.uiStyle.title", "value": "UI-Stil" },
     { "key": "settings.uiStyle.background1", "value": "Hintergrund 1" },

@@ -122,6 +122,12 @@ public partial class BasisTransmissionResults
 
     public static float HysteresisPercent = 1.10f * 1.10f; // 10% hysteresis
 
+    /// <summary>Half-angle (degrees) of the eye-gaze cone used to boost MeshLod detail for players the user is looking at.</summary>
+    public static float GazeFoveationConeDegrees = 20f;
+
+    /// <summary>Squared-distance multiplier applied at the gaze cone center; 0.25 ≈ "treat at half the actual distance".</summary>
+    public static float GazeFoveationBoost = 0.25f;
+
     public static float LastHearingRange = -1;
     public static bool RevaluteAudioRanges = false;
     public static float ConvertedVoiceDistance;
@@ -234,6 +240,14 @@ public partial class BasisTransmissionResults
         // third-person doesn't push avatars/audio out of range from behind the player.
         distanceJob.referencePosition = BasisLocalCameraDriver.HeadPosition;
         distanceJob.ReductionMultiplier = SMModuleDistanceBasedReductions.MeshLod;
+
+        distanceJob.UseEyeGaze = BasisLocalCameraDriver.HasEyeGaze;
+        if (distanceJob.UseEyeGaze)
+        {
+            distanceJob.GazeForward = BasisLocalCameraDriver.GazeDirection;
+            distanceJob.CosHalfGazeCone = math.cos(math.radians(GazeFoveationConeDegrees * 0.5f));
+            distanceJob.GazeBoostFactor = GazeFoveationBoost;
+        }
 
         distanceJob.HysteresisPercent = HysteresisPercent;
 

@@ -333,6 +333,7 @@
     { "key": "settings.tab.admin", "value": "Admin" },
     { "key": "settings.tab.moderator", "value": "Moderator" },
     { "key": "settings.tab.uistyle", "value": "UI Style" },
+    { "key": "settings.tab.thirdpartylicenses", "value": "Third-Party Licenses" },
     { "key": "settings.general.avatarRange", "value": "Avatar Visibility Range" },
     { "key": "settings.general.hearingRange", "value": "Hearing Range" },
     { "key": "settings.general.microphoneRange", "value": "Microphone Range" },
@@ -744,6 +745,8 @@
     { "key": "settings.developer.trackerGizmos.description", "value": "Show sphere gizmos at the physical position of each tracker bound to a body role." },
     { "key": "settings.developer.linkedTrackerLines", "value": "Linked Tracker Lines" },
     { "key": "settings.developer.linkedTrackerLines.description", "value": "Draw a yellow line between the two physical trackers of every active linked pair." },
+    { "key": "settings.developer.eyeGazeGizmo", "value": "Eye Gaze Ray" },
+    { "key": "settings.developer.eyeGazeGizmo.description", "value": "Visualizes the OpenXR / SteamVR eye-gaze pose as a cyan ray from the eye with a sphere at the endpoint. Only appears when the runtime reports a tracked gaze." },
     { "key": "settings.developer.avatarDistance", "value": "Avatar Distance" },
     { "key": "settings.developer.avatarDistance.description", "value": "Show avatar visibility range circle at your feet." },
     { "key": "settings.developer.enableStatistics", "value": "Enable Statistics" },
@@ -874,6 +877,8 @@
     { "key": "settings.console.clearLogs", "value": "Clear Logs" },
     { "key": "settings.console.openCrashReport", "value": "Open Latest Crash Report" },
     { "key": "settings.console.output", "value": "Output" },
+
+    { "key": "settings.thirdpartylicenses.openlicenseurl", "value": "Open license URL" },
 
     { "key": "settings.uiStyle.title", "value": "UI Style" },
     { "key": "settings.uiStyle.background1", "value": "Background 1" },

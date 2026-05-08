@@ -18,7 +18,8 @@
         "Unity.Addressables",
         "Unity.Addressables.Editor",
         "Basis.OpenLipSync.Runtime",
-        "BasisEventDriver"
+        "BasisEventDriver",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [
         "Editor"

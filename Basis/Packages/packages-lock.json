@@ -573,7 +573,7 @@
     },
     "com.unity.xr.openxr": {
       "version": "1.16.1",
-      "depth": 1,
+      "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.inputsystem": "1.6.3",
@@ -583,6 +583,16 @@
         "com.unity.xr.legacyinputhelpers": "2.1.2"
       },
       "url": "https://packages.unity.com"
+    },
+    "com.valvesoftware.openxr.utils": {
+      "version": "https://github.com/ValveSoftware/Unity.git?path=com.valvesoftware.openxr.utils#41ca1855174652d288af94a1b83ef76e34b5d4af",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.xr.openxr": "1.10.0",
+        "com.unity.inputsystem": "1.7.0"
+      },
+      "hash": "41ca1855174652d288af94a1b83ef76e34b5d4af"
     },
     "com.valvesoftware.unity.openvr": {
       "version": "file:com.valvesoftware.unity.openvr",
@@ -611,6 +621,12 @@
     },
     "dev.hai-vr.basis.ndmf": {
       "version": "file:dev.hai-vr.basis.ndmf",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
+    "dev.hai-vr.hvr.license-review": {
+      "version": "file:dev.hai-vr.hvr.license-review",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}

@@ -46,6 +46,8 @@ namespace Basis.BasisUI
 
         public static Action<RectTransform> AvatarCustomizationBuilder;
 
+        public static Action<RectTransform> LicensesBuilder;
+
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -140,6 +142,20 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
+            if (SettingsProvider.LicensesBuilder != null)
+            {
+                AddLazyTab(tabGroup, "settings.tab.thirdpartylicenses", () =>
+                {
+                    PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+                    PanelElementDescriptor descriptor = tab.Descriptor;
+                    descriptor.SetIcon(AddressableAssets.Sprites.Settings);
+                    descriptor.SetTitle(BasisLocalization.Get("settings.tab.thirdpartylicenses"));
+                    descriptor.ForceRebuild();
+
+                    SettingsProvider.LicensesBuilder.Invoke(tab.Descriptor.ContentParent);
+                    return tab;
+                });
+            }
 
             // External package tabs (registered via SettingsProvider.ExternalTabs).
             // TabName is treated as a localization key — packages that don't localize
@@ -1538,6 +1554,11 @@ namespace Basis.BasisUI
             toggleLinkedTrackerLines.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.linkedTrackerLines.description"));
             toggleLinkedTrackerLines.AssignBinding(BasisSettingsDefaults.LinkedTrackerLines);
 
+            PanelToggle toggleEyeGazeGizmo = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleEyeGazeGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeGazeGizmo"));
+            toggleEyeGazeGizmo.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.eyeGazeGizmo.description"));
+            toggleEyeGazeGizmo.AssignBinding(BasisSettingsDefaults.GizmoEyeGaze);
+
             // Hide sub-toggles when the master is off — they're meaningless without it
             // and shouldn't clutter the page.
             void RefreshGizmoSubVisibility(bool masterOn)
@@ -1547,6 +1568,7 @@ namespace Basis.BasisUI
                 toggleJiggleVisuals.Descriptor.SetActive(masterOn);
                 toggleTrackerGizmos.Descriptor.SetActive(masterOn);
                 toggleLinkedTrackerLines.Descriptor.SetActive(masterOn);
+                toggleEyeGazeGizmo.Descriptor.SetActive(masterOn);
                 gizmosGroup.ForceRebuild();
             }
             RefreshGizmoSubVisibility(toggleShowGizmos.Value);
@@ -1908,6 +1930,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoCalibrationSpheres.ResetToDefault();
             BasisSettingsDefaults.GizmoJiggleVisuals.ResetToDefault();
             BasisSettingsDefaults.TrackerGizmos.ResetToDefault();
+            BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
+            BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();

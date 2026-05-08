@@ -72,14 +72,24 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
         }
 #endif
 
-        // the system allows us to scale the render resolution correctly,
-        // however gpu culling does not know about this. OpenVR uses the same path:
-        // BasisOpenVRManagement applies the lens-distortion-grown recommended size to
-        // XRSettings.eyeTextureResolutionScale once at SteamVR init, and URP renderScale
-        // multiplies on top — identical to OpenXR/Desktop.
-        if (asset != null && asset.renderScale != RenderScale)
+        if (BasisDeviceManagement.IsCurrentModeVR())
         {
-            asset.renderScale = RenderScale;
+            if (asset != null && !Mathf.Approximately(asset.renderScale, 1f))
+            {
+                asset.renderScale = 1f;
+            }
+            XRSettings.renderViewportScale = Mathf.Clamp(option, 0.1f, 1f);
+        }
+        else
+        {
+            if (!Mathf.Approximately(XRSettings.renderViewportScale, 1f))
+            {
+                XRSettings.renderViewportScale = 1f;
+            }
+            if (asset != null && asset.renderScale != RenderScale)
+            {
+                asset.renderScale = RenderScale;
+            }
         }
     }
 

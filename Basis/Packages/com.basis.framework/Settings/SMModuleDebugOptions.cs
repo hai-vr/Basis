@@ -12,6 +12,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     public static bool UseGizmos = false;
     public static bool UseTrackerGizmos = false;
     public static bool UseLinkedTrackerLines = false;
+    public static bool UseEyeGazeGizmo = false;
 
     // Sub-toggles under ShowGizmos. Default true so the master switch alone restores
     // the pre-split behavior (lines + spheres + jiggle render) for users who never
@@ -27,6 +28,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_JIGGLE_VISUALS => BasisSettingsDefaults.GizmoJiggleVisuals.BindingKey;       // "gizmojigglevisuals"
     private static string K_TRACKER_GIZMOS => BasisSettingsDefaults.TrackerGizmos.BindingKey;                  // "trackergizmos"
     private static string K_LINKED_TRACKER_LINES => BasisSettingsDefaults.LinkedTrackerLines.BindingKey;      // "linkedtrackerlines"
+    private static string K_GIZMO_EYE_GAZE => BasisSettingsDefaults.GizmoEyeGaze.BindingKey;                  // "gizmoeyegaze"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -116,6 +118,15 @@ public class SMModuleDebugOptions : BasisSettingsBase
         if (matchedSettingName == K_LINKED_TRACKER_LINES)
         {
             HandleLinkedTrackerLines(optionValue);
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_EYE_GAZE)
+        {
+            if (bool.TryParse(optionValue, out UseEyeGazeGizmo) && !UseEyeGazeGizmo)
+            {
+                BasisEyeGazeGizmo.Shutdown();
+            }
         }
     }
 

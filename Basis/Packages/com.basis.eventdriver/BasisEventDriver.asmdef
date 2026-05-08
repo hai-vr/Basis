@@ -10,7 +10,8 @@
         "Basis.OpenLipSync.Runtime",
         "BasisProfiler",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.RenderPipelines.Core.Runtime"
+        "Unity.RenderPipelines.Core.Runtime",
+        "HVR.Basis.Comms"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
