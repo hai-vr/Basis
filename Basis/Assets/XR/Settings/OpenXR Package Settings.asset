@@ -667,7 +667,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 494177e5549bfa144a1dc45218231d1f, type: 3}
   m_Name: FixNoVisibleAreaMesh Standalone
   m_EditorClassIdentifier: BasisOpenXR::UnityEngine.XR.OpenXR.Features.FixNoVisibleAreaMesh
-  m_enabled: 1
+  m_enabled: 0
   nameUi: Fix No Visible Area Mesh
   version: 0.0.1
   featureIdInternal: com.stresslevelzero.fixnovisiblemesh
