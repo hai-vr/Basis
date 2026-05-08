@@ -13,30 +13,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
         private XRNodeState rightEyeState;
         private XRNodeState centerEyeState;
         private bool hasCenterEyeState;
+        private readonly List<XRNodeState> _nodeStates = new List<XRNodeState>();
 
         private InputAction _gazePoseAction;
 
         public override void Initalize()
         {
-            List<XRNodeState> nodeStates = new List<XRNodeState>();
-            InputTracking.GetNodeStates(nodeStates);
-
-            foreach (XRNodeState nodeState in nodeStates)
-            {
-                if (nodeState.nodeType == XRNode.LeftEye)
-                {
-                    leftEyeState = nodeState;
-                }
-                else if (nodeState.nodeType == XRNode.RightEye)
-                {
-                    rightEyeState = nodeState;
-                }
-                else if (nodeState.nodeType == XRNode.CenterEye)
-                {
-                    centerEyeState = nodeState;
-                    hasCenterEyeState = true;
-                }
-            }
+            RefreshNodeStates();
 
             _gazePoseAction = new InputAction("EyeGazePose", InputActionType.Value, "<EyeGaze>/pose", expectedControlType: "Pose");
             _gazePoseAction.Enable();
@@ -56,6 +39,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
 
         public override void Simulate()
         {
+            // XRNodeState is a snapshot struct — its position/rotation reflect the
+            // moment GetNodeStates filled the list, not live tracking. Refresh so
+            // hmdTrackingPos in UpdateGaze stays anchored to the actual HMD pose.
+            RefreshNodeStates();
+
             if (leftEyeState.TryGetPosition(out LeftPosition))
             {
             }
@@ -122,6 +110,28 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
         {
             BasisLocalCameraDriver.HasEyeGaze = false;
             BasisEyeGazeGizmo.Tick(false, Vector3.zero, Vector3.forward);
+        }
+
+        private void RefreshNodeStates()
+        {
+            InputTracking.GetNodeStates(_nodeStates);
+            hasCenterEyeState = false;
+            foreach (XRNodeState nodeState in _nodeStates)
+            {
+                if (nodeState.nodeType == XRNode.LeftEye)
+                {
+                    leftEyeState = nodeState;
+                }
+                else if (nodeState.nodeType == XRNode.RightEye)
+                {
+                    rightEyeState = nodeState;
+                }
+                else if (nodeState.nodeType == XRNode.CenterEye)
+                {
+                    centerEyeState = nodeState;
+                    hasCenterEyeState = true;
+                }
+            }
         }
     }
 }

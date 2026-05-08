@@ -1494,7 +1494,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 713330c9b2521f04aac11d35751d76bf, type: 3}
   m_Name: ValveOpenXRSupportFeature Standalone
   m_EditorClassIdentifier: Valve.OpenXR.Utils::Valve.OpenXR.Utils.ValveOpenXRSupportFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: 'Valve Utils: Settings for Unity''s Rendering'
   version: 0.1.0
   featureIdInternal: com.valvesoftware.openxr.utils.support
@@ -1766,7 +1766,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c3cee2d29342eb4696501b1931a5004, type: 3}
   m_Name: ValveOpenXRRefreshRateFeature Standalone
   m_EditorClassIdentifier: Valve.OpenXR.Utils::ValveOpenXRRefreshRateFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: 'Valve Utils: Refresh Rate'
   version: 1
   featureIdInternal: com.valve.openxr.refreshrate
