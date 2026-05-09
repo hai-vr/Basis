@@ -291,8 +291,19 @@ namespace HVR.Vixxy
                 var isAnyPropertyApplicable = false;
                 var isAnyPropertyDependentOnMaterialPropertyBlock = false;
 
-                foreach (var property in subject.properties)
+                for (var index = 0; index < subject.properties.Count; index++)
                 {
+                    var property = subject.properties[index];
+                    if (property is HVRVixxyPropertyColor32 legacyColor32) // Fix an issue where HDR colors were incorrectly specified as Color32
+                    {
+                        HVRLogging.Debug($"In HVRVixxyControl {name}, converting property Color32 to ColorHDR");
+                        subject.properties[index] = new HVRVixxyPropertyColorHDR
+                        {
+                            choices = legacyColor32.choices.Select(color32 => (Color)color32).ToArray(),
+                            interpolation = legacyColor32.interpolation,
+                        };
+                    }
+
                     var bakeResult = BakeProperty(property, subject);
                     var isApplicable = bakeResult == HVRVixxyPropertyBakeResult.Success;
                     property.IsApplicable = isApplicable;
