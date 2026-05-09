@@ -13,6 +13,7 @@ Modifications in existing HVR.Basis systems:
 - In the Toggle Objects UI, "Enable these when active" has been replaced with "Affect these objects" and now uses the same system as multiple choices.
 - In the Subjects UI, "Inactive" and "Active" have now use the same system as multiple choices.
 - Address and Networking have been moved to their own "Advanced Settings" tab since they don't need to be touched.
+- Controls can now process the input value through various filters, such as smooth towards value, linear move towards value. and curve.
 
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
