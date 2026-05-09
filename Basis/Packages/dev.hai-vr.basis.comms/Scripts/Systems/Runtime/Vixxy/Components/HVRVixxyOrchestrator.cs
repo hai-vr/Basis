@@ -19,6 +19,7 @@ namespace HVR.Vixxy
         public HVRVariableStore VariableStore;
 
         private readonly HashSet<IHVRVixxyAggregator> _aggregatorsToUpdateThisTick = new();
+        private readonly HashSet<IHVRVixxyActuator> _actuatorsWithFiltersToCheckThisTick = new();
         private readonly HashSet<IHVRVixxyActuator> _actuatorsToUpdateThisTick = new();
         private bool _anythingNeedsUpdating;
 
@@ -49,7 +50,7 @@ namespace HVR.Vixxy
             // (consider switching to an int lookup).
 
             var aggregators = AggregatorsOf(addressId);
-            var actuators = ActuatorsOf(addressId);
+            var (filters, actuators) = ActuatorsOf(addressId).Partition(actuator => actuator.HasFilters());
 
             // In AcquisitionService, acquisition events are raised as soon as the data arrives.
             // We don't want to process that new data when it arrives, instead we want to process
@@ -60,6 +61,7 @@ namespace HVR.Vixxy
             // like that of face tracking.
             // OR, modify AcquisitionService to have OnAddressValueChanged.
             _aggregatorsToUpdateThisTick.UnionWith(aggregators);
+            _actuatorsWithFiltersToCheckThisTick.UnionWith(filters);
             _actuatorsToUpdateThisTick.UnionWith(actuators);
             _anythingNeedsUpdating = true;
         }
@@ -101,8 +103,29 @@ namespace HVR.Vixxy
                 }
             }
 
+            if (_actuatorsWithFiltersToCheckThisTick.Count > 0)
+            {
+                var actuatorsWithFiltersToCheckNextTick = new HashSet<IHVRVixxyActuator>();
+
+                foreach (var actuator in _actuatorsWithFiltersToCheckThisTick)
+                {
+                    var filterResult = actuator.ApplyFilters();
+                    if (filterResult.filterNeedsCheckNextTick)
+                    {
+                        actuatorsWithFiltersToCheckNextTick.Add(actuator);
+                    }
+                    if (filterResult.actuatorNeedsUpdate)
+                    {
+                        _actuatorsToUpdateThisTick.Add(actuator);
+                    }
+                }
+
+                _actuatorsWithFiltersToCheckThisTick.Clear();
+                _actuatorsWithFiltersToCheckThisTick.UnionWith(actuatorsWithFiltersToCheckNextTick);
+            }
+
             // Deck remaining aggregations for next frame. We already gave it a bunch of chances.
-            _anythingNeedsUpdating = _aggregatorsToUpdateThisTick.Count > 0;
+            _anythingNeedsUpdating = _aggregatorsToUpdateThisTick.Count > 0 || _actuatorsWithFiltersToCheckThisTick.Count > 0;
 
             // TODO: It may be possible to do a reverse graph traversal, where we deny listening to addresses
             // or processing aggregators if there are no actuators that listen to that data in the first place.

@@ -9,5 +9,18 @@
         /// submit new values for acquisition, but it should be avoided as part of the design. Tolerated side effects would be like
         /// moving an object, which in turns changes a metric that is then submitted for acquisition.
         public void Actuate();
+
+        /// True if this actuator doesn't feed its input value directly to its actuator. There may be a situation where the input value
+        /// does not immediately cause the actuated value to change.
+        public bool HasFilters();
+
+        /// Write the new actuated value to the actuator, based on its filters.
+        HVRVixxyActuatorApplyFilterResult ApplyFilters();
+    }
+
+    public struct HVRVixxyActuatorApplyFilterResult
+    {
+        public bool actuatorNeedsUpdate;
+        public bool filterNeedsCheckNextTick;
     }
 }
