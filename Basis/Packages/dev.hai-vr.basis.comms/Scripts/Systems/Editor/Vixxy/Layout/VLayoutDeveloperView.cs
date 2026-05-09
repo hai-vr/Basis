@@ -51,8 +51,8 @@ namespace HVR.Vixxy.Editor
                         EditorGUI.BeginDisabledGroup(true);
                         EditorGUILayout.TextField(nameof(HVRVixxyControl.Address), my.Address);
                         EditorGUI.EndDisabledGroup();
-                        var slider = EditorGUILayout.Slider(my._value, my.Min(), my.Max());
-                        if (!Mathf.Approximately(slider, my._value))
+                        var slider = EditorGUILayout.Slider(my._previousValue, my.Min(), my.Max());
+                        if (!Mathf.Approximately(slider, my._previousValue))
                         {
                             AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
                         }

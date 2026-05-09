@@ -39,8 +39,9 @@ namespace HVR.Vixxy
         private Transform _context;
         private HVRActuatorRegistrationToken _registeredActuator;
 
-        private float _previousValue;
-        internal float _value;
+        internal float _previousValue;
+        internal float _objectiveValue;
+        internal float _actuatedValue;
 
         [NonSerialized] internal string Address;
         [NonSerialized] internal int AddressId;
@@ -60,6 +61,8 @@ namespace HVR.Vixxy
         [SerializeField] internal bool InterpolateFromChoiceApplies; // Only serializable for debug purposes
         [SerializeField] internal int InterpolateFromChoice; // Only serializable for debug purposes
         [SerializeField] internal float InterpolateFromChoiceAmount01; // Only serializable for debug purposes
+
+        [NonSerialized] private List<HVRVixxyFilterBase> _filters = new();
 
         public void Awake()
         {
@@ -140,8 +143,9 @@ namespace HVR.Vixxy
                 _variableStore.SubmitOrDefineDefaultValue(AddressId, defaultValue);
 
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
-                _value = defaultValue;
-                BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_value}");
+                _objectiveValue = defaultValue;
+                _actuatedValue = defaultValue;
+                BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_actuatedValue}");
             }
         }
 
@@ -542,9 +546,52 @@ namespace HVR.Vixxy
             // Only proceed if there's a substantial change.
             if (Mathf.Approximately(value, _previousValue)) return;
             _previousValue = value;
-            _value = value;
+            _objectiveValue = value;
+            if (_filters.Count > 0)
+            {
+                _actuatedValue = _objectiveValue;
+            }
 
             orchestrator.PassAddressUpdated(AddressId);
+        }
+
+        public bool HasFilters()
+        {
+            return _filters.Count > 0;
+        }
+
+        public HVRVixxyActuatorApplyFilterResult ApplyFilters()
+        {
+            if (_filters.Count == 0) throw new InvalidOperationException("ApplyFilters must never be called when there are no filters, this indicates a programming error.");
+
+            var filterNeedsCheckNextTick = false;
+
+            var filteredValue = _actuatedValue;
+            foreach (var filter in _filters)
+            {
+                if (filter.isTimeFilter)
+                {
+                    var filtered = filter.TimeFilter(filteredValue, _objectiveValue, Time.deltaTime);
+                    filteredValue = filtered.result;
+                    if (filtered.needsCheckNextTick)
+                    {
+                        filterNeedsCheckNextTick = true;
+                    }
+                }
+                else
+                {
+                    filteredValue = filter.Filter(filteredValue);
+                }
+            }
+
+            var actuatorNeedsUpdate = !Mathf.Approximately(_actuatedValue, filteredValue);
+            _actuatedValue = filteredValue;
+
+            return new HVRVixxyActuatorApplyFilterResult
+            {
+                actuatorNeedsUpdate = actuatorNeedsUpdate,
+                filterNeedsCheckNextTick = filterNeedsCheckNextTick
+            };
         }
 
         public void Actuate()
@@ -552,7 +599,7 @@ namespace HVR.Vixxy
             if (!HasMoreThanTwoChoices)
             {
                 // FIXME: We really need to figure out how actuators sample values from their dependents.
-                var linear01 = Mathf.InverseLerp(choices[HVRVixxyPropertyBase.InactiveIndex].value, choices[HVRVixxyPropertyBase.ActiveIndex].value, _value);
+                var linear01 = Mathf.InverseLerp(choices[HVRVixxyPropertyBase.InactiveIndex].value, choices[HVRVixxyPropertyBase.ActiveIndex].value, _actuatedValue);
                 var active01 = linear01;
                 ActuateActivations(active01);
                 ActuateSubjects(active01, HVRVixxyPropertyBase.InactiveIndex, HVRVixxyPropertyBase.ActiveIndex);
@@ -563,13 +610,13 @@ namespace HVR.Vixxy
                 {
                     var lerpFromChoiceIndex = -1;
                     var lerpToChoiceIndex = -1;
-                    if (_value > choices[ChoiceIndexOrderedByValue[0]].value)
+                    if (_actuatedValue > choices[ChoiceIndexOrderedByValue[0]].value)
                     {
                         for (var i = 0; i < ChoiceIndexOrderedByValue.Count - 1; i++)
                         {
                             var toChoiceIndex = ChoiceIndexOrderedByValue[i + 1];
                             var toChoice = choices[toChoiceIndex];
-                            if (_value < toChoice.value)
+                            if (_actuatedValue < toChoice.value)
                             {
                                 // We're between two choices
                                 lerpFromChoiceIndex = ChoiceIndexOrderedByValue[i];
@@ -594,7 +641,7 @@ namespace HVR.Vixxy
 
                     if (lerpFromChoiceIndex != lerpToChoiceIndex)
                     {
-                        var amount01 = Mathf.InverseLerp(choices[lerpFromChoiceIndex].value, choices[lerpToChoiceIndex].value, _value);
+                        var amount01 = Mathf.InverseLerp(choices[lerpFromChoiceIndex].value, choices[lerpToChoiceIndex].value, _actuatedValue);
                         ActuateActivationsBasedOnChoices(amount01, lerpFromChoiceIndex, lerpToChoiceIndex);
                         ActuateSubjects(amount01, lerpFromChoiceIndex, lerpToChoiceIndex);
                     }
@@ -606,7 +653,7 @@ namespace HVR.Vixxy
                 }
                 else
                 {
-                     int storedIntValue = Mathf.RoundToInt(_value);
+                     int storedIntValue = Mathf.RoundToInt(_actuatedValue);
                      int outValue;
                      if (storedIntValue < 0) outValue = 0;
                      else if (storedIntValue >= ActualNumberOfChoices) outValue = ActualNumberOfChoices - 1;
@@ -702,7 +749,7 @@ namespace HVR.Vixxy
                     // TODO: Rather than do that check every time, bake the applicable properties into an internal field.
                     if (!property.IsApplicable) continue;
 
-                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex, _value);
+                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex, _actuatedValue);
                     Apply(property, lerpValue, out var propertyNeedsCleanup);
 
                     if (propertyNeedsCleanup)
