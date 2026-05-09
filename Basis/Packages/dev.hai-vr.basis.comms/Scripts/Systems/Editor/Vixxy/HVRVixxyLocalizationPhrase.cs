@@ -50,5 +50,10 @@
         internal const string UserViewLabel = "User View";
         internal const string DefaultLabel = "Default";
         internal const string DebugLabel = "Debug";
+        internal const string AddFilterOfTypeLabel = "+ Add filter of type \"{0}\"";
+        internal const string CurveLabel = "Curve";
+        internal const string FilterLabel = "Filter";
+        internal const string LinearMoveTowardsValueLabel = "Linear move towards value";
+        internal const string SmoothTowardsValueLabel = "Smooth towards value";
     }
 }

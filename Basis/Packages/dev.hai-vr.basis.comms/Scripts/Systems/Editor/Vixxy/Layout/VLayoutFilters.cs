@@ -7,7 +7,6 @@ namespace HVR.Vixxy.Editor
 {
     public class VLayoutFilters
     {
-        private const string FiltersLabel = "Filters";
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
         private readonly ReorderableList filtersReorderableList;
@@ -25,7 +24,7 @@ namespace HVR.Vixxy.Editor
             );
             filtersReorderableList.drawElementCallback = FiltersListElement;
             filtersReorderableList.drawHeaderCallback =
-                rect => EditorGUI.LabelField(rect, FiltersLabel);
+                rect => EditorGUI.LabelField(rect, HVRVixxyLocalizationPhrase.FiltersLabel);
             filtersReorderableList.displayAdd = false;
             filtersReorderableList.elementHeight = EditorGUIUtility.singleLineHeight * 1;
         }
@@ -42,17 +41,17 @@ namespace HVR.Vixxy.Editor
                 var element = filtersReorderableList.serializedProperty.GetArrayElementAtIndex(selectedIndex);
 
                 EditorGUILayout.BeginVertical(HVR_EditorHelpers.GroupBoxStyle);
-                EditorGUILayout.LabelField($"Filter #{selectedIndex + 1} ({element.managedReferenceValue.GetType().Name})", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.FilterLabel} #{selectedIndex + 1} ({DisplayNameOf(element.managedReferenceValue.GetType())})", EditorStyles.boldLabel);
 
-                if (element.managedReferenceValue is HVRCurveVixxyFilter curve)
+                if (element.managedReferenceValue is HVRCurveVixxyFilter)
                 {
                     EditorGUILayout.PropertyField(element.FindPropertyRelative(nameof(HVRCurveVixxyFilter.curve)));
                 }
-                else if (element.managedReferenceValue is HVRMoveTowardsVixxyFilter moveTowards)
+                else if (element.managedReferenceValue is HVRMoveTowardsVixxyFilter)
                 {
                     EditorGUILayout.PropertyField(element.FindPropertyRelative(nameof(HVRMoveTowardsVixxyFilter.secondsPerUnit)));
                 }
-                else if (element.managedReferenceValue is HVRSmoothVixxyFilter lerp)
+                else if (element.managedReferenceValue is HVRSmoothVixxyFilter)
                 {
                     EditorGUILayout.PropertyField(element.FindPropertyRelative(nameof(HVRSmoothVixxyFilter.secondsPerUnit)));
                 }
@@ -69,7 +68,7 @@ namespace HVR.Vixxy.Editor
 
         private void AddFilterButton<TFilter>() where TFilter : HVRVixxyFilterBase, new()
         {
-            if (GUILayout.Button($"+ Add filter of type \"{DisplayNameOf<TFilter>()}\""))
+            if (GUILayout.Button(string.Format(HVRVixxyLocalizationPhrase.AddFilterOfTypeLabel, DisplayNameOf<TFilter>())))
             {
                 AddFilter(new TFilter());
             }
@@ -98,9 +97,9 @@ namespace HVR.Vixxy.Editor
         {
             return type switch
             {
-                _ when type == typeof(HVRCurveVixxyFilter) => "Curve",
-                _ when type == typeof(HVRMoveTowardsVixxyFilter) => "Linear move towards value",
-                _ when type == typeof(HVRSmoothVixxyFilter) => "Smooth towards value",
+                _ when type == typeof(HVRCurveVixxyFilter) => HVRVixxyLocalizationPhrase.CurveLabel,
+                _ when type == typeof(HVRMoveTowardsVixxyFilter) => HVRVixxyLocalizationPhrase.LinearMoveTowardsValueLabel,
+                _ when type == typeof(HVRSmoothVixxyFilter) => HVRVixxyLocalizationPhrase.SmoothTowardsValueLabel,
                 _ => type.Name
             };
         }
