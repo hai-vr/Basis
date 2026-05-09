@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using System;
+using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 
@@ -6,6 +7,7 @@ namespace HVR.Vixxy.Editor
 {
     public class VLayoutFilters
     {
+        private const string FiltersLabel = "Filters";
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
         private readonly ReorderableList filtersReorderableList;
@@ -23,7 +25,7 @@ namespace HVR.Vixxy.Editor
             );
             filtersReorderableList.drawElementCallback = FiltersListElement;
             filtersReorderableList.drawHeaderCallback =
-                rect => EditorGUI.LabelField(rect, HVRVixxyLocalizationPhrase.ObjectGroupsLabel);
+                rect => EditorGUI.LabelField(rect, FiltersLabel);
             filtersReorderableList.displayAdd = false;
             filtersReorderableList.elementHeight = EditorGUIUtility.singleLineHeight * 1;
         }
@@ -57,21 +59,20 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.EndVertical();
             }
 
-            if (GUILayout.Button("+ Add Curve filter"))
-            {
-                AddFilter(new HVRCurveVixxyFilter());
-            }
-            if (GUILayout.Button("+ Add MoveTowards filter"))
-            {
-                AddFilter(new HVRMoveTowardsVixxyFilter());
-            }
-            if (GUILayout.Button("+ Add Smooth filter"))
-            {
-                AddFilter(new HVRSmoothVixxyFilter());
-            }
+            AddFilterButton<HVRCurveVixxyFilter>();
+            AddFilterButton<HVRMoveTowardsVixxyFilter>();
+            AddFilterButton<HVRSmoothVixxyFilter>();
             EditorGUILayout.Separator();
 
             return false;
+        }
+
+        private void AddFilterButton<TFilter>() where TFilter : HVRVixxyFilterBase, new()
+        {
+            if (GUILayout.Button($"+ Add filter of type \"{DisplayNameOf<TFilter>()}\""))
+            {
+                AddFilter(new TFilter());
+            }
         }
 
         private void AddFilter(HVRVixxyFilterBase newInstance)
@@ -85,7 +86,23 @@ namespace HVR.Vixxy.Editor
         private void FiltersListElement(Rect rect, int index, bool isActive, bool isFocused)
         {
             var element = filtersReorderableList.serializedProperty.GetArrayElementAtIndex(index);
-            EditorGUI.LabelField(rect, element.managedReferenceValue.GetType().FullName);
+            EditorGUI.LabelField(rect, DisplayNameOf(element.managedReferenceValue.GetType()));
+        }
+
+        private string DisplayNameOf<TFilter>() where TFilter : HVRVixxyFilterBase
+        {
+            return DisplayNameOf(typeof(TFilter));
+        }
+
+        private static string DisplayNameOf(Type type)
+        {
+            return type switch
+            {
+                _ when type == typeof(HVRCurveVixxyFilter) => "Curve",
+                _ when type == typeof(HVRMoveTowardsVixxyFilter) => "Linear move towards value",
+                _ when type == typeof(HVRSmoothVixxyFilter) => "Smooth towards value",
+                _ => type.Name
+            };
         }
     }
 }
