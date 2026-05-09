@@ -28,6 +28,7 @@ Fixes:
 - Fix rejoining or joining multiple servers with the same avatar was incorrectly not submitting the state of the avatar to other users.
 - Workaround initialization packet was exceeding the maximum size when a large number of toggles was created.
   - The initialization packet is now chunked into groups of 10 toggles per packet.
+- Fix HDR properties was using the wrong type.
 
 ## 2025-05-02
 

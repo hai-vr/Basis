@@ -367,17 +367,20 @@ namespace HVR.Vixxy
         }
     }
 
+    /// LEGACY TYPE. This is to fix a serialization issue. Automatically converted to HVRVixxyPropertyColorHDR.
+    [Serializable] public class HVRVixxyPropertyColor32 : HVRVixxyProperty<Color32> { public HVRVixxyPropertyColorHDRInterpolation interpolation; }
+
     [Serializable]
-    public class HVRVixxyPropertyColor32 : HVRVixxyProperty<Color32>
+    public class HVRVixxyPropertyColorHDR : HVRVixxyProperty<Color>
     {
-        public HVRVixxyPropertyColor32Interpolation interpolation;
+        public HVRVixxyPropertyColorHDRInterpolation interpolation;
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             var fromHDR = choices[inactiveIndex];
             var toHDR = choices[activeIndex];
 
-            if (interpolation == HVRVixxyPropertyColor32Interpolation.OklabWhenPossible)
+            if (interpolation == HVRVixxyPropertyColorHDRInterpolation.OklabWhenPossible)
             {
                 if (HVR_VixxyUtil.IsBelowHDR(fromHDR) && HVR_VixxyUtil.IsBelowHDR(toHDR))
                 {
@@ -393,7 +396,7 @@ namespace HVR.Vixxy
                 }
             }
 
-            return Color32.Lerp(fromHDR, toHDR, active01);
+            return Color.Lerp(fromHDR, toHDR, active01);
         }
     }
 
@@ -440,7 +443,7 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
-    public enum HVRVixxyPropertyColor32Interpolation
+    public enum HVRVixxyPropertyColorHDRInterpolation
     {
         /// Use Oklab when the two colors are both below HDR.
         OklabWhenPossible,
