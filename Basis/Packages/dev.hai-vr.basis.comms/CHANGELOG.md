@@ -8,6 +8,7 @@ Changelog
 New additions:
 - The input value of a control can now change over time or be processed by a filter. The following filters are provided: Smooth towards, linear move towards, and curve.
     - This processing is done locally; the value of the address itself does not change over time.
+- Lipsync values are now available as addresses to be read by Vixxy.
 
 Modifications in existing HVR.Basis systems:
 - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
