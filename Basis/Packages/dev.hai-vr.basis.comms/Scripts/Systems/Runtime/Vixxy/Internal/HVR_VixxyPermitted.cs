@@ -97,7 +97,7 @@ namespace HVR.Vixxy
                 or HVRVixxyPropertyQuaternion
                 or HVRVixxyPropertyBool
                 or HVRVixxyPropertyColor
-                or HVRVixxyPropertyColor32
+                or HVRVixxyPropertyColorHDR
                 or HVRVixxyPropertyTexture
                 or HVRVixxyPropertyMesh
                 or HVRVixxyPropertyString;
