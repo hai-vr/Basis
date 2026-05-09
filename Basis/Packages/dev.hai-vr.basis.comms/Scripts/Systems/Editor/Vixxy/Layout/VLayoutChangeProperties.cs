@@ -273,7 +273,19 @@ namespace HVR.Vixxy.Editor
                 for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                 {
                     var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
-                    EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
+                    if (managedReferenceValueType == typeof(HVRVixxyPropertyColorHDR))
+                    {
+                        var from = choicesSp.GetArrayElementAtIndex(choiceIndex).colorValue;
+                        var to = EditorGUILayout.ColorField(new GUIContent(description), from, true, true, true);
+                        if (from != to)
+                        {
+                            choicesSp.GetArrayElementAtIndex(choiceIndex).colorValue = to;
+                        }
+                    }
+                    else
+                    {
+                        EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
+                    }
                 }
             }
 
@@ -281,9 +293,9 @@ namespace HVR.Vixxy.Editor
             {
                 EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyColor.interpolation)));
             }
-            if (managedReferenceValueType == typeof(HVRVixxyPropertyColor32))
+            if (managedReferenceValueType == typeof(HVRVixxyPropertyColorHDR))
             {
-                EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyColor32.interpolation)));
+                EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyColorHDR.interpolation)));
             }
             if (managedReferenceValueType == typeof(HVRVixxyPropertyQuaternion))
             {
@@ -534,7 +546,7 @@ namespace HVR.Vixxy.Editor
 
                             var indexToPutData = propertiesSp.arraySize;
                             propertiesSp.arraySize = indexToPutData + 1;
-                            propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = new HVRVixxyPropertyColor32
+                            propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = new HVRVixxyPropertyColorHDR
                             {
                                 fullClassName = targetedType.FullName,
                                 variant = HVRVixxyPropertyVariant.MaterialProperty,
