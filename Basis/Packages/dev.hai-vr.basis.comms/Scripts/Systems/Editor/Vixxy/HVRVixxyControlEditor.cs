@@ -20,12 +20,14 @@ namespace HVR.Vixxy.Editor
         public static bool _advancedSettingsFoldout;
         public static bool _toggleObjectsFoldout;
         public static bool _changePropertiesFoldout;
+        public static bool _filtersFoldout;
         public static bool _developerViewFoldout;
 
         private VMenuItem _menuItem;
         private VLayoutSettings _settings;
         private VLayoutChangeProperties _changeProperties;
         private VLayoutToggleObjects _toggleObjects;
+        private VLayoutFilters _filters;
         private VLayoutDeveloperView _developerView;
 
         private void OnEnable()
@@ -33,6 +35,7 @@ namespace HVR.Vixxy.Editor
             _settings = new VLayoutSettings(this);
             _changeProperties = new VLayoutChangeProperties(this);
             _toggleObjects = new VLayoutToggleObjects(this);
+            _filters = new VLayoutFilters(this);
             _developerView = new VLayoutDeveloperView(this);
         }
 
@@ -66,11 +69,17 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AdvancedLabel, EditorStyles.boldLabel);
-            _advancedSettingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.AdvancedSettingsLabel, "", _advancedSettingsFoldout, ref anyChanged);
+            _advancedSettingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.AddressAndNetworking, "", _advancedSettingsFoldout, ref anyChanged);
             if (_advancedSettingsFoldout)
             {
                 if (_settings.LayoutAdvancedSettings()) return;
             }
+            _filtersFoldout = HaiEFCommon.LilFoldout("Transition", "", _filtersFoldout, ref anyChanged, my.filters.Count > 0, FilledColor);
+            if (_filtersFoldout)
+            {
+                if (_filters.Layout()) return;
+            }
+
             EditorGUILayout.Separator();
             EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DebugLabel, EditorStyles.boldLabel);
             _developerViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
@@ -89,6 +98,10 @@ namespace HVR.Vixxy.Editor
             if (_developerViewFoldout)
             {
                 DrawDefaultInspector();
+                if (Application.isPlaying)
+                {
+                    Repaint();
+                }
             }
         }
 

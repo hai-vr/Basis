@@ -51,10 +51,16 @@ namespace HVR.Vixxy.Editor
                         EditorGUI.BeginDisabledGroup(true);
                         EditorGUILayout.TextField(nameof(HVRVixxyControl.Address), my.Address);
                         EditorGUI.EndDisabledGroup();
-                        var slider = EditorGUILayout.Slider(my._value, my.Min(), my.Max());
-                        if (!Mathf.Approximately(slider, my._value))
+                        var slider = EditorGUILayout.Slider(new GUIContent("Objective"), my._objectiveValue, my.Min(), my.Max());
+                        if (!Mathf.Approximately(slider, my._objectiveValue))
                         {
                             AcquisitionService.SceneInstance.Submit(my.AddressId, slider);
+                        }
+                        if (my.HasFilters())
+                        {
+                            EditorGUI.BeginDisabledGroup(true);
+                            EditorGUILayout.Slider(new GUIContent("Filtered"), my._actuatedValue, my.Min(), my.Max());
+                            EditorGUI.EndDisabledGroup();
                         }
                         EditorGUILayout.EndVertical();
                     });
