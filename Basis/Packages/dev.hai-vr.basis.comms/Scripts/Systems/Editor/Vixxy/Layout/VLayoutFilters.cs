@@ -50,6 +50,10 @@ namespace HVR.Vixxy.Editor
                 {
                     EditorGUILayout.PropertyField(element.FindPropertyRelative(nameof(HVRMoveTowardsVixxyFilter.secondsPerUnit)));
                 }
+                else if (element.managedReferenceValue is HVRSmoothVixxyFilter lerp)
+                {
+                    EditorGUILayout.PropertyField(element.FindPropertyRelative(nameof(HVRSmoothVixxyFilter.secondsPerUnit)));
+                }
                 EditorGUILayout.EndVertical();
             }
 
@@ -60,6 +64,10 @@ namespace HVR.Vixxy.Editor
             if (GUILayout.Button("+ Add MoveTowards filter"))
             {
                 AddFilter(new HVRMoveTowardsVixxyFilter());
+            }
+            if (GUILayout.Button("+ Add Smooth filter"))
+            {
+                AddFilter(new HVRSmoothVixxyFilter());
             }
             EditorGUILayout.Separator();
 

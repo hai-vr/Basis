@@ -67,6 +67,37 @@ namespace HVR.Vixxy
         }
     }
 
+    [Serializable]
+    public class HVRSmoothVixxyFilter : HVRVixxyFilterBase
+    {
+        public float secondsPerUnit = 1f;
+
+        public float previousValue;
+
+        public override bool isTimeFilter => true;
+
+        public override HVRVixxyFilterResult TimeFilter(float objectiveValue, float deltaTime)
+        {
+            var unitsPerSecond = 1 / secondsPerUnit;
+
+            var newValue = Mathf.Lerp(previousValue, objectiveValue, 1f - Mathf.Exp(-unitsPerSecond * deltaTime));
+            var needsUpdateNextFrame = !Mathf.Approximately(newValue, objectiveValue);
+            previousValue = newValue;
+
+            return new HVRVixxyFilterResult
+            {
+                result = newValue,
+                needsCheckNextTick = needsUpdateNextFrame
+            };
+        }
+
+        public override float PrimeFilter(float initialValue)
+        {
+            previousValue = initialValue;
+            return initialValue;
+        }
+    }
+
     public struct HVRVixxyFilterResult
     {
         public float result;
