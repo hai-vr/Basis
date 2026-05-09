@@ -14,13 +14,15 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/HVR Basis Built In Variables")]
     public class HVRBasisBuiltInVariables : MonoBehaviour, IHVRInitializable
     {
+        public const string SystemVariablesPrefix = "@System/";
+        public const string VisemeAddressPrefix = SystemVariablesPrefix + "Viseme/";
+
         private static readonly Dictionary<HVRAvatarComms, List<HVRBasisBuiltInVariables>> Required = new();
         private static readonly Dictionary<HVRAvatarComms, HVRBasisAcquisitionVisemeFlags> Flags = new();
         private static readonly int[] _addressIds = new int[BasisOpenLipSyncContext.VisemeCount];
         private static int _addressMax;
         private static FieldInfo _lastAppliedField;
 
-        public const string VisemeAddressPrefix = "@System/Viseme/";
         // Names are based on the Viseme MPEG-4 Standard
         private const string sil = nameof(sil);
         private const string PP = nameof(PP);

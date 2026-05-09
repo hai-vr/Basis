@@ -188,5 +188,11 @@ namespace HVR.Vixxy.Editor
             var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
             return $"{description} (={choices[choiceIndex].value:0})";
         }
+
+        public bool IsSystemAddress()
+        {
+            var my = (HVRVixxyControl)target;
+            return my.address.TryResolvePath(out var actualAddress) && actualAddress.StartsWith(HVRBasisBuiltInVariables.SystemVariablesPrefix);
+        }
     }
 }
