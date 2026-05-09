@@ -31,20 +31,20 @@ Things that remain to be done in Vixxy:
   - ✅ Add Curve filter.
 
 Things that remain to be done in Comms:
-- ⬜ Migrate Face Tracking and Eye Tracking to use the underlying facilities of this system (OnAddressUpdated becomes the only input,
-    removing OnInterpolationDataChanged).
+- ⬜ Migrate Face Tracking and Eye Tracking to use the underlying facilities of this system (OnAddressUpdated becomes the only input, removing OnInterpolationDataChanged).
 - ⬜ Add measurement component.
   - ⬜ Add local measurements.
-    - ✅ Add Distance
-    - ✅ Add Angle
-    - ✅ Add Raycast
-    - ✅ Add Speed
-    - ⬜ Add Unity Collider (Trigger)
-    - ⬜ Add Unity Collider Physics
-    - ⬜ Add Particle Collision
-    - ⬜ Add OpenLipSync input
-    - ⬜ Add finger curls
-  - ⬜ Add networked measurements.
-    - ⬜ Add controller trigger
-    - ⬜ Add controller grip
+    - ✅ Add Distance.
+    - ✅ Add Angle.
+    - ✅ Add Raycast.
+    - ✅ Add Speed.
+    - ⬜ Add Unity Collider (Trigger).
+    - ⬜ Add Unity Collider Physics.
+    - ⬜ Add Particle Collision.
+  - ⬜ Add measurements derived from other systems.
+    - ⬜ Add OpenLipSync input.
+    - ⬜ Add finger curls.
+    - ⬜ Add networked measurements.
+      - ⬜ Add controller trigger.
+      - ⬜ Add controller grip.
 - ⬜ Add zipper component.
