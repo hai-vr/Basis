@@ -169,53 +169,49 @@ namespace Cilbox
 
 		public object Interpret( CilboxProxy ths, object [] parametersIn )
 		{
-			StackElement [] parameters;
-			StackElement [] stackBuffer = new StackElement[Cilbox.defaultStackSize];
+			int plen = parametersIn?.Length ?? 0;
+			int thisOffset = isStatic ? 0 : 1;
+			int totalParams = plen + thisOffset;
 
-			int plen = 0;
-			if( parametersIn != null )
-			{
-				plen = parametersIn.Length;
-			}
+			Cilbox box = parentClass.box;
+			if( !box.InterpreterEntry(this) ) return null;
 
-			if( isStatic )
-			{
-				parameters = new StackElement[plen];
-				for( int p = 0; p < plen; p++ )
-					parameters[p].Load( parametersIn[p] );
-			}
-			else
-			{
-				parameters = new StackElement[plen+1];
-				parameters[0].Load( ths );
-				for( int p = 0; p < plen; p++ )
-					parameters[p+1].Load( parametersIn[p] );
-				plen++;
-			}
-
+			StackElement[] buf = box.RentStackBuffer();
 			object ret = null;
-			if( !parentClass.box.InterpreterEntry(this) ) return null;
 			try
 			{
-				ret = InterpretInner( stackBuffer, parameters ).AsObject();
+				if(!isStatic)
+				{
+					buf[0].Load(ths);
+				}
+				for( int p = 0; p < plen; p++ ) 
+				{
+					buf[thisOffset + p].Load( parametersIn[p] );
+				}
+				ArraySegment<StackElement> stackSeg = new ArraySegment<StackElement>( buf, totalParams, buf.Length - totalParams );
+				ArraySegment<StackElement> paramSeg = new ArraySegment<StackElement>( buf, 0, totalParams );
+
+				ret = InterpretInner( stackSeg, paramSeg ).AsObject();
 			}
 			catch( Exception e )
 			{
-				parentClass.box.InterpreterExit();
+				box.InterpreterExit();
+				box.ReturnStackBuffer( buf );
 
 				if (e is CilboxUnhandledInterpretedException uhe)
 				{
 					// strip the throwee just in case, and re-throw a normal runtime exception
 					string exceptionTypeName = uhe.Throwee?.GetType().FullName ?? "null";
 					string reason = $"Exception of type {exceptionTypeName} was unhandled in interpreted code";
-					parentClass.box.DisableWithReason(reason); // CilboxUnhandledInterpretedException bypasses the box disable
+					box.DisableWithReason(reason); // CilboxUnhandledInterpretedException bypasses the box disable
 					throw new CilboxInterpreterRuntimeException(reason, uhe.ClassName, uhe.MethodName, uhe.PC);
 				}
 
 				Debug.Log( e.ToString() );
 				throw;
 			}
-			parentClass.box.InterpreterExit();
+			box.InterpreterExit();
+			box.ReturnStackBuffer( buf );
 			return ret;
 		}
 
@@ -444,21 +440,37 @@ spiperf.Begin();
 						else
 						{
 							st = dt.nativeMethod;
-							if( st is MethodInfo )
-								isVoid = ((MethodInfo)st).ReturnType == typeof(void);
+							isVoid = dt.nativeIsVoid;
 
-							ParameterInfo [] pa = st.GetParameters();
-							int numFields = pa.Length;
+							Type[] paTypes = dt.nativeParameterTypes;
+							int numFields = paTypes.Length;
+
+							object[] callpar;
+							StackElement[] callpar_se;
+							bool callparPooled;
+							if( !dt.callparRented && dt.cachedCallpar != null )
+							{
+								dt.callparRented = true;
+								callpar = dt.cachedCallpar;
+								callpar_se = dt.cachedCallparSe;
+								callparPooled = true;
+							}
+							else
+							{
+								callpar = new object[numFields];
+								callpar_se = new StackElement[numFields];
+								callparPooled = false;
+							}
+
+							try {
 							object callthis = null;
-							object [] callpar = new object[numFields];
-							StackElement [] callpar_se = new StackElement[numFields];
 							int ik;
 							for( ik = 0; ik < numFields; ik++ )
 							{
 								StackElement se = stackBuffer[sp--];
 								callpar_se[numFields-ik-1] = se;
 								object o = se.AsObject(box);
-								Type t = pa[numFields-ik-1].ParameterType;
+								Type t = paTypes[numFields-ik-1];
 
 								if( t.IsByRef )
 								{
@@ -586,6 +598,14 @@ spiperf.Begin();
 								// This is returning from a jump, so immediately abort.
 								if( isVoid ) stackBuffer[++sp] = StackElement.nil; /// ?? Please check me! If wrong, fix above, too.
 								cont = false;
+							}
+							} finally {
+								if( callparPooled )
+								{
+									Array.Clear( callpar, 0, numFields );
+									Array.Clear( callpar_se, 0, numFields );
+									dt.callparRented = false;
+								}
 							}
 						}
 
@@ -1223,6 +1243,30 @@ spiperf.Begin();
 						}
 						break;
 					}
+					case 0x81: // stobj
+					{
+						uint typeToken = BytecodeAsU32( ref pc );
+						CilMetadataTokenInfo stobjMeta = box.metadatas[typeToken];
+						StackElement value = stackBuffer[sp--];
+						StackElement addr = stackBuffer[sp--];
+						object obj = ( stobjMeta.nativeType != null && value.type < StackType.Object ) ?
+							value.CoerceToObject( stobjMeta.nativeType ) :
+							value.AsObject( box );
+
+						if( addr.type == StackType.Address )
+						{
+							addr.DereferenceLoadAddress( obj );
+						}
+						else if( addr.type == StackType.NativeHandle )
+						{
+							addr.DereferenceLoadNativeHandle( box, obj );
+						}
+						else
+						{
+							throw new CilboxInterpreterRuntimeException("Invalid stack type for stobj instruction", parentClass.className, methodName, pc);
+						}
+						break;
+					}
 					case 0x8C: // box (This pulls off a type)
 					{
 						uint otyp = BytecodeAsU32( ref pc );
@@ -1374,22 +1418,40 @@ spiperf.Begin();
 							interpretedThrow(pc - 1, new NullReferenceException());
 							break;
 						}
-						object [] array = (object[])arrSE.AsObject();
+						Array array = (Array)arrSE.AsObject();
 						if (index < 0 || index >= array.Length)
 						{
 							interpretedThrow(pc - 1, new IndexOutOfRangeException());
 							break;
 						}
 						CilMetadataTokenInfo elemMeta = box.metadatas[otyp];
+						object value;
 						if( elemMeta.nativeTypeIsCilboxProxy || elemMeta.nativeType == null )
 						{
 							// This actually gets the value in valSE, and converts it to the int/float/native handle, etc. based on "this" box.
-							array[index] = valSE.AsObject( box );
+							value = valSE.AsObject( box );
 						}
 						else
 						{
-							array[index] = Convert.ChangeType( valSE.AsObject(), elemMeta.nativeType );  // This shouldn't be type changing.s
+							value = valSE.AsObject();
 						}
+
+						Type targetElementType = array.GetType().GetElementType();
+						if( targetElementType != null && targetElementType != typeof(object) && value != null && !targetElementType.IsInstanceOfType( value ) )
+						{
+							if( targetElementType.IsEnum )
+							{
+								value = Enum.ToObject( targetElementType, value );
+							}
+							else
+							{
+								if( value.GetType().IsEnum )
+									value = Convert.ChangeType( value, Enum.GetUnderlyingType( value.GetType() ) );
+								value = Convert.ChangeType( value, targetElementType );
+							}
+						}
+
+						array.SetValue( value, index );
 						break;
 					}
 					case 0xA5: // unbox.any
@@ -1971,6 +2033,11 @@ spiperf.End();
 		// Todo handle interpreted types.
 		public bool isNative;
 		public MethodBase nativeMethod;
+		public Type[] nativeParameterTypes;
+		public bool nativeIsVoid;
+		public object[] cachedCallpar;
+		public StackElement[] cachedCallparSe;
+		public bool callparRented;
 		public int interpretiveMethod; // If nativeToken is 0, then it's a interpreted call.
 		public int interpretiveMethodClass; // If nativeToken is 0, then it's a interpreted call class
 
@@ -2012,6 +2079,21 @@ spiperf.End();
 		private bool initialized = false;
 
 		public static readonly int defaultStackSize = 1024;
+
+		private Stack<StackElement[]> stackBufferPool = new Stack<StackElement[]>();
+		internal StackElement[] RentStackBuffer()
+		{
+			lock( stackBufferPool )
+			{
+				if( stackBufferPool.Count > 0 ) return stackBufferPool.Pop();
+			}
+			return new StackElement[defaultStackSize];
+		}
+		internal void ReturnStackBuffer( StackElement[] buf )
+		{
+			Array.Clear( buf, 0, buf.Length );
+			lock( stackBufferPool ) { stackBufferPool.Push( buf ); }
+		}
 
 		public bool showFunctionProfiling;
 		public bool exportDebuggingData;
@@ -2313,6 +2395,16 @@ spiperf.End();
 							t.nativeMethod = m;
 							t.isNative = true;
 							t.isValid = true;
+							ParameterInfo[] mp = m.GetParameters();
+							Type[] mpt = new Type[mp.Length];
+							for( int mpi = 0; mpi < mp.Length; mpi++ )
+							{
+								mpt[mpi] = mp[mpi].ParameterType;
+							}
+							t.nativeParameterTypes = mpt;
+							t.nativeIsVoid = (m is MethodInfo mInfo) && mInfo.ReturnType == typeof(void);
+							t.cachedCallpar = new object[mp.Length];
+							t.cachedCallparSe = new StackElement[mp.Length];
 						} else if( !t.isNative )
 						{
 							throw new CilboxException( "Error: Could not find reference to: [" + useAssembly + "][" + declaringType.FullName + "][" + fullSignature + "] Type from:" + declaringTypeName );
@@ -2333,7 +2425,7 @@ spiperf.End();
 					{
 						if( c.methods[cctorIndex].isStatic )
 						{
-							c.methods[cctorIndex].Interpret( null, new object[0] );
+							c.methods[cctorIndex].Interpret( null, Array.Empty<object>() );
 						}
 					}
 				}
