@@ -39,8 +39,9 @@ namespace HVR.Vixxy
         private Transform _context;
         private HVRActuatorRegistrationToken _registeredActuator;
 
-        private float _previousValue;
-        internal float _value;
+        internal float _previousValue;
+        internal float _objectiveValue;
+        internal float _actuatedValue;
 
         [NonSerialized] internal string Address;
         [NonSerialized] internal int AddressId;
@@ -120,6 +121,8 @@ namespace HVR.Vixxy
             // UGC Rule: Sanitize arrays.
             activations ??= Array.Empty<HVRVixxyActivation>();
             subjects ??= Array.Empty<HVRVixxySubject>();
+            filters ??= new List<HVRVixxyFilterBase>();
+            filters = filters.Where(that => null != that).ToList(); // Sanitize managed references.
             BakeControlSubjectsAndActivationsForRuntime();
 
             if (_avatarNullable != null)
@@ -140,8 +143,16 @@ namespace HVR.Vixxy
                 _variableStore.SubmitOrDefineDefaultValue(AddressId, defaultValue);
 
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
-                _value = defaultValue;
-                BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_value}");
+                _objectiveValue = defaultValue;
+                if (filters.Count == 0)
+                {
+                    _actuatedValue = defaultValue;
+                }
+                else
+                {
+                    PrimeFilters();
+                }
+                BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_actuatedValue}");
             }
         }
 
@@ -203,6 +214,9 @@ namespace HVR.Vixxy
         /// Called by the Editor when a serialized property changes due to live edits. This is not to be invoked by anything else.
         internal void DebugOnly_ReBakeControl()
         {
+            Address = CalculateAddress();
+            AddressId = HVRAddress.AddressToId(Address);
+
             BakeControlSubjectsAndActivationsForRuntime();
         }
 
@@ -256,6 +270,7 @@ namespace HVR.Vixxy
                 subject.childrenOf ??= Array.Empty<GameObject>();
                 subject.exceptions ??= Array.Empty<GameObject>();
                 subject.properties ??= new List<HVRVixxyPropertyBase>();
+                subject.properties = subject.properties.Where(that => null != that).ToList(); // Sanitize managed references (failed to deserialize property type? e.g. Vixxy JiggleRigProperty).
 
                 BakeSubjectAffectedObjects(subject, _context);
 
@@ -542,9 +557,62 @@ namespace HVR.Vixxy
             // Only proceed if there's a substantial change.
             if (Mathf.Approximately(value, _previousValue)) return;
             _previousValue = value;
-            _value = value;
+            _objectiveValue = value;
+            if (filters.Count == 0)
+            {
+                _actuatedValue = _objectiveValue;
+            }
 
             orchestrator.PassAddressUpdated(AddressId);
+        }
+
+        public bool HasFilters()
+        {
+            return filters.Count > 0;
+        }
+
+        private void PrimeFilters()
+        {
+            var filteredValue = _objectiveValue;
+            foreach (var filter in filters)
+            {
+                filteredValue = filter.isTimeFilter ? filter.PrimeFilter(_objectiveValue) : filter.Filter(filteredValue);
+            }
+            _actuatedValue = filteredValue;
+        }
+
+        public HVRVixxyActuatorApplyFilterResult ApplyFilters()
+        {
+            if (filters.Count == 0) throw new InvalidOperationException("ApplyFilters must never be called when there are no filters, this indicates a programming error.");
+
+            var filterNeedsCheckNextTick = false;
+
+            var filteredValue = _objectiveValue;
+            foreach (var filter in filters)
+            {
+                if (filter.isTimeFilter)
+                {
+                    var filtered = filter.TimeFilter(filteredValue, Time.deltaTime);
+                    filteredValue = filtered.result;
+                    if (filtered.needsCheckNextTick)
+                    {
+                        filterNeedsCheckNextTick = true;
+                    }
+                }
+                else
+                {
+                    filteredValue = filter.Filter(filteredValue);
+                }
+            }
+
+            var actuatorNeedsUpdate = !Mathf.Approximately(_actuatedValue, filteredValue);
+            _actuatedValue = filteredValue;
+
+            return new HVRVixxyActuatorApplyFilterResult
+            {
+                actuatorNeedsUpdate = actuatorNeedsUpdate,
+                filterNeedsCheckNextTick = filterNeedsCheckNextTick
+            };
         }
 
         public void Actuate()
@@ -552,7 +620,7 @@ namespace HVR.Vixxy
             if (!HasMoreThanTwoChoices)
             {
                 // FIXME: We really need to figure out how actuators sample values from their dependents.
-                var linear01 = Mathf.InverseLerp(choices[HVRVixxyPropertyBase.InactiveIndex].value, choices[HVRVixxyPropertyBase.ActiveIndex].value, _value);
+                var linear01 = Mathf.InverseLerp(choices[HVRVixxyPropertyBase.InactiveIndex].value, choices[HVRVixxyPropertyBase.ActiveIndex].value, _actuatedValue);
                 var active01 = linear01;
                 ActuateActivations(active01);
                 ActuateSubjects(active01, HVRVixxyPropertyBase.InactiveIndex, HVRVixxyPropertyBase.ActiveIndex);
@@ -563,13 +631,13 @@ namespace HVR.Vixxy
                 {
                     var lerpFromChoiceIndex = -1;
                     var lerpToChoiceIndex = -1;
-                    if (_value > choices[ChoiceIndexOrderedByValue[0]].value)
+                    if (_actuatedValue > choices[ChoiceIndexOrderedByValue[0]].value)
                     {
                         for (var i = 0; i < ChoiceIndexOrderedByValue.Count - 1; i++)
                         {
                             var toChoiceIndex = ChoiceIndexOrderedByValue[i + 1];
                             var toChoice = choices[toChoiceIndex];
-                            if (_value < toChoice.value)
+                            if (_actuatedValue < toChoice.value)
                             {
                                 // We're between two choices
                                 lerpFromChoiceIndex = ChoiceIndexOrderedByValue[i];
@@ -594,7 +662,7 @@ namespace HVR.Vixxy
 
                     if (lerpFromChoiceIndex != lerpToChoiceIndex)
                     {
-                        var amount01 = Mathf.InverseLerp(choices[lerpFromChoiceIndex].value, choices[lerpToChoiceIndex].value, _value);
+                        var amount01 = Mathf.InverseLerp(choices[lerpFromChoiceIndex].value, choices[lerpToChoiceIndex].value, _actuatedValue);
                         ActuateActivationsBasedOnChoices(amount01, lerpFromChoiceIndex, lerpToChoiceIndex);
                         ActuateSubjects(amount01, lerpFromChoiceIndex, lerpToChoiceIndex);
                     }
@@ -606,7 +674,7 @@ namespace HVR.Vixxy
                 }
                 else
                 {
-                     int storedIntValue = Mathf.RoundToInt(_value);
+                     int storedIntValue = Mathf.RoundToInt(_actuatedValue);
                      int outValue;
                      if (storedIntValue < 0) outValue = 0;
                      else if (storedIntValue >= ActualNumberOfChoices) outValue = ActualNumberOfChoices - 1;
@@ -702,7 +770,7 @@ namespace HVR.Vixxy
                     // TODO: Rather than do that check every time, bake the applicable properties into an internal field.
                     if (!property.IsApplicable) continue;
 
-                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex, _value);
+                    var lerpValue = property.CalculateLerpValue(active01, inactiveIndex, activeIndex, _actuatedValue);
                     Apply(property, lerpValue, out var propertyNeedsCleanup);
 
                     if (propertyNeedsCleanup)
