@@ -114,8 +114,8 @@ namespace HVR.Vixxy
 
             AlsoExecutesWhenDisabled = !onlyExecuteWhenEnabled;
 
-            Networked = networked;
-            NetworkingType = networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
+            Networked = networked && !Address.StartsWith(HVRBasisBuiltInVariables.SystemVariablesPrefix);
+            NetworkingType = Networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
 
             // Bake the subjects
             // UGC Rule: Sanitize arrays.
