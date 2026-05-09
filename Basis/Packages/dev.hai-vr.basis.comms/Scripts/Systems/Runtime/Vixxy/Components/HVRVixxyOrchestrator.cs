@@ -50,7 +50,7 @@ namespace HVR.Vixxy
             // (consider switching to an int lookup).
 
             var aggregators = AggregatorsOf(addressId);
-            var (actuators, filters) = ActuatorsOf(addressId).Partition(actuator => actuator.HasFilters());
+            var (filters, actuators) = ActuatorsOf(addressId).Partition(actuator => actuator.HasFilters());
 
             // In AcquisitionService, acquisition events are raised as soon as the data arrives.
             // We don't want to process that new data when it arrives, instead we want to process

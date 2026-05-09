@@ -7,7 +7,8 @@ namespace HVR.Vixxy
     {
         public bool isTimeFilter { get; }
         float Filter(float value);
-        HVRVixxyFilterResult TimeFilter(float previousValue, float objectiveValue, float deltaTime);
+        HVRVixxyFilterResult TimeFilter(float objectiveValue, float deltaTime);
+        float PrimeFilter(float initialValue);
     }
 
     [Serializable]
@@ -15,7 +16,8 @@ namespace HVR.Vixxy
     {
         public virtual bool isTimeFilter { get; }
         public virtual float Filter(float previousValue) { throw new NotImplementedException(); }
-        public virtual HVRVixxyFilterResult TimeFilter(float previousValue, float objectiveValue, float deltaTime) { throw new NotImplementedException(); }
+        public virtual HVRVixxyFilterResult TimeFilter(float objectiveValue, float deltaTime) { throw new NotImplementedException(); }
+        public virtual float PrimeFilter(float initialValue) { throw new NotImplementedException(); }
     }
 
     [Serializable]
@@ -36,23 +38,32 @@ namespace HVR.Vixxy
     {
         public float secondsPerUnit = 1f;
 
+        public float previousValue;
+
         public override bool isTimeFilter => true;
 
-        public override HVRVixxyFilterResult TimeFilter(float previousValue, float objectiveValue, float deltaTime)
+        public override HVRVixxyFilterResult TimeFilter(float objectiveValue, float deltaTime)
         {
             if (secondsPerUnit <= 0f)
             {
                 return new HVRVixxyFilterResult { result = objectiveValue, needsCheckNextTick = false };
             }
 
-            var result = Mathf.MoveTowards(previousValue, objectiveValue, deltaTime / secondsPerUnit);
-            var needsUpdateNextFrame = !Mathf.Approximately(result, objectiveValue);
+            var newValue = Mathf.MoveTowards(previousValue, objectiveValue, deltaTime / secondsPerUnit);
+            var needsUpdateNextFrame = !Mathf.Approximately(newValue, objectiveValue);
+            previousValue = newValue;
 
             return new HVRVixxyFilterResult
             {
-                result = result,
+                result = newValue,
                 needsCheckNextTick = needsUpdateNextFrame
             };
+        }
+
+        public override float PrimeFilter(float initialValue)
+        {
+            previousValue = initialValue;
+            return initialValue;
         }
     }
 

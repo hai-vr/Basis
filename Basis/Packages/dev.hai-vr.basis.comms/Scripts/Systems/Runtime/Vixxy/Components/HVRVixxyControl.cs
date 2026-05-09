@@ -62,8 +62,6 @@ namespace HVR.Vixxy
         [SerializeField] internal int InterpolateFromChoice; // Only serializable for debug purposes
         [SerializeField] internal float InterpolateFromChoiceAmount01; // Only serializable for debug purposes
 
-        [NonSerialized] private List<HVRVixxyFilterBase> _filters = new();
-
         public void Awake()
         {
             if (_avatarNullable == null)
@@ -123,6 +121,8 @@ namespace HVR.Vixxy
             // UGC Rule: Sanitize arrays.
             activations ??= Array.Empty<HVRVixxyActivation>();
             subjects ??= Array.Empty<HVRVixxySubject>();
+            filters ??= new List<HVRVixxyFilterBase>();
+            filters = filters.Where(that => null != that).ToList(); // Sanitize managed references.
             BakeControlSubjectsAndActivationsForRuntime();
 
             if (_avatarNullable != null)
@@ -144,7 +144,14 @@ namespace HVR.Vixxy
 
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
                 _objectiveValue = defaultValue;
-                _actuatedValue = defaultValue;
+                if (filters.Count == 0)
+                {
+                    _actuatedValue = defaultValue;
+                }
+                else
+                {
+                    PrimeFilters();
+                }
                 BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_actuatedValue}");
             }
         }
@@ -260,6 +267,7 @@ namespace HVR.Vixxy
                 subject.childrenOf ??= Array.Empty<GameObject>();
                 subject.exceptions ??= Array.Empty<GameObject>();
                 subject.properties ??= new List<HVRVixxyPropertyBase>();
+                subject.properties = subject.properties.Where(that => null != that).ToList(); // Sanitize managed references (failed to deserialize property type? e.g. Vixxy JiggleRigProperty).
 
                 BakeSubjectAffectedObjects(subject, _context);
 
@@ -547,7 +555,7 @@ namespace HVR.Vixxy
             if (Mathf.Approximately(value, _previousValue)) return;
             _previousValue = value;
             _objectiveValue = value;
-            if (_filters.Count > 0)
+            if (filters.Count == 0)
             {
                 _actuatedValue = _objectiveValue;
             }
@@ -557,21 +565,31 @@ namespace HVR.Vixxy
 
         public bool HasFilters()
         {
-            return _filters.Count > 0;
+            return filters.Count > 0;
+        }
+
+        private void PrimeFilters()
+        {
+            var filteredValue = _objectiveValue;
+            foreach (var filter in filters)
+            {
+                filteredValue = filter.isTimeFilter ? filter.PrimeFilter(_objectiveValue) : filter.Filter(filteredValue);
+            }
+            _actuatedValue = filteredValue;
         }
 
         public HVRVixxyActuatorApplyFilterResult ApplyFilters()
         {
-            if (_filters.Count == 0) throw new InvalidOperationException("ApplyFilters must never be called when there are no filters, this indicates a programming error.");
+            if (filters.Count == 0) throw new InvalidOperationException("ApplyFilters must never be called when there are no filters, this indicates a programming error.");
 
             var filterNeedsCheckNextTick = false;
 
-            var filteredValue = _actuatedValue;
-            foreach (var filter in _filters)
+            var filteredValue = _objectiveValue;
+            foreach (var filter in filters)
             {
                 if (filter.isTimeFilter)
                 {
-                    var filtered = filter.TimeFilter(filteredValue, _objectiveValue, Time.deltaTime);
+                    var filtered = filter.TimeFilter(filteredValue, Time.deltaTime);
                     filteredValue = filtered.result;
                     if (filtered.needsCheckNextTick)
                     {

@@ -43,7 +43,8 @@
         internal const string SampleFromLabel = "Sample from";
         internal const string SearchLabel = "Search";
         internal const string SettingsLabel = "Settings";
-        internal const string AdvancedSettingsLabel = "Advanced Settings";
+        internal const string AddressAndNetworking = "Address and Networking";
+        internal const string FiltersLabel = "Filters";
         internal const string ToggleObjectsViewLabel = "Toggle Objects";
         internal const string TypeSelectionLabel = "Type...";
         internal const string UserViewLabel = "User View";
