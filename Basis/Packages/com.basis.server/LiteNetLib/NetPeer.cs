@@ -732,7 +732,7 @@ namespace LiteNetLib
             {
                 //if cannot be fragmented
                 if (deliveryMethod != DeliveryMethod.ReliableOrdered && deliveryMethod != DeliveryMethod.ReliableUnordered)
-                    throw new TooBigPacketException("Unreliable or ReliableSequenced packet size exceeded maximum of " + (mtu - headerSize) + " bytes, Check allowed size by GetMaxSinglePacketSize()");
+                    throw new TooBigPacketException($"Unreliable or ReliableSequenced packet size exceeded maximum of {mtu - headerSize} bytes, Check allowed size by GetMaxSinglePacketSize() {length + headerSize}");
 
                 int packetFullSize = mtu - headerSize;
                 int packetDataSize = packetFullSize - NetConstants.FragmentHeaderSize;
@@ -864,7 +864,7 @@ namespace LiteNetLib
             {
                 //if cannot be fragmented
                 if (deliveryMethod != DeliveryMethod.ReliableOrdered && deliveryMethod != DeliveryMethod.ReliableUnordered)
-                    throw new TooBigPacketException("Unreliable or ReliableSequenced packet size exceeded maximum of " + (mtu - headerSize) + " bytes, Check allowed size by GetMaxSinglePacketSize()");
+                    throw new TooBigPacketException($"Unreliable or ReliableSequenced packet size exceeded maximum of {mtu - headerSize} bytes, Check allowed size by GetMaxSinglePacketSize() data size was {length + headerSize}");
 
                 int packetFullSize = mtu - headerSize;
                 int packetDataSize = packetFullSize - NetConstants.FragmentHeaderSize;
