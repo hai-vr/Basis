@@ -152,7 +152,6 @@ namespace HVR.Vixxy
                 {
                     PrimeFilters();
                 }
-                BasisDebug.Log($"Initialized {GetType().Name} {Address}, value is set to {_actuatedValue}");
             }
         }
 
