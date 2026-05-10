@@ -103,7 +103,13 @@ namespace HVR.Vixxy
                 }
                 _needsReevaluateSystemAddresses = false;
             }
+            Simulate();
+            Apply();
+        }
 
+        /// Calculate aggregators and filters. This may be jobified in the future.
+        public void Simulate()
+        {
             if (!_anythingNeedsUpdating) return;
 
             // Randomness in the number of iteration cycles is an attempt to ensure we don't get implementation-specific
@@ -151,6 +157,12 @@ namespace HVR.Vixxy
             // Deck remaining aggregations for next frame. We already gave it a bunch of chances.
             _anythingNeedsUpdating = _aggregatorsToUpdateThisTick.Count > 0 || _actuatorsWithFiltersToCheckThisTick.Count > 0;
 
+            // TODO: Calculating the effective lerp value of an Actuator should probably be done in this step.
+        }
+
+        /// Applies effects to GameObject and Components and sets MaterialPropertyBlock to renderers.
+        public void Apply()
+        {
             // TODO: It may be possible to do a reverse graph traversal, where we deny listening to addresses
             // or processing aggregators if there are no actuators that listen to that data in the first place.
             if (_actuatorsToUpdateThisTick.Count > 0)
