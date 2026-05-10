@@ -14,40 +14,31 @@ using UnityEngine;
 [BurstCompile]
 public class BasisLocalVirtualSpineDriver
 {
-    /// <summary>
-    /// Neck rotation slew rate (deg/sec equivalent via slerp scaled by <see cref="Time.deltaTime"/>).
-    /// </summary>
-    [Header("Rotation Speeds (deg/sec-equivalent via Slerp dt scaling)")]
+    // The slew rates and hips positioning fields below are LEGACY: runtime reads the corresponding
+    // VSpine* entries in BasisSettingsDefaults instead, so the in-game IK panel can tune them at
+    // runtime. These inspector fields are retained only so existing scenes/prefabs that serialize
+    // BasisLocalVirtualSpineDriver don't lose data on deserialize. The values are not consulted by
+    // OnSimulate; if you need to override at runtime, use the settings binding.
+
+    /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineNeckRotationSpeed.</summary>
+    [Header("Rotation Speeds (legacy — runtime reads BasisSettingsDefaults.VSpine*)")]
     public float NeckRotationSpeed = 40f;
 
-    /// <summary>
-    /// Chest rotation slew rate (deg/sec equivalent).
-    /// </summary>
+    /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineChestRotationSpeed.</summary>
     public float ChestRotationSpeed = 25f;
 
-    /// <summary>
-    /// Spine rotation slew rate (deg/sec equivalent).
-    /// </summary>
+    /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineSpineRotationSpeed.</summary>
     public float SpineRotationSpeed = 30f;
 
-    /// <summary>
-    /// Hips rotation slew rate (deg/sec equivalent).
-    /// </summary>
+    /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineHipsRotationSpeed.</summary>
     public float HipsRotationSpeed = 20f;
 
-    /// <summary>
-    /// 0: place hips strictly by neck + preserved spine length;
-    /// 1: keep original tracked hips XZ. Useful to retain tracker authority.
-    /// </summary>
-    [Header("Positioning")]
-    [Tooltip("0 = place hips strictly by neck + preserved spine length; 1 = keep original tracked hips XZ. Useful to keep some tracker authority.")]
+    /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineHipsXZFollowBlend.</summary>
+    [Header("Positioning (legacy — runtime reads BasisSettingsDefaults.VSpine*)")]
     [Range(0f, 1f)]
     public float HipsXZFollowBlend = 0.35f;
 
-    /// <summary>
-    /// Small forward bias (in meters) so hips don't sit perfectly under the neck (stability/visuals).
-    /// </summary>
-    [Tooltip("Apply a small forward bias for hips under the neck to avoid perfectly vertical stacks.")]
+    /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineHipsForwardBias.</summary>
     public float HipsForwardBias = 0.02f; // meters
 
     /// <summary>Initialization guard.</summary>
@@ -129,7 +120,11 @@ public class BasisLocalVirtualSpineDriver
     /// <summary>
     /// Main simulation pass executed before bone application.
     /// Aligns head/neck, synthesizes hips from neck + preserved length and bias,
-    /// then fills chest/spine along the chain with yaw blending and positional offsets.
+    /// then fills chest/spine along the chain. Chest and spine carry yaw via the
+    /// existing bone-length blend, plus configurable fractions of head pitch/roll
+    /// for an anatomically richer cascade. A small forward/back bias on chest and
+    /// spine gives the chain a natural S-curve at rest, and the hips yaw target is
+    /// gated by a deadband to suppress HMD micro-jitter.
     /// </summary>
     public void OnSimulate()
     {
@@ -149,6 +144,22 @@ public class BasisLocalVirtualSpineDriver
         float dt = Time.deltaTime;
         Matrix4x4 parentMatrix = BasisLocalPlayer.localToWorldMatrix;
 
+        // Pull settings once per tick — RawValue already caches the in-memory binding state.
+        float chestPitchFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineChestPitchFrac.RawValue;
+        float chestRollFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineChestRollFrac.RawValue;
+        float spinePitchFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineSpinePitchFrac.RawValue;
+        float spineRollFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineRollFrac.RawValue;
+        float chestForwardBias = Basis.BasisUI.BasisSettingsDefaults.VSpineChestForwardBias.RawValue;
+        float spineForwardBias = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineForwardBias.RawValue;
+        float hipsYawDeadbandDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsYawDeadbandDeg.RawValue;
+        float neckRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineNeckRotationSpeed.RawValue;
+        float chestRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineChestRotationSpeed.RawValue;
+        float spineRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineRotationSpeed.RawValue;
+        float hipsRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsRotationSpeed.RawValue;
+        float hipsXZFollowBlend = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsXZFollowBlend.RawValue;
+        float hipsForwardBiasSetting = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsForwardBias.RawValue;
+        float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+
         // =========================
         // 1) HEAD & NECK (top cues)
         // =========================
@@ -156,7 +167,7 @@ public class BasisLocalVirtualSpineDriver
         head.OutGoingData.rotation = eyeRot;
 
         quaternion neckCurrent = neck.OutGoingData.rotation;
-        SmoothSlerpBurst(in neckCurrent, in eyeRot, NeckRotationSpeed, dt, out quaternion neckRot);
+        SmoothSlerpBurst(in neckCurrent, in eyeRot, neckRotationSpeed, dt, out quaternion neckRot);
         neck.OutGoingData.rotation = neckRot;
 
         ApplyPositionControl(head, parentMatrix, torsoLock: false);
@@ -173,7 +184,7 @@ public class BasisLocalVirtualSpineDriver
         ExtractYawBurst(in eyeRot, out quaternion headYawFromEye);
 
         float3 tposeHips = hips.TposeLocalScaled.position;
-        float biasScale = HipsForwardBias * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+        float biasScale = hipsForwardBiasSetting * scale;
         float3 trackedHips = hips.Target.OutGoingData.position;
 
         ComputeHipsPosition(
@@ -183,14 +194,29 @@ public class BasisLocalVirtualSpineDriver
             in headYawFromEye,
             biasScale,
             in trackedHips,
-            HipsXZFollowBlend,
+            hipsXZFollowBlend,
             HipsFreezeToTpose,
             in tposeHips,
             out float3 hipsPos);
 
-        quaternion hipsRotTarget = HipsFreezeToTpose ? quaternion.identity : headYawFromEye;
         quaternion hipsCurrent = hips.OutGoingData.rotation;
-        SmoothSlerpBurst(in hipsCurrent, in hipsRotTarget, HipsRotationSpeed, dt, out quaternion hipsSmoothed);
+
+        // Hips yaw target — apply deadband against the current yaw so HMD micro-jitter doesn't
+        // shimmy the body. Hold-on-deadband uses the current yaw rather than the previous target,
+        // which means the smoother's slew-rate still resolves any held-up rotation when the player
+        // turns past the deadband.
+        quaternion hipsRotTarget = HipsFreezeToTpose ? quaternion.identity : headYawFromEye;
+        if (!HipsFreezeToTpose && hipsYawDeadbandDeg > 0f)
+        {
+            ExtractYawBurst(in hipsCurrent, out quaternion hipsCurrentYaw);
+            float yawAngleDeg = Quaternion.Angle((Quaternion)hipsCurrentYaw, (Quaternion)hipsRotTarget);
+            if (yawAngleDeg < hipsYawDeadbandDeg)
+            {
+                hipsRotTarget = hipsCurrentYaw;
+            }
+        }
+
+        SmoothSlerpBurst(in hipsCurrent, in hipsRotTarget, hipsRotationSpeed, dt, out quaternion hipsSmoothed);
         ExtractYawBurst(in hipsSmoothed, out quaternion hipsYaw);
 
         hips.OutGoingData.rotation = hipsYaw;
@@ -198,7 +224,7 @@ public class BasisLocalVirtualSpineDriver
         hips.ApplyWorldAndLast(parentMatrix);
 
         // =======================================================
-        // 3) Fill the middle: chest & spine positions and yaws
+        // 3) Fill the middle: chest & spine positions and rotations
         // =======================================================
         ExtractYawBurst(in neckRot, out quaternion neckYaw);
 
@@ -221,16 +247,29 @@ public class BasisLocalVirtualSpineDriver
                 out float3 chestPos, out float3 spinePos,
                 out quaternion chestYawTarget, out quaternion spineYawTarget);
 
+            // S-curve bias: shift chest forward and spine slightly back along hips facing. Both
+            // biases are scaled by avatar height so retargeted small/large avatars hold the same
+            // visual proportion.
+            if (chestForwardBias != 0f || spineForwardBias != 0f)
+            {
+                float3 hipsForward = math.mul(hipsYaw, new float3(0f, 0f, 1f));
+                chestPos += hipsForward * (chestForwardBias * scale);
+                spinePos += hipsForward * (spineForwardBias * scale);
+            }
+
+            // Per-axis pitch/roll cascade — adds a configurable fraction of head pitch and roll on
+            // top of the existing yaw target. Defaults to zero pitch/roll so opting in is explicit.
+            quaternion chestTarget = ApplyPitchRollCascade(in chestYawTarget, in eyeRot, chestPitchFrac, chestRollFrac);
+            quaternion spineTarget = ApplyPitchRollCascade(in spineYawTarget, in eyeRot, spinePitchFrac, spineRollFrac);
+
             quaternion chestCurrent = chest.OutGoingData.rotation;
             quaternion spineCurrent = spine.OutGoingData.rotation;
 
-            SmoothSlerpBurst(in chestCurrent, in chestYawTarget, ChestRotationSpeed, dt, out quaternion chestSmoothed);
-            SmoothSlerpBurst(in spineCurrent, in spineYawTarget, SpineRotationSpeed, dt, out quaternion spineSmoothed);
-            ExtractYawBurst(in chestSmoothed, out quaternion chestYawOut);
-            ExtractYawBurst(in spineSmoothed, out quaternion spineYawOut);
+            SmoothSlerpBurst(in chestCurrent, in chestTarget, chestRotationSpeed, dt, out quaternion chestSmoothed);
+            SmoothSlerpBurst(in spineCurrent, in spineTarget, spineRotationSpeed, dt, out quaternion spineSmoothed);
 
-            chest.OutGoingData.rotation = chestYawOut;
-            spine.OutGoingData.rotation = spineYawOut;
+            chest.OutGoingData.rotation = chestSmoothed;
+            spine.OutGoingData.rotation = spineSmoothed;
 
             ApplyPositionWithGivenBase(chest, parentMatrix, chestPos, torsoLock: true);
             ApplyPositionWithGivenBase(spine, parentMatrix, spinePos, torsoLock: true);
@@ -239,6 +278,35 @@ public class BasisLocalVirtualSpineDriver
         // Finalize head/neck
         head.ApplyWorldAndLast(parentMatrix);
         neck.ApplyWorldAndLast(parentMatrix);
+    }
+
+    // Adds a configurable fraction of head pitch and roll on top of a yaw-only base rotation.
+    // Pitch and roll are extracted directly from the head's forward and right vectors instead of
+    // via Quaternion.eulerAngles — the Euler path gimbal-locks at look-straight-up/down and emits
+    // phantom ±180° "roll" values that, scaled by rollFrac, tilt the chest sideways into the body.
+    private static quaternion ApplyPitchRollCascade(in quaternion yawBase, in quaternion eyeRot, float pitchFrac, float rollFrac)
+    {
+        if (pitchFrac <= 0f && rollFrac <= 0f)
+        {
+            return yawBase;
+        }
+
+        Quaternion eyeQ = (Quaternion)eyeRot;
+        Vector3 headFwd = eyeQ * Vector3.forward;
+        Vector3 headRight = eyeQ * Vector3.right;
+
+        // Pitch: angle of the head's forward away from horizontal. Positive = looking down,
+        // matching Unity's Quaternion.Euler(x,0,0) sign convention so the round-trip is faithful.
+        float horizMag = Mathf.Sqrt(headFwd.x * headFwd.x + headFwd.z * headFwd.z);
+        float pitchDeg = Mathf.Atan2(-headFwd.y, horizMag) * Mathf.Rad2Deg;
+
+        // Roll: tilt of the head's right vector out of horizontal. Defined everywhere — at the
+        // look-straight-up pole, headRight stays in the horizontal plane (y=0), so roll = 0
+        // even though Euler decomposition would have ambiguated yaw and roll.
+        float rollDeg = Mathf.Asin(Mathf.Clamp(-headRight.y, -1f, 1f)) * Mathf.Rad2Deg;
+
+        Quaternion swing = Quaternion.Euler(pitchDeg * pitchFrac, 0f, rollDeg * rollFrac);
+        return math.mul(yawBase, (quaternion)swing);
     }
 
     private void RecomputeSegmentLengths(BasisLocalBoneControl neck, BasisLocalBoneControl chest, BasisLocalBoneControl spine, BasisLocalBoneControl hips)

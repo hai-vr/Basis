@@ -883,10 +883,14 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKCollisionsEnabled = new("fbikcollisionsenabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKProtectElbow = new("fbikprotectelbow", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKUseHandCapsule = new("fbikusehandcapsule", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> FBIKChestRadius = new("fbikchestradius", new BasisPlatformDefault<float>(0.18f));
-        public static BasisSettingsBinding<float> FBIKCollisionSkin = new("fbikcollisionskin", new BasisPlatformDefault<float>(0.02f));
-        public static BasisSettingsBinding<float> FBIKHandRadius = new("fbikhandradius", new BasisPlatformDefault<float>(0.05f));
-        public static BasisSettingsBinding<float> FBIKHandSkin = new("fbikhandskin", new BasisPlatformDefault<float>(0.01f));
+        // Collision capsule dimensions in meters at default (1.6m) avatar height; runtime
+        // multiplies by AvatarToDefaultRatioScaledWithAvatarScale. Keys bumped to _v2 so existing
+        // installs pick up the corrected defaults — the previous slider values disagreed with the
+        // hardcoded constants in SetHandCollisionScale and were never actually consumed.
+        public static BasisSettingsBinding<float> FBIKChestRadius = new("fbikchestradius_v2", new BasisPlatformDefault<float>(0.07f));
+        public static BasisSettingsBinding<float> FBIKCollisionSkin = new("fbikcollisionskin_v2", new BasisPlatformDefault<float>(0.05f));
+        public static BasisSettingsBinding<float> FBIKHandRadius = new("fbikhandradius_v2", new BasisPlatformDefault<float>(0.01f));
+        public static BasisSettingsBinding<float> FBIKHandSkin = new("fbikhandskin_v2", new BasisPlatformDefault<float>(0.03f));
         public static BasisSettingsBinding<bool> FBIKShoulderSolveEnabled = new("fbikshouldersolveenabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKShoulderElevation = new("fbikshoulderelevation", new BasisPlatformDefault<float>(0.4f));
         public static BasisSettingsBinding<float> FBIKShoulderProtraction = new("fbikshoulderprotraction", new BasisPlatformDefault<float>(0.3f));
@@ -927,8 +931,58 @@ namespace Basis.BasisUI
         // some users may prefer to tune manually via the existing per-axis sliders.
         public static BasisSettingsBinding<bool> FBIKAnatDifferentialStiffness = new("fbikanatdiffstiffness", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis", new BasisPlatformDefault<bool>(false));
+        // Persistence key bumped to _v2 so existing installs (which have the original key saved as
+        // false from the off-by-default era) pick up the new on-by-default behavior.
+        public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting", new BasisPlatformDefault<bool>(false));
+
+        // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
+        // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
+        // bend when looking at the floor, less (down to zero) when looking up.
+        public static BasisSettingsBinding<float> FBIKLordosisPitchGainDeg = new("fbiklordosispitchgaindeg", new BasisPlatformDefault<float>(8f));
+
+        // Chest spring head-velocity feed-forward: scales head linear velocity into the spring's
+        // velocity term so the chest leads into fast head moves instead of just pulling toward the
+        // new position. 0 disables the feed-forward (existing behavior).
+        public static BasisSettingsBinding<float> FBIKChestSpringHeadVelGain = new("fbikchestspringheadvelgain", new BasisPlatformDefault<float>(0.7f));
+
+        // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
+        // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
+        // spine carry when no chest tracker is present. Yaw fractions are derived from bone-length
+        // ratios automatically (current behavior). Defaults give a mild but visible improvement
+        // over the previous yaw-only chain.
+        public static BasisSettingsBinding<float> VSpineChestPitchFrac = new("vspinechestpitchfrac", new BasisPlatformDefault<float>(0.30f));
+        public static BasisSettingsBinding<float> VSpineChestRollFrac = new("vspinechestrollfrac", new BasisPlatformDefault<float>(0.30f));
+        public static BasisSettingsBinding<float> VSpineSpinePitchFrac = new("vspinespinepitchfrac", new BasisPlatformDefault<float>(0.10f));
+        public static BasisSettingsBinding<float> VSpineSpineRollFrac = new("vspinespinerollfrac", new BasisPlatformDefault<float>(0.10f));
+
+        // Resting S-curve: small positional bias (in meters at default avatar scale) applied to
+        // the chest forward of the neck-hips line and to the spine slightly back, giving the chain
+        // a natural kyphosis/lordosis profile instead of a straight line. Scaled by avatar height.
+        public static BasisSettingsBinding<float> VSpineChestForwardBias = new("vspinechestforwardbias", new BasisPlatformDefault<float>(0.025f));
+        public static BasisSettingsBinding<float> VSpineSpineForwardBias = new("vspinespineforwardbias", new BasisPlatformDefault<float>(-0.012f));
+
+        // Hips yaw deadband: if the head-yaw target is within this many degrees of the current
+        // hips yaw, hold the hips. Prevents HMD micro-jitter from shimmying the body. 0 disables.
+        public static BasisSettingsBinding<float> VSpineHipsYawDeadbandDeg = new("vspinehipsyawdeadbanddeg", new BasisPlatformDefault<float>(4f));
+
+        // Per-joint slew rates (deg/sec equivalent via slerp dt scaling). Higher = more responsive
+        // / less smoothing. Defaults match the original inspector field values so existing avatars
+        // are unchanged.
+        public static BasisSettingsBinding<float> VSpineNeckRotationSpeed = new("vspineneckrotationspeed", new BasisPlatformDefault<float>(40f));
+        public static BasisSettingsBinding<float> VSpineChestRotationSpeed = new("vspinechestrotationspeed", new BasisPlatformDefault<float>(25f));
+        public static BasisSettingsBinding<float> VSpineSpineRotationSpeed = new("vspinespinerotationspeed", new BasisPlatformDefault<float>(30f));
+        public static BasisSettingsBinding<float> VSpineHipsRotationSpeed = new("vspinehipsrotationspeed", new BasisPlatformDefault<float>(20f));
+
+        // Hips XZ follow blend: 0 = place hips strictly under the neck (preserved spine length);
+        // 1 = keep the tracker's reported hips XZ position. Useful when a hips tracker is partially
+        // trusted but not authoritative.
+        public static BasisSettingsBinding<float> VSpineHipsXZFollowBlend = new("vspinehipsxzfollowblend", new BasisPlatformDefault<float>(0.35f));
+
+        // Hips forward bias: small forward offset (meters at default avatar scale) so hips don't
+        // sit perfectly under the neck — gives a subtle pelvic tilt that reads as more natural
+        // standing posture.
+        public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias", new BasisPlatformDefault<float>(0.02f));
 
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
@@ -1426,6 +1480,21 @@ namespace Basis.BasisUI
             FBIKAnatShoulderSlide.LoadBindingValue();
             FBIKAnatCervicalLordosis.LoadBindingValue();
             FBIKAnatPelvicTwistRouting.LoadBindingValue();
+            FBIKLordosisPitchGainDeg.LoadBindingValue();
+            FBIKChestSpringHeadVelGain.LoadBindingValue();
+            VSpineChestPitchFrac.LoadBindingValue();
+            VSpineChestRollFrac.LoadBindingValue();
+            VSpineSpinePitchFrac.LoadBindingValue();
+            VSpineSpineRollFrac.LoadBindingValue();
+            VSpineChestForwardBias.LoadBindingValue();
+            VSpineSpineForwardBias.LoadBindingValue();
+            VSpineHipsYawDeadbandDeg.LoadBindingValue();
+            VSpineNeckRotationSpeed.LoadBindingValue();
+            VSpineChestRotationSpeed.LoadBindingValue();
+            VSpineSpineRotationSpeed.LoadBindingValue();
+            VSpineHipsRotationSpeed.LoadBindingValue();
+            VSpineHipsXZFollowBlend.LoadBindingValue();
+            VSpineHipsForwardBias.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();

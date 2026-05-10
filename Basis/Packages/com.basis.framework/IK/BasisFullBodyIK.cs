@@ -345,6 +345,17 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_AnatShoulderSlide;
         [SyncSceneToStream, SerializeField] bool m_AnatCervicalLordosis;
         [SyncSceneToStream, SerializeField] bool m_AnatPelvicTwistRouting;
+        // Cervical lordosis pitch coupling: extra forward bend per unit of head pitch-down (0..1
+        // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
+        // AnatCervicalLordosis is on.
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_LordosisPitchGainDeg;
+        // Chest spring head-velocity feed-forward: scales upstream head linear velocity into the
+        // spring's velocity term so the chest leads quick head moves (anticipates rather than just
+        // pulling toward the new position). 0 disables.
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestSpringHeadVelGain;
+        // Upstream head linear velocity (world m/s), supplied per-frame by the rig driver from the
+        // filtered head pose. Only consumed when m_ChestSpringHeadVelGain > 0.
+        [SyncSceneToStream, SerializeField] public Vector3 HeadLinearVelocity;
 
         public float minHeadSpineHeight
         {
@@ -529,6 +540,11 @@ namespace UnityEngine.Animations.Rigging
         public string AnatShoulderSlideProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatShoulderSlide));
         public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
+        public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
+        public float ChestSpringHeadVelGain { get => m_ChestSpringHeadVelGain; set => m_ChestSpringHeadVelGain = value; }
+        public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
+        public string ChestSpringHeadVelGainFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestSpringHeadVelGain));
+        public string HeadLinearVelocityProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HeadLinearVelocity));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -628,6 +644,9 @@ namespace UnityEngine.Animations.Rigging
             m_AnatShoulderSlide = false;
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
+            m_LordosisPitchGainDeg = 8f;
+            m_ChestSpringHeadVelGain = 0.7f;
+            HeadLinearVelocity = Vector3.zero;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -917,6 +936,8 @@ w20, w54;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
+        public FloatProperty lordosisPitchGainDeg, chestSpringHeadVelGain;
+        public Vector3Property headLinearVelocity;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -1132,9 +1153,16 @@ w20, w54;
             Quaternion bendLocal = Quaternion.FromToRotation(localChestDir.normalized, localTargetDir.normalized);
             Vector3 bendEuler = SignedEuler(bendLocal.eulerAngles);
 
-            // Twist comes from head facing yaw in hips-local frame.
+            // Twist comes from head facing yaw in hips-local frame. Extracted from the head's
+            // forward vector projected onto the hips-local horizontal plane — robust at look-up/down
+            // where Quaternion.eulerAngles gimbal-locks and emits a phantom ±180° roll/yaw split
+            // that, even after the ±maxLat clamp, twists the spine sideways for no real reason.
             Quaternion headRotLocal = invHips * V4ToQuat(targetRotationHead.Get(stream));
-            float twistY = SignedEuler(headRotLocal.eulerAngles).y;
+            Vector3 headFwdLocal = headRotLocal * Vector3.forward;
+            float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
+            float twistY = (horizMagSq < k_SqrEpsilon)
+                ? 0f
+                : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
 
             float maxFwd = Mathf.Max(0f, spineMaxForwardDeg.Get(stream));
             float maxBack = Mathf.Max(0f, spineMaxBackwardDeg.Get(stream));
@@ -1254,6 +1282,18 @@ w20, w54;
             Vector3 pos = chestSpringState[0];
             Vector3 vel = chestSpringState[1];
 
+            // Head velocity feed-forward: blend a fraction of the upstream head velocity into the
+            // spring's velocity term before integrating. Without it the spring is purely reactive
+            // (always lags the head); with it the chest leads quick moves the way a real torso
+            // anticipates a head turn.
+            float vfGain = Mathf.Max(0f, chestSpringHeadVelGain.Get(stream));
+            if (vfGain > 0f)
+            {
+                Vector3 headVel = headLinearVelocity.Get(stream);
+                if (IsFinite(headVel))
+                    vel = Vector3.Lerp(vel, headVel, Mathf.Clamp01(vfGain));
+            }
+
             // Implicit Euler: solve (vel_new, pos_new = pos + dt*vel_new) such that
             //   vel_new = vel + dt * (omega² * (target - pos_new) - 2*omega*damping * vel_new)
             // Substituting pos_new gives the closed-form denom below. Always stable.
@@ -1309,13 +1349,37 @@ w20, w54;
         // Anatomy: cervical lordosis. Real heads sit a few centimeters forward of the neck axis;
         // adds a small forward pitch to the neck so the head reads more naturally during look-down
         // poses where the rig's stiff vertical neck would otherwise feel stilted.
+        // Pitch-aware in both directions:
+        //   - at look-down, the base 5° gets a configurable extra-bend (gain) added on top.
+        //   - at look-up, the base 5° fades to 0 — without this, the constant forward bend
+        //     applied after the IK solve compresses the head down into the upper chest, since
+        //     lordosis rotates the neck after the chest→neck→head chain has already reached the
+        //     head target and no re-solve happens.
+        // Pitch fraction is read from head-target forward vs playerUp, so it stays well-defined at
+        // the look-up/down poles (the vector-based dot doesn't gimbal like Euler decomposition).
         void ApplyCervicalLordosis(AnimationStream stream)
         {
             if (!HandleNeck.IsValid(stream))
                 return;
-            // ~5° forward pitch in neck-local space (around its own X axis).
+
+            const float baseDeg = 5f;
+            float gain = Mathf.Max(0f, lordosisPitchGainDeg.Get(stream));
+
+            Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
+            Vector3 headForward = headRot * Vector3.forward;
+            Vector3 up = playerUp.Get(stream);
+            if (up.sqrMagnitude < k_SqrEpsilon) up = Vector3.up;
+            else up.Normalize();
+            float pitchSigned = Vector3.Dot(headForward, up); // +1 = looking straight up, -1 = down
+            float lookUpFrac = Mathf.Clamp01(pitchSigned);
+            float lookDownFrac = Mathf.Clamp01(-pitchSigned);
+
+            float totalDeg = baseDeg * (1f - lookUpFrac) + gain * lookDownFrac;
+            if (totalDeg <= 0f)
+                return;
+
             Quaternion neckRot = HandleNeck.GetRotation(stream);
-            Quaternion delta = Quaternion.AngleAxis(5f, neckRot * Vector3.right);
+            Quaternion delta = Quaternion.AngleAxis(totalDeg, neckRot * Vector3.right);
             HandleNeck.SetRotation(stream, delta * neckRot);
         }
         // Anatomy: shoulder slide. Shoulders don't fully follow chest twist past ~30° because the
@@ -2364,6 +2428,9 @@ w20, w54;
                 anatShoulderSlide = BoolProperty.Bind(animator, component, data.AnatShoulderSlideProperty),
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
+                lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
+                chestSpringHeadVelGain = FloatProperty.Bind(animator, component, data.ChestSpringHeadVelGainFloatProperty),
+                headLinearVelocity = Vector3Property.Bind(animator, component, data.HeadLinearVelocityProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

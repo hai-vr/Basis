@@ -133,6 +133,13 @@ namespace Basis.Scripts.Drivers
         private static Quaternion smoothedLeftKneeRot = Quaternion.identity;
         private static Quaternion smoothedRightKneeRot = Quaternion.identity;
 
+        // Head linear velocity, derived from successive filtered head positions and low-passed
+        // before being fed to BasisFullBodyIK.ApplyChestSpring. Static so it survives across the
+        // single SimulateIKDestinations instance per local player; reset by ResetSmoothingState.
+        private static Vector3 _prevHeadPos;
+        private static Vector3 _smoothedHeadVel;
+        private static bool _hasPrevHeadPos;
+
         // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
@@ -281,6 +288,8 @@ namespace Basis.Scripts.Drivers
         {
             timeAccumulator = 0;
             hasFallbackState = false;
+            _hasPrevHeadPos = false;
+            _smoothedHeadVel = Vector3.zero;
 
             // Reset batched filter state — identity rotations to avoid lerping from zero quats.
             if (_euroPosStates.IsCreated)
@@ -511,8 +520,25 @@ namespace Basis.Scripts.Drivers
                 data.PositionHips = hipsPos;
                 data.RotationHips = hipsRot;
 
-                data.PositionHead = pOut[S_Head];
+                Vector3 headPos = pOut[S_Head];
+                data.PositionHead = headPos;
                 data.RotationHead = rOut[S_Head];
+
+                // Head linear velocity from successive filtered positions, with a 12 Hz low-pass
+                // to reject single-frame jitter. Consumed as feed-forward by the IK chest spring.
+                if (_hasPrevHeadPos)
+                {
+                    Vector3 instVel = (headPos - _prevHeadPos) / safeDt;
+                    float velAlpha = 1f - Mathf.Exp(-2f * Mathf.PI * 12f * safeDt);
+                    _smoothedHeadVel = Vector3.LerpUnclamped(_smoothedHeadVel, instVel, velAlpha);
+                }
+                else
+                {
+                    _smoothedHeadVel = Vector3.zero;
+                    _hasPrevHeadPos = true;
+                }
+                _prevHeadPos = headPos;
+                data.HeadLinearVelocity = _smoothedHeadVel;
 
                 // ── LEFT FOOT ──
                 if (leftHasTracker)
@@ -662,6 +688,10 @@ namespace Basis.Scripts.Drivers
                 + outR * spineBendNormalWeights.y
                 + up * spineBendNormalWeights.z).normalized;
 
+            // Pull the latest tunable settings into data every frame so slider changes flow into
+            // the IK job. Without this the job runs on the boot-time snapshot from Spine().
+            ApplyTuningSettings(ref data);
+
             BasisFullIKConstraint.data = data;
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
@@ -742,11 +772,12 @@ namespace Basis.Scripts.Drivers
         }
         public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
         {
-            //1.6m is the default values for below..
-            BodyData.HandSkin = 0.03f * Scale;
-            BodyData.HandRadius = 0.01f * Scale;
-            BodyData.ChestRadius = 0.07f * Scale;
-            BodyData.CollisionSkin = 0.05f * Scale;
+            // Pull the live slider values so a height change keeps tuning consistent with
+            // ApplyTuningSettings (which does the same per-frame).
+            BodyData.HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue * Scale;
+            BodyData.HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue * Scale;
+            BodyData.ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue * Scale;
+            BodyData.CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue * Scale;
 
             var hips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled;
             var spine = BasisLocalBoneDriver.SpineControl.TposeLocalScaled;
@@ -904,9 +935,20 @@ namespace Basis.Scripts.Drivers
                 data.SetOffsetRotation(slot, t.rotation);
                 data.SetTargetRotation(slot, t.rotation);
             }
-            data.MaxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
             data.MinFactor = 0.95f;
             data.MaxFactor = 1.05f;
+            ApplyTuningSettings(ref data);
+
+            BasisFullIKConstraint.data = data;
+        }
+
+        // Pulls every live-tunable BasisSettingsBinding into the IK data. Called from Spine() at
+        // init AND from SimulateIKDestinations every frame so slider changes flow into the
+        // animation job. Without the per-frame call, sliders update RawValue but the IK keeps
+        // running on the boot-time snapshot.
+        private static void ApplyTuningSettings(ref BasisFullBodyData data)
+        {
+            data.MaxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
             data.StruggleStart = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleStart.RawValue;
             data.StruggleEnd = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleEnd.RawValue;
             data.MaxChestDelta = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxChestDelta.RawValue;
@@ -933,8 +975,26 @@ namespace Basis.Scripts.Drivers
             data.AnatShoulderSlide = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatShoulderSlide.RawValue;
             data.AnatCervicalLordosis = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatCervicalLordosis.RawValue;
             data.AnatPelvicTwistRouting = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.RawValue;
+            data.LordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
+            data.ChestSpringHeadVelGain = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringHeadVelGain.RawValue;
 
-            BasisFullIKConstraint.data = data;
+            // Toggles + shoulder-solve params that previously only flowed at init. Without these
+            // here, flipping the matching toggle/slider in the IK panel left the animation job
+            // running on the boot-time snapshot.
+            data.CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
+            data.ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
+            data.UseHandCapsule = Basis.BasisUI.BasisSettingsDefaults.FBIKUseHandCapsule.RawValue;
+            data.ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
+            data.ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
+            data.ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
+
+            // Collision capsule dimensions × avatar scale. Slider defaults now match the
+            // hardcoded values previously in SetHandCollisionScale, so this is the canonical path.
+            float collisionScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            data.HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue * collisionScale;
+            data.HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue * collisionScale;
+            data.ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue * collisionScale;
+            data.CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue * collisionScale;
         }
         public void DisableAllTrackers()
         {
