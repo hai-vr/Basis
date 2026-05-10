@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using HVR.Basis.Comms;
+using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -32,6 +33,10 @@ namespace HVR.Vixxy
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
         private readonly List<HVRVixxyToBeNetworked> _toBeNetworked = new();
+        private bool _needsReevaluateSystemAddresses;
+
+        // Basis-specific
+        private HVRBasisBuiltInAddresses _builtInAddressesNullable;
 
         /// Contrary to AcquisitionService, which only references data pertaining to the local user, implicit addresses can refer to data
         /// coming from other users to drive that the avatar of that user.
@@ -80,6 +85,25 @@ namespace HVR.Vixxy
 
         private void Update()
         {
+            if (_needsReevaluateSystemAddresses)
+            {
+                var systemAddresses = _addressIdToActuators.Keys
+                    .Concat(_addressIdToAggregators.Keys)
+                    .Distinct()
+                    .Where(HVRAddress.IsSystemAddressId)
+                    .ToHashSet();
+
+                if (systemAddresses.Count > 0 && _builtInAddressesNullable == null)
+                {
+                    _builtInAddressesNullable = new HVRBasisBuiltInAddresses(HVRCommsUtil.GetComms(this), HVRCommsUtil.GetAvatar(this).IsOwnedLocally);
+                }
+                if (systemAddresses.Count > 0)
+                {
+                    _builtInAddressesNullable.DeclareAllRequired(systemAddresses);
+                }
+                _needsReevaluateSystemAddresses = false;
+            }
+
             if (!_anythingNeedsUpdating) return;
 
             // Randomness in the number of iteration cycles is an attempt to ensure we don't get implementation-specific
@@ -173,6 +197,11 @@ namespace HVR.Vixxy
             HVRVariableStore.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
             VariableStore.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
 
+            if (HVRAddress.IsSystemAddressId(addressId))
+            {
+                _needsReevaluateSystemAddresses = true;
+            }
+
             return new HVRActuatorRegistrationToken
             {
                 registeredAddressId = addressId,
@@ -187,9 +216,18 @@ namespace HVR.Vixxy
             if (_addressIdToActuators.TryGetValue(actuatorRegistrationToken.registeredAddressId, out var existingActuator))
             {
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
+                if (existingActuator.Count == 0)
+                {
+                    _addressIdToActuators.Remove(actuatorRegistrationToken.registeredAddressId);
+                }
             }
 
             VariableStore.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
+
+            if (HVRAddress.IsSystemAddressId(actuatorRegistrationToken.registeredAddressId))
+            {
+                _needsReevaluateSystemAddresses = true;
+            }
         }
 
         public void RegisterAggregator(string address, IHVRVixxyAggregator actuator)
@@ -221,7 +259,14 @@ namespace HVR.Vixxy
 
         public void UnregisterAggregator(int addressId, IHVRVixxyAggregator aggregator)
         {
-            if (_addressIdToAggregators.TryGetValue(addressId, out var existingActuator)) existingActuator.Remove(aggregator);
+            if (_addressIdToAggregators.TryGetValue(addressId, out var existingActuator))
+            {
+                existingActuator.Remove(aggregator);
+                if (existingActuator.Count == 0)
+                {
+                    _addressIdToAggregators.Remove(addressId);
+                }
+            }
         }
 
         /// Inform the orchestrator that the object will need a material property block assigned to it.
@@ -285,6 +330,14 @@ namespace HVR.Vixxy
                     min = toBeNetworked.min,
                     max = toBeNetworked.max
                 });
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_builtInAddressesNullable != null)
+            {
+                _builtInAddressesNullable.Destroy();
             }
         }
     }

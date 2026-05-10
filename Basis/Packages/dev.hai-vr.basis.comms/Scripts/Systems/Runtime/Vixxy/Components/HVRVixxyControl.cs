@@ -114,8 +114,8 @@ namespace HVR.Vixxy
 
             AlsoExecutesWhenDisabled = !onlyExecuteWhenEnabled;
 
-            Networked = networked;
-            NetworkingType = networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
+            Networked = networked && !HVRAddress.IsSystemAddressName(Address);
+            NetworkingType = Networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
 
             // Bake the subjects
             // UGC Rule: Sanitize arrays.
@@ -214,8 +214,19 @@ namespace HVR.Vixxy
         /// Called by the Editor when a serialized property changes due to live edits. This is not to be invoked by anything else.
         internal void DebugOnly_ReBakeControl()
         {
-            Address = CalculateAddress();
-            AddressId = HVRAddress.AddressToId(Address);
+            var calculateAddress = CalculateAddress();
+            var addressChanged = Address != calculateAddress;
+            if (addressChanged)
+            {
+                Address = calculateAddress;
+                AddressId = HVRAddress.AddressToId(Address);
+
+                if (IsInitialized && _registeredActuator != null)
+                {
+                    orchestrator.UnregisterActuator(_registeredActuator);
+                    _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
+                }
+            }
 
             BakeControlSubjectsAndActivationsForRuntime();
         }

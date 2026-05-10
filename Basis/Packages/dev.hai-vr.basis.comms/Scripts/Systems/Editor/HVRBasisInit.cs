@@ -27,7 +27,6 @@ namespace HVR.Basis.Comms.Editor
                 typeof(HVRVixxyOrchestrator),
                 typeof(StreamedAvatarFeature),
                 typeof(OSCAcquisition),
-                typeof(FaceTrackingActivityRelay),
                 typeof(EyeTrackingBoneActuation),
                 typeof(BlendshapeActuation),
             };
