@@ -49,7 +49,6 @@ namespace HVR.Vixxy
             control = TryResolveActualControl(out var actualControl) ? actualControl : null;
 
             _value = control != null ? control.defaultValue : 0f;
-            BasisDebug.Log($"Initialized {GetType().Name} with default value {_value}");
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
