@@ -82,7 +82,6 @@ namespace HVR.Vixxy.Editor
             {
                 EditorGUILayout.HelpBox("Since this is a system address, a menu cannot be bound to it.", MessageType.Info);
             }
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.externalProgram)));
             EditorGUILayout.Separator();
 
             {

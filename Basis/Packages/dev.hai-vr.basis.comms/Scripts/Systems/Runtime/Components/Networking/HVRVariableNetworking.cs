@@ -27,12 +27,6 @@ namespace HVR.Basis.Comms
         public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
         public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
 
-        private void WhenAddressUpdated(int addressId, float currentValue)
-        {
-            if (PrintDebug) HVRLogging.ProtocolDebug($"Updating address {HVRAddress.ResolveKnownAddressFromId(addressId)} to value {currentValue}.");
-            comms.VariableStore.Submit(addressId, currentValue);
-        }
-
         private const float TransmissionDeltaSeconds = 0.1f;
 
         internal interface IHVRVariableBehaviour : IFeatureReceiver
@@ -44,6 +38,8 @@ namespace HVR.Basis.Comms
 
         internal class HVRVariableBehaviour_Wearer : IHVRVariableBehaviour
         {
+            private const bool UseInterpolationTape = false;
+
             private readonly HVRVariableNetworking _state;
             private readonly AcquisitionService _acquisitionService;
 
@@ -328,16 +324,84 @@ namespace HVR.Basis.Comms
 
         internal class HVRVariableBehaviour_Remote : IHVRVariableBehaviour
         {
+            private const bool UseInterpolationTape = true;
+
             private readonly HVRVariableNetworking _state;
             internal readonly Dictionary<int, HVRVariableHolder> _addressIdToHolder = new();
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
+
+            private HVRInterpolationTimer _interpolationTimer;
+            private HVRInterpolationData _interpolationDataThisFrame;
 
             public HVRVariableBehaviour_Remote(HVRVariableNetworking state)
             {
                 _state = state;
             }
 
-            public void Update() { }
+            private void WhenDataReceived(int addressId, float currentValue)
+            {
+                if (PrintDebug) HVRLogging.ProtocolDebug($"Received data for address {HVRAddress.ResolveKnownAddressFromId(addressId)} with value {currentValue}.");
+
+                // TODO: IF APPLICABLE (address doesn't have a "no delay" flag + controls need to be able to define if it uses network interpolation), then:
+                // - Put this data into the proper interpolation tape for that address, for that tick (we need to add the time delta inside the packet),
+                // - then on the remote, play back the tape every frame on Update.
+                // - QUESTION: Should the variable store be responsible for the interpolation tape?
+                // --------------- NO. Interpolation is handled by the networking module.
+                // :
+                // -> When value is received, append to the tape with the delay.
+                // -> The Variable Networking keeps tracks of the addresses that have a non-empty interpolation tape.
+                // -> Every frame, Variable Networking advance the non-empty tapes by (delaySinceLastFrame)
+                // -> the Variable Networking then emits Submit events with the new interpolated value to the Value Store.
+                // :
+                // If it's exposed as a slider in a MENU ITEM, then it MUST be interpolated
+                // --> We need to mark the control itself as interpolated. Sliders must suggest to mark the control as interpolated.
+                // Toggles SHOULD NOT BE interpolated.
+                // Multiple choices SHOULD NOT BE interpolated.
+                // --> Toggles and multiple choices should suggest to mark the control as non-interpolated.
+
+                if (UseInterpolationTape)
+                {
+                    if (true
+                        // _addressIdToHolder[addressId].needsInterpolation
+                       )
+                    {
+                        var TODO_DeltaTimeInsidePacket = 0.1f; // TODO: Pass the delta time fractional inside the packet
+                        if (_interpolationDataThisFrame == null)
+                        {
+                            _interpolationDataThisFrame = new HVRInterpolationData(TODO_DeltaTimeInsidePacket);
+                        }
+
+                        _interpolationDataThisFrame.Add(addressId, currentValue);
+                    }
+                    else
+                    {
+                        _state.comms.VariableStore.Submit(addressId, currentValue);
+                    }
+                }
+                else
+                {
+                    _state.comms.VariableStore.Submit(addressId, currentValue);
+                }
+            }
+
+            private void WhenDataReceived_BypassInterpolationTape(int addressId, float currentValue)
+            {
+                _state.comms.VariableStore.Submit(addressId, currentValue);
+            }
+
+            public void Update()
+            {
+                if (UseInterpolationTape)
+                {
+                    if (_interpolationDataThisFrame != null)
+                    {
+                        _interpolationTimer.Enqueue(_interpolationDataThisFrame);
+                        _interpolationDataThisFrame = null;
+                    }
+
+                    _interpolationTimer.Advance(Time.deltaTime);
+                }
+            }
 
             public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
             {
@@ -366,7 +430,7 @@ namespace HVR.Basis.Comms
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
                                 _addressIdToHolder[addressId].currentValue = 0f;
-                                _state.WhenAddressUpdated(addressId, 0f);
+                                WhenDataReceived(addressId, 0f);
                             }
                         }
 
@@ -383,7 +447,7 @@ namespace HVR.Basis.Comms
                             if (_networkIdToAddressId.TryGetValue(networkId, out var addressId))
                             {
                                 _addressIdToHolder[addressId].currentValue = 1f;
-                                _state.WhenAddressUpdated(addressId, 1f);
+                                WhenDataReceived(addressId, 1f);
                             }
                         }
 
@@ -402,7 +466,7 @@ namespace HVR.Basis.Comms
                                 var isZero = index < packet.numberOfZeroes;
                                 var value = isZero ? 0f : 1f;
                                 _addressIdToHolder[addressId].currentValue = value;
-                                _state.WhenAddressUpdated(addressId, value);
+                                WhenDataReceived(addressId, value);
                             }
                         }
 
@@ -421,7 +485,7 @@ namespace HVR.Basis.Comms
                                 var isZero = index < packet.numberOfZeroes;
                                 var value = isZero ? 0f : 1f;
                                 _addressIdToHolder[addressId].currentValue = value;
-                                _state.WhenAddressUpdated(addressId, value);
+                                WhenDataReceived(addressId, value);
                             }
                         }
                         foreach (var other in packet.other)
@@ -431,7 +495,7 @@ namespace HVR.Basis.Comms
                                 if (_addressIdToHolder[addressId].variable.variableTypeCode == HVRVariableTypeCode.Float && other.value is float f)
                                 {
                                     _addressIdToHolder[addressId].currentValue = f;
-                                    _state.WhenAddressUpdated(addressId, f);
+                                    WhenDataReceived(addressId, f);
                                 }
                             }
                         }
@@ -510,7 +574,7 @@ namespace HVR.Basis.Comms
 
                 foreach (var newlyAddedAddress in newlyAddedAddresses)
                 {
-                    _state.WhenAddressUpdated(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
+                    WhenDataReceived_BypassInterpolationTape(newlyAddedAddress, (float)_addressIdToHolder[newlyAddedAddress].currentValue);
                 }
             }
 
@@ -529,6 +593,103 @@ namespace HVR.Basis.Comms
                 public ushort networkId;
                 public object currentValue;
             }
+        }
+    }
+
+    internal class HVRInterpolationData
+    {
+        public float DeltaTime { get; }
+
+        public HVRInterpolationData(float deltaTime)
+        {
+            DeltaTime = deltaTime;
+        }
+
+        public void Add(int addressId, float currentValue)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    internal class HVRInterpolationTimer
+    {
+        private const float DeltaTimeUsedForResyncs = 1 / 29f; // 29 is just a random number I picked. It really doesn't matter what value we're using for resyncs.
+
+        private readonly Queue<HVRInterpolationData> _queue = new();
+        private float _totalQueueSeconds;
+        private int _numberOfEnqueues;
+
+        private float _timeLeft;
+        private bool _isOutOfTape;
+        private bool _writtenThisFrame;
+        private float _effectiveDeltaTime;
+
+        public void Enqueue(HVRInterpolationData newData)
+        {
+            _queue.Enqueue(newData);
+            _totalQueueSeconds += newData.DeltaTime;
+            _numberOfEnqueues++;
+            if (_numberOfEnqueues % 1_000 == 0)
+            {
+                // Recalculate the queue duration for precision loss concerns.
+                _numberOfEnqueues = 0;
+                _totalQueueSeconds = 0f;
+                foreach (var data in _queue)
+                {
+                    _totalQueueSeconds += data.DeltaTime;
+                }
+            }
+        }
+
+        public void Advance(float deltaTime)
+        {
+            /*
+            _timeLeft -= deltaTime;
+
+            while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
+            {
+                _totalQueueSeconds -= eval.DeltaTime;
+                if (_totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
+
+                // If the queue is small or the total queue duration is short, use the delta from the queue
+                var effectiveDeltaTime = _queue.Count <= 5 || _totalQueueSeconds < 0.2f
+                    ? eval.DeltaTime
+                    // Otherwise, we fast-forward the queue.
+                    // NOTE: I actually can't remember why the fast-forward is defined in this way. It may be complete nonsense.
+                    : (eval.DeltaTime * Mathf.Lerp(0.66f, 0.05f, Mathf.InverseLerp(DeltaTimeUsedForResyncs, 4f, _totalQueueSeconds)));
+
+                _timeLeft += effectiveDeltaTime;
+                _previous = _target;
+                _target = eval;
+                _effectiveDeltaTime = effectiveDeltaTime;
+                _isOutOfTape = false;
+            }
+
+            var isDepleted = _timeLeft <= 0;
+            if (isDepleted)
+            {
+                if (!_isOutOfTape)
+                {
+                    _isOutOfTape = true;
+
+                    _current = _target; // FIXME: INTERPOLABLE REFACTOR. Does this have side effects?
+                    _writtenThisFrame = true;
+                }
+                else
+                {
+                    _writtenThisFrame = false;
+                }
+                _timeLeft = 0;
+            }
+            else
+            {
+                _isOutOfTape = false;
+
+                var progression01 = 1 - Mathf.Clamp01(_timeLeft / _effectiveDeltaTime);
+                _current.MutateLerp(_previous, _target, progression01);
+                _writtenThisFrame = true;
+            }
+        */
         }
     }
 
