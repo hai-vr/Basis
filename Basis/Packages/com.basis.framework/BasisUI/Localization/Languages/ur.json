@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "ریڑھ کی ہڈی کے ذریعہ جذب کی گئی سر ٹلٹ کا حصہ۔ ڈیفالٹ: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "چیسٹ فارورڈ بائس (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "ریسٹنگ چیسٹ پوزیشن کو گردن-کولہے کی لائن کے آگے دھکیلتا ہے، چین کو ایک قدرتی کائفوسس دیتا ہے۔ اوتار کی اونچائی کے مطابق اسکیل ہوتا ہے۔ ڈیفالٹ: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "اسپائن فارورڈ بائس (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "منفی اقدار ریڑھ کی ہڈی کو لارڈوسس کے لیے تھوڑا پیچھے کھینچتی ہیں۔ اوتار کی اونچائی کے مطابق اسکیل ہوتا ہے۔ ڈیفالٹ: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "کولہے یاؤ ڈیڈبینڈ (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "کولہے اس ڈگری سے چھوٹے سر یاؤ تبدیلیوں کو نظر انداز کرتے ہیں، HMD مائیکرو-جٹر کو دباتے ہیں۔ 0 غیر فعال کرتا ہے۔ ڈیفالٹ: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "گردن گردش رفتار" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "ترکیب شدہ اسپائن گردش کے لیے سلیو ریٹ۔ ڈیفالٹ: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "کولہے گردش رفتار" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "ترکیب شدہ کولہے یاؤ کے لیے سلیو ریٹ۔ کم اقدار تیز سر گھمانے پر کولہے کے جھٹکے کم کرتی ہیں۔ ڈیفالٹ: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "کولہے XZ فالو بلینڈ" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = کولہے سختی سے گردن کے نیچے رکھے گئے (ریڑھ کی ہڈی کی لمبائی محفوظ)؛ 1 = ٹریکر کی رپورٹ کردہ کولہے XZ پوزیشن رکھیں۔ جب کولہے ٹریکر پر جزوی طور پر بھروسہ ہو تو مفید۔ ڈیفالٹ: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "کولہے فارورڈ بائس (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "چھوٹا آگے آفسیٹ (ڈیفالٹ اوتار اسکیل پر میٹر میں) تاکہ کولہے گردن کے بالکل نیچے نہ بیٹھیں — ایک باریک پیلوک ٹلٹ دیتا ہے۔ ڈیفالٹ: 0.02" },
 

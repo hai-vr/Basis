@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Fracción de la inclinación lateral de la cabeza absorbida por la columna. Por defecto: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Sesgo frontal del pecho (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Empuja la posición en reposo del pecho por delante de la línea cuello-caderas, dando a la cadena una cifosis natural. Escalado por la altura del avatar. Por defecto: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Sesgo frontal de la columna (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Los valores negativos empujan la columna ligeramente hacia atrás para la lordosis. Escalado por la altura del avatar. Por defecto: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Banda muerta de la guiñada de cadera (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Las caderas ignoran cambios de guiñada de la cabeza menores que estos grados, suprimiendo el microtemblor del HMD. 0 lo desactiva. Por defecto: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Velocidad de rotación del cuello" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Tasa de slew para la rotación sintetizada de la columna. Por defecto: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Velocidad de rotación de las caderas" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Tasa de slew para la guiñada sintetizada de las caderas. Valores más bajos reducen el tirón de las caderas en giros rápidos de cabeza. Por defecto: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Mezcla de seguimiento XZ de las caderas" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = caderas colocadas estrictamente debajo del cuello (longitud de columna preservada); 1 = mantener la posición XZ de las caderas reportada por el tracker. Útil cuando se confía parcialmente en un tracker de caderas. Por defecto: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Sesgo frontal de las caderas (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Pequeño desplazamiento hacia adelante (en metros con la escala de avatar por defecto) para que las caderas no queden perfectamente debajo del cuello — da una sutil inclinación pélvica. Por defecto: 0.02" },
 

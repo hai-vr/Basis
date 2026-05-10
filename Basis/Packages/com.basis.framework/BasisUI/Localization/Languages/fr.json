@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Fraction de l'inclinaison latérale de la tête absorbée par la colonne. Par défaut : 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Biais avant du torse (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Pousse la position de repos du torse en avant de la ligne cou-hanches, donnant à la chaîne une cyphose naturelle. Mis à l'échelle selon la hauteur de l'avatar. Par défaut : 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Biais avant de la colonne (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Les valeurs négatives tirent légèrement la colonne vers l'arrière pour la lordose. Mis à l'échelle selon la hauteur de l'avatar. Par défaut : -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Bande morte du lacet des hanches (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Les hanches ignorent les changements de lacet de la tête inférieurs à ce nombre de degrés, supprimant les micro-tremblements du HMD. 0 désactive. Par défaut : 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Vitesse de rotation du cou" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Taux de slew pour la rotation synthétisée de la colonne. Par défaut : 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Vitesse de rotation des hanches" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Taux de slew pour le lacet synthétisé des hanches. Des valeurs plus basses réduisent le claquement des hanches lors des rotations rapides de la tête. Par défaut : 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Fondu de suivi XZ des hanches" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = hanches placées strictement sous le cou (longueur de colonne préservée) ; 1 = conserver la position XZ des hanches rapportée par le tracker. Utile lorsqu'un tracker de hanches n'est que partiellement fiable. Par défaut : 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Biais avant des hanches (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Léger décalage vers l'avant (en mètres à l'échelle d'avatar par défaut) pour que les hanches ne soient pas parfaitement sous le cou — donne une subtile inclinaison pelvienne. Par défaut : 0.02" },
 

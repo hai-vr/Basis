@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Fração da inclinação lateral da cabeça absorvida pela coluna. Padrão: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Viés do Peito Para Frente (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Empurra a posição de repouso do peito à frente da linha pescoço-quadril, dando à cadeia uma cifose natural. Escalado pela altura do avatar. Padrão: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Viés da Coluna Para Frente (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Valores negativos puxam a coluna ligeiramente para trás para criar lordose. Escalado pela altura do avatar. Padrão: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Deadband de Guinada dos Quadris (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Os quadris ignoram mudanças de guinada da cabeça menores que esses graus, suprimindo o micro-jitter do HMD. 0 desativa. Padrão: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Velocidade de Rotação do Pescoço" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Velocidade de transição (slew rate) para a rotação sintetizada da coluna. Padrão: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Velocidade de Rotação dos Quadris" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Velocidade de transição (slew rate) para a guinada sintetizada dos quadris. Valores menores reduzem o estalo dos quadris durante rotações rápidas da cabeça. Padrão: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Mistura de Seguimento XZ dos Quadris" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = quadris posicionados estritamente sob o pescoço (comprimento da coluna preservado); 1 = manter a posição XZ dos quadris reportada pelo tracker. Útil quando um tracker de quadris é parcialmente confiável. Padrão: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Viés dos Quadris Para Frente (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Pequeno offset para frente (em metros na escala padrão do avatar) para que os quadris não fiquem exatamente sob o pescoço — dá uma sutil inclinação pélvica. Padrão: 0.02" },
 

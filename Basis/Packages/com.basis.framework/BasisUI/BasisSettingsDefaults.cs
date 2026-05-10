@@ -957,10 +957,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> VSpineSpineRollFrac = new("vspinespinerollfrac", new BasisPlatformDefault<float>(0.10f));
 
         // Resting S-curve: small positional bias (in meters at default avatar scale) applied to
-        // the chest forward of the neck-hips line and to the spine slightly back, giving the chain
-        // a natural kyphosis/lordosis profile instead of a straight line. Scaled by avatar height.
+        // the chest forward of the neck-hips line, giving the chain a natural kyphosis profile
+        // instead of a straight line. Scaled by avatar height. The matching spine bias is no
+        // longer a setting — it's hard-coded as a function of head pitch in the virtual driver
+        // (look up = +0.15m forward, look down = -0.15m back, level = 0).
         public static BasisSettingsBinding<float> VSpineChestForwardBias = new("vspinechestforwardbias", new BasisPlatformDefault<float>(0.025f));
-        public static BasisSettingsBinding<float> VSpineSpineForwardBias = new("vspinespineforwardbias", new BasisPlatformDefault<float>(-0.012f));
 
         // Hips yaw deadband: if the head-yaw target is within this many degrees of the current
         // hips yaw, hold the hips. Prevents HMD micro-jitter from shimmying the body. 0 disables.
@@ -974,14 +975,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> VSpineSpineRotationSpeed = new("vspinespinerotationspeed", new BasisPlatformDefault<float>(30f));
         public static BasisSettingsBinding<float> VSpineHipsRotationSpeed = new("vspinehipsrotationspeed", new BasisPlatformDefault<float>(20f));
 
-        // Hips XZ follow blend: 0 = place hips strictly under the neck (preserved spine length);
-        // 1 = keep the tracker's reported hips XZ position. Useful when a hips tracker is partially
-        // trusted but not authoritative.
-        public static BasisSettingsBinding<float> VSpineHipsXZFollowBlend = new("vspinehipsxzfollowblend", new BasisPlatformDefault<float>(0.35f));
-
         // Hips forward bias: small forward offset (meters at default avatar scale) so hips don't
         // sit perfectly under the neck — gives a subtle pelvic tilt that reads as more natural
-        // standing posture.
+        // standing posture. (The former VSpineHipsXZFollowBlend setting was removed in favor of a
+        // hard-coded counterbalance/pendulum model in the virtual spine driver — see
+        // BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
         public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias", new BasisPlatformDefault<float>(0.02f));
 
 
@@ -1487,13 +1485,11 @@ namespace Basis.BasisUI
             VSpineSpinePitchFrac.LoadBindingValue();
             VSpineSpineRollFrac.LoadBindingValue();
             VSpineChestForwardBias.LoadBindingValue();
-            VSpineSpineForwardBias.LoadBindingValue();
             VSpineHipsYawDeadbandDeg.LoadBindingValue();
             VSpineNeckRotationSpeed.LoadBindingValue();
             VSpineChestRotationSpeed.LoadBindingValue();
             VSpineSpineRotationSpeed.LoadBindingValue();
             VSpineHipsRotationSpeed.LoadBindingValue();
-            VSpineHipsXZFollowBlend.LoadBindingValue();
             VSpineHipsForwardBias.LoadBindingValue();
 
             // Tracker pairing

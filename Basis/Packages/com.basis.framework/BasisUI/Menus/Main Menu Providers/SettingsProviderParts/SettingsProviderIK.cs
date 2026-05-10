@@ -521,13 +521,6 @@ public static class SettingsProviderIK
             if (vspineChestFwd != null)
                 vspineChestFwd.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineChestForwardBias.description"));
 
-            var vspineSpineFwd = PanelSlider.CreateAndBind(
-                vspineParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineSpineForwardBias.title"), -0.1f, 0.1f, false, 3, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.VSpineSpineForwardBias);
-            if (vspineSpineFwd != null)
-                vspineSpineFwd.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineSpineForwardBias.description"));
-
             var vspineHipsDeadband = PanelSlider.CreateAndBind(
                 vspineParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineHipsYawDeadband.title"), 0f, 20f, false, 1, ValueDisplayMode.Raw),
@@ -562,13 +555,6 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.VSpineHipsRotationSpeed);
             if (vspineHipsRotSpeed != null)
                 vspineHipsRotSpeed.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineHipsRotationSpeed.description"));
-
-            var vspineHipsXZ = PanelSlider.CreateAndBind(
-                vspineParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineHipsXZFollowBlend.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.VSpineHipsXZFollowBlend);
-            if (vspineHipsXZ != null)
-                vspineHipsXZ.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineHipsXZFollowBlend.description"));
 
             var vspineHipsFwd = PanelSlider.CreateAndBind(
                 vspineParent,
@@ -819,13 +805,11 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.VSpineSpinePitchFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineSpineRollFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineChestForwardBias.ResetToDefault();
-        BasisSettingsDefaults.VSpineSpineForwardBias.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsYawDeadbandDeg.ResetToDefault();
         BasisSettingsDefaults.VSpineNeckRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineChestRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineSpineRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsRotationSpeed.ResetToDefault();
-        BasisSettingsDefaults.VSpineHipsXZFollowBlend.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsForwardBias.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxForwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.ResetToDefault();

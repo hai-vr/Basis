@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "頭の傾きのうち背骨が吸収する割合。デフォルト: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "胸前方バイアス (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "安静時の胸位置を首-腰ラインより前方へ押し出し、チェーンに自然な後弯を与えます。アバター身長でスケールします。デフォルト: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "背骨前方バイアス (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "負の値は前弯のために背骨をわずかに後方へ引きます。アバター身長でスケールします。デフォルト: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "腰ヨーデッドバンド (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "腰はこの角度より小さい頭ヨーの変化を無視し、HMDの微小なジッターを抑制します。0で無効。デフォルト: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "首回転速度" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "合成された背骨回転のスルーレート。デフォルト: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "腰回転速度" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "合成された腰ヨーのスルーレート。値を下げると素早い頭の旋回時の腰のスナップを軽減します。デフォルト: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "腰XZフォローブレンド" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = 腰を首の真下に厳密に配置（背骨長を保持）。1 = トラッカー報告の腰XZ位置を維持。腰トラッカーを部分的に信頼する場合に有用。デフォルト: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "腰前方バイアス (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "首の真下に腰が完全に揃わないようにする小さな前方オフセット（デフォルトアバタースケールでメートル単位）。微妙な骨盤の傾きを与えます。デフォルト: 0.02" },
 

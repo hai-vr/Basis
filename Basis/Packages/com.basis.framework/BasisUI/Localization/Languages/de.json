@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Anteil der Kopf-Neigung, der von der Wirbelsäule absorbiert wird. Standard: 0,10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Brust-Vorwärts-Bias (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Schiebt die Ruheposition der Brust vor die Nacken-Hüft-Linie und gibt der Kette eine natürliche Kyphose. Skaliert mit Avatar-Höhe. Standard: 0,025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Wirbelsäulen-Vorwärts-Bias (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Negative Werte ziehen die Wirbelsäule für die Lordose leicht nach hinten. Skaliert mit Avatar-Höhe. Standard: -0,012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Hüft-Yaw-Deadband (Grad)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Hüften ignorieren Kopf-Yaw-Änderungen kleiner als so viele Grad und unterdrücken so HMD-Mikro-Jitter. 0 deaktiviert. Standard: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Nacken-Rotationsgeschwindigkeit" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Slew-Rate für die synthetisierte Wirbelsäulenrotation. Standard: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Hüft-Rotationsgeschwindigkeit" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Slew-Rate für den synthetisierten Hüft-Yaw. Niedrigere Werte reduzieren das Hüft-Schnappen bei schnellen Kopfdrehungen. Standard: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Hüft-XZ-Folge-Blend" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = Hüften strikt unter dem Nacken platziert (erhaltene Wirbelsäulenlänge); 1 = die vom Tracker gemeldete Hüft-XZ-Position beibehalten. Nützlich, wenn einem Hüft-Tracker nur teilweise vertraut wird. Standard: 0,35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Hüft-Vorwärts-Bias (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Kleiner Vorwärts-Versatz (in Metern bei Standard-Avatar-Skalierung), damit die Hüften nicht perfekt unter dem Nacken sitzen — sorgt für eine subtile Beckenneigung. Standard: 0,02" },
 

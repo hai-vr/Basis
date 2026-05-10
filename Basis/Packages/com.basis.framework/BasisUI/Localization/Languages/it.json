@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Frazione dell'inclinazione laterale della testa assorbita dalla colonna. Predefinito: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Bias torace in avanti (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Sposta la posizione di riposo del torace in avanti rispetto alla linea collo-anche, dando alla catena una cifosi naturale. Scalato in base all'altezza dell'avatar. Predefinito: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Bias colonna in avanti (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Valori negativi tirano la colonna leggermente indietro per la lordosi. Scalato in base all'altezza dell'avatar. Predefinito: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Deadband yaw anche (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Le anche ignorano i cambi di yaw della testa inferiori a questi gradi, sopprimendo il micro-jitter dell'HMD. 0 disabilita. Predefinito: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Velocità rotazione collo" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Velocità di transizione (slew rate) della rotazione della colonna sintetizzata. Predefinito: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Velocità rotazione anche" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Velocità di transizione (slew rate) dello yaw delle anche sintetizzato. Valori più bassi riducono lo scatto delle anche durante rapide rotazioni della testa. Predefinito: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Blend follow XZ anche" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = anche posizionate strettamente sotto il collo (lunghezza colonna preservata); 1 = mantieni la posizione XZ delle anche riportata dal tracker. Utile quando un tracker delle anche è parzialmente affidabile. Predefinito: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Bias anche in avanti (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Piccolo offset in avanti (in metri alla scala predefinita dell'avatar) affinché le anche non si trovino esattamente sotto il collo — dà una sottile inclinazione pelvica. Predefinito: 0.02" },
 

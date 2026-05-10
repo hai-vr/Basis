@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Fractie van hoofdkanteling opgenomen door de wervelkolom. Standaard: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Borst Voorwaartse Bias (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Duwt de rustpositie van de borst voor de nek-heuplijn, wat de keten een natuurlijke kyfose geeft. Geschaald op avatarhoogte. Standaard: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Wervelkolom Voorwaartse Bias (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Negatieve waarden trekken de wervelkolom iets naar achteren voor lordose. Geschaald op avatarhoogte. Standaard: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Heupen Yaw Deadband (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Heupen negeren hoofdyaw-veranderingen kleiner dan dit aantal graden, wat HMD micro-jitter onderdrukt. 0 schakelt uit. Standaard: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Nek Rotatiesnelheid" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Slew rate voor de gesynthetiseerde wervelkolomrotatie. Standaard: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Heupen Rotatiesnelheid" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Slew rate voor de gesynthetiseerde heupenyaw. Lagere waarden verminderen de heupenscheut bij snelle hoofddraaiingen. Standaard: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Heupen XZ Volg-Blend" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = heupen strikt onder de nek geplaatst (behouden wervelkolomlengte); 1 = houd de door de tracker gerapporteerde heupen XZ-positie aan. Handig wanneer een heupentracker gedeeltelijk vertrouwd wordt. Standaard: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Heupen Voorwaartse Bias (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Kleine voorwaartse offset (in meters op standaard avatarschaal) zodat heupen niet exact onder de nek zitten — geeft een subtiele bekkenkanteling. Standaard: 0.02" },
 

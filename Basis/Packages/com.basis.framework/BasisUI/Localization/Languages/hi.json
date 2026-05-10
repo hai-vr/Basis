@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "रीढ़ द्वारा अवशोषित सिर टिल्ट का अंश। डिफ़ॉल्ट: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "छाती फॉरवर्ड बायस (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "रेस्टिंग छाती स्थिति को गर्दन-कूल्हे रेखा के आगे धकेलता है, श्रृंखला को एक प्राकृतिक काइफोसिस देता है। अवतार ऊँचाई द्वारा स्केल किया गया। डिफ़ॉल्ट: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "रीढ़ फॉरवर्ड बायस (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "ऋणात्मक मान लॉर्डोसिस के लिए रीढ़ को थोड़ा पीछे खींचते हैं। अवतार ऊँचाई द्वारा स्केल किया गया। डिफ़ॉल्ट: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "कूल्हे यॉ डेडबैंड (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "कूल्हे इस डिग्री से छोटे सिर यॉ परिवर्तनों को अनदेखा करते हैं, HMD माइक्रो-जिटर को दबाते हैं। 0 अक्षम करता है। डिफ़ॉल्ट: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "गर्दन रोटेशन गति" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "संश्लेषित रीढ़ रोटेशन के लिए स्लू दर। डिफ़ॉल्ट: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "कूल्हे रोटेशन गति" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "संश्लेषित कूल्हे यॉ के लिए स्लू दर। कम मान त्वरित सिर मोड़ पर कूल्हे स्नैप कम करते हैं। डिफ़ॉल्ट: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "कूल्हे XZ फॉलो ब्लेंड" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = कूल्हे सख्ती से गर्दन के नीचे रखे जाते हैं (रीढ़ की लंबाई संरक्षित); 1 = ट्रैकर की रिपोर्ट की गई कूल्हे XZ स्थिति रखें। तब उपयोगी जब कूल्हे ट्रैकर पर आंशिक रूप से भरोसा हो। डिफ़ॉल्ट: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "कूल्हे फॉरवर्ड बायस (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "छोटा आगे ऑफसेट (डिफ़ॉल्ट अवतार स्केल पर मीटर में) ताकि कूल्हे गर्दन के ठीक नीचे न बैठें — एक सूक्ष्म पेल्विक टिल्ट देता है। डिफ़ॉल्ट: 0.02" },
 

@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "由脊椎吸收的头部倾斜比例。默认：0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "胸部前向偏置（m）" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "将静止胸部位置推到颈-髋连线前方，使链路具有自然的后凸。按角色身高缩放。默认：0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "脊椎前向偏置（m）" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "负值会将脊椎略微向后拉以形成前凸。按角色身高缩放。默认：-0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "髋部偏航死区（deg）" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "髋部忽略小于此度数的头部偏航变化，抑制 HMD 的微抖动。0 表示禁用。默认：4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "颈部旋转速度" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "合成脊椎旋转的变化速率。默认：30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "髋部旋转速度" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "合成髋部偏航的变化速率。较低值可减少快速转头时髋部的突变。默认：20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "髋部 XZ 跟随混合" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = 髋部严格置于颈部正下方（保持脊椎长度）；1 = 保留追踪器报告的髋部 XZ 位置。在部分信任髋部追踪器时有用。默认：0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "髋部前向偏置（m）" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "微小的前向偏移（在默认角色尺度下以米为单位），使髋部不完全位于颈部正下方——形成细微的骨盆前倾。默认：0.02" },
 

@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "نسبة ميل الرأس الجانبي التي يمتصها العمود الفقري. الافتراضي: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "انحياز الصدر للأمام (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "يدفع وضعية الصدر في الراحة للأمام عن خط الرقبة-الورك، ممّا يمنح السلسلة كيفوزس طبيعي. يتدرج مع طول الأفاتار. الافتراضي: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "انحياز العمود الفقري للأمام (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "القيم السالبة تسحب العمود الفقري قليلاً للخلف للانحناء الأمامي. يتدرج مع طول الأفاتار. الافتراضي: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "المنطقة الميتة لانعراج الورك (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "يتجاهل الورك تغيرات انعراج الرأس الأصغر من هذا العدد من الدرجات، مما يقمع اهتزاز HMD الدقيق. 0 يعطّل. الافتراضي: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "سرعة دوران الرقبة" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "معدل التغير لدوران العمود الفقري المُركّب. الافتراضي: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "سرعة دوران الورك" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "معدل التغير لانعراج الورك المُركّب. القيم الأدنى تقلل اهتزاز الورك عند دورانات الرأس السريعة. الافتراضي: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "مزج متابعة الورك XZ" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = الورك يوضع بدقة تحت الرقبة (مع الحفاظ على طول العمود الفقري)؛ 1 = الاحتفاظ بموضع XZ للورك المُبلَّغ عنه من المتتبع. مفيد عند الوثوق الجزئي بمتتبع الورك. الافتراضي: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "انحياز الورك للأمام (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "إزاحة أمامية صغيرة (بالأمتار عند مقياس الأفاتار الافتراضي) حتى لا يجلس الورك بشكل تام تحت الرقبة — يعطي ميلاً حوضياً خفيفاً. الافتراضي: 0.02" },
 

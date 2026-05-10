@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Доля бокового наклона головы, поглощаемая позвоночником. По умолчанию: 0,10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Сдвиг груди вперёд (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Сдвигает положение покоя груди вперёд относительно линии шея-бёдра, придавая цепочке естественный кифоз. Масштабируется ростом аватара. По умолчанию: 0,025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Сдвиг позвоночника вперёд (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Отрицательные значения слегка отводят позвоночник назад для лордоза. Масштабируется ростом аватара. По умолчанию: -0,012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Мёртвая зона поворота бёдер (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Бёдра игнорируют изменения поворота головы меньше указанного количества градусов, подавляя микро-дрожание HMD. 0 отключает. По умолчанию: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Скорость вращения шеи" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Скорость нарастания (slew rate) для синтезированного вращения позвоночника. По умолчанию: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Скорость вращения бёдер" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Скорость нарастания (slew rate) для синтезированного поворота бёдер. Меньшие значения уменьшают рывок бёдер при быстрых поворотах головы. По умолчанию: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Смешивание следования XZ бёдер" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = бёдра помещаются строго под шеей (длина позвоночника сохраняется); 1 = сохранять позицию XZ бёдер, сообщаемую трекером. Полезно, когда трекер бёдер вызывает частичное доверие. По умолчанию: 0,35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Сдвиг бёдер вперёд (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Небольшое смещение вперёд (в метрах при стандартном масштабе аватара), чтобы бёдра не находились точно под шеей — даёт лёгкий наклон таза. По умолчанию: 0,02" },
 

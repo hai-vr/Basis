@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "Fraction of head tilt absorbed by the spine. Default: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "Chest Forward Bias (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "Pushes the resting chest position forward of the neck-hips line, giving the chain a natural kyphosis. Scaled by avatar height. Default: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "Spine Forward Bias (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "Negative values pull the spine slightly back for lordosis. Scaled by avatar height. Default: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "Hips Yaw Deadband (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "Hips ignore head yaw changes smaller than this many degrees, suppressing HMD micro-jitter. 0 disables. Default: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "Neck Rotation Speed" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "Slew rate for the synthesized spine rotation. Default: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "Hips Rotation Speed" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Slew rate for the synthesized hips yaw. Lower values reduce hips snap on quick head turns. Default: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "Hips XZ Follow Blend" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = hips placed strictly under the neck (preserved spine length); 1 = keep the tracker's reported hips XZ position. Useful when a hips tracker is partially trusted. Default: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Hips Forward Bias (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Small forward offset (in meters at default avatar scale) so hips don't sit perfectly under the neck — gives a subtle pelvic tilt. Default: 0.02" },
 

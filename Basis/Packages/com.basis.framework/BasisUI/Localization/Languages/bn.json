@@ -636,8 +636,6 @@
     { "key": "settings.bodyTracking.vspineSpineRollFrac.description", "value": "স্পাইন দ্বারা শোষিত মাথা টিল্টের ভগ্নাংশ। ডিফল্ট: 0.10" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.title", "value": "বুক ফরওয়ার্ড বায়াস (m)" },
     { "key": "settings.bodyTracking.vspineChestForwardBias.description", "value": "ঘাড়-হিপস লাইনের সামনে রেস্টিং বুক অবস্থানকে ঠেলে দেয়, যা চেইনে একটি প্রাকৃতিক কাইফোসিস দেয়। অবতার উচ্চতা দ্বারা স্কেল করা হয়। ডিফল্ট: 0.025" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.title", "value": "স্পাইন ফরওয়ার্ড বায়াস (m)" },
-    { "key": "settings.bodyTracking.vspineSpineForwardBias.description", "value": "ঋণাত্মক মান লর্ডোসিসের জন্য স্পাইনকে সামান্য পিছনে টেনে আনে। অবতার উচ্চতা দ্বারা স্কেল করা হয়। ডিফল্ট: -0.012" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.title", "value": "হিপস ইয়াও ডেডব্যান্ড (deg)" },
     { "key": "settings.bodyTracking.vspineHipsYawDeadband.description", "value": "হিপস এই ডিগ্রির চেয়ে ছোট মাথার ইয়াও পরিবর্তন উপেক্ষা করে, HMD মাইক্রো-জিটার দমন করে। 0 অক্ষম করে। ডিফল্ট: 4" },
     { "key": "settings.bodyTracking.vspineNeckRotationSpeed.title", "value": "ঘাড় ঘূর্ণন গতি" },
@@ -648,8 +646,6 @@
     { "key": "settings.bodyTracking.vspineSpineRotationSpeed.description", "value": "সংশ্লেষিত স্পাইন ঘূর্ণনের জন্য স্লু রেট। ডিফল্ট: 30" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.title", "value": "হিপস ঘূর্ণন গতি" },
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "সংশ্লেষিত হিপস ইয়াওয়ের জন্য স্লু রেট। কম মান দ্রুত মাথা ঘোরানোর সময় হিপস স্ন্যাপ কমায়। ডিফল্ট: 20" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.title", "value": "হিপস XZ ফলো ব্লেন্ড" },
-    { "key": "settings.bodyTracking.vspineHipsXZFollowBlend.description", "value": "0 = হিপস কঠোরভাবে ঘাড়ের নিচে স্থাপিত (স্পাইনের দৈর্ঘ্য সংরক্ষিত); 1 = ট্র্যাকারের রিপোর্ট করা হিপস XZ অবস্থান রাখুন। যখন হিপস ট্র্যাকার আংশিকভাবে বিশ্বস্ত তখন উপযোগী। ডিফল্ট: 0.35" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "হিপস ফরওয়ার্ড বায়াস (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "ছোট সামনের অফসেট (ডিফল্ট অবতার স্কেলে মিটারে) যাতে হিপস ঘাড়ের ঠিক নিচে না বসে — একটি সূক্ষ্ম পেলভিক টিল্ট দেয়। ডিফল্ট: 0.02" },
 
