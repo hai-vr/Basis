@@ -51,7 +51,8 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
-            _settingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.SettingsLabel, "", _settingsFoldout, ref anyChanged);
+            var settingsLabel = HVRVixxyLocalizationPhrase.SettingsLabel + (IsSystemAddress() ? $" ({(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "")})" : "");
+            _settingsFoldout = HaiEFCommon.LilFoldout(settingsLabel, "", _settingsFoldout, ref anyChanged);
             if (_settingsFoldout)
             {
                 if (_settings.LayoutSettings()) return;
@@ -187,6 +188,12 @@ namespace HVR.Vixxy.Editor
             var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
             var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
             return $"{description} (={choices[choiceIndex].value:0})";
+        }
+
+        public bool IsSystemAddress()
+        {
+            var my = (HVRVixxyControl)target;
+            return my.address.TryResolvePath(out var actualAddress) && HVRAddress.IsSystemAddressName(actualAddress);
         }
     }
 }

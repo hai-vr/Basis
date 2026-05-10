@@ -10,6 +10,7 @@ namespace HVR.Vixxy.Editor
 {
     internal class VLayoutSettings
     {
+        private static readonly string[] Visemes = { "sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "ih", "oh", "ou", };
         private const string MenuLabel = "Menu";
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
@@ -39,47 +40,56 @@ namespace HVR.Vixxy.Editor
         {
             EditorGUILayout.Separator();
 
-            EditorGUILayout.LabelField(MenuLabel, EditorStyles.boldLabel);
-            var menuNullable = my.GetComponent<HVRVixxyMenuItem>();
-            EditorGUI.BeginDisabledGroup(true);
-            foreach (var outsideMenu in _outsideMenus)
+            if (!_editor.IsSystemAddress())
             {
-                EditorGUILayout.ObjectField(outsideMenu, typeof(HVRVixxyMenuItem), true);
-            }
-
-            if (menuNullable != null)
-            {
-                EditorGUILayout.ObjectField(menuNullable, typeof(HVRVixxyMenuItem), true);
-            }
-            EditorGUI.EndDisabledGroup();
-
-            if (_outsideMenus.Count == 0 && menuNullable == null)
-            {
-                if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuOnThisControlLabel))
+                EditorGUILayout.LabelField(MenuLabel, EditorStyles.boldLabel);
+                var menuNullable = my.GetComponent<HVRVixxyMenuItem>();
+                EditorGUI.BeginDisabledGroup(true);
+                foreach (var outsideMenu in _outsideMenus)
                 {
-                    var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
-                    ComponentUtility.MoveComponentUp(comp);
+                    EditorGUILayout.ObjectField(outsideMenu, typeof(HVRVixxyMenuItem), true);
                 }
-                if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel))
+
+                if (menuNullable != null)
                 {
-                    var go = new GameObject($"{my.gameObject.name} Menu");
-                    Undo.RegisterCreatedObjectUndo(go, HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel);
-                    go.transform.SetParent(my.transform);
-                    go.transform.localPosition = Vector3.zero;
-                    go.transform.localRotation = Quaternion.identity;
-                    go.transform.localScale = Vector3.one;
-
-                    var comp = Undo.AddComponent<HVRVixxyMenuItem>(go);
-                    comp.control = my;
-
-                    _outsideMenus.Add(comp);
+                    EditorGUILayout.ObjectField(menuNullable, typeof(HVRVixxyMenuItem), true);
                 }
+                EditorGUI.EndDisabledGroup();
+
+                var isControlNotDrivenByAnything = _outsideMenus.Count == 0 && menuNullable == null && (!my.address.TryResolvePath(out var actualAddress) || HVRAddress.IsSystemAddressName(actualAddress));
+                if (isControlNotDrivenByAnything)
+                {
+                    if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuOnThisControlLabel))
+                    {
+                        var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
+                        ComponentUtility.MoveComponentUp(comp);
+                    }
+                    if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel))
+                    {
+                        var go = new GameObject($"{my.gameObject.name} Menu");
+                        Undo.RegisterCreatedObjectUndo(go, HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel);
+                        go.transform.SetParent(my.transform);
+                        go.transform.localPosition = Vector3.zero;
+                        go.transform.localRotation = Quaternion.identity;
+                        go.transform.localScale = Vector3.one;
+
+                        var comp = Undo.AddComponent<HVRVixxyMenuItem>(go);
+                        comp.control = my;
+
+                        _outsideMenus.Add(comp);
+                    }
+                    LayoutSystemAddressSelector();
+                }
+            }
+            else
+            {
+                EditorGUILayout.LabelField(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "???", EditorStyles.boldLabel);
+                LayoutSystemAddressSelector();
             }
             EditorGUILayout.Separator();
 
             {
                 EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
-                LayoutDefaultValueSlider();
                 var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
 
                 EditorGUILayout.BeginHorizontal();
@@ -134,6 +144,37 @@ namespace HVR.Vixxy.Editor
             return false;
         }
 
+        private void LayoutSystemAddressSelector()
+        {
+            var bindAddress = my.address.TryResolvePath(out var actualAddress) ? actualAddress : "";
+
+            EditorGUILayout.LabelField("Viseme", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            for (var index = 0; index < Visemes.Length; index++)
+            {
+                if (index % 5 == 0 && index != 0)
+                {
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.BeginHorizontal();
+                }
+
+                var viseme = Visemes[index];
+                LayoutButtonForAddress(viseme, HVRAddress.System.User.Viseme.VisemeAddressPrefix + viseme, bindAddress);
+            }
+            EditorGUILayout.EndHorizontal();
+            LayoutButtonForAddress("Voice Gain", HVRAddress.System.User.VoiceGain.address, bindAddress);
+        }
+
+        private void LayoutButtonForAddress(string viseme, string address, string bindAddress)
+        {
+            if (HaiEFCommon.ColoredBackground(bindAddress == address, HVRVixxyControlEditor.FilledColor, () => GUILayout.Button(viseme)))
+            {
+                var prop = serializedObject.FindProperty(nameof(HVRVixxyControl.address));
+                prop.FindPropertyRelative(nameof(HVRAddressSelector.path)).stringValue = address;
+                prop.FindPropertyRelative(nameof(HVRAddressSelector.asset)).objectReferenceValue = null;
+            }
+        }
+
         public bool LayoutAdvancedSettings()
         {
             EditorGUILayout.HelpBox("These settings usually do not need to be changed, unless you are specifically instructed to do so.\nThe Address field can be left empty.", MessageType.Warning);
@@ -141,43 +182,32 @@ namespace HVR.Vixxy.Editor
 
             EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.ControlLabel, EditorStyles.boldLabel);
             HVRVixxyControlEditor.LayoutAddressSelector(serializedObject.FindProperty(nameof(HVRVixxyControl.address)));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
-            if (my.networked)
+
+            if (_editor.IsSystemAddress())
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
-                if (my.advancedNetworking == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUI.showMixedValue = true;
+                EditorGUILayout.Toggle(new GUIContent(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)).displayName), false);
+                EditorGUI.showMixedValue = false;
+                EditorGUI.EndDisabledGroup();
+
+                EditorGUILayout.HelpBox("Networking options are irrelevant for this system address.", MessageType.Info);
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.networked)));
+                if (my.networked)
                 {
-                    EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgNetworkingUsesHighFrequency, MessageType.Warning);
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.advancedNetworking)));
+                    if (my.advancedNetworking == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
+                    {
+                        EditorGUILayout.HelpBox(HVRVixxyLocalizationPhrase.MsgNetworkingUsesHighFrequency, MessageType.Warning);
+                    }
                 }
             }
             EditorGUILayout.Separator();
 
             return false;
-        }
-
-        private void LayoutDefaultValueSlider()
-        {
-            var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
-            EditorGUILayout.Slider(defaultValueSp, my.Min(), my.Max());
-            if (!my.HasThreeOrMoreChoices)
-            {
-                if (Mathf.Approximately(my.Min(), 0f) && Mathf.Approximately(my.Max(), 1f))
-                {
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("", GUILayout.Width(50));
-                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 0f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.InactiveLabel)))
-                    {
-                        defaultValueSp.floatValue = 0f;
-                    }
-
-                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(defaultValueSp.floatValue, 1f), Color.cyan, () => GUILayout.Button(HVRVixxyLocalizationPhrase.ActiveLabel)))
-                    {
-                        defaultValueSp.floatValue = 1f;
-                    }
-
-                    EditorGUILayout.EndHorizontal();
-                }
-            }
         }
     }
 }
