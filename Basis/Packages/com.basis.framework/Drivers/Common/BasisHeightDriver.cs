@@ -289,11 +289,6 @@ public static class BasisHeightDriver
         DeviceScale = SafeDivide(avatarScaledMetric, playerMetric, 1f);
         DeviceScale = SanitizePositive(DeviceScale, 1f);
 
-        if (BasisDeviceManagement.IsUserInDesktop())
-        {
-            DeviceScale = 1f;
-        }
-
         BasisDebug.Log(
             $"Height Mode: {Height} | PlayerMetric(scaled): {SelectedScaledPlayerHeight}m | " +
             $"AvatarMetric(scaled): {SelectedScaledAvatarHeight}m | " +

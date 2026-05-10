@@ -305,13 +305,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, eyeWorld);
             UnscaledDeviceCoord.rotation = targetRot;
 
-            // Apply DeviceScale when projecting unscaled → scaled so the camera
-            // lands at the avatar's actual world head position (avatar may be
-            // scaled relative to the player). This matches BasisInput's base
-            // ConvertToScaledDeviceCoord. Skipping DeviceScale would force the
-            // previous version to write avatar-scaled positions directly into
-            // UnscaledDeviceCoord, restarting the calibration feedback loop.
-            float deviceScale = BasisHeightDriver.DeviceScale;
+            float deviceScale = BasisHeightDriver.AppliedUpScale;
             ScaledDeviceCoord.rotation = OffsetCoords.rotation * UnscaledDeviceCoord.rotation;
             ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * (UnscaledDeviceCoord.position * deviceScale));
 
