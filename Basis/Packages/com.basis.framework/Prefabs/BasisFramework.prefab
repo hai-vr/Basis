@@ -180,7 +180,6 @@ GameObject:
   - component: {fileID: 3244661821366532348}
   - component: {fileID: 7114691905035025367}
   - component: {fileID: 4326429654513598727}
-  - component: {fileID: 3455952517795753899}
   m_Layer: 0
   m_Name: Modules
   m_TagString: Untagged
@@ -535,18 +534,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a40a7a62856e2074787c45162ecd9aac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::SMModuleMotionVectorsURP
---- !u!114 &3455952517795753899
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3197856584617865972}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 10ea17537715fce40ab37b8403f874bf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Basis Framework::SMModuleAPVMemoryBudgetURP
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0

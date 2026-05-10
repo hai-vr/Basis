@@ -199,31 +199,6 @@ namespace Basis.BasisUI
         /// </summary>
         public static BasisSettingsBinding<string> RealtimeReflectionProbeRate = new("realtimereflectionproberate", new BasisPlatformDefault<string>("30hz"));
 
-        /// <summary>
-        /// When enabled, the local camera requests per-frame motion vectors. On for Android
-        /// because the OpenXR SpaceWarp / MetaXR SpaceWarp features (Application Space Warp)
-        /// are enabled there and consume motion vectors. Off elsewhere — Basis does not use
-        /// TAA / motion blur / SSR on Desktop or Linux.
-        /// </summary>
-        public static BasisSettingsBinding<bool> UseMotionVectors = new("usemotionvectors", new BasisPlatformDefault<bool>
-        {
-            windows = false,
-            android = true,
-            linux = false,
-            other = false
-        });
-
-        /// <summary>
-        /// Adaptive Probe Volume runtime memory budget. Quest defaults to Low; PC to High.
-        /// </summary>
-        public static BasisSettingsBinding<string> APVMemoryBudget = new("apvmemorybudget", new BasisPlatformDefault<string>
-        {
-            windows = "high",
-            android = "low",
-            linux = "high",
-            other = "medium"
-        });
-
         public static BasisSettingsBinding<bool> MicrophoneDenoiser = new("voicedenoiser", new BasisPlatformDefault<bool>
         {
             windows = true,
@@ -1164,8 +1139,6 @@ namespace Basis.BasisUI
             BloomIntensity.LoadBindingValue();
             UseRealtimeReflectionProbes.LoadBindingValue();
             RealtimeReflectionProbeRate.LoadBindingValue();
-            UseMotionVectors.LoadBindingValue();
-            APVMemoryBudget.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
             GizmoSkeletonLines.LoadBindingValue();
             GizmoCalibrationSpheres.LoadBindingValue();
