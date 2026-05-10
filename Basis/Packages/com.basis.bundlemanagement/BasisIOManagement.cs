@@ -123,7 +123,7 @@ public static class BasisIOManagement
     public static async Task<BeeResult<BeeDownloadResult>> DownloadBEEEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         // Validate inputs with actionable messages
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
@@ -257,7 +257,7 @@ public static class BasisIOManagement
     /// </summary>
     public static async Task<BeeResult<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
@@ -481,7 +481,7 @@ public static class BasisIOManagement
     /// <returns></returns>
     private static async Task<BeeResult<DownloadPayload>> DownloadRangeInternal(string url, long startByte, long? endByteInclusive, string toFilePath, BasisProgressReport progress, CancellationToken ct, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<DownloadPayload>.Fail(urlErr);
 
         if (startByte < 0)
@@ -695,8 +695,9 @@ public static class BasisIOManagement
         return BeeResult<bool>.Ok(true);
     }
 
-    private static bool ValidateUrl(string url, out string error)
+    private static bool ValidateUrl(string url, out string normalizedUrl, out string error)
     {
+        normalizedUrl = url;
         error = string.Empty;
 
         if (string.IsNullOrWhiteSpace(url))
@@ -721,6 +722,7 @@ public static class BasisIOManagement
             return false;
         }
 
+        normalizedUrl = uri.AbsoluteUri;
         return true;
     }
 
@@ -807,7 +809,7 @@ public static class BasisIOManagement
     /// </summary>
     public static async Task<BeeResult<bool>> CheckRemoteFileReachable(string url, CancellationToken cancellationToken = default)
     {
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<bool>.Fail($"Invalid URL: {urlErr}");
 
         using var req = new UnityWebRequest(url, UnityWebRequest.kHttpVerbHEAD);
