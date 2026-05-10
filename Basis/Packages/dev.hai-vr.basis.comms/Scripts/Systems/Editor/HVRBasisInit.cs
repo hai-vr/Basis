@@ -22,6 +22,7 @@ namespace HVR.Basis.Comms.Editor
                 typeof(HVRVixxyMenuItem),
                 typeof(HVRVixxyAggregator),
                 typeof(HVRMeasure),
+                typeof(HVRBasisBuiltInAddresses),
                 // Not created by user
                 typeof(HVRVariableNetworking),
                 typeof(HVRVixxyOrchestrator),
