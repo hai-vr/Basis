@@ -117,6 +117,11 @@ public partial class BasisEventDriver : MonoBehaviour
     [SerializeField]
     private Mesh sphereMesh;
     /// <summary>
+    /// mesh we use to display capsule jiggle physics colliders
+    /// </summary>
+    [SerializeField]
+    private Mesh capsuleMesh;
+    /// <summary>
     /// Instance of Basis Event Driver
     /// </summary>
 
@@ -357,7 +362,7 @@ public partial class BasisEventDriver : MonoBehaviour
         }
         if (drawJiggle)
         {
-            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
+            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh, capsuleMesh);
         }
 
         // ── JigglePhysics complete pose ──
