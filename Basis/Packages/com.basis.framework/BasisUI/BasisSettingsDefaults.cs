@@ -941,11 +941,6 @@ namespace Basis.BasisUI
         // bend when looking at the floor, less (down to zero) when looking up.
         public static BasisSettingsBinding<float> FBIKLordosisPitchGainDeg = new("fbiklordosispitchgaindeg", new BasisPlatformDefault<float>(8f));
 
-        // Chest spring head-velocity feed-forward: scales head linear velocity into the spring's
-        // velocity term so the chest leads into fast head moves instead of just pulling toward the
-        // new position. 0 disables the feed-forward (existing behavior).
-        public static BasisSettingsBinding<float> FBIKChestSpringHeadVelGain = new("fbikchestspringheadvelgain", new BasisPlatformDefault<float>(0.7f));
-
         // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
         // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
         // spine carry when no chest tracker is present. Yaw fractions are derived from bone-length
@@ -955,17 +950,6 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> VSpineChestRollFrac = new("vspinechestrollfrac", new BasisPlatformDefault<float>(0.30f));
         public static BasisSettingsBinding<float> VSpineSpinePitchFrac = new("vspinespinepitchfrac", new BasisPlatformDefault<float>(0.10f));
         public static BasisSettingsBinding<float> VSpineSpineRollFrac = new("vspinespinerollfrac", new BasisPlatformDefault<float>(0.10f));
-
-        // Resting S-curve: small positional bias (in meters at default avatar scale) applied to
-        // the chest forward of the neck-hips line, giving the chain a natural kyphosis profile
-        // instead of a straight line. Scaled by avatar height. The matching spine bias is no
-        // longer a setting — it's hard-coded as a function of head pitch in the virtual driver
-        // (look up = +0.15m forward, look down = -0.15m back, level = 0).
-        public static BasisSettingsBinding<float> VSpineChestForwardBias = new("vspinechestforwardbias", new BasisPlatformDefault<float>(0.025f));
-
-        // Hips yaw deadband: if the head-yaw target is within this many degrees of the current
-        // hips yaw, hold the hips. Prevents HMD micro-jitter from shimmying the body. 0 disables.
-        public static BasisSettingsBinding<float> VSpineHipsYawDeadbandDeg = new("vspinehipsyawdeadbanddeg", new BasisPlatformDefault<float>(4f));
 
         // Per-joint slew rates (deg/sec equivalent via slerp dt scaling). Higher = more responsive
         // / less smoothing. Defaults match the original inspector field values so existing avatars
@@ -1479,13 +1463,10 @@ namespace Basis.BasisUI
             FBIKAnatCervicalLordosis.LoadBindingValue();
             FBIKAnatPelvicTwistRouting.LoadBindingValue();
             FBIKLordosisPitchGainDeg.LoadBindingValue();
-            FBIKChestSpringHeadVelGain.LoadBindingValue();
             VSpineChestPitchFrac.LoadBindingValue();
             VSpineChestRollFrac.LoadBindingValue();
             VSpineSpinePitchFrac.LoadBindingValue();
             VSpineSpineRollFrac.LoadBindingValue();
-            VSpineChestForwardBias.LoadBindingValue();
-            VSpineHipsYawDeadbandDeg.LoadBindingValue();
             VSpineNeckRotationSpeed.LoadBindingValue();
             VSpineChestRotationSpeed.LoadBindingValue();
             VSpineSpineRotationSpeed.LoadBindingValue();

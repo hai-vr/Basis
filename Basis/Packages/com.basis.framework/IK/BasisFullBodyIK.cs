@@ -349,13 +349,6 @@ namespace UnityEngine.Animations.Rigging
         // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
         // AnatCervicalLordosis is on.
         [SyncSceneToStream, SerializeField, Min(0f)] float m_LordosisPitchGainDeg;
-        // Chest spring head-velocity feed-forward: scales upstream head linear velocity into the
-        // spring's velocity term so the chest leads quick head moves (anticipates rather than just
-        // pulling toward the new position). 0 disables.
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestSpringHeadVelGain;
-        // Upstream head linear velocity (world m/s), supplied per-frame by the rig driver from the
-        // filtered head pose. Only consumed when m_ChestSpringHeadVelGain > 0.
-        [SyncSceneToStream, SerializeField] public Vector3 HeadLinearVelocity;
 
         public float minHeadSpineHeight
         {
@@ -541,10 +534,7 @@ namespace UnityEngine.Animations.Rigging
         public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
         public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
-        public float ChestSpringHeadVelGain { get => m_ChestSpringHeadVelGain; set => m_ChestSpringHeadVelGain = value; }
         public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
-        public string ChestSpringHeadVelGainFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestSpringHeadVelGain));
-        public string HeadLinearVelocityProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HeadLinearVelocity));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -645,8 +635,6 @@ namespace UnityEngine.Animations.Rigging
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
             m_LordosisPitchGainDeg = 8f;
-            m_ChestSpringHeadVelGain = 0.7f;
-            HeadLinearVelocity = Vector3.zero;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -936,8 +924,7 @@ w20, w54;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
-        public FloatProperty lordosisPitchGainDeg, chestSpringHeadVelGain;
-        public Vector3Property headLinearVelocity;
+        public FloatProperty lordosisPitchGainDeg;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -1282,18 +1269,6 @@ w20, w54;
             Vector3 pos = chestSpringState[0];
             Vector3 vel = chestSpringState[1];
 
-            // Head velocity feed-forward: blend a fraction of the upstream head velocity into the
-            // spring's velocity term before integrating. Without it the spring is purely reactive
-            // (always lags the head); with it the chest leads quick moves the way a real torso
-            // anticipates a head turn.
-            float vfGain = Mathf.Max(0f, chestSpringHeadVelGain.Get(stream));
-            if (vfGain > 0f)
-            {
-                Vector3 headVel = headLinearVelocity.Get(stream);
-                if (IsFinite(headVel))
-                    vel = Vector3.Lerp(vel, headVel, Mathf.Clamp01(vfGain));
-            }
-
             // Implicit Euler: solve (vel_new, pos_new = pos + dt*vel_new) such that
             //   vel_new = vel + dt * (omega² * (target - pos_new) - 2*omega*damping * vel_new)
             // Substituting pos_new gives the closed-form denom below. Always stable.
@@ -1421,9 +1396,14 @@ w20, w54;
         {
             float factor = chestArmSwingFactor.Get(stream);
             if (factor <= 0f)
+            {
                 return;
+            }
+
             if (!HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
+            {
                 return;
+            }
 
             bool leftEnabled = enabledLeftHand.Get(stream);
             bool rightEnabled = enabledRightHand.Get(stream);
@@ -1432,14 +1412,7 @@ w20, w54;
 
             Vector3 leftPos = leftEnabled ? targetPositionLeftHand.Get(stream) : Vector3.zero;
             Vector3 rightPos = rightEnabled ? targetPositionRightHand.Get(stream) : Vector3.zero;
-            Vector3 handMid;
-            if (leftEnabled && rightEnabled)
-                handMid = (leftPos + rightPos) * 0.5f;
-            else if (leftEnabled)
-                handMid = leftPos;
-            else
-                handMid = rightPos;
-
+            Vector3 handMid = leftEnabled && rightEnabled ? (leftPos + rightPos) * 0.5f : leftEnabled ? leftPos : rightPos;
             Vector3 hipsPos = HandleHips.GetPosition(stream);
             Quaternion hipsRot = HandleHips.GetRotation(stream);
             Quaternion invHips = Quaternion.Inverse(hipsRot);
@@ -1475,10 +1448,15 @@ w20, w54;
             // parent's local frame. This adapts to whatever axis the rig uses (X, Y, or Z).
             Vector3 worldDir = child.GetPosition(stream) - parent.GetPosition(stream);
             if (worldDir.sqrMagnitude < k_SqrEpsilon)
+            {
                 return;
+            }
+
             Vector3 axis = (Quaternion.Inverse(parentRot) * worldDir).normalized;
             if (axis.sqrMagnitude < k_SqrEpsilon)
+            {
                 return;
+            }
 
             // Child's rotation in parent-local space, then twist component around `axis`.
             Quaternion childLocal = Quaternion.Inverse(parentRot) * childRot;
@@ -1497,7 +1475,10 @@ w20, w54;
             Quaternion twist = new Quaternion(p.x, p.y, p.z, q.w);
             float magSq = twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
             if (magSq < k_SqrEpsilon)
+            {
                 return Quaternion.identity;
+            }
+
             float invMag = 1f / Mathf.Sqrt(magSq);
             return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
         }
@@ -1520,7 +1501,9 @@ w20, w54;
         public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty enabledProp, Vector3Property handTargetPosProp,  Vector3 tposeLocalDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, bool isLeft)
         {
             if (!shoulderHandle.IsValid(stream) || !enabledProp.Get(stream))
+            {
                 return;
+            }
 
             Vector3 handTargetPos = handTargetPosProp.Get(stream);
             Vector3 shoulderPos = shoulderHandle.GetPosition(stream);
@@ -1903,7 +1886,9 @@ w20, w54;
 
             // Mirror X for left arm (lookup table is generated for right arm perspective)
             if (isLeft)
+            {
                 localPos.x = -localPos.x;
+            }
 
             // Sample the lookup table
             NativeArray<Vector3> table = isLeft ? ArmBendLookupLeft : ArmBendLookupRight;
@@ -1911,7 +1896,9 @@ w20, w54;
 
             // Mirror result back for left arm
             if (isLeft)
+            {
                 localBend.x = -localBend.x;
+            }
 
             // Transform bend direction back to world space
             return (chestRot * localBend).normalized;
@@ -1980,8 +1967,15 @@ w20, w54;
             {
                 Vector3 axis = (q2 - p2);
                 normal = Vector3.Normalize(Vector3.Cross(axis, playerUp));
-                if (normal.sqrMagnitude < k_MinMag) normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
-                if (normal.sqrMagnitude < k_MinMag) normal = playerUp;
+                if (normal.sqrMagnitude < k_MinMag)
+                {
+                    normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
+                }
+
+                if (normal.sqrMagnitude < k_MinMag)
+                {
+                    normal = playerUp;
+                }
             }
 
             float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f));
@@ -2074,10 +2068,14 @@ w20, w54;
                 axis = Vector3.Cross(hint.translation - aPosition, bc);
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
                     axis = Vector3.Cross(atCorrected, bc);
+                }
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
                     axis = BendNormal;
+                }
             }
             else
             {
@@ -2160,7 +2158,6 @@ w20, w54;
             // not a stale IK-modified pose from a previous frame.
             Vector3 origRootPos = root.GetPosition(stream);
             Quaternion origRootRot = root.GetRotation(stream);
-            Vector3 origMidPos = mid.GetPosition(stream);
             Quaternion origMidRot = mid.GetRotation(stream);
             Vector3 origTipPos = tip.GetPosition(stream);
             Quaternion origTipRot = tip.GetRotation(stream);
@@ -2237,7 +2234,7 @@ w20, w54;
 
                 Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
                 // Blend lookup direction with existing hint (70% lookup, 30% original hint)
-                Vector3 blendedHint = Vector3.Lerp(hintPos, shoulderPos + lookupBend * armLen * 0.5f, 0.7f);
+                Vector3 blendedHint = Vector3.Lerp(hintPos, shoulderPos + 0.5f * armLen * lookupBend, 0.7f);
                 hint = new AffineTransform(blendedHint, hintRot);
             }
 
@@ -2429,8 +2426,6 @@ w20, w54;
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
                 lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
-                chestSpringHeadVelGain = FloatProperty.Bind(animator, component, data.ChestSpringHeadVelGainFloatProperty),
-                headLinearVelocity = Vector3Property.Bind(animator, component, data.HeadLinearVelocityProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

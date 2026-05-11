@@ -466,13 +466,6 @@ public static class SettingsProviderIK
             if (chestArmSwingMaxDeg != null)
                 chestArmSwingMaxDeg.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.chestArmSwingMax.description"));
 
-            var chestSpringHeadVelGain = PanelSlider.CreateAndBind(
-                dynamicsParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestSpringHeadVelGain.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.FBIKChestSpringHeadVelGain);
-            if (chestSpringHeadVelGain != null)
-                chestSpringHeadVelGain.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.chestSpringHeadVelGain.description"));
-
             var lordosisPitchGain = PanelSlider.CreateAndBind(
                 dynamicsParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisPitchGain.title"), 0f, 30f, false, 1, ValueDisplayMode.Raw),
@@ -513,20 +506,6 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.VSpineSpineRollFrac);
             if (vspineSpineRoll != null)
                 vspineSpineRoll.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineSpineRollFrac.description"));
-
-            var vspineChestFwd = PanelSlider.CreateAndBind(
-                vspineParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineChestForwardBias.title"), -0.1f, 0.1f, false, 3, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.VSpineChestForwardBias);
-            if (vspineChestFwd != null)
-                vspineChestFwd.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineChestForwardBias.description"));
-
-            var vspineHipsDeadband = PanelSlider.CreateAndBind(
-                vspineParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineHipsYawDeadband.title"), 0f, 20f, false, 1, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.VSpineHipsYawDeadbandDeg);
-            if (vspineHipsDeadband != null)
-                vspineHipsDeadband.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineHipsYawDeadband.description"));
 
             var vspineNeckRotSpeed = PanelSlider.CreateAndBind(
                 vspineParent,
@@ -798,14 +777,11 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringDamping.ResetToDefault();
-        BasisSettingsDefaults.FBIKChestSpringHeadVelGain.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisPitchGainDeg.ResetToDefault();
         BasisSettingsDefaults.VSpineChestPitchFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineChestRollFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineSpinePitchFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineSpineRollFrac.ResetToDefault();
-        BasisSettingsDefaults.VSpineChestForwardBias.ResetToDefault();
-        BasisSettingsDefaults.VSpineHipsYawDeadbandDeg.ResetToDefault();
         BasisSettingsDefaults.VSpineNeckRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineChestRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineSpineRotationSpeed.ResetToDefault();

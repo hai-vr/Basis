@@ -133,13 +133,6 @@ namespace Basis.Scripts.Drivers
         private static Quaternion smoothedLeftKneeRot = Quaternion.identity;
         private static Quaternion smoothedRightKneeRot = Quaternion.identity;
 
-        // Head linear velocity, derived from successive filtered head positions and low-passed
-        // before being fed to BasisFullBodyIK.ApplyChestSpring. Static so it survives across the
-        // single SimulateIKDestinations instance per local player; reset by ResetSmoothingState.
-        private static Vector3 _prevHeadPos;
-        private static Vector3 _smoothedHeadVel;
-        private static bool _hasPrevHeadPos;
-
         // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
@@ -288,8 +281,6 @@ namespace Basis.Scripts.Drivers
         {
             timeAccumulator = 0;
             hasFallbackState = false;
-            _hasPrevHeadPos = false;
-            _smoothedHeadVel = Vector3.zero;
 
             // Reset batched filter state — identity rotations to avoid lerping from zero quats.
             if (_euroPosStates.IsCreated)
@@ -520,25 +511,8 @@ namespace Basis.Scripts.Drivers
                 data.PositionHips = hipsPos;
                 data.RotationHips = hipsRot;
 
-                Vector3 headPos = pOut[S_Head];
-                data.PositionHead = headPos;
+                data.PositionHead = pOut[S_Head];
                 data.RotationHead = rOut[S_Head];
-
-                // Head linear velocity from successive filtered positions, with a 12 Hz low-pass
-                // to reject single-frame jitter. Consumed as feed-forward by the IK chest spring.
-                if (_hasPrevHeadPos)
-                {
-                    Vector3 instVel = (headPos - _prevHeadPos) / safeDt;
-                    float velAlpha = 1f - Mathf.Exp(-2f * Mathf.PI * 12f * safeDt);
-                    _smoothedHeadVel = Vector3.LerpUnclamped(_smoothedHeadVel, instVel, velAlpha);
-                }
-                else
-                {
-                    _smoothedHeadVel = Vector3.zero;
-                    _hasPrevHeadPos = true;
-                }
-                _prevHeadPos = headPos;
-                data.HeadLinearVelocity = _smoothedHeadVel;
 
                 // ── LEFT FOOT ──
                 if (leftHasTracker)
@@ -976,7 +950,6 @@ namespace Basis.Scripts.Drivers
             data.AnatCervicalLordosis = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatCervicalLordosis.RawValue;
             data.AnatPelvicTwistRouting = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.RawValue;
             data.LordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
-            data.ChestSpringHeadVelGain = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringHeadVelGain.RawValue;
 
             // Toggles + shoulder-solve params that previously only flowed at init. Without these
             // here, flipping the matching toggle/slider in the IK panel left the animation job
