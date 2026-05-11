@@ -140,11 +140,13 @@ public static class ContentPoliceControl
                         string monoTypeName = monoBehaviour.GetType().FullName;
                         if (!PoliceCheck.ApprovedTypeNames.Contains(monoTypeName))
                         {
-                            Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
+                            BasisDebug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
                             GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
                         }
                     }
                 }
+
+                BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader);
 
                 // Compile shader variants for everything we just walked before we set the clone
                 // active, so the first frame it's visible doesn't stall on a hitch.
@@ -189,7 +191,9 @@ public static class ContentPoliceControl
             }
             // No content-removal walk happened, so a dedicated Renderer-typed walk is the only
             // way to feed the prewarm here. Cheaper than the full Component[] walk above.
-            BasisShaderPrewarm.Warm(SearchAndDestroy.GetComponentsInChildren<Renderer>(true), SearchAndDestroy.name);
+            Renderer[] rawRenderers = SearchAndDestroy.GetComponentsInChildren<Renderer>(true);
+            BasisShaderFallback.MaterialCorrection(rawRenderers, BundledContentHolder.Instance.UrpShader);
+            BasisShaderPrewarm.Warm(rawRenderers, SearchAndDestroy.name);
         }
         return SearchAndDestroy;
     }
@@ -210,7 +214,7 @@ public static class ContentPoliceControl
         }
         if (!targetScene.IsValid() || !targetScene.isLoaded)
         {
-            Debug.LogError("Target scene is not valid or not loaded.");
+            BasisDebug.LogError("Target scene is not valid or not loaded.");
             return;
         }
 
@@ -283,7 +287,7 @@ public static class ContentPoliceControl
                     string monoTypeName = monoBehaviour.GetType().FullName;
                     if (!policeCheck.ApprovedTypeNames.Contains(monoTypeName))
                     {
-                        Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
+                        BasisDebug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
                         GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
                     }
                 }
@@ -294,6 +298,11 @@ public static class ContentPoliceControl
                 ScrubDangerousPersistentListeners(roots[RootIndex], policeCheck);
             }
         }
+
+        // Replace materials with broken shaders before warming, so prewarm runs against the
+        // fallback material instead of the magenta InternalErrorShader. Scene scrub is only
+        // ever called for World content, so no avatar-skip gate is needed here.
+        BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader);
 
         // Warm shaders for every renderer we just collected. One call per scene scrub.
         BasisShaderPrewarm.Warm(renderersForPrewarm, targetScene.name);
@@ -456,7 +465,7 @@ public static class ContentPoliceControl
             string methodName = evt.GetPersistentMethodName(i);
             if (IsDangerousListener(target, methodName, approved))
             {
-                Debug.LogWarning($"[ContentPolice] Disabling persistent UnityEvent listener -> {(target != null ? target.GetType().FullName : "<static>")}.{methodName}");
+                BasisDebug.LogWarning($"[ContentPolice] Disabling persistent UnityEvent listener -> {(target != null ? target.GetType().FullName : "<static>")}.{methodName}");
                 evt.SetPersistentListenerState(i, UnityEventCallState.Off);
             }
         }
@@ -555,7 +564,7 @@ public static class ContentPoliceControl
         if (clip == null) return;
         AnimationEvent[] existing = clip.events;
         if (existing == null || existing.Length == 0) return;
-        Debug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
+        BasisDebug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
         clip.events = EmptyAnimationEvents;
     }
 

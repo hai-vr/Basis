@@ -160,6 +160,24 @@ namespace Basis.Scripts.Drivers
         /// <summary>World-space position of the right eye (XR). In desktop mode this equals camera position.</summary>
         public static Vector3 RightEye;
 
+        /// <summary>
+        /// World-space origin of the OpenXR eye-gaze ray. Updated by the active eye-tracking
+        /// device when EyeGazeInteraction reports a tracked pose. Stale (last-known) when
+        /// <see cref="HasEyeGaze"/> is false.
+        /// </summary>
+        public static Vector3 GazeOrigin;
+
+        /// <summary>
+        /// World-space forward direction of the OpenXR eye-gaze ray. See <see cref="GazeOrigin"/>.
+        /// </summary>
+        public static Vector3 GazeDirection;
+
+        /// <summary>
+        /// True while the active eye-tracking device is reporting a tracked gaze pose this frame.
+        /// Consumers should fall back to <see cref="Forward"/> / <see cref="HeadForward"/> when false.
+        /// </summary>
+        public static bool HasEyeGaze;
+
         /// <summary>Cached camera/world position updated each BeginCameraRendering for the main camera.</summary>
         public static Vector3 Position;
 

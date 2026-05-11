@@ -7,9 +7,19 @@ using UnityEngine.Networking;
 
 public static class BasisIOManagement
 {
+    public static string PersistentDataPath { get; private set; }
+    public static RuntimePlatform CachedPlatform { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void CacheUnityMainThreadValues()
+    {
+        PersistentDataPath = Application.persistentDataPath;
+        CachedPlatform = Application.platform;
+    }
+
     public static string GetCurrentCachePlatform()
     {
-        return NormalizeCachePlatformName(Application.platform.ToString());
+        return NormalizeCachePlatformName(CachedPlatform.ToString());
     }
 
     public static bool CachePlatformMatchesCurrent(string downloadedPlatform)
@@ -123,7 +133,7 @@ public static class BasisIOManagement
     public static async Task<BeeResult<BeeDownloadResult>> DownloadBEEEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         // Validate inputs with actionable messages
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
@@ -257,7 +267,7 @@ public static class BasisIOManagement
     /// </summary>
     public static async Task<BeeResult<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
@@ -351,7 +361,7 @@ public static class BasisIOManagement
         }
 
         // Read Int32 connector size (little-endian)
-        byte[] sizeBytes = await ReadExactAsync(fs, BasisBeeConstants.DiskHeaderSize, cancellationToken);
+        byte[] sizeBytes = await ReadExactAsync(fs, BasisBeeConstants.DiskHeaderSize, cancellationToken).ConfigureAwait(false);
         if (sizeBytes.Length != BasisBeeConstants.DiskHeaderSize)
         {
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
@@ -365,13 +375,13 @@ public static class BasisIOManagement
         }
 
         // Read connector bytes
-        byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken);
+        byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken).ConfigureAwait(false);
         if (connectorBytes.Length != connectorSize)
         {
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
         }
 
-        BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback);
+        BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback).ConfigureAwait(false);
         BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
@@ -388,7 +398,7 @@ public static class BasisIOManagement
         }
         else
         {
-            sectionData = await ReadExactAsync(fs, checked((int)remaining), cancellationToken);
+            sectionData = await ReadExactAsync(fs, checked((int)remaining), cancellationToken).ConfigureAwait(false);
             if (sectionData == null || sectionData.LongLength != remaining)
             {
                 return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {sectionData?.LongLength ?? 0}.");
@@ -417,7 +427,7 @@ public static class BasisIOManagement
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: File too small to contain header. Size={fs.Length} bytes.");
 
         // Read Int32 connector size (little-endian)
-        byte[] sizeBytes = await ReadExactAsync(fs, BasisBeeConstants.DiskHeaderSize, cancellationToken);
+        byte[] sizeBytes = await ReadExactAsync(fs, BasisBeeConstants.DiskHeaderSize, cancellationToken).ConfigureAwait(false);
         if (sizeBytes.Length != BasisBeeConstants.DiskHeaderSize)
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
 
@@ -427,11 +437,11 @@ public static class BasisIOManagement
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Invalid connector size {connectorSize}. Remaining file bytes: {remainingPossible}. File may be corrupt.");
 
         // Read connector bytes
-        byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken);
+        byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken).ConfigureAwait(false);
         if (connectorBytes.Length != connectorSize)
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
 
-        BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback);
+        BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback).ConfigureAwait(false);
         BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
@@ -456,9 +466,9 @@ public static class BasisIOManagement
         if (string.IsNullOrWhiteSpace(subFolder))
             throw new ArgumentException("GenerateFolderPath: subFolder is null or empty.", nameof(subFolder));
 
-        string basePath = Application.persistentDataPath;
+        string basePath = PersistentDataPath;
         if (string.IsNullOrWhiteSpace(basePath))
-            throw new InvalidOperationException("GenerateFolderPath: Application.persistentDataPath is null/empty.");
+            throw new InvalidOperationException("GenerateFolderPath: PersistentDataPath was not initialized on the main thread.");
 
         string folderPath = Path.Combine(basePath, subFolder);
         if (!Directory.Exists(folderPath))
@@ -481,7 +491,7 @@ public static class BasisIOManagement
     /// <returns></returns>
     private static async Task<BeeResult<DownloadPayload>> DownloadRangeInternal(string url, long startByte, long? endByteInclusive, string toFilePath, BasisProgressReport progress, CancellationToken ct, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<DownloadPayload>.Fail(urlErr);
 
         if (startByte < 0)
@@ -695,8 +705,9 @@ public static class BasisIOManagement
         return BeeResult<bool>.Ok(true);
     }
 
-    private static bool ValidateUrl(string url, out string error)
+    private static bool ValidateUrl(string url, out string normalizedUrl, out string error)
     {
+        normalizedUrl = url;
         error = string.Empty;
 
         if (string.IsNullOrWhiteSpace(url))
@@ -721,6 +732,7 @@ public static class BasisIOManagement
             return false;
         }
 
+        normalizedUrl = uri.AbsoluteUri;
         return true;
     }
 
@@ -807,7 +819,7 @@ public static class BasisIOManagement
     /// </summary>
     public static async Task<BeeResult<bool>> CheckRemoteFileReachable(string url, CancellationToken cancellationToken = default)
     {
-        if (!ValidateUrl(url, out var urlErr))
+        if (!ValidateUrl(url, out url, out var urlErr))
             return BeeResult<bool>.Fail($"Invalid URL: {urlErr}");
 
         using var req = new UnityWebRequest(url, UnityWebRequest.kHttpVerbHEAD);

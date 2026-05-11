@@ -1,75 +1,80 @@
-using System.Collections;
+using System;
 using System.Collections.Generic;
 using Basis.Scripts.Device_Management;
 using UnityEngine;
+using UnityEngine.LowLevel;
+using UnityEngine.PlayerLoop;
 
 namespace Basis.Scripts.UI
 {
-    public class BasisTrackerVisibilityHandler : MonoBehaviour
+    public static class BasisUINeedsVisibleTrackers
     {
-        private bool wasVisible;
+        private static readonly HashSet<MonoBehaviour> requesters = new();
+        private static bool wasVisible;
+        private static bool dirty;
 
-        private void OnEnable()
+        public static bool ShouldBeVisible => requesters.Count > 0;
+
+        public static void Add(MonoBehaviour requester)
         {
-            BasisUINeedsVisibleTrackers.sceneInstance = this;
+            if (requesters.Add(requester))
+            {
+                dirty = true;
+            }
         }
 
-        private void OnDisable()
+        public static void Remove(MonoBehaviour requester)
         {
-            BasisUINeedsVisibleTrackers.sceneInstance = null;
+            if (requesters.Remove(requester))
+            {
+                dirty = true;
+            }
         }
 
-        public void VerifyAtEndOfFrame()
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void Initialize()
         {
-            // We need to delay showing and hiding trackers, so that we don't hide-then-show within the same frame.
-            StartCoroutine(CheckCoroutine());
+            requesters.Clear();
+            wasVisible = false;
+            dirty = false;
+
+            var loop = PlayerLoop.GetCurrentPlayerLoop();
+            for (int i = 0; i < loop.subSystemList.Length; i++)
+            {
+                if (loop.subSystemList[i].type != typeof(PostLateUpdate)) continue;
+
+                var sub = loop.subSystemList[i];
+                var existing = sub.subSystemList ?? Array.Empty<PlayerLoopSystem>();
+                var list = new List<PlayerLoopSystem>(existing.Length + 1);
+                for (int j = 0; j < existing.Length; j++)
+                {
+                    if (existing[j].type != typeof(BasisUINeedsVisibleTrackers))
+                    {
+                        list.Add(existing[j]);
+                    }
+                }
+                list.Add(new PlayerLoopSystem
+                {
+                    type = typeof(BasisUINeedsVisibleTrackers),
+                    updateDelegate = Tick,
+                });
+                sub.subSystemList = list.ToArray();
+                loop.subSystemList[i] = sub;
+                break;
+            }
+            PlayerLoop.SetPlayerLoop(loop);
         }
 
-        private IEnumerator CheckCoroutine()
+        private static void Tick()
         {
-            yield return new WaitForEndOfFrame();
+            if (!dirty) return;
+            dirty = false;
 
-            var shouldBeVisible = BasisUINeedsVisibleTrackers.Instance.ShouldBeVisible;
+            var shouldBeVisible = ShouldBeVisible;
             if (shouldBeVisible != wasVisible)
             {
                 wasVisible = shouldBeVisible;
                 BasisDeviceManagement.VisibleTrackers(shouldBeVisible);
-            }
-        }
-    }
-
-    public class BasisUINeedsVisibleTrackers
-    {
-        public static BasisTrackerVisibilityHandler sceneInstance;
-
-        public static BasisUINeedsVisibleTrackers Instance
-        {
-            get { return instance ??= new BasisUINeedsVisibleTrackers(); }
-        }
-        private static BasisUINeedsVisibleTrackers instance;
-        private HashSet<MonoBehaviour> requesters = new();
-
-        public bool ShouldBeVisible => requesters.Count > 0;
-
-        public void Add(MonoBehaviour requester)
-        {
-            if (requesters.Contains(requester))
-            {
-                return;
-            }
-            requesters.Add(requester);
-            if (sceneInstance)
-            {
-                sceneInstance.VerifyAtEndOfFrame();
-            }
-        }
-
-        public void Remove(MonoBehaviour requester)
-        {
-            requesters.Remove(requester);
-            if (sceneInstance)
-            {
-                sceneInstance.VerifyAtEndOfFrame();
             }
         }
     }

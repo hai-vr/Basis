@@ -1,5 +1,5 @@
 using Basis.Network.Core;
-using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
@@ -17,42 +17,44 @@ using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
     /// <summary>
-    /// Centralized network manager for Basis. Handles connection lifecycle, transmitters,
-    /// simulation ticks, time synchronization, and server/client messaging.
+    /// Centralized static network manager for Basis. Handles connection lifecycle,
+    /// transmitters, simulation ticks, time synchronization, and server/client messaging.
+    /// Lifecycle (Initialize/Destroy) is driven by
+    /// <see cref="Basis.Scripts.Device_Management.BasisDeviceManagement"/>.
     /// </summary>
-    [DefaultExecutionOrder(15001)]
-    public class BasisNetworkManagement : MonoBehaviour
+    public static class BasisNetworkManagement
     {
         #region Connection Settings
 
         /// <summary>
-        /// Target server IP address.
+        /// Target server IP address. Default matches the historical prefab value;
+        /// callers (ServersProvider, headless mode) overwrite this before <see cref="Connect"/>.
         /// </summary>
-        [Header("Connection")]
-        public string Ip = "170.64.184.249";
+        public static string Ip = "server1.basisvr.org";
 
         /// <summary>
         /// Target server port.
         /// </summary>
-        public ushort Port = 4296;
+        public static ushort Port = 4296;
 
         /// <summary>
         /// Connection password for joining the server.
         /// </summary>
-        [HideInInspector]
-        public string Password = "default_password";
+        public static string Password = "default_password";
 
         /// <summary>
         /// Indicates whether this instance should start as a host.
         /// </summary>
-        public bool IsHostMode = false;
+        public static bool IsHostMode = false;
 
         /// <summary>
-        /// Singleton instance of <see cref="BasisNetworkManagement"/>.
+        /// True once <see cref="BasisNetworkLifeCycle.Initalize"/> has completed.
+        /// Replaces the old <c>Instance != null</c> singleton-presence check.
         /// </summary>
-        public static BasisNetworkManagement Instance;
+        public static bool IsInitialized;
 
         public static Action OnIstanceCreated;
+
         /// <summary>
         /// Indicates whether the network is currently running.
         /// </summary>
@@ -69,10 +71,10 @@ namespace Basis.Scripts.Networking
         public static NetPeer LocalPlayerPeer => BasisNetworkConnection.LocalPlayerPeer;
 
         /// <summary>
-        /// Transmitter for local access, serialized for inspector reference.
+        /// Transmitter for local access. Assigned at connect time in
+        /// <see cref="BasisNetworkConnection"/>; null before the first connection.
         /// </summary>
-        [SerializeField]
-        public BasisNetworkTransmitter LocalAccessTransmitter;
+        public static BasisNetworkTransmitter LocalAccessTransmitter;
 
         /// <summary>
         /// Metadata message received from the server at connect.
@@ -102,29 +104,6 @@ namespace Basis.Scripts.Networking
 
         #endregion
 
-        #region Unity Lifecycle
-
-        private void OnEnable()
-        {
-            if (!BasisHelpers.CheckInstance(Instance))
-            {
-                enabled = false;
-                return;
-            }
-
-            Instance = this;
-            BasisNetworkLifeCycle.Initalize(this);
-            OnIstanceCreated?.Invoke();
-        }
-
-        private async void OnDisable()
-        {
-            BasisNetworkConnection.OnDestroy();
-            await BasisNetworkLifeCycle.Destroy(this);
-        }
-
-        #endregion
-
         #region Thread Checks
 
         /// <summary>
@@ -142,7 +121,7 @@ namespace Basis.Scripts.Networking
         /// <summary>
         /// Connects to the server using the configured <see cref="Ip"/>, <see cref="Port"/>, and <see cref="Password"/>.
         /// </summary>
-        public void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
+        public static void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
 
         #endregion
 

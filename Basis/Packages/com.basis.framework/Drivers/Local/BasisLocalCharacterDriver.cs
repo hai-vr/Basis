@@ -135,7 +135,7 @@ namespace Basis.Scripts.BasisCharacterController
         /// </summary>
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
-        public bool UseMaxSpeed => BasisLocalInputActions.Instance.IsRunHeld;
+        public bool UseMaxSpeed => BasisLocalInputActions.IsRunHeld;
         public bool CanPushRigidbodys = false;
         public bool IsEnabled
         {
@@ -300,9 +300,9 @@ namespace Basis.Scripts.BasisCharacterController
 
         public float GetVerticalMovement()
         {
-            float moveLocal = BasisLocalInputActions.Instance.MoveLocalUpDown.action.ReadValue<float>();
+            float moveLocal = BasisLocalInputActions.MoveLocalUpDown.ReadValue<float>();
             float ascend = IsJumpHeld ? 1.0f : 0.0f;
-            float descend = (IsDescendHeld || BasisLocalInputActions.Instance.IsCrouchHeld) ? -1.0f : 0.0f;
+            float descend = (IsDescendHeld || BasisLocalInputActions.IsCrouchHeld) ? -1.0f : 0.0f;
             return Mathf.Clamp(moveLocal + ascend + descend, -1.0f, 1.0f);
         }
 

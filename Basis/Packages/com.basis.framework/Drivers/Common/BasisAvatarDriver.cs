@@ -6,7 +6,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.Rendering;
-using Material = UnityEngine.Material;
 
 namespace Basis.Scripts.Drivers
 {
@@ -228,12 +227,22 @@ namespace Basis.Scripts.Drivers
         /// </remarks>
         public void AddJiggleRigColliders(BasisTransformMapping Mapping)
         {
-            JiggleCreatorHelper(Mapping.leftFoot, 0.015f);
-            JiggleCreatorHelper(Mapping.rightFoot, 0.015f);
+            int expected = JiggleColliders.Count + 64;
+            if (JiggleColliders.Capacity < expected) JiggleColliders.Capacity = expected;
+
+            if (Mapping.HasleftToes && Mapping.HasleftFoot)
+                JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftFoot, Mapping.leftToe }, 0.025f, addTipSphere: false);
+            else
+                JiggleCreatorHelper(Mapping.leftFoot, 0.025f);
+
+            if (Mapping.HasrightToes && Mapping.HasrightFoot)
+                JiggleCreatorHelperCapsule(new Transform[] { Mapping.rightFoot, Mapping.rightToe }, 0.025f, addTipSphere: false);
+            else
+                JiggleCreatorHelper(Mapping.rightFoot, 0.025f);
 
             // Arms: upper-arm capsule + forearm capsule + hand tip sphere, all from one array.
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f);
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f);
+            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f, tipRadius: 0.015f);
+            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f, tipRadius: 0.015f);
 
             JiggleCreatorHelperCapsule(Mapping.LeftThumb);
             JiggleCreatorHelperCapsule(Mapping.LeftIndex);
@@ -273,48 +282,111 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         /// <param name="Parents">Ordered bone transforms (e.g. proximal, intermediate, distal).</param>
         /// <param name="Radius">Base radius for the capsule/sphere. Default is <c>0.005</c>.</param>
-        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f)
+        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true, float tipRadius = -1f)
         {
             int count = Parents.Length;
+            if (count == 0) return;
+            if (tipRadius < 0f) tipRadius = Radius;
+
+            int needed = JiggleColliders.Count + count;
+            if (JiggleColliders.Capacity < needed) JiggleColliders.Capacity = needed;
+
+            Matrix4x4 cachedMatrix = default;
+            Vector3 cachedPos = default;
+            bool hasCached = false;
+
             for (int i = 0; i < count; i++)
             {
-                if (Parents[i] == null) continue;
+                Transform t = Parents[i];
+                if (t == null) { hasCached = false; continue; }
 
-                if (i < count - 1 && Parents[i + 1] != null)
+                Matrix4x4 m;
+                Vector3 pos;
+                if (hasCached)
                 {
-                    float boneLength = Vector3.Distance(Parents[i].position, Parents[i + 1].position);
-                    Vector3 boneDir = (Parents[i + 1].position - Parents[i].position).normalized;
+                    m = cachedMatrix;
+                    pos = cachedPos;
+                }
+                else
+                {
+                    m = t.localToWorldMatrix;
+                    pos = new Vector3(m.m03, m.m13, m.m23);
+                }
 
-                    // Determine which local axis best aligns with the bone direction.
-                    float dotX = Mathf.Abs(Vector3.Dot(boneDir, Parents[i].right));
-                    float dotY = Mathf.Abs(Vector3.Dot(boneDir, Parents[i].up));
-                    float dotZ = Mathf.Abs(Vector3.Dot(boneDir, Parents[i].forward));
+                Transform tNext = (i + 1 < count) ? Parents[i + 1] : null;
+                if (tNext == null && !addTipSphere)
+                {
+                    hasCached = false;
+                    continue;
+                }
+                if (tNext != null)
+                {
+                    Matrix4x4 mNext = tNext.localToWorldMatrix;
+                    Vector3 posNext = new Vector3(mNext.m03, mNext.m13, mNext.m23);
+                    cachedMatrix = mNext;
+                    cachedPos = posNext;
+                    hasCached = true;
+
+                    float dx = posNext.x - pos.x;
+                    float dy = posNext.y - pos.y;
+                    float dz = posNext.z - pos.z;
+                    float boneLength = Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+
+                    float sx = Mathf.Sqrt(m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20);
+                    float sy = Mathf.Sqrt(m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21);
+                    float sz = Mathf.Sqrt(m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
+
+                    float rawDotX = m.m00 * dx + m.m10 * dy + m.m20 * dz;
+                    float rawDotY = m.m01 * dx + m.m11 * dy + m.m21 * dz;
+                    float rawDotZ = m.m02 * dx + m.m12 * dy + m.m22 * dz;
+                    float dotX = Mathf.Abs(rawDotX) / sx;
+                    float dotY = Mathf.Abs(rawDotY) / sy;
+                    float dotZ = Mathf.Abs(rawDotZ) / sz;
 
                     JiggleCollider.CapsuleAxis axis;
                     if (dotX >= dotY && dotX >= dotZ) axis = JiggleCollider.CapsuleAxis.X;
                     else if (dotY >= dotZ) axis = JiggleCollider.CapsuleAxis.Y;
                     else axis = JiggleCollider.CapsuleAxis.Z;
 
-                    Vector3 lossyScale = Parents[i].lossyScale;
-                    float avgScale = (Mathf.Abs(lossyScale.x) + Mathf.Abs(lossyScale.y) + Mathf.Abs(lossyScale.z)) / 3f;
+                    float invAvgScale = 3f / (sx + sy + sz);
+
+                    var localOffset = new Unity.Mathematics.float3(
+                        rawDotX / (sx * sx),
+                        rawDotY / (sy * sy),
+                        rawDotZ / (sz * sz)) * 0.5f;
 
                     JiggleColliders.Add(new JiggleColliderSerializable
                     {
                         collider = new JiggleCollider()
                         {
                             type = JiggleCollider.JiggleColliderType.Capsule,
-                            localToWorldMatrix = Parents[i].localToWorldMatrix,
-                            radius = Radius / avgScale,
-                            height = boneLength / avgScale,
-                            capsuleAxis = axis
+                            localToWorldMatrix = m,
+                            radius = Radius * invAvgScale,
+                            height = boneLength * invAvgScale,
+                            capsuleAxis = axis,
+                            localOffset = localOffset
                         },
-                        transform = Parents[i]
+                        transform = t
                     });
                 }
                 else
                 {
-                    // Tip bone: sphere collider for the fingertip.
-                    JiggleCreatorHelper(Parents[i], Radius);
+                    hasCached = false;
+                    float lossyScaleMag = Mathf.Sqrt(
+                        m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20 +
+                        m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
+                        m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
+
+                    JiggleColliders.Add(new JiggleColliderSerializable
+                    {
+                        collider = new JiggleCollider()
+                        {
+                            type = JiggleCollider.JiggleColliderType.Sphere,
+                            localToWorldMatrix = m,
+                            radius = tipRadius / (lossyScaleMag / 3f)
+                        },
+                        transform = t
+                    });
                 }
             }
         }
@@ -331,13 +403,19 @@ namespace Basis.Scripts.Drivers
         {
             if (Parent != null)
             {
+                Matrix4x4 m = Parent.localToWorldMatrix;
+                float lossyScaleMag = Mathf.Sqrt(
+                    m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20 +
+                    m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
+                    m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
+
                 JiggleColliders.Add(new JiggleColliderSerializable
                 {
                     collider = new JiggleCollider()
                     {
                         type = JiggleCollider.JiggleColliderType.Sphere,
-                        localToWorldMatrix = Parent.localToWorldMatrix,
-                        radius = Scale / (Parent.lossyScale.magnitude / 3)
+                        localToWorldMatrix = m,
+                        radius = Scale / (lossyScaleMag / 3f)
                     },
                     transform = Parent
                 });
@@ -353,40 +431,8 @@ namespace Basis.Scripts.Drivers
             JigglePhysics.RemoveJiggleColliders(JiggleColliders);
             JiggleColliders.Clear();
         }
-        // Common albedo/main texture property names across built-in/URP/custom shaders.
-        private static readonly string[] AlbedoProps =
-        {
-        "_MainTex",          // Some custom / Pyi
-        "_BaseMap",          // URP Lit/Unlit
-        "_Albedo",           // Some custom
-        "_Diffuse",          // Some custom
-        "_BaseColorMap",     // Some ShaderGraph setups
-        "_ColorTexture",     // Some toon shaders
-        "_Tex",              // Generic
-        "_Texture"           // Generic
-    };
-        private static readonly string[] NormalProps =
-{
-    "_BumpMap", "_NormalMap", "_NormalTex", "_NormalTexture"
-};
-
-        private static readonly string[] MetallicProps =
-        {
-    "_MetallicGlossMap", "_MetallicMap", "_MetalMap", "_MetallicTex"
-};
-
-        private static readonly string[] OcclusionProps =
-        {
-    "_OcclusionMap", "_Occlusion", "_AOMap", "_AmbientOcclusionMap"
-};
-
-        private static readonly string[] ColorProps =
-        {
-    "_BaseColor", "_Color", "_Tint", "_MainColor"
-};
-
         /// <summary>
-        /// Fix renderers + repair broken shaders by swapping to a URP shader and copying over textures/colors.
+        /// Applies per-renderer flags for local-avatar SkinnedMeshRenderers and ensures the face mesh has its shadow-only clone.
         /// </summary>
         public static void LocalRenderMeshSettings(int layer, int skinnedMeshRendererLength, SkinnedMeshRenderer[] skinnedMeshRenderers, SkinnedMeshRenderer FaceMesh)
         {
@@ -400,7 +446,6 @@ namespace Basis.Scripts.Drivers
                 Render.forceMatrixRecalculationPerRender = true;
                 Render.gameObject.layer = layer;
                 Render.forceMeshLod = 0;
-                MaterialCorrection(Render, BundledContentHolder.Instance.UrpShader);
             }
             if (FaceMesh != null)
             {
@@ -409,7 +454,7 @@ namespace Basis.Scripts.Drivers
             }
         }
         /// <summary>
-        /// Fix renderers + repair broken shaders by swapping to a URP shader and copying over textures/colors.
+        /// Applies per-renderer flags for remote-avatar SkinnedMeshRenderers.
         /// </summary>
         public static void RemoteRenderMeshSettings(int layer, int skinnedMeshRendererLength, SkinnedMeshRenderer[] skinnedMeshRenderers)
         {
@@ -419,7 +464,6 @@ namespace Basis.Scripts.Drivers
                 r.updateWhenOffscreen = false;
                 r.forceMatrixRecalculationPerRender = false;
                 r.gameObject.layer = layer;
-                MaterialCorrection(r, BundledContentHolder.Instance.UrpShader);
             }
         }
         private struct BasisShadowCloneEntry
@@ -562,151 +606,6 @@ namespace Basis.Scripts.Drivers
                         clone.SetBlendShapeWeight(Index, previous[Index]);
                     }
                 }
-            }
-        }
-        private static bool TryGetFirstColor(Material mat, out Color value, out string foundProp)
-        {
-            for (int Index = 0; Index < ColorProps.Length; Index++)
-            {
-                string p = ColorProps[Index];
-                if (mat.HasProperty(p))
-                {
-                    value = mat.GetColor(p);
-                    foundProp = p;
-                    return true;
-                }
-            }
-            value = Color.white;
-            foundProp = string.Empty;
-            return false;
-        }
-        private static bool TryGetFirstTextureWithScaleAndOffset(Material mat, string[] props, out BasisTexTransform result, out string foundProp)
-        {
-            for (int i = 0; i < props.Length; i++)
-            {
-                string p = props[i];
-                if (TryGetTextureWithScaleAndOffset(mat, p, out result))
-                {
-                    foundProp = p;
-                    return true;
-                }
-            }
-            result = default;
-            foundProp = string.Empty;
-            return false;
-        }
-        public static bool TryGetTextureWithScaleAndOffset(Material mat, string propertyName, out BasisTexTransform result)
-        {
-            result = default;
-
-            if (mat == null)
-            {
-                return false;
-            }
-
-            Texture tex = mat.GetTexture(propertyName);
-            if (tex == null)
-            {
-                return false;
-            }
-
-            Vector2 scale = mat.GetTextureScale(propertyName);
-            Vector2 offset = mat.GetTextureOffset(propertyName);
-
-            result = new BasisTexTransform(tex, scale, offset);
-            return true;
-        }
-        public static void MaterialCorrection(SkinnedMeshRenderer renderer, Shader fallbackUrpShader)
-        {
-            if (renderer == null)
-            {
-                return;
-            }
-
-            var materials = renderer.sharedMaterials;
-            if (materials == null || materials.Length == 0)
-            {
-                return;
-            }
-
-            if (fallbackUrpShader == null)
-            {
-                Debug.LogWarning("MaterialCorrection: fallbackUrpShader is null, cannot swap shaders.");
-                return;
-            }
-
-            bool anyChanged = false;
-
-            for (int mi = 0; mi < materials.Length; mi++)
-            {
-                var mat = materials[mi];
-                if (mat == null)
-                {
-                    continue;
-                }
-
-                var shader = mat.shader;
-                if (shader == null)
-                {
-                    continue;
-                }
-
-                bool shaderBroken = !shader.isSupported || (!string.IsNullOrEmpty(shader.name) && shader.name.Contains("InternalErrorShader"));
-
-                if (!shaderBroken)
-                {
-                    continue;
-                }
-                bool hasAlbedo = TryGetFirstTextureWithScaleAndOffset(mat, AlbedoProps, out BasisTexTransform albedo, out string albedoProp);
-                bool hasNormal = TryGetFirstTextureWithScaleAndOffset(mat, NormalProps, out BasisTexTransform normal, out string normalProp);
-                bool hasMetal = TryGetFirstTextureWithScaleAndOffset(mat, MetallicProps, out BasisTexTransform metal, out string metalProp);
-                bool hasOcc = TryGetFirstTextureWithScaleAndOffset(mat, OcclusionProps, out BasisTexTransform occ, out string occProp);
-                bool hasColor = TryGetFirstColor(mat, out Color baseColor, out string colorProp);
-                var fixedMat = new Material(fallbackUrpShader)
-                {
-                    name = mat.name + " (Fixed)"
-                };
-                if (hasAlbedo)
-                {
-                    fixedMat.SetTexture("_BaseMap", albedo.texture);
-                    fixedMat.SetTextureScale("_BaseMap", albedo.scale);
-                    fixedMat.SetTextureOffset("_BaseMap", albedo.offset);
-                }
-                if (hasColor)
-                {
-                    fixedMat.SetColor("_BaseColor", baseColor);
-                }
-                if (hasNormal)
-                {
-                    fixedMat.EnableKeyword("_NORMALMAP");
-                    fixedMat.SetTexture("_BumpMap", normal.texture);
-                    fixedMat.SetTextureScale("_BumpMap", normal.scale);
-                    fixedMat.SetTextureOffset("_BumpMap", normal.offset);
-                    fixedMat.SetFloat("_BumpScale", 0.2f);
-                }
-                if (hasMetal)
-                {
-                    fixedMat.EnableKeyword("_METALLICSPECGLOSSMAP");
-                    fixedMat.SetTexture("_MetallicGlossMap", metal.texture);
-                    fixedMat.SetTextureScale("_MetallicGlossMap", metal.scale);
-                    fixedMat.SetTextureOffset("_MetallicGlossMap", metal.offset);
-                }
-                fixedMat.SetFloat("_Metallic", 0.2f);
-                fixedMat.SetFloat("_Smoothness", 0.2f);
-                if (hasOcc)
-                {
-                    fixedMat.SetTexture("_OcclusionMap", occ.texture);
-                    fixedMat.SetTextureScale("_OcclusionMap", occ.scale);
-                    fixedMat.SetTextureOffset("_OcclusionMap", occ.offset);
-
-                    fixedMat.SetFloat("_OcclusionStrength", 0.2f);
-                }
-                materials[mi] = fixedMat;
-                anyChanged = true;
-            }
-            if (anyChanged)
-            {
-                renderer.sharedMaterials = materials;
             }
         }
     }

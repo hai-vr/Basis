@@ -128,10 +128,20 @@ namespace Basis.Scripts.Networking.Receivers
         public bool DidLastAvatarTransformChanged;
 
         // Playback rate control: catches up smoothly when backlog grows.
-        private const int TargetJitterDepth = 3;          // desired staged depth cushion
         private const float CatchupGain = 0.12f;          // 0.05..0.25 tune
         private const float MinPlaybackRate = 0.85f;
         private const float MaxPlaybackRate = 1.35f;
+
+        // Adaptive jitter buffer depth. Floors at MinJitterDepth (0 = no staging cushion),
+        // grows toward MaxJitterDepth on underruns, decays back when stable.
+        // Cold start warms at InitialJitterDepth so a fresh remote join doesn't cascade
+        // underruns before the adaptive logic settles.
+        private const int MinJitterDepth = 0;
+        private const int MaxJitterDepth = 4;
+        private const float InitialJitterDepth = 1f;
+        private const float DepthBumpOnUnderrun = 0.5f;
+        private const float DepthDecayPerSecond = 0.25f;
+        private float _dynamicJitterDepth = InitialJitterDepth;
 
         public bool HasCurrentBuffer = false;
         public bool HasNextBuffer = false;
@@ -314,12 +324,15 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
             if (HasBufferHolds)
             {
+                _dynamicJitterDepth = math.max((float)MinJitterDepth,
+                    _dynamicJitterDepth - DepthDecayPerSecond * (float)unscaledDeltaTime);
+
                 double windowDuration = Next.ServerTimeSeconds - Current.ServerTimeSeconds;
                 if (!(windowDuration > 1e-6 && windowDuration < 1e6))
                 {
                     windowDuration = math.max(Next.SecondsInterval, 1e-3);
                 }
-                float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
+                float rate = 1f + CatchupGain * (StagedCount - _dynamicJitterDepth);
                 rate = math.clamp(rate, MinPlaybackRate, MaxPlaybackRate);
 
                 interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
@@ -347,6 +360,8 @@ namespace Basis.Scripts.Networking.Receivers
                     HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
                     if (!HasBufferHolds)
                     {
+                        // Window starved during advance — grow target so next time has headroom.
+                        _dynamicJitterDepth = math.min(_dynamicJitterDepth + DepthBumpOnUnderrun, (float)MaxJitterDepth);
                         break;
                     }
 
@@ -426,6 +441,7 @@ namespace Basis.Scripts.Networking.Receivers
             StagedCount = 0;
             ClearAndRelease();
             interpolationTime = 0f;
+            _dynamicJitterDepth = InitialJitterDepth;
             // Clear any packets that arrived before init (rare, but safe)
             while (PayloadQueue.TryDequeue(out var buf))
             {
@@ -550,10 +566,7 @@ namespace Basis.Scripts.Networking.Receivers
                 // load also fails, BasisAvatarFactory.MarkRemoteLoadFailed re-arms the flag.
                 RemotePlayer.HasFailedAvatarLoadGlobally = false;
                 RemotePlayer.AvatarLoadErrorMessage = null;
-                if (RemotePlayer.RemoteNamePlate != null)
-                {
-                    RemotePlayer.RemoteNamePlate.RefreshFailedStateColor();
-                }
+                RemotePlayer.OnAvatarFailedStateChanged?.Invoke();
 
                 BasisLoadableBundle bundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(SACM.clientAvatarChangeMessage.byteArray);
                 await RemotePlayer.CreateAvatar(SACM.clientAvatarChangeMessage.loadMode, bundle);

@@ -17,6 +17,7 @@ using SteamAudio;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 
 namespace Basis.EventDriver
 {
@@ -116,12 +117,19 @@ public partial class BasisEventDriver : MonoBehaviour
     [SerializeField]
     private Mesh sphereMesh;
     /// <summary>
+    /// mesh we use to display capsule jiggle physics colliders
+    /// </summary>
+    [SerializeField]
+    private Mesh capsuleMesh;
+    /// <summary>
     /// Instance of Basis Event Driver
     /// </summary>
 
     public static BasisEventDriver Instance;
 
     public static bool StateOfOnRenderBefore = false;
+
+    private int _volumeFrameworkFrameCounter;
 
     // ── Lifecycle ───────────────────────────────────────────────
 
@@ -196,6 +204,7 @@ public partial class BasisEventDriver : MonoBehaviour
         if (!IsHeadlessClient)
             InputSystem.Update();
         OSCAcquisitionServer.Simulate();
+        SMModuleAvatarPerformanceLimits.SimulateDebounce();
         timeSinceLastUpdate += DeltaTime;
     }
 
@@ -337,6 +346,8 @@ public partial class BasisEventDriver : MonoBehaviour
         JigglePhysics.SchedulePose(TimeAsDouble);
         ProfileEnd(PROF_JIGGLE_POSE);
 
+        TickVolumeFramework();
+
         // ── Nameplate complete ──
         ProfileBegin(PROF_NAMEPLATE_COMPLETE);
         BasisRemoteNamePlateDriver.CompleteNamePlates();
@@ -352,7 +363,7 @@ public partial class BasisEventDriver : MonoBehaviour
         }
         if (drawJiggle)
         {
-            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
+            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh, capsuleMesh);
         }
 
         // ── JigglePhysics complete pose ──
@@ -375,6 +386,23 @@ public partial class BasisEventDriver : MonoBehaviour
         }
 
         ProfileLateUpdateFinish();
+    }
+
+    private void TickVolumeFramework()
+    {
+        _volumeFrameworkFrameCounter++;
+        if (_volumeFrameworkFrameCounter < 2) return;
+        _volumeFrameworkFrameCounter = 0;
+
+        BasisLocalCameraDriver driver = BasisLocalCameraDriver.Instance;
+        if (driver == null || driver.Camera == null) return;
+
+        Transform trigger = driver.CameraData != null && driver.CameraData.volumeTrigger != null
+            ? driver.CameraData.volumeTrigger
+            : driver.Camera.transform;
+        LayerMask mask = driver.CameraData != null ? driver.CameraData.volumeLayerMask : driver.Camera.cullingMask;
+
+        VolumeManager.instance.Update(trigger, mask);
     }
 
     // ── OnBeforeRender ──────────────────────────────────────────

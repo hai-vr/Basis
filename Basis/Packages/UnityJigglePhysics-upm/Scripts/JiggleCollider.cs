@@ -14,8 +14,8 @@ public struct JiggleColliderSerializable {
         if (transform == null) {
             return;
         }
-        var position = transform.position;
         collider.Read(transform);
+        var position = (Vector3)(Vector4)collider.localToWorldMatrix.c3;
         Gizmos.color = new Color(0.854902f, 0.6470588f, 0.1254902f, 1f);
         switch (collider.type) {
             case JiggleCollider.JiggleColliderType.Sphere:
@@ -90,6 +90,8 @@ public struct JiggleCollider {
 
     public CapsuleAxis capsuleAxis;
 
+    public float3 localOffset;
+
     [NonSerialized] public float4x4 localToWorldMatrix;
     private float AverageScale(float4x4 matrix) {
         float sx = math.length(matrix.c0.xyz);
@@ -121,6 +123,8 @@ public struct JiggleCollider {
         var averageScale = AverageScale(localToWorldMatrix);
         worldRadius = math.max(0f, radius) * averageScale;
         worldHeight = math.max(0f, height) * averageScale;
+        float3 worldOffset = matrix.c0.xyz * localOffset.x + matrix.c1.xyz * localOffset.y + matrix.c2.xyz * localOffset.z;
+        localToWorldMatrix.c3.xyz += worldOffset;
     }
 }
 

@@ -3,7 +3,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine; 
+using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
 [BurstCompile]
@@ -21,51 +21,80 @@ public struct JiggleJobPrepareRender : IJob {
     public int personalColliderCount;
     public int transformCount;
     public int treeCount;
-    
+
     public NativeArray<JiggleRenderInstancer.GPUChunk> sphereChunks;
     public NativeReference<Bounds> sphereBounds;
     public NativeReference<int> sphereCount;
-    
+
+    public NativeArray<JiggleRenderInstancer.GPUChunk> capsuleChunks;
+    public NativeReference<Bounds> capsuleBounds;
+    public NativeReference<int> capsuleCount;
+
     public void Execute() {
-        float3 min = Vector3.one * 10000f;
-        float3 max = Vector3.one * -10000f;
+        float3 sphereMin = Vector3.one * 10000f;
+        float3 sphereMax = Vector3.one * -10000f;
+        float3 capsuleMin = Vector3.one * 10000f;
+        float3 capsuleMax = Vector3.one * -10000f;
+        int sphereIdx = 0;
+        int capsuleIdx = 0;
 
         for (int i = 0; i < personalColliderCount; i++) {
             var collider = personalColliders[i];
-            if (collider.type != JiggleCollider.JiggleColliderType.Sphere) {
-                continue;
+            var position = collider.localToWorldMatrix.c3.xyz;
+            switch (collider.type) {
+                case JiggleCollider.JiggleColliderType.Sphere: {
+                    sphereMin = math.min(sphereMin, position - new float3(collider.worldRadius));
+                    sphereMax = math.max(sphereMax, position + new float3(collider.worldRadius));
+                    var scaleAdjust = float4x4.Scale(collider.radius * 2f);
+                    sphereChunks[sphereIdx++] = new JiggleRenderInstancer.GPUChunk() {
+                        matrix = math.mul(collider.localToWorldMatrix, scaleAdjust),
+                        color = new float4(1f, 0.5490196f, 0f, 1f),
+                    };
+                    break;
+                }
+                case JiggleCollider.JiggleColliderType.Capsule: {
+                    var extent = collider.worldRadius + collider.worldHeight * 0.5f;
+                    capsuleMin = math.min(capsuleMin, position - new float3(extent));
+                    capsuleMax = math.max(capsuleMax, position + new float3(extent));
+                    capsuleChunks[capsuleIdx++] = new JiggleRenderInstancer.GPUChunk() {
+                        matrix = BuildCapsuleMatrix(collider),
+                        color = new float4(1f, 0.5490196f, 0f, 1f),
+                    };
+                    break;
+                }
             }
-            min = math.min(min, collider.localToWorldMatrix.c3.xyz - new float3(1f)*collider.worldRadius);
-            max = math.max(max, collider.localToWorldMatrix.c3.xyz + new float3(1f)*collider.worldRadius);
-            var matrix = collider.localToWorldMatrix;
-            var scaleAdjust = float4x4.Scale(collider.radius*2f);
-            JiggleRenderInstancer.GPUChunk chunk = new() {
-                matrix = math.mul(matrix,scaleAdjust),
-                color = new float4(1f, 0.5490196f, 0f, 1f)
-            };
-            sphereChunks[i] = chunk;
         }
 
         for (int i = 0; i < sceneColliderCount; i++) {
             var collider = sceneColliders[i];
-            if (collider.type != JiggleCollider.JiggleColliderType.Sphere) {
-                continue;
+            var position = collider.localToWorldMatrix.c3.xyz;
+            switch (collider.type) {
+                case JiggleCollider.JiggleColliderType.Sphere: {
+                    sphereMin = math.min(sphereMin, position - new float3(collider.worldRadius));
+                    sphereMax = math.max(sphereMax, position + new float3(collider.worldRadius));
+                    var scaleAdjust = float4x4.Scale(2f * collider.radius);
+                    sphereChunks[sphereIdx++] = new JiggleRenderInstancer.GPUChunk() {
+                        matrix = math.mul(collider.localToWorldMatrix, scaleAdjust),
+                        color = new float4(0.5450981f, 0f, 0f, 1f),
+                    };
+                    break;
+                }
+                case JiggleCollider.JiggleColliderType.Capsule: {
+                    var extent = collider.worldRadius + collider.worldHeight * 0.5f;
+                    capsuleMin = math.min(capsuleMin, position - new float3(extent));
+                    capsuleMax = math.max(capsuleMax, position + new float3(extent));
+                    capsuleChunks[capsuleIdx++] = new JiggleRenderInstancer.GPUChunk() {
+                        matrix = BuildCapsuleMatrix(collider),
+                        color = new float4(0.5450981f, 0f, 0f, 1f),
+                    };
+                    break;
+                }
             }
-            min = math.min(min, collider.localToWorldMatrix.c3.xyz - new float3(1f)*collider.worldRadius);
-            max = math.max(max, collider.localToWorldMatrix.c3.xyz + new float3(1f)*collider.worldRadius);
-            var matrix = collider.localToWorldMatrix;
-            var scaleAdjust = float4x4.Scale(2f*collider.radius);
-            var chunk = new JiggleRenderInstancer.GPUChunk() {
-                matrix = math.mul(matrix, scaleAdjust),
-                color = new float4(0.5450981f, 0f, 0f, 1f)
-            };
-            sphereChunks[i + personalColliderCount] = chunk;
         }
 
-        int currentCount = personalColliderCount + sceneColliderCount;
         for (var i = 0; i < treeCount; i++) {
             var tree = trees[i];
-            for(var o=0;o<tree.pointCount;o++) {
+            for (var o = 0; o < tree.pointCount; o++) {
                 unsafe {
                     var point = tree.points[o];
                     var pose = outputPoses[o + (int)tree.transformIndexOffset];
@@ -73,29 +102,54 @@ public struct JiggleJobPrepareRender : IJob {
                         continue;
                     }
                     var radius = point.worldRadius;
-                    JiggleRenderInstancer.GPUChunk chunk = new JiggleRenderInstancer.GPUChunk() {
-                        matrix = float4x4.TRS(pose.position, pose.rotation, new float3(1f*radius*2f)),
+                    sphereChunks[sphereIdx++] = new JiggleRenderInstancer.GPUChunk() {
+                        matrix = float4x4.TRS(pose.position, pose.rotation, new float3(1f * radius * 2f)),
                         color = new float4(0.5294118f, 0.8078432f, 0.9803922f, 1f),
                     };
-                    min = math.min(min, pose.position - new float3(1f)*radius);
-                    max = math.max(max, pose.position + new float3(1f)*radius);
-                    sphereChunks[currentCount] = chunk;
-                    currentCount++;
+                    sphereMin = math.min(sphereMin, pose.position - new float3(1f) * radius);
+                    sphereMax = math.max(sphereMax, pose.position + new float3(1f) * radius);
                 }
             }
         }
 
-        sphereCount.Value = currentCount;
-        sphereBounds.Value = new Bounds(Vector3.zero, math.max(math.abs(max), math.abs(min))*2f);
+        sphereCount.Value = sphereIdx;
+        sphereBounds.Value = new Bounds(Vector3.zero, math.max(math.abs(sphereMax), math.abs(sphereMin)) * 2f);
+        capsuleCount.Value = capsuleIdx;
+        capsuleBounds.Value = new Bounds(Vector3.zero, math.max(math.abs(capsuleMax), math.abs(capsuleMin)) * 2f);
+    }
+
+    private static float4x4 BuildCapsuleMatrix(JiggleCollider collider) {
+        float4x4 permute = collider.capsuleAxis switch {
+            JiggleCollider.CapsuleAxis.X => new float4x4(
+                new float4(0f, -1f, 0f, 0f),
+                new float4(1f, 0f, 0f, 0f),
+                new float4(0f, 0f, 1f, 0f),
+                new float4(0f, 0f, 0f, 1f)),
+            JiggleCollider.CapsuleAxis.Z => new float4x4(
+                new float4(1f, 0f, 0f, 0f),
+                new float4(0f, 0f, 1f, 0f),
+                new float4(0f, -1f, 0f, 0f),
+                new float4(0f, 0f, 0f, 1f)),
+            _ => float4x4.identity,
+        };
+        float diameter = collider.radius * 2f;
+        float lengthScale = collider.height * 0.5f + collider.radius;
+        float4x4 scale = float4x4.Scale(diameter, lengthScale, diameter);
+        return math.mul(collider.localToWorldMatrix, math.mul(permute, scale));
     }
 
     public void Dispose() {
         if (sphereCount.IsCreated) {
             sphereCount.Dispose();
         }
-
         if (sphereBounds.IsCreated) {
             sphereBounds.Dispose();
+        }
+        if (capsuleCount.IsCreated) {
+            capsuleCount.Dispose();
+        }
+        if (capsuleBounds.IsCreated) {
+            capsuleBounds.Dispose();
         }
     }
 }

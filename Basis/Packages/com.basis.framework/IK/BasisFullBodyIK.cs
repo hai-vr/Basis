@@ -339,12 +339,16 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_LowerArmTwistFraction;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_UpperArmTwistFraction;
 
-        // Anatomy (Experimental): opt-in IK refinements modeled on real biomechanics. Off by
-        // default — enable via the settings panel. Each toggle gates its own solver pass.
+        // Anatomy: IK refinements modeled on real biomechanics. Each toggle gates its own
+        // solver pass; all on by default.
         [SyncSceneToStream, SerializeField] bool m_AnatDifferentialStiffness;
         [SyncSceneToStream, SerializeField] bool m_AnatShoulderSlide;
         [SyncSceneToStream, SerializeField] bool m_AnatCervicalLordosis;
         [SyncSceneToStream, SerializeField] bool m_AnatPelvicTwistRouting;
+        // Cervical lordosis pitch coupling: extra forward bend per unit of head pitch-down (0..1
+        // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
+        // AnatCervicalLordosis is on.
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_LordosisPitchGainDeg;
 
         public float minHeadSpineHeight
         {
@@ -529,6 +533,8 @@ namespace UnityEngine.Animations.Rigging
         public string AnatShoulderSlideProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatShoulderSlide));
         public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
+        public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
+        public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -628,6 +634,7 @@ namespace UnityEngine.Animations.Rigging
             m_AnatShoulderSlide = false;
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
+            m_LordosisPitchGainDeg = 8f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -829,6 +836,14 @@ namespace UnityEngine.Animations.Rigging
         const float k_MinMag = 1e-6f;// or 0.000001f
         const float k_SqrEpsilon = 1e-8f;// or 0.00000001f
 
+        // How aggressively the post-solve collision push slerps the elbow toward the
+        // natural-side angle on its swing circle. 1.0 = snap fully each frame
+        // (visually abrupt when penetration appears); lower values soften the
+        // transition at the cost of partial penetration. Penetration depth itself
+        // still gates whether a swing happens at all, so 0.5 doesn't mean
+        // "always 50% inside" — only "ease in by 50% of the remaining angle".
+        const float k_ElbowCollisionBlend = 0.5f;
+
         public ReadWriteTransformHandle HandleChest, HandleNeck, HandleHead,
   HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
   HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
@@ -917,6 +932,7 @@ w20, w54;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
+        public FloatProperty lordosisPitchGainDeg;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -1108,12 +1124,16 @@ w20, w54;
         public void DistributeSpineBend(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
+            {
                 return;
+            }
 
             bool hasSpine = HandleSpine.IsValid(stream);
             bool hasUpper = HandleUpperChest.IsValid(stream);
             if (!hasSpine && !hasUpper)
+            {
                 return;
+            }
 
             Vector3 smoothedHead = ApplyChestSpring(stream, headTargetPos);
 
@@ -1126,15 +1146,24 @@ w20, w54;
             Vector3 localTargetDir = invHips * (smoothedHead - hipsPos);
 
             if (localChestDir.sqrMagnitude < k_SqrEpsilon || localTargetDir.sqrMagnitude < k_SqrEpsilon)
+            {
                 return;
+            }
 
-            // Bend produces only swing (pitch + roll) — FromToRotation has no twist component.
-            Quaternion bendLocal = Quaternion.FromToRotation(localChestDir.normalized, localTargetDir.normalized);
-            Vector3 bendEuler = SignedEuler(bendLocal.eulerAngles);
+            Vector3 chestDirN = localChestDir.normalized;
+            Vector3 targetDirN = localTargetDir.normalized;
+            float bendPitchDeg = (Mathf.Atan2(targetDirN.z, targetDirN.y) - Mathf.Atan2(chestDirN.z, chestDirN.y)) * Mathf.Rad2Deg;
+            float bendRollDeg = (Mathf.Atan2(-targetDirN.x, targetDirN.y) - Mathf.Atan2(-chestDirN.x, chestDirN.y)) * Mathf.Rad2Deg;
+            Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
 
-            // Twist comes from head facing yaw in hips-local frame.
+            // Twist comes from head facing yaw in hips-local frame. Extracted from the head's
+            // forward vector projected onto the hips-local horizontal plane — robust at look-up/down
+            // where Quaternion.eulerAngles gimbal-locks and emits a phantom ±180° roll/yaw split
+            // that, even after the ±maxLat clamp, twists the spine sideways for no real reason.
             Quaternion headRotLocal = invHips * V4ToQuat(targetRotationHead.Get(stream));
-            float twistY = SignedEuler(headRotLocal.eulerAngles).y;
+            Vector3 headFwdLocal = headRotLocal * Vector3.forward;
+            float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
+            float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
 
             float maxFwd = Mathf.Max(0f, spineMaxForwardDeg.Get(stream));
             float maxBack = Mathf.Max(0f, spineMaxBackwardDeg.Get(stream));
@@ -1205,11 +1234,15 @@ w20, w54;
         {
             float boost = Mathf.Clamp(spineSquishBoost.Get(stream), 0f, 2f);
             if (boost <= 0f)
+            {
                 return 1f;
+            }
 
             float restMag = TposeLengthHeadToHips.magnitude;
             if (restMag < k_Epsilon)
+            {
                 return 1f;
+            }
 
             float currentMag = hipsToHead.magnitude;
             float squish = currentMag / restMag;
@@ -1224,7 +1257,9 @@ w20, w54;
         Vector3 ApplyChestSpring(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!chestSpringState.IsCreated || !chestSpringInit.IsCreated)
+            {
                 return headTargetPos;
+            }
 
             float hz = chestSpringHz.Get(stream);
             if (hz <= 0f)
@@ -1273,10 +1308,7 @@ w20, w54;
             chestSpringState[1] = newVel;
             return newPos;
         }
-        static bool IsFinite(Vector3 v) =>
-            !float.IsNaN(v.x) && !float.IsInfinity(v.x) &&
-            !float.IsNaN(v.y) && !float.IsInfinity(v.y) &&
-            !float.IsNaN(v.z) && !float.IsInfinity(v.z);
+        static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
         // Pelvis tilts forward to share the lean past the threshold. Without this, a deep forward
         // reach makes the spine swallow the entire bend and everything above the hips folds.
         Quaternion ApplyHipHinge(AnimationStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
@@ -1284,39 +1316,160 @@ w20, w54;
             float startDeg = hipHingeStartDeg.Get(stream);
             float maxAddDeg = hipHingeMaxAddDeg.Get(stream);
             if (maxAddDeg <= 0f)
+            {
                 return hipsRot;
+            }
 
             Vector3 hipsToHead = headPos - hipsPos;
             float upDot = Vector3.Dot(hipsToHead, playerUp);
             Vector3 horizontal = hipsToHead - playerUp * upDot;
             float horizMag = horizontal.magnitude;
             if (horizMag < k_Epsilon || upDot <= 0f)
+            {
                 return hipsRot;
+            }
 
             float leanDeg = Mathf.Atan2(horizMag, upDot) * Mathf.Rad2Deg;
             if (leanDeg <= startDeg)
+            {
                 return hipsRot;
+            }
 
             float excess = leanDeg - startDeg;
             float addDeg = Mathf.Min(excess * 0.5f, maxAddDeg);
 
             Vector3 hingeAxis = Vector3.Cross(playerUp, horizontal / horizMag);
             if (hingeAxis.sqrMagnitude < k_SqrEpsilon)
+            {
                 return hipsRot;
+            }
+
             hingeAxis.Normalize();
             return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
         }
-        // Anatomy: cervical lordosis. Real heads sit a few centimeters forward of the neck axis;
-        // adds a small forward pitch to the neck so the head reads more naturally during look-down
-        // poses where the rig's stiff vertical neck would otherwise feel stilted.
         void ApplyCervicalLordosis(AnimationStream stream)
         {
             if (!HandleNeck.IsValid(stream))
+            {
                 return;
-            // ~5° forward pitch in neck-local space (around its own X axis).
-            Quaternion neckRot = HandleNeck.GetRotation(stream);
-            Quaternion delta = Quaternion.AngleAxis(5f, neckRot * Vector3.right);
-            HandleNeck.SetRotation(stream, delta * neckRot);
+            }
+
+            const float baseDeg = 5f;
+            const float neckShare = 0.65f;
+            const float maxHeadPitchDeg = 80f;
+            const float extremeStartDeg = 50f;
+            const float extremeFullDeg = 80f;
+            const float extremeRollForwardMaxDeg = 10f;
+            const float extremeRollBackwardMaxDeg = 4f;
+            const float extremeHipsHorizontalMax = 0.025f;
+            const float extremeChestHorizontalMax = 0.04f;
+            const float extremeHipsDownMax = 0.015f;
+            const float extremeChestDownMax = 0.025f;
+            const float extremeHipsDownLookUp = 0.0005f;
+            const float extremeChestDownLookUp = 0.001f;
+
+            float gain = Mathf.Max(0f, lordosisPitchGainDeg.Get(stream));
+
+            Vector3 referenceUp;
+            if (HandleChest.IsValid(stream))
+            {
+                referenceUp = HandleChest.GetRotation(stream) * Vector3.up;
+            }
+            else
+            {
+                Vector3 up = playerUp.Get(stream);
+                referenceUp = up.sqrMagnitude < k_SqrEpsilon ? Vector3.up : up.normalized;
+            }
+
+            Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
+            {
+                Vector3 hf = headRot * Vector3.forward;
+                float horizMag = Mathf.Sqrt(hf.x * hf.x + hf.z * hf.z);
+                float pitchDeg = (horizMag > 1e-6f) ? Mathf.Atan2(-hf.y, horizMag) * Mathf.Rad2Deg : (hf.y < 0f ? 90f : -90f);
+                float clampedDeg = Mathf.Clamp(pitchDeg, -maxHeadPitchDeg, maxHeadPitchDeg);
+                if (clampedDeg != pitchDeg)
+                {
+                    Vector3 yawForward = (horizMag > 1e-6f) ? new Vector3(hf.x, 0f, hf.z) / horizMag: Vector3.forward;
+                    Vector3 yawRight = Vector3.Cross(Vector3.up, yawForward);
+                    Quaternion correction = Quaternion.AngleAxis(-(pitchDeg - clampedDeg), yawRight);
+                    headRot = correction * headRot;
+                }
+            }
+            Vector3 headForward = headRot * Vector3.forward;
+            float pitchSigned = Vector3.Dot(headForward, referenceUp);
+            float lookUpFrac = Mathf.Clamp01(pitchSigned);
+            float lookDownFrac = Mathf.Clamp01(-pitchSigned);
+
+            float pitchAbsDeg = Mathf.Asin(Mathf.Min(Mathf.Abs(pitchSigned), 1f)) * Mathf.Rad2Deg;
+            float extremeFrac = Mathf.Clamp01((pitchAbsDeg - extremeStartDeg) / (extremeFullDeg - extremeStartDeg));
+
+            float signedPitch = lookDownFrac - lookUpFrac;
+            float signedBalance = -signedPitch;
+
+            float lordosisDeg = baseDeg * (1f - Mathf.Abs(signedPitch)) + gain * signedPitch;
+
+            bool hasUpperChest = HandleUpperChest.IsValid(stream);
+            float neckDeg = hasUpperChest ? lordosisDeg * neckShare : lordosisDeg;
+            float upperChestLordosisDeg = hasUpperChest ? lordosisDeg * (1f - neckShare) : 0f;
+            float extremeRollMag = signedPitch >= 0f ? extremeRollForwardMaxDeg : extremeRollBackwardMaxDeg;
+            float extremeRollDeg = extremeFrac * signedPitch * extremeRollMag;
+
+            if (Mathf.Abs(lordosisDeg) < 0.01f && extremeFrac <= 0f)
+                return;
+
+            ReadWriteTransformHandle bendHandle = hasUpperChest ? HandleUpperChest : HandleChest;
+            if (bendHandle.IsValid(stream))
+            {
+                Quaternion bhRot = bendHandle.GetRotation(stream);
+                float bhDeg = upperChestLordosisDeg + extremeRollDeg;
+                if (bhDeg != 0f)
+                {
+                    Quaternion bhDelta = Quaternion.AngleAxis(bhDeg, bhRot * Vector3.right);
+                    bendHandle.SetRotation(stream, bhDelta * bhRot);
+                }
+            }
+
+            if (extremeFrac > 0f)
+            {
+                Quaternion refRot = HandleHips.IsValid(stream)
+                    ? HandleHips.GetRotation(stream)
+                    : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
+                Vector3 refForward = refRot * Vector3.forward;
+                Vector3 refDown = -(refRot * Vector3.up);
+
+                float horizCoeff = extremeFrac * signedBalance;
+                float hipsDown = extremeFrac * (lookDownFrac * extremeHipsDownMax + lookUpFrac * extremeHipsDownLookUp);
+                float chestDown = extremeFrac * (lookDownFrac * extremeChestDownMax + lookUpFrac * extremeChestDownLookUp);
+
+                if (HandleHips.IsValid(stream))
+                {
+                    Vector3 hipsOffset = refForward * (horizCoeff * extremeHipsHorizontalMax)
+                                       + refDown * hipsDown;
+                    Vector3 hipsPos = HandleHips.GetPosition(stream);
+                    HandleHips.SetPosition(stream, hipsPos + hipsOffset);
+                }
+
+                if (HandleChest.IsValid(stream))
+                {
+                    Vector3 chestOffset = refForward * (horizCoeff * extremeChestHorizontalMax)
+                                        + refDown * chestDown;
+                    Vector3 chestPos = HandleChest.GetPosition(stream);
+                    HandleChest.SetPosition(stream, chestPos + chestOffset);
+                }
+            }
+
+            if (neckDeg != 0f)
+            {
+                Quaternion neckRotCurrent = HandleNeck.GetRotation(stream);
+                Quaternion neckDelta = Quaternion.AngleAxis(neckDeg, neckRotCurrent * Vector3.right);
+                HandleNeck.SetRotation(stream, neckDelta * neckRotCurrent);
+            }
+
+            if (HandleHead.IsValid(stream))
+            {
+                HandleHead.SetPosition(stream, targetPositionHead.Get(stream));
+                HandleHead.SetRotation(stream, headRot);
+            }
         }
         // Anatomy: shoulder slide. Shoulders don't fully follow chest twist past ~30° because the
         // scapula slides on the rib cage. Counter-yaw both shoulders by a fraction of the chest's
@@ -1357,9 +1510,14 @@ w20, w54;
         {
             float factor = chestArmSwingFactor.Get(stream);
             if (factor <= 0f)
+            {
                 return;
+            }
+
             if (!HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
+            {
                 return;
+            }
 
             bool leftEnabled = enabledLeftHand.Get(stream);
             bool rightEnabled = enabledRightHand.Get(stream);
@@ -1368,14 +1526,7 @@ w20, w54;
 
             Vector3 leftPos = leftEnabled ? targetPositionLeftHand.Get(stream) : Vector3.zero;
             Vector3 rightPos = rightEnabled ? targetPositionRightHand.Get(stream) : Vector3.zero;
-            Vector3 handMid;
-            if (leftEnabled && rightEnabled)
-                handMid = (leftPos + rightPos) * 0.5f;
-            else if (leftEnabled)
-                handMid = leftPos;
-            else
-                handMid = rightPos;
-
+            Vector3 handMid = leftEnabled && rightEnabled ? (leftPos + rightPos) * 0.5f : leftEnabled ? leftPos : rightPos;
             Vector3 hipsPos = HandleHips.GetPosition(stream);
             Quaternion hipsRot = HandleHips.GetRotation(stream);
             Quaternion invHips = Quaternion.Inverse(hipsRot);
@@ -1411,10 +1562,15 @@ w20, w54;
             // parent's local frame. This adapts to whatever axis the rig uses (X, Y, or Z).
             Vector3 worldDir = child.GetPosition(stream) - parent.GetPosition(stream);
             if (worldDir.sqrMagnitude < k_SqrEpsilon)
+            {
                 return;
+            }
+
             Vector3 axis = (Quaternion.Inverse(parentRot) * worldDir).normalized;
             if (axis.sqrMagnitude < k_SqrEpsilon)
+            {
                 return;
+            }
 
             // Child's rotation in parent-local space, then twist component around `axis`.
             Quaternion childLocal = Quaternion.Inverse(parentRot) * childRot;
@@ -1433,7 +1589,10 @@ w20, w54;
             Quaternion twist = new Quaternion(p.x, p.y, p.z, q.w);
             float magSq = twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
             if (magSq < k_SqrEpsilon)
+            {
                 return Quaternion.identity;
+            }
+
             float invMag = 1f / Mathf.Sqrt(magSq);
             return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
         }
@@ -1456,7 +1615,9 @@ w20, w54;
         public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty enabledProp, Vector3Property handTargetPosProp,  Vector3 tposeLocalDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, bool isLeft)
         {
             if (!shoulderHandle.IsValid(stream) || !enabledProp.Get(stream))
+            {
                 return;
+            }
 
             Vector3 handTargetPos = handTargetPosProp.Get(stream);
             Vector3 shoulderPos = shoulderHandle.GetPosition(stream);
@@ -1828,7 +1989,9 @@ w20, w54;
         Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, float armLength, bool isLeft)
         {
             if (!HandleChest.IsValid(stream) || armLength < k_Epsilon)
+            {
                 return isLeft ? Vector3.left : Vector3.right;
+            }
 
             Quaternion chestRot = HandleChest.GetRotation(stream);
             Quaternion invChest = Quaternion.Inverse(chestRot);
@@ -1839,7 +2002,9 @@ w20, w54;
 
             // Mirror X for left arm (lookup table is generated for right arm perspective)
             if (isLeft)
+            {
                 localPos.x = -localPos.x;
+            }
 
             // Sample the lookup table
             NativeArray<Vector3> table = isLeft ? ArmBendLookupLeft : ArmBendLookupRight;
@@ -1847,7 +2012,9 @@ w20, w54;
 
             // Mirror result back for left arm
             if (isLeft)
+            {
                 localBend.x = -localBend.x;
+            }
 
             // Transform bend direction back to world space
             return (chestRot * localBend).normalized;
@@ -1856,7 +2023,11 @@ w20, w54;
         {
             Vector3 ab = b - a;
             float abSqr = Vector3.Dot(ab, ab);
-            if (abSqr <= k_SqrEpsilon) return a;
+            if (abSqr <= k_SqrEpsilon)
+            {
+                return a;
+            }
+
             float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / abSqr);
             return a + ab * t;
         }
@@ -1916,8 +2087,15 @@ w20, w54;
             {
                 Vector3 axis = (q2 - p2);
                 normal = Vector3.Normalize(Vector3.Cross(axis, playerUp));
-                if (normal.sqrMagnitude < k_MinMag) normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
-                if (normal.sqrMagnitude < k_MinMag) normal = playerUp;
+                if (normal.sqrMagnitude < k_MinMag)
+                {
+                    normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
+                }
+
+                if (normal.sqrMagnitude < k_MinMag)
+                {
+                    normal = playerUp;
+                }
             }
 
             float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f));
@@ -1962,6 +2140,24 @@ w20, w54;
             float d = Mathf.Sqrt(Mathf.Max(dSqr, k_SqrEpsilon));
             Vector3 n = (d > 0f) ? (qp / d) : playerUp;
             return q + n * radiusWithSkin;
+        }
+
+        // Capsule-vs-capsule penetration check for one torso segment. Keeps the deepest
+        // penetration depth across all checked segments. Direction comes from the
+        // shoulder offset (in SolveHand), not from per-segment normals — the shoulder
+        // is anatomically attached to its arm's side of the body, while the elbow may
+        // have been pushed through to the wrong side.
+        public static void AccumulateWorstTorsoSegment(
+            Vector3 shoulderPos, Vector3 elbowPos, float upperArmR,
+            Vector3 segA, Vector3 segB, float segR, Vector3 playerUp,
+            ref float worstPenetration)
+        {
+            Vector3 c = CapsuleCapsuleResolve(shoulderPos, elbowPos, upperArmR, segA, segB, segR, playerUp);
+            float pen = c.magnitude;
+            if (pen > worstPenetration)
+            {
+                worstPenetration = pen;
+            }
         }
         /// <summary>
         /// Evaluates the Two-Bone IK algorithm.
@@ -2010,10 +2206,14 @@ w20, w54;
                 axis = Vector3.Cross(hint.translation - aPosition, bc);
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
                     axis = Vector3.Cross(atCorrected, bc);
+                }
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
                     axis = BendNormal;
+                }
             }
             else
             {
@@ -2096,7 +2296,6 @@ w20, w54;
             // not a stale IK-modified pose from a previous frame.
             Vector3 origRootPos = root.GetPosition(stream);
             Quaternion origRootRot = root.GetRotation(stream);
-            Vector3 origMidPos = mid.GetPosition(stream);
             Quaternion origMidRot = mid.GetRotation(stream);
             Vector3 origTipPos = tip.GetPosition(stream);
             Quaternion origTipRot = tip.GetRotation(stream);
@@ -2173,7 +2372,7 @@ w20, w54;
 
                 Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
                 // Blend lookup direction with existing hint (70% lookup, 30% original hint)
-                Vector3 blendedHint = Vector3.Lerp(hintPos, shoulderPos + lookupBend * armLen * 0.5f, 0.7f);
+                Vector3 blendedHint = Vector3.Lerp(hintPos, shoulderPos + 0.5f * armLen * lookupBend, 0.7f);
                 hint = new AffineTransform(blendedHint, hintRot);
             }
 
@@ -2181,35 +2380,124 @@ w20, w54;
             // Collision NEVER influences the IK solve. The hand must match the controller 1:1.
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
 
-            // Post-solve cosmetic push: gently nudge the elbow outward if it's inside the chest.
-            // SwingElbowAroundAC rotates the shoulder around the shoulder→hand axis,
-            // which moves the elbow without moving the hand (hand is on the rotation axis).
-            // No re-solve needed — this is a push, not a wall. The arm CAN enter the chest.
+            // Post-solve: swing the elbow around the shoulder→hand axis to a position
+            // outside the torso. The hand sits on the swing axis so its position is
+            // preserved exactly — only the elbow's angular position changes, staying on
+            // its fixed-radius circle (bone lengths unchanged).
+            //
+            // Torso is modeled as three stacked capsules along the spine chain
+            // (hips→spine, spine→chest, chest→neck) with radii multiplied off chestRadius
+            // to approximate a human shape — widest at hips, narrowest at the waist.
+            //
+            // Direction strategy: we use capsule-capsule for detection (so upper-arm
+            // mid-segment penetration is caught), but for the push direction we take the
+            // vector from the chest axis to the elbow. That direction is always
+            // arm-side-correct — for the right arm it points right, for the left arm it
+            // points left — because the elbow naturally lives on its arm's side of the
+            // body. Using CapsuleCapsuleResolve's normal directly can flip in deep
+            // penetration (its fallback uses a body-relative axis cross product that
+            // doesn't know which arm is being solved).
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
             {
-                Vector3 chestA = chestStart.GetPosition(stream);
-                Vector3 chestB = chestEnd.GetPosition(stream);
-                float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
-
+                Vector3 shoulderPos = root.GetPosition(stream);
                 Vector3 elbowPos = mid.GetPosition(stream);
-                Vector3 closest = ClosestPointOnSegment(elbowPos, chestA, chestB);
-                Vector3 toElbow = elbowPos - closest;
-                float dist = toElbow.magnitude;
+                Vector3 handPos = tip.GetPosition(stream);
 
-                // Only push if elbow is inside the capsule radius
-                if (dist < chestR && dist > k_Epsilon)
+                Vector3 acAxis = handPos - shoulderPos;
+                float acSqr = Vector3.Dot(acAxis, acAxis);
+                if (acSqr > k_Epsilon * k_Epsilon)
                 {
-                    // Push strength: gentle and proportional to penetration depth
-                    // At the surface (dist == chestR): no push
-                    // At the center (dist == 0): max push
-                    float penetration = chestR - dist;
-                    float pushStrength = penetration / chestR; // 0 at surface, 1 at center
-                    pushStrength *= 0.35f; // cap — never fully resolve in one frame
+                    Vector3 acDir = acAxis / Mathf.Sqrt(acSqr);
+                    Vector3 toElbow = elbowPos - shoulderPos;
+                    Vector3 elbowCenter = shoulderPos + acDir * Vector3.Dot(toElbow, acDir);
+                    float elbowRadius = (elbowPos - elbowCenter).magnitude;
 
-                    Vector3 pushDir = toElbow / dist; // outward from capsule axis
-                    Vector3 desiredElbow = elbowPos + pushDir * (penetration * pushStrength);
-                    SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
+                    if (elbowRadius > k_Epsilon)
+                    {
+                        // Upper arm sits a bit wider than the hand/forearm capsule
+                        // (1.2× handRadius); approximates a human silhouette without
+                        // adding a dedicated field yet.
+                        float upperArmR = Mathf.Max(0f, (handRadius.Get(stream) + handSkin.Get(stream)) * 1.2f);
+
+                        float chestRBase = chestRadius.Get(stream);
+                        float skin = collisionSkin.Get(stream);
+                        float chestR = Mathf.Max(0f, chestRBase + skin);
+                        float spineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
+                        float hipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
+
+                        Vector3 pUp = playerUp.Get(stream);
+                        if (pUp.sqrMagnitude < k_Epsilon * k_Epsilon)
+                        {
+                            pUp = Vector3.up;
+                        }
+
+                        Vector3 chestPos = chestStart.GetPosition(stream);
+                        Vector3 neckPos = chestEnd.GetPosition(stream);
+
+                        // Aggregate penetration across all torso segments. We only need
+                        // a "is there overlap" test; the push direction is anatomical
+                        // (shoulder-derived), not per-segment.
+                        float worstPen = 0f;
+                        if (HandleHips.IsValid(stream) && HandleSpine.IsValid(stream))
+                        {
+                            AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
+                                HandleHips.GetPosition(stream), HandleSpine.GetPosition(stream), hipsR, pUp,
+                                ref worstPen);
+                        }
+                        if (HandleSpine.IsValid(stream))
+                        {
+                            AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
+                                HandleSpine.GetPosition(stream), chestPos, spineR, pUp,
+                                ref worstPen);
+                        }
+                        AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
+                            chestPos, neckPos, chestR, pUp,
+                            ref worstPen);
+
+                        if (worstPen > k_Epsilon)
+                        {
+                            // Natural-side direction comes from the SHOULDER, not the
+                            // elbow. The shoulder is rigidly attached to the chest, so
+                            // its offset from the chest axis is always on its arm's
+                            // own side. The elbow may have been pushed through to the
+                            // wrong side by an extreme controller pose; using its own
+                            // offset as the direction would keep it stuck there.
+                            Vector3 shoulderClosest = ClosestPointOnSegment(shoulderPos, chestPos, neckPos);
+                            Vector3 shoulderOutDir = shoulderPos - shoulderClosest;
+                            Vector3 shoulderPerp = shoulderOutDir - acDir * Vector3.Dot(shoulderOutDir, acDir);
+                            float shoulderPerpSqr = shoulderPerp.sqrMagnitude;
+
+                            if (shoulderPerpSqr > k_Epsilon * k_Epsilon)
+                            {
+                                Vector3 targetDir = shoulderPerp / Mathf.Sqrt(shoulderPerpSqr);
+                                Vector3 currentDir = (elbowPos - elbowCenter) / elbowRadius;
+
+                                // If the elbow is on the wrong side of the body (would
+                                // require the arm to pass through the torso to get to
+                                // a "blended halfway" position), no smooth path exists
+                                // — snap fully to the natural side. Smoothing across
+                                // an anatomically impossible region just leaves the arm
+                                // stuck in the middle.
+                                float sideDot = Vector3.Dot(currentDir, targetDir);
+                                float blend = sideDot < 0f ? 1f : k_ElbowCollisionBlend;
+
+                                Vector3 blendedDir = Vector3.Slerp(currentDir, targetDir, blend);
+                                Vector3 desiredElbow = elbowCenter + blendedDir * elbowRadius;
+
+                                // SwingElbowAroundAC rotates the shoulder; the hand inherits
+                                // that rotation through the arm hierarchy. Capture the
+                                // controller-matched hand pose set by SolveTwoBoneIKArms and
+                                // restore it after the swing — the hand must match the
+                                // tracker exactly in both position and rotation.
+                                Vector3 preservedHandPos = tip.GetPosition(stream);
+                                Quaternion preservedHandRot = tip.GetRotation(stream);
+                                SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
+                                tip.SetPosition(stream, preservedHandPos);
+                                tip.SetRotation(stream, preservedHandRot);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2364,6 +2652,7 @@ w20, w54;
                 anatShoulderSlide = BoolProperty.Bind(animator, component, data.AnatShoulderSlideProperty),
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
+                lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

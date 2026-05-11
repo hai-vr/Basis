@@ -189,6 +189,101 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Creates a multi-point line gizmo. Set <paramref name="loop"/> = true to close the
+    /// polyline back to its first point — useful for drawing circles or wireframe caps
+    /// with a single LineRenderer rather than N edge segments.
+    /// </summary>
+    public static bool CreateLineGizmo(string GizmoName, out int linkedID, Vector3[] positions, float width, Color color, bool loop = false)
+    {
+        linkedID = CreateNewID();
+        if (GizmosLine.ContainsKey(linkedID))
+        {
+            BasisDebug.LogError($"LineGizmo with ID {linkedID} already exists. Use UpdateLineGizmo to modify it.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (LoadedLineGizmo == null)
+        {
+            AsyncOperationHandle<GameObject> LoadAble = Addressables.LoadAssetAsync<GameObject>(GameobjectGizmoLine);
+            LoadedLineGizmo = LoadAble.WaitForCompletion();
+        }
+        if (LoadedLineGizmo == null)
+        {
+            BasisDebug.LogError($"Failed to load LineGizmo prefab from {GameobjectGizmoLine}", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+
+        TryCreateParent();
+        GameObject gizmoObject = UnityEngine.Object.Instantiate(LoadedLineGizmo, Parent.transform);
+        if (gizmoObject.TryGetComponent(out BasisLineGizmos basisGizmos))
+        {
+            LineRenderer lineRenderer = basisGizmos.LineRenderer;
+            lineRenderer.positionCount = positions.Length;
+            lineRenderer.SetPositions(positions);
+            lineRenderer.startWidth = width;
+            lineRenderer.endWidth = width;
+            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.startColor = color;
+            lineRenderer.endColor = color;
+            lineRenderer.loop = loop;
+            lineRenderer.name = GizmoName;
+            GizmosLine[linkedID] = basisGizmos;
+
+            BasisDebug.Log($"Created LineGizmo (multi-point) with ID {linkedID}, count={positions.Length}, loop={loop}", BasisDebug.LogTag.Gizmo);
+            return true;
+        }
+        else
+        {
+            BasisDebug.LogError($"Prefab missing BasisLineGizmos component.", BasisDebug.LogTag.Gizmo);
+            UnityEngine.Object.Destroy(gizmoObject);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Updates an existing multi-point line gizmo. Reuses the existing LineRenderer's
+    /// position buffer, only resizing if the point count actually changed.
+    /// </summary>
+    public static bool UpdateLineGizmo(int linkedID, Vector3[] positions)
+    {
+        if (!GizmosLine.TryGetValue(linkedID, out BasisLineGizmos gizmo))
+        {
+            BasisDebug.LogError($"No LineGizmo found with ID {linkedID}. Use CreateLineGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (gizmo == null || gizmo.LineRenderer == null)
+        {
+            return false;
+        }
+        LineRenderer lr = gizmo.LineRenderer;
+        if (lr.positionCount != positions.Length)
+        {
+            lr.positionCount = positions.Length;
+        }
+        lr.SetPositions(positions);
+        return true;
+    }
+
+    /// <summary>
+    /// Replaces the line gizmo's color sampling with a Gradient — vertices interpolate
+    /// across it by their normalized position. Use for multi-point lines that should
+    /// fade through per-segment colors (skeleton chains with one stop per bone).
+    /// </summary>
+    public static bool SetLineGizmoGradient(int linkedID, Gradient gradient)
+    {
+        if (!GizmosLine.TryGetValue(linkedID, out BasisLineGizmos gizmo))
+        {
+            BasisDebug.LogError($"No LineGizmo found with ID {linkedID}. Use CreateLineGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (gizmo == null || gizmo.LineRenderer == null)
+        {
+            return false;
+        }
+        gizmo.LineRenderer.colorGradient = gradient;
+        return true;
+    }
+
+    /// <summary>
     /// Toggles a gizmo's GameObject visibility without destroying it. Used by
     /// sub-toggles that hide/show subsets of gizmos under the master ShowGizmos.
     /// </summary>

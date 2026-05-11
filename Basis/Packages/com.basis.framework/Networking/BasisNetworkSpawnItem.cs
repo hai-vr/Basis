@@ -204,7 +204,7 @@ public static class BasisNetworkSpawnItem
             position,
             rotation,
             scale,
-            localLoadResource.ModifyScale, Selector, BasisNetworkManagement.Instance.transform);
+            localLoadResource.ModifyScale, Selector, BasisDeviceManagement.Instance.transform);
 
         if (reference == null)
         {

@@ -57,7 +57,7 @@ public static class BasisBeeManagement
     /// <returns></returns>
     public static async Task HandleBundleAndMetaLoading(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInBytes = 4L * 1024 * 1024 * 1024)
     {
-        bool IsMetaOnDisc = BasisLoadHandler.IsMetaDataOnDisc(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisBEEExtensionMeta MetaInfo);
+        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
         bool didForceRedownload = false;
         bool shouldUseOnDiskMeta = IsMetaOnDisc;
 
@@ -180,12 +180,12 @@ public static class BasisBeeManagement
     /// and if not, whether the failure was transient (network/cancel) or fatal (missing/corrupt).</returns>
     public static async Task<BasisMetaLoadResult> HandleMetaOnlyLoad(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken)
     {
-        bool IsMetaOnDisc = BasisLoadHandler.IsMetaDataOnDisc(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisBEEExtensionMeta MetaInfo);
+        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation).ConfigureAwait(false);
         (BasisBundleConnector Connector, string ErrorMessage) output;
         if (IsMetaOnDisc)
         {
             BasisDebug.Log("Process On Disc Meta Data Async", BasisDebug.LogTag.Event);
-            output = await BasisBundleManagement.ReadConnectorFile(wrapper, MetaInfo.StoredLocal, report, cancellationToken);
+            output = await BasisBundleManagement.ReadConnectorFile(wrapper, MetaInfo.StoredLocal, report, cancellationToken).ConfigureAwait(false);
         }
         else
         {

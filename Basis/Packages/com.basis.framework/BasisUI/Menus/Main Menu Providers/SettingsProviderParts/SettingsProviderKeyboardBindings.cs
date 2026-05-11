@@ -11,10 +11,7 @@ public static class SettingsProviderKeyboardBindings
 
     public static void BuildKeyboardBindingsUI(PanelTabPage tab)
     {
-        var instance = BasisLocalInputActions.Instance;
-        if (instance == null || instance.Input == null) return;
-
-        InputActionAsset asset = instance.Input.actions;
+        InputActionAsset asset = BasisLocalInputActions.Asset;
         if (asset == null) return;
 
         InputActionMap playerMap = asset.FindActionMap("Player");

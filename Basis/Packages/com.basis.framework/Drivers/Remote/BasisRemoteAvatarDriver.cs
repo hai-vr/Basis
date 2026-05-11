@@ -87,6 +87,7 @@ namespace Basis.Scripts.Drivers
             RemotePlayer.BasisAvatar.Animator.applyRootMotion = false;
             RemotePlayer.BasisAvatar.Animator.updateMode = AnimatorUpdateMode.Normal;
             RemotePlayer.BasisAvatar.Animator.speed = 0;
+            RemotePlayer.BasisAvatar.Animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
             AvatarInitalScale = Player.BasisAvatar.transform.localScale;
 
             // Auto-detect bone refs and record TPose. Pass Animator.transform so
@@ -193,7 +194,7 @@ namespace Basis.Scripts.Drivers
                     BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
                     animatorRootPos
                 ),
-                NamePlate: RemotePlayer.RemoteNamePlate.Self,
+                NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
                 AvatarScale: animatorRoot,
                 MouthTransform: RemotePlayer.MouthTransform,
                 TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitalScale,

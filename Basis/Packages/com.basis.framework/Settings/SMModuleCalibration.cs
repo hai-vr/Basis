@@ -10,7 +10,7 @@ using UnityEngine.Animations.Rigging;
 public class SMModuleCalibration : BasisSettingsBase
 {
     public static BasisSelectedHeightMode HeightMode = BasisSelectedHeightMode.EyeHeight;
-    public static BasisIKLockMode CurrentIKLockMode = BasisIKLockMode.LockHips;
+    public static BasisIKLockMode CurrentIKLockMode = BasisIKLockMode.LockBoth;
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
     public static float SelectedEyeHeight = 1.61f;

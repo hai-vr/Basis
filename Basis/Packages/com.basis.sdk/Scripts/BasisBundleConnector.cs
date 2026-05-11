@@ -27,6 +27,11 @@ public class BasisBundleConnector
         // Older bundles built before this field existed deserialize with 0, which the
         // performance-limit evaluator treats as "unknown" and lets through.
         public long TextureMemoryBytes;
+        // Render pipeline the bundle was built against: "URP", "HDRP", "Built-in", or
+        // the SRP asset's type name for unrecognized SRPs. Older bundles built before
+        // this field existed deserialize with null — display layer treats null/empty
+        // as "Unknown".
+        public string GraphicsPipeline;
         [SerializeField]
         public BasisComponentName[] ComponentNames;
     }
@@ -168,10 +173,17 @@ public class BasisBundleGenerated
     public string Password;//this unlocks the bundle
     public string Platform;//Deployed Platform
     public long EndByte;
+    // Graphics APIs this section's shaders were compiled against, in PlayerSettings
+    // priority order (e.g. ["Direct3D11", "Direct3D12", "Vulkan"] for Windows64,
+    // ["Vulkan", "OpenGLES3"] for Android). Verbatim GraphicsDeviceType.ToString()
+    // values so future APIs (e.g. WebGPU) appear without a mapping update. Older
+    // bundles built before this field existed deserialize with null — display layer
+    // treats null/empty as "Unknown".
+    public string[] GraphicsAPIs;
     public BasisBundleGenerated()
     {
     }
-    public BasisBundleGenerated(string assetBundleHash, string assetMode, string assetToLoadName, uint assetBundleCRC, bool isEncrypted, string password, string platform, long endbyte)
+    public BasisBundleGenerated(string assetBundleHash, string assetMode, string assetToLoadName, uint assetBundleCRC, bool isEncrypted, string password, string platform, long endbyte, string[] graphicsAPIs = null)
     {
         AssetBundleHash = assetBundleHash ?? throw new ArgumentNullException(nameof(assetBundleHash));
         AssetMode = assetMode ?? throw new ArgumentNullException(nameof(assetMode));
@@ -181,5 +193,6 @@ public class BasisBundleGenerated
         Password = password ?? throw new ArgumentNullException(nameof(password));
         Platform = platform ?? throw new ArgumentNullException(nameof(platform));
         EndByte = endbyte;
+        GraphicsAPIs = graphicsAPIs;
     }
 }

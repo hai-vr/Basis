@@ -160,11 +160,11 @@ public class BasisOnScreenControls : MonoBehaviour
     {
         var inst = BasisLocalPlayer.Instance;
         inst.LocalCharacterDriver.SetMovementVector(vector);
-        inst.LocalCharacterDriver.UpdateMovementSpeed(BasisLocalInputActions.Instance.IsRunHeld);
+        inst.LocalCharacterDriver.UpdateMovementSpeed(BasisLocalInputActions.IsRunHeld);
     }
 
     void OnStickMoveRight(Vector2 vector)
     {
-        BasisLocalInputActions.Instance.OnLookAction(vector, 10);
+        BasisLocalInputActions.OnLookAction(vector, 10);
     }
 }

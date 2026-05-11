@@ -96,10 +96,7 @@ namespace Basis.BasisUI
 
         public static void ApplyNamePlateSettings()
         {
-            if (BasisRemoteNamePlateDriver.Instance != null)
-            {
-                BasisRemoteNamePlateDriver.Instance.ApplyNamePlateSettingsFromUI();
-            }
+            BasisRemoteNamePlateDriver.ApplyNamePlateSettingsFromUI();
         }
     }
 }

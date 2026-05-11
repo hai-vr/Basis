@@ -100,13 +100,13 @@ public static class JigglePhysics {
         JiggleRenderer.PrepareRender(jobs);
     }
 
-    public static void CompleteRender(Material proceduralMaterial, Mesh sphere) {
+    public static void CompleteRender(Material proceduralMaterial, Mesh sphere, Mesh capsule) {
         if (!initializedRendering) {
             JiggleRenderer.OnEnable(jobs);
             initializedRendering = true;
         }
 
-        JiggleRenderer.FinishRender(proceduralMaterial, sphere);
+        JiggleRenderer.FinishRender(proceduralMaterial, sphere, capsule);
     }
     
     public static void SetGlobalDirty() => _globalDirty = true;

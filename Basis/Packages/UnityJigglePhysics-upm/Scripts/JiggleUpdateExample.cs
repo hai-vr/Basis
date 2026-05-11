@@ -9,20 +9,21 @@ public class JiggleUpdateExample : MonoBehaviour {
     [SerializeField] private bool debugDraw;
     [SerializeField] private Material proceduralMaterial;
     [SerializeField] private Mesh sphereMesh;
+    [SerializeField] private Mesh capsuleMesh;
 
     private void LateUpdate() {
         var time = Time.timeAsDouble;
 
         JigglePhysics.ScheduleSimulate(time, Time.fixedDeltaTime);
-        
+
         JigglePhysics.SchedulePose(time);
         if (debugDraw) {
             JigglePhysics.ScheduleRender();
         }
-        
+
         JigglePhysics.CompletePose();
         if (debugDraw) {
-            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
+            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh, capsuleMesh);
         }
     }
 

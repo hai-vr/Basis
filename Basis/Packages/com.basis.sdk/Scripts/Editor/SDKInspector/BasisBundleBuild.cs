@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 public static class BasisBundleBuild
 {
@@ -361,6 +362,7 @@ public static class BasisBundleBuild
         meta.MaterialCount = materialCount;
         meta.BonesCount = bonesCount;
         meta.TextureMemoryBytes = textureMemoryBytes;
+        meta.GraphicsPipeline = DetectGraphicsPipeline();
         meta.ComponentNames = componentCounts
             .Select(kvp => new BasisBundleConnector.BasisComponentName
             {
@@ -371,6 +373,18 @@ public static class BasisBundleBuild
 
         return meta;
     }
+    // Identifies the render pipeline the bundle is being built against. Stored
+    // verbatim as the asset type name (e.g. "UniversalRenderPipelineAsset",
+    // "HDRenderPipelineAsset", or any custom SRP asset class) so future or
+    // third-party pipelines are captured without a mapping update. When no SRP
+    // asset is assigned, GraphicsSettings.currentRenderPipeline is null and the
+    // project is on the legacy built-in pipeline.
+    public static string DetectGraphicsPipeline()
+    {
+        RenderPipelineAsset activePipeline = GraphicsSettings.currentRenderPipeline;
+        return activePipeline == null ? "Built-in" : activePipeline.GetType().Name;
+    }
+
     public static void EnsureReadWriteEnabled(Mesh mesh)
     {
         if (mesh == null)
@@ -425,6 +439,7 @@ public static class BasisBundleBuild
         combined.TrianglesCount = triangles;
         combined.MaterialCount = materials;
         combined.BonesCount = bones;
+        combined.GraphicsPipeline = DetectGraphicsPipeline();
 
         combined.ComponentNames = componentCounts
             .Select(kvp => new BasisBundleConnector.BasisComponentName

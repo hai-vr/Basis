@@ -9,6 +9,7 @@ using UnityEngine;
 namespace GatorDragonGames.JigglePhysics {
 public static class JiggleRenderer {
     private static NativeArray<JiggleRenderInstancer.GPUChunk> sphereChunks;
+    private static NativeArray<JiggleRenderInstancer.GPUChunk> capsuleChunks;
     private static Bounds colliderBounds;
     private static int colliderCount;
 
@@ -16,11 +17,11 @@ public static class JiggleRenderer {
     private static JobHandle handleRender;
     private static JiggleJobPrepareRender jobPrepareRender;
     private static JiggleRenderInstancer sphereInstancer;
-    //private static JiggleRenderInstancer planeInstancer;
+    private static JiggleRenderInstancer capsuleInstancer;
 
     public static void OnEnable(JiggleJobs job) {
         sphereInstancer = new JiggleRenderInstancer();
-        //planeInstancer = new JiggleRenderInstancer();
+        capsuleInstancer = new JiggleRenderInstancer();
         job.OnFinishSimulate += FlipData;
         jobPrepareRender = new JiggleJobPrepareRender() {
             personalColliders = job.GetPersonalColliders(out var _),
@@ -30,25 +31,26 @@ public static class JiggleRenderer {
             sphereChunks = sphereChunks,
             sphereBounds = new NativeReference<Bounds>(Allocator.Persistent),
             sphereCount = new NativeReference<int>(Allocator.Persistent),
+            capsuleChunks = capsuleChunks,
+            capsuleBounds = new NativeReference<Bounds>(Allocator.Persistent),
+            capsuleCount = new NativeReference<int>(Allocator.Persistent),
         };
     }
-    
+
     private static float4 ColorToFloat4(Color color) {
         return new float4(color.r, color.g, color.b, color.a);
     }
-    
+
     private static void FlipData(JiggleJobs job, double simulatedTime) {
         var sceneColliderCapacity = job.GetSceneColliderCapacity();
         var personalColliderCapacity = job.GetSceneColliderCapacity();
         var transformCapacity = job.GetTransformCapcity();
-        
-        int desiredChunkCount = sceneColliderCapacity + personalColliderCapacity + transformCapacity;
-        if (desiredChunkCount == 0) {
-            return;
-        }
 
-        if (!sphereChunks.IsCreated || sphereChunks.Length != desiredChunkCount) {
-            var newSphereChunks = new NativeArray<JiggleRenderInstancer.GPUChunk>(desiredChunkCount, Allocator.Persistent);
+        int desiredSphereCount = math.max(sceneColliderCapacity + personalColliderCapacity + transformCapacity, 1);
+        int desiredCapsuleCount = math.max(sceneColliderCapacity + personalColliderCapacity, 1);
+
+        if (!sphereChunks.IsCreated || sphereChunks.Length != desiredSphereCount) {
+            var newSphereChunks = new NativeArray<JiggleRenderInstancer.GPUChunk>(desiredSphereCount, Allocator.Persistent);
             if (sphereChunks.IsCreated) {
                 var oldLength = sphereChunks.Length;
                 NativeArray<JiggleRenderInstancer.GPUChunk>.Copy(sphereChunks, newSphereChunks, oldLength);
@@ -56,13 +58,24 @@ public static class JiggleRenderer {
             }
             sphereChunks = newSphereChunks;
         }
+
+        if (!capsuleChunks.IsCreated || capsuleChunks.Length != desiredCapsuleCount) {
+            var newCapsuleChunks = new NativeArray<JiggleRenderInstancer.GPUChunk>(desiredCapsuleCount, Allocator.Persistent);
+            if (capsuleChunks.IsCreated) {
+                var oldLength = capsuleChunks.Length;
+                NativeArray<JiggleRenderInstancer.GPUChunk>.Copy(capsuleChunks, newCapsuleChunks, oldLength);
+                capsuleChunks.Dispose();
+            }
+            capsuleChunks = newCapsuleChunks;
+        }
     }
 
     public static void PrepareRender(JiggleJobs job) {
-        if (!sphereChunks.IsCreated) {
+        if (!sphereChunks.IsCreated && !capsuleChunks.IsCreated) {
             return;
         }
         jobPrepareRender.sphereChunks = sphereChunks;
+        jobPrepareRender.capsuleChunks = capsuleChunks;
         jobPrepareRender.personalColliders = job.GetPersonalColliders(out jobPrepareRender.personalColliderCount);
         jobPrepareRender.sceneColliders = job.GetSceneColliders(out jobPrepareRender.sceneColliderCount);
         jobPrepareRender.outputPoses = job.GetInterpolatedOutputPoses(out jobPrepareRender.transformCount);
@@ -74,22 +87,30 @@ public static class JiggleRenderer {
         hasHandleRender = true;
     }
 
-    public static void FinishRender(Material gpuInstanceMaterial, Mesh sphere) {
-        if (!sphereChunks.IsCreated || !hasHandleRender) {
+    public static void FinishRender(Material gpuInstanceMaterial, Mesh sphere, Mesh capsule) {
+        if (!hasHandleRender) {
             return;
         }
         handleRender.Complete();
-        sphereInstancer.Render(jobPrepareRender.sphereBounds.Value, sphere, gpuInstanceMaterial, sphereChunks, jobPrepareRender.sphereCount.Value);
+        if (sphereChunks.IsCreated && sphere != null) {
+            sphereInstancer.Render(jobPrepareRender.sphereBounds.Value, sphere, gpuInstanceMaterial, sphereChunks, jobPrepareRender.sphereCount.Value);
+        }
+        if (capsuleChunks.IsCreated && capsule != null) {
+            capsuleInstancer.Render(jobPrepareRender.capsuleBounds.Value, capsule, gpuInstanceMaterial, capsuleChunks, jobPrepareRender.capsuleCount.Value);
+        }
     }
 
     public static void Dispose() {
         sphereInstancer?.Dispose();
         sphereInstancer = null;
-        //planeInstancer?.Dispose();
-        //planeInstancer = null;
+        capsuleInstancer?.Dispose();
+        capsuleInstancer = null;
         jobPrepareRender.Dispose();
         if (sphereChunks.IsCreated) {
             sphereChunks.Dispose();
+        }
+        if (capsuleChunks.IsCreated) {
+            capsuleChunks.Dispose();
         }
     }
 }

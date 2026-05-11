@@ -71,7 +71,7 @@ public static class BasisEncryptionToData
         var basisPassword = new BasisEncryptionWrapper.BasisPassword { VP = password };
         string uniqueID = BasisGenerateUniqueID.GenerateUniqueID();
 
-        var decryptedMeta = await BasisEncryptionWrapper.DecryptFromBytesAsync(uniqueID, basisPassword, encryptedBytes, progressCallback);
+        var decryptedMeta = await BasisEncryptionWrapper.DecryptFromBytesAsync(uniqueID, basisPassword, encryptedBytes, progressCallback).ConfigureAwait(false);
 
 
         if (decryptedMeta.Success)

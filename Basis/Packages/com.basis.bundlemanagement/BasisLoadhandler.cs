@@ -14,7 +14,6 @@ public static class BasisLoadHandler
     public static bool IsInitialized = false;
     public static ConcurrentDictionary<string, BasisTrackedBundleWrapper> LoadedBundles = new ConcurrentDictionary<string, BasisTrackedBundleWrapper>();
     public static ConcurrentDictionary<string, BasisBEEExtensionMeta> OnDiscData = new ConcurrentDictionary<string, BasisBEEExtensionMeta>();
-    public static readonly object _discInfoLock = new object();
     public static SemaphoreSlim _initSemaphore = new SemaphoreSlim(1, 1);
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static async void Initialization()
@@ -307,51 +306,77 @@ public static class BasisLoadHandler
         return false;
     }
 
-    public static bool IsMetaDataOnDisc(string MetaURL, out BasisBEEExtensionMeta info)
+    private static bool TryGetInMemoryDiscInfo(string MetaURL, out BasisBEEExtensionMeta info)
     {
-        lock (_discInfoLock)
+        BasisBEEExtensionMeta legacyCandidate = null;
+
+        foreach (var discInfo in OnDiscData.Values)
         {
-            string currentPlatform = BasisIOManagement.GetCurrentCachePlatform();
-            BasisBEEExtensionMeta legacyCandidate = null;
-
-            foreach (var discInfo in OnDiscData.Values)
+            if (discInfo.StoredRemote.RemoteBeeFileLocation == MetaURL)
             {
-                if (discInfo.StoredRemote.RemoteBeeFileLocation == MetaURL)
+                if (!string.IsNullOrWhiteSpace(discInfo.DownloadedPlatform) &&
+                    !BasisIOManagement.CachePlatformMatchesCurrent(discInfo.DownloadedPlatform))
                 {
-                    if (!string.IsNullOrWhiteSpace(discInfo.DownloadedPlatform) &&
-                        !BasisIOManagement.CachePlatformMatchesCurrent(discInfo.DownloadedPlatform))
+                    continue;
+                }
+
+                if (HasAnyCachedPayload(discInfo))
+                {
+                    if (BasisIOManagement.CachePlatformMatchesCurrent(discInfo.DownloadedPlatform))
                     {
-                        continue;
+                        info = discInfo;
+                        return true;
                     }
 
-                    if (HasAnyCachedPayload(discInfo))
-                    {
-                        if (BasisIOManagement.CachePlatformMatchesCurrent(discInfo.DownloadedPlatform))
-                        {
-                            info = discInfo;
-                            return true;
-                        }
-
-                        legacyCandidate = discInfo;
-                    }
+                    legacyCandidate = discInfo;
                 }
             }
-
-            if (legacyCandidate != null)
-            {
-                info = legacyCandidate;
-                return true;
-            }
-
-            if (TryLazyLoadDiscInfo(MetaURL, currentPlatform, out BasisBEEExtensionMeta lazyLoadedInfo))
-            {
-                info = lazyLoadedInfo;
-                return true;
-            }
-
-            info = new BasisBEEExtensionMeta();
-            return false;
         }
+
+        if (legacyCandidate != null)
+        {
+            info = legacyCandidate;
+            return true;
+        }
+
+        info = null;
+        return false;
+    }
+
+    public static bool IsMetaDataOnDisc(string MetaURL, out BasisBEEExtensionMeta info)
+    {
+        if (TryGetInMemoryDiscInfo(MetaURL, out info))
+        {
+            return true;
+        }
+
+        string currentPlatform = BasisIOManagement.GetCurrentCachePlatform();
+        if (TryLazyLoadDiscInfo(MetaURL, currentPlatform, out BasisBEEExtensionMeta lazyLoadedInfo))
+        {
+            info = lazyLoadedInfo;
+            return true;
+        }
+
+        info = new BasisBEEExtensionMeta();
+        return false;
+    }
+
+    public static Task<(bool found, BasisBEEExtensionMeta info)> IsMetaDataOnDiscAsync(string MetaURL)
+    {
+        if (TryGetInMemoryDiscInfo(MetaURL, out BasisBEEExtensionMeta inMemory))
+        {
+            return Task.FromResult((true, inMemory));
+        }
+
+        return Task.Run<(bool, BasisBEEExtensionMeta)>(() =>
+        {
+            string currentPlatform = BasisIOManagement.GetCurrentCachePlatform();
+            if (TryLazyLoadDiscInfo(MetaURL, currentPlatform, out BasisBEEExtensionMeta lazyInfo))
+            {
+                return (true, lazyInfo);
+            }
+            return (false, new BasisBEEExtensionMeta());
+        });
     }
 
     public static async Task AddDiscInfo(BasisBEEExtensionMeta discInfo)

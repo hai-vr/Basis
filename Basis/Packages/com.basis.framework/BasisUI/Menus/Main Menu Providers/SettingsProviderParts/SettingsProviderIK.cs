@@ -283,21 +283,21 @@ public static class SettingsProviderIK
                 upperArmTwist.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.upperArmTwist.description"));
         });
 
-        // ============== Anatomy (Experimental) ==============
+        // ============== Anatomy ==============
         CreateCollapsibleSection(tabDesc, colliderGroup,
             BasisLocalization.Get("settings.bodyTracking.section.anatomy.title"),
             BasisLocalization.Get("settings.bodyTracking.section.anatomy.description"), false, anatomyParent =>
         {
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatDifferentialStiffness,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatDifferentialStiffness,
                 "settings.bodyTracking.anat.diffStiffness.title",
                 "settings.bodyTracking.anat.diffStiffness.description");
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatShoulderSlide,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatShoulderSlide,
                 "settings.bodyTracking.anat.shoulderSlide.title",
                 "settings.bodyTracking.anat.shoulderSlide.description");
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatCervicalLordosis,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatCervicalLordosis,
                 "settings.bodyTracking.anat.cervicalLordosis.title",
                 "settings.bodyTracking.anat.cervicalLordosis.description");
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
                 "settings.bodyTracking.anat.pelvicTwistRouting.title",
                 "settings.bodyTracking.anat.pelvicTwistRouting.description");
         });
@@ -465,6 +465,82 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.FBIKChestArmSwingMaxDeg);
             if (chestArmSwingMaxDeg != null)
                 chestArmSwingMaxDeg.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.chestArmSwingMax.description"));
+
+            var lordosisPitchGain = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisPitchGain.title"), 0f, 30f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisPitchGainDeg);
+            if (lordosisPitchGain != null)
+                lordosisPitchGain.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisPitchGain.description"));
+        });
+
+        // ============== Virtual Spine (no torso tracker) ==============
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.virtualSpine.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.virtualSpine.description"), false, vspineParent =>
+        {
+            var vspineChestPitch = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineChestPitchFrac.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineChestPitchFrac);
+            if (vspineChestPitch != null)
+                vspineChestPitch.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineChestPitchFrac.description"));
+
+            var vspineChestRoll = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineChestRollFrac.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineChestRollFrac);
+            if (vspineChestRoll != null)
+                vspineChestRoll.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineChestRollFrac.description"));
+
+            var vspineSpinePitch = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineSpinePitchFrac.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineSpinePitchFrac);
+            if (vspineSpinePitch != null)
+                vspineSpinePitch.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineSpinePitchFrac.description"));
+
+            var vspineSpineRoll = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineSpineRollFrac.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineSpineRollFrac);
+            if (vspineSpineRoll != null)
+                vspineSpineRoll.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineSpineRollFrac.description"));
+
+            var vspineNeckRotSpeed = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineNeckRotationSpeed.title"), 0f, 100f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineNeckRotationSpeed);
+            if (vspineNeckRotSpeed != null)
+                vspineNeckRotSpeed.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineNeckRotationSpeed.description"));
+
+            var vspineChestRotSpeed = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineChestRotationSpeed.title"), 0f, 100f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineChestRotationSpeed);
+            if (vspineChestRotSpeed != null)
+                vspineChestRotSpeed.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineChestRotationSpeed.description"));
+
+            var vspineSpineRotSpeed = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineSpineRotationSpeed.title"), 0f, 100f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineSpineRotationSpeed);
+            if (vspineSpineRotSpeed != null)
+                vspineSpineRotSpeed.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineSpineRotationSpeed.description"));
+
+            var vspineHipsRotSpeed = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineHipsRotationSpeed.title"), 0f, 100f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineHipsRotationSpeed);
+            if (vspineHipsRotSpeed != null)
+                vspineHipsRotSpeed.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineHipsRotationSpeed.description"));
+
+            var vspineHipsFwd = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineHipsForwardBias.title"), -0.1f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineHipsForwardBias);
+            if (vspineHipsFwd != null)
+                vspineHipsFwd.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineHipsForwardBias.description"));
         });
 
         // ============== Smoothing (One Euro) ==============
@@ -701,6 +777,16 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringDamping.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisPitchGainDeg.ResetToDefault();
+        BasisSettingsDefaults.VSpineChestPitchFrac.ResetToDefault();
+        BasisSettingsDefaults.VSpineChestRollFrac.ResetToDefault();
+        BasisSettingsDefaults.VSpineSpinePitchFrac.ResetToDefault();
+        BasisSettingsDefaults.VSpineSpineRollFrac.ResetToDefault();
+        BasisSettingsDefaults.VSpineNeckRotationSpeed.ResetToDefault();
+        BasisSettingsDefaults.VSpineChestRotationSpeed.ResetToDefault();
+        BasisSettingsDefaults.VSpineSpineRotationSpeed.ResetToDefault();
+        BasisSettingsDefaults.VSpineHipsRotationSpeed.ResetToDefault();
+        BasisSettingsDefaults.VSpineHipsForwardBias.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxForwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxLateralDeg.ResetToDefault();
@@ -882,7 +968,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKEuroAll.SetValue(allOn);
     }
 
-    private static void AddExperimentalToggle(RectTransform parent, BasisSettingsBinding<bool> binding, string titleKey, string descriptionKey)
+    private static void AddAnatomyToggle(RectTransform parent, BasisSettingsBinding<bool> binding, string titleKey, string descriptionKey)
     {
         var toggle = PanelToggle.CreateNewEntry(parent);
         toggle.Descriptor.SetTitle(BasisLocalization.Get(titleKey));
