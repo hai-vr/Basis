@@ -566,10 +566,7 @@ namespace Basis.Scripts.Networking.Receivers
                 // load also fails, BasisAvatarFactory.MarkRemoteLoadFailed re-arms the flag.
                 RemotePlayer.HasFailedAvatarLoadGlobally = false;
                 RemotePlayer.AvatarLoadErrorMessage = null;
-                if (RemotePlayer.RemoteNamePlate != null)
-                {
-                    RemotePlayer.RemoteNamePlate.RefreshFailedStateColor();
-                }
+                RemotePlayer.OnAvatarFailedStateChanged?.Invoke();
 
                 BasisLoadableBundle bundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(SACM.clientAvatarChangeMessage.byteArray);
                 await RemotePlayer.CreateAvatar(SACM.clientAvatarChangeMessage.loadMode, bundle);

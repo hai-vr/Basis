@@ -354,6 +354,9 @@ namespace Basis.Scripts.Avatar
                 assignedCount++;
             }
 
+            ApplyToeForwardConstraint(samples, BasisBoneTrackedRole.LeftFoot, BasisBoneTrackedRole.LeftToes);
+            ApplyToeForwardConstraint(samples, BasisBoneTrackedRole.RightFoot, BasisBoneTrackedRole.RightToes);
+
             ComputeBestAnyFits(samples);
             ConstellationDebug.Status = $"{assignedCount} of {samples.Count} tracker(s) assigned";
             ConstellationDebug.HasSnapshot = true;
@@ -491,6 +494,11 @@ namespace Basis.Scripts.Avatar
             ds.Assigned = true;
             ds.AssignedRole = role;
             ds.AssignedScore = score;
+            UpdatePriorAssignment(role, sampleIdx);
+        }
+
+        private static void UpdatePriorAssignment(BasisBoneTrackedRole role, int sampleIdx)
+        {
             for (int p = 0; p < ConstellationDebug.Priors.Count; p++)
             {
                 if (ConstellationDebug.Priors[p].Role == role)
@@ -499,6 +507,37 @@ namespace Basis.Scripts.Avatar
                     break;
                 }
             }
+        }
+
+        private static void ApplyToeForwardConstraint(List<TrackerSample> samples, BasisBoneTrackedRole footRole, BasisBoneTrackedRole toeRole)
+        {
+            int footIdx = -1, toesIdx = -1;
+            for (int i = 0; i < ConstellationDebug.Samples.Count; i++)
+            {
+                ConstellationDebug.DebugSample ds = ConstellationDebug.Samples[i];
+                if (!ds.Assigned) continue;
+                if (ds.AssignedRole == footRole) footIdx = i;
+                else if (ds.AssignedRole == toeRole) toesIdx = i;
+            }
+            if (footIdx < 0 || toesIdx < 0) return;
+
+            float footZ = samples[footIdx].BodyLocal.z;
+            float toesZ = samples[toesIdx].BodyLocal.z;
+            if (footZ <= toesZ + ConstellationToeForwardEpsilon) return;
+
+            BasisInput footInput = samples[footIdx].Input;
+            BasisInput toesInput = samples[toesIdx].Input;
+            footInput.UnAssignFullBodyTrackers();
+            toesInput.UnAssignFullBodyTrackers();
+            footInput.ApplyTrackerCalibration(toeRole);
+            toesInput.ApplyTrackerCalibration(footRole);
+
+            ConstellationDebug.Samples[footIdx].AssignedRole = toeRole;
+            ConstellationDebug.Samples[toesIdx].AssignedRole = footRole;
+            UpdatePriorAssignment(toeRole, footIdx);
+            UpdatePriorAssignment(footRole, toesIdx);
+
+            BasisDebug.Log($"FBIK constellation: swap {footRole}/{toeRole} — '{footInput.UniqueDeviceIdentifier}' (z={footZ:F2}) sat forward of '{toesInput.UniqueDeviceIdentifier}' (z={toesZ:F2})", BasisDebug.LogTag.Input);
         }
 
         private static void ComputeBestAnyFits(List<TrackerSample> samples)
@@ -710,6 +749,7 @@ namespace Basis.Scripts.Avatar
         // Half arm-span as a fraction of eye height for a typical adult — used as a fallback
         // when no arm-height tracker is present to measure the player's own reach.
         private const float ConstellationDefaultArmReachRatio = 0.55f;
+        private const float ConstellationToeForwardEpsilon = 0.02f;
         /// <summary>
         /// gets a roles dictonary with the roles and transforms
         /// </summary>

@@ -302,7 +302,8 @@ namespace Basis.BasisUI
             await BasisLoadHandler.EnsureInitializationComplete();
 
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
-            if (BasisLoadHandler.IsMetaDataOnDisc(item.Url, out BasisBEEExtensionMeta info))
+            var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(item.Url);
+            if (onDisc)
             {
                 // CreateNewWrapperFromItem does not populate these fields so we update them
                 wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted = info.StoredRemote;

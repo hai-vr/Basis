@@ -182,10 +182,7 @@ namespace Basis.Scripts.UI
             {
                 return;
             }
-            if (BasisRemoteNamePlateDriver.Instance != null)
-            {
-                cachedMaterial = BasisRemoteNamePlateDriver.Instance.SelectedNamePlateMaterial;
-            }
+            cachedMaterial = BasisRemoteNamePlateDriver.SelectedNamePlateMaterial;
         }
 
         private static void PrewarmPool()

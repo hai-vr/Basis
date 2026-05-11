@@ -186,7 +186,7 @@ namespace Basis.BasisUI
             }
 
             var localplayer = BasisLocalPlayer.Instance;
-            BasisUINeedsVisibleTrackers.Instance.Add(localplayer);
+            BasisUINeedsVisibleTrackers.Add(localplayer);
             // kept because you had it (even if unused)
             var localBoneDriver = localplayer.LocalBoneDriver;
 
@@ -365,7 +365,7 @@ namespace Basis.BasisUI
 
             UnsubscribeAll();
             BasisAvatarIKStageCalibration.FullBodyCalibration();
-            BasisUINeedsVisibleTrackers.Instance.Remove(BasisLocalPlayer.Instance);
+            BasisUINeedsVisibleTrackers.Remove(BasisLocalPlayer.Instance);
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
         }
 

@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Fracción de torsión del brazo superior" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fracción del giro del codo absorbida por el hueso de torsión del brazo superior. Por defecto: 0,3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomía (experimental)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Refinamientos opcionales de IK basados en biomecánica real. Todos desactivados por defecto — actívalos para probarlos." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomía" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Refinamientos de IK basados en biomecánica real." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Rigidez diferencial lumbar / torácica" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Dirige preferentemente la torsión de la columna al pecho superior (torácico) ya que la zona lumbar es biomecánicamente resistente a la torsión. Reduce el peso del yaw de la columna y aumenta el yaw del pecho superior." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Deslizamiento del hombro al girar el pecho" },

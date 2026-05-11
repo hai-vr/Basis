@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "উপরের বাহু টুইস্ট ভগ্নাংশ" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "উপরের বাহু টুইস্ট হাড় দ্বারা শোষিত কনুইয়ের রোলের ভগ্নাংশ। ডিফল্ট: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "অ্যানাটমি (পরীক্ষামূলক)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "প্রকৃত বায়োমেকানিক্সের উপর ভিত্তি করে অপ্ট-ইন IK পরিমার্জন। ডিফল্টভাবে সব বন্ধ — পরীক্ষা করতে সক্ষম করুন।" },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "অ্যানাটমি" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "প্রকৃত বায়োমেকানিক্সের উপর ভিত্তি করে IK পরিমার্জন।" },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "ডিফারেনশিয়াল লাম্বার / থোরাসিক স্টিফনেস" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "স্পাইন টুইস্টকে অগ্রাধিকারমূলকভাবে উপরের বুকে (থোরাসিক) রাউট করে কারণ লাম্বার বায়োমেকানিকভাবে টুইস্ট-প্রতিরোধী। স্পাইন ইয়াও ওজন কমায়, উপরের বুকের ইয়াও বাড়ায়।" },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "বুক টুইস্টে কাঁধের স্লাইড" },

@@ -94,9 +94,8 @@ namespace Basis.BasisUI
                 }
                 else
                 {
-                    var nm = BasisNetworkManagement.Instance;
-                    string ip = nm != null ? nm.Ip : "?";
-                    string port = nm != null ? nm.Port.ToString() : "?";
+                    string ip = BasisNetworkManagement.IsInitialized ? BasisNetworkManagement.Ip : "?";
+                    string port = BasisNetworkManagement.IsInitialized ? BasisNetworkManagement.Port.ToString() : "?";
                     ServerField.SetDescription($"{ip}:{port}");
                 }
             }
@@ -186,14 +185,13 @@ namespace Basis.BasisUI
             // Transmission
             if (TransmissionField != null)
             {
-                var nm = BasisNetworkManagement.Instance;
-                if (nm == null || nm.LocalAccessTransmitter == null)
+                if (!BasisNetworkManagement.IsInitialized || BasisNetworkManagement.LocalAccessTransmitter == null)
                 {
                     TransmissionField.SetDescription("No transmitter active");
                 }
                 else
                 {
-                    var results = nm.LocalAccessTransmitter.TransmissionResults;
+                    var results = BasisNetworkManagement.LocalAccessTransmitter.TransmissionResults;
                     if (results == null)
                     {
                         TransmissionField.SetDescription("No transmission data");

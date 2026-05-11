@@ -138,7 +138,7 @@ public static class BasisNetworkHandleChat
     {
         if (BasisNetworkPlayers.Players.TryGetValue(senderPlayerId, out BasisNetworkPlayer networkPlayer))
         {
-            if (networkPlayer.Player is BasisRemotePlayer remotePlayer && remotePlayer.RemoteNamePlate != null)
+            if (networkPlayer.Player is BasisRemotePlayer remotePlayer)
             {
                 // Check per-player chat visibility setting
                 var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
@@ -147,7 +147,7 @@ public static class BasisNetworkHandleChat
                     return;
                 }
 
-                remotePlayer.RemoteNamePlate.SetChatText(message);
+                remotePlayer.OnChatMessageReceived?.Invoke(message);
             }
         }
     }

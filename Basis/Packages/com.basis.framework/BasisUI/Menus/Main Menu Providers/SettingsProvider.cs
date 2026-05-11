@@ -1509,6 +1509,11 @@ namespace Basis.BasisUI
             toggleEyeGazeGizmo.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.eyeGazeGizmo.description"));
             toggleEyeGazeGizmo.AssignBinding(BasisSettingsDefaults.GizmoEyeGaze);
 
+            PanelToggle toggleIKColliders = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleIKColliders.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.ikColliders"));
+            toggleIKColliders.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.ikColliders.description"));
+            toggleIKColliders.AssignBinding(BasisSettingsDefaults.GizmoIKColliders);
+
             // Hide sub-toggles when the master is off — they're meaningless without it
             // and shouldn't clutter the page.
             void RefreshGizmoSubVisibility(bool masterOn)
@@ -1519,6 +1524,7 @@ namespace Basis.BasisUI
                 toggleTrackerGizmos.Descriptor.SetActive(masterOn);
                 toggleLinkedTrackerLines.Descriptor.SetActive(masterOn);
                 toggleEyeGazeGizmo.Descriptor.SetActive(masterOn);
+                toggleIKColliders.Descriptor.SetActive(masterOn);
                 gizmosGroup.ForceRebuild();
             }
             RefreshGizmoSubVisibility(toggleShowGizmos.Value);
@@ -1598,6 +1604,25 @@ namespace Basis.BasisUI
             toggleDisableLogging.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.disableLogging"));
             toggleDisableLogging.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.disableLogging.description"));
             toggleDisableLogging.AssignBinding(BasisSettingsDefaults.DisableLogging);
+
+            PanelDropdown dropdownLogTagFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
+            dropdownLogTagFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logTagFilter"));
+            dropdownLogTagFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logTagFilter.description"));
+            List<string> tagEntries = new List<string> { BasisSettingsDefaults.DebugLogFilterAll };
+            tagEntries.AddRange(Enum.GetNames(typeof(BasisDebug.LogTag)));
+            dropdownLogTagFilter.AssignEntries(tagEntries);
+            dropdownLogTagFilter.AssignBinding(BasisSettingsDefaults.DebugLogTagFilter);
+
+            PanelDropdown dropdownLogLevelFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
+            dropdownLogLevelFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logLevelFilter"));
+            dropdownLogLevelFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logLevelFilter.description"));
+            dropdownLogLevelFilter.AssignEntries(new List<string>
+            {
+                BasisSettingsDefaults.DebugLogFilterAll,
+                BasisSettingsDefaults.DebugLogLevelWarningsAndErrors,
+                BasisSettingsDefaults.DebugLogLevelErrorsOnly,
+            });
+            dropdownLogLevelFilter.AssignBinding(BasisSettingsDefaults.DebugLogLevelFilter);
 
             // ---- Section Visibility Toggles ----
             PanelElementDescriptor sectionTogglesGroup =
@@ -1882,6 +1907,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.TrackerGizmos.ResetToDefault();
             BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
             BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
+            BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();

@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Oberarm-Twist-Anteil" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Anteil des Ellenbogen-Rollens, der vom Oberarm-Twist-Knochen absorbiert wird. Standard: 0,3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomie (Experimentell)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Opt-in-IK-Verfeinerungen, die an realer Biomechanik orientiert sind. Standardmäßig alle aus — aktivieren zum Testen." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomie" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "IK-Verfeinerungen, die an realer Biomechanik orientiert sind." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Differenzielle Lenden-/Brustwirbel-Steifheit" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Leitet Wirbelsäulen-Twist bevorzugt zur oberen Brust (Brustwirbelsäule), da die Lendenwirbelsäule biomechanisch twist-resistent ist. Reduziert das Spine-Yaw-Gewicht und erhöht das Yaw der oberen Brust." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Schultergleiten bei Brust-Twist" },

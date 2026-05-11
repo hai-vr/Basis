@@ -90,7 +90,7 @@ public static class BasisBundleManagement
             return (null, null, "Cancelled before starting.");
         }
         BasisDebug.Log("Processing on-disk meta at " + storedBundle.DownloadedBeeFileLocation);
-        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
+        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess || result.Value is null)
         {
@@ -149,7 +149,7 @@ public static class BasisBundleManagement
             return (null, "Cancelled before starting.");
         }
         BasisDebug.Log("Reading connector from disk: " + readPath);
-        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(readPath, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
+        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(readPath, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess || result.Value is null)
         {

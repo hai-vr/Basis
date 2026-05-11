@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "上臂扭轉比例" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "由上臂扭轉骨骼吸收的肘部滾轉比例。預設:0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "解剖學（實驗性）" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "基於真實生物力學的可選 IK 最佳化。預設全部關閉——啟用以測試。" },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "解剖學" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "基於真實生物力學的 IK 最佳化。" },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "腰椎/胸椎差異剛度" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "由於腰椎在生物力學上抗扭,將脊椎扭轉優先路由到上胸部（胸椎）。降低脊椎偏航權重,提升上胸部偏航。" },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "胸部扭轉時肩部滑動" },

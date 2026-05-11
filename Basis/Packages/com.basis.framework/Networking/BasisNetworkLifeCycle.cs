@@ -15,7 +15,7 @@ public static class BasisNetworkLifeCycle
     /// <summary>
     /// boots up the network management
     /// </summary>
-    public static void Initalize(BasisNetworkManagement Management)
+    public static void Initalize()
     {
         BasisDebug.Log($"Initalizing Network Connection", BasisDebug.LogTag.Networking);
         BasisNetworkManagement.mainThreadId = Thread.CurrentThread.ManagedThreadId;
@@ -36,22 +36,21 @@ public static class BasisNetworkLifeCycle
             PeerLimit = 0
         };
 
-        Management.transform.SetParent(BasisDeviceManagement.Instance.transform, false);
-
-        Management.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         BasisJoinLeaveNotification.Create();
         BasisNetworkHandleTempBlock.Initialize();
 #if !UNITY_SERVER
         BasisNetworkPIPCameraDriver.Create();
 #endif
+        BasisNetworkManagement.IsInitialized = true;
         BasisNetworkManagement.OnEnableInstanceCreate?.Invoke();
+        BasisNetworkManagement.OnIstanceCreated?.Invoke();
         BasisNetworkManagement.NetworkRunning = true;
     }
     private static int _rebootGuard = 0;
     /// <summary>
     /// allows us to reset before continuing on the operation.
     /// </summary>
-    public static async Task RebootManagement(BasisNetworkManagement Management, bool DisplayReason, NetPeer peer, DisconnectInfo disconnectInfo)
+    public static async Task RebootManagement(bool DisplayReason, NetPeer peer, DisconnectInfo disconnectInfo)
     {
         if (System.Threading.Interlocked.CompareExchange(ref _rebootGuard, 1, 0) == 0)
         {
@@ -82,7 +81,7 @@ public static class BasisNetworkLifeCycle
             BasisNetworkManagement.Transmitter = null;
             BasisNetworkConnection.NetworkClient?.Disconnect();//disconnect the local client last.
             BasisNetworkConnection.LocalPlayerIsConnected = false;
-            Management.LocalAccessTransmitter = null;
+            BasisNetworkManagement.LocalAccessTransmitter = null;
             BasisNetworkConnection.LocalPlayerPeer = null;
             BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
             if (DisplayReason)
@@ -96,7 +95,7 @@ public static class BasisNetworkLifeCycle
     /// <summary>
     /// destroys all data related to network management
     /// </summary>
-    public static async Task Destroy(BasisNetworkManagement Management)
+    public static async Task Destroy()
     {
         BasisDebug.Log($"Shutting Down Network Connection", BasisDebug.LogTag.Networking);
         if (BasisNetworkConnection.LocalPlayerPeer != null && BasisNetworkPlayers.Players.TryGetValue((ushort)BasisNetworkConnection.LocalPlayerPeer.RemoteId, out var networkedPlayer))
@@ -134,10 +133,10 @@ public static class BasisNetworkLifeCycle
         BasisNetworkManagement.OnEnableInstanceCreate = null;
         BasisNetworkConnection.LocalPlayerPeer = null;
         BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
-        Management.LocalAccessTransmitter = null;
+        BasisNetworkManagement.LocalAccessTransmitter = null;
         BasisNetworkConnection.LocalPlayerIsConnected = false;
         BasisNetworkManagement.NetworkRunning = false;
-        // let the MonoBehaviour reset its Instance in OnDestroy; no direct assignment here
+        BasisNetworkManagement.IsInitialized = false;
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         BasisJoinLeaveNotification.Shutdown();
         BasisNetworkHandleTempBlock.Shutdown();

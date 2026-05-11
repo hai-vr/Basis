@@ -1,3 +1,4 @@
+using System;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.Settings;
 
@@ -221,6 +222,11 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 
+        // IK self-collision capsule visualization (chest + hand capsules used to
+        // keep the hands from intersecting the torso). Off by default — only
+        // useful when tuning ChestRadius / HandRadius / CollisionSkin.
+        public static BasisSettingsBinding<bool> GizmoIKColliders = new("gizmoikcolliders", new BasisPlatformDefault<bool>(false));
+
         // Eye-gaze ray + endpoint-target gizmo. Off by default — only relevant on
         // headsets that surface gaze through OpenXR EyeGazeInteraction or a SteamVR
         // pose action, and the line in your face is noisy.
@@ -271,6 +277,13 @@ namespace Basis.BasisUI
         /// </summary>
         public static BasisSettingsBinding<bool> DisableLogging = new("disablelogging", new BasisPlatformDefault<bool>(false));
 
+        public const string DebugLogFilterAll = "All";
+        public const string DebugLogLevelWarningsAndErrors = "Warnings & Errors";
+        public const string DebugLogLevelErrorsOnly = "Errors Only";
+
+        public static BasisSettingsBinding<string> DebugLogTagFilter = new("debuglogtagfilter", new BasisPlatformDefault<string>(DebugLogFilterAll));
+        public static BasisSettingsBinding<string> DebugLogLevelFilter = new("debugloglevelfilter", new BasisPlatformDefault<string>(DebugLogFilterAll));
+
         public static BasisSettingsBinding<bool> AudioDebugEnabled = new("audiodebugenabled", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> AudioDebugShowSource = new("audiodebugshowsource", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> AudioDebugShowVolume = new("audiodebugshowvolume", new BasisPlatformDefault<bool>(true));
@@ -307,7 +320,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKMode = new("ikmode", new BasisPlatformDefault<string>("eye height"));
 
-        public static BasisSettingsBinding<string> IKLockMode = new("iklockmode", new BasisPlatformDefault<string>("lock hips"));
+        public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v2", new BasisPlatformDefault<string>("lock both"));
 
         public static BasisSettingsBinding<bool> PitchCalibration = new("pitchcalibration", new BasisPlatformDefault<bool>(false));
 
@@ -926,25 +939,18 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKLowerArmTwistFraction = new("fbiklowerarmtwistfraction", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> FBIKUpperArmTwistFraction = new("fbikupperarmtwistfraction", new BasisPlatformDefault<float>(0.3f));
 
-        // Anatomy (Experimental) — opt-in IK refinements modeled on real biomechanics. All off
-        // by default because they change spine / shoulder / foot behavior in subtle ways that
-        // some users may prefer to tune manually via the existing per-axis sliders.
-        public static BasisSettingsBinding<bool> FBIKAnatDifferentialStiffness = new("fbikanatdiffstiffness", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide", new BasisPlatformDefault<bool>(false));
-        // Persistence key bumped to _v2 so existing installs (which have the original key saved as
-        // false from the off-by-default era) pick up the new on-by-default behavior.
+        // Anatomy — IK refinements modeled on real biomechanics. Persistence keys are versioned
+        // (_v2) so existing installs with the old off-by-default values saved pick up the new
+        // on-by-default behavior.
+        public static BasisSettingsBinding<bool> FBIKAnatDifferentialStiffness = new("fbikanatdiffstiffness_v2", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis_v2", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting_v2", new BasisPlatformDefault<bool>(true));
 
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
         // bend when looking at the floor, less (down to zero) when looking up.
         public static BasisSettingsBinding<float> FBIKLordosisPitchGainDeg = new("fbiklordosispitchgaindeg", new BasisPlatformDefault<float>(8f));
-
-        // Chest spring head-velocity feed-forward: scales head linear velocity into the spring's
-        // velocity term so the chest leads into fast head moves instead of just pulling toward the
-        // new position. 0 disables the feed-forward (existing behavior).
-        public static BasisSettingsBinding<float> FBIKChestSpringHeadVelGain = new("fbikchestspringheadvelgain", new BasisPlatformDefault<float>(0.7f));
 
         // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
         // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
@@ -955,17 +961,6 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> VSpineChestRollFrac = new("vspinechestrollfrac", new BasisPlatformDefault<float>(0.30f));
         public static BasisSettingsBinding<float> VSpineSpinePitchFrac = new("vspinespinepitchfrac", new BasisPlatformDefault<float>(0.10f));
         public static BasisSettingsBinding<float> VSpineSpineRollFrac = new("vspinespinerollfrac", new BasisPlatformDefault<float>(0.10f));
-
-        // Resting S-curve: small positional bias (in meters at default avatar scale) applied to
-        // the chest forward of the neck-hips line, giving the chain a natural kyphosis profile
-        // instead of a straight line. Scaled by avatar height. The matching spine bias is no
-        // longer a setting — it's hard-coded as a function of head pitch in the virtual driver
-        // (look up = +0.15m forward, look down = -0.15m back, level = 0).
-        public static BasisSettingsBinding<float> VSpineChestForwardBias = new("vspinechestforwardbias", new BasisPlatformDefault<float>(0.025f));
-
-        // Hips yaw deadband: if the head-yaw target is within this many degrees of the current
-        // hips yaw, hold the hips. Prevents HMD micro-jitter from shimmying the body. 0 disables.
-        public static BasisSettingsBinding<float> VSpineHipsYawDeadbandDeg = new("vspinehipsyawdeadbanddeg", new BasisPlatformDefault<float>(4f));
 
         // Per-joint slew rates (deg/sec equivalent via slerp dt scaling). Higher = more responsive
         // / less smoothing. Defaults match the original inspector field values so existing avatars
@@ -1198,6 +1193,7 @@ namespace Basis.BasisUI
             TrackerGizmos.LoadBindingValue();
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
+            GizmoIKColliders.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
@@ -1210,6 +1206,12 @@ namespace Basis.BasisUI
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
+            DebugLogTagFilter.LoadBindingValue();
+            ApplyDebugLogTagFilter(DebugLogTagFilter.RawValue);
+            DebugLogTagFilter.OnChanged += ApplyDebugLogTagFilter;
+            DebugLogLevelFilter.LoadBindingValue();
+            ApplyDebugLogLevelFilter(DebugLogLevelFilter.RawValue);
+            DebugLogLevelFilter.OnChanged += ApplyDebugLogLevelFilter;
             EnableStreamingMeta.LoadBindingValue();
             StreamingMetaPort.LoadBindingValue();
             MemoryAllocation.LoadBindingValue();
@@ -1479,13 +1481,10 @@ namespace Basis.BasisUI
             FBIKAnatCervicalLordosis.LoadBindingValue();
             FBIKAnatPelvicTwistRouting.LoadBindingValue();
             FBIKLordosisPitchGainDeg.LoadBindingValue();
-            FBIKChestSpringHeadVelGain.LoadBindingValue();
             VSpineChestPitchFrac.LoadBindingValue();
             VSpineChestRollFrac.LoadBindingValue();
             VSpineSpinePitchFrac.LoadBindingValue();
             VSpineSpineRollFrac.LoadBindingValue();
-            VSpineChestForwardBias.LoadBindingValue();
-            VSpineHipsYawDeadbandDeg.LoadBindingValue();
             VSpineNeckRotationSpeed.LoadBindingValue();
             VSpineChestRotationSpeed.LoadBindingValue();
             VSpineSpineRotationSpeed.LoadBindingValue();
@@ -1578,6 +1577,33 @@ namespace Basis.BasisUI
             // ran during Initalize before bindings were refreshed from the file —
             // re-notify so they pick up the loaded values.
             BasisSettingsSystem.NotifyFinishedChanges();
+        }
+
+        public static void ApplyDebugLogTagFilter(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value == DebugLogFilterAll)
+            {
+                BasisDebug.TagFilter = null;
+                return;
+            }
+            if (Enum.TryParse(value, out BasisDebug.LogTag tag))
+            {
+                BasisDebug.TagFilter = tag;
+            }
+            else
+            {
+                BasisDebug.TagFilter = null;
+            }
+        }
+
+        public static void ApplyDebugLogLevelFilter(string value)
+        {
+            BasisDebug.MinimumLevel = value switch
+            {
+                DebugLogLevelErrorsOnly => BasisDebug.MessageType.Error,
+                DebugLogLevelWarningsAndErrors => BasisDebug.MessageType.Warning,
+                _ => BasisDebug.MessageType.Info,
+            };
         }
     }
 }

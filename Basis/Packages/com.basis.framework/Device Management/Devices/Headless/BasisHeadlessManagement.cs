@@ -524,7 +524,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         BasisLocalPlayer.Instance.DisplayName = GenerateRandomPlayerName();
         BasisLocalPlayer.Instance.SetSafeDisplayname();
 
-        if (BasisNetworkManagement.Instance != null)
+        if (BasisNetworkManagement.IsInitialized)
         {
             ConnectToNetwork();
         }
@@ -805,7 +805,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 
     private void AttemptConnect()
     {
-        if (isShuttingDown || BasisNetworkManagement.Instance == null)
+        if (isShuttingDown || !BasisNetworkManagement.IsInitialized)
         {
             return;
         }
@@ -813,11 +813,11 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         ResetServerHeadlessAudioPolicy();
         reconnectScheduled = false;
         BasisHeadlessRuntimeStatus.MarkConnecting();
-        BasisNetworkManagement.Instance.Ip = Ip;
-        BasisNetworkManagement.Instance.Password = Password;
-        BasisNetworkManagement.Instance.IsHostMode = false;
-        BasisNetworkManagement.Instance.Port = (ushort)Port;
-        BasisNetworkManagement.Instance.Connect();
+        BasisNetworkManagement.Ip = Ip;
+        BasisNetworkManagement.Password = Password;
+        BasisNetworkManagement.IsHostMode = false;
+        BasisNetworkManagement.Port = (ushort)Port;
+        BasisNetworkManagement.Connect();
         BasisDebug.Log("connecting to default");
         BasisMainMenu.Close();
     }

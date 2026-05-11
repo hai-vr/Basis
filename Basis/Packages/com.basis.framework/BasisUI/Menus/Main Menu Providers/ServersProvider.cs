@@ -156,7 +156,7 @@ namespace Basis.BasisUI
             RebuildRows();
             _ = RefreshAllAsync();
 
-            if (BasisNetworkManagement.Instance != null)
+            if (BasisNetworkManagement.IsInitialized)
             {
                 TryAutoConnect();
             }
@@ -452,9 +452,9 @@ namespace Basis.BasisUI
             // them is a switch.
             bool isCurrentServer =
                 BasisNetworkConnection.LocalPlayerIsConnected
-                && BasisNetworkManagement.Instance != null
-                && string.Equals(BasisNetworkManagement.Instance.Ip, entry.Address, StringComparison.OrdinalIgnoreCase)
-                && BasisNetworkManagement.Instance.Port == entry.Port;
+                && BasisNetworkManagement.IsInitialized
+                && string.Equals(BasisNetworkManagement.Ip, entry.Address, StringComparison.OrdinalIgnoreCase)
+                && BasisNetworkManagement.Port == entry.Port;
             row.ConnectButton.Descriptor.SetTitle(BasisLocalization.Get(
                 isCurrentServer ? "menu.servers.reconnect" : "menu.servers.connect"));
             row.ConnectButton.OnClicked += () => _ = ConnectToAsync(entry);
@@ -717,12 +717,12 @@ namespace Basis.BasisUI
 
                     using CancellationTokenSource cts = new CancellationTokenSource();
                     Task rebootWait = BasisNetworkConnection.WaitForRebootCompleteAsync(cts.Token);
-                    await BasisNetworkLifeCycle.Destroy(BasisNetworkManagement.Instance);
+                    await BasisNetworkLifeCycle.Destroy();
                     await rebootWait;
-                    BasisNetworkLifeCycle.Initalize(BasisNetworkManagement.Instance);
+                    BasisNetworkLifeCycle.Initalize();
                 }
 
-                if (BasisNetworkManagement.Instance == null)
+                if (!BasisNetworkManagement.IsInitialized)
                 {
                     ReportConnectionError(BasisLocalization.Get("menu.servers.error.noNetworkLayer"));
                     BasisDebug.LogError("Missing Networking layer!");
@@ -735,16 +735,16 @@ namespace Basis.BasisUI
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, UsernameFileName);
                 BasisDataStore.SaveString(entry.Id, LastConnectedServerIdFile);
 
-                BasisNetworkManagement.Instance.Port = entry.Port;
-                BasisNetworkManagement.Instance.Ip = entry.Address;
-                BasisNetworkManagement.Instance.Password = entry.HasPassword ? entry.Password : string.Empty;
-                BasisNetworkManagement.Instance.IsHostMode = isHostMode;
+                BasisNetworkManagement.Port = entry.Port;
+                BasisNetworkManagement.Ip = entry.Address;
+                BasisNetworkManagement.Password = entry.HasPassword ? entry.Password : string.Empty;
+                BasisNetworkManagement.IsHostMode = isHostMode;
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
                 await LoadDefaultAssetBundleAsync();
 
                 ReportConnectionProgress(90f, BasisLocalization.Get("menu.servers.status.connecting"));
-                BasisNetworkManagement.Instance.Connect();
+                BasisNetworkManagement.Connect();
                 if (BasisDesktopEye.Instance != null)
                 {
                     BasisDesktopEye.Instance.LockEye();
@@ -817,7 +817,7 @@ namespace Basis.BasisUI
                 _ = PerformConnectionAsync(target, userName);
             }
 
-            if (BasisNetworkManagement.Instance != null) Trigger();
+            if (BasisNetworkManagement.IsInitialized) Trigger();
             else BasisNetworkManagement.OnIstanceCreated += Trigger;
         }
 

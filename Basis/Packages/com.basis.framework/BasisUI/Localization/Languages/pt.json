@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Fração de Torção do Braço Superior" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fração do roll do cotovelo absorvida pelo osso de torção do braço superior. Padrão: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomia (Experimental)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Refinamentos de IK opcionais modelados em biomecânica real. Todos desativados por padrão — ative para testar." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomia" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Refinamentos de IK modelados em biomecânica real." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Rigidez Diferencial Lombar / Torácica" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Direciona a torção da coluna preferencialmente para o peito superior (torácico), já que a lombar é biomecanicamente resistente à torção. Reduz o peso de guinada da coluna, aumenta a guinada do peito superior." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Deslizamento do Ombro na Torção do Peito" },

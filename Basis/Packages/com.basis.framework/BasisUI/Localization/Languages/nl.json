@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Bovenarm Rotatiefractie" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fractie van de elleboogrotatie die wordt opgenomen door de bovenarm-twist bone. Standaard: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomie (Experimenteel)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Opt-in IK-verfijningen gemodelleerd op echte biomechanica. Allemaal standaard uit — schakel in om te testen." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomie" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "IK-verfijningen gemodelleerd op echte biomechanica." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Differentiële Lumbale / Thoracale Stijfheid" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Stuurt wervelkolomtorsie bij voorkeur naar de bovenste borst (thoracaal) aangezien de lumbale wervelkolom biomechanisch torsiebestendig is. Vermindert wervelkolom yaw-gewicht, verhoogt bovenste borst yaw." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Schouder Verschuiven bij Borsttorsie" },

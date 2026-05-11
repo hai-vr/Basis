@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Fraction de torsion du haut du bras" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fraction de la torsion du coude absorbée par l'os de torsion du haut du bras. Par défaut : 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomie (expérimental)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Raffinements IK optionnels modélisés sur la biomécanique réelle. Tous désactivés par défaut — activez pour tester." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomie" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Raffinements IK modélisés sur la biomécanique réelle." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Rigidité différentielle lombaire / thoracique" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Achemine la torsion de la colonne préférentiellement vers le haut du torse (thoracique) car la zone lombaire résiste biomécaniquement à la torsion. Réduit le poids du lacet de la colonne, augmente le lacet du haut du torse." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Glissement des épaules sur torsion du torse" },

@@ -227,12 +227,22 @@ namespace Basis.Scripts.Drivers
         /// </remarks>
         public void AddJiggleRigColliders(BasisTransformMapping Mapping)
         {
-            JiggleCreatorHelper(Mapping.leftFoot, 0.015f);
-            JiggleCreatorHelper(Mapping.rightFoot, 0.015f);
+            int expected = JiggleColliders.Count + 64;
+            if (JiggleColliders.Capacity < expected) JiggleColliders.Capacity = expected;
+
+            if (Mapping.HasleftToes && Mapping.HasleftFoot)
+                JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftFoot, Mapping.leftToe }, 0.025f, addTipSphere: false);
+            else
+                JiggleCreatorHelper(Mapping.leftFoot, 0.025f);
+
+            if (Mapping.HasrightToes && Mapping.HasrightFoot)
+                JiggleCreatorHelperCapsule(new Transform[] { Mapping.rightFoot, Mapping.rightToe }, 0.025f, addTipSphere: false);
+            else
+                JiggleCreatorHelper(Mapping.rightFoot, 0.025f);
 
             // Arms: upper-arm capsule + forearm capsule + hand tip sphere, all from one array.
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f);
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f);
+            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f, tipRadius: 0.015f);
+            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f, tipRadius: 0.015f);
 
             JiggleCreatorHelperCapsule(Mapping.LeftThumb);
             JiggleCreatorHelperCapsule(Mapping.LeftIndex);
@@ -272,48 +282,111 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         /// <param name="Parents">Ordered bone transforms (e.g. proximal, intermediate, distal).</param>
         /// <param name="Radius">Base radius for the capsule/sphere. Default is <c>0.005</c>.</param>
-        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f)
+        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true, float tipRadius = -1f)
         {
             int count = Parents.Length;
+            if (count == 0) return;
+            if (tipRadius < 0f) tipRadius = Radius;
+
+            int needed = JiggleColliders.Count + count;
+            if (JiggleColliders.Capacity < needed) JiggleColliders.Capacity = needed;
+
+            Matrix4x4 cachedMatrix = default;
+            Vector3 cachedPos = default;
+            bool hasCached = false;
+
             for (int i = 0; i < count; i++)
             {
-                if (Parents[i] == null) continue;
+                Transform t = Parents[i];
+                if (t == null) { hasCached = false; continue; }
 
-                if (i < count - 1 && Parents[i + 1] != null)
+                Matrix4x4 m;
+                Vector3 pos;
+                if (hasCached)
                 {
-                    float boneLength = Vector3.Distance(Parents[i].position, Parents[i + 1].position);
-                    Vector3 boneDir = (Parents[i + 1].position - Parents[i].position).normalized;
+                    m = cachedMatrix;
+                    pos = cachedPos;
+                }
+                else
+                {
+                    m = t.localToWorldMatrix;
+                    pos = new Vector3(m.m03, m.m13, m.m23);
+                }
 
-                    // Determine which local axis best aligns with the bone direction.
-                    float dotX = Mathf.Abs(Vector3.Dot(boneDir, Parents[i].right));
-                    float dotY = Mathf.Abs(Vector3.Dot(boneDir, Parents[i].up));
-                    float dotZ = Mathf.Abs(Vector3.Dot(boneDir, Parents[i].forward));
+                Transform tNext = (i + 1 < count) ? Parents[i + 1] : null;
+                if (tNext == null && !addTipSphere)
+                {
+                    hasCached = false;
+                    continue;
+                }
+                if (tNext != null)
+                {
+                    Matrix4x4 mNext = tNext.localToWorldMatrix;
+                    Vector3 posNext = new Vector3(mNext.m03, mNext.m13, mNext.m23);
+                    cachedMatrix = mNext;
+                    cachedPos = posNext;
+                    hasCached = true;
+
+                    float dx = posNext.x - pos.x;
+                    float dy = posNext.y - pos.y;
+                    float dz = posNext.z - pos.z;
+                    float boneLength = Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+
+                    float sx = Mathf.Sqrt(m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20);
+                    float sy = Mathf.Sqrt(m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21);
+                    float sz = Mathf.Sqrt(m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
+
+                    float rawDotX = m.m00 * dx + m.m10 * dy + m.m20 * dz;
+                    float rawDotY = m.m01 * dx + m.m11 * dy + m.m21 * dz;
+                    float rawDotZ = m.m02 * dx + m.m12 * dy + m.m22 * dz;
+                    float dotX = Mathf.Abs(rawDotX) / sx;
+                    float dotY = Mathf.Abs(rawDotY) / sy;
+                    float dotZ = Mathf.Abs(rawDotZ) / sz;
 
                     JiggleCollider.CapsuleAxis axis;
                     if (dotX >= dotY && dotX >= dotZ) axis = JiggleCollider.CapsuleAxis.X;
                     else if (dotY >= dotZ) axis = JiggleCollider.CapsuleAxis.Y;
                     else axis = JiggleCollider.CapsuleAxis.Z;
 
-                    Vector3 lossyScale = Parents[i].lossyScale;
-                    float avgScale = (Mathf.Abs(lossyScale.x) + Mathf.Abs(lossyScale.y) + Mathf.Abs(lossyScale.z)) / 3f;
+                    float invAvgScale = 3f / (sx + sy + sz);
+
+                    var localOffset = new Unity.Mathematics.float3(
+                        rawDotX / (sx * sx),
+                        rawDotY / (sy * sy),
+                        rawDotZ / (sz * sz)) * 0.5f;
 
                     JiggleColliders.Add(new JiggleColliderSerializable
                     {
                         collider = new JiggleCollider()
                         {
                             type = JiggleCollider.JiggleColliderType.Capsule,
-                            localToWorldMatrix = Parents[i].localToWorldMatrix,
-                            radius = Radius / avgScale,
-                            height = boneLength / avgScale,
-                            capsuleAxis = axis
+                            localToWorldMatrix = m,
+                            radius = Radius * invAvgScale,
+                            height = boneLength * invAvgScale,
+                            capsuleAxis = axis,
+                            localOffset = localOffset
                         },
-                        transform = Parents[i]
+                        transform = t
                     });
                 }
                 else
                 {
-                    // Tip bone: sphere collider for the fingertip.
-                    JiggleCreatorHelper(Parents[i], Radius);
+                    hasCached = false;
+                    float lossyScaleMag = Mathf.Sqrt(
+                        m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20 +
+                        m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
+                        m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
+
+                    JiggleColliders.Add(new JiggleColliderSerializable
+                    {
+                        collider = new JiggleCollider()
+                        {
+                            type = JiggleCollider.JiggleColliderType.Sphere,
+                            localToWorldMatrix = m,
+                            radius = tipRadius / (lossyScaleMag / 3f)
+                        },
+                        transform = t
+                    });
                 }
             }
         }
@@ -330,13 +403,19 @@ namespace Basis.Scripts.Drivers
         {
             if (Parent != null)
             {
+                Matrix4x4 m = Parent.localToWorldMatrix;
+                float lossyScaleMag = Mathf.Sqrt(
+                    m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20 +
+                    m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
+                    m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
+
                 JiggleColliders.Add(new JiggleColliderSerializable
                 {
                     collider = new JiggleCollider()
                     {
                         type = JiggleCollider.JiggleColliderType.Sphere,
-                        localToWorldMatrix = Parent.localToWorldMatrix,
-                        radius = Scale / (Parent.lossyScale.magnitude / 3)
+                        localToWorldMatrix = m,
+                        radius = Scale / (lossyScaleMag / 3f)
                     },
                     transform = Parent
                 });

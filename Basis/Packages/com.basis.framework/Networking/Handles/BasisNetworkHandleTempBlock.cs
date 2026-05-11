@@ -97,14 +97,11 @@ public static class BasisNetworkHandleTempBlock
         remotePlayer.ReloadAvatar();
 
         // Refresh the nameplate visibility + clear any chat bubble that may be mid-display.
-        if (remotePlayer.RemoteNamePlate != null)
+        if (isBlocked)
         {
-            if (isBlocked)
-            {
-                remotePlayer.RemoteNamePlate.SetChatText(string.Empty);
-            }
-            remotePlayer.RemoteNamePlate.RefreshActiveState();
+            remotePlayer.OnChatMessageReceived?.Invoke(string.Empty);
         }
+        remotePlayer.OnNamePlateActiveStateShouldRefresh?.Invoke();
     }
 
     /// <summary>

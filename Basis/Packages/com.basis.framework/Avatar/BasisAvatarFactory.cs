@@ -130,7 +130,7 @@ namespace Basis.Scripts.Avatar
                         // Gate ONLY the actual load (download/addressables), NOT fallback.
                         // ResolveGate picks between download / disc-load / addressable so
                         // slow network downloads can't starve fast cached or in-memory loads.
-                        SemaphoreSlim gate = ResolveGate(Mode, BasisLoadableBundle);
+                        SemaphoreSlim gate = await ResolveGate(Mode, BasisLoadableBundle);
                         await gate.WaitAsync(token);
                         try
                         {
@@ -234,7 +234,7 @@ namespace Basis.Scripts.Avatar
                     case 0:
                     case 1:
                     default:
-                        SemaphoreSlim gate = ResolveGate(Mode, BasisLoadableBundle);
+                        SemaphoreSlim gate = await ResolveGate(Mode, BasisLoadableBundle);
                         await gate.WaitAsync(token);
                         try
                         {
@@ -420,10 +420,7 @@ namespace Basis.Scripts.Avatar
         {
             if (Player == null) return;
             Player.HasFailedAvatarLoadGlobally = true;
-            if (Player.RemoteNamePlate != null)
-            {
-                Player.RemoteNamePlate.RefreshFailedStateColor();
-            }
+            Player.OnAvatarFailedStateChanged?.Invoke();
         }
 
         /// <summary>
@@ -594,13 +591,12 @@ namespace Basis.Scripts.Avatar
         /// we check <see cref="BasisLoadHandler.IsMetaDataOnDisc"/> so already-cached loads
         /// use the disc gate instead of sitting behind slow network downloads.
         /// </summary>
-        private static SemaphoreSlim ResolveGate(byte Mode, BasisLoadableBundle bundle)
+        private static async Task<SemaphoreSlim> ResolveGate(byte Mode, BasisLoadableBundle bundle)
         {
             if (Mode == 0)
             {
-                bool cached = BasisLoadHandler.IsMetaDataOnDisc(
-                    bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
-                    out _);
+                var (cached, _) = await BasisLoadHandler.IsMetaDataOnDiscAsync(
+                    bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
                 return cached ? _discGate : _downloadGate;
             }
             return _addressableGate;

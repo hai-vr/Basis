@@ -194,7 +194,7 @@ namespace Basis.Scripts.Drivers
                     BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
                     animatorRootPos
                 ),
-                NamePlate: RemotePlayer.RemoteNamePlate.Self,
+                NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
                 AvatarScale: animatorRoot,
                 MouthTransform: RemotePlayer.MouthTransform,
                 TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitalScale,

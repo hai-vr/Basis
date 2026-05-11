@@ -139,6 +139,16 @@ namespace Basis.Scripts.Drivers
         private int _nativeCapacity;
         private bool _chainsBuilt;
 
+        // Per-skeleton-chain gizmo state. Each chain renders as a single multi-point
+        // LineRenderer with one position per resolved bone, fading through a Gradient
+        // built from the per-bone colors (one key per bone). Cuts the skeleton-line
+        // gizmo count from ~20 (one per bone-with-parent) down to 5 (one per chain).
+        private const int SkeletonChainCount = 5;
+        private readonly int[] _skeletonChainIds = { -1, -1, -1, -1, -1 };
+        private readonly BasisLocalBoneControl[][] _skeletonChainControls = new BasisLocalBoneControl[SkeletonChainCount][];
+        private readonly Vector3[][] _skeletonChainPositions = new Vector3[SkeletonChainCount][];
+        private bool _skeletonChainsCreated;
+
         private static readonly BasisBoneTrackedRole[] SpineChainOrder =
         {
             BasisBoneTrackedRole.CenterEye,
@@ -176,6 +186,17 @@ namespace Basis.Scripts.Drivers
             BasisBoneTrackedRole.RightLowerLeg,
             BasisBoneTrackedRole.RightFoot,
             BasisBoneTrackedRole.RightToes,
+        };
+
+        // Index into SkeletonChainOrders / SkeletonChainNames lines up with the
+        // per-chain runtime state arrays above.
+        private static readonly BasisBoneTrackedRole[][] SkeletonChainOrders =
+        {
+            SpineChainOrder, LeftArmChainOrder, RightArmChainOrder, LeftLegChainOrder, RightLegChainOrder,
+        };
+        private static readonly string[] SkeletonChainNames =
+        {
+            "Spine", "LeftArm", "RightArm", "LeftLeg", "RightLeg",
         };
 
         /// <summary>
@@ -503,11 +524,11 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void DrawGizmos()
         {
-            if (SMModuleDebugOptions.UseSkeletonLines)
+            if (SMModuleDebugOptions.UseSkeletonLines && _skeletonChainsCreated)
             {
-                for (int Index = 0; Index < ControlsLength; Index++)
+                for (int chainIdx = 0; chainIdx < SkeletonChainCount; chainIdx++)
                 {
-                    DrawGizmos(Controls[Index]);
+                    UpdateSkeletonChainPositions(chainIdx);
                 }
             }
             if (SMModuleDebugOptions.UseCalibrationSpheres
@@ -756,26 +777,123 @@ namespace Basis.Scripts.Drivers
                 // calibration-sphere IDs so DrawGizmos doesn't UpdateSphereGizmo
                 // a stale entry next frame.
                 GizmoBones.Clear();
+                ResetSkeletonChainGizmos();
                 return;
             }
 
             float Size = BasisHeightDriver.ScaledToMatchValue;
-            for (int Index = 0; Index < ControlsLength; Index++)
-            {
-                BasisLocalBoneControl Control = Controls[Index];
-                Vector3 BonePosition = Control.OutgoingWorldData.position;
-                if (Control.HasTarget)
-                {
-                    if (BasisGizmoManager.CreateLineGizmo(trackedRoles[Index].ToString(), out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.05f * Size, Control.Color))
-                    {
-                        Control.HasLineDraw = true;
-                    }
-                }
-            }
+            BuildSkeletonChainGizmos(Size);
 
             // Lines are created visible — match the sub-toggle's current state.
             ApplySkeletonLineVisibility();
             RebuildCalibrationSpheres();
+        }
+
+        /// <summary>
+        /// Builds one multi-point line gizmo per anatomical chain (spine, arms, legs).
+        /// Each chain's color sampling uses a Gradient with a stop per resolved bone so
+        /// the line fades through the bones' colors instead of being a single tint —
+        /// preserves the per-bone rainbow with far fewer LineRenderers.
+        /// </summary>
+        private void BuildSkeletonChainGizmos(float size)
+        {
+            // Defensive: if any chain ID is still live, destroy it first so a
+            // re-entrant build doesn't leak a LineRenderer in the manager's pool.
+            for (int i = 0; i < SkeletonChainCount; i++)
+            {
+                if (_skeletonChainIds[i] >= 0)
+                {
+                    BasisGizmoManager.DestroyGizmo(_skeletonChainIds[i]);
+                    _skeletonChainIds[i] = -1;
+                }
+            }
+
+            float lineWidth = 0.05f * size;
+
+            for (int chainIdx = 0; chainIdx < SkeletonChainCount; chainIdx++)
+            {
+                BasisBoneTrackedRole[] order = SkeletonChainOrders[chainIdx];
+                var resolved = new List<BasisLocalBoneControl>(order.Length);
+                for (int i = 0; i < order.Length; i++)
+                {
+                    if (FindBone(out BasisLocalBoneControl c, order[i]))
+                    {
+                        resolved.Add(c);
+                    }
+                }
+
+                if (resolved.Count < 2)
+                {
+                    _skeletonChainControls[chainIdx] = null;
+                    _skeletonChainPositions[chainIdx] = null;
+                    _skeletonChainIds[chainIdx] = -1;
+                    continue;
+                }
+
+                BasisLocalBoneControl[] controls = resolved.ToArray();
+                Vector3[] positions = new Vector3[controls.Length];
+                for (int i = 0; i < controls.Length; i++)
+                {
+                    positions[i] = controls[i].OutgoingWorldData.position;
+                }
+
+                if (BasisGizmoManager.CreateLineGizmo(
+                        $"Skeleton_{SkeletonChainNames[chainIdx]}",
+                        out int id,
+                        positions,
+                        lineWidth,
+                        Color.white,
+                        loop: false))
+                {
+                    _skeletonChainIds[chainIdx] = id;
+                    _skeletonChainControls[chainIdx] = controls;
+                    _skeletonChainPositions[chainIdx] = positions;
+                    ApplySkeletonChainGradient(chainIdx);
+                }
+                else
+                {
+                    _skeletonChainControls[chainIdx] = null;
+                    _skeletonChainPositions[chainIdx] = null;
+                    _skeletonChainIds[chainIdx] = -1;
+                }
+            }
+            _skeletonChainsCreated = true;
+        }
+
+        private void ApplySkeletonChainGradient(int chainIdx)
+        {
+            BasisLocalBoneControl[] controls = _skeletonChainControls[chainIdx];
+            int id = _skeletonChainIds[chainIdx];
+            if (controls == null || id < 0)
+            {
+                return;
+            }
+            int count = controls.Length;
+
+            var colorKeys = new GradientColorKey[count];
+            var alphaKeys = new GradientAlphaKey[count];
+            float denom = count > 1 ? count - 1 : 1;
+            for (int i = 0; i < count; i++)
+            {
+                float t = i / denom;
+                Color c = controls[i].Color;
+                colorKeys[i] = new GradientColorKey(c, t);
+                alphaKeys[i] = new GradientAlphaKey(c.a, t);
+            }
+            var gradient = new Gradient();
+            gradient.SetKeys(colorKeys, alphaKeys);
+            BasisGizmoManager.SetLineGizmoGradient(id, gradient);
+        }
+
+        private void ResetSkeletonChainGizmos()
+        {
+            for (int i = 0; i < SkeletonChainCount; i++)
+            {
+                _skeletonChainIds[i] = -1;
+                _skeletonChainControls[i] = null;
+                _skeletonChainPositions[i] = null;
+            }
+            _skeletonChainsCreated = false;
         }
 
         /// <summary>
@@ -884,7 +1002,7 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Toggles visibility on every per-control skeleton-line gizmo. Mirror of
+        /// Toggles visibility on each skeleton-chain gizmo. Mirror of
         /// <see cref="ApplyCalibrationSphereVisibility"/> — flag alone gates the
         /// per-frame UpdateLineGizmo call, but the line GameObjects need an
         /// explicit hide/show to actually appear/disappear.
@@ -892,12 +1010,12 @@ namespace Basis.Scripts.Drivers
         public void ApplySkeletonLineVisibility()
         {
             bool visible = SMModuleDebugOptions.UseSkeletonLines;
-            for (int i = 0; i < ControlsLength; i++)
+            for (int i = 0; i < SkeletonChainCount; i++)
             {
-                BasisLocalBoneControl Control = Controls[i];
-                if (Control.HasLineDraw)
+                int id = _skeletonChainIds[i];
+                if (id >= 0)
                 {
-                    BasisGizmoManager.SetGizmoActive(Control.LineDrawIndex, visible);
+                    BasisGizmoManager.SetGizmoActive(id, visible);
                 }
             }
         }
@@ -977,18 +1095,24 @@ namespace Basis.Scripts.Drivers
         [SerializeField]
         public List<GizmoBone> GizmoBones = new List<GizmoBone>();
         /// <summary>
-        /// Updates/creates gizmos for a specific control (sphere and optional line to target).
-        /// Also renders a T-pose gizmo if T-posing and the role is FB-tracked.
+        /// Pushes the current bone positions for one skeleton chain into its
+        /// multi-point LineRenderer. Cheap per-frame call — just reads the cached
+        /// control list and updates the shared positions buffer.
         /// </summary>
-        /// <param name="Control">Control to visualize.</param>
-        /// <param name="Size">Avatar scale multiplier for gizmo sizing.</param>
-        public void DrawGizmos(BasisLocalBoneControl Control)
+        private void UpdateSkeletonChainPositions(int chainIdx)
         {
-            Vector3 BonePosition = Control.OutgoingWorldData.position;
-            if (Control.HasTarget && Control.HasLineDraw)
+            BasisLocalBoneControl[] controls = _skeletonChainControls[chainIdx];
+            Vector3[] positions = _skeletonChainPositions[chainIdx];
+            int id = _skeletonChainIds[chainIdx];
+            if (controls == null || positions == null || id < 0)
             {
-                BasisGizmoManager.UpdateLineGizmo(Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position);
+                return;
             }
+            for (int i = 0; i < controls.Length; i++)
+            {
+                positions[i] = controls[i].OutgoingWorldData.position;
+            }
+            BasisGizmoManager.UpdateLineGizmo(id, positions);
         }
         /// <summary>
         /// Creates a sphere-mesh gizmo whose non-uniform scale renders as an ellipsoid

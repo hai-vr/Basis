@@ -81,7 +81,7 @@ public static class BasisNetworkPreloadManager
             await BasisLoadHandler.EnsureInitializationComplete();
 
             // Check if the full BEE file is already on disk
-            bool isOnDisc = BasisLoadHandler.IsMetaDataOnDisc(resource.CombinedURL, out BasisBEEExtensionMeta metaInfo);
+            var (isOnDisc, metaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(resource.CombinedURL);
 
             (BasisBundleGenerated Generated, byte[] BundleBytes, string ErrorMessage) output;
 

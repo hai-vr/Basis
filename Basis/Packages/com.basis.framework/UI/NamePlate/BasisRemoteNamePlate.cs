@@ -1,4 +1,5 @@
 using Basis.BasisUI;
+using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -77,14 +78,19 @@ namespace Basis.Scripts.UI.NamePlate
         public void Initalize(BasisRemotePlayer RemotePlayer)
         {
             BasisRemotePlayer = RemotePlayer;
-            BasisRemotePlayer.RemoteNamePlate = this;
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
             BasisRemotePlayer.AudioReceived += OnAudioReceived;
             BasisRemotePlayer.OnAvatarSwitched += RebuildRenderCheck;
 
+            BasisRemotePlayer.OnAvatarFailedStateChanged += RefreshFailedStateColor;
+            BasisRemotePlayer.OnChatMessageReceived += SetChatText;
+            BasisRemotePlayer.OnNamePlateActiveStateShouldRefresh += RefreshActiveState;
+            BasisRemotePlayer.OnRemotePlayerDestroying += HandlePlayerDestroying;
+            BasisRemotePlayer.NamePlateTransformProvider = GetSelfTransform;
+
             Self = this.transform;
             Self.localScale = new Vector3(0.02f, 0.02f, 0.02f) * BasisRemoteNamePlateDriver.NamePlateSize;
-            BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
+            BasisRemoteNamePlateDriver.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(mpb, 0);
@@ -99,6 +105,14 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             _ = LoadBlockStateAsync();
+        }
+
+        private Transform GetSelfTransform() => Self;
+
+        private void HandlePlayerDestroying()
+        {
+            DeInitalize();
+            AddressableResourceProcess.ReleaseGameobject(gameObject);
         }
 
         /// <summary>
@@ -173,9 +187,9 @@ namespace Basis.Scripts.UI.NamePlate
             ChatBubbleFilter = chatBubbleObj.AddComponent<MeshFilter>();
             ChatBubbleRenderer = chatBubbleObj.AddComponent<MeshRenderer>();
 
-            if (BasisRemoteNamePlateDriver.Instance != null)
+            if (BasisRemoteNamePlateDriver.SelectedNamePlateMaterial != null)
             {
-                ChatBubbleRenderer.material = BasisRemoteNamePlateDriver.Instance.SelectedNamePlateMaterial;
+                ChatBubbleRenderer.material = BasisRemoteNamePlateDriver.SelectedNamePlateMaterial;
                 ChatBubbleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 ChatBubbleRenderer.receiveShadows = false;
                 ChatBubbleRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
@@ -223,6 +237,15 @@ namespace Basis.Scripts.UI.NamePlate
                 BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
                 BasisRemotePlayer.AudioReceived -= OnAudioReceived;
                 BasisRemotePlayer.OnAvatarSwitched -= RebuildRenderCheck;
+
+                BasisRemotePlayer.OnAvatarFailedStateChanged -= RefreshFailedStateColor;
+                BasisRemotePlayer.OnChatMessageReceived -= SetChatText;
+                BasisRemotePlayer.OnNamePlateActiveStateShouldRefresh -= RefreshActiveState;
+                BasisRemotePlayer.OnRemotePlayerDestroying -= HandlePlayerDestroying;
+                if (BasisRemotePlayer.NamePlateTransformProvider == GetSelfTransform)
+                {
+                    BasisRemotePlayer.NamePlateTransformProvider = null;
+                }
             }
 
             // Clean up chat display
@@ -386,9 +409,9 @@ namespace Basis.Scripts.UI.NamePlate
             ChatText.gameObject.SetActive(true);
 
             // Rebuild chat bubble background to fit text
-            if (ChatBubbleFilter != null && BasisRemoteNamePlateDriver.Instance != null)
+            if (ChatBubbleFilter != null)
             {
-                BasisRemoteNamePlateDriver.Instance.GenerateChatBubble(this);
+                BasisRemoteNamePlateDriver.GenerateChatBubble(this);
                 ChatBubbleFilter.gameObject.SetActive(true);
             }
 

@@ -70,12 +70,6 @@ public class BasisLocalVirtualSpineDriver
     public static bool HipsFreezeToTpose = false;
     public static BasisLocalVirtualSpineDriver Instance;
 
-    // Hard-locked spine forward/back bias amplitude in meters at default avatar scale.
-    // Look-straight-up → +SpineBiasFullExtent (forward, lordosis), look-straight-down →
-    // -SpineBiasFullExtent (back, kyphosis), level → 0. Removed from settings so the S-curve
-    // always tracks head pitch consistently.
-    private const float SpineBiasFullExtent = 0.15f;
-
     // Hybrid hips XZ model — replaces the former HipsXZFollowBlend lerp with an anatomy-aware
     // counterbalance + foot-pendulum. See ComputeRealisticHipsXZ for details.
     /// <summary>Cutoff (Hz) for the head-position low-pass that defines the body's "baseline" XZ.
@@ -150,9 +144,7 @@ public class BasisLocalVirtualSpineDriver
     /// Aligns head/neck, synthesizes hips from neck + preserved length and bias,
     /// then fills chest/spine along the chain. Chest and spine carry yaw via the
     /// existing bone-length blend, plus configurable fractions of head pitch/roll
-    /// for an anatomically richer cascade. A small forward/back bias on chest and
-    /// spine gives the chain a natural S-curve at rest, and the hips yaw target is
-    /// gated by a deadband to suppress HMD micro-jitter.
+    /// for an anatomically richer cascade.
     /// </summary>
     public void OnSimulate()
     {
@@ -177,8 +169,6 @@ public class BasisLocalVirtualSpineDriver
         float chestRollFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineChestRollFrac.RawValue;
         float spinePitchFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineSpinePitchFrac.RawValue;
         float spineRollFrac = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineRollFrac.RawValue;
-        float chestForwardBias = Basis.BasisUI.BasisSettingsDefaults.VSpineChestForwardBias.RawValue;
-        float hipsYawDeadbandDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsYawDeadbandDeg.RawValue;
         float neckRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineNeckRotationSpeed.RawValue;
         float chestRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineChestRotationSpeed.RawValue;
         float spineRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineRotationSpeed.RawValue;
@@ -228,23 +218,8 @@ public class BasisLocalVirtualSpineDriver
             in tposeHips,
             out float3 hipsPos);
 
-        quaternion hipsCurrent = hips.OutGoingData.rotation;
-
-        // Hips yaw target — apply deadband against the current yaw so HMD micro-jitter doesn't
-        // shimmy the body. Hold-on-deadband uses the current yaw rather than the previous target,
-        // which means the smoother's slew-rate still resolves any held-up rotation when the player
-        // turns past the deadband.
         quaternion hipsRotTarget = HipsFreezeToTpose ? quaternion.identity : headYawFromEye;
-        if (!HipsFreezeToTpose && hipsYawDeadbandDeg > 0f)
-        {
-            ExtractYawBurst(in hipsCurrent, out quaternion hipsCurrentYaw);
-            float yawAngleDeg = Quaternion.Angle((Quaternion)hipsCurrentYaw, (Quaternion)hipsRotTarget);
-            if (yawAngleDeg < hipsYawDeadbandDeg)
-            {
-                hipsRotTarget = hipsCurrentYaw;
-            }
-        }
-
+        quaternion hipsCurrent = hips.OutGoingData.rotation;
         SmoothSlerpBurst(in hipsCurrent, in hipsRotTarget, hipsRotationSpeed, dt, out quaternion hipsSmoothed);
         ExtractYawBurst(in hipsSmoothed, out quaternion hipsYaw);
 
@@ -275,19 +250,6 @@ public class BasisLocalVirtualSpineDriver
                 in neckYaw, in hipsYaw,
                 out float3 chestPos, out float3 spinePos,
                 out quaternion chestYawTarget, out quaternion spineYawTarget);
-
-            // S-curve bias: shift chest forward (configurable kyphosis baseline) and spine
-            // forward/back as a function of head pitch. Looking up arches the lumbar forward
-            // (lordosis), looking down rounds it back (kyphosis); range ±SpineBiasFullExtent
-            // meters at full ±90° pitch. Both biases scale by avatar height.
-            float3 hipsForward = math.mul(hipsYaw, new float3(0f, 0f, 1f));
-            if (chestForwardBias != 0f)
-            {
-                chestPos += hipsForward * (chestForwardBias * scale);
-            }
-            float pitchSigned = math.clamp(math.dot(math.mul(eyeRot, new float3(0f, 0f, 1f)), worldUp), -1f, 1f);
-            float spineForwardBias = SpineBiasFullExtent * pitchSigned;
-            spinePos += hipsForward * (spineForwardBias * scale);
 
             // Per-axis pitch/roll cascade — adds a configurable fraction of head pitch and roll on
             // top of the existing yaw target. Defaults to zero pitch/roll so opting in is explicit.
