@@ -4,24 +4,36 @@ using UnityEngine.Animations.Rigging;
 namespace Basis.Scripts.Debugging
 {
     /// <summary>
-    /// Runtime visualization of the FullBody IK self-collision capsules
-    /// (chest + hands) used to keep the hands from intersecting the torso.
-    /// Built from BasisGizmoManager line gizmos so it renders in-game; the
-    /// editor-only equivalent is BasisHandCollisionVisualizer (OnDrawGizmos).
-    /// Driven from SMModuleDebugOptions when the developer-tab toggle is on.
+    /// Runtime visualization of the FullBody IK self-collision capsules:
+    /// three torso segments (hips→spine, spine→chest, chest→neck), two hand
+    /// capsules, two upper-arm capsules. Built from BasisGizmoManager line
+    /// gizmos so it renders in-game; the editor-only equivalent is
+    /// BasisHandCollisionVisualizer (OnDrawGizmos). Driven from
+    /// SMModuleDebugOptions when the developer-tab toggle is on.
     /// </summary>
     public static class BasisIKColliderGizmo
     {
         private const int CapSegments = 16;
         private const int LinesPerCapsule = 4 + (CapSegments * 2);
-        private const int CapsuleCount = 3;
-        private const int ChestBase = 0;
-        private const int LeftHandBase = LinesPerCapsule;
-        private const int RightHandBase = LinesPerCapsule * 2;
+        private const int CapsuleCount = 7;
+        private const int HipsBase = 0;
+        private const int SpineBase = LinesPerCapsule;
+        private const int ChestBase = LinesPerCapsule * 2;
+        private const int LeftHandBase = LinesPerCapsule * 3;
+        private const int RightHandBase = LinesPerCapsule * 4;
+        private const int LeftUpperArmBase = LinesPerCapsule * 5;
+        private const int RightUpperArmBase = LinesPerCapsule * 6;
         private const float LineWidth = 0.003f;
 
-        private static readonly Color ChestColor = new Color(0f, 1f, 0f, 0.9f);
+        // Match SolveHand's radius multipliers so the visualization stays in sync
+        // with what the IK actually collides against.
+        private const float SpineRadiusMultiplier = 0.8f;
+        private const float HipsRadiusMultiplier = 1.4f;
+        private const float UpperArmRadiusMultiplier = 1.2f;
+
+        private static readonly Color TorsoColor = new Color(0f, 1f, 0f, 0.9f);
         private static readonly Color HandColor = new Color(0f, 1f, 1f, 0.9f);
+        private static readonly Color UpperArmColor = new Color(1f, 0f, 1f, 0.9f);
 
         private static readonly int[] _lineIds = new int[LinesPerCapsule * CapsuleCount];
         private static readonly int[] _pointSphereIds = new int[2] { -1, -1 };
@@ -51,7 +63,14 @@ namespace Basis.Scripts.Debugging
 
             Vector3 playerUp = data.PlayerUp.sqrMagnitude > 1e-6f ? data.PlayerUp.normalized : Vector3.up;
 
-            float chestR = Mathf.Max(0f, data.ChestRadius + data.CollisionSkin);
+            float chestRBase = data.ChestRadius;
+            float skin = data.CollisionSkin;
+            float chestR = Mathf.Max(0f, chestRBase + skin);
+            float spineR = Mathf.Max(0f, chestRBase * SpineRadiusMultiplier + skin);
+            float hipsR = Mathf.Max(0f, chestRBase * HipsRadiusMultiplier + skin);
+
+            UpdateBoneCapsule(HipsBase, data.hips, data.spine, hipsR, playerUp);
+            UpdateBoneCapsule(SpineBase, data.spine, data.chest, spineR, playerUp);
             UpdateCapsule(ChestBase, data.chest.position, data.neck.position, chestR, playerUp);
             SetCapsuleActive(ChestBase, true);
 
@@ -72,6 +91,13 @@ namespace Basis.Scripts.Debugging
                 BasisGizmoManager.SetGizmoActive(_pointSphereIds[0], true);
                 BasisGizmoManager.SetGizmoActive(_pointSphereIds[1], true);
             }
+
+            // Upper-arm capsules (shoulder→elbow) are slightly wider than the
+            // hand/forearm capsule; matches the multiplier SolveHand uses for the
+            // chest collision check.
+            float upperArmR = handR * UpperArmRadiusMultiplier;
+            UpdateBoneCapsule(LeftUpperArmBase, data.leftUpperArm, data.leftLowerArm, upperArmR, playerUp);
+            UpdateBoneCapsule(RightUpperArmBase, data.RightUpperArm, data.RightLowerArm, upperArmR, playerUp);
 
             _visible = true;
         }
@@ -102,6 +128,17 @@ namespace Basis.Scripts.Debugging
             UpdateCapsule(baseIdx, handTip.position, handBase.position, radius, playerUp);
             SetCapsuleActive(baseIdx, true);
             BasisGizmoManager.SetGizmoActive(paired_pointSphereId, false);
+        }
+
+        private static void UpdateBoneCapsule(int baseIdx, Transform a, Transform b, float radius, Vector3 playerUp)
+        {
+            if (a == null || b == null)
+            {
+                SetCapsuleActive(baseIdx, false);
+                return;
+            }
+            UpdateCapsule(baseIdx, a.position, b.position, radius, playerUp);
+            SetCapsuleActive(baseIdx, true);
         }
 
         private static void UpdateCapsule(int baseIdx, Vector3 a, Vector3 b, float radius, Vector3 playerUp)
@@ -142,9 +179,13 @@ namespace Basis.Scripts.Debugging
             {
                 return;
             }
-            CreateCapsuleLines(ChestBase, "Chest", ChestColor);
+            CreateCapsuleLines(HipsBase, "Hips", TorsoColor);
+            CreateCapsuleLines(SpineBase, "Spine", TorsoColor);
+            CreateCapsuleLines(ChestBase, "Chest", TorsoColor);
             CreateCapsuleLines(LeftHandBase, "LeftHand", HandColor);
             CreateCapsuleLines(RightHandBase, "RightHand", HandColor);
+            CreateCapsuleLines(LeftUpperArmBase, "LeftUpperArm", UpperArmColor);
+            CreateCapsuleLines(RightUpperArmBase, "RightUpperArm", UpperArmColor);
 
             BasisGizmoManager.CreateSphereGizmo("IKCollider_LeftHandPoint", out _pointSphereIds[0],
                 Vector3.zero, 0.05f, HandColor);

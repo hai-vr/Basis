@@ -836,6 +836,14 @@ namespace UnityEngine.Animations.Rigging
         const float k_MinMag = 1e-6f;// or 0.000001f
         const float k_SqrEpsilon = 1e-8f;// or 0.00000001f
 
+        // How aggressively the post-solve collision push slerps the elbow toward the
+        // natural-side angle on its swing circle. 1.0 = snap fully each frame
+        // (visually abrupt when penetration appears); lower values soften the
+        // transition at the cost of partial penetration. Penetration depth itself
+        // still gates whether a swing happens at all, so 0.5 doesn't mean
+        // "always 50% inside" — only "ease in by 50% of the remaining angle".
+        const float k_ElbowCollisionBlend = 0.5f;
+
         public ReadWriteTransformHandle HandleChest, HandleNeck, HandleHead,
   HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
   HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
@@ -2133,6 +2141,26 @@ w20, w54;
             Vector3 n = (d > 0f) ? (qp / d) : playerUp;
             return q + n * radiusWithSkin;
         }
+
+        // Capsule-vs-capsule penetration check for one torso segment. Keeps the worst
+        // (deepest) segment's penetration depth and its chest-axis closest point so the
+        // caller can derive an arm-side-correct push direction from the elbow's offset.
+        // We don't reuse CapsuleCapsuleResolve's normal directly because in deep
+        // penetration it falls back to a body-relative axis cross product that doesn't
+        // distinguish left/right arms — both elbows can get pushed the same way.
+        public static void AccumulateWorstTorsoSegment(
+            Vector3 shoulderPos, Vector3 elbowPos, float upperArmR,
+            Vector3 segA, Vector3 segB, float segR, Vector3 playerUp,
+            ref float worstPenetration, ref Vector3 worstClosest)
+        {
+            Vector3 c = CapsuleCapsuleResolve(shoulderPos, elbowPos, upperArmR, segA, segB, segR, playerUp);
+            float pen = c.magnitude;
+            if (pen > worstPenetration)
+            {
+                worstPenetration = pen;
+                worstClosest = ClosestPointOnSegment(elbowPos, segA, segB);
+            }
+        }
         /// <summary>
         /// Evaluates the Two-Bone IK algorithm.
         /// </summary>
@@ -2354,35 +2382,115 @@ w20, w54;
             // Collision NEVER influences the IK solve. The hand must match the controller 1:1.
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
 
-            // Post-solve cosmetic push: gently nudge the elbow outward if it's inside the chest.
-            // SwingElbowAroundAC rotates the shoulder around the shoulder→hand axis,
-            // which moves the elbow without moving the hand (hand is on the rotation axis).
-            // No re-solve needed — this is a push, not a wall. The arm CAN enter the chest.
+            // Post-solve: swing the elbow around the shoulder→hand axis to a position
+            // outside the torso. The hand sits on the swing axis so its position is
+            // preserved exactly — only the elbow's angular position changes, staying on
+            // its fixed-radius circle (bone lengths unchanged).
+            //
+            // Torso is modeled as three stacked capsules along the spine chain
+            // (hips→spine, spine→chest, chest→neck) with radii multiplied off chestRadius
+            // to approximate a human shape — widest at hips, narrowest at the waist.
+            //
+            // Direction strategy: we use capsule-capsule for detection (so upper-arm
+            // mid-segment penetration is caught), but for the push direction we take the
+            // vector from the chest axis to the elbow. That direction is always
+            // arm-side-correct — for the right arm it points right, for the left arm it
+            // points left — because the elbow naturally lives on its arm's side of the
+            // body. Using CapsuleCapsuleResolve's normal directly can flip in deep
+            // penetration (its fallback uses a body-relative axis cross product that
+            // doesn't know which arm is being solved).
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
             {
-                Vector3 chestA = chestStart.GetPosition(stream);
-                Vector3 chestB = chestEnd.GetPosition(stream);
-                float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
-
+                Vector3 shoulderPos = root.GetPosition(stream);
                 Vector3 elbowPos = mid.GetPosition(stream);
-                Vector3 closest = ClosestPointOnSegment(elbowPos, chestA, chestB);
-                Vector3 toElbow = elbowPos - closest;
-                float dist = toElbow.magnitude;
+                Vector3 handPos = tip.GetPosition(stream);
 
-                // Only push if elbow is inside the capsule radius
-                if (dist < chestR && dist > k_Epsilon)
+                Vector3 acAxis = handPos - shoulderPos;
+                float acSqr = Vector3.Dot(acAxis, acAxis);
+                if (acSqr > k_Epsilon * k_Epsilon)
                 {
-                    // Push strength: gentle and proportional to penetration depth
-                    // At the surface (dist == chestR): no push
-                    // At the center (dist == 0): max push
-                    float penetration = chestR - dist;
-                    float pushStrength = penetration / chestR; // 0 at surface, 1 at center
-                    pushStrength *= 0.35f; // cap — never fully resolve in one frame
+                    Vector3 acDir = acAxis / Mathf.Sqrt(acSqr);
+                    Vector3 toElbow = elbowPos - shoulderPos;
+                    Vector3 elbowCenter = shoulderPos + acDir * Vector3.Dot(toElbow, acDir);
+                    float elbowRadius = (elbowPos - elbowCenter).magnitude;
 
-                    Vector3 pushDir = toElbow / dist; // outward from capsule axis
-                    Vector3 desiredElbow = elbowPos + pushDir * (penetration * pushStrength);
-                    SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
+                    if (elbowRadius > k_Epsilon)
+                    {
+                        // Upper arm sits a bit wider than the hand/forearm capsule
+                        // (1.2× handRadius); approximates a human silhouette without
+                        // adding a dedicated field yet.
+                        float upperArmR = Mathf.Max(0f, (handRadius.Get(stream) + handSkin.Get(stream)) * 1.2f);
+
+                        float chestRBase = chestRadius.Get(stream);
+                        float skin = collisionSkin.Get(stream);
+                        float chestR = Mathf.Max(0f, chestRBase + skin);
+                        float spineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
+                        float hipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
+
+                        Vector3 pUp = playerUp.Get(stream);
+                        if (pUp.sqrMagnitude < k_Epsilon * k_Epsilon)
+                        {
+                            pUp = Vector3.up;
+                        }
+
+                        Vector3 chestPos = chestStart.GetPosition(stream);
+                        Vector3 neckPos = chestEnd.GetPosition(stream);
+
+                        // Find the deepest-penetrating torso segment. Remember the closest
+                        // point on its chest axis so we can build an outward direction
+                        // from the elbow's position (which is naturally on the arm's side).
+                        float worstPen = 0f;
+                        Vector3 worstClosest = Vector3.zero;
+
+                        if (HandleHips.IsValid(stream) && HandleSpine.IsValid(stream))
+                        {
+                            AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
+                                HandleHips.GetPosition(stream), HandleSpine.GetPosition(stream), hipsR, pUp,
+                                ref worstPen, ref worstClosest);
+                        }
+                        if (HandleSpine.IsValid(stream))
+                        {
+                            AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
+                                HandleSpine.GetPosition(stream), chestPos, spineR, pUp,
+                                ref worstPen, ref worstClosest);
+                        }
+                        AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
+                            chestPos, neckPos, chestR, pUp,
+                            ref worstPen, ref worstClosest);
+
+                        if (worstPen > k_Epsilon)
+                        {
+                            Vector3 outDir = elbowPos - worstClosest;
+                            Vector3 outPerp = outDir - acDir * Vector3.Dot(outDir, acDir);
+                            float outPerpSqr = outPerp.sqrMagnitude;
+
+                            if (outPerpSqr > k_Epsilon * k_Epsilon)
+                            {
+                                // Target the swing-circle point on the elbow's natural
+                                // side. Slerp from currentDir toward targetDir by a blend
+                                // factor — going all the way (1.0) snaps; tune lower to
+                                // soften the transition. The shape of the response is
+                                // still driven by penetration (no collision → no swing),
+                                // we just don't hard-commit to the natural-side angle.
+                                Vector3 targetDir = outPerp / Mathf.Sqrt(outPerpSqr);
+                                Vector3 currentDir = (elbowPos - elbowCenter) / elbowRadius;
+                                Vector3 blendedDir = Vector3.Slerp(currentDir, targetDir, k_ElbowCollisionBlend);
+                                Vector3 desiredElbow = elbowCenter + blendedDir * elbowRadius;
+
+                                // SwingElbowAroundAC rotates the shoulder; the hand inherits
+                                // that rotation through the arm hierarchy. Capture the
+                                // controller-matched hand pose set by SolveTwoBoneIKArms and
+                                // restore it after the swing — the hand must match the
+                                // tracker exactly in both position and rotation.
+                                Vector3 preservedHandPos = tip.GetPosition(stream);
+                                Quaternion preservedHandRot = tip.GetRotation(stream);
+                                SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
+                                tip.SetPosition(stream, preservedHandPos);
+                                tip.SetRotation(stream, preservedHandRot);
+                            }
+                        }
+                    }
                 }
             }
         }
