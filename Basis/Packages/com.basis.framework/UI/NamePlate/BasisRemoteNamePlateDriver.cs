@@ -9,20 +9,20 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 
 namespace Basis.Scripts.UI.NamePlate
 {
-    public class BasisRemoteNamePlateDriver : MonoBehaviour
+    public static class BasisRemoteNamePlateDriver
     {
-        public static BasisRemoteNamePlateDriver Instance;
+        // Defaults baked from the original BasisFramework.prefab values.
+        public static Color NormalColor = new Color(0.25490198f, 0.25490198f, 0.25490198f, 0.4509804f);
+        public static Color IsTalkingColor = new Color(0.3529412f, 0.72156864f, 0.90588236f, 0.7490196f);
+        public static Color OutOfRangeColor = new Color(0.105882354f, 0.23137255f, 0.29411766f, 0.7490196f);
+        public static Color FailedLoadColor = new Color(1f, 0.2f, 0.2f, 1f);
 
-        public Color NormalColor;
-        public Color IsTalkingColor;
-        public Color OutOfRangeColor;
-        public Color FailedLoadColor = new Color(1f, 0.2f, 0.2f, 1f);
-
-        [SerializeField] public static float transitionDuration = 0.3f;
-        [SerializeField] public static float returnDelay = 0.4f;
+        public static float transitionDuration = 0.3f;
+        public static float returnDelay = 0.4f;
 
         public static Color StaticNormalColor;
         public static Color StaticIsTalkingColor;
@@ -30,16 +30,23 @@ namespace Basis.Scripts.UI.NamePlate
         public static Color StaticFailedLoadColor;
         public static float4 NormalColorFloat4;
 
-        public TextMeshPro Text;
+        // Lazy-created at runtime — replaces the prefab's TMP child used for baking.
+        public static TextMeshPro Text;
 
-        public Material TransParentNamePlateMaterial;
-        public Material OpaqueNamePlateMaterial;
+        // Lazy-loaded from Addressables on first Initialize.
+        public static Material TransParentNamePlateMaterial;
+        public static Material OpaqueNamePlateMaterial;
 
-        [HideInInspector] public Material SelectedNamePlateMaterial;
+        public static Material SelectedNamePlateMaterial;
 
-        [Range(0f, 1f)] public float RoundEdges = 0.5f;
-        public int CornerVertexCount = 8;
-        public float zOffset = 0.06f;
+        // Addressables keys for the materials/font that used to be serialized on the prefab.
+        private const string TransparentMaterialAddress = "Packages/com.basis.sdk/Materials/TransParentNamePlateMaterial.mat";
+        private const string OpaqueMaterialAddress = "Packages/com.basis.sdk/Materials/OpaqueNamePlateMaterial.mat";
+        private const string FontAddress = "Packages/com.basis.sdk/Fonts/Poppins-Regular SDF NamePlate.asset";
+
+        public static float RoundEdges = 0.85f;
+        public static int CornerVertexCount = 8;
+        public static float zOffset = 0.06f;
 
         public static bool NamePlateEnabled = true;
         public static bool NamePlateMenuOnly = false;
@@ -47,25 +54,34 @@ namespace Basis.Scripts.UI.NamePlate
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
         private static bool lastMenuOpenState;
+        private static bool _initialized;
 
         // Precomputed per CornerVertexCount
-        private int cachedCornerCount;
-        private float[] sinTable;
-        private float[] cosTable;
-        private int[] cachedTriangles;
-        private int cachedRingVertexCount;
-        private int cachedVertexCount;
+        private static int cachedCornerCount;
+        private static float[] sinTable;
+        private static float[] cosTable;
+        private static int[] cachedTriangles;
+        private static int cachedRingVertexCount;
+        private static int cachedVertexCount;
 
         // Reusable working arrays (avoid per-call managed allocation)
-        private Vector3[] workVertices;
-        private Vector3[] workNormals;
-        private Vector2[] workUVs;
+        private static Vector3[] workVertices;
+        private static Vector3[] workNormals;
+        private static Vector2[] workUVs;
 
         private static bool _unicodeFallbacksEnsured;
 
-        public void Awake()
+        /// <summary>
+        /// Idempotent. Triggered by <see cref="Basis.Scripts.Device_Management.BasisDeviceManagement"/>
+        /// after device init completes; safe to call again after <see cref="Dispose"/>.
+        /// Loads runtime-only assets (materials + TMP baking object) from Addressables on first call.
+        /// </summary>
+        public static void Initialize()
         {
-            Instance = this;
+            if (_initialized) return;
+            _initialized = true;
+
+            EnsureAssetsLoaded();
 
             SelectedNamePlateMaterial = BasisDeviceManagement.IsMobileHardware()
                 ? OpaqueNamePlateMaterial
@@ -84,6 +100,43 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         /// <summary>
+        /// One-time load of the prefab-replacement assets (materials + TMP baking object).
+        /// Survives <see cref="Dispose"/> via <see cref="UnityEngine.Object.DontDestroyOnLoad"/>
+        /// so re-init after a server reconnect doesn't pay the load cost again.
+        /// </summary>
+        private static void EnsureAssetsLoaded()
+        {
+            if (TransParentNamePlateMaterial == null)
+            {
+                TransParentNamePlateMaterial = Addressables.LoadAssetAsync<Material>(TransparentMaterialAddress).WaitForCompletion();
+            }
+            if (OpaqueNamePlateMaterial == null)
+            {
+                OpaqueNamePlateMaterial = Addressables.LoadAssetAsync<Material>(OpaqueMaterialAddress).WaitForCompletion();
+            }
+            if (Text == null)
+            {
+                var font = Addressables.LoadAssetAsync<TMP_FontAsset>(FontAddress).WaitForCompletion();
+
+                var bakingGO = new GameObject("BasisNameplateBaker");
+                bakingGO.SetActive(false);
+                Object.DontDestroyOnLoad(bakingGO);
+
+                Text = bakingGO.AddComponent<TextMeshPro>();
+                Text.font = font;
+                Text.fontSize = 71.4f;
+                Text.enableAutoSizing = true;
+                Text.fontSizeMin = 1;
+                Text.fontSizeMax = 72;
+                Text.alignment = TextAlignmentOptions.Center;
+                Text.color = Color.white;
+                Text.enableVertexGradient = false;
+                Text.textWrappingMode = TextWrappingModes.Normal;
+                Text.overflowMode = TextOverflowModes.Overflow;
+            }
+        }
+
+        /// <summary>
         /// Walks a per-script list of OS font candidates and adds the first installed
         /// match per script to the nameplate font's fallback list. This lets display
         /// names render glyphs the primary (Latin) font doesn't cover — Japanese,
@@ -93,7 +146,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// font (e.g., Tahoma covers both Arabic and Hebrew) was added for an earlier
         /// script in the chain.
         /// </summary>
-        private void EnsureUnicodeFallbacksOnNameplateFont()
+        private static void EnsureUnicodeFallbacksOnNameplateFont()
         {
             if (_unicodeFallbacksEnsured) return;
             _unicodeFallbacksEnsured = true;
@@ -213,7 +266,7 @@ namespace Basis.Scripts.UI.NamePlate
             return false;
         }
 
-        private void UpdateCachedColors(float transparency)
+        private static void UpdateCachedColors(float transparency)
         {
             StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, transparency);
             StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, transparency);
@@ -231,7 +284,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// Precomputes sin/cos lookup table, triangle indices, normals,
         /// and allocates working arrays. Only needs to run when CornerVertexCount changes.
         /// </summary>
-        private void PrecomputeCornerData()
+        private static void PrecomputeCornerData()
         {
             cachedCornerCount = Mathf.Max(3, CornerVertexCount);
             cachedRingVertexCount = cachedCornerCount * 4;
@@ -301,7 +354,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// Called by SettingsProviderNamePlate when nameplate settings change.
         /// Re-reads settings and applies size and transparency to all active plates.
         /// </summary>
-        public void ApplyNamePlateSettingsFromUI()
+        public static void ApplyNamePlateSettingsFromUI()
         {
             bool enabled = BasisSettingsDefaults.NPEnabled.RawValue;
             bool menuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
@@ -340,7 +393,7 @@ namespace Basis.Scripts.UI.NamePlate
         // Text bake path
         // ===========================
 
-        public void GenerateTextFactory(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
+        public static void GenerateTextFactory(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
         {
             Text.gameObject.SetActive(true);
             Text.text = remotePlayer.DisplayName;
@@ -385,7 +438,7 @@ namespace Basis.Scripts.UI.NamePlate
                 var info = textInfo.meshInfo[i];
                 if (info.vertexCount == 0 || info.mesh == null) continue;
 
-                Mesh subClone = Instantiate(info.mesh);
+                Mesh subClone = Object.Instantiate(info.mesh);
                 FlipMesh(subClone);
 
                 combine[writeIdx] = new CombineInstance { mesh = subClone, transform = Matrix4x4.identity };
@@ -430,7 +483,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// indices, and normals. Only vertices and UVs depend on dimensions.
         /// Used for both nameplate backgrounds and chat bubbles.
         /// </summary>
-        public Mesh GenerateRoundedQuad(float halfWidth, float halfHeight, string meshName)
+        public static Mesh GenerateRoundedQuad(float halfWidth, float halfHeight, string meshName)
         {
             float width = halfWidth * 2f;
             float height = halfHeight * 2f;
@@ -491,7 +544,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// Generates a rounded quad background mesh for the chat bubble,
         /// sized to fit the current chat text.
         /// </summary>
-        public void GenerateChatBubble(BasisRemoteNamePlate namePlate)
+        public static void GenerateChatBubble(BasisRemoteNamePlate namePlate)
         {
             if (namePlate.ChatText == null || namePlate.ChatBubbleFilter == null) return;
 
@@ -571,6 +624,7 @@ namespace Basis.Scripts.UI.NamePlate
             allocated = false;
             capacity = 0;
             count = 0;
+            _initialized = false;
         }
 
         private static void DisposeArrays()

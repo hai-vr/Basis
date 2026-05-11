@@ -160,11 +160,9 @@ namespace Basis.Scripts.Networking
                     LocalPlayerPeer = peer;
                     ushort localPlayerID = (ushort)peer.RemoteId;
 
-                    BasisNetworkManagement.Instance.transform.GetPositionAndRotation(out Vector3 _, out Quaternion _);
-
                     var transmitter = new BasisNetworkTransmitter(localPlayerID);
                     BasisNetworkManagement.Transmitter = transmitter;
-                    BasisNetworkManagement.Instance.LocalAccessTransmitter = transmitter;
+                    BasisNetworkManagement.LocalAccessTransmitter = transmitter;
                     transmitter.Player = BasisLocalPlayer.Instance;
 
                     if (BasisLocalPlayer.Instance.LocalAvatarDriver != null)
@@ -213,7 +211,7 @@ namespace Basis.Scripts.Networking
                 Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput.Instance?.StopMovement();
 #endif
                 BasisNetworkAvatarCompressor.Dispose();
-                await BasisNetworkLifeCycle.RebootManagement(BasisNetworkManagement.Instance, true, peer, disconnectInfo);
+                await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
 #if UNITY_SERVER
                 if (!HeadlessReconnectSuppressed)
                 {

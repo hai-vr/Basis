@@ -192,8 +192,18 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 69830dfb9aced8f43b4ec3faecb299e9
+    m_Address: Packages/com.basis.sdk/Materials/TransParentNamePlateMaterial.mat
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6d6028608171cc34aa0cd1ee986fd9d8
     m_Address: Packages/com.basis.sdk/Prefabs/WorldOrb.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 71743328d0464434ab9d1dc6c5df4e46
+    m_Address: Packages/com.basis.sdk/Materials/OpaqueNamePlateMaterial.mat
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -306,6 +316,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: df4c5b7b152475f48adb88ead5775eb0
     m_Address: Packages/com.basis.sdk/Textures/Runtime/microphone-solid.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e5115724bef668e428481e9fee6ee7b1
+    m_Address: Packages/com.basis.sdk/Fonts/Poppins-Regular SDF NamePlate.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

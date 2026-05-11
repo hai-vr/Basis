@@ -98,7 +98,7 @@ namespace Basis.Scripts.Networking
         // --- Registry APIs --------------------------------------------------
         public static bool AddPlayer(BasisNetworkPlayer netPlayer)
         {
-            if (BasisNetworkManagement.Instance == null)
+            if (!BasisNetworkManagement.IsInitialized)
             {
                 BasisDebug.LogError("No network Instance existed!");
                 return false;
@@ -145,7 +145,7 @@ namespace Basis.Scripts.Networking
         public static bool RemovePlayer(ushort netId, out BasisNetworkPlayer player)
         {
             player = null;
-            if (BasisNetworkManagement.Instance == null)
+            if (!BasisNetworkManagement.IsInitialized)
             {
                 BasisDebug.LogError("No network Instance existed!");
                 return false;

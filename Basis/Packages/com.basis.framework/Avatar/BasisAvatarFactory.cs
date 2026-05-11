@@ -420,10 +420,7 @@ namespace Basis.Scripts.Avatar
         {
             if (Player == null) return;
             Player.HasFailedAvatarLoadGlobally = true;
-            if (Player.RemoteNamePlate != null)
-            {
-                Player.RemoteNamePlate.RefreshFailedStateColor();
-            }
+            Player.OnAvatarFailedStateChanged?.Invoke();
         }
 
         /// <summary>

@@ -83,14 +83,13 @@ namespace Basis.BasisUI
                 return;
             }
 
-            var nm = BasisNetworkManagement.Instance;
-            if (nm == null || nm.LocalAccessTransmitter == null)
+            if (!BasisNetworkManagement.IsInitialized || BasisNetworkManagement.LocalAccessTransmitter == null)
             {
                 SetAll("No LocalAccessTransmitter.");
                 return;
             }
 
-            var transmitter = nm.LocalAccessTransmitter;
+            var transmitter = BasisNetworkManagement.LocalAccessTransmitter;
             var results = transmitter.TransmissionResults;
 
             // Debug / Transmission field

@@ -4,9 +4,11 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Command_Line_Args;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
+using Basis.Scripts.Networking;
 using Basis.Scripts.Player;
 using Basis.Scripts.TransformBinders;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.UI.NamePlate;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections;
@@ -43,7 +45,8 @@ namespace Basis.Scripts.Device_Management
         public string CurrentMode = BasisConstants.None;
 
         /// <summary>
-        /// If <c>true</c>, activates <see cref="BasisNetworking"/> once initialization completes.
+        /// If <c>true</c>, brings up <see cref="Basis.Scripts.Networking.BasisNetworkManagement"/>
+        /// and <see cref="Basis.Scripts.UI.NamePlate.BasisRemoteNamePlateDriver"/> once initialization completes.
         /// </summary>
         public bool FireOffNetwork = true;
 
@@ -233,13 +236,20 @@ namespace Basis.Scripts.Device_Management
         /// <summary>
         /// Unity destroy hook. Tears down players/devices and unsubscribes events.
         /// </summary>
-        private void OnDestroy()
+        private async void OnDestroy()
         {
             CleanupAutoSwap();
             BasisXRManagement.DeInitalize();
             BasisPlayerFactory.DeInitalize();
             StopAllDevices();
             UnsubscribeEvents();
+
+            if (BasisNetworkManagement.IsInitialized)
+            {
+                BasisNetworkConnection.OnDestroy();
+                await BasisNetworkLifeCycle.Destroy();
+            }
+            BasisRemoteNamePlateDriver.Dispose();
         }
         public void Simulate()
         {
@@ -767,18 +777,15 @@ namespace Basis.Scripts.Device_Management
         }
 
         /// <summary>
-        /// Optional networking GameObject activated after initialization when <see cref="FireOffNetwork"/> is enabled.
-        /// </summary>
-        public GameObject BasisNetworking;
-
-        /// <summary>
-        /// Event handler invoked after initialization to toggle networking activation.
+        /// Event handler invoked after initialization to bring up the static
+        /// network manager + nameplate driver, replacing what the prefab bootstrap MBs used to do.
         /// </summary>
         private void RunAfterInitialized()
         {
-            if (FireOffNetwork && BasisNetworking != null)
+            if (FireOffNetwork)
             {
-                BasisNetworking.SetActive(true);
+                BasisRemoteNamePlateDriver.Initialize();
+                BasisNetworkLifeCycle.Initalize();
             }
         }
 

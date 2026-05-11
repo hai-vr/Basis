@@ -3,6 +3,7 @@ using Basis.Scripts.Avatar;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.UI.NamePlate;
+using System;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -49,11 +50,33 @@ namespace Basis.Scripts.BasisSdk.Players
         #region UI / Name Plate
 
         /// <summary>
-        /// Instance of the remote player's name plate UI, if present.
+        /// Fired when this player's failed-avatar-load state may have changed.
+        /// Listeners (e.g. the nameplate) refresh their visual to reflect the flag.
         /// </summary>
-        [Header("Name Plate")]
-        [SerializeField]
-        public BasisRemoteNamePlate RemoteNamePlate = null;
+        public Action OnAvatarFailedStateChanged;
+
+        /// <summary>
+        /// Fired to display a chat message for this player. Empty string clears the message.
+        /// </summary>
+        public Action<string> OnChatMessageReceived;
+
+        /// <summary>
+        /// Fired when something that affects nameplate active-state has changed
+        /// (block, range, visibility settings).
+        /// </summary>
+        public Action OnNamePlateActiveStateShouldRefresh;
+
+        /// <summary>
+        /// Fired during <see cref="OnDestroy"/> so attached subsystems can tear themselves
+        /// down without the player holding direct references to them.
+        /// </summary>
+        public Action OnRemotePlayerDestroying;
+
+        /// <summary>
+        /// Provider for the nameplate's world transform. The nameplate registers itself
+        /// here in its Initalize and clears it in DeInitalize. Callers must null-check.
+        /// </summary>
+        public Func<Transform> NamePlateTransformProvider;
 
         /// <summary>
         /// A cached prefab instance for name plates loaded via Addressables.
@@ -260,14 +283,14 @@ namespace Basis.Scripts.BasisSdk.Players
             IsLocal = false;
 
             GameObject data = GameObject.Instantiate(LoadFromHandle(LoadableNamePlatename), transform);
-            if (data.TryGetComponent(out RemoteNamePlate))
+            if (data.TryGetComponent(out BasisRemoteNamePlate plate))
             {
                 if (this == null)
                 {
                     AddressableResourceProcess.ReleaseGameobject(data);
                     return;
                 }
-                RemoteNamePlate.Initalize(this);
+                plate.Initalize(this);
             }
         }
 
@@ -449,11 +472,9 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 RemoteFaceDriver.OnDestroy();
             }
-            if (RemoteNamePlate != null)
-            {
-                RemoteNamePlate.DeInitalize();
-                AddressableResourceProcess.ReleaseGameobject(RemoteNamePlate.gameObject);
-            }
+
+            OnRemotePlayerDestroying?.Invoke();
+
             if (RemoteAvatarDriver.InBoneDriver)
             {
                 RemoteBoneJobSystem.RemoveRemotePlayer(NetworkReceiver.playerId);

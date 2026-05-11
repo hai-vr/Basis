@@ -138,14 +138,11 @@ namespace Basis.BasisUI
 
             player.ReloadAvatar();
 
-            if (player.RemoteNamePlate != null)
+            if (player.IsEffectivelyBlocked)
             {
-                if (player.IsEffectivelyBlocked)
-                {
-                    player.RemoteNamePlate.SetChatText(string.Empty);
-                }
-                player.RemoteNamePlate.RefreshActiveState();
+                player.OnChatMessageReceived?.Invoke(string.Empty);
             }
+            player.OnNamePlateActiveStateShouldRefresh?.Invoke();
 
             // Mirror the block onto the other side so they also can't see/hear us
             // (session-scoped temp block).
@@ -699,10 +696,7 @@ namespace Basis.BasisUI
                     // showing the avatar again actually re-attempts the download.
                     remotePlayer.HasFailedAvatarLoadGlobally = false;
                     remotePlayer.AvatarLoadErrorMessage = null;
-                    if (remotePlayer.RemoteNamePlate != null)
-                    {
-                        remotePlayer.RemoteNamePlate.RefreshFailedStateColor();
-                    }
+                    remotePlayer.OnAvatarFailedStateChanged?.Invoke();
                     remotePlayer.ReloadAvatar();
                 }
             };
@@ -753,9 +747,9 @@ namespace Basis.BasisUI
                 toggleChatBtn.Descriptor.SetTitle(BasisLocalization.Get(s.ChatVisible ? "menu.individualPlayer.hideChat" : "menu.individualPlayer.showChat"));
 
                 // If chat was just hidden, clear any currently displayed message
-                if (!s.ChatVisible && remotePlayer != null && remotePlayer.RemoteNamePlate != null)
+                if (!s.ChatVisible && remotePlayer != null)
                 {
-                    remotePlayer.RemoteNamePlate.SetChatText(string.Empty);
+                    remotePlayer.OnChatMessageReceived?.Invoke(string.Empty);
                 }
             };
 

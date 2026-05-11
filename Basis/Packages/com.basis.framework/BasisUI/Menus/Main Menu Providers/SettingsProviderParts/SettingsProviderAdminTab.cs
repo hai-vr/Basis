@@ -191,10 +191,9 @@ namespace Basis.BasisUI
         private static async System.Threading.Tasks.Task PrefillServerInfoFieldsAsync(
             PanelTextField nameField, PanelTextField motdField)
         {
-            BasisNetworkManagement nm = BasisNetworkManagement.Instance;
-            if (nm == null) return;
-            string ip = nm.Ip;
-            ushort port = nm.Port;
+            if (!BasisNetworkManagement.IsInitialized) return;
+            string ip = BasisNetworkManagement.Ip;
+            ushort port = BasisNetworkManagement.Port;
             if (string.IsNullOrEmpty(ip) || port == 0) return;
 
             try
