@@ -1605,6 +1605,25 @@ namespace Basis.BasisUI
             toggleDisableLogging.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.disableLogging.description"));
             toggleDisableLogging.AssignBinding(BasisSettingsDefaults.DisableLogging);
 
+            PanelDropdown dropdownLogTagFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
+            dropdownLogTagFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logTagFilter"));
+            dropdownLogTagFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logTagFilter.description"));
+            List<string> tagEntries = new List<string> { BasisSettingsDefaults.DebugLogFilterAll };
+            tagEntries.AddRange(Enum.GetNames(typeof(BasisDebug.LogTag)));
+            dropdownLogTagFilter.AssignEntries(tagEntries);
+            dropdownLogTagFilter.AssignBinding(BasisSettingsDefaults.DebugLogTagFilter);
+
+            PanelDropdown dropdownLogLevelFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
+            dropdownLogLevelFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logLevelFilter"));
+            dropdownLogLevelFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logLevelFilter.description"));
+            dropdownLogLevelFilter.AssignEntries(new List<string>
+            {
+                BasisSettingsDefaults.DebugLogFilterAll,
+                BasisSettingsDefaults.DebugLogLevelWarningsAndErrors,
+                BasisSettingsDefaults.DebugLogLevelErrorsOnly,
+            });
+            dropdownLogLevelFilter.AssignBinding(BasisSettingsDefaults.DebugLogLevelFilter);
+
             // ---- Section Visibility Toggles ----
             PanelElementDescriptor sectionTogglesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);

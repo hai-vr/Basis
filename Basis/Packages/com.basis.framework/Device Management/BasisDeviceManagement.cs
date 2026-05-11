@@ -18,6 +18,7 @@ using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreAvatarKeys;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
@@ -174,7 +175,12 @@ namespace Basis.Scripts.Device_Management
         /// <summary>
         /// Input action asset for local player control.
         /// </summary>
-        [SerializeField] public BasisLocalInputActions InputActions;
+        [SerializeField] public InputActionAsset InputActions;
+
+        /// <summary>
+        /// Root GameObject hosting settings modules and input plumbing. Activated by BasisLocalInputActions.Initialize.
+        /// </summary>
+        [SerializeField] public GameObject InputActionsRoot;
 
         /// <summary>
         /// Optional device name matcher used when probing for base types.

@@ -1,3 +1,4 @@
+using System;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.Settings;
 
@@ -275,6 +276,13 @@ namespace Basis.BasisUI
         /// Raw <see cref="UnityEngine.Debug"/> calls are unaffected.
         /// </summary>
         public static BasisSettingsBinding<bool> DisableLogging = new("disablelogging", new BasisPlatformDefault<bool>(false));
+
+        public const string DebugLogFilterAll = "All";
+        public const string DebugLogLevelWarningsAndErrors = "Warnings & Errors";
+        public const string DebugLogLevelErrorsOnly = "Errors Only";
+
+        public static BasisSettingsBinding<string> DebugLogTagFilter = new("debuglogtagfilter", new BasisPlatformDefault<string>(DebugLogFilterAll));
+        public static BasisSettingsBinding<string> DebugLogLevelFilter = new("debugloglevelfilter", new BasisPlatformDefault<string>(DebugLogFilterAll));
 
         public static BasisSettingsBinding<bool> AudioDebugEnabled = new("audiodebugenabled", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> AudioDebugShowSource = new("audiodebugshowsource", new BasisPlatformDefault<bool>(true));
@@ -1198,6 +1206,12 @@ namespace Basis.BasisUI
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
+            DebugLogTagFilter.LoadBindingValue();
+            ApplyDebugLogTagFilter(DebugLogTagFilter.RawValue);
+            DebugLogTagFilter.OnChanged += ApplyDebugLogTagFilter;
+            DebugLogLevelFilter.LoadBindingValue();
+            ApplyDebugLogLevelFilter(DebugLogLevelFilter.RawValue);
+            DebugLogLevelFilter.OnChanged += ApplyDebugLogLevelFilter;
             EnableStreamingMeta.LoadBindingValue();
             StreamingMetaPort.LoadBindingValue();
             MemoryAllocation.LoadBindingValue();
@@ -1563,6 +1577,33 @@ namespace Basis.BasisUI
             // ran during Initalize before bindings were refreshed from the file —
             // re-notify so they pick up the loaded values.
             BasisSettingsSystem.NotifyFinishedChanges();
+        }
+
+        public static void ApplyDebugLogTagFilter(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value == DebugLogFilterAll)
+            {
+                BasisDebug.TagFilter = null;
+                return;
+            }
+            if (Enum.TryParse(value, out BasisDebug.LogTag tag))
+            {
+                BasisDebug.TagFilter = tag;
+            }
+            else
+            {
+                BasisDebug.TagFilter = null;
+            }
+        }
+
+        public static void ApplyDebugLogLevelFilter(string value)
+        {
+            BasisDebug.MinimumLevel = value switch
+            {
+                DebugLogLevelErrorsOnly => BasisDebug.MessageType.Error,
+                DebugLogLevelWarningsAndErrors => BasisDebug.MessageType.Warning,
+                _ => BasisDebug.MessageType.Info,
+            };
         }
     }
 }

@@ -9,34 +9,46 @@ public static class BasisDebug
     /// </summary>
     public static bool LoggingDisabled;
 
+    public static LogTag? TagFilter;
+
+    public static MessageType MinimumLevel = MessageType.Info;
+
+    private static bool ShouldEmit(LogTag logTag, MessageType messageType)
+    {
+        if (LoggingDisabled) return false;
+        if ((int)messageType < (int)MinimumLevel) return false;
+        if (TagFilter.HasValue && TagFilter.Value != logTag) return false;
+        return true;
+    }
+
     [HideInCallstack]
     public static void LogError(string message, LogTag logTag = LogTag.System)
     {
-        if (LoggingDisabled) return;
+        if (!ShouldEmit(logTag, MessageType.Error)) return;
         Debug.unityLogger.LogError("",FormatMessage(message, logTag, MessageType.Error));
     }
     [HideInCallstack]
     public static void LogError(string message, UnityEngine.Object Object, LogTag logTag = LogTag.System)
     {
-        if (LoggingDisabled) return;
+        if (!ShouldEmit(logTag, MessageType.Error)) return;
         Debug.unityLogger.LogError("", FormatMessage(message, logTag, MessageType.Error), Object);
     }
     [HideInCallstack]
     public static void LogError(Exception message, LogTag logTag = LogTag.System)
     {
-        if (LoggingDisabled) return;
+        if (!ShouldEmit(logTag, MessageType.Error)) return;
         Debug.unityLogger.LogError("", FormatMessage($"{message.Message} {message.StackTrace}", logTag, MessageType.Error));
     }
     [HideInCallstack]
     public static void LogWarning(string message, LogTag logTag = LogTag.System)
     {
-        if (LoggingDisabled) return;
+        if (!ShouldEmit(logTag, MessageType.Warning)) return;
         LogInternal(message, logTag, MessageType.Warning);
     }
     [HideInCallstack]
     public static void Log(string message, LogTag logTag = LogTag.System)
     {
-        if (LoggingDisabled) return;
+        if (!ShouldEmit(logTag, MessageType.Info)) return;
         LogInternal(message, logTag, MessageType.Info);
     }
     [HideInCallstack]

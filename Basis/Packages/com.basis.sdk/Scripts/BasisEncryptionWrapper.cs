@@ -150,12 +150,7 @@ public static partial class BasisEncryptionWrapper
         BasisProgressReport reportProgress,
         CancellationToken ct = default)
     {
-        if (encryptedData != null && encryptedData.Length > LargeFileThreshold)
-        {
-            return Task.Run(() => DecryptFromBytesInternalAsync(UniqueID, password, encryptedData, reportProgress, ct), ct);
-        }
-
-        return DecryptFromBytesInternalAsync(UniqueID, password, encryptedData, reportProgress, ct);
+        return Task.Run(() => DecryptFromBytesInternalAsync(UniqueID, password, encryptedData, reportProgress, ct), ct);
     }
 
     private static async Task<BasisDecryptResult> DecryptFromBytesInternalAsync(

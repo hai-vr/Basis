@@ -189,7 +189,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// </summary>
         public void PlayerInitialized()
         {
-            BasisLocalInputActions.Instance.DesktopEyeInput = this;
+            BasisLocalInputActions.DesktopEyeInput = this;
             Camera = BasisLocalCameraDriver.Instance.Camera;
 
             BasisDeviceManagement Device = BasisDeviceManagement.Instance;
@@ -248,7 +248,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             if (HasRaycaster)
             {
-                BasisPointRaycaster.ScreenPoint = BasisLocalInputActions.Instance.Pointer;
+                BasisPointRaycaster.ScreenPoint = BasisLocalInputActions.Pointer;
             }
 
             if (!LookRotationVector.Equals(Vector2.zero))
@@ -256,9 +256,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 HandleLookRotation(LookRotationVector);
             }
 
-            if (BasisLocalInputActions.Instance != null)
+            if (BasisLocalInputActions.InputState != null)
             {
-                BasisLocalInputActions.Instance.InputState.CopyTo(CurrentInputState);
+                BasisLocalInputActions.InputState.CopyTo(CurrentInputState);
             }
 
             // Eye relative position. Read TposeLocal (unscaled) rather than

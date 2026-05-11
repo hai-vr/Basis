@@ -126,10 +126,9 @@ public static class SettingsProviderControllerConfig
         {
             ResetControlsDefaults();
             BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored();
-            var instance = BasisLocalInputActions.Instance;
-            if (instance != null && instance.Input != null && instance.Input.actions != null)
+            if (BasisLocalInputActions.Asset != null)
             {
-                SettingsProviderKeyboardBindings.ResetAllBindings(instance.Input.actions);
+                SettingsProviderKeyboardBindings.ResetAllBindings(BasisLocalInputActions.Asset);
             }
         });
 

@@ -411,7 +411,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5008986784888565646}
-  - component: {fileID: 761910860860970306}
   - component: {fileID: 8830384322729445313}
   - component: {fileID: 1024060471102402131}
   - component: {fileID: 297858091515769489}
@@ -438,55 +437,6 @@ Transform:
   - {fileID: 856542775716218512}
   m_Father: {fileID: 7986300708970645016}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &761910860860970306
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6119941615115968628}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 444863616255f204b93987765ee33de5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  MoveAction: {fileID: 4708565538779427141, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  LookAction: {fileID: -4614550756354622855, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  JumpAction: {fileID: -4995091536327712792, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  CrouchAction: {fileID: 4281027790913896788, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  RunButton: {fileID: 4166653571123788975, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  Escape: {fileID: -8104914591799447859, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  Tab: {fileID: 4302437416140599907, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  PrimaryButtonGetState: {fileID: 647096541409930546, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  PointerAction: {fileID: -5417877143265962151, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  DesktopSwitch: {fileID: -1278911692722073990, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  VRSwitch: {fileID: -3383292816080654074, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  XRSwitch: {fileID: 3096343990557684458, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  LeftMousePressed: {fileID: 8998537766406633762, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  RightMousePressed: {fileID: -240064975923332847, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  MiddleMouseScroll: {fileID: 3017921969231114889, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  MiddleMouseScrollClick: {fileID: -4813832520851000306, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  MoveLocalUpDown: {fileID: -8761834997978577808, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  OpenChat: {fileID: 6276339513826019528, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  ToggleMicMute: {fileID: 6408654589139290635, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  ToggleThirdPerson: {fileID: 5255996632856729500, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  CameraZoomAction: {fileID: -6461621260778274687, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  MouseSensitivity: 1
-  JoystickSensitivity: 1
-  KeyboardSensitivity: 5
-  Input: {fileID: 297858091515769489}
-  InputState:
-    gripButton: 0
-    menuButton: 0
-    primaryButtonGetState: 0
-    secondaryButtonGetState: 0
-    secondary2DAxisClick: 0
-    primary2DAxisClick: 0
-    trigger: 0
-    secondaryTrigger: 0
-    primary2DAxisRaw: {x: 0, y: 0}
-    secondary2DAxisRaw: {x: 0, y: 0}
-  Pointer: {x: 0, y: 0}
 --- !u!114 &8830384322729445313
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -630,7 +580,8 @@ MonoBehaviour:
   - {fileID: -3061024371983229343}
   BasisLockToInputs: []
   PreviouslyConnectedDevices: []
-  InputActions: {fileID: 761910860860970306}
+  InputActions: {fileID: -944628639613478452, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
+  InputActionsRoot: {fileID: 6119941615115968628}
   BasisDeviceNameMatcher: {fileID: 11400000, guid: 9b8e3db83cb310c40afaa430d0071a18, type: 2}
   ForcedDefault:
   AutoSwapPreviousVRMode:

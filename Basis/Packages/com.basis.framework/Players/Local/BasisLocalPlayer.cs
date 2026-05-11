@@ -4,6 +4,7 @@ using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.UI.UI_Panels;
 using System;
@@ -202,7 +203,7 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalHandDriver.Initialize();
             LocalSeatDriver.Initialize(this);
 
-            BasisDeviceManagement.Instance.InputActions.Initialize(this);
+            BasisLocalInputActions.Initialize(this, BasisDeviceManagement.Instance.InputActions, BasisDeviceManagement.Instance.InputActionsRoot);
             LocalCharacterDriver.Initialize(this);
             LocalCameraDriver.gameObject.SetActive(true);
 
@@ -255,7 +256,8 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="LastUsedAvatar">Metadata pointing to the last persisted avatar selection.</param>
         public async Task LoadInitialAvatar(BasisDataStore.BasisSavedAvatar LastUsedAvatar)
         {
-            if (BasisLoadHandler.IsMetaDataOnDisc(LastUsedAvatar.UniqueID, out BasisBEEExtensionMeta info))
+            var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(LastUsedAvatar.UniqueID);
+            if (onDisc)
             {
                 await BasisDataStoreItemKeys.LoadKeys();
                 ItemKey[] activeKeys = BasisDataStoreItemKeys.DisplayKeys();
