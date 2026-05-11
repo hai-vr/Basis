@@ -14,7 +14,12 @@ namespace Basis.Scripts.Debugging
     public static class BasisIKColliderGizmo
     {
         private const int CapSegments = 16;
-        private const int LinesPerCapsule = 4 + (CapSegments * 2);
+        // 4 axial 2-point lines + 2 cap loops (each a single LineRenderer with
+        // CapSegments points + loop=true). Was 4 + CapSegments*2 separate
+        // LineRenderers; folding each cap into one ring cuts gizmo count ~6×.
+        private const int LinesPerCapsule = 6;
+        private const int CapA_Offset = 4;
+        private const int CapB_Offset = 5;
         private const int CapsuleCount = 7;
         private const int HipsBase = 0;
         private const int SpineBase = LinesPerCapsule;
@@ -37,6 +42,10 @@ namespace Basis.Scripts.Debugging
 
         private static readonly int[] _lineIds = new int[LinesPerCapsule * CapsuleCount];
         private static readonly int[] _pointSphereIds = new int[2] { -1, -1 };
+
+        // Shared scratch buffer for cap-ring positions. SetPositions copies in, so
+        // reusing this between caps is safe — no aliasing concerns.
+        private static readonly Vector3[] _capBuffer = new Vector3[CapSegments];
 
         private static bool _created;
         private static bool _visible;
@@ -161,16 +170,22 @@ namespace Basis.Scripts.Debugging
             BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 3], a - ortho2 * radius, b - ortho2 * radius);
 
             float step = Mathf.PI * 2f / CapSegments;
-            int capStart = baseIdx + 4;
+
+            // Cap A: ring at endpoint a. LineRenderer.loop=true closes back to point 0.
             for (int s = 0; s < CapSegments; s++)
             {
-                float t0 = step * s;
-                float t1 = step * (s + 1);
-                Vector3 d0 = ortho * Mathf.Cos(t0) + ortho2 * Mathf.Sin(t0);
-                Vector3 d1 = ortho * Mathf.Cos(t1) + ortho2 * Mathf.Sin(t1);
-                BasisGizmoManager.UpdateLineGizmo(_lineIds[capStart + s], a + d0 * radius, a + d1 * radius);
-                BasisGizmoManager.UpdateLineGizmo(_lineIds[capStart + CapSegments + s], b + d0 * radius, b + d1 * radius);
+                float t = step * s;
+                _capBuffer[s] = a + (ortho * Mathf.Cos(t) + ortho2 * Mathf.Sin(t)) * radius;
             }
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + CapA_Offset], _capBuffer);
+
+            // Cap B: ring at endpoint b.
+            for (int s = 0; s < CapSegments; s++)
+            {
+                float t = step * s;
+                _capBuffer[s] = b + (ortho * Mathf.Cos(t) + ortho2 * Mathf.Sin(t)) * radius;
+            }
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + CapB_Offset], _capBuffer);
         }
 
         private static void EnsureCreated()
@@ -200,11 +215,21 @@ namespace Basis.Scripts.Debugging
 
         private static void CreateCapsuleLines(int baseIdx, string label, Color color)
         {
-            for (int i = 0; i < LinesPerCapsule; i++)
+            // 4 axial 2-point lines.
+            for (int i = 0; i < 4; i++)
             {
-                BasisGizmoManager.CreateLineGizmo($"IKCollider_{label}_{i}", out _lineIds[baseIdx + i],
+                BasisGizmoManager.CreateLineGizmo($"IKCollider_{label}_axial{i}", out _lineIds[baseIdx + i],
                     Vector3.zero, Vector3.zero, LineWidth, color);
             }
+            // 2 cap rings, each a single looped LineRenderer.
+            for (int i = 0; i < CapSegments; i++)
+            {
+                _capBuffer[i] = Vector3.zero;
+            }
+            BasisGizmoManager.CreateLineGizmo($"IKCollider_{label}_capA", out _lineIds[baseIdx + CapA_Offset],
+                _capBuffer, LineWidth, color, loop: true);
+            BasisGizmoManager.CreateLineGizmo($"IKCollider_{label}_capB", out _lineIds[baseIdx + CapB_Offset],
+                _capBuffer, LineWidth, color, loop: true);
         }
 
         private static void SetCapsuleActive(int baseIdx, bool active)
