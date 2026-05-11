@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Upper Arm Twist Fraction" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Fraction of the elbow's roll absorbed by the upper arm twist bone. Default: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomy (Experimental)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Opt-in IK refinements modeled on real biomechanics. All off by default — enable to test." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomy" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "IK refinements modeled on real biomechanics." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Differential Lumbar / Thoracic Stiffness" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Routes spine twist preferentially to the upper chest (thoracic) since the lumbar is biomechanically twist-resistant. Cuts spine yaw weight, boosts upper chest yaw." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Shoulder Slide on Chest Twist" },

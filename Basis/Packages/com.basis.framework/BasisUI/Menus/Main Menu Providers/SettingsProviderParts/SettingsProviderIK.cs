@@ -283,21 +283,21 @@ public static class SettingsProviderIK
                 upperArmTwist.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.upperArmTwist.description"));
         });
 
-        // ============== Anatomy (Experimental) ==============
+        // ============== Anatomy ==============
         CreateCollapsibleSection(tabDesc, colliderGroup,
             BasisLocalization.Get("settings.bodyTracking.section.anatomy.title"),
             BasisLocalization.Get("settings.bodyTracking.section.anatomy.description"), false, anatomyParent =>
         {
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatDifferentialStiffness,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatDifferentialStiffness,
                 "settings.bodyTracking.anat.diffStiffness.title",
                 "settings.bodyTracking.anat.diffStiffness.description");
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatShoulderSlide,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatShoulderSlide,
                 "settings.bodyTracking.anat.shoulderSlide.title",
                 "settings.bodyTracking.anat.shoulderSlide.description");
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatCervicalLordosis,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatCervicalLordosis,
                 "settings.bodyTracking.anat.cervicalLordosis.title",
                 "settings.bodyTracking.anat.cervicalLordosis.description");
-            AddExperimentalToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
                 "settings.bodyTracking.anat.pelvicTwistRouting.title",
                 "settings.bodyTracking.anat.pelvicTwistRouting.description");
         });
@@ -968,7 +968,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKEuroAll.SetValue(allOn);
     }
 
-    private static void AddExperimentalToggle(RectTransform parent, BasisSettingsBinding<bool> binding, string titleKey, string descriptionKey)
+    private static void AddAnatomyToggle(RectTransform parent, BasisSettingsBinding<bool> binding, string titleKey, string descriptionKey)
     {
         var toggle = PanelToggle.CreateNewEntry(parent);
         toggle.Descriptor.SetTitle(BasisLocalization.Get(titleKey));

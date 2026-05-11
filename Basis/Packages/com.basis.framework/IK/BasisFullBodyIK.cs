@@ -339,8 +339,8 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_LowerArmTwistFraction;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_UpperArmTwistFraction;
 
-        // Anatomy (Experimental): opt-in IK refinements modeled on real biomechanics. Off by
-        // default — enable via the settings panel. Each toggle gates its own solver pass.
+        // Anatomy: IK refinements modeled on real biomechanics. Each toggle gates its own
+        // solver pass; all on by default.
         [SyncSceneToStream, SerializeField] bool m_AnatDifferentialStiffness;
         [SyncSceneToStream, SerializeField] bool m_AnatShoulderSlide;
         [SyncSceneToStream, SerializeField] bool m_AnatCervicalLordosis;
@@ -1321,41 +1321,131 @@ w20, w54;
             hingeAxis.Normalize();
             return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
         }
-        // Anatomy: cervical lordosis. Real heads sit a few centimeters forward of the neck axis;
-        // adds a small forward pitch to the neck so the head reads more naturally during look-down
-        // poses where the rig's stiff vertical neck would otherwise feel stilted.
-        // Pitch-aware in both directions:
-        //   - at look-down, the base 5° gets a configurable extra-bend (gain) added on top.
-        //   - at look-up, the base 5° fades to 0 — without this, the constant forward bend
-        //     applied after the IK solve compresses the head down into the upper chest, since
-        //     lordosis rotates the neck after the chest→neck→head chain has already reached the
-        //     head target and no re-solve happens.
-        // Pitch fraction is read from head-target forward vs playerUp, so it stays well-defined at
-        // the look-up/down poles (the vector-based dot doesn't gimbal like Euler decomposition).
         void ApplyCervicalLordosis(AnimationStream stream)
         {
             if (!HandleNeck.IsValid(stream))
                 return;
 
             const float baseDeg = 5f;
+            const float neckShare = 0.65f;
+            const float maxHeadPitchDeg = 80f;
+            const float extremeStartDeg = 50f;
+            const float extremeFullDeg = 80f;
+            const float extremeRollForwardMaxDeg = 10f;
+            const float extremeRollBackwardMaxDeg = 4f;
+            const float extremeHipsHorizontalMax = 0.025f;
+            const float extremeChestHorizontalMax = 0.04f;
+            const float extremeHipsDownMax = 0.015f;
+            const float extremeChestDownMax = 0.025f;
+            const float extremeHipsDownLookUp = 0.0005f;
+            const float extremeChestDownLookUp = 0.001f;
+
             float gain = Mathf.Max(0f, lordosisPitchGainDeg.Get(stream));
 
+            Vector3 referenceUp;
+            if (HandleChest.IsValid(stream))
+            {
+                referenceUp = HandleChest.GetRotation(stream) * Vector3.up;
+            }
+            else
+            {
+                Vector3 up = playerUp.Get(stream);
+                referenceUp = up.sqrMagnitude < k_SqrEpsilon ? Vector3.up : up.normalized;
+            }
+
             Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
+            {
+                Vector3 hf = headRot * Vector3.forward;
+                float horizMag = Mathf.Sqrt(hf.x * hf.x + hf.z * hf.z);
+                float pitchDeg = (horizMag > 1e-6f)
+                    ? Mathf.Atan2(-hf.y, horizMag) * Mathf.Rad2Deg
+                    : (hf.y < 0f ? 90f : -90f);
+                float clampedDeg = Mathf.Clamp(pitchDeg, -maxHeadPitchDeg, maxHeadPitchDeg);
+                if (clampedDeg != pitchDeg)
+                {
+                    Vector3 yawForward = (horizMag > 1e-6f)
+                        ? new Vector3(hf.x, 0f, hf.z) / horizMag
+                        : Vector3.forward;
+                    Vector3 yawRight = Vector3.Cross(Vector3.up, yawForward);
+                    Quaternion correction = Quaternion.AngleAxis(-(pitchDeg - clampedDeg), yawRight);
+                    headRot = correction * headRot;
+                }
+            }
             Vector3 headForward = headRot * Vector3.forward;
-            Vector3 up = playerUp.Get(stream);
-            if (up.sqrMagnitude < k_SqrEpsilon) up = Vector3.up;
-            else up.Normalize();
-            float pitchSigned = Vector3.Dot(headForward, up); // +1 = looking straight up, -1 = down
+            float pitchSigned = Vector3.Dot(headForward, referenceUp);
             float lookUpFrac = Mathf.Clamp01(pitchSigned);
             float lookDownFrac = Mathf.Clamp01(-pitchSigned);
 
-            float totalDeg = baseDeg * (1f - lookUpFrac) + gain * lookDownFrac;
-            if (totalDeg <= 0f)
+            float pitchAbsDeg = Mathf.Asin(Mathf.Min(Mathf.Abs(pitchSigned), 1f)) * Mathf.Rad2Deg;
+            float extremeFrac = Mathf.Clamp01((pitchAbsDeg - extremeStartDeg) / (extremeFullDeg - extremeStartDeg));
+
+            float signedPitch = lookDownFrac - lookUpFrac;
+            float signedBalance = -signedPitch;
+
+            float lordosisDeg = baseDeg * (1f - Mathf.Abs(signedPitch)) + gain * signedPitch;
+
+            bool hasUpperChest = HandleUpperChest.IsValid(stream);
+            float neckDeg = hasUpperChest ? lordosisDeg * neckShare : lordosisDeg;
+            float upperChestLordosisDeg = hasUpperChest ? lordosisDeg * (1f - neckShare) : 0f;
+            float extremeRollMag = signedPitch >= 0f ? extremeRollForwardMaxDeg : extremeRollBackwardMaxDeg;
+            float extremeRollDeg = extremeFrac * signedPitch * extremeRollMag;
+
+            if (Mathf.Abs(lordosisDeg) < 0.01f && extremeFrac <= 0f)
                 return;
 
-            Quaternion neckRot = HandleNeck.GetRotation(stream);
-            Quaternion delta = Quaternion.AngleAxis(totalDeg, neckRot * Vector3.right);
-            HandleNeck.SetRotation(stream, delta * neckRot);
+            ReadWriteTransformHandle bendHandle = hasUpperChest ? HandleUpperChest : HandleChest;
+            if (bendHandle.IsValid(stream))
+            {
+                Quaternion bhRot = bendHandle.GetRotation(stream);
+                float bhDeg = upperChestLordosisDeg + extremeRollDeg;
+                if (bhDeg != 0f)
+                {
+                    Quaternion bhDelta = Quaternion.AngleAxis(bhDeg, bhRot * Vector3.right);
+                    bendHandle.SetRotation(stream, bhDelta * bhRot);
+                }
+            }
+
+            if (extremeFrac > 0f)
+            {
+                Quaternion refRot = HandleHips.IsValid(stream)
+                    ? HandleHips.GetRotation(stream)
+                    : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
+                Vector3 refForward = refRot * Vector3.forward;
+                Vector3 refDown = -(refRot * Vector3.up);
+
+                float horizCoeff = extremeFrac * signedBalance;
+                float hipsDown = extremeFrac * (lookDownFrac * extremeHipsDownMax + lookUpFrac * extremeHipsDownLookUp);
+                float chestDown = extremeFrac * (lookDownFrac * extremeChestDownMax + lookUpFrac * extremeChestDownLookUp);
+
+                if (HandleHips.IsValid(stream))
+                {
+                    Vector3 hipsOffset = refForward * (horizCoeff * extremeHipsHorizontalMax)
+                                       + refDown * hipsDown;
+                    Vector3 hipsPos = HandleHips.GetPosition(stream);
+                    HandleHips.SetPosition(stream, hipsPos + hipsOffset);
+                }
+
+                if (HandleChest.IsValid(stream))
+                {
+                    Vector3 chestOffset = refForward * (horizCoeff * extremeChestHorizontalMax)
+                                        + refDown * chestDown;
+                    Vector3 chestPos = HandleChest.GetPosition(stream);
+                    HandleChest.SetPosition(stream, chestPos + chestOffset);
+                }
+            }
+
+            if (neckDeg != 0f)
+            {
+                Quaternion neckRotCurrent = HandleNeck.GetRotation(stream);
+                Quaternion neckDelta = Quaternion.AngleAxis(neckDeg, neckRotCurrent * Vector3.right);
+                HandleNeck.SetRotation(stream, neckDelta * neckRotCurrent);
+            }
+
+            if (HandleHead.IsValid(stream))
+            {
+                HandleHead.SetPosition(stream, targetPositionHead.Get(stream));
+                HandleHead.SetRotation(stream, headRot);
+            }
         }
         // Anatomy: shoulder slide. Shoulders don't fully follow chest twist past ~30° because the
         // scapula slides on the rib cage. Counter-yaw both shoulders by a fraction of the chest's

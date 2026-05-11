@@ -926,15 +926,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKLowerArmTwistFraction = new("fbiklowerarmtwistfraction", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> FBIKUpperArmTwistFraction = new("fbikupperarmtwistfraction", new BasisPlatformDefault<float>(0.3f));
 
-        // Anatomy (Experimental) — opt-in IK refinements modeled on real biomechanics. All off
-        // by default because they change spine / shoulder / foot behavior in subtle ways that
-        // some users may prefer to tune manually via the existing per-axis sliders.
-        public static BasisSettingsBinding<bool> FBIKAnatDifferentialStiffness = new("fbikanatdiffstiffness", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide", new BasisPlatformDefault<bool>(false));
-        // Persistence key bumped to _v2 so existing installs (which have the original key saved as
-        // false from the off-by-default era) pick up the new on-by-default behavior.
+        // Anatomy — IK refinements modeled on real biomechanics. Persistence keys are versioned
+        // (_v2) so existing installs with the old off-by-default values saved pick up the new
+        // on-by-default behavior.
+        public static BasisSettingsBinding<bool> FBIKAnatDifferentialStiffness = new("fbikanatdiffstiffness_v2", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis_v2", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting_v2", new BasisPlatformDefault<bool>(true));
 
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more

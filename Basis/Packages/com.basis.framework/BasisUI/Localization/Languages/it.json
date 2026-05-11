@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Frazione torsione braccio superiore" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Frazione della rotazione del gomito assorbita dall'osso di torsione del braccio superiore. Predefinito: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomia (sperimentale)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Raffinamenti IK opzionali modellati sulla biomeccanica reale. Tutti disattivati per impostazione predefinita — abilita per testare." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Anatomia" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Raffinamenti IK modellati sulla biomeccanica reale." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Rigidità differenziale lombare/toracica" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Indirizza preferibilmente la torsione della colonna verso il torace superiore (toracico) poiché la zona lombare è biomeccanicamente resistente alla torsione. Riduce il peso dello yaw della colonna, aumenta lo yaw del torace superiore." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Scorrimento spalle sulla torsione del torace" },

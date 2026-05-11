@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "上腕ツイストの割合" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "上腕のツイストボーンが吸収する肘ロールの割合。デフォルト: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "解剖学（実験的）" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "実際の生体力学に基づくオプトインのIK調整。デフォルトはすべてオフ — テスト用に有効化してください。" },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "解剖学" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "実際の生体力学に基づくIK調整。" },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "腰椎／胸椎の差動スティフネス" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "腰椎は生体力学的にひねりに強いため、背骨のひねりを優先的に上部胸椎へルーティングします。背骨のヨー重みを下げ、上部胸のヨーを強めます。" },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "胸ひねり時の肩スライド" },

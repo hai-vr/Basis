@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "نسبة التواء الذراع العليا" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "نسبة لفّة المرفق التي تمتصها عظمة التواء الذراع العليا. الافتراضي: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "التشريح (تجريبي)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "تحسينات IK اختيارية مبنية على الميكانيكا الحيوية الحقيقية. كلها معطلة افتراضياً — فعّلها للاختبار." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "التشريح" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "تحسينات IK مبنية على الميكانيكا الحيوية الحقيقية." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "تصلب قطني/صدري تفاضلي" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "يوجّه التواء العمود الفقري بشكل تفضيلي إلى أعلى الصدر (الصدري) لأن المنطقة القطنية مقاومة للالتواء بيوميكانيكياً. يقلل وزن انعراج العمود الفقري ويعزز انعراج أعلى الصدر." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "انزلاق الكتف عند التواء الصدر" },

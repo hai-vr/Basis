@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "اوپری بازو ٹوئسٹ کا حصہ" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "اوپری بازو کی ٹوئسٹ ہڈی سے جذب ہونے والے کہنی کے رول کا حصہ۔ ڈیفالٹ: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "اناٹومی (تجرباتی)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "حقیقی بایو میکینکس پر مبنی اختیاری IK تطہیریں۔ تمام ڈیفالٹ سے بند — جانچنے کے لیے فعال کریں۔" },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "اناٹومی" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "حقیقی بایو میکینکس پر مبنی IK تطہیریں۔" },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "تفریقی لمبر / تھوراسک سختی" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "ریڑھ کی ہڈی کے ٹوئسٹ کو ترجیحاً اوپری سینے (تھوراسک) کی طرف بھیجتا ہے کیونکہ لمبر بایو میکینیکل طور پر ٹوئسٹ مزاحم ہے۔ ریڑھ کی ہڈی کے یاؤ وزن کو کم کرتا ہے، اوپری سینے کے یاؤ کو بڑھاتا ہے۔" },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "سینے کے ٹوئسٹ پر کندھے کی پھسلن" },

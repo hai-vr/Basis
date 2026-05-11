@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "Доля скручивания плеча" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "Доля вращения локтя, поглощаемая костью скручивания плеча. По умолчанию: 0,3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Анатомия (экспериментально)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Опциональные уточнения IK по реальной биомеханике. Все выключены по умолчанию — включите для тестирования." },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "Анатомия" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "Уточнения IK по реальной биомеханике." },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "Дифференциальная жёсткость поясничного / грудного отделов" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "Направляет скручивание позвоночника преимущественно в верхнюю грудную часть (грудной отдел), так как поясничный отдел биомеханически устойчив к скручиванию. Уменьшает вес поворота позвоночника, увеличивает поворот верхней груди." },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "Скольжение плеч при скручивании груди" },

@@ -533,8 +533,8 @@
     { "key": "settings.bodyTracking.upperArmTwist.title", "value": "ऊपरी बाँह मरोड़ अंश" },
     { "key": "settings.bodyTracking.upperArmTwist.description", "value": "कोहनी के रोल का वह अंश जो ऊपरी बाँह ट्विस्ट हड्डी द्वारा अवशोषित किया जाता है। डिफ़ॉल्ट: 0.3" },
 
-    { "key": "settings.bodyTracking.section.anatomy.title", "value": "शरीर रचना (प्रायोगिक)" },
-    { "key": "settings.bodyTracking.section.anatomy.description", "value": "वास्तविक बायोमैकेनिक्स पर आधारित ऑप्ट-इन IK सुधार। डिफ़ॉल्ट रूप से सभी बंद — परीक्षण के लिए सक्षम करें।" },
+    { "key": "settings.bodyTracking.section.anatomy.title", "value": "शरीर रचना" },
+    { "key": "settings.bodyTracking.section.anatomy.description", "value": "वास्तविक बायोमैकेनिक्स पर आधारित IK सुधार।" },
     { "key": "settings.bodyTracking.anat.diffStiffness.title", "value": "विभेदक लम्बर / थोरैसिक कठोरता" },
     { "key": "settings.bodyTracking.anat.diffStiffness.description", "value": "रीढ़ की मरोड़ को ऊपरी छाती (थोरैसिक) पर प्राथमिकता से रूट करता है क्योंकि लम्बर बायोमैकेनिकली मरोड़-प्रतिरोधी है। रीढ़ के यॉ वज़न को कम करता है, ऊपरी छाती के यॉ को बढ़ाता है।" },
     { "key": "settings.bodyTracking.anat.shoulderSlide.title", "value": "छाती मरोड़ पर कंधा स्लाइड" },
