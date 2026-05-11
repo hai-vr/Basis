@@ -1116,12 +1116,16 @@ w20, w54;
         public void DistributeSpineBend(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
+            {
                 return;
+            }
 
             bool hasSpine = HandleSpine.IsValid(stream);
             bool hasUpper = HandleUpperChest.IsValid(stream);
             if (!hasSpine && !hasUpper)
+            {
                 return;
+            }
 
             Vector3 smoothedHead = ApplyChestSpring(stream, headTargetPos);
 
@@ -1134,11 +1138,15 @@ w20, w54;
             Vector3 localTargetDir = invHips * (smoothedHead - hipsPos);
 
             if (localChestDir.sqrMagnitude < k_SqrEpsilon || localTargetDir.sqrMagnitude < k_SqrEpsilon)
+            {
                 return;
+            }
 
-            // Bend produces only swing (pitch + roll) — FromToRotation has no twist component.
-            Quaternion bendLocal = Quaternion.FromToRotation(localChestDir.normalized, localTargetDir.normalized);
-            Vector3 bendEuler = SignedEuler(bendLocal.eulerAngles);
+            Vector3 chestDirN = localChestDir.normalized;
+            Vector3 targetDirN = localTargetDir.normalized;
+            float bendPitchDeg = (Mathf.Atan2(targetDirN.z, targetDirN.y) - Mathf.Atan2(chestDirN.z, chestDirN.y)) * Mathf.Rad2Deg;
+            float bendRollDeg = (Mathf.Atan2(-targetDirN.x, targetDirN.y) - Mathf.Atan2(-chestDirN.x, chestDirN.y)) * Mathf.Rad2Deg;
+            Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
 
             // Twist comes from head facing yaw in hips-local frame. Extracted from the head's
             // forward vector projected onto the hips-local horizontal plane — robust at look-up/down
@@ -1147,9 +1155,7 @@ w20, w54;
             Quaternion headRotLocal = invHips * V4ToQuat(targetRotationHead.Get(stream));
             Vector3 headFwdLocal = headRotLocal * Vector3.forward;
             float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
-            float twistY = (horizMagSq < k_SqrEpsilon)
-                ? 0f
-                : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
+            float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
 
             float maxFwd = Mathf.Max(0f, spineMaxForwardDeg.Get(stream));
             float maxBack = Mathf.Max(0f, spineMaxBackwardDeg.Get(stream));
@@ -1220,11 +1226,15 @@ w20, w54;
         {
             float boost = Mathf.Clamp(spineSquishBoost.Get(stream), 0f, 2f);
             if (boost <= 0f)
+            {
                 return 1f;
+            }
 
             float restMag = TposeLengthHeadToHips.magnitude;
             if (restMag < k_Epsilon)
+            {
                 return 1f;
+            }
 
             float currentMag = hipsToHead.magnitude;
             float squish = currentMag / restMag;
@@ -1239,7 +1249,9 @@ w20, w54;
         Vector3 ApplyChestSpring(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!chestSpringState.IsCreated || !chestSpringInit.IsCreated)
+            {
                 return headTargetPos;
+            }
 
             float hz = chestSpringHz.Get(stream);
             if (hz <= 0f)
@@ -1288,10 +1300,7 @@ w20, w54;
             chestSpringState[1] = newVel;
             return newPos;
         }
-        static bool IsFinite(Vector3 v) =>
-            !float.IsNaN(v.x) && !float.IsInfinity(v.x) &&
-            !float.IsNaN(v.y) && !float.IsInfinity(v.y) &&
-            !float.IsNaN(v.z) && !float.IsInfinity(v.z);
+        static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
         // Pelvis tilts forward to share the lean past the threshold. Without this, a deep forward
         // reach makes the spine swallow the entire bend and everything above the hips folds.
         Quaternion ApplyHipHinge(AnimationStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
@@ -1299,32 +1308,43 @@ w20, w54;
             float startDeg = hipHingeStartDeg.Get(stream);
             float maxAddDeg = hipHingeMaxAddDeg.Get(stream);
             if (maxAddDeg <= 0f)
+            {
                 return hipsRot;
+            }
 
             Vector3 hipsToHead = headPos - hipsPos;
             float upDot = Vector3.Dot(hipsToHead, playerUp);
             Vector3 horizontal = hipsToHead - playerUp * upDot;
             float horizMag = horizontal.magnitude;
             if (horizMag < k_Epsilon || upDot <= 0f)
+            {
                 return hipsRot;
+            }
 
             float leanDeg = Mathf.Atan2(horizMag, upDot) * Mathf.Rad2Deg;
             if (leanDeg <= startDeg)
+            {
                 return hipsRot;
+            }
 
             float excess = leanDeg - startDeg;
             float addDeg = Mathf.Min(excess * 0.5f, maxAddDeg);
 
             Vector3 hingeAxis = Vector3.Cross(playerUp, horizontal / horizMag);
             if (hingeAxis.sqrMagnitude < k_SqrEpsilon)
+            {
                 return hipsRot;
+            }
+
             hingeAxis.Normalize();
             return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
         }
         void ApplyCervicalLordosis(AnimationStream stream)
         {
             if (!HandleNeck.IsValid(stream))
+            {
                 return;
+            }
 
             const float baseDeg = 5f;
             const float neckShare = 0.65f;
@@ -1357,15 +1377,11 @@ w20, w54;
             {
                 Vector3 hf = headRot * Vector3.forward;
                 float horizMag = Mathf.Sqrt(hf.x * hf.x + hf.z * hf.z);
-                float pitchDeg = (horizMag > 1e-6f)
-                    ? Mathf.Atan2(-hf.y, horizMag) * Mathf.Rad2Deg
-                    : (hf.y < 0f ? 90f : -90f);
+                float pitchDeg = (horizMag > 1e-6f) ? Mathf.Atan2(-hf.y, horizMag) * Mathf.Rad2Deg : (hf.y < 0f ? 90f : -90f);
                 float clampedDeg = Mathf.Clamp(pitchDeg, -maxHeadPitchDeg, maxHeadPitchDeg);
                 if (clampedDeg != pitchDeg)
                 {
-                    Vector3 yawForward = (horizMag > 1e-6f)
-                        ? new Vector3(hf.x, 0f, hf.z) / horizMag
-                        : Vector3.forward;
+                    Vector3 yawForward = (horizMag > 1e-6f) ? new Vector3(hf.x, 0f, hf.z) / horizMag: Vector3.forward;
                     Vector3 yawRight = Vector3.Cross(Vector3.up, yawForward);
                     Quaternion correction = Quaternion.AngleAxis(-(pitchDeg - clampedDeg), yawRight);
                     headRot = correction * headRot;
@@ -1965,7 +1981,9 @@ w20, w54;
         Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, float armLength, bool isLeft)
         {
             if (!HandleChest.IsValid(stream) || armLength < k_Epsilon)
+            {
                 return isLeft ? Vector3.left : Vector3.right;
+            }
 
             Quaternion chestRot = HandleChest.GetRotation(stream);
             Quaternion invChest = Quaternion.Inverse(chestRot);
@@ -1997,7 +2015,11 @@ w20, w54;
         {
             Vector3 ab = b - a;
             float abSqr = Vector3.Dot(ab, ab);
-            if (abSqr <= k_SqrEpsilon) return a;
+            if (abSqr <= k_SqrEpsilon)
+            {
+                return a;
+            }
+
             float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / abSqr);
             return a + ab * t;
         }
