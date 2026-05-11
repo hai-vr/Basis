@@ -45,7 +45,6 @@ namespace Basis.Scripts.UI.NamePlate
         /// Created dynamically at runtime positioned above the name mesh.
         /// </summary>
         public TextMeshPro ChatText;
-        public TextMeshPro TypingText;
 
         /// <summary>
         /// The MeshFilter for the chat text bubble background.
@@ -96,7 +95,6 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Create chat text display above nameplate
             CreateChatTextDisplay();
-            CreateTypingIndicatorDisplay();
             SetTypingIndicatorVisible(BasisRemotePlayer.IsChatTyping);
 
             if (!BasisRemoteNamePlateDriver.ShouldPlateBeActive(this))
@@ -220,38 +218,6 @@ namespace Basis.Scripts.UI.NamePlate
             chatTextObj.SetActive(false);
         }
 
-        private void CreateTypingIndicatorDisplay()
-        {
-            GameObject typingTextObj = new GameObject("TypingText");
-            typingTextObj.transform.SetParent(Self, false);
-            typingTextObj.transform.SetLocalPositionAndRotation(new Vector3(0, 12f, 0.04f), Quaternion.Euler(0, 180, 0));
-            typingTextObj.transform.localScale = Vector3.one;
-            typingTextObj.layer = gameObject.layer;
-
-            TypingText = typingTextObj.AddComponent<TextMeshPro>();
-            TypingText.alignment = TextAlignmentOptions.Center;
-            TypingText.fontSize = 28;
-            TypingText.enableAutoSizing = true;
-            TypingText.fontSizeMin = 14;
-            TypingText.fontSizeMax = 28;
-            TypingText.color = Color.white;
-            TypingText.textWrappingMode = TextWrappingModes.NoWrap;
-            TypingText.overflowMode = TextOverflowModes.Overflow;
-            TypingText.text = "...";
-
-            if (LoadingText != null && LoadingText.font != null)
-            {
-                TypingText.font = LoadingText.font;
-            }
-
-            if (TypingText.TryGetComponent(out RectTransform typingRect))
-            {
-                typingRect.sizeDelta = new Vector2(24, 10);
-            }
-
-            typingTextObj.SetActive(false);
-        }
-
         public void DeInitalize()
         {
             BasisRemoteNamePlateDriver.Unregister(this);
@@ -265,7 +231,6 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Clean up chat display
             if (ChatText != null) Destroy(ChatText.gameObject);
-            if (TypingText != null) Destroy(TypingText.gameObject);
             if (ChatBubbleFilter != null) Destroy(ChatBubbleFilter.gameObject);
             hasChatMessage = false;
             wantsTypingIndicator = false;
@@ -417,6 +382,10 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 ChatText.gameObject.SetActive(false);
                 hasChatMessage = false;
+                if (wantsTypingIndicator)
+                {
+                    typingAnimationFrame = -1;
+                }
                 UpdateTypingIndicatorVisual();
                 UpdateBubbleVisual();
                 return;
@@ -459,7 +428,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         public void UpdateTypingIndicatorAnimation()
         {
-            if (!wantsTypingIndicator || hasChatMessage || TypingText == null || !TypingText.gameObject.activeSelf)
+            if (!wantsTypingIndicator || hasChatMessage || ChatText == null || !ChatText.gameObject.activeSelf)
             {
                 return;
             }
@@ -471,7 +440,7 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             typingAnimationFrame = frame;
-            TypingText.text = frame switch
+            ChatText.text = frame switch
             {
                 0 => ".",
                 1 => "..",
@@ -482,14 +451,9 @@ namespace Basis.Scripts.UI.NamePlate
 
         public TextMeshPro GetBubbleSourceText()
         {
-            if (hasChatMessage && ChatText != null && ChatText.gameObject.activeSelf)
+            if (ChatText != null && ChatText.gameObject.activeSelf)
             {
                 return ChatText;
-            }
-
-            if (wantsTypingIndicator && TypingText != null && TypingText.gameObject.activeSelf)
-            {
-                return TypingText;
             }
 
             return null;
@@ -497,7 +461,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         private void UpdateTypingIndicatorVisual()
         {
-            if (TypingText == null)
+            if (ChatText == null)
             {
                 return;
             }
@@ -505,12 +469,12 @@ namespace Basis.Scripts.UI.NamePlate
             bool shouldShow = wantsTypingIndicator && !hasChatMessage;
             if (shouldShow)
             {
-                TypingText.gameObject.SetActive(true);
+                ChatText.gameObject.SetActive(true);
                 UpdateTypingIndicatorAnimation();
             }
-            else
+            else if (!hasChatMessage)
             {
-                TypingText.gameObject.SetActive(false);
+                ChatText.gameObject.SetActive(false);
             }
         }
 
