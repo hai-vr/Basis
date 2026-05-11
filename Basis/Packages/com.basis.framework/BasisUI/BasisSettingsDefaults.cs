@@ -221,6 +221,11 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 
+        // IK self-collision capsule visualization (chest + hand capsules used to
+        // keep the hands from intersecting the torso). Off by default — only
+        // useful when tuning ChestRadius / HandRadius / CollisionSkin.
+        public static BasisSettingsBinding<bool> GizmoIKColliders = new("gizmoikcolliders", new BasisPlatformDefault<bool>(false));
+
         // Eye-gaze ray + endpoint-target gizmo. Off by default — only relevant on
         // headsets that surface gaze through OpenXR EyeGazeInteraction or a SteamVR
         // pose action, and the line in your face is noisy.
@@ -1180,6 +1185,7 @@ namespace Basis.BasisUI
             TrackerGizmos.LoadBindingValue();
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
+            GizmoIKColliders.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
             EnableStatistics.LoadBindingValue();

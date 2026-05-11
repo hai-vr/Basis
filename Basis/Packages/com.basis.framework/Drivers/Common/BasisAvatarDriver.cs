@@ -241,8 +241,8 @@ namespace Basis.Scripts.Drivers
                 JiggleCreatorHelper(Mapping.rightFoot, 0.025f);
 
             // Arms: upper-arm capsule + forearm capsule + hand tip sphere, all from one array.
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f);
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f);
+            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f, tipRadius: 0.015f);
+            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f, tipRadius: 0.015f);
 
             JiggleCreatorHelperCapsule(Mapping.LeftThumb);
             JiggleCreatorHelperCapsule(Mapping.LeftIndex);
@@ -282,10 +282,11 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         /// <param name="Parents">Ordered bone transforms (e.g. proximal, intermediate, distal).</param>
         /// <param name="Radius">Base radius for the capsule/sphere. Default is <c>0.005</c>.</param>
-        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true)
+        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true, float tipRadius = -1f)
         {
             int count = Parents.Length;
             if (count == 0) return;
+            if (tipRadius < 0f) tipRadius = Radius;
 
             int needed = JiggleColliders.Count + count;
             if (JiggleColliders.Capacity < needed) JiggleColliders.Capacity = needed;
@@ -382,7 +383,7 @@ namespace Basis.Scripts.Drivers
                         {
                             type = JiggleCollider.JiggleColliderType.Sphere,
                             localToWorldMatrix = m,
-                            radius = Radius / (lossyScaleMag / 3f)
+                            radius = tipRadius / (lossyScaleMag / 3f)
                         },
                         transform = t
                     });
