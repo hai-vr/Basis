@@ -2142,23 +2142,21 @@ w20, w54;
             return q + n * radiusWithSkin;
         }
 
-        // Capsule-vs-capsule penetration check for one torso segment. Keeps the worst
-        // (deepest) segment's penetration depth and its chest-axis closest point so the
-        // caller can derive an arm-side-correct push direction from the elbow's offset.
-        // We don't reuse CapsuleCapsuleResolve's normal directly because in deep
-        // penetration it falls back to a body-relative axis cross product that doesn't
-        // distinguish left/right arms — both elbows can get pushed the same way.
+        // Capsule-vs-capsule penetration check for one torso segment. Keeps the deepest
+        // penetration depth across all checked segments. Direction comes from the
+        // shoulder offset (in SolveHand), not from per-segment normals — the shoulder
+        // is anatomically attached to its arm's side of the body, while the elbow may
+        // have been pushed through to the wrong side.
         public static void AccumulateWorstTorsoSegment(
             Vector3 shoulderPos, Vector3 elbowPos, float upperArmR,
             Vector3 segA, Vector3 segB, float segR, Vector3 playerUp,
-            ref float worstPenetration, ref Vector3 worstClosest)
+            ref float worstPenetration)
         {
             Vector3 c = CapsuleCapsuleResolve(shoulderPos, elbowPos, upperArmR, segA, segB, segR, playerUp);
             float pen = c.magnitude;
             if (pen > worstPenetration)
             {
                 worstPenetration = pen;
-                worstClosest = ClosestPointOnSegment(elbowPos, segA, segB);
             }
         }
         /// <summary>
@@ -2437,45 +2435,54 @@ w20, w54;
                         Vector3 chestPos = chestStart.GetPosition(stream);
                         Vector3 neckPos = chestEnd.GetPosition(stream);
 
-                        // Find the deepest-penetrating torso segment. Remember the closest
-                        // point on its chest axis so we can build an outward direction
-                        // from the elbow's position (which is naturally on the arm's side).
+                        // Aggregate penetration across all torso segments. We only need
+                        // a "is there overlap" test; the push direction is anatomical
+                        // (shoulder-derived), not per-segment.
                         float worstPen = 0f;
-                        Vector3 worstClosest = Vector3.zero;
-
                         if (HandleHips.IsValid(stream) && HandleSpine.IsValid(stream))
                         {
                             AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
                                 HandleHips.GetPosition(stream), HandleSpine.GetPosition(stream), hipsR, pUp,
-                                ref worstPen, ref worstClosest);
+                                ref worstPen);
                         }
                         if (HandleSpine.IsValid(stream))
                         {
                             AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
                                 HandleSpine.GetPosition(stream), chestPos, spineR, pUp,
-                                ref worstPen, ref worstClosest);
+                                ref worstPen);
                         }
                         AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
                             chestPos, neckPos, chestR, pUp,
-                            ref worstPen, ref worstClosest);
+                            ref worstPen);
 
                         if (worstPen > k_Epsilon)
                         {
-                            Vector3 outDir = elbowPos - worstClosest;
-                            Vector3 outPerp = outDir - acDir * Vector3.Dot(outDir, acDir);
-                            float outPerpSqr = outPerp.sqrMagnitude;
+                            // Natural-side direction comes from the SHOULDER, not the
+                            // elbow. The shoulder is rigidly attached to the chest, so
+                            // its offset from the chest axis is always on its arm's
+                            // own side. The elbow may have been pushed through to the
+                            // wrong side by an extreme controller pose; using its own
+                            // offset as the direction would keep it stuck there.
+                            Vector3 shoulderClosest = ClosestPointOnSegment(shoulderPos, chestPos, neckPos);
+                            Vector3 shoulderOutDir = shoulderPos - shoulderClosest;
+                            Vector3 shoulderPerp = shoulderOutDir - acDir * Vector3.Dot(shoulderOutDir, acDir);
+                            float shoulderPerpSqr = shoulderPerp.sqrMagnitude;
 
-                            if (outPerpSqr > k_Epsilon * k_Epsilon)
+                            if (shoulderPerpSqr > k_Epsilon * k_Epsilon)
                             {
-                                // Target the swing-circle point on the elbow's natural
-                                // side. Slerp from currentDir toward targetDir by a blend
-                                // factor — going all the way (1.0) snaps; tune lower to
-                                // soften the transition. The shape of the response is
-                                // still driven by penetration (no collision → no swing),
-                                // we just don't hard-commit to the natural-side angle.
-                                Vector3 targetDir = outPerp / Mathf.Sqrt(outPerpSqr);
+                                Vector3 targetDir = shoulderPerp / Mathf.Sqrt(shoulderPerpSqr);
                                 Vector3 currentDir = (elbowPos - elbowCenter) / elbowRadius;
-                                Vector3 blendedDir = Vector3.Slerp(currentDir, targetDir, k_ElbowCollisionBlend);
+
+                                // If the elbow is on the wrong side of the body (would
+                                // require the arm to pass through the torso to get to
+                                // a "blended halfway" position), no smooth path exists
+                                // — snap fully to the natural side. Smoothing across
+                                // an anatomically impossible region just leaves the arm
+                                // stuck in the middle.
+                                float sideDot = Vector3.Dot(currentDir, targetDir);
+                                float blend = sideDot < 0f ? 1f : k_ElbowCollisionBlend;
+
+                                Vector3 blendedDir = Vector3.Slerp(currentDir, targetDir, blend);
                                 Vector3 desiredElbow = elbowCenter + blendedDir * elbowRadius;
 
                                 // SwingElbowAroundAC rotates the shoulder; the hand inherits
