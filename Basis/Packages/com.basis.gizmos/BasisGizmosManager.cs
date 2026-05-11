@@ -264,6 +264,26 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Replaces the line gizmo's color sampling with a Gradient — vertices interpolate
+    /// across it by their normalized position. Use for multi-point lines that should
+    /// fade through per-segment colors (skeleton chains with one stop per bone).
+    /// </summary>
+    public static bool SetLineGizmoGradient(int linkedID, Gradient gradient)
+    {
+        if (!GizmosLine.TryGetValue(linkedID, out BasisLineGizmos gizmo))
+        {
+            BasisDebug.LogError($"No LineGizmo found with ID {linkedID}. Use CreateLineGizmo first.", BasisDebug.LogTag.Gizmo);
+            return false;
+        }
+        if (gizmo == null || gizmo.LineRenderer == null)
+        {
+            return false;
+        }
+        gizmo.LineRenderer.colorGradient = gradient;
+        return true;
+    }
+
+    /// <summary>
     /// Toggles a gizmo's GameObject visibility without destroying it. Used by
     /// sub-toggles that hide/show subsets of gizmos under the master ShowGizmos.
     /// </summary>

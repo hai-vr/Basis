@@ -40,12 +40,6 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         /// <summary>Optional target bone used when tracking is absent.</summary>
         [NonSerialized] public BasisLocalBoneControl Target;
 
-        /// <summary>Whether to draw a line gizmo for this control.</summary>
-        public bool HasLineDraw;
-
-        /// <summary>Index used by a line-drawing system, if any.</summary>
-        public int LineDrawIndex;
-
         /// <summary>True if a valid <see cref="Target"/> has been assigned.</summary>
         public bool HasTarget { get { return Target != null; } }
 
