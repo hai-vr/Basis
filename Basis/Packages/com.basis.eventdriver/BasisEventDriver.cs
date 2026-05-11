@@ -204,6 +204,7 @@ public partial class BasisEventDriver : MonoBehaviour
         if (!IsHeadlessClient)
             InputSystem.Update();
         OSCAcquisitionServer.Simulate();
+        SMModuleAvatarPerformanceLimits.SimulateDebounce();
         timeSinceLastUpdate += DeltaTime;
     }
 

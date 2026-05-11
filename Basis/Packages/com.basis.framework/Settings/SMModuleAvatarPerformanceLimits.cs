@@ -29,30 +29,9 @@ public static class SMModuleAvatarPerformanceLimits
     /// </summary>
     private const float DebounceSeconds = 0.35f;
 
-    /// <summary>
-    /// Hidden MonoBehaviour that runs the debounce timer. We need a Unity
-    /// component because settings changes fire on the main thread but have no
-    /// natural per-frame update hook, and the reconcile pass MUST run on the main
-    /// thread (it touches Unity objects via <see cref="BasisRemotePlayer.ReloadAvatar"/>).
-    /// The runner is created once at <see cref="Register"/> and survives scene
-    /// loads via <see cref="Object.DontDestroyOnLoad(Object)"/>.
-    /// </summary>
-    private sealed class DebounceRunner : MonoBehaviour
-    {
-        // Negative = nothing pending. Uses realtimeSinceStartup so the debounce
-        // still fires when Time.timeScale is 0 (pause menu etc.).
-        public float PendingFireTime = -1f;
-
-        private void Update()
-        {
-            if (PendingFireTime < 0f) return;
-            if (Time.realtimeSinceStartup < PendingFireTime) return;
-            PendingFireTime = -1f;
-            ReconcileLoadedAvatars();
-        }
-    }
-
-    private static DebounceRunner _runner;
+    // Negative = nothing pending. Uses realtimeSinceStartup so the debounce
+    // still fires when Time.timeScale is 0 (pause menu etc.).
+    private static float _pendingFireTime = -1f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Register()
@@ -61,8 +40,6 @@ public static class SMModuleAvatarPerformanceLimits
         // ran its LoadBindingValue during static init, so RawValue is authoritative
         // for the saved value (or platform default) by the time we read it here.
         ApplyAll();
-
-        EnsureRunner();
 
         BasisSettingsSystem.OnSettingChanged -= OnSettingChanged;
         BasisSettingsSystem.OnSettingChanged += OnSettingChanged;
@@ -92,17 +69,17 @@ public static class SMModuleAvatarPerformanceLimits
         ScheduleReconcile();
     }
 
-    private static void EnsureRunner()
+    /// <summary>
+    /// Per-frame debounce tick. Called from <c>BasisEventDriver.Update</c> so we
+    /// don't need a dedicated MonoBehaviour. Fires the reconcile pass once the
+    /// debounce window has elapsed since the last <see cref="ScheduleReconcile"/>.
+    /// </summary>
+    public static void SimulateDebounce()
     {
-        if (_runner != null) return;
-
-        // HideAndDontSave keeps this out of the hierarchy inspector and prevents it
-        // from being serialized into any scene. DontDestroyOnLoad makes it survive
-        // the scene transitions that happen during world loads.
-        var go = new GameObject("BasisPerformanceLimitsDebounce");
-        go.hideFlags = HideFlags.HideAndDontSave;
-        UnityEngine.Object.DontDestroyOnLoad(go);
-        _runner = go.AddComponent<DebounceRunner>();
+        if (_pendingFireTime < 0f) return;
+        if (Time.realtimeSinceStartup < _pendingFireTime) return;
+        _pendingFireTime = -1f;
+        ReconcileLoadedAvatars();
     }
 
     private static void OnSettingChanged(string settingName, string value)
@@ -126,15 +103,7 @@ public static class SMModuleAvatarPerformanceLimits
     /// </summary>
     private static void ScheduleReconcile()
     {
-        EnsureRunner();
-        if (_runner == null)
-        {
-            // Extremely unlikely — if we can't create the runner, fall back to
-            // running the reconcile inline so at least correctness is preserved.
-            ReconcileLoadedAvatars();
-            return;
-        }
-        _runner.PendingFireTime = Time.realtimeSinceStartup + DebounceSeconds;
+        _pendingFireTime = Time.realtimeSinceStartup + DebounceSeconds;
     }
 
     /// <summary>
@@ -150,8 +119,8 @@ public static class SMModuleAvatarPerformanceLimits
     ///   • Reload — full <c>ReloadAvatar</c>, needed only when a trim relaxed
     ///     (destroyed components need to come back) or the hard-block flag flipped.
     ///
-    /// Called by the debounced <see cref="DebounceRunner"/> so a burst of toggle
-    /// changes collapses into a single reconcile pass.
+    /// Called by <see cref="SimulateDebounce"/> so a burst of toggle changes
+    /// collapses into a single reconcile pass.
     /// </summary>
     private static void ReconcileLoadedAvatars()
     {

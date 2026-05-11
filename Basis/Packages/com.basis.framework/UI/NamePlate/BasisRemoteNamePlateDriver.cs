@@ -101,8 +101,8 @@ namespace Basis.Scripts.UI.NamePlate
 
         /// <summary>
         /// One-time load of the prefab-replacement assets (materials + TMP baking object).
-        /// Survives <see cref="Dispose"/> via <see cref="UnityEngine.Object.DontDestroyOnLoad"/>
-        /// so re-init after a server reconnect doesn't pay the load cost again.
+        /// Baker is parented under the BasisDeviceManagement root so it inherits the
+        /// framework's lifetime instead of needing DontDestroyOnLoad.
         /// </summary>
         private static void EnsureAssetsLoaded()
         {
@@ -119,8 +119,8 @@ namespace Basis.Scripts.UI.NamePlate
                 var font = Addressables.LoadAssetAsync<TMP_FontAsset>(FontAddress).WaitForCompletion();
 
                 var bakingGO = new GameObject("BasisNameplateBaker");
+                bakingGO.transform.SetParent(BasisDeviceManagement.Instance.transform, false);
                 bakingGO.SetActive(false);
-                Object.DontDestroyOnLoad(bakingGO);
 
                 Text = bakingGO.AddComponent<TextMeshPro>();
                 Text.font = font;
