@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using Basis.Scripts.BasisSdk;
 using UnityEngine;
 
 namespace HVR.Vixxy.Editor
@@ -53,6 +55,42 @@ namespace HVR.Vixxy.Editor
             }
 
             return results;
+        }
+
+        public static List<Transform> CollectAllNonEditorOnlyTransforms(BasisAvatar avatar)
+        {
+            var results = new List<Transform> { avatar.transform };
+            CollectNonEditorOnlyTransformsRecursive(avatar.transform, results);
+            return results;
+        }
+
+        private static void CollectNonEditorOnlyTransformsRecursive(Transform rootTransform, List<Transform> results)
+        {
+            foreach (Transform child in rootTransform)
+            {
+                if (!child.gameObject.CompareTag("EditorOnly"))
+                {
+                    results.Add(child);
+                    CollectNonEditorOnlyTransformsRecursive(child, results);
+                }
+            }
+        }
+
+        public static Type FindEditorOnlyTypeOrNull()
+        {
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            foreach (var assembly in assemblies)
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (type.FullName == "nadena.dev.ndmf.INDMFEditorOnly")
+                    {
+                        return type;
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }
