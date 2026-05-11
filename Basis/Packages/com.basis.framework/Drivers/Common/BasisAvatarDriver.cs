@@ -230,8 +230,15 @@ namespace Basis.Scripts.Drivers
             int expected = JiggleColliders.Count + 64;
             if (JiggleColliders.Capacity < expected) JiggleColliders.Capacity = expected;
 
-            JiggleCreatorHelper(Mapping.leftFoot, 0.015f);
-            JiggleCreatorHelper(Mapping.rightFoot, 0.015f);
+            if (Mapping.HasleftToes && Mapping.HasleftFoot)
+                JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftFoot, Mapping.leftToe }, 0.025f, addTipSphere: false);
+            else
+                JiggleCreatorHelper(Mapping.leftFoot, 0.025f);
+
+            if (Mapping.HasrightToes && Mapping.HasrightFoot)
+                JiggleCreatorHelperCapsule(new Transform[] { Mapping.rightFoot, Mapping.rightToe }, 0.025f, addTipSphere: false);
+            else
+                JiggleCreatorHelper(Mapping.rightFoot, 0.025f);
 
             // Arms: upper-arm capsule + forearm capsule + hand tip sphere, all from one array.
             JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f);
@@ -275,7 +282,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         /// <param name="Parents">Ordered bone transforms (e.g. proximal, intermediate, distal).</param>
         /// <param name="Radius">Base radius for the capsule/sphere. Default is <c>0.005</c>.</param>
-        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f)
+        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true)
         {
             int count = Parents.Length;
             if (count == 0) return;
@@ -306,6 +313,11 @@ namespace Basis.Scripts.Drivers
                 }
 
                 Transform tNext = (i + 1 < count) ? Parents[i + 1] : null;
+                if (tNext == null && !addTipSphere)
+                {
+                    hasCached = false;
+                    continue;
+                }
                 if (tNext != null)
                 {
                     Matrix4x4 mNext = tNext.localToWorldMatrix;
@@ -323,9 +335,12 @@ namespace Basis.Scripts.Drivers
                     float sy = Mathf.Sqrt(m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21);
                     float sz = Mathf.Sqrt(m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
 
-                    float dotX = Mathf.Abs(m.m00 * dx + m.m10 * dy + m.m20 * dz) / sx;
-                    float dotY = Mathf.Abs(m.m01 * dx + m.m11 * dy + m.m21 * dz) / sy;
-                    float dotZ = Mathf.Abs(m.m02 * dx + m.m12 * dy + m.m22 * dz) / sz;
+                    float rawDotX = m.m00 * dx + m.m10 * dy + m.m20 * dz;
+                    float rawDotY = m.m01 * dx + m.m11 * dy + m.m21 * dz;
+                    float rawDotZ = m.m02 * dx + m.m12 * dy + m.m22 * dz;
+                    float dotX = Mathf.Abs(rawDotX) / sx;
+                    float dotY = Mathf.Abs(rawDotY) / sy;
+                    float dotZ = Mathf.Abs(rawDotZ) / sz;
 
                     JiggleCollider.CapsuleAxis axis;
                     if (dotX >= dotY && dotX >= dotZ) axis = JiggleCollider.CapsuleAxis.X;
@@ -333,6 +348,11 @@ namespace Basis.Scripts.Drivers
                     else axis = JiggleCollider.CapsuleAxis.Z;
 
                     float invAvgScale = 3f / (sx + sy + sz);
+
+                    var localOffset = new Unity.Mathematics.float3(
+                        rawDotX / (sx * sx),
+                        rawDotY / (sy * sy),
+                        rawDotZ / (sz * sz)) * 0.5f;
 
                     JiggleColliders.Add(new JiggleColliderSerializable
                     {
@@ -342,7 +362,8 @@ namespace Basis.Scripts.Drivers
                             localToWorldMatrix = m,
                             radius = Radius * invAvgScale,
                             height = boneLength * invAvgScale,
-                            capsuleAxis = axis
+                            capsuleAxis = axis,
+                            localOffset = localOffset
                         },
                         transform = t
                     });
