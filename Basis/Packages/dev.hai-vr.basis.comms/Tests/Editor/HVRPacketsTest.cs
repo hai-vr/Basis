@@ -27,21 +27,21 @@ namespace HVR.Basis.Comms.Tests
         }
 
         [Test]
-        public void It_should_serialize_and_deserialize_packet_of_type_HVRVariableNetworkingPacket_NewVariables()
+        public void It_should_serialize_and_deserialize_packet_of_type_HVRPacket_NewVariables()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_NewVariables
+            var input = new HVRPacket_NewVariables
             {
-                newGeneralVariables = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewVariable>
+                newGeneralVariables = new List<HVRPacket_NewVariables.Inner_NewVariable>
                 {
                     new() { address = "TestAddressA", networkId = 1, variableTypeCode = 5, initialValue = 1.23f },
                     new() { address = "TestAddressB", networkId = 3, variableTypeCode = 10, initialValue = -4.56f },
                 },
-                floatZero = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewQuickVariable>
+                floatZero = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>
                 {
                     new() { address = "TestAddressC", networkId = 2 }
                 },
-                floatOne = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewQuickVariable>
+                floatOne = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>
                 {
                     new() { address = "TestAddressD", networkId = 4 },
                     new() { address = "TestAddressE", networkId = 5 },
@@ -50,7 +50,7 @@ namespace HVR.Basis.Comms.Tests
 
             // When
             var resultSerialized = input.Serialize();
-            var success = HVRVariableNetworkingPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var success = HVRPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -84,11 +84,11 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_false_when_deserializing_packet_with_extra_data()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_NewVariables
+            var input = new HVRPacket_NewVariables
             {
-                newGeneralVariables = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewVariable>(),
-                floatZero = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewQuickVariable>(),
-                floatOne = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewQuickVariable>()
+                newGeneralVariables = new List<HVRPacket_NewVariables.Inner_NewVariable>(),
+                floatZero = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>(),
+                floatOne = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>()
             };
             var serialized = input.Serialize();
             var extraData = new byte[serialized.Length + 1];
@@ -96,7 +96,7 @@ namespace HVR.Basis.Comms.Tests
             extraData[serialized.Length] = 0xFF; // Extra byte
 
             // When
-            var success = HVRVariableNetworkingPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(extraData), out _);
+            var success = HVRPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(extraData), out _);
 
             // Then
             Assert.IsFalse(success);
@@ -106,28 +106,28 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_false_when_deserializing_packet_with_missing_data()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_NewVariables
+            var input = new HVRPacket_NewVariables
             {
-                newGeneralVariables = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewVariable>(),
-                floatZero = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewQuickVariable>(),
-                floatOne = new List<HVRVariableNetworkingPacket_NewVariables.Inner_NewQuickVariable>()
+                newGeneralVariables = new List<HVRPacket_NewVariables.Inner_NewVariable>(),
+                floatZero = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>(),
+                floatOne = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>()
             };
             var serialized = input.Serialize();
             var missingData = new byte[serialized.Length - 1];
             Buffer.BlockCopy(serialized, 0, missingData, 0, serialized.Length - 1);
 
             // When
-            var success = HVRVariableNetworkingPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(missingData), out _);
+            var success = HVRPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(missingData), out _);
 
             // Then
             Assert.IsFalse(success);
         }
 
         [Test]
-        public void It_should_serialize_and_deserialize_packet_of_type_HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes()
+        public void It_should_serialize_and_deserialize_packet_of_type_HVRPacket_UpdatedVariables_ZeroesOrOnes()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
+            var input = new HVRPacket_UpdatedVariables_ZeroesOrOnes
             {
                 packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes,
                 timingSteps = 11,
@@ -136,7 +136,7 @@ namespace HVR.Basis.Comms.Tests
 
             // When
             var resultSerialized = input.Serialize();
-            var success = HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(new ArraySegment<byte>(resultSerialized), input.packetType, out var resultDeserialized);
+            var success = HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(new ArraySegment<byte>(resultSerialized), input.packetType, out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -150,10 +150,10 @@ namespace HVR.Basis.Comms.Tests
         }
 
         [Test]
-        public void It_should_serialize_and_deserialize_packet_of_type_HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes()
+        public void It_should_serialize_and_deserialize_packet_of_type_HVRPacket_UpdatedVariables_ZeroesAndOnes()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
+            var input = new HVRPacket_UpdatedVariables_ZeroesAndOnes
             {
                 timingSteps = 11,
                 numberOfZeroes = 10,
@@ -162,7 +162,7 @@ namespace HVR.Basis.Comms.Tests
 
             // When
             var resultSerialized = input.Serialize();
-            var success = HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var success = HVRPacket_UpdatedVariables_ZeroesAndOnes.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -177,15 +177,15 @@ namespace HVR.Basis.Comms.Tests
         }
 
         [Test]
-        public void It_should_serialize_and_deserialize_packet_of_type_HVRVariableNetworkingPacket_UpdatedVariables_Mixed()
+        public void It_should_serialize_and_deserialize_packet_of_type_HVRPacket_UpdatedVariables_Mixed()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_UpdatedVariables_Mixed
+            var input = new HVRPacket_UpdatedVariables_Mixed
             {
                 timingSteps = 11,
                 numberOfZeroes = 5,
                 networkIds = new List<ushort> { 10, 20 },
-                other = new List<HVRVariableNetworkingPacket_UpdatedVariables_Mixed.Inner_UpdatedValue>
+                other = new List<HVRPacket_UpdatedVariables_Mixed.Inner_UpdatedValue>
                 {
                     new() { networkId = 30, value = 0.5f },
                     new() { networkId = 40, value = -1.0f }
@@ -194,7 +194,7 @@ namespace HVR.Basis.Comms.Tests
 
             // When
             var resultSerialized = input.Serialize();
-            var success = HVRVariableNetworkingPacket_UpdatedVariables_Mixed.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var success = HVRPacket_UpdatedVariables_Mixed.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -215,12 +215,12 @@ namespace HVR.Basis.Comms.Tests
         }
 
         [Test]
-        public void It_should_serialize_and_deserialize_packet_of_type_HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency()
+        public void It_should_serialize_and_deserialize_packet_of_type_HVRPacket_UpgradeFloatToHighFrequency()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency
+            var input = new HVRPacket_UpgradeFloatToHighFrequency
             {
-                items = new List<HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency.Inner_Item>
+                items = new List<HVRPacket_UpgradeFloatToHighFrequency.Inner_Item>
                 {
                     new() { networkId = 100, min = 0f, max = 1f },
                     new() { networkId = 200, min = -10f, max = 10f }
@@ -229,7 +229,7 @@ namespace HVR.Basis.Comms.Tests
 
             // When
             var resultSerialized = input.Serialize();
-            var success = HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var success = HVRPacket_UpgradeFloatToHighFrequency.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -244,17 +244,17 @@ namespace HVR.Basis.Comms.Tests
         }
 
         [Test]
-        public void It_should_serialize_and_deserialize_packet_of_type_HVRVariableNetworkingPacket_DowngradeFloatToLowFrequency()
+        public void It_should_serialize_and_deserialize_packet_of_type_HVRPacket_DowngradeFloatToLowFrequency()
         {
             // Given
-            var input = new HVRVariableNetworkingPacket_DowngradeFloatToLowFrequency
+            var input = new HVRPacket_DowngradeFloatToLowFrequency
             {
                 networkIds = new List<ushort> { 123, 456, 789 }
             };
 
             // When
             var resultSerialized = input.Serialize();
-            var success = HVRVariableNetworkingPacket_DowngradeFloatToLowFrequency.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var success = HVRPacket_DowngradeFloatToLowFrequency.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);

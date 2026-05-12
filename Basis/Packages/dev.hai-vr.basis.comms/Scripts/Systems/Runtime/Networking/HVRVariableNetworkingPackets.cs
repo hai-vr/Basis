@@ -8,7 +8,7 @@ namespace HVR.Basis.Comms
     // - Do not encode the size of the that last list.
     // - The size of the list determined by adding items to the list while reading until there is nothing left to read in the packet.
 
-    internal class HVRVariableNetworkingPacket_NewVariables
+    internal class HVRPacket_NewVariables
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerSubmitsNewVariables;
         public List<Inner_NewVariable> newGeneralVariables;
@@ -61,14 +61,14 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRVariableNetworkingPacket_NewVariables result)
+        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_NewVariables result)
         {
             try
             {
                 var reader = new HVRNetReader(data);
 
                 var packetType = reader.ReadByte();
-                result = new HVRVariableNetworkingPacket_NewVariables();
+                result = new HVRPacket_NewVariables();
 
                 var countGeneral = reader.ReadUshort();
                 result.newGeneralVariables = new List<Inner_NewVariable>((int)countGeneral);
@@ -124,7 +124,7 @@ namespace HVR.Basis.Comms
         }
     }
 
-    internal class HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
+    internal class HVRPacket_UpdatedVariables_ZeroesOrOnes
     {
         public byte packetType;
         public byte timingSteps;
@@ -144,7 +144,7 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, byte packetType, out HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes result)
+        public static bool TryDeserialize(ArraySegment<byte> data, byte packetType, out HVRPacket_UpdatedVariables_ZeroesOrOnes result)
         {
             try
             {
@@ -153,7 +153,7 @@ namespace HVR.Basis.Comms
                 var receivedPacketType = reader.ReadByte();
                 var timingSteps = reader.ReadByte();
 
-                result = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
+                result = new HVRPacket_UpdatedVariables_ZeroesOrOnes
                 {
                     packetType = packetType,
                     timingSteps = timingSteps,
@@ -176,7 +176,7 @@ namespace HVR.Basis.Comms
         }
     }
 
-    internal class HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
+    internal class HVRPacket_UpdatedVariables_ZeroesAndOnes
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes;
         public byte timingSteps;
@@ -199,7 +199,7 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes result)
+        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpdatedVariables_ZeroesAndOnes result)
         {
             try
             {
@@ -209,7 +209,7 @@ namespace HVR.Basis.Comms
                 var timingSteps = reader.ReadByte();
                 var numberOfZeroes = reader.ReadUshort();
 
-                result = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
+                result = new HVRPacket_UpdatedVariables_ZeroesAndOnes
                 {
                     timingSteps = timingSteps,
                     numberOfZeroes = numberOfZeroes,
@@ -232,7 +232,7 @@ namespace HVR.Basis.Comms
         }
     }
 
-    internal class HVRVariableNetworkingPacket_UpdatedVariables_Mixed
+    internal class HVRPacket_UpdatedVariables_Mixed
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Mixed;
         public byte timingSteps;
@@ -270,7 +270,7 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRVariableNetworkingPacket_UpdatedVariables_Mixed result)
+        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpdatedVariables_Mixed result)
         {
             try
             {
@@ -281,7 +281,7 @@ namespace HVR.Basis.Comms
                 var numberOfZeroes = reader.ReadUshort();
                 var networkIdsCount = reader.ReadUshort();
 
-                result = new HVRVariableNetworkingPacket_UpdatedVariables_Mixed
+                result = new HVRPacket_UpdatedVariables_Mixed
                 {
                     timingSteps = timingSteps,
                     numberOfZeroes = numberOfZeroes,
@@ -318,7 +318,7 @@ namespace HVR.Basis.Comms
         }
     }
 
-    internal class HVRVariableNetworkingPacket_DowngradeFloatToLowFrequency
+    internal class HVRPacket_DowngradeFloatToLowFrequency
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerDowngradesFloatToLowFrequency;
         public List<ushort> networkIds;
@@ -336,7 +336,7 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRVariableNetworkingPacket_DowngradeFloatToLowFrequency result)
+        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_DowngradeFloatToLowFrequency result)
         {
             try
             {
@@ -344,7 +344,7 @@ namespace HVR.Basis.Comms
 
                 var packetType = reader.ReadByte();
 
-                result = new HVRVariableNetworkingPacket_DowngradeFloatToLowFrequency
+                result = new HVRPacket_DowngradeFloatToLowFrequency
                 {
                     networkIds = new List<ushort>()
                 };
@@ -365,7 +365,7 @@ namespace HVR.Basis.Comms
         }
     }
 
-    internal class HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency
+    internal class HVRPacket_UpgradeFloatToHighFrequency
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerUpgradesFloatToHighFrequency;
         public List<Inner_Item> items;
@@ -392,7 +392,7 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency result)
+        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpgradeFloatToHighFrequency result)
         {
             try
             {
@@ -400,7 +400,7 @@ namespace HVR.Basis.Comms
 
                 var packetType = reader.ReadByte();
 
-                result = new HVRVariableNetworkingPacket_UpgradeFloatToHighFrequency
+                result = new HVRPacket_UpgradeFloatToHighFrequency
                 {
                     items = new List<Inner_Item>()
                 };
