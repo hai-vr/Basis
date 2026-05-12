@@ -19,6 +19,7 @@ namespace HVR.Basis.Comms.Editor
 
         private List<Renderer> _renderers = new();
         private List<Renderer> _renderersNotInControl = new();
+        private List<string> _addresses = new();
         private List<HVRVixxyControl> _controls = new();
         private List<Component> _components = new();
         private readonly Dictionary<Transform, List<HVRVixxyControl>> _transformToControlsDict = new();
@@ -79,6 +80,13 @@ namespace HVR.Basis.Comms.Editor
                 }
 
                 (_renderers, _renderersNotInControl) = renderers.Partition(renderer => _transformToControlsDict.ContainsKey(renderer.transform));
+
+                _addresses = applicableTransforms.SelectMany(transform => transform.GetComponents<HVRVixxyControl>())
+                    .Select(control => control.address.TryResolvePath(out var result) ? result : null)
+                    .Where(address => address != null)
+                    .Distinct()
+                    .OrderBy(address => address)
+                    .ToList();
             }
         }
 
@@ -133,7 +141,6 @@ namespace HVR.Basis.Comms.Editor
                         EditorGUILayout.LabelField($"Toggles {control.activations.Length} objects, changes {control.subjects.Sum(subject => subject.properties.Count)} properties", GUILayout.Width(300));
                         EditorGUILayout.EndHorizontal();
                     }
-
                     EditorGUILayout.Separator();
 
                     EditorGUILayout.LabelField("Components", EditorStyles.boldLabel);
@@ -141,7 +148,13 @@ namespace HVR.Basis.Comms.Editor
                     {
                         EditorGUILayout.ObjectField(new GUIContent(""), component, component.GetType(), true);
                     }
+                    EditorGUILayout.Separator();
 
+                    EditorGUILayout.LabelField("Addresses", EditorStyles.boldLabel);
+                    foreach (var address in _addresses)
+                    {
+                        EditorGUILayout.TextField(address);
+                    }
                     EditorGUILayout.Separator();
                 }
             }
