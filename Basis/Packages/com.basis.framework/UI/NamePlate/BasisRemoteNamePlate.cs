@@ -87,6 +87,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             BasisRemotePlayer.OnAvatarFailedStateChanged += RefreshFailedStateColor;
             BasisRemotePlayer.OnChatMessageReceived += SetChatText;
+            BasisRemotePlayer.OnChatTypingStateChanged += SetTypingIndicatorVisible;
             BasisRemotePlayer.OnNamePlateActiveStateShouldRefresh += RefreshActiveState;
             BasisRemotePlayer.OnRemotePlayerDestroying += HandlePlayerDestroying;
             BasisRemotePlayer.NamePlateTransformProvider = GetSelfTransform;
@@ -244,6 +245,7 @@ namespace Basis.Scripts.UI.NamePlate
 
                 BasisRemotePlayer.OnAvatarFailedStateChanged -= RefreshFailedStateColor;
                 BasisRemotePlayer.OnChatMessageReceived -= SetChatText;
+                BasisRemotePlayer.OnChatTypingStateChanged -= SetTypingIndicatorVisible;
                 BasisRemotePlayer.OnNamePlateActiveStateShouldRefresh -= RefreshActiveState;
                 BasisRemotePlayer.OnRemotePlayerDestroying -= HandlePlayerDestroying;
                 if (BasisRemotePlayer.NamePlateTransformProvider == GetSelfTransform)

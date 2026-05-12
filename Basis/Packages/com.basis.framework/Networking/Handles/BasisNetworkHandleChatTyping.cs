@@ -74,9 +74,6 @@ public static class BasisNetworkHandleChatTyping
         }
 
         remotePlayer.IsChatTyping = isTyping;
-        if (remotePlayer.RemoteNamePlate != null)
-        {
-            remotePlayer.RemoteNamePlate.SetTypingIndicatorVisible(isTyping);
-        }
+        remotePlayer.OnChatTypingStateChanged?.Invoke(isTyping);
     }
 }

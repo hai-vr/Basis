@@ -13,8 +13,15 @@ namespace BasisNetworkServer
         /// </summary>
         public static void HandleEvent(NetPacketReader reader, NetPeer peer, byte eventType)
         {
-            bool isTyping = reader.GetBool();
-            reader.Recycle();
+            bool isTyping;
+            try
+            {
+                isTyping = reader.GetBool();
+            }
+            finally
+            {
+                reader.Recycle();
+            }
 
             NetDataWriter writer = NetworkServer.RentWriter();
             try
