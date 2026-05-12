@@ -127,12 +127,14 @@ namespace HVR.Basis.Comms
     internal class HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
     {
         public byte packetType;
+        public byte timingSteps;
         public List<ushort> networkIds;
 
         public byte[] Serialize()
         {
             var writer = new HVRNetWriter();
             writer.WriteByte(packetType);
+            writer.WriteByte(timingSteps);
 
             foreach (var networkId in networkIds)
             {
@@ -149,10 +151,12 @@ namespace HVR.Basis.Comms
                 var reader = new HVRNetReader(data);
 
                 var receivedPacketType = reader.ReadByte();
+                var timingSteps = reader.ReadByte();
 
                 result = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
                 {
                     packetType = packetType,
+                    timingSteps = timingSteps,
                     networkIds = new List<ushort>()
                 };
 
@@ -175,6 +179,7 @@ namespace HVR.Basis.Comms
     internal class HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes;
+        public byte timingSteps;
         public ushort numberOfZeroes;
         public List<ushort> networkIds;
 
@@ -182,6 +187,7 @@ namespace HVR.Basis.Comms
         {
             var writer = new HVRNetWriter();
             writer.WriteByte(packetType);
+            writer.WriteByte(timingSteps);
 
             writer.WriteUshort(numberOfZeroes);
 
@@ -200,10 +206,12 @@ namespace HVR.Basis.Comms
                 var reader = new HVRNetReader(data);
 
                 var packetType = reader.ReadByte();
+                var timingSteps = reader.ReadByte();
                 var numberOfZeroes = reader.ReadUshort();
 
                 result = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
                 {
+                    timingSteps = timingSteps,
                     numberOfZeroes = numberOfZeroes,
                     networkIds = new List<ushort>()
                 };
@@ -227,6 +235,7 @@ namespace HVR.Basis.Comms
     internal class HVRVariableNetworkingPacket_UpdatedVariables_Mixed
     {
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Mixed;
+        public byte timingSteps;
         public ushort numberOfZeroes;
         public List<ushort> networkIds;
         public List<Inner_UpdatedValue> other;
@@ -241,6 +250,7 @@ namespace HVR.Basis.Comms
         {
             var writer = new HVRNetWriter();
             writer.WriteByte(packetType);
+            writer.WriteByte(timingSteps);
 
             writer.WriteUshort(numberOfZeroes);
 
@@ -267,11 +277,13 @@ namespace HVR.Basis.Comms
                 var reader = new HVRNetReader(data);
 
                 var packetType = reader.ReadByte();
+                var timingSteps = reader.ReadByte();
                 var numberOfZeroes = reader.ReadUshort();
                 var networkIdsCount = reader.ReadUshort();
 
                 result = new HVRVariableNetworkingPacket_UpdatedVariables_Mixed
                 {
+                    timingSteps = timingSteps,
                     numberOfZeroes = numberOfZeroes,
                     networkIds = new List<ushort>((int)networkIdsCount)
                 };

@@ -133,7 +133,7 @@ namespace HVR.Basis.Comms
                 _timeLeftUpdateValues += Time.deltaTime;
                 if (_timeLeftUpdateValues > TransmissionDeltaSeconds)
                 {
-                    DoTick();
+                    DoTick(_timeLeftUpdateValues);
                     _timeLeftUpdateValues = 0;
                 }
 
@@ -172,7 +172,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            private void DoTick()
+            private void DoTick(float deltaTimeSinceLastTick)
             {
                 if (_addressIdsWithNewValue.Count == 0) return;
 
@@ -202,7 +202,7 @@ namespace HVR.Basis.Comms
 
                 if (addressIdsToValueToTransmit.Count > 0)
                 {
-                    var packet = BuildUpdatedVariablesPacket(addressIdsToValueToTransmit);
+                    var packet = BuildUpdatedVariablesPacket(addressIdsToValueToTransmit, deltaTimeSinceLastTick);
                     _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
                     if (PrintDebug) HVRLogging.ProtocolDebug($"(Update) Sending UpdatedVariablesPacket (at T={Time.time:0.00}).");
                 }
@@ -260,8 +260,13 @@ namespace HVR.Basis.Comms
                 }.Serialize();
             }
 
-            private byte[] BuildUpdatedVariablesPacket(Dictionary<int, object> addressIdsToValueToTransmit)
+            private byte[] BuildUpdatedVariablesPacket(Dictionary<int, object> addressIdsToValueToTransmit, float deltaTimeSinceLastTick)
             {
+                var deltaLocalIntToSeconds = (int)(deltaTimeSinceLastTick / StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                if (deltaLocalIntToSeconds > byte.MaxValue) deltaLocalIntToSeconds = byte.MaxValue;
+
+                var timingSteps = (byte)deltaLocalIntToSeconds;
+
                 // In our system, we currently only handle floats (this may change in the future to support strings and Color).
                 // We do not handle booleans. Instead, this is what happens:
                 // The float values of 0.0 and 1.0 are considered to be special. Instead of networking the value of 0.0 and 1.0,
@@ -300,6 +305,7 @@ namespace HVR.Basis.Comms
                     if (PrintDebug) HVRLogging.ProtocolDebug("(BuildUpdatedVariablesPacket) Building a UpdatedVariables_Mixed packet.");
                     return new HVRVariableNetworkingPacket_UpdatedVariables_Mixed
                     {
+                        timingSteps = timingSteps,
                         numberOfZeroes = (ushort)zeroesNetworkIds.Count,
                         networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList(),
                         other = otherAddressIds.Select(addressId => new HVRVariableNetworkingPacket_UpdatedVariables_Mixed.Inner_UpdatedValue
@@ -315,6 +321,7 @@ namespace HVR.Basis.Comms
                     if (PrintDebug) HVRLogging.ProtocolDebug("(BuildUpdatedVariablesPacket) Building a UpdatedVariables_ZeroesAndOnes packet.");
                     return new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
                     {
+                        timingSteps = timingSteps,
                         numberOfZeroes = (ushort)zeroesNetworkIds.Count,
                         networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList()
                     }.Serialize();
@@ -323,6 +330,7 @@ namespace HVR.Basis.Comms
                 if (PrintDebug) HVRLogging.ProtocolDebug($"(BuildUpdatedVariablesPacket) Building a {(zeroesNetworkIds.Count > 0 ? "UpdatedVariables_Zeroes" : "UpdatedVariables_Ones")} packet.");
                 return new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
                 {
+                    timingSteps = timingSteps,
                     packetType = zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
                     networkIds = zeroesNetworkIds.Count > 0 ? zeroesNetworkIds : onesNetworkIds
                 }.Serialize();

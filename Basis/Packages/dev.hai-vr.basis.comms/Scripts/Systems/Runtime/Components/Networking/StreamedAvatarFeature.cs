@@ -13,7 +13,7 @@ namespace HVR.Basis.Comms
 
         private const int HeaderBytes = 3;
         // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
-        private const float DeltaLocalIntToSeconds = 1 / 60f;
+        internal const float DeltaLocalIntToSeconds = 1 / 60f;
         private const float DeltaTimeUsedForResyncs = 1 / 29f; // 29 is just a random number I picked. It really doesn't matter what value we're using for resyncs.
         // We use 254, not 255 (leaving 1 value out), because 254 divided by 2 is a round number, 127.
         // This makes the value of 0 in range [-1:1] encodable as 127.

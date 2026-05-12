@@ -130,6 +130,7 @@ namespace HVR.Basis.Comms.Tests
             var input = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesOrOnes
             {
                 packetType = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes,
+                timingSteps = 11,
                 networkIds = new List<ushort> { 1, 2, 3, 4, 5 }
             };
 
@@ -140,6 +141,7 @@ namespace HVR.Basis.Comms.Tests
             // Then
             Assert.IsTrue(success);
             Assert.AreEqual(input.packetType, resultDeserialized.packetType);
+            Assert.AreEqual(input.timingSteps, resultDeserialized.timingSteps);
             Assert.AreEqual(input.networkIds.Count, resultDeserialized.networkIds.Count);
             for (var i = 0; i < input.networkIds.Count; i++)
             {
@@ -153,6 +155,7 @@ namespace HVR.Basis.Comms.Tests
             // Given
             var input = new HVRVariableNetworkingPacket_UpdatedVariables_ZeroesAndOnes
             {
+                timingSteps = 11,
                 numberOfZeroes = 10,
                 networkIds = new List<ushort> { 101, 102, 103 }
             };
@@ -164,6 +167,7 @@ namespace HVR.Basis.Comms.Tests
             // Then
             Assert.IsTrue(success);
             Assert.AreEqual(input.packetType, resultDeserialized.packetType);
+            Assert.AreEqual(input.timingSteps, resultDeserialized.timingSteps);
             Assert.AreEqual(input.numberOfZeroes, resultDeserialized.numberOfZeroes);
             Assert.AreEqual(input.networkIds.Count, resultDeserialized.networkIds.Count);
             for (var i = 0; i < input.networkIds.Count; i++)
@@ -178,6 +182,7 @@ namespace HVR.Basis.Comms.Tests
             // Given
             var input = new HVRVariableNetworkingPacket_UpdatedVariables_Mixed
             {
+                timingSteps = 11,
                 numberOfZeroes = 5,
                 networkIds = new List<ushort> { 10, 20 },
                 other = new List<HVRVariableNetworkingPacket_UpdatedVariables_Mixed.Inner_UpdatedValue>
@@ -194,6 +199,7 @@ namespace HVR.Basis.Comms.Tests
             // Then
             Assert.IsTrue(success);
             Assert.AreEqual(input.packetType, resultDeserialized.packetType);
+            Assert.AreEqual(input.timingSteps, resultDeserialized.timingSteps);
             Assert.AreEqual(input.numberOfZeroes, resultDeserialized.numberOfZeroes);
             Assert.AreEqual(input.networkIds.Count, resultDeserialized.networkIds.Count);
             for (var i = 0; i < input.networkIds.Count; i++)
