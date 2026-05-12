@@ -545,6 +545,13 @@ namespace HVR.Vixxy
 
         private void OnImplicitAddressUpdated(float value)
         {
+            // It's good to do this, because:
+            // - this avoids unnecessary actuations, we don't want to modify objects in the scene when not necessary,
+            // - if the packets get quantized within range, it gets clamped to the address' min and max of all controls, so we should also clamp here.
+            // However, orchestrator.PassAddressUpdated operates per-address. It might actuate this if another actuator occupies a different range.
+            if (value < MinimumValue) value = MinimumValue;
+            else if (value > MaximumValue) value = MaximumValue;
+
             // This function can be called multiple times with the same value (e.g. values submitted by an external program).
             // Only proceed if there's a substantial change.
             if (Mathf.Approximately(value, _previousValue)) return;
