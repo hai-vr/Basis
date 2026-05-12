@@ -191,7 +191,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUI.showMixedValue = false;
                 EditorGUI.EndDisabledGroup();
 
-                EditorGUILayout.HelpBox("Networking is unconventional for this address.", MessageType.Info);
+                EditorGUILayout.HelpBox("Networking options are irrelevant for this system address.", MessageType.Info);
             }
             else
             {
