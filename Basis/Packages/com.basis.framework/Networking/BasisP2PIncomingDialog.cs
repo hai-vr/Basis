@@ -30,16 +30,18 @@ namespace Basis.Scripts.Networking
                 }
 
                 string displayName = senderPlayerId.ToString();
+                string uuid = "(unknown)";
                 if (BasisNetworkPlayers.Players.TryGetValue(senderPlayerId, out var netPlayer) &&
                     netPlayer != null && netPlayer.Player != null)
                 {
                     displayName = netPlayer.Player.DisplayName ?? displayName;
+                    if (!string.IsNullOrEmpty(netPlayer.Player.UUID)) uuid = netPlayer.Player.UUID;
                 }
 
-                BasisDebug.Log($"[P2P] Opening accept dialog for direct connection from {displayName}.");
+                BasisDebug.Log($"[P2P] Opening accept dialog for direct connection from {displayName} (UUID {uuid}).");
                 BasisMainMenu.Instance.OpenDialogue(
                     BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.title"),
-                    BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.body", displayName),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.body", displayName, uuid),
                     BasisLocalization.Get("menu.individualPlayer.directConnection.accept"),
                     BasisLocalization.Get("menu.individualPlayer.directConnection.decline"),
                     accepted =>
