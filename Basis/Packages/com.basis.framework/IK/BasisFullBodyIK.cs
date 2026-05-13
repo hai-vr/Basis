@@ -1081,15 +1081,13 @@ w20, w54;
             }
             if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
             {
-                // Build target + hint transforms
-                var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                var bendNormal = bendNormalHead.Get(stream);
+                Vector3 headPos = targetPositionHead.Get(stream);
+                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
 
-                DistributeSpineBend(stream, target.translation);
+                DistributeSpineBend(stream, headPos);
                 if (!HasChestTracker.Get(stream))
                     ApplyArmSwingChestFollow(stream);
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                SolveSequentialSpineIK(stream, headPos, headRot);
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
@@ -1106,14 +1104,65 @@ w20, w54;
 
                 HandleChest.SetRotation(stream, clampedChestRot);
 
-                // Build target + hint transforms
-                var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                var bendNormal = bendNormalHead.Get(stream);
+                Vector3 headPos = targetPositionHead.Get(stream);
+                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
 
-                DistributeSpineBend(stream, target.translation);
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                DistributeSpineBend(stream, headPos);
+                SolveSequentialSpineIK(stream, headPos, headRot);
             }
+        }
+        // CCD root→tip aim across the hips→head chain. Hips is the fixed anchor (the hip pre-pass
+        // already placed it); we rotate spine, chest, neck so the head bone slides onto its target,
+        // then pin the head's rotation to the tracker. Rotation-only — bone lengths are preserved
+        // implicitly because each joint is rotated in place. Convergence parameters live in
+        // spineCache (iterations + squared-position tolerance).
+        public void SolveSequentialSpineIK(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
+        {
+            if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 3)
+                return;
+
+            int chainLen = ChainHeadToSpine.Length;
+            const int tipIdx = 0;
+            const int firstJoint = 1;
+            int lastJoint = chainLen - 2;
+
+            for (int i = 0; i < chainLen; i++)
+            {
+                if (!ChainHeadToSpine[i].IsValid(stream))
+                    return;
+            }
+
+            int maxIters = Mathf.Max(1, (int)spineCache.GetRaw(spineMaxIterationsIdx));
+            float tolerance = Mathf.Max(0f, spineCache.GetRaw(spineToleranceIdx));
+            float tolSqr = tolerance * tolerance;
+
+            Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
+
+            for (int iter = 0; iter < maxIters; iter++)
+            {
+                Vector3 tipPos = ChainHeadToSpine[tipIdx].GetPosition(stream);
+                if ((headTargetPos - tipPos).sqrMagnitude < tolSqr)
+                    break;
+
+                // Walk from root-side (spine) toward tip-side (neck) so the longer-lever joints
+                // take the bigger swing first; later passes through the loop fine-tune with the
+                // shorter levers.
+                for (int i = lastJoint; i >= firstJoint; i--)
+                {
+                    Vector3 jointPos = ChainHeadToSpine[i].GetPosition(stream);
+                    Vector3 curTipPos = ChainHeadToSpine[tipIdx].GetPosition(stream);
+
+                    Vector3 cur = curTipPos - jointPos;
+                    Vector3 tgt = headTargetPos - jointPos;
+                    if (cur.sqrMagnitude < k_SqrEpsilon || tgt.sqrMagnitude < k_SqrEpsilon)
+                        continue;
+
+                    Quaternion delta = QuaternionExt.FromToRotation(cur, tgt);
+                    ChainHeadToSpine[i].SetRotation(stream, delta * ChainHeadToSpine[i].GetRotation(stream));
+                }
+            }
+
+            ChainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
         }
         // Pre-distributes the hips→head bend onto spine and upperChest in hips-local space, split
         // into independent pitch / yaw / roll contributions so anisotropic human ranges of motion
@@ -1504,8 +1553,9 @@ w20, w54;
         }
         // Yaw the chest toward the hand-target midpoint relative to hips. Applied around the
         // hips-local Y axis, which is approximately the spine "twist" axis in normal stances —
-        // close to orthogonal to the head-reach direction, so SolveTwoBoneSpine doesn't undo it.
-        // Skipped when a chest tracker is active; that case owns chest rotation directly.
+        // close to orthogonal to the head-reach direction, so SolveSequentialSpineIK's aim
+        // corrections don't undo it. Skipped when a chest tracker is active; that case owns
+        // chest rotation directly.
         void ApplyArmSwingChestFollow(AnimationStream stream)
         {
             float factor = chestArmSwingFactor.Get(stream);
@@ -1685,61 +1735,6 @@ w20, w54;
             // Blend: at low reach, trust tracker more; at high reach, trust computed more
             float computedWeight = Mathf.Clamp01(reachRatio * 1.5f);
             shoulderHandle.SetRotation(stream, Quaternion.Slerp(trackerFinal, adjustedRot, computedWeight * (elevation + protraction + crossBodyContrib)));
-        }
-        public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
-        {
-            // Read current joint positions
-            Vector3 aPos = root.GetPosition(stream);
-            Vector3 bPos = mid.GetPosition(stream);
-            Vector3 cPos = tip.GetPosition(stream);
-
-            // Target with offset applied in target space
-            Vector3 tPos = target.translation;
-            Quaternion tRot = target.rotation * targetOffset;
-
-            // Current bone vectors
-            Vector3 ab = bPos - aPos;
-            Vector3 bc = cPos - bPos;
-            Vector3 ac = cPos - aPos;
-            Vector3 at = tPos - aPos;
-
-            float abLen = ab.magnitude;
-            float bcLen = bc.magnitude;
-            float acLen = ac.magnitude;
-            float atLen = at.magnitude;
-            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
-
-            // Compute rotation axis for mid joint bend
-            Vector3 axis = ComputeIkAxis(bendNormal);
-
-            // Rotate mid joint by half the angle delta (distributes motion)
-            float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
-            float s = Mathf.Sin(halfAngle);
-            float c = Mathf.Cos(halfAngle);
-            Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
-            mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
-
-            // Re-evaluate and swing root so AC aligns with AT
-            cPos = tip.GetPosition(stream);
-            ac = cPos - aPos;
-            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
-
-            // Set tip rotation to match target orientation (+offset)
-            tip.SetRotation(stream, tRot);
-        }
-        private Vector3 ComputeIkAxis(Vector3 bendNormal)
-        {
-            Vector3 axis;
-            axis = bendNormal;
-            float mag2 = axis.sqrMagnitude;
-            if (mag2 < k_SqrEpsilon)
-            {
-                // Deterministic fallback to avoid NaNs/garbage under Burst
-                return Vector3.forward;
-            }
-
-            return axis / Mathf.Sqrt(mag2);
         }
         static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
         {
