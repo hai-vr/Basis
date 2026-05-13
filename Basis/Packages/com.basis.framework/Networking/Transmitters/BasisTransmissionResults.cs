@@ -691,23 +691,23 @@ public partial class BasisTransmissionResults
     {
         ServerMetaDataMessage meta = BasisNetworkManagement.ServerMetaDataMessage;
 
-        // Override DefaultInterval (not just the clamp floor) when P2P is active —
-        // the distance formula's output equals DefaultInterval for a close peer,
-        // so lowering only the floor has no effect.
-        float serverDefault = meta.SyncInterval / 1000f;
-        float fast = Basis.Scripts.Networking.BasisP2PManager.FastAvatarIntervalSeconds;
-        DefaultInterval = (Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession() && fast < serverDefault)
-            ? fast
-            : serverDefault;
-
-        float calculatedIntervalBase = meta.BaseMultiplier + (smallestD2 * meta.IncreaseRate);
-        UnClampedInterval = DefaultInterval * calculatedIntervalBase;
-
-        intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, meta.SlowestSendRate);
-
         if (Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession())
         {
+            // Dropdown is authoritative for P2P. Distance scaling exists to
+            // reduce server fan-out cost — irrelevant for a direct UDP link.
+            float fast = Basis.Scripts.Networking.BasisP2PManager.FastAvatarIntervalSeconds;
+            DefaultInterval = fast;
+            UnClampedInterval = fast;
+            intervalSeconds = fast;
+
             Basis.Scripts.Networking.BasisAvatarRateRegistry.MaybeAnnounceLocalRate(intervalSeconds);
+        }
+        else
+        {
+            DefaultInterval = meta.SyncInterval / 1000f;
+            float calculatedIntervalBase = meta.BaseMultiplier + (smallestD2 * meta.IncreaseRate);
+            UnClampedInterval = DefaultInterval * calculatedIntervalBase;
+            intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, meta.SlowestSendRate);
         }
     }
 
