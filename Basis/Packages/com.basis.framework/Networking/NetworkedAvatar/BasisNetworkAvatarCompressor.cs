@@ -105,7 +105,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BuildJobArrays();
         }
 
-        public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
+        public static void Compress(BasisNetworkTransmitter transmitter, Animator animator, double timeAsDouble)
         {
             Transform t = animator.transform;
 
@@ -140,12 +140,24 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             transmitter.storedAvatarData.LASM.SerializeForChannel(transmitter.AvatarSendWriter, WireQuality);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
-
-            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, channel, DeliveryMethod.Unreliable);
+            Basis.Scripts.Networking.BasisP2PManager.BroadcastAvatarViaP2P(transmitter.AvatarSendWriter, channel);
+            // Server send gated to meta.SyncInterval pace; P2P fires every build.
+            if (timeAsDouble >= sNextServerSendTime)
+            {
+                BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, channel, DeliveryMethod.Unreliable);
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.OutboundAvatarServer, transmitter.AvatarSendWriter.Length);
+                var meta = BasisNetworkManagement.ServerMetaDataMessage;
+                double serverIntervalSec = meta.SyncInterval > 0
+                    ? meta.SyncInterval / 1000.0
+                    : 0.050;
+                sNextServerSendTime = timeAsDouble + serverIntervalSec;
+            }
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();
         }
+
+        private static double sNextServerSendTime;
 
         public static void InitalAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
         {

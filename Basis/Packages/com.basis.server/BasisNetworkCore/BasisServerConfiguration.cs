@@ -18,7 +18,7 @@ public class Configuration
     /// <summary>Short MOTD returned alongside the server name in the info query response. Two short lines render cleanly in the list UI.</summary>
     public string ServerMotd = "";
     public bool UseNativeSockets = true;
-    public bool NatPunchEnabled = false;
+    public bool NatPunchEnabled = true;
     public int PingInterval = 1500;
     public int DisconnectTimeout = 30000;
     public bool SimulatePacketLoss = false;
@@ -44,9 +44,9 @@ public class Configuration
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
     public float BSRSlowestSendRate = 2.55f;
-    public float HighQualityDistance = 3f;
-    public float MediumQualityDistance = 10f;
-    public float LowQualityDistance = 20f;
+    public float HighQualityDistance = 10f;
+    public float MediumQualityDistance = 20f;
+    public float LowQualityDistance = 40f;
     public bool OverrideAutoDiscoveryOfIpv = false;
     public string IPv4Address = "0.0.0.0";
     public string IPv6Address = "::1";
@@ -66,7 +66,7 @@ public class Configuration
     /// for compression to be worthwhile, or when the compressed result would
     /// exceed peer MTU. Clients must implement the matching decoder.
     /// </summary>
-    public bool EnableAvatarBundleCompression = false;
+    public bool EnableAvatarBundleCompression = true;
     /// <summary>Minimum queued avatar messages to a single receiver before a bundle is even attempted.</summary>
     public int AvatarBundleMinMessages = 4;
     /// <summary>Minimum uncompressed bundle bytes before LZ4 compression is attempted. With LZ4 having near-zero per-call setup, 128 just guards the very smallest cases where LZ4 can't find any redundancy.</summary>

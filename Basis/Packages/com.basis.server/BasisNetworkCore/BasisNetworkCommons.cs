@@ -145,6 +145,9 @@ namespace Basis.Network.Core
         /// block and hide the sender's avatar/audio/nameplate on their client. Not persisted.
         /// </summary>
         public const byte EventType_PlayerTempBlock = 2;
+        // Wire (client→server): [eventType:1][intervalMs:2]
+        // Wire (server→client): [eventType:1][senderId:2][intervalMs:2]
+        public const byte EventType_AvatarRateChange = 3;
 
         // ── Per-quality avatar channels (ushort playerID, for IDs >255) ──
         // Same layout as byte-ID channels: base + quality * 2 + hasAdditional
@@ -180,6 +183,19 @@ namespace Basis.Network.Core
         /// connected to that server and are cleared on disconnect.
         /// </summary>
         public const byte ServerLibraryChannel = 53;
+
+        // ── Peer-to-peer direct connection ───────────────────────────────────
+        // First byte of payload selects a P2PSub_* sub-type; remaining bytes are
+        // the BasisP2PSignalMessage body. Reliable-ordered.
+        public const byte P2PChannel = 54;
+
+        public const byte P2PSub_Request = 0;
+        public const byte P2PSub_Accept = 1;
+        public const byte P2PSub_Decline = 2;
+        public const byte P2PSub_Cancel = 3;
+        public const byte P2PSub_LinkLost = 4;
+        public const byte P2PSub_ServerArmed = 5;
+        public const byte P2PSub_LinkUp = 6;
 
         // ── Server info unconnected query ────────────────────────────────────
         // Out-of-band UDP probe: a client can hit the server's port without

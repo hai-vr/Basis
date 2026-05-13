@@ -4,11 +4,7 @@ using static SerializableBasis;
 
 namespace BasisNetworkServer
 {
-    /// <summary>
-    /// Routes incoming messages on <see cref="BasisNetworkCommons.EventsChannel"/>.
-    /// The first byte is the event type; the rest is event-specific payload.
-    /// </summary>
-    public static class BasisNetworkEvents
+    public static class BasisServerEventsRouter
     {
         public static void HandleEvent(NetPacketReader reader, NetPeer peer)
         {
@@ -27,6 +23,10 @@ namespace BasisNetworkServer
 
                 case BasisNetworkCommons.EventType_PlayerTempBlock:
                     BasisNetworkHandleTempBlock.HandleEvent(reader, peer, eventType);
+                    break;
+
+                case BasisNetworkCommons.EventType_AvatarRateChange:
+                    HandleAvatarRateChange(reader, peer, eventType);
                     break;
 
                 default:
@@ -50,6 +50,24 @@ namespace BasisNetworkServer
             outMsg.Serialize(writer);
 
             NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.Sequenced);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        // Wire (in):  [eventType:1][intervalMs:2]
+        // Wire (out): [eventType:1][senderId:2][intervalMs:2]
+        private static void HandleAvatarRateChange(NetPacketReader reader, NetPeer peer, byte eventType)
+        {
+            ushort intervalMs = reader.GetUShort();
+            reader.Recycle();
+
+            ushort senderId = (ushort)peer.Id;
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(eventType);
+            writer.Put(senderId);
+            writer.Put(intervalMs);
+
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
 

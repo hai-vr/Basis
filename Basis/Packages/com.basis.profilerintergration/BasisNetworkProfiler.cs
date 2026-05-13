@@ -50,6 +50,11 @@ namespace Basis.Scripts.Profiler
         public const string SpawnPreloadedMessageText = "Spawn Preloaded Message";
         public const string EventsMessageText = "Events Message";
 
+        public const string OutboundAvatarP2PText = "Outbound Avatar P2P";
+        public const string OutboundAvatarServerText = "Outbound Avatar Server";
+        public const string InboundAvatarP2PText = "Inbound Avatar P2P";
+        public const string P2PConnectedSessionsText = "P2P Connected Sessions";
+
         // Profiler counters (per-type; sampled via Update())
         private static readonly ProfilerCounter<long> AudioSegmentDataMessageCounter = new(Category, AudioSegmentDataMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> AuthenticationMessageCounter = new(Category, AuthenticationMessageText, ProfilerMarkerDataUnit.Bytes);
@@ -90,7 +95,15 @@ namespace Basis.Scripts.Profiler
         private static readonly ProfilerCounter<long> SpawnPreloadedMessageCounter = new(Category, SpawnPreloadedMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> EventsMessageCounter = new(Category, EventsMessageText, ProfilerMarkerDataUnit.Bytes);
 
-        private const int CounterCount = 38;
+        private static readonly ProfilerCounter<long> OutboundAvatarP2PCounter = new(Category, OutboundAvatarP2PText, ProfilerMarkerDataUnit.Bytes);
+        private static readonly ProfilerCounter<long> OutboundAvatarServerCounter = new(Category, OutboundAvatarServerText, ProfilerMarkerDataUnit.Bytes);
+        private static readonly ProfilerCounter<long> InboundAvatarP2PCounter = new(Category, InboundAvatarP2PText, ProfilerMarkerDataUnit.Bytes);
+        // Gauge — sampled live in Update() from ConnectedSessionsProvider, not accumulated.
+        private static readonly ProfilerCounter<long> P2PConnectedSessionsCounter = new(Category, P2PConnectedSessionsText, ProfilerMarkerDataUnit.Count);
+
+        public static System.Func<int> ConnectedSessionsProvider;
+
+        private const int CounterCount = 42;
         private static readonly long[] counters = new long[CounterCount];
 
         public static void Update()
@@ -133,6 +146,11 @@ namespace Basis.Scripts.Profiler
             SampleAndReset(CameraPIPPositionMessageCounter, BasisNetworkProfilerCounter.CameraPIPPosition);
             SampleAndReset(SpawnPreloadedMessageCounter, BasisNetworkProfilerCounter.SpawnPreloaded);
             SampleAndReset(EventsMessageCounter, BasisNetworkProfilerCounter.Events);
+
+            SampleAndReset(OutboundAvatarP2PCounter, BasisNetworkProfilerCounter.OutboundAvatarP2P);
+            SampleAndReset(OutboundAvatarServerCounter, BasisNetworkProfilerCounter.OutboundAvatarServer);
+            SampleAndReset(InboundAvatarP2PCounter, BasisNetworkProfilerCounter.InboundAvatarP2P);
+            P2PConnectedSessionsCounter.Sample(ConnectedSessionsProvider?.Invoke() ?? 0);
         }
         private static void SampleAndReset(ProfilerCounter<long> counter, BasisNetworkProfilerCounter index)
         {

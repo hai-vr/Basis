@@ -432,6 +432,27 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             helpTranslateGroup.SetTitle(BasisLocalization.Get("settings.general.language.help_translate.title"));
             helpTranslateGroup.SetDescription(BasisLocalization.Get("settings.general.language.help_translate.description"));
+
+            // NETWORKING GROUP
+            PanelElementDescriptor networkingGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
+            networkingGroup.SetDescription(BasisLocalization.Get("settings.general.networking.description"));
+
+            PanelDropdown dropdownP2PRate = PanelDropdown.CreateNewEntry(networkingGroup.ContentParent);
+            dropdownP2PRate.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.p2pAvatarRate"));
+            dropdownP2PRate.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"));
+            dropdownP2PRate.AssignEntries(new List<string>
+            {
+                BasisP2PManager.P2PRate_144Hz,
+                BasisP2PManager.P2PRate_120Hz,
+                BasisP2PManager.P2PRate_90Hz,
+                BasisP2PManager.P2PRate_72Hz,
+                BasisP2PManager.P2PRate_60Hz,
+                BasisP2PManager.P2PRate_30Hz,
+                BasisP2PManager.P2PRate_20Hz,
+            });
+            dropdownP2PRate.AssignBinding(BasisSettingsDefaults.P2PAvatarSyncRate);
         }
 
         private static void ResetGeneralDefaults()

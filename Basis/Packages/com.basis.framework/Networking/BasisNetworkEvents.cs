@@ -412,6 +412,14 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.P2PChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisP2PManager.HandleServerMessage(Reader);
+                break;
             case BasisNetworkCommons.EventsChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
@@ -449,6 +457,12 @@ public static class BasisNetworkEvents
                             {
                                 BasisNetworkHandleTempBlock.OnRemoteTempBlockReceived(tempBlockSenderId, tempBlockIsBlocked);
                             });
+                            break;
+                        case BasisNetworkCommons.EventType_AvatarRateChange:
+                            ushort rateSenderId = Reader.GetUShort();
+                            ushort rateIntervalMs = Reader.GetUShort();
+                            Reader.Recycle();
+                            Basis.Scripts.Networking.BasisAvatarRateRegistry.UpdateRemoteRate(rateSenderId, rateIntervalMs);
                             break;
                         default:
                             BNL.LogError($"Unknown EventsChannel event type: {eventType}");

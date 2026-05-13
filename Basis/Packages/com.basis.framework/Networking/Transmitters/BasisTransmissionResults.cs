@@ -333,7 +333,7 @@ public partial class BasisTransmissionResults
         if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_JobScheduleMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
 #endif
         // Do work that doesn't depend on distance results
-        BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator);
+        BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator, Time.timeAsDouble);
 
 #if UNITY_EDITOR
         if (_prof)
@@ -601,9 +601,17 @@ public partial class BasisTransmissionResults
             }
         }
 
+        // micRangeCount captured BEFORE the P2P strip so HasReasonToSendAudio
+        // (which gates EncodeAndSend upstream) reflects "anyone in mic range",
+        // not "anyone the server still relays to".
+        int micRangeCount = TalkingPoints.Count;
+
+        Basis.Scripts.Networking.BasisP2PManager.StripP2PConnectedFromRecipients(TalkingPoints);
+        Basis.Scripts.Networking.BasisP2PManager.AddP2PConnectedToExcluded(ExcludedPoints);
+
         int recipientCount = TalkingPoints.Count;
         int excludedCount = ExcludedPoints.Count;
-        BasisNetworkTransmitter.HasReasonToSendAudio = recipientCount != 0;
+        BasisNetworkTransmitter.HasReasonToSendAudio = micRangeCount != 0;
         // Compute wire sizes for each mode
         int listSize = (recipientCount <= byte.MaxValue ? 1 : 2) + recipientCount * 2;
         int invertedSize = (excludedCount <= byte.MaxValue ? 1 : 2) + excludedCount * 2;
@@ -682,12 +690,25 @@ public partial class BasisTransmissionResults
     private void UpdateSendInterval(float smallestD2)
     {
         ServerMetaDataMessage meta = BasisNetworkManagement.ServerMetaDataMessage;
-        DefaultInterval = meta.SyncInterval / 1000f;
+
+        // Override DefaultInterval (not just the clamp floor) when P2P is active —
+        // the distance formula's output equals DefaultInterval for a close peer,
+        // so lowering only the floor has no effect.
+        float serverDefault = meta.SyncInterval / 1000f;
+        float fast = Basis.Scripts.Networking.BasisP2PManager.FastAvatarIntervalSeconds;
+        DefaultInterval = (Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession() && fast < serverDefault)
+            ? fast
+            : serverDefault;
 
         float calculatedIntervalBase = meta.BaseMultiplier + (smallestD2 * meta.IncreaseRate);
         UnClampedInterval = DefaultInterval * calculatedIntervalBase;
 
         intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, meta.SlowestSendRate);
+
+        if (Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession())
+        {
+            Basis.Scripts.Networking.BasisAvatarRateRegistry.MaybeAnnounceLocalRate(intervalSeconds);
+        }
     }
 
     /// <summary>

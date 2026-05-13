@@ -82,6 +82,7 @@ namespace BasisServerHandle
             BasisNetworkContentShare.RemovePlayerSpheres(id);
             BasisNetworkPreloadResourceManagement.RemovePeer(id);
             BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.ClearForPeer(id);
+            BasisServerP2PBroker.RemovePeer(id);
 
             return NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }
@@ -560,6 +561,10 @@ namespace BasisServerHandle
             {
                 NetPeer client = snapshot[i];
                 if (client == null) continue;
+                if (BasisNetworkServer.BasisServerP2PBroker.IsP2POffloaded(sender.Id, client.Id))
+                {
+                    continue;
+                }
                 client.SendUnreliableRawMerge(data, 0, len, channel);
                 BasisNetworkStatistics.RecordOutbound(channel, len);
             }

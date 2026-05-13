@@ -130,6 +130,7 @@ public static class NetworkServer
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
         BasisNetworkChat.LoadWordFilter(Configuration);
+        BasisNetworkServer.BasisServerP2PBroker.Initialize();
     }
 
     #endregion

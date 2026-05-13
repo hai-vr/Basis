@@ -485,6 +485,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneMode = new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
+        public static BasisSettingsBinding<string> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<string>("60 Hz"));
+
         public static BasisSettingsBinding<string> MicStartBehavior = new("micstartbehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingStartOff));
 
         public static BasisSettingsBinding<string> MicMuteBehavior = new("micmutebehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingMuteShutdown));
@@ -1113,6 +1115,7 @@ namespace Basis.BasisUI
             HearingRange.LoadBindingValue();
             MicrophoneDenoiser.LoadBindingValue();
             MicrophoneMode.LoadBindingValue();
+            P2PAvatarSyncRate.LoadBindingValue();
             MicStartBehavior.LoadBindingValue();
             MicMuteBehavior.LoadBindingValue();
             UseAutomaticGain.LoadBindingValue();

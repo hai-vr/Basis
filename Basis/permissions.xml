@@ -41,7 +41,7 @@
     </Group>
   </Groups>
   <Users>
-    <User uuid="did:key:z6MkhhwxofPuAymBkTgCmndtxXdRPjzhupHL6nPoQxLpTijt">
+    <User uuid="did:key:z6MktdEPUkDq3hXEPp4ijuf5j3yiXi6yjSFNtGAL4uYJdjGf">
       <Group name="default" />
       <Group name="admin" />
       <Node value="*" />

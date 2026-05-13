@@ -29,8 +29,22 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (length >= expected)
             {
                 int offset = 0;
-                double interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
-                if (TryCreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0, q, out BasisAvatarBuffer avatarBuffer))
+
+                // Prefer the rate-announcement cache; fall back to the per-packet
+                // byte for first-packet / new-joiner windows before an announcement arrives.
+                double effectiveIntervalSec;
+                ushort senderId = syncMessage.playerIdMessage.playerID;
+                if (Basis.Scripts.Networking.BasisAvatarRateRegistry.TryGetRate(senderId, out int cachedMs))
+                {
+                    effectiveIntervalSec = cachedMs / 1000.0;
+                }
+                else
+                {
+                    double serverDefaultMs = BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
+                    effectiveIntervalSec = (serverDefaultMs + syncMessage.interval) / 1000.0;
+                }
+
+                if (TryCreateAvatarBuffer(data, ref offset, effectiveIntervalSec, q, out BasisAvatarBuffer avatarBuffer))
                 {
                     avatarBuffer.Sequence = syncMessage.sequence;
                     EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);

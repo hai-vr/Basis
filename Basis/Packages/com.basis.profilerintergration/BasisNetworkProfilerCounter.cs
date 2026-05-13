@@ -40,5 +40,10 @@ namespace Basis.Scripts.Profiler
         CameraPIPPosition,
         SpawnPreloaded,
         Events,
+
+        OutboundAvatarP2P,
+        OutboundAvatarServer,
+        InboundAvatarP2P,
+        P2PConnectedSessions,
     }
 }

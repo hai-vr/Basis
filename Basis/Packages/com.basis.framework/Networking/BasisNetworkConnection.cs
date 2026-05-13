@@ -65,6 +65,7 @@ namespace Basis.Scripts.Networking
             }
 
             BasisDebug.Log($"Connecting with Port {port} IpString {ipString}");
+            BasisP2PManager.StampServerEndpoint(ipString, port);
 
             var basisLocalPlayer = BasisLocalPlayer.Instance;
             basisLocalPlayer.UUID = uuid;
@@ -211,6 +212,8 @@ namespace Basis.Scripts.Networking
                 Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput.Instance?.StopMovement();
 #endif
                 BasisNetworkAvatarCompressor.Dispose();
+                BasisP2PManager.Shutdown();
+                BasisAvatarRateRegistry.Reset();
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
 #if UNITY_SERVER
                 if (!HeadlessReconnectSuppressed)

@@ -263,6 +263,10 @@ namespace Basis.Scripts.Networking.Transmitters
             byte channel = IsInShoutMode ? BasisNetworkCommons.ShoutVoiceChannel : BasisNetworkCommons.VoiceChannel;
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
             BasisNetworkConnection.LocalPlayerPeer.Send(writer, channel, DeliveryMethod.Unreliable);
+            if (!IsInShoutMode)
+            {
+                BasisP2PManager.BroadcastVoiceViaP2P(writer);
+            }
             if (BasisLocalPlayer.Instance != null)
             {
                 BasisLocalPlayer.Instance.AudioReceived?.Invoke();
