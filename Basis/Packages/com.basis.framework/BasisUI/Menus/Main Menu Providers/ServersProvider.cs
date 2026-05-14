@@ -1,3 +1,4 @@
+using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices.Desktop;
@@ -65,6 +66,9 @@ namespace Basis.BasisUI
         private PanelTextField _editAddress;
         private PanelTextField _editPort;
         private PanelPasswordField _editPassword;
+        private PanelDropdown _editNetworkStack;
+        private List<string> _stackIds;
+        private List<string> _stackDisplayNames;
         private PanelButton _editSaveButton;
         private PanelButton _editCancelButton;
         private PanelButton _editShareButton;
@@ -249,6 +253,10 @@ namespace Basis.BasisUI
             _editPassword = PanelPasswordField.CreateNewEntry(editorContent);
             _editPassword.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.password"));
 
+            _editNetworkStack = PanelDropdown.CreateNewEntry(editorContent);
+            _editNetworkStack.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.networkStack"));
+            RebuildStackOptions();
+
             RectTransform editorActions = BuildActionRow(editorContent);
 
             _editSaveButton = PanelButton.CreateNew(editorActions);
@@ -305,6 +313,7 @@ namespace Basis.BasisUI
             _editAddress.SetValueWithoutNotify(existing?.Address ?? string.Empty);
             _editPort.SetValueWithoutNotify((existing?.Port ?? (ushort)4296).ToString());
             _editPassword.SetPassword(existing?.Password ?? "default_password");
+            SetStackDropdownToId(existing?.NetworkStackId);
             // Share only makes sense when editing an existing entry AND we have a
             // live peer to ride the share message on.
             if (_editShareButton != null)
@@ -325,6 +334,51 @@ namespace Basis.BasisUI
         {
             _editingId = null;
             _editorSection.SetActive(false);
+        }
+
+        private void RebuildStackOptions()
+        {
+            _stackIds = new List<string>();
+            _stackDisplayNames = new List<string>();
+            foreach (BasisNetworkStackRegistry.StackInfo s in BasisNetworkStackRegistry.Stacks)
+            {
+                _stackIds.Add(s.Id);
+                _stackDisplayNames.Add(s.DisplayName);
+            }
+            _editNetworkStack.AssignEntries(_stackDisplayNames);
+        }
+
+        private void SetStackDropdownToId(string stackId)
+        {
+            if (_editNetworkStack == null || _stackIds == null || _stackIds.Count == 0) return;
+            string resolved = string.IsNullOrEmpty(stackId) ? BasisNetworkStackRegistry.DefaultId : stackId;
+            int index = -1;
+            for (int i = 0; i < _stackIds.Count; i++)
+            {
+                if (string.Equals(_stackIds[i], resolved, StringComparison.OrdinalIgnoreCase)) { index = i; break; }
+            }
+            if (index < 0)
+            {
+                for (int i = 0; i < _stackIds.Count; i++)
+                {
+                    if (string.Equals(_stackIds[i], BasisNetworkStackRegistry.DefaultId, StringComparison.OrdinalIgnoreCase)) { index = i; break; }
+                }
+            }
+            if (index < 0) index = 0;
+            _editNetworkStack.SetValueWithoutNotify(_stackDisplayNames[index]);
+        }
+
+        private string ReadStackDropdownId()
+        {
+            if (_editNetworkStack == null || _stackIds == null || _stackIds.Count == 0)
+                return string.Empty;
+            string selected = _editNetworkStack.Value;
+            for (int i = 0; i < _stackDisplayNames.Count; i++)
+            {
+                if (string.Equals(_stackDisplayNames[i], selected, StringComparison.Ordinal))
+                    return _stackIds[i];
+            }
+            return BasisNetworkStackRegistry.DefaultId;
         }
 
         private void SaveEditor()
@@ -386,6 +440,7 @@ namespace Basis.BasisUI
             string finalPassword = parsedPasswordOverride ?? (_editPassword.Password ?? string.Empty);
             entry.Password = finalPassword;
             entry.HasPassword = !string.IsNullOrEmpty(finalPassword);
+            entry.NetworkStackId = ReadStackDropdownId();
 
             SavedServerStore.Save(_servers);
 
@@ -589,7 +644,7 @@ namespace Basis.BasisUI
             BasisServerInfoClient.ServerInfoResult result;
             try
             {
-                result = await BasisServerInfoClient.QueryAsync(entry.Address, entry.Port, 3000, ct);
+                result = await BasisServerInfoClient.QueryAsync(entry.Address, entry.Port, 3000, ct, entry.NetworkStackId);
             }
             catch (OperationCanceledException) { return; }
 
@@ -739,6 +794,7 @@ namespace Basis.BasisUI
                 BasisNetworkManagement.Ip = entry.Address;
                 BasisNetworkManagement.Password = entry.HasPassword ? entry.Password : string.Empty;
                 BasisNetworkManagement.IsHostMode = isHostMode;
+                BasisNetworkManagement.NetworkStackId = entry.NetworkStackId ?? string.Empty;
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
                 await LoadDefaultAssetBundleAsync();

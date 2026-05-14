@@ -17,6 +17,14 @@ namespace Basis.Scripts.Networking
         private static void OnIncoming(ushort senderPlayerId, string token)
         {
             BasisDebug.Log($"[P2P] Incoming direct-connection request from player {senderPlayerId} (token {token}).");
+
+            if (BasisSettingsDefaults.DisableDirectConnections.RawValue)
+            {
+                BasisDebug.Log($"[P2P] DisableDirectConnections is on; auto-declining request from player {senderPlayerId}.");
+                BasisP2PManager.DeclineIncoming(senderPlayerId, token);
+                return;
+            }
+
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
                 // Open() must come before the Instance null-check — Instance is null

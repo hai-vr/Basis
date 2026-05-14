@@ -52,10 +52,10 @@ namespace BasisNetworkServer
         {
             if (_natListener != null) return;
 
-            var manager = NetworkServer.Server?.manager;
+            var manager = (NetworkServer.Server as LNLNetManager)?.manager;
             if (manager == null)
             {
-                BNL.LogError("[P2P] NetManager not initialised, cannot start P2P broker.");
+                BNL.LogError("[P2P] NetManager not initialised or active stack is not LiteNetLib, cannot start P2P broker.");
                 return;
             }
 
@@ -251,7 +251,9 @@ namespace BasisNetworkServer
                                    s.EndpointA_External.Address.Equals(s.EndpointB_External.Address);
                     string lanTag = sameNat ? " [SAME-NETWORK]" : "";
                     BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {s.EndpointA_Internal}), B={s.EndpointB_External} (int {s.EndpointB_Internal}). Firing NatIntroduce.{lanTag}");
-                    NetworkServer.Server.manager.NatPunchModule.NatIntroduce(
+                    LiteNetLib.NetManager lnlManager = (NetworkServer.Server as LNLNetManager)?.manager;
+                    if (lnlManager == null) return;
+                    lnlManager.NatPunchModule.NatIntroduce(
                         s.EndpointA_Internal,
                         s.EndpointA_External,
                         s.EndpointB_Internal,

@@ -453,6 +453,11 @@ namespace Basis.BasisUI
                 BasisP2PManager.P2PRate_20Hz,
             });
             dropdownP2PRate.AssignBinding(BasisSettingsDefaults.P2PAvatarSyncRate);
+
+            PanelToggle toggleDisableDirectConn = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
+            toggleDisableDirectConn.AssignBinding(BasisSettingsDefaults.DisableDirectConnections);
+            toggleDisableDirectConn.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.disableDirectConnections"));
+            toggleDisableDirectConn.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.disableDirectConnections.description"));
         }
 
         private static void ResetGeneralDefaults()
@@ -462,6 +467,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
+            BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
         }
 
         // ------------------

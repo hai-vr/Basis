@@ -19,7 +19,7 @@ using static BasisPermissions.PermissionManager;
 public static class NetworkServer
 {
     public static EventBasedNetListener Listener;
-    public static LNLNetManager Server;
+    public static NetManager Server;
     public static ConcurrentDictionary<int, NetPeer> AuthenticatedPeers = new();
     public static Configuration Configuration;
     /// <summary>
@@ -140,7 +140,7 @@ public static class NetworkServer
     public static void SetupServer(Configuration configuration)
     {
         Listener = new EventBasedNetListener();
-        Server = new LNLNetManager(Listener, configuration);
+        Server = BasisNetworkStackRegistry.Create(configuration.NetworkStackId, Listener, configuration);
 
         NetDebug.Logger = new BasisServerLogger();
         StartListening(configuration);

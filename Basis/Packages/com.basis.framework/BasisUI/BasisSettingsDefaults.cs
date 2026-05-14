@@ -487,6 +487,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<string>("60 Hz"));
 
+        public static BasisSettingsBinding<bool> DisableDirectConnections = new("disabledirectconnections", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<string> MicStartBehavior = new("micstartbehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingStartOff));
 
         public static BasisSettingsBinding<string> MicMuteBehavior = new("micmutebehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingMuteShutdown));
@@ -1116,6 +1118,7 @@ namespace Basis.BasisUI
             MicrophoneDenoiser.LoadBindingValue();
             MicrophoneMode.LoadBindingValue();
             P2PAvatarSyncRate.LoadBindingValue();
+            DisableDirectConnections.LoadBindingValue();
             MicStartBehavior.LoadBindingValue();
             MicMuteBehavior.LoadBindingValue();
             UseAutomaticGain.LoadBindingValue();

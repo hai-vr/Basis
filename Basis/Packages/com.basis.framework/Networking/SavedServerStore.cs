@@ -20,6 +20,7 @@ namespace Basis.Scripts.Networking
         public ushort Port;
         public string Password;
         public bool HasPassword;
+        public string NetworkStackId;
 
         public SavedServerEntry()
         {
@@ -29,6 +30,7 @@ namespace Basis.Scripts.Networking
             Port = 4296;
             Password = "default_password";
             HasPassword = true;
+            NetworkStackId = string.Empty;
         }
     }
 

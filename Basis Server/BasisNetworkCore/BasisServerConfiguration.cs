@@ -53,6 +53,7 @@ public class Configuration
     public string Password = "default_password";
     public bool UseAuth = true;
     public bool UseAuthIdentity = true;
+    public string NetworkStackId = "";
     public BasisUserRestrictionMode BasisUserRestrictionMode;
     public int HowManyDuplicateAuthCanExist = 2;
     public int AuthValidationTimeOutMiliseconds = 9000;

@@ -35,7 +35,7 @@ namespace Basis.Scripts.Networking
             public bool Reachable => Info != null;
         }
 
-        public static async Task<ServerInfoResult> QueryAsync(string host, ushort port, int timeoutMs = 3000, CancellationToken ct = default)
+        public static async Task<ServerInfoResult> QueryAsync(string host, ushort port, int timeoutMs = 3000, CancellationToken ct = default, string networkStackId = "")
         {
             var result = new ServerInfoResult();
             if (string.IsNullOrWhiteSpace(host))
@@ -45,7 +45,8 @@ namespace Basis.Scripts.Networking
             }
 
             EventBasedNetListener listener = new EventBasedNetListener();
-            LNLNetManager manager = new LNLNetManager(listener, new Configuration());
+            Configuration probeConfig = new Configuration { NetworkStackId = networkStackId ?? string.Empty };
+            NetManager manager = BasisNetworkStackRegistry.Create(probeConfig.NetworkStackId, listener, probeConfig);
 
             ushort nonce;
             unchecked { nonce = (ushort)Guid.NewGuid().GetHashCode(); }

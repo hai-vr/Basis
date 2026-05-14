@@ -39,7 +39,7 @@ namespace Basis.Scripts.Networking
             localId = (ushort)LocalPlayerPeer.RemoteId;
             return true;
         }
-        public static void Connect(ushort port, string ipString, string primitivePassword, bool isHostMode)
+        public static void Connect(ushort port, string ipString, string primitivePassword, bool isHostMode, string networkStackId = "")
         {
             BNL.LogOutput += LogOutput;
             BNL.LogWarningOutput += LogWarningOutput;
@@ -59,7 +59,8 @@ namespace Basis.Scripts.Networking
                     UseAuthIdentity = true,
                     UseAuth = true,
                     Password = primitivePassword,
-                    EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue
+                    EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue,
+                    NetworkStackId = networkStackId ?? string.Empty,
                 };
                 BasisNetworkServerRunner.Initalize(serverConfig, string.Empty, uuid);
             }
@@ -105,7 +106,8 @@ namespace Basis.Scripts.Networking
                         UseAuthIdentity = true,
                         UseAuth = true,
                         Password = primitivePassword,
-                        EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue
+                        EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue,
+                        NetworkStackId = networkStackId ?? string.Empty,
                     };
                     // Pass the token into anything that supports cancellation
                     LocalPlayerPeer = NetworkClient.StartClient(

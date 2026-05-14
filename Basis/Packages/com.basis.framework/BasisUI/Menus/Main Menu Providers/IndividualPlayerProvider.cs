@@ -572,6 +572,12 @@ namespace Basis.BasisUI
 
             string DirectConnLabelKey(Basis.Scripts.Networking.BasisP2PManager.P2PSessionState st)
             {
+                if (BasisSettingsDefaults.DisableDirectConnections.RawValue &&
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected &&
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting)
+                {
+                    return "menu.individualPlayer.directConnection.disabled";
+                }
                 switch (st)
                 {
                     case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.OutgoingRequested:
@@ -609,7 +615,26 @@ namespace Basis.BasisUI
                 if (st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Idle ||
                     st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed)
                 {
-                    Basis.Scripts.Networking.BasisP2PManager.SendRequest(directConnPlayerId);
+                    if (BasisSettingsDefaults.DisableDirectConnections.RawValue)
+                    {
+                        BasisMainMenu.Instance.OpenDialogue(
+                            BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.title"),
+                            BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.body"),
+                            BasisLocalization.Get("ui.ok"),
+                            _ => { });
+                        return;
+                    }
+
+                    BasisMainMenu.Instance.OpenDialogue(
+                        BasisLocalization.Get("menu.individualPlayer.directConnection.outgoingDialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.directConnection.outgoingDialog.body", remotePlayer.DisplayName, remotePlayer.UUID),
+                        BasisLocalization.Get("menu.individualPlayer.directConnection.request"),
+                        BasisLocalization.Get("ui.cancel"),
+                        confirmed =>
+                        {
+                            if (!confirmed) return;
+                            Basis.Scripts.Networking.BasisP2PManager.SendRequest(directConnPlayerId);
+                        });
                 }
                 else
                 {
