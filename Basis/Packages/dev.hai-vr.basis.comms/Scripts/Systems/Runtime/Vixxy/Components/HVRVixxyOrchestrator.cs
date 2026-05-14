@@ -319,6 +319,26 @@ namespace HVR.Vixxy
 
         public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue, float min, float max)
         {
+            foreach (var existing in _toBeNetworked)
+            {
+                if (existing.addressId == addressId)
+                {
+                    if (networkingType == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
+                    {
+                        existing.networkingType = networkingType;
+                    }
+                    if (min < existing.min)
+                    {
+                        existing.min = min;
+                    }
+                    if (max > existing.max)
+                    {
+                        existing.max = max;
+                    }
+                    return;
+                }
+            }
+
             _toBeNetworked.Add(new HVRVixxyToBeNetworked
             {
                 addressId = addressId,
@@ -339,6 +359,7 @@ namespace HVR.Vixxy
                     addressId = toBeNetworked.addressId,
                     initialValue = VariableStore.GetValue(toBeNetworked.addressId),
                     variableTypeCode = HVRVariableTypeCode.Float,
+                    needsInterpolation = true,
                     min = toBeNetworked.min,
                     max = toBeNetworked.max
                 });
