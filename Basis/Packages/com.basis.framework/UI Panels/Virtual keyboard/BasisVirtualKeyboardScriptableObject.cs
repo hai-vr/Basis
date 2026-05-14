@@ -54,4 +54,15 @@ public class KeyboardLayoutData : ScriptableObject
         public BasisVirtualKeyboardSpecialKey BasisVirtualKeyboardSpecialKey;
     }
 }
+
+public enum BasisVirtualKeyboardSpecialKey
+{
+    NotSpecial,
+    IsDeleteKey,
+    IsCaseSwitchKey,
+    IsEnterKey,
+    IsCloseKey,
+    IsPasteKey,
+    IsCopyKey,
+}
 }

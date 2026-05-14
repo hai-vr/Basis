@@ -44,6 +44,11 @@ MonoBehaviour:
     m_SerializedLabels:
     - language
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 07ab659a650a4f67a6d044896147e782
+    m_Address: Packages/com.basis.sdk/Prefabs/Virtual Keyboard Panel.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 07cdc29d6d966654cb96b6662b5248f6
     m_Address: DesktopReticle
     m_ReadOnly: 0
@@ -249,6 +254,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 64a436389ec64fc47bfd6d1068f1e3c9
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Button.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 66c5f310d24beac43a5927308fc8827a
+    m_Address: Packages/com.basis.sdk/Settings/KeyboardLayoutData.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

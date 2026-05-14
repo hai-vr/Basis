@@ -583,8 +583,8 @@ MonoBehaviour:
   InputActions: {fileID: -944628639613478452, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   InputActionsRoot: {fileID: 6119941615115968628}
   BasisDeviceNameMatcher: {fileID: 11400000, guid: 9b8e3db83cb310c40afaa430d0071a18, type: 2}
-  ForcedDefault:
-  AutoSwapPreviousVRMode:
+  ForcedDefault: 
+  AutoSwapPreviousVRMode: 
   IsSoftSwapped: 0
 --- !u!114 &-3484738083713026149
 MonoBehaviour:

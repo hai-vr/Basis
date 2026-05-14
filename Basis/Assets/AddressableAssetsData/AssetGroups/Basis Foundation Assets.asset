@@ -304,11 +304,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c92fd7b20eb8eaf4eb4a6e236e4ac620
-    m_Address: Virtual Keyboard
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ccc5b43e54e34744c8380962d9851736
     m_Address: Packages/com.basis.sdk/Textures/Runtime/AutoLevel.png
     m_ReadOnly: 0

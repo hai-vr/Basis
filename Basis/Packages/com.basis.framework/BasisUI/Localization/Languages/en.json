@@ -3,6 +3,15 @@
   "nativeName": "English",
   "entries": [
     { "key": "menu.main.title", "value": "Main Menu" },
+    { "key": "keyboard.title", "value": "Virtual Keyboard" },
+    { "key": "keyboard.key.caps", "value": "Caps" },
+    { "key": "keyboard.key.space", "value": "Space" },
+    { "key": "keyboard.key.delete", "value": "Delete" },
+    { "key": "keyboard.key.enter", "value": "Enter" },
+    { "key": "keyboard.key.close", "value": "Close" },
+    { "key": "keyboard.key.copy", "value": "Copy" },
+    { "key": "keyboard.key.paste", "value": "Paste" },
+    { "key": "keyboard.display.placeholder", "value": "Start typing..." },
 
     { "key": "menu.provider.calibration", "value": "Calibration" },
     { "key": "menu.provider.exit", "value": "Exit" },
