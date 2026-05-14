@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "請求直接連線？" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\n這會開啟點對點語音和虛擬形象連線。<color=#ff5252><b>連線建立後，雙方會互相揭露各自的 IP 位址。</b></color>僅在你信任此玩家時才請求。" },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>直接連線已停用</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "直接連線已停用" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "你在一般設定中已停用直接連線。請在該處啟用才能請求點對點連線。" },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "停用直接連線" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "封鎖點對點連線。收到的請求會被自動拒絕，且你無法發起新連線。語音和虛擬形象始終經過伺服器。現有工作階段不會被關閉。" }
   ]
 }

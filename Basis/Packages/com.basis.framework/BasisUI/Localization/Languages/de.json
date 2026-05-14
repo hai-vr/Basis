@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identitäts-Schlüssel" },
     { "key": "settings.moderator.description", "value": "Spielerliste, Kicks/Banns, Teleports, Nachrichten und Rufmodus-Schalter." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "Direktverbindung anfordern?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nDies öffnet eine Peer-to-Peer-Sprach- und Avatar-Verbindung. <color=#ff5252><b>Beide Seiten geben ihre IP-Adressen voreinander preis, sobald die Verbindung steht.</b></color> Fordere dies nur an, wenn du dieser Person vertraust." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>Direktverbindungen deaktiviert</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Direktverbindungen deaktiviert" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "Du hast Direktverbindungen in den Allgemeinen Einstellungen deaktiviert. Aktiviere sie dort, um eine Peer-to-Peer-Verbindung anzufordern." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "Direktverbindungen deaktivieren" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "Blockiert Peer-to-Peer-Verbindungen. Eingehende Anfragen werden automatisch abgelehnt und du kannst keine starten. Sprache und Avatar laufen immer über den Server. Bestehende Sitzungen werden nicht beendet." }
   ]
 }

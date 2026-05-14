@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "डायरेक्ट कनेक्शन का अनुरोध करें?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nयह एक पीयर-टू-पीयर वॉयस और अवतार लिंक खोलता है। <color=#ff5252><b>लिंक स्थापित होते ही दोनों पक्ष एक-दूसरे को अपना IP पता दिखा देंगे।</b></color> केवल तभी अनुरोध करें जब आप इस खिलाड़ी पर भरोसा करते हों।" },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>डायरेक्ट कनेक्शन अक्षम</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "डायरेक्ट कनेक्शन अक्षम हैं" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "आपने सामान्य सेटिंग्स में डायरेक्ट कनेक्शन अक्षम कर रखे हैं। पीयर-टू-पीयर लिंक का अनुरोध करने के लिए वहाँ उन्हें सक्षम करें।" },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "डायरेक्ट कनेक्शन अक्षम करें" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "पीयर-टू-पीयर लिंक को ब्लॉक करता है। आने वाले अनुरोध स्वचालित रूप से अस्वीकार होते हैं और आप कोई शुरू नहीं कर सकते। वॉयस और अवतार हमेशा सर्वर से होकर जाते हैं। मौजूदा सत्र बंद नहीं होते।" }
   ]
 }

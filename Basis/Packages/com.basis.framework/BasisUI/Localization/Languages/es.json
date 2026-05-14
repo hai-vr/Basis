@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Clave de identidad" },
     { "key": "settings.moderator.description", "value": "Lista de jugadores, expulsiones/baneos, teletransportes, mensajería e interruptores de modo Anuncio." },
-    { "key": "settings.moderator.title", "value": "Moderador" }
+    { "key": "settings.moderator.title", "value": "Moderador" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "¿Solicitar conexión directa?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nEsto abre un enlace de voz y avatar entre pares. <color=#ff5252><b>Ambas partes revelarán sus direcciones IP entre sí en cuanto se establezca el enlace.</b></color> Solo solicítalo si confías en este jugador." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>Conexiones directas desactivadas</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Conexiones directas desactivadas" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "Tienes las conexiones directas desactivadas en Ajustes generales. Actívalas allí para solicitar un enlace entre pares." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "Desactivar conexiones directas" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "Bloquea los enlaces entre pares. Las solicitudes entrantes se rechazan automáticamente y no puedes iniciar ninguna. La voz y el avatar siempre pasan por el servidor. Las sesiones existentes no se cierran." }
   ]
 }

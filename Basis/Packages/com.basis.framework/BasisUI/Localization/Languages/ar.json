@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "طلب اتصال مباشر؟" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nيفتح هذا اتصالًا صوتيًا ولأفاتار من نظير إلى نظير. <color=#ff5252><b>سيكشف كلا الطرفين عن عنوان IP الخاص به للآخر بمجرد إنشاء الاتصال.</b></color> لا تطلب ذلك إلا إذا كنت تثق بهذا اللاعب." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>الاتصالات المباشرة معطلة</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "الاتصالات المباشرة معطلة" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "لقد قمت بتعطيل الاتصالات المباشرة في الإعدادات العامة. قم بتمكينها هناك لطلب اتصال من نظير إلى نظير." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "تعطيل الاتصالات المباشرة" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "حظر اتصالات النظير إلى النظير. تُرفض الطلبات الواردة تلقائيًا ولا يمكنك بدء واحدة. الصوت والأفاتار يمران دائمًا عبر الخادم. الجلسات الحالية لا تُغلق." }
   ]
 }

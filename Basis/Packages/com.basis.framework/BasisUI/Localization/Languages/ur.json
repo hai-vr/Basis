@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "براہ راست کنکشن کی درخواست کریں؟" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nیہ ایک پیئر ٹو پیئر آواز اور اوتار لنک کھولتا ہے۔ <color=#ff5252><b>لنک قائم ہونے پر دونوں اطراف ایک دوسرے کا IP پتہ ظاہر کر دیں گے۔</b></color> صرف اس صورت میں درخواست کریں جب آپ اس کھلاڑی پر بھروسہ کرتے ہوں۔" },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>براہ راست کنکشن غیر فعال</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "براہ راست کنکشن غیر فعال ہیں" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "آپ نے عمومی ترتیبات میں براہ راست کنکشن غیر فعال کر رکھے ہیں۔ پیئر ٹو پیئر لنک کی درخواست کے لیے وہاں انہیں فعال کریں۔" },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "براہ راست کنکشن غیر فعال کریں" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "پیئر ٹو پیئر لنکس کو بلاک کریں۔ آنے والی درخواستیں خودکار طور پر مسترد ہوتی ہیں اور آپ کوئی شروع نہیں کر سکتے۔ آواز اور اوتار ہمیشہ سرور سے گزرتے ہیں۔ موجودہ سیشن بند نہیں ہوتے۔" }
   ]
 }

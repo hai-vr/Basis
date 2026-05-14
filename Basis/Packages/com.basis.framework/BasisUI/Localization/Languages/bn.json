@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "সরাসরি সংযোগ অনুরোধ করবেন?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nএটি একটি পিয়ার-টু-পিয়ার ভয়েস এবং অবতার লিংক খোলে। <color=#ff5252><b>লিংক প্রতিষ্ঠিত হলে উভয় পক্ষ একে অপরের IP ঠিকানা প্রকাশ করবে।</b></color> এই খেলোয়াড়ের উপর বিশ্বাস থাকলেই কেবল অনুরোধ করুন।" },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>সরাসরি সংযোগ নিষ্ক্রিয়</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "সরাসরি সংযোগ নিষ্ক্রিয়" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "আপনি সাধারণ সেটিংসে সরাসরি সংযোগ নিষ্ক্রিয় করে রেখেছেন। পিয়ার-টু-পিয়ার লিংকের জন্য সেখানে সক্রিয় করুন।" },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "সরাসরি সংযোগ নিষ্ক্রিয় করুন" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "পিয়ার-টু-পিয়ার লিংক ব্লক করে। আগত অনুরোধগুলি স্বয়ংক্রিয়ভাবে প্রত্যাখ্যান হয় এবং আপনি কোনোটি শুরু করতে পারবেন না। ভয়েস এবং অবতার সর্বদা সার্ভারের মাধ্যমে যায়। বিদ্যমান সেশনগুলি বন্ধ হয় না।" }
   ]
 }

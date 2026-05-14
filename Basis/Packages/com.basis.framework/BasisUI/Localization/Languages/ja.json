@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "ダイレクト接続をリクエストしますか？" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nピアツーピアの音声・アバター接続を開きます。<color=#ff5252><b>接続が確立されると、双方のIPアドレスが互いに開示されます。</b></color>信頼できるプレイヤーの場合のみリクエストしてください。" },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>ダイレクト接続は無効</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "ダイレクト接続は無効です" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "一般設定でダイレクト接続が無効になっています。ピアツーピア接続をリクエストするには、設定で有効にしてください。" },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "ダイレクト接続を無効化" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "ピアツーピア接続をブロックします。受信リクエストは自動で拒否され、自分から開始することもできません。音声とアバターは常にサーバー経由で送受信されます。既存のセッションは閉じられません。" }
   ]
 }

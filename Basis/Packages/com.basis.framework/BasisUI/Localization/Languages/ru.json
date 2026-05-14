@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "Запросить прямое соединение?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nЭто откроет одноранговое соединение для голоса и аватара. <color=#ff5252><b>После установления связи обе стороны увидят IP-адреса друг друга.</b></color> Запрашивайте, только если доверяете этому игроку." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>Прямые соединения отключены</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Прямые соединения отключены" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "Прямые соединения отключены в общих настройках. Включите их там, чтобы запросить одноранговое соединение." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "Отключить прямые соединения" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "Блокирует одноранговые соединения. Входящие запросы автоматически отклоняются, и вы не можете их инициировать. Голос и аватар всегда идут через сервер. Существующие сессии не закрываются." }
   ]
 }

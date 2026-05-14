@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "Solicitar conexão direta?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nIsto abre uma ligação de voz e avatar peer-to-peer. <color=#ff5252><b>Ambos os lados revelarão os seus endereços IP um ao outro assim que a ligação for estabelecida.</b></color> Só faça isto se confiar neste jogador." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>Conexões diretas desativadas</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Conexões diretas desativadas" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "Você desativou as conexões diretas nas configurações gerais. Ative-as lá para solicitar uma ligação peer-to-peer." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "Desativar conexões diretas" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "Bloqueia ligações peer-to-peer. As solicitações recebidas são recusadas automaticamente e você não pode iniciar nenhuma. Voz e avatar passam sempre pelo servidor. Sessões existentes não são encerradas." }
   ]
 }

@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "Directe verbinding aanvragen?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nDit opent een peer-to-peer spraak- en avatarverbinding. <color=#ff5252><b>Beide kanten onthullen elkaars IP-adres zodra de verbinding tot stand komt.</b></color> Vraag dit alleen aan als je deze speler vertrouwt." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>Directe verbindingen uitgeschakeld</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Directe verbindingen uitgeschakeld" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "Je hebt directe verbindingen uitgeschakeld in Algemene instellingen. Schakel ze daar in om een peer-to-peer verbinding aan te vragen." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "Directe verbindingen uitschakelen" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "Blokkeert peer-to-peer verbindingen. Inkomende aanvragen worden automatisch geweigerd en je kunt er geen starten. Spraak en avatar gaan altijd via de server. Bestaande sessies worden niet gesloten." }
   ]
 }

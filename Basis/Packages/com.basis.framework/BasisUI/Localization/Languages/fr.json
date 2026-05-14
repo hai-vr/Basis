@@ -1016,6 +1016,13 @@
     { "key": "settings.developer.didKey.field", "value": "UUID" },
     { "key": "settings.developer.didKey.title", "value": "Identity Key" },
     { "key": "settings.moderator.description", "value": "Player list, kicks/bans, teleports, messaging, and shout-mode toggles." },
-    { "key": "settings.moderator.title", "value": "Moderator" }
+    { "key": "settings.moderator.title", "value": "Moderator" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.title", "value": "Demander une connexion directe ?" },
+    { "key": "menu.individualPlayer.directConnection.outgoingDialog.body", "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nCela ouvre une liaison vocale et avatar pair à pair. <color=#ff5252><b>Les deux côtés se révéleront mutuellement leur adresse IP une fois la liaison établie.</b></color> Ne demande cela que si tu fais confiance à ce joueur." },
+    { "key": "menu.individualPlayer.directConnection.disabled", "value": "<color=#888888>Connexions directes désactivées</color>" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Connexions directes désactivées" },
+    { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "Les connexions directes sont désactivées dans les paramètres généraux. Active-les là-bas pour demander une liaison pair à pair." },
+    { "key": "settings.general.networking.disableDirectConnections", "value": "Désactiver les connexions directes" },
+    { "key": "settings.general.networking.disableDirectConnections.description", "value": "Bloque les liaisons pair à pair. Les demandes entrantes sont refusées automatiquement et tu ne peux pas en lancer. La voix et l'avatar passent toujours par le serveur. Les sessions existantes ne sont pas fermées." }
   ]
 }
