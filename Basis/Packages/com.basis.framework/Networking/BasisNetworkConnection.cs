@@ -48,6 +48,8 @@ namespace Basis.Scripts.Networking
             PlayerIdentity identity = BasisPlayerIdentityRegistry.ResolveActive();
             string uuid = identity?.Uuid ?? string.Empty;
 
+            BasisTransportConfigStore.Get<LNLTransportConfig>(BasisNetworkStackRegistry.LiteNetLibId).UseNativeSockets = false;
+
             if (isHostMode)
             {
                 ipString = "localhost";
@@ -56,7 +58,6 @@ namespace Basis.Scripts.Networking
                 {
                     IPv4Address = ipString,
                     HasFileSupport = false,
-                    UseNativeSockets = false,
                     UseAuthIdentity = true,
                     UseAuth = true,
                     Password = primitivePassword,
@@ -103,7 +104,6 @@ namespace Basis.Scripts.Networking
                     {
                         IPv4Address = ipString,
                         HasFileSupport = false,
-                        UseNativeSockets = false,
                         UseAuthIdentity = true,
                         UseAuth = true,
                         Password = primitivePassword,
