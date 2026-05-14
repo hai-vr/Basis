@@ -36,6 +36,7 @@ public class BasisNetworkServerRunner
     }
     public void Stop()
     {
-        cancellationTokenSource.Cancel();
+        cancellationTokenSource?.Cancel();
+        NetworkServer.StopServer();
     }
 }

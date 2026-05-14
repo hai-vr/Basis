@@ -64,6 +64,7 @@ public static class NetworkServer
 
     public static void StartServer(Configuration configuration)
     {
+        StopServer();
         Configuration = configuration;
 
         HighQualityLength = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
@@ -80,6 +81,23 @@ public static class NetworkServer
         }
 
         BNL.Log("Server Worker Threads Booted");
+    }
+
+    public static void StopServer()
+    {
+        if (Server == null) return;
+        try
+        {
+            Server.Stop();
+        }
+        catch (Exception ex)
+        {
+            BNL.LogWarning($"NetworkServer.StopServer failed: {ex.Message}");
+        }
+        Server = null;
+        Listener = null;
+        AuthenticatedPeers.Clear();
+        _peerSnapshot = Array.Empty<NetPeer>();
     }
 
     private static void InitializePulseSettings()
