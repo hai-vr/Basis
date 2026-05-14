@@ -20,7 +20,7 @@ namespace Basis.BasisUI
             public static PanelData Standard(string title) => new()
             {
                 Title = title,
-                PanelSize = new Vector2(1500, 1000),
+                PanelSize = new Vector2(1500, 1020),
                 PanelPosition = default,
             };
 

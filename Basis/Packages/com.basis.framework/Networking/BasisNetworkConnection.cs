@@ -57,12 +57,21 @@ namespace Basis.Scripts.Networking
                 var serverConfig = new Configuration
                 {
                     IPv4Address = ipString,
+                    SetPort = port,
                     HasFileSupport = false,
                     UseAuthIdentity = true,
-                    UseAuth = true,
+                    UseAuth = BasisNetworkManagement.HostUseAuth,
                     Password = primitivePassword,
                     EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue,
                     NetworkStackId = networkStackId ?? string.Empty,
+                    ServerName = string.IsNullOrWhiteSpace(BasisNetworkManagement.HostServerName) ? "Basis Server" : BasisNetworkManagement.HostServerName,
+                    ServerMotd = BasisNetworkManagement.HostServerMotd ?? string.Empty,
+                    PeerLimit = BasisNetworkManagement.HostPeerLimit <= 0 ? ushort.MaxValue : BasisNetworkManagement.HostPeerLimit,
+                    EnableConsole = BasisNetworkManagement.HostEnableConsole,
+                    AvatarsLocked = BasisNetworkManagement.HostAvatarsLocked,
+                    PropsLocked = BasisNetworkManagement.HostPropsLocked,
+                    WorldsLocked = BasisNetworkManagement.HostWorldsLocked,
+                    ThirdPersonDisabled = BasisNetworkManagement.HostThirdPersonDisabled,
                 };
                 BasisNetworkServerRunner.Initalize(serverConfig, string.Empty, uuid);
             }

@@ -31,6 +31,20 @@ namespace Basis.BasisUI
         public static string UsernameFileName = "CachedUserName.BAS";
         public static string LastConnectedServerIdFile = "LastConnectedServerId.BAS";
         public static string HostStackIdFile = "HostStackId.BAS";
+        public static string HostServerNameFile = "HostServerName.BAS";
+        public static string HostServerMotdFile = "HostServerMotd.BAS";
+        public static string HostPeerLimitFile = "HostPeerLimit.BAS";
+        public static string HostPortFile = "HostPort.BAS";
+        public static string HostPasswordFile = "HostPassword.BAS";
+        public static string HostUseAuthFile = "HostUseAuth.BAS";
+        public static string HostEnableConsoleFile = "HostEnableConsole.BAS";
+        public static string HostAvatarsLockedFile = "HostAvatarsLocked.BAS";
+        public static string HostPropsLockedFile = "HostPropsLocked.BAS";
+        public static string HostWorldsLockedFile = "HostWorldsLocked.BAS";
+        public static string HostThirdPersonDisabledFile = "HostThirdPersonDisabled.BAS";
+
+        public const string DefaultHostServerName = "Basis Server";
+        public const int DefaultHostPeerLimit = ushort.MaxValue;
 
         private const string HostEntryId = "__host__";
 
@@ -63,6 +77,17 @@ namespace Basis.BasisUI
         private PanelToggle _advancedToggle;
         private PanelButton _hostButton;
         private PanelDropdown _hostStackDropdown;
+        private PanelTextField _hostServerNameField;
+        private PanelTextField _hostMotdField;
+        private PanelTextField _hostPeerLimitField;
+        private PanelTextField _hostPortField;
+        private PanelPasswordField _hostPasswordField;
+        private PanelToggle _hostUseAuthToggle;
+        private PanelToggle _hostEnableConsoleToggle;
+        private PanelToggle _hostAvatarsLockedToggle;
+        private PanelToggle _hostPropsLockedToggle;
+        private PanelToggle _hostWorldsLockedToggle;
+        private PanelToggle _hostThirdPersonDisabledToggle;
         private PanelToggle _autoConnectToggle;
 
         // Stable key the loading bar uses to merge updates for the same connection
@@ -250,6 +275,75 @@ namespace Basis.BasisUI
             _hostStackDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostStack"));
             PopulateHostStackDropdown();
 
+            _hostServerNameField = PanelTextField.CreateNewEntry(container);
+            _hostServerNameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostServerName"));
+            _hostServerNameField.SetValueWithoutNotify(BasisDataStore.LoadString(HostServerNameFile, DefaultHostServerName));
+            _hostServerNameField.OnValueChanged = value => BasisDataStore.SaveString(value ?? string.Empty, HostServerNameFile);
+
+            _hostMotdField = PanelTextField.CreateNewEntry(container);
+            _hostMotdField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostMotd"));
+            _hostMotdField.SetValueWithoutNotify(BasisDataStore.LoadString(HostServerMotdFile, string.Empty));
+            _hostMotdField.OnValueChanged = value => BasisDataStore.SaveString(value ?? string.Empty, HostServerMotdFile);
+
+            _hostPortField = PanelTextField.CreateNewEntry(container);
+            _hostPortField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPort"));
+            _hostPortField._inputField.contentType = TMPro.TMP_InputField.ContentType.IntegerNumber;
+            _hostPortField.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPortFile, SavedServersDirectorySource.DefaultServerPort).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            _hostPortField.OnValueChanged = value =>
+            {
+                if (int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed) && parsed > 0 && parsed <= ushort.MaxValue)
+                {
+                    BasisDataStore.SaveInt(parsed, HostPortFile);
+                }
+            };
+
+            _hostPasswordField = PanelPasswordField.CreateNewEntry(container);
+            _hostPasswordField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPassword"));
+            _hostPasswordField.SetPassword(BasisDataStore.LoadString(HostPasswordFile, SavedServersDirectorySource.DefaultServerPassword));
+            _hostPasswordField.OnSubmit = pw => BasisDataStore.SaveString(pw ?? string.Empty, HostPasswordFile);
+
+            _hostPeerLimitField = PanelTextField.CreateNewEntry(container);
+            _hostPeerLimitField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPeerLimit"));
+            _hostPeerLimitField._inputField.contentType = TMPro.TMP_InputField.ContentType.IntegerNumber;
+            _hostPeerLimitField.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPeerLimitFile, DefaultHostPeerLimit).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            _hostPeerLimitField.OnValueChanged = value =>
+            {
+                if (int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed) && parsed > 0)
+                {
+                    BasisDataStore.SaveInt(parsed, HostPeerLimitFile);
+                }
+            };
+
+            _hostUseAuthToggle = PanelToggle.CreateNewEntry(container);
+            _hostUseAuthToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostUseAuth"));
+            _hostUseAuthToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostUseAuthFile, 1) != 0);
+            _hostUseAuthToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostUseAuthFile);
+
+            _hostEnableConsoleToggle = PanelToggle.CreateNewEntry(container);
+            _hostEnableConsoleToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostEnableConsole"));
+            _hostEnableConsoleToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostEnableConsoleFile, 1) != 0);
+            _hostEnableConsoleToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostEnableConsoleFile);
+
+            _hostAvatarsLockedToggle = PanelToggle.CreateNewEntry(container);
+            _hostAvatarsLockedToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostAvatarsLocked"));
+            _hostAvatarsLockedToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostAvatarsLockedFile, 0) != 0);
+            _hostAvatarsLockedToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostAvatarsLockedFile);
+
+            _hostPropsLockedToggle = PanelToggle.CreateNewEntry(container);
+            _hostPropsLockedToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPropsLocked"));
+            _hostPropsLockedToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPropsLockedFile, 0) != 0);
+            _hostPropsLockedToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostPropsLockedFile);
+
+            _hostWorldsLockedToggle = PanelToggle.CreateNewEntry(container);
+            _hostWorldsLockedToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostWorldsLocked"));
+            _hostWorldsLockedToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostWorldsLockedFile, 1) != 0);
+            _hostWorldsLockedToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostWorldsLockedFile);
+
+            _hostThirdPersonDisabledToggle = PanelToggle.CreateNewEntry(container);
+            _hostThirdPersonDisabledToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostThirdPersonDisabled"));
+            _hostThirdPersonDisabledToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostThirdPersonDisabledFile, 0) != 0);
+            _hostThirdPersonDisabledToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostThirdPersonDisabledFile);
+
             _hostButton = PanelButton.CreateNew(container);
             _hostButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.host"));
             _hostButton.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.hostMode.description"));
@@ -261,15 +355,28 @@ namespace Basis.BasisUI
             _autoConnectToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.autoConnect.description"));
             _autoConnectToggle.AssignBinding(BasisSettingsDefaults.AutoConnect);
 
-            _hostButton.gameObject.SetActive(false);
-            _hostStackDropdown.gameObject.SetActive(false);
-            _autoConnectToggle.gameObject.SetActive(false);
+            GameObject[] advancedObjects = new GameObject[]
+            {
+                _hostButton.gameObject,
+                _hostStackDropdown.gameObject,
+                _hostServerNameField.gameObject,
+                _hostMotdField.gameObject,
+                _hostPortField.gameObject,
+                _hostPasswordField.gameObject,
+                _hostPeerLimitField.gameObject,
+                _hostUseAuthToggle.gameObject,
+                _hostEnableConsoleToggle.gameObject,
+                _hostAvatarsLockedToggle.gameObject,
+                _hostPropsLockedToggle.gameObject,
+                _hostWorldsLockedToggle.gameObject,
+                _hostThirdPersonDisabledToggle.gameObject,
+                _autoConnectToggle.gameObject,
+            };
+            foreach (GameObject obj in advancedObjects) obj.SetActive(false);
 
             _advancedToggle.OnValueChanged += (val) =>
             {
-                _hostButton.gameObject.SetActive(val);
-                _hostStackDropdown.gameObject.SetActive(val);
-                _autoConnectToggle.gameObject.SetActive(val);
+                foreach (GameObject obj in advancedObjects) obj.SetActive(val);
             };
         }
 
@@ -310,19 +417,22 @@ namespace Basis.BasisUI
         private static ServerDirectoryEntry CreateHostEntry(string stackId)
         {
             string effective = string.IsNullOrEmpty(stackId) ? BasisNetworkStackRegistry.DefaultId : stackId;
+            int storedPort = BasisDataStore.LoadInt(HostPortFile, SavedServersDirectorySource.DefaultServerPort);
+            ushort port = (storedPort > 0 && storedPort <= ushort.MaxValue) ? (ushort)storedPort : SavedServersDirectorySource.DefaultServerPort;
+            string password = BasisDataStore.LoadString(HostPasswordFile, SavedServersDirectorySource.DefaultServerPassword);
             ConnectionTarget target = new ConnectionTarget(
                 effective,
-                $"localhost:{SavedServersDirectorySource.DefaultServerPort}");
+                $"localhost:{port}");
             target.Set(ConnectionTarget.Keys.Address, "localhost");
-            target.Set(ConnectionTarget.Keys.Port, SavedServersDirectorySource.DefaultServerPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            target.Set(ConnectionTarget.Keys.Password, SavedServersDirectorySource.DefaultServerPassword);
+            target.Set(ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            target.Set(ConnectionTarget.Keys.Password, password);
             return new ServerDirectoryEntry
             {
                 Id = HostEntryId,
                 SourceId = SavedServersDirectorySource.Id,
                 DisplayName = string.Empty,
                 Target = target,
-                Password = SavedServersDirectorySource.DefaultServerPassword,
+                Password = password,
                 HasPassword = true,
                 CanEdit = false,
                 CanRemove = false,
@@ -888,6 +998,18 @@ namespace Basis.BasisUI
                 BasisNetworkManagement.Password = entry.HasPassword ? entry.Password : string.Empty;
                 BasisNetworkManagement.IsHostMode = isHostMode;
                 BasisNetworkManagement.NetworkStackId = stackId;
+                if (isHostMode)
+                {
+                    BasisNetworkManagement.HostServerName = BasisDataStore.LoadString(HostServerNameFile, DefaultHostServerName);
+                    BasisNetworkManagement.HostServerMotd = BasisDataStore.LoadString(HostServerMotdFile, string.Empty);
+                    BasisNetworkManagement.HostPeerLimit = BasisDataStore.LoadInt(HostPeerLimitFile, DefaultHostPeerLimit);
+                    BasisNetworkManagement.HostUseAuth = BasisDataStore.LoadInt(HostUseAuthFile, 1) != 0;
+                    BasisNetworkManagement.HostEnableConsole = BasisDataStore.LoadInt(HostEnableConsoleFile, 1) != 0;
+                    BasisNetworkManagement.HostAvatarsLocked = BasisDataStore.LoadInt(HostAvatarsLockedFile, 0) != 0;
+                    BasisNetworkManagement.HostPropsLocked = BasisDataStore.LoadInt(HostPropsLockedFile, 0) != 0;
+                    BasisNetworkManagement.HostWorldsLocked = BasisDataStore.LoadInt(HostWorldsLockedFile, 1) != 0;
+                    BasisNetworkManagement.HostThirdPersonDisabled = BasisDataStore.LoadInt(HostThirdPersonDisabledFile, 0) != 0;
+                }
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
                 await LoadDefaultAssetBundleAsync();
