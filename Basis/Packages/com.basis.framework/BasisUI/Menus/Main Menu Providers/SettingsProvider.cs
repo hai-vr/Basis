@@ -352,6 +352,11 @@ namespace Basis.BasisUI
             toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
             toggleDesktopReticle.Descriptor.SetDescription(BasisLocalization.Get("settings.general.desktopReticle.description"));
 
+            PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(hudGroup);
+            toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
+            toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
+            toggleAvatarPreview.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreview.description"));
+
             // Third-person camera is desktop-only; hide the entire group in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
             {

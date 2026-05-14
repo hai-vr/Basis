@@ -17,12 +17,14 @@ namespace BasisNetworkServer.Security
         private static int _worldsLocked;
         private static int _serversLocked;
         private static int _thirdPersonDisabled;
+        private static int _additionalAvatarDataLock;
 
         public static bool AvatarsLocked => Interlocked.CompareExchange(ref _avatarsLocked, 0, 0) == 1;
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
         public static bool WorldsLocked => Interlocked.CompareExchange(ref _worldsLocked, 0, 0) == 1;
         public static bool ServersLocked => Interlocked.CompareExchange(ref _serversLocked, 0, 0) == 1;
         public static bool ThirdPersonDisabled => Interlocked.CompareExchange(ref _thirdPersonDisabled, 0, 0) == 1;
+        public static bool AdditionalAvatarDataLock => Interlocked.CompareExchange(ref _additionalAvatarDataLock, 0, 0) == 1;
 
         /// <summary>
         /// Seed the initial lock state from the server configuration.
@@ -35,6 +37,7 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _worldsLocked, config.WorldsLocked ? 1 : 0);
             Interlocked.Exchange(ref _serversLocked, config.ServersLocked ? 1 : 0);
             Interlocked.Exchange(ref _thirdPersonDisabled, config.ThirdPersonDisabled ? 1 : 0);
+            Interlocked.Exchange(ref _additionalAvatarDataLock, config.AdditionalAvatarDataLock ? 1 : 0);
         }
 
         /// <summary>
@@ -62,6 +65,12 @@ namespace BasisNetworkServer.Security
         /// </summary>
         public static bool ToggleThirdPerson() => Toggle(ref _thirdPersonDisabled);
 
+        /// <summary>
+        /// Toggle the network-side strip of AdditionalAvatarDatas on inbound avatar
+        /// sync messages. Returns the new state (true = additional data stripped).
+        /// </summary>
+        public static bool ToggleAdditionalAvatarDataLock() => Toggle(ref _additionalAvatarDataLock);
+
         private static bool Toggle(ref int field)
         {
             int prev, next;
@@ -88,6 +97,8 @@ namespace BasisNetworkServer.Security
             writer.Put(ServersLocked);
             // Appended after ServersLocked so older clients reading 4 bools still parse cleanly.
             writer.Put(ThirdPersonDisabled);
+            // Appended after ThirdPersonDisabled — older clients parsing 5 bools still work.
+            writer.Put(AdditionalAvatarDataLock);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -105,6 +116,8 @@ namespace BasisNetworkServer.Security
             writer.Put(ServersLocked);
             // Appended after ServersLocked so older clients reading 4 bools still parse cleanly.
             writer.Put(ThirdPersonDisabled);
+            // Appended after ThirdPersonDisabled — older clients parsing 5 bools still work.
+            writer.Put(AdditionalAvatarDataLock);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

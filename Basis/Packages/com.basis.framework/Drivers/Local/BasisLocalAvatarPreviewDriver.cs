@@ -1,5 +1,6 @@
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
@@ -8,7 +9,7 @@ namespace Basis.Scripts.Drivers
 {
     /// <summary>
     /// Creates a secondary camera that renders only the local avatar layer (layer 6)
-    /// and displays the result on a HUD sprite near the microphone icon.
+    /// and displays the result on a HUD sprite spanning the bottom-right half of the screen.
     /// Off by default; toggled via the AvatarPreview setting.
     /// All objects are created at runtime and cleaned up on disable/destroy.
     /// </summary>
@@ -21,27 +22,15 @@ namespace Basis.Scripts.Drivers
 
         [Header("Preview Camera")]
         /// <summary>Distance in front of the player's face the camera is placed.</summary>
-        public static float CameraDistance = 3f;
-        /// <summary>Where on the body the camera looks at, as a fraction of player height (0 = feet, 1 = head).</summary>
-        public static float BodyFocusHeight = 1f;
+        public static float CameraDistance = 1.6f;
         public float CameraFieldOfView = 40f;
-
-        [Header("HUD Display")]
-        /// <summary>
-        /// Normalized offset from the mic icon in frustum-relative units (fraction of half-frustum).
-        /// X moves right, Y moves up. Stays at the same relative screen position on resize.
-        /// </summary>
-        public static Vector2 DisplayNormalizedOffset = new Vector2(0.15f, 0.03f);
-        /// <summary>
-        /// Local scale of the display sprite within ParentOfUI.
-        /// </summary>
-        public static float DisplayScale = 50f;
 
         [System.NonSerialized] public Camera PreviewCamera;
         [System.NonSerialized] public RenderTexture PreviewRT;
 
         private BasisLocalCameraDriver cachedDriver;
         private GameObject cameraGO;
+        private GameObject parentOfUIGO;
         private GameObject displayGO;
         private SpriteRenderer displaySpriteRenderer;
         private MaterialPropertyBlock propertyBlock;
@@ -56,8 +45,6 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void Initialize(BasisLocalCameraDriver cameraDriver)
         {
-            // TODO: re-enable when avatar preview is finished
-            return;
             cachedDriver = cameraDriver;
 
             // Apply the persisted setting
@@ -121,11 +108,13 @@ namespace Basis.Scripts.Drivers
                 urpData.allowXRRendering = false;
             }
 
-            // --- Display Sprite (child of ParentOfUI, next to the mic icon) ---
+            parentOfUIGO = new GameObject("AvatarPreviewParentOfUI");
+            parentOfUIGO.layer = LayerMask.NameToLayer("UI");
+            parentOfUIGO.transform.SetParent(cachedDriver.transform, false);
+
             displayGO = new GameObject("AvatarPreviewDisplay");
             displayGO.layer = LayerMask.NameToLayer("UI");
-            displayGO.transform.SetParent(cachedDriver.ParentOfUI, false);
-            displayGO.transform.localScale = new Vector3(DisplayScale, DisplayScale, 1f);
+            displayGO.transform.SetParent(parentOfUIGO.transform, false);
             displayGO.transform.localRotation = Quaternion.identity;
 
             displaySpriteRenderer = displayGO.AddComponent<SpriteRenderer>();
@@ -153,6 +142,7 @@ namespace Basis.Scripts.Drivers
 
             if (cameraGO != null) { Object.Destroy(cameraGO); cameraGO = null; }
             if (displayGO != null) { Object.Destroy(displayGO); displayGO = null; }
+            if (parentOfUIGO != null) { Object.Destroy(parentOfUIGO); parentOfUIGO = null; }
 
             if (PreviewRT != null)
             {
@@ -185,33 +175,39 @@ namespace Basis.Scripts.Drivers
 
             Transform head = BasisLocalAvatarDriver.Mapping.head;
 
-            // Flatten head forward to horizontal (ignore pitch)
-            Vector3 flatForward = head.forward;
-            flatForward.y = 0f;
-            flatForward.Normalize();
-
-            // Place camera in front of the avatar at body center height
             Vector3 feetPos = BasisLocalPlayer.Instance.transform.position;
-            float bodyCenter = BasisHeightDriver.SelectedScaledPlayerHeight * BodyFocusHeight;
-            Vector3 bodyTarget = feetPos + Vector3.up * bodyCenter;
+            float playerHeight = BasisHeightDriver.SelectedScaledPlayerHeight;
+            Vector3 bodyCenter = feetPos + Vector3.up * (playerHeight * 0.75f);
 
-            Vector3 cameraPos = bodyTarget + flatForward * CameraDistance;
+            Vector3 cameraPos = bodyCenter + head.forward * CameraDistance;
 
             PreviewCamera.transform.SetPositionAndRotation(
                 cameraPos,
-                Quaternion.LookRotation(bodyTarget - cameraPos));
+                Quaternion.LookRotation(bodyCenter - cameraPos));
 
-            // Reposition display relative to frustum so it stays in the same screen-relative spot
-            if (displayGO != null && cachedDriver != null && cachedDriver.Camera != null)
+            if (displayGO != null && parentOfUIGO != null && cachedDriver != null && cachedDriver.Camera != null)
             {
                 Camera cam = cachedDriver.Camera;
                 cam.CalculateFrustumCorners(new Rect(0, 0, 1, 1), 1f, Camera.MonoOrStereoscopicEye.Left, frustumCorners);
                 float halfW = (frustumCorners[2] - frustumCorners[1]).magnitude * 0.5f;
                 float halfH = (frustumCorners[1] - frustumCorners[0]).magnitude * 0.5f;
-                displayGO.transform.localPosition = new Vector3(
-                    DisplayNormalizedOffset.x * halfW,
-                    DisplayNormalizedOffset.y * halfH,
-                    0f);
+
+                Vector3 viewportPos = BasisDeviceManagement.IsMobileHardware()
+                    ? cachedDriver.MobileMicrophoneViewportPosition
+                    : cachedDriver.DesktopMicrophoneViewportPosition;
+                viewportPos.x = 1f - viewportPos.x;
+                Vector3 parentWorld = cam.ViewportToWorldPoint(viewportPos);
+                parentOfUIGO.transform.localPosition = cachedDriver.transform.InverseTransformPoint(parentWorld);
+
+                float aspect = (float)TextureWidth / (float)TextureHeight;
+                float displayHeight = halfH;
+                float displayWidth = displayHeight * aspect;
+                displayGO.transform.localScale = new Vector3(displayWidth, displayHeight, 1f);
+
+                Vector3 displayCameraLocal = new Vector3(halfW - displayWidth * 0.5f, -halfH * 0.5f, 1f);
+                Vector3 displayWorld = cam.transform.TransformPoint(displayCameraLocal);
+                Vector3 displayLocal = cachedDriver.transform.InverseTransformPoint(displayWorld);
+                displayGO.transform.localPosition = displayLocal - parentOfUIGO.transform.localPosition;
             }
         }
 

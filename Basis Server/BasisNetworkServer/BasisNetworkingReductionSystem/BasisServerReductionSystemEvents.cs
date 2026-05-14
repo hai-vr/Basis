@@ -1061,6 +1061,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
+            if (BasisNetworkServer.Security.BasisGlobalLockManager.AdditionalAvatarDataLock)
+            {
+                poolMsg.AdditionalAvatarDatas = null;
+                poolMsg.AdditionalAvatarDataSize = 0;
+            }
+
             var incomingQuality = (BitQuality)poolMsg.DataQualityLevel;
             bool isHighQuality = incomingQuality == BitQuality.High;
 

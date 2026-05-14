@@ -78,6 +78,14 @@ public class Configuration
     /// </summary>
     public bool ThirdPersonDisabled = false;
     /// <summary>
+    /// When true, the server strips AdditionalAvatarDatas (blendshapes, custom-behaviour
+    /// params) from every inbound avatar sync message before propagating to other peers.
+    /// Muscle/position/rotation still sync normally; only the additional-data payload is
+    /// dropped. Toggled live via the admin panel and persisted alongside the other
+    /// content lockouts. Default off.
+    /// </summary>
+    public bool AdditionalAvatarDataLock = false;
+    /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath.
     /// Also loads per-transport config sidecars from <c>{configDir}/transports/{stackId}.xml</c>.
     /// </summary>

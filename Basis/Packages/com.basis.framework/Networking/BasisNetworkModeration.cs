@@ -553,6 +553,14 @@ public static class BasisNetworkModeration
     public static bool GlobalThirdPersonDisabled { get; private set; }
 
     /// <summary>
+    /// Server-pushed lock on AdditionalAvatarDatas. While true, the server strips
+    /// AdditionalAvatarDatas (blendshapes, custom-behaviour params) from every inbound
+    /// avatar sync message before propagating to other peers. Muscle/position/rotation
+    /// still sync normally.
+    /// </summary>
+    public static bool GlobalAdditionalAvatarDataLock { get; private set; }
+
+    /// <summary>
     /// Fired when the global lock state changes. Parameters: avatarsLocked, propsLocked, worldsLocked, serversLocked.
     /// </summary>
     public static event Action<bool, bool, bool, bool> OnGlobalLockStateChanged;
@@ -562,6 +570,12 @@ public static class BasisNetworkModeration
     /// <see cref="OnGlobalLockStateChanged"/> so existing 4-arg subscribers keep compiling.
     /// </summary>
     public static event Action<bool> OnGlobalThirdPersonDisabledChanged;
+
+    /// <summary>
+    /// Fired when the additional-avatar-data lock flag changes. Separate event so
+    /// existing 4-arg <see cref="OnGlobalLockStateChanged"/> subscribers keep compiling.
+    /// </summary>
+    public static event Action<bool> OnGlobalAdditionalAvatarDataLockChanged;
 
     /// <summary>
     /// Current headless audio state received from the server.
@@ -608,7 +622,17 @@ public static class BasisNetworkModeration
                 OnGlobalThirdPersonDisabledChanged?.Invoke(GlobalThirdPersonDisabled);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}", BasisDebug.LogTag.Networking);
+        // AdditionalAvatarDataLock appended after ThirdPersonDisabled. Same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextAdditionalAvatarDataLock = reader.GetBool();
+            if (nextAdditionalAvatarDataLock != GlobalAdditionalAvatarDataLock)
+            {
+                GlobalAdditionalAvatarDataLock = nextAdditionalAvatarDataLock;
+                OnGlobalAdditionalAvatarDataLockChanged?.Invoke(GlobalAdditionalAvatarDataLock);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -651,6 +675,16 @@ public static class BasisNetworkModeration
     public static void GlobalToggleThirdPerson()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleThirdPerson);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global strip of AdditionalAvatarDatas on inbound avatar sync
+    /// messages. Server flips the flag and starts dropping the additional-data payload
+    /// from every inbound message; muscle/position/rotation still propagate normally.
+    /// </summary>
+    public static void GlobalToggleAdditionalAvatarDataLock()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleAdditionalAvatarDataLock);
     }
 
     private static void HandleGlobalHeadlessAudioState(NetDataReader reader)
