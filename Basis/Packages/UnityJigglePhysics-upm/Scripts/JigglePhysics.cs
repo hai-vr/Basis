@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -424,6 +425,10 @@ public static class JigglePhysics {
         jobs?.ScheduleRemove(jiggleTree);
     }
     
+    public static void Teleport(JiggleTree tree, float3 deltaPosition) {
+        jobs?.Teleport(tree, deltaPosition);
+    }
+
     public static void RemoveJiggleTreeSegment(JiggleTreeSegment jiggleTreeSegment) {
         if (rootJiggleTreeSegments.Contains(jiggleTreeSegment)) {
             rootJiggleTreeSegments.Remove(jiggleTreeSegment);

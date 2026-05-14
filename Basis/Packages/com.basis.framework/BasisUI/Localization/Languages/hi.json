@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Basis लॉगिंग अक्षम करें" },
     { "key": "settings.developer.disableLogging.description", "value": "सभी BasisDebug लॉग, चेतावनी, और त्रुटि आउटपुट को दबाएँ।" },
     { "key": "settings.developer.logTagFilter", "value": "लॉग टैग फ़िल्टर" },
-    { "key": "settings.developer.logTagFilter.description", "value": "केवल इस टैग वाले BasisDebug संदेश उत्सर्जित करें। डिफ़ॉल्ट All।" },
+    { "key": "settings.developer.logTagFilter.description", "value": "केवल इस टैग वाले BasisDebug संदेश उत्सर्जित करें।" },
     { "key": "settings.developer.logLevelFilter", "value": "लॉग स्तर फ़िल्टर" },
     { "key": "settings.developer.logLevelFilter.description", "value": "BasisDebug के माध्यम से अनुमत न्यूनतम गंभीरता। All लॉग, चेतावनियाँ और त्रुटियाँ उत्सर्जित करता है। Warnings & Errors साधारण लॉग छुपाता है। Errors Only लॉग और चेतावनियाँ छुपाता है।" },
     { "key": "settings.developer.sections.title", "value": "डेवलपर अनुभाग" },

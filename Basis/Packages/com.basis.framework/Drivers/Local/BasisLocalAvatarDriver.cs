@@ -80,6 +80,9 @@ namespace Basis.Scripts.Drivers
         /// <summary>Cached length of <see cref="SkinnedMeshRenderer"/>.</summary>
         public static int SkinnedMeshRendererLength;
 
+        /// <summary>All jiggle rigs under the avatar, discovered during calibration.</summary>
+        public static JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
+
         /// <summary>Stores the transforms for each tracked role at calibration time.</summary>
         public Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = new Dictionary<BasisBoneTrackedRole, Transform>();
 
@@ -136,7 +139,7 @@ namespace Basis.Scripts.Drivers
             PutAvatarIntoTPose();
 
             // Initialize any physics/jiggle rigs before building the rig
-            var JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
+            JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
             int length = JiggleRigs.Length;
             for (int Index = 0; Index < length; Index++)
             {

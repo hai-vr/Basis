@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Basis لاگنگ غیر فعال کریں" },
     { "key": "settings.developer.disableLogging.description", "value": "تمام BasisDebug لاگ، انتباہ، اور خرابی آؤٹ پٹ کو دبائیں۔" },
     { "key": "settings.developer.logTagFilter", "value": "لاگ ٹیگ فلٹر" },
-    { "key": "settings.developer.logTagFilter.description", "value": "صرف اس ٹیگ والے BasisDebug پیغامات نکالیں۔ ڈیفالٹ All۔" },
+    { "key": "settings.developer.logTagFilter.description", "value": "صرف اس ٹیگ والے BasisDebug پیغامات نکالیں۔" },
     { "key": "settings.developer.logLevelFilter", "value": "لاگ لیول فلٹر" },
     { "key": "settings.developer.logLevelFilter.description", "value": "BasisDebug کے ذریعے اجازت یافتہ کم سے کم شدت۔ All لاگز، انتباہات اور خامیاں نکالتا ہے۔ Warnings & Errors سادہ لاگز چھپاتا ہے۔ Errors Only لاگز اور انتباہات چھپاتا ہے۔" },
     { "key": "settings.developer.sections.title", "value": "ڈویلپر حصے" },

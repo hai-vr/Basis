@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Basisログを無効化" },
     { "key": "settings.developer.disableLogging.description", "value": "BasisDebugのログ・警告・エラー出力をすべて抑制。" },
     { "key": "settings.developer.logTagFilter", "value": "ログ タグ フィルター" },
-    { "key": "settings.developer.logTagFilter.description", "value": "このタグを持つ BasisDebug メッセージのみを出力します。既定は All。" },
+    { "key": "settings.developer.logTagFilter.description", "value": "このタグを持つ BasisDebug メッセージのみを出力します。" },
     { "key": "settings.developer.logLevelFilter", "value": "ログ レベル フィルター" },
     { "key": "settings.developer.logLevelFilter.description", "value": "BasisDebug を通過できる最低の重大度。All はログ、警告、エラーをすべて出力します。Warnings & Errors は通常のログを非表示にします。Errors Only はログと警告を非表示にします。" },
     { "key": "settings.developer.sections.title", "value": "開発者セクション" },

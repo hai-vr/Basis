@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Basis লগিং অক্ষম করুন" },
     { "key": "settings.developer.disableLogging.description", "value": "সমস্ত BasisDebug লগ, সতর্কতা, এবং ত্রুটি আউটপুট দমন করুন।" },
     { "key": "settings.developer.logTagFilter", "value": "লগ ট্যাগ ফিল্টার" },
-    { "key": "settings.developer.logTagFilter.description", "value": "শুধুমাত্র এই ট্যাগসহ BasisDebug বার্তা নির্গত করুন। ডিফল্ট All।" },
+    { "key": "settings.developer.logTagFilter.description", "value": "শুধুমাত্র এই ট্যাগসহ BasisDebug বার্তা নির্গত করুন।" },
     { "key": "settings.developer.logLevelFilter", "value": "লগ স্তর ফিল্টার" },
     { "key": "settings.developer.logLevelFilter.description", "value": "BasisDebug-এর মাধ্যমে অনুমোদিত সর্বনিম্ন তীব্রতা। All লগ, সতর্কতা এবং ত্রুটি নির্গত করে। Warnings & Errors সাধারণ লগ লুকায়। Errors Only লগ এবং সতর্কতা লুকায়।" },
     { "key": "settings.developer.sections.title", "value": "ডেভেলপার বিভাগ" },

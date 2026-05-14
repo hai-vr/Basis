@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Отключить логирование Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "Подавить весь вывод логов, предупреждений и ошибок BasisDebug." },
     { "key": "settings.developer.logTagFilter", "value": "Фильтр тегов журнала" },
-    { "key": "settings.developer.logTagFilter.description", "value": "Выводить только сообщения BasisDebug с этим тегом. По умолчанию All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "Выводить только сообщения BasisDebug с этим тегом." },
     { "key": "settings.developer.logLevelFilter", "value": "Фильтр уровня журнала" },
     { "key": "settings.developer.logLevelFilter.description", "value": "Минимальная серьёзность, разрешённая через BasisDebug. All — выводит журналы, предупреждения и ошибки. Warnings & Errors скрывает обычные журналы. Errors Only скрывает журналы и предупреждения." },
     { "key": "settings.developer.sections.title", "value": "Разделы разработчика" },

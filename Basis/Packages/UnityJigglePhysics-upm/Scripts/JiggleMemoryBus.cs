@@ -94,6 +94,7 @@ public class JiggleMemoryBus {
     private List<AddRemoveCommand> pendingCommands;
     private List<JiggleTree> pendingRemoveTrees;
     private List<JiggleTree> pendingAddTrees;
+    private Dictionary<int, float3> pendingTeleports;
 
     private List<JiggleTree> pendingProcessingAdds;
     private List<JiggleTree> pendingProcessingRemoves;
@@ -336,6 +337,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingSceneColliderRemove = new();
         pendingAddTrees = new();
         pendingRemoveTrees = new();
+        pendingTeleports = new();
         
         memoryFragmenter = new JiggleMemoryFragmenter(4096);
         personalColliderMemoryFragmenter = new JiggleMemoryFragmenter(2048);
@@ -936,6 +938,85 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                 }
             }
         }
+    }
+
+    public void ScheduleTeleport(int rootID, float3 deltaPosition) {
+        if (pendingTeleports.TryGetValue(rootID, out var existing)) {
+            pendingTeleports[rootID] = existing + deltaPosition;
+        } else {
+            pendingTeleports[rootID] = deltaPosition;
+        }
+    }
+
+    public void ApplyPendingTeleports() {
+        if (pendingTeleports.Count == 0) return;
+        foreach (var kvp in pendingTeleports) {
+            ApplyTeleport(kvp.Key, kvp.Value);
+        }
+        pendingTeleports.Clear();
+    }
+
+    private void ApplyTeleport(int rootID, float3 deltaPosition) {
+        if (transformCount == 0) return;
+        int treeIndex = -1;
+        for (int i = 0; i < treeCount; i++) {
+            if (jiggleTreeStructsArray[i].rootID == rootID) {
+                treeIndex = i;
+                break;
+            }
+        }
+        if (treeIndex == -1) return;
+
+        var tree = jiggleTreeStructsArray[treeIndex];
+        int start = (int)tree.transformIndexOffset;
+        int end = start + (int)tree.pointCount;
+        if (end > transformCount) return;
+
+        for (int i = start; i < end; i++) {
+            var inputPrev = inputPosesPrevious[i];
+            inputPrev.position += deltaPosition;
+            inputPosesPrevious[i] = inputPrev;
+            inputPosesPreviousArray[i] = inputPrev;
+
+            var inputCurr = inputPosesCurrent[i];
+            inputCurr.position += deltaPosition;
+            inputPosesCurrent[i] = inputCurr;
+            inputPosesCurrentArray[i] = inputCurr;
+
+            var simInput = simulateInputPoses[i];
+            simInput.position += deltaPosition;
+            simulateInputPoses[i] = simInput;
+            simulateInputPosesArray[i] = simInput;
+
+            var interpOut = interpolationOutputPoses[i];
+            interpOut.position += deltaPosition;
+            interpolationOutputPoses[i] = interpOut;
+            interpolationOutputPosesArray[i] = interpOut;
+
+            var rootOut = rootOutputPositions[i] + deltaPosition;
+            rootOutputPositions[i] = rootOut;
+            rootOutputPositionsArray[i] = rootOut;
+
+            var simPose = simulationOutputPoseData[i];
+            simPose.pose.position += deltaPosition;
+            simPose.rootPosition += deltaPosition;
+            simulationOutputPoseData[i] = simPose;
+            simulationOutputPoseDataArray[i] = simPose;
+
+            var interpCurr = interpolationCurrentPoseData[i];
+            interpCurr.pose.position += deltaPosition;
+            interpCurr.rootPosition += deltaPosition;
+            interpolationCurrentPoseData[i] = interpCurr;
+            interpolationCurrentPoseDataArray[i] = interpCurr;
+
+            var interpPrev = interpolationPreviousPoseData[i];
+            interpPrev.pose.position += deltaPosition;
+            interpPrev.rootPosition += deltaPosition;
+            interpolationPreviousPoseData[i] = interpPrev;
+            interpolationPreviousPoseDataArray[i] = interpPrev;
+        }
+
+        tree.Translate(deltaPosition);
     }
 
     public void ScheduleAdd(JiggleTree jiggleTree) {

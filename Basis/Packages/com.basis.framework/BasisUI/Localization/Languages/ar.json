@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "تعطيل تسجيل Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "إلغاء جميع مخرجات السجل والتحذيرات والأخطاء من BasisDebug." },
     { "key": "settings.developer.logTagFilter", "value": "مرشح علامة السجل" },
-    { "key": "settings.developer.logTagFilter.description", "value": "إصدار رسائل BasisDebug التي تحمل هذه العلامة فقط. الافتراضي All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "إصدار رسائل BasisDebug التي تحمل هذه العلامة فقط." },
     { "key": "settings.developer.logLevelFilter", "value": "مرشح مستوى السجل" },
     { "key": "settings.developer.logLevelFilter.description", "value": "أدنى مستوى خطورة مسموح به عبر BasisDebug. All يصدر السجلات والتحذيرات والأخطاء. Warnings & Errors يخفي السجلات العادية. Errors Only يخفي السجلات والتحذيرات." },
     { "key": "settings.developer.sections.title", "value": "أقسام المطوّر" },

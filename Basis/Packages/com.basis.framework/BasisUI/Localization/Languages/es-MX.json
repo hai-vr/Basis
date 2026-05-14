@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Desactivar registro de Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "Suprime todos los mensajes de log, advertencias y errores de BasisDebug." },
     { "key": "settings.developer.logTagFilter", "value": "Filtro de etiqueta del log" },
-    { "key": "settings.developer.logTagFilter.description", "value": "Emitir únicamente los mensajes de BasisDebug con esta etiqueta. Por defecto All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "Emitir únicamente los mensajes de BasisDebug con esta etiqueta." },
     { "key": "settings.developer.logLevelFilter", "value": "Filtro de nivel del log" },
     { "key": "settings.developer.logLevelFilter.description", "value": "Severidad mínima que se permite pasar a BasisDebug. All emite logs, advertencias y errores. Warnings & Errors oculta los logs simples. Errors Only oculta logs y advertencias." },
     { "key": "settings.developer.sections.title", "value": "Secciones de desarrollador" },

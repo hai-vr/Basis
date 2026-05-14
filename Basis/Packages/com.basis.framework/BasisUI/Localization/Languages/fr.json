@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Désactiver la journalisation Basis" },
     { "key": "settings.developer.disableLogging.description", "value": "Supprimer toute la sortie de journal, d'avertissement et d'erreur BasisDebug." },
     { "key": "settings.developer.logTagFilter", "value": "Filtre d'étiquette de journal" },
-    { "key": "settings.developer.logTagFilter.description", "value": "N'émettre que les messages BasisDebug portant cette étiquette. Par défaut All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "N'émettre que les messages BasisDebug portant cette étiquette." },
     { "key": "settings.developer.logLevelFilter", "value": "Filtre de niveau de journal" },
     { "key": "settings.developer.logLevelFilter.description", "value": "Gravité minimale autorisée à passer par BasisDebug. All émet les journaux, avertissements et erreurs. Warnings & Errors masque les journaux simples. Errors Only masque les journaux et avertissements." },
     { "key": "settings.developer.sections.title", "value": "Sections développeur" },

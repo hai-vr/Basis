@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "禁用 Basis 日志" },
     { "key": "settings.developer.disableLogging.description", "value": "抑制所有 BasisDebug 的日志、警告和错误输出。" },
     { "key": "settings.developer.logTagFilter", "value": "日誌標籤篩選器" },
-    { "key": "settings.developer.logTagFilter.description", "value": "只輸出帶有此標籤的 BasisDebug 訊息。預設 All。" },
+    { "key": "settings.developer.logTagFilter.description", "value": "只輸出帶有此標籤的 BasisDebug 訊息。" },
     { "key": "settings.developer.logLevelFilter", "value": "日誌等級篩選器" },
     { "key": "settings.developer.logLevelFilter.description", "value": "BasisDebug 允許通過的最低嚴重等級。All 輸出日誌、警告和錯誤。Warnings & Errors 隱藏普通日誌。Errors Only 隱藏日誌和警告。" },
     { "key": "settings.developer.sections.title", "value": "开发者部分" },

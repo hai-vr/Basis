@@ -838,7 +838,7 @@
     { "key": "settings.developer.disableLogging", "value": "Disable Basis Logging" },
     { "key": "settings.developer.disableLogging.description", "value": "Suppress all BasisDebug log, warning, and error output." },
     { "key": "settings.developer.logTagFilter", "value": "Log Tag Filter" },
-    { "key": "settings.developer.logTagFilter.description", "value": "Only emit BasisDebug messages with this tag. Defaults to All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "Only emit BasisDebug messages with this tag." },
     { "key": "settings.developer.logLevelFilter", "value": "Log Level Filter" },
     { "key": "settings.developer.logLevelFilter.description", "value": "Lowest severity that is allowed through BasisDebug. All emits logs, warnings, and errors. Warnings & Errors hides plain logs. Errors Only hides logs and warnings." },
     { "key": "settings.developer.sections.title", "value": "Developer Sections" },

@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Basis-Logging deaktivieren" },
     { "key": "settings.developer.disableLogging.description", "value": "Unterdrückt alle BasisDebug-Log-, Warn- und Fehlerausgaben." },
     { "key": "settings.developer.logTagFilter", "value": "Log-Tag-Filter" },
-    { "key": "settings.developer.logTagFilter.description", "value": "Nur BasisDebug-Nachrichten mit diesem Tag ausgeben. Standard ist All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "Nur BasisDebug-Nachrichten mit diesem Tag ausgeben." },
     { "key": "settings.developer.logLevelFilter", "value": "Log-Stufenfilter" },
     { "key": "settings.developer.logLevelFilter.description", "value": "Niedrigste Schweregradstufe, die BasisDebug passieren darf. All gibt Logs, Warnungen und Fehler aus. Warnings & Errors blendet einfache Logs aus. Errors Only blendet Logs und Warnungen aus." },
     { "key": "settings.developer.sections.title", "value": "Entwickler-Bereiche" },

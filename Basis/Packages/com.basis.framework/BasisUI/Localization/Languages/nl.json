@@ -789,7 +789,7 @@
     { "key": "settings.developer.disableLogging", "value": "Basis Logging Uitschakelen" },
     { "key": "settings.developer.disableLogging.description", "value": "Onderdruk alle BasisDebug log-, waarschuwings- en fout-uitvoer." },
     { "key": "settings.developer.logTagFilter", "value": "Log-tagfilter" },
-    { "key": "settings.developer.logTagFilter.description", "value": "Alleen BasisDebug-berichten met deze tag uitzenden. Standaard All." },
+    { "key": "settings.developer.logTagFilter.description", "value": "Alleen BasisDebug-berichten met deze tag uitzenden." },
     { "key": "settings.developer.logLevelFilter", "value": "Log-niveaufilter" },
     { "key": "settings.developer.logLevelFilter.description", "value": "Laagste ernst die door BasisDebug wordt doorgelaten. All zendt logs, waarschuwingen en fouten uit. Warnings & Errors verbergt gewone logs. Errors Only verbergt logs en waarschuwingen." },
     { "key": "settings.developer.sections.title", "value": "Ontwikkelaarssecties" },
