@@ -45,7 +45,8 @@ namespace Basis.Scripts.Networking
             BNL.LogWarningOutput += LogWarningOutput;
             BNL.LogErrorOutput += LogErrorOutput;
 
-            var uuid = BasisDIDAuthIdentityClient.GetOrSaveDID();
+            PlayerIdentity identity = BasisPlayerIdentityRegistry.ResolveActive();
+            string uuid = identity?.Uuid ?? string.Empty;
 
             if (isHostMode)
             {

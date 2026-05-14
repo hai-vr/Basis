@@ -199,16 +199,18 @@ namespace Basis.BasisUI
             try
             {
                 using CancellationTokenSource cts = new CancellationTokenSource(3500);
-                BasisServerInfoClient.ServerInfoResult result =
-                    await BasisServerInfoClient.QueryAsync(ip, port, 3000, cts.Token);
+                Basis.Network.Core.ConnectionTarget target = new Basis.Network.Core.ConnectionTarget(
+                    Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId, $"{ip}:{port}");
+                target.Set(Basis.Network.Core.ConnectionTarget.Keys.Address, ip);
+                target.Set(Basis.Network.Core.ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                Basis.Network.Core.ServerProbeResult result =
+                    await Basis.Network.Core.BasisNetworkStackRegistry.ProbeAsync(target, 3000, cts.Token);
                 if (result == null || !result.Reachable) return;
 
-                // Only fill if the field is still empty — don't clobber an admin
-                // who started typing while the query was in flight.
                 if (nameField != null && string.IsNullOrEmpty(nameField.Value))
-                    nameField.SetValueWithoutNotify(result.Info.Name ?? string.Empty);
+                    nameField.SetValueWithoutNotify(result.Name ?? string.Empty);
                 if (motdField != null && string.IsNullOrEmpty(motdField.Value))
-                    motdField.SetValueWithoutNotify(result.Info.Motd ?? string.Empty);
+                    motdField.SetValueWithoutNotify(result.Motd ?? string.Empty);
             }
             catch (Exception ex)
             {

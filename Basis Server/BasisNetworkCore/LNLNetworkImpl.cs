@@ -199,30 +199,31 @@ namespace Basis.Network.Core
 
         public LNLNetManager(EventBasedNetListener listener, Configuration configuration)
         {
+            LNLTransportConfig lnl = BasisTransportConfigStore.Get<LNLTransportConfig>(BasisNetworkStackRegistry.LiteNetLibId);
             manager = new LiteNetLib.NetManager(listener, null)
             {
                 AutoRecycle = false,
                 UnconnectedMessagesEnabled = true,
-                NatPunchEnabled = configuration.NatPunchEnabled,
-                AllowPeerAddressChange = configuration.AllowPeerAddressChange,
+                NatPunchEnabled = lnl.NatPunchEnabled,
+                AllowPeerAddressChange = lnl.AllowPeerAddressChange,
                 BroadcastReceiveEnabled = false,
-                UseNativeSockets = configuration.UseNativeSockets,
+                UseNativeSockets = lnl.UseNativeSockets,
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
                 EnableStatistics = configuration.EnableStatistics,
-                IPv6Enabled = configuration.IPv6Enabled,
+                IPv6Enabled = lnl.IPv6Enabled,
                 UpdateTime = BasisNetworkCommons.NetworkIntervalPoll,
-                PingInterval = configuration.PingInterval,
-                DisconnectTimeout = configuration.DisconnectTimeout,
+                PingInterval = lnl.PingInterval,
+                DisconnectTimeout = lnl.DisconnectTimeout,
                 UnsyncedEvents = true,
                 ReceivePollingTime = BasisNetworkCommons.ReceivePollingTime,
                 PacketPoolSize = BasisNetworkCommons.PacketPoolSize,
-                SimulateLatency = configuration.SimulateLatency,
-                SimulatePacketLoss = configuration.SimulatePacketLoss,
-                SimulationMaxLatency = configuration.SimulationMaxLatency,
-                SimulationMinLatency = configuration.SimulationMinLatency,
-                SimulationPacketLossChance = configuration.SimulationPacketLossChance,
-                MtuDiscovery = configuration.MtuDiscovery,
-                MtuOverride = configuration.MtuOverride
+                SimulateLatency = lnl.SimulateLatency,
+                SimulatePacketLoss = lnl.SimulatePacketLoss,
+                SimulationMaxLatency = lnl.SimulationMaxLatency,
+                SimulationMinLatency = lnl.SimulationMinLatency,
+                SimulationPacketLossChance = lnl.SimulationPacketLossChance,
+                MtuDiscovery = lnl.MtuDiscovery,
+                MtuOverride = lnl.MtuOverride
             };
         }
         public void Start(IPAddress IPv4Address, IPAddress IPv6Address, int SetPort)

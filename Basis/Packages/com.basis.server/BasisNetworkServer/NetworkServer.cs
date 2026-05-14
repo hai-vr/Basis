@@ -130,6 +130,9 @@ public static class NetworkServer
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
         BasisNetworkChat.LoadWordFilter(Configuration);
+        BasisNetworkStackRegistry.RegisterIntroducerFactory(
+            BasisNetworkStackRegistry.LiteNetLibId,
+            _ => new BasisNetworkServer.LNLPeerIntroducer());
         BasisNetworkServer.BasisServerP2PBroker.Initialize();
     }
 

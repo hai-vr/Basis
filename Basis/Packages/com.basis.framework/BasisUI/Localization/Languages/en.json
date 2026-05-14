@@ -89,6 +89,8 @@
     { "key": "menu.servers.port", "value": "Port" },
     { "key": "menu.servers.password", "value": "Password" },
     { "key": "menu.servers.networkStack", "value": "Networking Stack" },
+    { "key": "menu.servers.hostStack", "value": "Host Networking Stack" },
+    { "key": "menu.servers.source.savedServers", "value": "Saved Servers" },
     { "key": "menu.servers.hostMode", "value": "Host Mode" },
     { "key": "menu.servers.hostMode.description", "value": "Run a local server and connect to it." },
     { "key": "menu.servers.autoConnect", "value": "Auto Connect" },
