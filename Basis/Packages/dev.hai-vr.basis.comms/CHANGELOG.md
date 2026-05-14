@@ -9,19 +9,22 @@ New additions:
 - The input value of a control can now change over time or be processed by a filter. The following filters are provided: Smooth towards, linear move towards, and curve.
     - This processing is done locally; the value of the address itself does not change over time.
 - Lipsync values are available as addresses to be read by Vixxy.
+- Effects can be triggered based on the distance, angle, raycast, or speed between objects.
 
 Modifications in existing HVR.Basis systems:
 - Functional:
   - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
   - Addresses chosen automatically for controls now account for objects having the same name.
+  - Value is clamped per-control between the minimum and the maximum choice value. This is done in preparation for high-frequency networking, where the value is clamped by technical necessity.
 - Usability:
   - When a Vixxy Control is created, the choices are named by default to "OFF" and "ON"
   - In the Toggle Objects UI, "Enable these when active" has been replaced with "Affect these objects" and now uses the same system as multiple choices.
   - In the Subjects UI, "Inactive" and "Active" now use the same system as multiple choices.
   - Address and Networking have been moved to their own "Advanced Settings" tab since they don't need to be touched.
 - Optimizations:
-    - Minimum and maximum values for a control are now baked at runtime.
-    - Avoid GetComponent call in Menu Item.
+  - Minimum and maximum values for a control are now baked at runtime.
+  - Avoid GetComponent call in Menu Item.
+  - Reduce the size of some networking packets, as we can deduce the size of the last list in a packet.
 
 Fixes:
 - Fix editor was unable to switch between object groups or delete one because a key already exists.
