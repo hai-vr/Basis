@@ -6,6 +6,7 @@ using HVR.Vixxy;
 using HVR.Vixxy.Editor;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace HVR.Basis.Comms.Editor
 {
@@ -22,6 +23,7 @@ namespace HVR.Basis.Comms.Editor
         private List<string> _addresses = new();
         private List<HVRVixxyControl> _controls = new();
         private List<Component> _components = new();
+        private List<Object> _assets = new();
         private readonly Dictionary<Transform, List<HVRVixxyControl>> _transformToControlsDict = new();
 
         private bool displayAvatarInfo;
@@ -87,6 +89,8 @@ namespace HVR.Basis.Comms.Editor
                     .Distinct()
                     .OrderBy(address => address)
                     .ToList();
+
+                _assets = _controls.SelectMany(control => control.ListAssets()).Distinct().ToList();
             }
         }
 
@@ -140,6 +144,13 @@ namespace HVR.Basis.Comms.Editor
                         EditorGUILayout.ObjectField(new GUIContent(""), control, typeof(HVRVixxyControl), true);
                         EditorGUILayout.LabelField($"Toggles {control.activations.Length} objects, changes {control.subjects.Sum(subject => subject.properties.Count)} properties", GUILayout.Width(300));
                         EditorGUILayout.EndHorizontal();
+                    }
+                    EditorGUILayout.Separator();
+
+                    EditorGUILayout.LabelField("Assets inside controls", EditorStyles.boldLabel);
+                    foreach (var asset in _assets)
+                    {
+                        EditorGUILayout.ObjectField(new GUIContent(""), asset, typeof(Object), true);
                     }
                     EditorGUILayout.Separator();
 

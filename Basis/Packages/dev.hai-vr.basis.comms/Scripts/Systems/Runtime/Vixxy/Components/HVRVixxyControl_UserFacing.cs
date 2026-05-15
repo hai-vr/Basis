@@ -188,7 +188,8 @@ namespace HVR.Vixxy
             if (typeof(Object).IsAssignableFrom(typeof(T)) && typeof(T) != typeof(GameObject) && typeof(T) != typeof(Component))
             {
                 return choices
-                    .Select(choice => choice as Object)
+                    .Select(choice => choice)
+                    .Cast<Object>()
                     .Where(choice => choice != null)
                     .Distinct()
                     .ToList();
