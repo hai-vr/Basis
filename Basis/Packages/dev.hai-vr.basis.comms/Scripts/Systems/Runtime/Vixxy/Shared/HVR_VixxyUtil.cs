@@ -63,6 +63,16 @@ namespace HVR.Vixxy
                     listToClean.RemoveAt(i);
         }
 
+        /// Sanitize managed references. Even though this could clean any list, only use this on fields that use SerializeReference for semantic purposes and to track issues.
+        public static void SanitizeFieldOfTypeSerializeReference<T>(List<T> listToClean)
+        {
+            // SerializeReference can sometimes contain null if the component was created in a newer version, and then run in a lower version
+            // (failed to deserialize property type? e.g. Vixxy JiggleRigProperty).
+            for (var i = listToClean.Count - 1; i >= 0; i--)
+                if (null == listToClean[i])
+                    listToClean.RemoveAt(i);
+        }
+
         /// Enables or disables a component, when applicable. If the component is a transform, then by convention, its GameObject is set active or inactive.
         /// If the component does not have a .enabled state, it is a no-op.
         public static void SetToggleState(Component component, bool isOn)
