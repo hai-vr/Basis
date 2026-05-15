@@ -17,13 +17,20 @@ namespace Basis.Scripts.Drivers
     public class BasisLocalAvatarPreviewDriver
     {
         [Header("Render Texture")]
-        public static int TextureWidth = 512;
+        public static int TextureWidth = 768;
         public static int TextureHeight = 1024;
 
+        /// <summary>On-screen size as a multiple of the original (1.0 = bottom-right quadrant height).</summary>
+        public static float DisplaySizeScale = 1.1f;
+
         [Header("Preview Camera")]
-        /// <summary>Distance in front of the player's face the camera is placed.</summary>
-        public static float CameraDistance = 1.6f;
+        /// <summary>Vertical FOV in degrees. Camera distance is auto-computed each frame to fit the target framing.</summary>
         public float CameraFieldOfView = 40f;
+
+        // Vertical framing target as fractions of player height: bottom of frame is just under
+        // the hips, top is just above the head. Horizontal extent follows from the texture aspect.
+        private const float FrameBottomFrac = 0.45f;
+        private const float FrameTopFrac    = 1.15f;
 
         [System.NonSerialized] public Camera PreviewCamera;
         [System.NonSerialized] public RenderTexture PreviewRT;
@@ -177,13 +184,23 @@ namespace Basis.Scripts.Drivers
 
             Vector3 feetPos = BasisLocalPlayer.Instance.transform.position;
             float playerHeight = BasisHeightDriver.SelectedScaledPlayerHeight;
-            Vector3 bodyCenter = feetPos + Vector3.up * (playerHeight * 0.75f);
 
-            Vector3 cameraPos = bodyCenter + head.forward * CameraDistance;
+            float verticalSpan = playerHeight * (FrameTopFrac - FrameBottomFrac);
+            Vector3 frameCenter = feetPos + Vector3.up * (playerHeight * (FrameBottomFrac + FrameTopFrac) * 0.5f);
+
+            // Distance is bound by the vertical target (hips-to-above-head). Horizontal extent is
+            // whatever the texture aspect allows at that distance — with the portrait texture this
+            // is ~0.3× player height wide, enough for the body but not spread arms.
+            float aspect = (float)TextureWidth / (float)TextureHeight;
+            float halfFovTan = Mathf.Tan(CameraFieldOfView * 0.5f * Mathf.Deg2Rad);
+            if (halfFovTan < 1e-4f) halfFovTan = 1e-4f;
+            float cameraDistance = (verticalSpan * 0.5f) / halfFovTan;
+
+            Vector3 cameraPos = frameCenter + head.forward * cameraDistance;
 
             PreviewCamera.transform.SetPositionAndRotation(
                 cameraPos,
-                Quaternion.LookRotation(bodyCenter - cameraPos));
+                Quaternion.LookRotation(frameCenter - cameraPos));
 
             if (displayGO != null && parentOfUIGO != null && cachedDriver != null && cachedDriver.Camera != null)
             {
@@ -199,12 +216,12 @@ namespace Basis.Scripts.Drivers
                 Vector3 parentWorld = cam.ViewportToWorldPoint(viewportPos);
                 parentOfUIGO.transform.localPosition = cachedDriver.transform.InverseTransformPoint(parentWorld);
 
-                float aspect = (float)TextureWidth / (float)TextureHeight;
-                float displayHeight = halfH;
+                float displayHeight = halfH * DisplaySizeScale;
                 float displayWidth = displayHeight * aspect;
                 displayGO.transform.localScale = new Vector3(displayWidth, displayHeight, 1f);
 
-                Vector3 displayCameraLocal = new Vector3(halfW - displayWidth * 0.5f, -halfH * 0.5f, 1f);
+                // Anchor the sprite's bottom-right corner to the frustum's bottom-right corner.
+                Vector3 displayCameraLocal = new Vector3(halfW - displayWidth * 0.5f, -halfH + displayHeight * 0.5f, 1f);
                 Vector3 displayWorld = cam.transform.TransformPoint(displayCameraLocal);
                 Vector3 displayLocal = cachedDriver.transform.InverseTransformPoint(displayWorld);
                 displayGO.transform.localPosition = displayLocal - parentOfUIGO.transform.localPosition;

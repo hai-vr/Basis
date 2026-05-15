@@ -132,15 +132,19 @@ namespace Basis.Scripts.Networking.Receivers
         private const float MinPlaybackRate = 0.85f;
         private const float MaxPlaybackRate = 1.35f;
 
-        // Adaptive jitter buffer depth. Floors at MinJitterDepth (0 = no staging cushion),
-        // grows toward MaxJitterDepth on underruns, decays back when stable.
+        // Adaptive jitter buffer depth. Floors at MinJitterDepth (always at least
+        // one packet of cushion so the catchup formula has a stable equilibrium),
+        // grows toward MaxJitterDepth on underruns, decays slowly when stable.
         // Cold start warms at InitialJitterDepth so a fresh remote join doesn't cascade
         // underruns before the adaptive logic settles.
-        private const int MinJitterDepth = 0;
+        private const int MinJitterDepth = 1;
         private const int MaxJitterDepth = 4;
-        private const float InitialJitterDepth = 1f;
-        private const float DepthBumpOnUnderrun = 0.5f;
-        private const float DepthDecayPerSecond = 0.25f;
+        private const float InitialJitterDepth = 2f;
+        private const float DepthBumpOnUnderrun = 1.0f;
+        private const float DepthDecayPerSecond = 0.10f;
+        // Backlog within this many packets of the target is treated as noise —
+        // playback stays at rate 1.0 instead of snapping to MaxPlaybackRate.
+        private const float CatchupDeadband = 1.0f;
         private float _dynamicJitterDepth = InitialJitterDepth;
 
         public bool HasCurrentBuffer = false;
@@ -332,7 +336,20 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     windowDuration = math.max(Next.SecondsInterval, 1e-3);
                 }
-                float rate = 1f + CatchupGain * (StagedCount - _dynamicJitterDepth);
+                float diff = (float)StagedCount - _dynamicJitterDepth;
+                float rate;
+                if (diff > CatchupDeadband)
+                {
+                    rate = 1f + CatchupGain * (diff - CatchupDeadband);
+                }
+                else if (diff < 0f)
+                {
+                    rate = 1f + CatchupGain * diff;
+                }
+                else
+                {
+                    rate = 1f;
+                }
                 rate = math.clamp(rate, MinPlaybackRate, MaxPlaybackRate);
 
                 interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
