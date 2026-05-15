@@ -30,11 +30,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 int offset = 0;
 
-                // Prefer the rate-announcement cache; fall back to the per-packet
-                // byte for first-packet / new-joiner windows before an announcement arrives.
+                // Rate selection per packet:
+                //  - If we have an active P2P session with this sender, the announced cache
+                //    is authoritative (they're sending us packets at that fast cadence).
+                //  - Otherwise this packet came via the server, where per-receiver pacing is
+                //    encoded in the server-patched interval byte. The announce cache may have
+                //    been broadcast from a P2P sender we're NOT P2P-connected to, so trusting
+                //    it would interpolate at the wrong cadence.
                 double effectiveIntervalSec;
                 ushort senderId = syncMessage.playerIdMessage.playerID;
-                if (Basis.Scripts.Networking.BasisAvatarRateRegistry.TryGetRate(senderId, out int cachedMs))
+                bool senderHasLocalP2P = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(senderId)
+                    == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected;
+                if (senderHasLocalP2P && Basis.Scripts.Networking.BasisAvatarRateRegistry.TryGetRate(senderId, out int cachedMs))
                 {
                     effectiveIntervalSec = cachedMs / 1000.0;
                 }

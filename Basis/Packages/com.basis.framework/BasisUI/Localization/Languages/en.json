@@ -408,6 +408,10 @@
     { "key": "settings.general.networking.description", "value": "Direct connection tuning." },
     { "key": "settings.general.networking.p2pAvatarRate", "value": "Avatar Sync Rate" },
     { "key": "settings.general.networking.p2pAvatarRate.description", "value": "Updates per second to direct peers." },
+    { "key": "settings.general.networking.jitterBufferOverride", "value": "Override Buffer Depth" },
+    { "key": "settings.general.networking.jitterBufferOverride.description", "value": "Manually set how many packets remote players stay behind by. Leave off for the default adaptive cushion." },
+    { "key": "settings.general.networking.jitterBuffer", "value": "Buffer Depth (packets)" },
+    { "key": "settings.general.networking.jitterBuffer.description", "value": "Packets to stay behind by. Higher absorbs more network jitter at the cost of latency. 2 is default; raise on flaky connections, lower on LAN." },
     { "key": "settings.general.networking.disableDirectConnections", "value": "Disable Direct Connections" },
     { "key": "settings.general.networking.disableDirectConnections.description", "value": "Block peer-to-peer links. Incoming requests are auto-declined and you cannot start one. Voice and avatar always go through the server. Existing sessions are not closed." },
 

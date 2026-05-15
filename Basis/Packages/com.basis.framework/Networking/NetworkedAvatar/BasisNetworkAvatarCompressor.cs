@@ -141,16 +141,36 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
             Basis.Scripts.Networking.BasisP2PManager.BroadcastAvatarViaP2P(transmitter.AvatarSendWriter, channel);
-            // Server send gated to meta.SyncInterval pace; P2P fires every build.
-            if (timeAsDouble >= sNextServerSendTime)
+            // Server-send pacing: when a P2P session is active, Compress fires at the
+            // fast P2P cadence (e.g. every 17ms) and we throttle the server fan-out to
+            // meta.SyncInterval. Without P2P, Simulate already paces this call to
+            // meta.SyncInterval (see UpdateSendInterval), so an additional gate just
+            // ends up dropping packets when frame-rate jitter pushes two consecutive
+            // Simulate fires <100ms apart — the gate skips the second one and the
+            // receiver sees a sequence gap (avatar fast-forwards mid-window).
+            bool p2pActive = Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession();
+            bool shouldSendServer;
+            if (p2pActive)
+            {
+                shouldSendServer = timeAsDouble >= sNextServerSendTime;
+            }
+            else
+            {
+                shouldSendServer = true;
+            }
+
+            if (shouldSendServer)
             {
                 BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, channel, DeliveryMethod.Unreliable);
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.OutboundAvatarServer, transmitter.AvatarSendWriter.Length);
-                var meta = BasisNetworkManagement.ServerMetaDataMessage;
-                double serverIntervalSec = meta.SyncInterval > 0
-                    ? meta.SyncInterval / 1000.0
-                    : 0.050;
-                sNextServerSendTime = timeAsDouble + serverIntervalSec;
+                if (p2pActive)
+                {
+                    var meta = BasisNetworkManagement.ServerMetaDataMessage;
+                    double serverIntervalSec = meta.SyncInterval > 0
+                        ? meta.SyncInterval / 1000.0
+                        : 0.050;
+                    sNextServerSendTime = timeAsDouble + serverIntervalSec;
+                }
             }
 
             transmitter.AvatarSendWriter.Reset();

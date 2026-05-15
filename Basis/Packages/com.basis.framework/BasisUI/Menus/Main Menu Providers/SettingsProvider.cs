@@ -459,6 +459,26 @@ namespace Basis.BasisUI
             });
             dropdownP2PRate.AssignBinding(BasisSettingsDefaults.P2PAvatarSyncRate);
 
+            PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
+            toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
+            toggleJitterBufferOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.jitterBufferOverride"));
+            toggleJitterBufferOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.jitterBufferOverride.description"));
+
+            PanelSlider sliderJitterBuffer = PanelSlider.CreateEntryAndBind(
+                networkingGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.general.networking.jitterBuffer"),
+                    BasisLocalization.Get("settings.general.networking.jitterBuffer.description"),
+                    0, 6, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.NetworkJitterBufferDepth);
+
+            sliderJitterBuffer.Descriptor.SetActive(toggleJitterBufferOverride.Value);
+            toggleJitterBufferOverride.OnValueChanged += (val) =>
+            {
+                sliderJitterBuffer.Descriptor.SetActive(val);
+                networkingGroup.ForceRebuild();
+            };
+
             PanelToggle toggleDisableDirectConn = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
             toggleDisableDirectConn.AssignBinding(BasisSettingsDefaults.DisableDirectConnections);
             toggleDisableDirectConn.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.disableDirectConnections"));
