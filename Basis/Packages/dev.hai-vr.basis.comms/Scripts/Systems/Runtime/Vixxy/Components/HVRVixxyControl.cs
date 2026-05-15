@@ -122,7 +122,7 @@ namespace HVR.Vixxy
             activations ??= Array.Empty<HVRVixxyActivation>();
             subjects ??= Array.Empty<HVRVixxySubject>();
             filters ??= new List<HVRVixxyFilterBase>();
-            filters = filters.Where(that => null != that).ToList(); // Sanitize managed references.
+            HVR_VixxyUtil.SanitizeFieldOfTypeSerializeReference(filters);
             BakeControlSubjectsAndActivationsForRuntime();
 
             if (_avatarNullable != null)
@@ -281,7 +281,7 @@ namespace HVR.Vixxy
                 subject.childrenOf ??= Array.Empty<GameObject>();
                 subject.exceptions ??= Array.Empty<GameObject>();
                 subject.properties ??= new List<HVRVixxyPropertyBase>();
-                subject.properties = subject.properties.Where(that => null != that).ToList(); // Sanitize managed references (failed to deserialize property type? e.g. Vixxy JiggleRigProperty).
+                HVR_VixxyUtil.SanitizeFieldOfTypeSerializeReference(subject.properties);
 
                 BakeSubjectAffectedObjects(subject, _context);
 
