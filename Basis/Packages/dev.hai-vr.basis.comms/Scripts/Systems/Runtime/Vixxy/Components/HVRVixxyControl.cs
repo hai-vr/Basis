@@ -166,8 +166,9 @@ namespace HVR.Vixxy
                 .Select(control => control.icon as Object)
                 .Concat(subjects
                     .SelectMany(subject => subject.properties)
-                    .SelectMany(property => property.ListAssets())
-                )
+                    // Unusual, but happens if a property was created in a newer version, and then downgraded. Since we're in edit mode, sanitization is not yet in effect.
+                    .Where(property => property != null)
+                    .SelectMany(property => property.ListAssets()))
                 .Where(that => that != null)
                 .Distinct()
                 .ToList();
