@@ -48,6 +48,31 @@ namespace Basis.Scripts.Networking
         public static bool IsHostMode = false;
 
         /// <summary>
+        /// Selected networking stack id (matches a registration in
+        /// <see cref="Basis.Network.Core.BasisNetworkStackRegistry"/>). Empty falls back
+        /// to <see cref="Basis.Network.Core.BasisNetworkStackRegistry.DefaultId"/>.
+        /// </summary>
+        public static string NetworkStackId = string.Empty;
+
+        public static string HostServerName = "Basis Server";
+
+        public static string HostServerMotd = string.Empty;
+
+        public static int HostPeerLimit = ushort.MaxValue;
+
+        public static bool HostUseAuth = true;
+
+        public static bool HostEnableConsole = true;
+
+        public static bool HostAvatarsLocked = false;
+
+        public static bool HostPropsLocked = false;
+
+        public static bool HostWorldsLocked = true;
+
+        public static bool HostThirdPersonDisabled = false;
+
+        /// <summary>
         /// True once <see cref="BasisNetworkLifeCycle.Initalize"/> has completed.
         /// Replaces the old <c>Instance != null</c> singleton-presence check.
         /// </summary>
@@ -121,7 +146,7 @@ namespace Basis.Scripts.Networking
         /// <summary>
         /// Connects to the server using the configured <see cref="Ip"/>, <see cref="Port"/>, and <see cref="Password"/>.
         /// </summary>
-        public static void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
+        public static void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode, NetworkStackId);
 
         #endregion
 

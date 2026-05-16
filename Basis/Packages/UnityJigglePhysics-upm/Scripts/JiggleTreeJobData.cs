@@ -122,6 +122,19 @@ public unsafe struct JiggleTreeJobData {
         }
     }
 
+    public void Translate(float3 deltaPosition) {
+        if (points == null) return;
+        for (int i = 0; i < pointCount; i++) {
+            var p = points[i];
+            p.lastPosition += deltaPosition;
+            p.position += deltaPosition;
+            p.workingPosition += deltaPosition;
+            p.pose += deltaPosition;
+            p.parentPose += deltaPosition;
+            points[i] = p;
+        }
+    }
+
     public bool GetIsValid(out string failReason) {
         if (pointCount == 0 || pointCount > MAX_POINTS) {
             failReason = $"Invalid point count {pointCount}";

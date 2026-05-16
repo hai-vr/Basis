@@ -19,7 +19,7 @@ public class NetworkClient
         if (IsInUse == false)
         {
             listener = new EventBasedNetListener();
-            client = new LNLNetManager(listener, Configuration);
+            client = BasisNetworkStackRegistry.Create(Configuration.NetworkStackId, listener, Configuration);
             client.Start();
             NetDataWriter Writer = new NetDataWriter(true,12);
             //this is the only time we dont put key!

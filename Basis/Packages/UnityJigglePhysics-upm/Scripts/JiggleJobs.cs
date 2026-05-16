@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -192,6 +193,8 @@ public class JiggleJobs {
             OnFinishSimulate?.Invoke(this, simulateTime);
         }
 
+        _memoryBus.ApplyPendingTeleports();
+
         _memoryBus.RotateBuffers();
         jobInterpolation.previousTimeStamp = jobInterpolation.timeStamp;
         jobInterpolation.timeStamp = jobSimulate.timeStamp;
@@ -247,6 +250,11 @@ public class JiggleJobs {
         jobSimulate.timeStamp = simulateTime;
         handleSimulate = jobSimulate.ScheduleParallel(_memoryBus.treeCount, 1, JobHandle.CombineDependencies(handleBroadPhase, handleInputInterpolate));
         hasHandleSimulate = true;
+    }
+
+    public void Teleport(JiggleTree tree, float3 deltaPosition) {
+        if (tree == null) return;
+        _memoryBus.ScheduleTeleport(tree.rootID, deltaPosition);
     }
 
     public void ScheduleAdd(JiggleTree tree) {

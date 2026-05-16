@@ -41,7 +41,7 @@ namespace Basis.Scripts.UI.UI_Panels
         private List<LoadingOperationData> loadingOperations = new List<LoadingOperationData>();
 
         private Coroutine autoDestroyCoroutine;
-        private const float AutoDestroyTimeout = 5f;
+        private const float AutoDestroyTimeout = 1.5f;
 
         public static void Initalize()
         {
@@ -154,7 +154,7 @@ namespace Basis.Scripts.UI.UI_Panels
 
         private void UpdateDisplay(float percentage, string display)
         {
-            TextMeshPro.text = display;
+            TextMeshPro.text = $"{display}  {Mathf.RoundToInt(percentage)}%";
             float value = percentage / 4f;
             Renderer.size = new Vector2(value, 2);
         }

@@ -344,6 +344,11 @@ namespace BasisNetworkServer.Security
                         HandleGlobalToggle(peer, "Third-person camera", BasisGlobalLockManager.ToggleThirdPerson()));
                     break;
 
+                case AdminRequestMode.GlobalToggleAdditionalAvatarDataLock:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Additional avatar data lock", BasisGlobalLockManager.ToggleAdditionalAvatarDataLock()));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessAudio:
                     Require(peer, PermNodes.ModerationHeadlessAudio, () =>
                         HandleHeadlessAudioSet(peer, reader));

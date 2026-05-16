@@ -154,7 +154,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // When enabled, the per-receiver inner loop defers sends into PendingAvatarSend[] and
         // flushes either as one deflated bundle on CompressedAvatarBundleChannel or as
         // individual SendUnreliableRawMerge calls on the original quality channels.
-        public static bool EnableAvatarBundleCompression = false;
+        public static bool EnableAvatarBundleCompression = true;
         public static int AvatarBundleMinMessages = 4;
         public static int AvatarBundleMinBytes = 300;
         // Conservative headroom subtracted from peer.Mtu before checking if a compressed
@@ -367,9 +367,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             //Phase 4: Network I/O
             BasisNetworkPIPCamera.UpdatePIPPositions(now);
-            if (NetworkServer.Server != null && NetworkServer.Server.manager != null)
+            if (NetworkServer.Server is LNLNetManager lnlReductionServer && lnlReductionServer.manager != null)
             {
-                NetworkServer.Server.manager.TriggerUpdate();
+                lnlReductionServer.manager.TriggerUpdate();
             }
             if (profiling)
             {
@@ -610,6 +610,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     int jId = activeCopy[index].id;
                     if (id == jId)
+                    {
+                        continue;
+                    }
+
+                    if (BasisNetworkServer.BasisServerP2PBroker.IsP2POffloaded(jId, id))
                     {
                         continue;
                     }
@@ -1054,6 +1059,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 BNL.LogError($"[ProcessMessage] Avatar array is null for peer {id}");
                 QueuedMessagePool.Return(message);
                 return;
+            }
+
+            if (BasisNetworkServer.Security.BasisGlobalLockManager.AdditionalAvatarDataLock)
+            {
+                poolMsg.AdditionalAvatarDatas = null;
+                poolMsg.AdditionalAvatarDataSize = 0;
             }
 
             var incomingQuality = (BitQuality)poolMsg.DataQualityLevel;

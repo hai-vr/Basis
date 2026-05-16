@@ -29,8 +29,29 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (length >= expected)
             {
                 int offset = 0;
-                double interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
-                if (TryCreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0, q, out BasisAvatarBuffer avatarBuffer))
+
+                // Rate selection per packet:
+                //  - If we have an active P2P session with this sender, the announced cache
+                //    is authoritative (they're sending us packets at that fast cadence).
+                //  - Otherwise this packet came via the server, where per-receiver pacing is
+                //    encoded in the server-patched interval byte. The announce cache may have
+                //    been broadcast from a P2P sender we're NOT P2P-connected to, so trusting
+                //    it would interpolate at the wrong cadence.
+                double effectiveIntervalSec;
+                ushort senderId = syncMessage.playerIdMessage.playerID;
+                bool senderHasLocalP2P = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(senderId)
+                    == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected;
+                if (senderHasLocalP2P && Basis.Scripts.Networking.BasisAvatarRateRegistry.TryGetRate(senderId, out int cachedMs))
+                {
+                    effectiveIntervalSec = cachedMs / 1000.0;
+                }
+                else
+                {
+                    double serverDefaultMs = BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
+                    effectiveIntervalSec = (serverDefaultMs + syncMessage.interval) / 1000.0;
+                }
+
+                if (TryCreateAvatarBuffer(data, ref offset, effectiveIntervalSec, q, out BasisAvatarBuffer avatarBuffer))
                 {
                     avatarBuffer.Sequence = syncMessage.sequence;
                     EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);

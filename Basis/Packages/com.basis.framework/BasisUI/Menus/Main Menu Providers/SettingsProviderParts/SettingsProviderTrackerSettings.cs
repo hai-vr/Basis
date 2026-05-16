@@ -340,9 +340,19 @@ namespace Basis.BasisUI
         {
             string id = input.UniqueDeviceIdentifier;
 
+            // SetTitle deactivates the label GameObject when given an empty string,
+            // which is why some trackers were rendering with no visible name at all.
+            // Fall back through other identifying fields so there's always something
+            // to show; the pair-link dropdown still uses the raw id for matching.
+            string title = id;
+            if (string.IsNullOrEmpty(title)) title = input.CommonDeviceIdentifier;
+            if (string.IsNullOrEmpty(title)) title = input.ClassName;
+            if (string.IsNullOrEmpty(title) && input != null) title = input.gameObject.name;
+            if (string.IsNullOrEmpty(title)) title = "Tracker";
+
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, state.TrackersContainer);
-            group.SetTitle(id);
+            group.SetTitle(title);
             group.SetDescription(BuildEntryDescription(input));
 
             PanelDropdown linkDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);

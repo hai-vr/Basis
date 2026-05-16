@@ -84,13 +84,13 @@ public static class BasisBundleLoadAsset
 
         if (!string.IsNullOrEmpty(scenePaths[0]))
         {
+            string sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePaths[0]);
             // Load the scene asynchronously
             AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(scenePaths[0], LoadSceneMode.Additive);
             asyncLoad.allowSceneActivation = true;
-            // Track scene loading progress
             while (!asyncLoad.isDone)
             {
-                progressCallback.ReportProgress(UniqueID, 50 + asyncLoad.progress * 50, "loading scene"); // Progress from 50 to 100 during scene load
+                progressCallback.ReportProgress(UniqueID, 50 + asyncLoad.progress * 50, $"Activating scene {sceneName}");
                 await Task.Yield();
             }
 
@@ -114,7 +114,7 @@ public static class BasisBundleLoadAsset
 #if UNITY_BUNDLEUNLOAD
                 bundle.ReleaseBundleBackingStore();
 #endif
-                progressCallback.ReportProgress(UniqueID, 100, "loading scene"); // Set progress to 100 when done
+                progressCallback.ReportProgress(UniqueID, 100, $"Loaded scene {sceneName}");
                 return loadedScene;
             }
             else

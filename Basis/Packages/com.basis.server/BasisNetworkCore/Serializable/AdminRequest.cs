@@ -92,6 +92,12 @@ namespace BasisNetworkCore.Serializable
             // Payload: [string url]
             // Removes every defaultlibrary/ XML whose URL matches and rebroadcasts.
             RemoveDefaultLibraryItem,
+
+            // admin: toggle the global strip of AdditionalAvatarDatas (blendshapes,
+            // custom-behaviour params) on inbound avatar sync messages. Muscle/position/
+            // rotation still propagate normally. State is appended as the 6th bool in
+            // GlobalGetLockState.
+            GlobalToggleAdditionalAvatarDataLock,
         }
     }
 }

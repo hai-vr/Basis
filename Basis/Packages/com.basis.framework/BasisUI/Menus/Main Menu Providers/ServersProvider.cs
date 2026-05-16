@@ -1,3 +1,4 @@
+using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices.Desktop;
@@ -29,33 +30,31 @@ namespace Basis.BasisUI
 
         public static string UsernameFileName = "CachedUserName.BAS";
         public static string LastConnectedServerIdFile = "LastConnectedServerId.BAS";
+        public static string HostStackIdFile = "HostStackId.BAS";
+        public static string HostServerNameFile = "HostServerName.BAS";
+        public static string HostServerMotdFile = "HostServerMotd.BAS";
+        public static string HostPeerLimitFile = "HostPeerLimit.BAS";
+        public static string HostPortFile = "HostPort.BAS";
+        public static string HostPasswordFile = "HostPassword.BAS";
+        public static string HostUseAuthFile = "HostUseAuth.BAS";
+        public static string HostEnableConsoleFile = "HostEnableConsole.BAS";
+        public static string HostAvatarsLockedFile = "HostAvatarsLocked.BAS";
+        public static string HostPropsLockedFile = "HostPropsLocked.BAS";
+        public static string HostWorldsLockedFile = "HostWorldsLocked.BAS";
+        public static string HostThirdPersonDisabledFile = "HostThirdPersonDisabled.BAS";
 
-        // Built-in default. This entry is virtual: always rendered at the top of the list,
-        // never persisted to disk, and not editable/removable from the UI. The address is a
-        // hostname so the official server can be re-IP'd without shipping a client update —
-        // BasisServerInfoClient and LiteNetLib both resolve it via DNS at connect time.
-        private const string DefaultServerId = "__default__";
-        private const string DefaultServerAddress = "server1.basisvr.org";
-        private const ushort DefaultServerPort = 4296;
-        private const string DefaultServerPassword = "default_password";
+        public const string DefaultHostServerName = "Basis Server";
+        public const int DefaultHostPeerLimit = ushort.MaxValue;
 
-        // ── Per-session state ────────────────────────────────────────────────
-        private List<SavedServerEntry> _servers;
+        private const string HostEntryId = "__host__";
+
+        private List<ServerDirectoryEntry> _entries = new List<ServerDirectoryEntry>();
         private readonly Dictionary<string, ServerRow> _rows = new();
-        private string _editingId; // null = not editing, "" = adding new, otherwise = id of server being edited
+        private string _editingId;
+        private readonly List<IServerDirectorySource> _subscribedSources = new List<IServerDirectorySource>();
 
-        private static SavedServerEntry CreateDefaultEntry() => new SavedServerEntry
-        {
-            Id = DefaultServerId,
-            DisplayName = BasisLocalization.Get("menu.servers.list.default"),
-            Address = DefaultServerAddress,
-            Port = DefaultServerPort,
-            Password = DefaultServerPassword,
-            HasPassword = true,
-        };
-
-        private static bool IsDefault(SavedServerEntry entry) =>
-            entry != null && entry.Id == DefaultServerId;
+        private static bool IsDefault(ServerDirectoryEntry entry) =>
+            entry != null && SavedServersDirectorySource.IsDefaultEntryId(entry.Id);
 
         // ── Static UI references rebuilt every RunAction() ────────────────────
         private BasisMenuPanel _panel;
@@ -65,6 +64,9 @@ namespace Basis.BasisUI
         private PanelTextField _editAddress;
         private PanelTextField _editPort;
         private PanelPasswordField _editPassword;
+        private PanelDropdown _editNetworkStack;
+        private List<string> _stackIds;
+        private List<string> _stackDisplayNames;
         private PanelButton _editSaveButton;
         private PanelButton _editCancelButton;
         private PanelButton _editShareButton;
@@ -74,6 +76,18 @@ namespace Basis.BasisUI
         private PanelButton _refreshAllButton;
         private PanelToggle _advancedToggle;
         private PanelButton _hostButton;
+        private PanelDropdown _hostStackDropdown;
+        private PanelTextField _hostServerNameField;
+        private PanelTextField _hostMotdField;
+        private PanelTextField _hostPeerLimitField;
+        private PanelTextField _hostPortField;
+        private PanelPasswordField _hostPasswordField;
+        private PanelToggle _hostUseAuthToggle;
+        private PanelToggle _hostEnableConsoleToggle;
+        private PanelToggle _hostAvatarsLockedToggle;
+        private PanelToggle _hostPropsLockedToggle;
+        private PanelToggle _hostWorldsLockedToggle;
+        private PanelToggle _hostThirdPersonDisabledToggle;
         private PanelToggle _autoConnectToggle;
 
         // Stable key the loading bar uses to merge updates for the same connection
@@ -151,19 +165,9 @@ namespace Basis.BasisUI
 
             BuildAdvancedSection(container);
 
-            _servers = SavedServerStore.Load();
             HideEditor();
-            RebuildRows();
-            _ = RefreshAllAsync();
-
-            if (BasisNetworkManagement.IsInitialized)
-            {
-                TryAutoConnect();
-            }
-            else
-            {
-                BasisNetworkManagement.OnIstanceCreated += TryAutoConnect;
-            }
+            SubscribeSourceEvents();
+            _ = ReloadEntriesAsync(probeAfter: true, autoConnectAfter: true);
         }
 
         private void OnPanelClosed()
@@ -171,8 +175,75 @@ namespace Basis.BasisUI
             _queryCts?.Cancel();
             _queryCts = null;
             _rows.Clear();
-            _servers = null;
+            _entries.Clear();
+            UnsubscribeSourceEvents();
             _panel = null;
+        }
+
+        private void SubscribeSourceEvents()
+        {
+            UnsubscribeSourceEvents();
+            BasisServerDirectoryRegistry.SourcesChanged += OnSourcesChanged;
+            foreach (IServerDirectorySource source in BasisServerDirectoryRegistry.Sources)
+            {
+                source.SourceChanged += OnSourceChanged;
+                _subscribedSources.Add(source);
+            }
+        }
+
+        private void UnsubscribeSourceEvents()
+        {
+            BasisServerDirectoryRegistry.SourcesChanged -= OnSourcesChanged;
+            foreach (IServerDirectorySource source in _subscribedSources)
+            {
+                source.SourceChanged -= OnSourceChanged;
+            }
+            _subscribedSources.Clear();
+        }
+
+        private void OnSourcesChanged()
+        {
+            SubscribeSourceEvents();
+            _ = ReloadEntriesAsync(probeAfter: true, autoConnectAfter: false);
+        }
+
+        private void OnSourceChanged()
+        {
+            _ = ReloadEntriesAsync(probeAfter: true, autoConnectAfter: false);
+        }
+
+        private async Task ReloadEntriesAsync(bool probeAfter, bool autoConnectAfter)
+        {
+            List<ServerDirectoryEntry> aggregated = new List<ServerDirectoryEntry>();
+            foreach (IServerDirectorySource source in BasisServerDirectoryRegistry.Sources)
+            {
+                try
+                {
+                    IReadOnlyList<ServerDirectoryEntry> list = await source.ListAsync(default);
+                    if (list == null) continue;
+                    foreach (ServerDirectoryEntry e in list)
+                    {
+                        if (e != null) aggregated.Add(e);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogWarning($"Directory source '{source.SourceId}' ListAsync failed: {ex.Message}");
+                }
+            }
+            _entries = aggregated;
+
+            if (_panel == null) return;
+
+            RebuildRows();
+
+            if (probeAfter) _ = RefreshAllAsync();
+
+            if (autoConnectAfter)
+            {
+                if (BasisNetworkManagement.IsInitialized) TryAutoConnect();
+                else BasisNetworkManagement.OnIstanceCreated += TryAutoConnect;
+            }
         }
 
         // ── Header ───────────────────────────────────────────────────────────
@@ -200,38 +271,173 @@ namespace Basis.BasisUI
             _advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("ui.advanced"));
             _advancedToggle.SetValueWithoutNotify(false);
 
+            _hostStackDropdown = PanelDropdown.CreateNewEntry(container);
+            _hostStackDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostStack"));
+            PopulateHostStackDropdown();
+
+            _hostServerNameField = PanelTextField.CreateNewEntry(container);
+            _hostServerNameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostServerName"));
+            _hostServerNameField.SetValueWithoutNotify(BasisDataStore.LoadString(HostServerNameFile, DefaultHostServerName));
+            _hostServerNameField.OnValueChanged = value => BasisDataStore.SaveString(value ?? string.Empty, HostServerNameFile);
+
+            _hostMotdField = PanelTextField.CreateNewEntry(container);
+            _hostMotdField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostMotd"));
+            _hostMotdField.SetValueWithoutNotify(BasisDataStore.LoadString(HostServerMotdFile, string.Empty));
+            _hostMotdField.OnValueChanged = value => BasisDataStore.SaveString(value ?? string.Empty, HostServerMotdFile);
+
+            _hostPortField = PanelTextField.CreateNewEntry(container);
+            _hostPortField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPort"));
+            _hostPortField._inputField.contentType = TMPro.TMP_InputField.ContentType.IntegerNumber;
+            _hostPortField.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPortFile, SavedServersDirectorySource.DefaultServerPort).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            _hostPortField.OnValueChanged = value =>
+            {
+                if (int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed) && parsed > 0 && parsed <= ushort.MaxValue)
+                {
+                    BasisDataStore.SaveInt(parsed, HostPortFile);
+                }
+            };
+
+            _hostPasswordField = PanelPasswordField.CreateNewEntry(container);
+            _hostPasswordField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPassword"));
+            _hostPasswordField.SetPassword(BasisDataStore.LoadString(HostPasswordFile, SavedServersDirectorySource.DefaultServerPassword));
+            _hostPasswordField.OnSubmit = pw => BasisDataStore.SaveString(pw ?? string.Empty, HostPasswordFile);
+
+            _hostPeerLimitField = PanelTextField.CreateNewEntry(container);
+            _hostPeerLimitField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPeerLimit"));
+            _hostPeerLimitField._inputField.contentType = TMPro.TMP_InputField.ContentType.IntegerNumber;
+            _hostPeerLimitField.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPeerLimitFile, DefaultHostPeerLimit).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            _hostPeerLimitField.OnValueChanged = value =>
+            {
+                if (int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed) && parsed > 0)
+                {
+                    BasisDataStore.SaveInt(parsed, HostPeerLimitFile);
+                }
+            };
+
+            _hostUseAuthToggle = PanelToggle.CreateNewEntry(container);
+            _hostUseAuthToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostUseAuth"));
+            _hostUseAuthToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostUseAuthFile, 1) != 0);
+            _hostUseAuthToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostUseAuthFile);
+
+            _hostEnableConsoleToggle = PanelToggle.CreateNewEntry(container);
+            _hostEnableConsoleToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostEnableConsole"));
+            _hostEnableConsoleToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostEnableConsoleFile, 1) != 0);
+            _hostEnableConsoleToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostEnableConsoleFile);
+
+            _hostAvatarsLockedToggle = PanelToggle.CreateNewEntry(container);
+            _hostAvatarsLockedToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostAvatarsLocked"));
+            _hostAvatarsLockedToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostAvatarsLockedFile, 0) != 0);
+            _hostAvatarsLockedToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostAvatarsLockedFile);
+
+            _hostPropsLockedToggle = PanelToggle.CreateNewEntry(container);
+            _hostPropsLockedToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPropsLocked"));
+            _hostPropsLockedToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPropsLockedFile, 0) != 0);
+            _hostPropsLockedToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostPropsLockedFile);
+
+            _hostWorldsLockedToggle = PanelToggle.CreateNewEntry(container);
+            _hostWorldsLockedToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostWorldsLocked"));
+            _hostWorldsLockedToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostWorldsLockedFile, 1) != 0);
+            _hostWorldsLockedToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostWorldsLockedFile);
+
+            _hostThirdPersonDisabledToggle = PanelToggle.CreateNewEntry(container);
+            _hostThirdPersonDisabledToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostThirdPersonDisabled"));
+            _hostThirdPersonDisabledToggle.SetValueWithoutNotify(BasisDataStore.LoadInt(HostThirdPersonDisabledFile, 0) != 0);
+            _hostThirdPersonDisabledToggle.OnValueChanged = value => BasisDataStore.SaveInt(value ? 1 : 0, HostThirdPersonDisabledFile);
+
             _hostButton = PanelButton.CreateNew(container);
             _hostButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.host"));
             _hostButton.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.hostMode.description"));
             _hostButton.Descriptor.SetHeight(70);
-            _hostButton.OnClicked += () => _ = ConnectToAsync(CreateHostEntry(), isHostMode: true);
+            _hostButton.OnClicked += () => _ = ConnectToAsync(CreateHostEntry(ReadHostStackId()), isHostMode: true);
 
             _autoConnectToggle = PanelToggle.CreateNewEntry(container);
             _autoConnectToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.autoConnect"));
             _autoConnectToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.autoConnect.description"));
             _autoConnectToggle.AssignBinding(BasisSettingsDefaults.AutoConnect);
 
-            _hostButton.gameObject.SetActive(false);
-            _autoConnectToggle.gameObject.SetActive(false);
+            GameObject[] advancedObjects = new GameObject[]
+            {
+                _hostButton.gameObject,
+                _hostStackDropdown.gameObject,
+                _hostServerNameField.gameObject,
+                _hostMotdField.gameObject,
+                _hostPortField.gameObject,
+                _hostPasswordField.gameObject,
+                _hostPeerLimitField.gameObject,
+                _hostUseAuthToggle.gameObject,
+                _hostEnableConsoleToggle.gameObject,
+                _hostAvatarsLockedToggle.gameObject,
+                _hostPropsLockedToggle.gameObject,
+                _hostWorldsLockedToggle.gameObject,
+                _hostThirdPersonDisabledToggle.gameObject,
+                _autoConnectToggle.gameObject,
+            };
+            foreach (GameObject obj in advancedObjects) obj.SetActive(false);
 
             _advancedToggle.OnValueChanged += (val) =>
             {
-                _hostButton.gameObject.SetActive(val);
-                _autoConnectToggle.gameObject.SetActive(val);
+                foreach (GameObject obj in advancedObjects) obj.SetActive(val);
             };
         }
 
-        // Synthetic entry used by the Host button — same shape as a saved server but
-        // pointing at localhost so the in-process BasisNetworkServerRunner is the peer.
-        private static SavedServerEntry CreateHostEntry() => new SavedServerEntry
+        private void PopulateHostStackDropdown()
         {
-            Id = "__host__",
-            DisplayName = string.Empty,
-            Address = "localhost",
-            Port = DefaultServerPort,
-            Password = DefaultServerPassword,
-            HasPassword = true,
-        };
+            if (_hostStackDropdown == null) return;
+            List<string> names = new List<string>();
+            List<string> ids = new List<string>();
+            foreach (BasisNetworkStackRegistry.StackInfo s in BasisNetworkStackRegistry.Stacks)
+            {
+                ids.Add(s.Id);
+                names.Add(s.DisplayName);
+            }
+            _hostStackDropdown.AssignEntries(names);
+
+            string savedId = BasisDataStore.LoadString(HostStackIdFile, BasisNetworkStackRegistry.DefaultId);
+            int activeIndex = ids.IndexOf(savedId);
+            if (activeIndex < 0) activeIndex = ids.IndexOf(BasisNetworkStackRegistry.DefaultId);
+            if (activeIndex < 0) activeIndex = 0;
+            if (names.Count > 0)
+            {
+                _hostStackDropdown.SetValueWithoutNotify(names[activeIndex]);
+            }
+            _hostStackDropdown.OnValueChanged = selected =>
+            {
+                int idx = names.IndexOf(selected);
+                if (idx < 0) return;
+                BasisDataStore.SaveString(ids[idx], HostStackIdFile);
+            };
+        }
+
+        private string ReadHostStackId()
+        {
+            string saved = BasisDataStore.LoadString(HostStackIdFile, BasisNetworkStackRegistry.DefaultId);
+            return BasisNetworkStackRegistry.IsRegistered(saved) ? saved : BasisNetworkStackRegistry.DefaultId;
+        }
+
+        private static ServerDirectoryEntry CreateHostEntry(string stackId)
+        {
+            string effective = string.IsNullOrEmpty(stackId) ? BasisNetworkStackRegistry.DefaultId : stackId;
+            int storedPort = BasisDataStore.LoadInt(HostPortFile, SavedServersDirectorySource.DefaultServerPort);
+            ushort port = (storedPort > 0 && storedPort <= ushort.MaxValue) ? (ushort)storedPort : SavedServersDirectorySource.DefaultServerPort;
+            string password = BasisDataStore.LoadString(HostPasswordFile, SavedServersDirectorySource.DefaultServerPassword);
+            ConnectionTarget target = new ConnectionTarget(
+                effective,
+                $"localhost:{port}");
+            target.Set(ConnectionTarget.Keys.Address, "localhost");
+            target.Set(ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            target.Set(ConnectionTarget.Keys.Password, password);
+            return new ServerDirectoryEntry
+            {
+                Id = HostEntryId,
+                SourceId = SavedServersDirectorySource.Id,
+                DisplayName = string.Empty,
+                Target = target,
+                Password = password,
+                HasPassword = true,
+                CanEdit = false,
+                CanRemove = false,
+            };
+        }
 
         // ── Add/Edit form ────────────────────────────────────────────────────
 
@@ -249,6 +455,10 @@ namespace Basis.BasisUI
             _editPassword = PanelPasswordField.CreateNewEntry(editorContent);
             _editPassword.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.password"));
 
+            _editNetworkStack = PanelDropdown.CreateNewEntry(editorContent);
+            _editNetworkStack.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.networkStack"));
+            RebuildStackOptions();
+
             RectTransform editorActions = BuildActionRow(editorContent);
 
             _editSaveButton = PanelButton.CreateNew(editorActions);
@@ -263,7 +473,7 @@ namespace Basis.BasisUI
             _editShareButton.OnClicked += () =>
             {
                 if (string.IsNullOrEmpty(_editingId)) return;
-                SavedServerEntry target = _servers?.Find(s => s.Id == _editingId);
+                ServerDirectoryEntry target = FindEntry(_editingId);
                 if (target != null) ShareEntry(target);
             };
 
@@ -282,49 +492,100 @@ namespace Basis.BasisUI
         {
             if (string.IsNullOrEmpty(_editingId)) return;
             string idAtClick = _editingId;
-            SavedServerEntry target = _servers?.Find(s => s.Id == idAtClick);
-            if (target == null) return;
+            ServerDirectoryEntry target = FindEntry(idAtClick);
+            if (target == null || !target.CanRemove) return;
 
             await ConfirmAndRemoveAsync(target);
 
-            // Close the editor only if the entry actually got deleted; otherwise
-            // (user cancelled the confirm dialog) leave the editor open so they
-            // can keep editing.
-            if (_servers != null && _servers.Find(s => s.Id == idAtClick) == null)
+            if (FindEntry(idAtClick) == null)
             {
                 HideEditor();
             }
         }
 
-        private void ShowEditor(SavedServerEntry existing)
+        private void ShowEditor(ServerDirectoryEntry existing)
         {
             _editingId = existing?.Id ?? string.Empty;
             _editorSection.SetTitle(BasisLocalization.Get(existing == null
                 ? "menu.servers.list.newServer"
                 : "menu.servers.list.editing"));
-            _editAddress.SetValueWithoutNotify(existing?.Address ?? string.Empty);
-            _editPort.SetValueWithoutNotify((existing?.Port ?? (ushort)4296).ToString());
+            string address = existing?.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+            string portString = existing?.Target?.Get(ConnectionTarget.Keys.Port) ?? "4296";
+            _editAddress.SetValueWithoutNotify(address);
+            _editPort.SetValueWithoutNotify(portString);
             _editPassword.SetPassword(existing?.Password ?? "default_password");
-            // Share only makes sense when editing an existing entry AND we have a
-            // live peer to ride the share message on.
+            SetStackDropdownToId(existing?.Target?.StackId);
             if (_editShareButton != null)
             {
                 bool canShare = existing != null && BasisNetworkConnection.LocalPlayerIsConnected;
                 _editShareButton.gameObject.SetActive(canShare);
             }
-            // Remove only applies to existing entries — there's nothing to remove
-            // when adding a new one.
             if (_editRemoveButton != null)
             {
-                _editRemoveButton.gameObject.SetActive(existing != null);
+                _editRemoveButton.gameObject.SetActive(existing != null && existing.CanRemove);
             }
             _editorSection.SetActive(true);
+        }
+
+        private ServerDirectoryEntry FindEntry(string id)
+        {
+            if (string.IsNullOrEmpty(id) || _entries == null) return null;
+            foreach (ServerDirectoryEntry e in _entries)
+            {
+                if (e != null && string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase)) return e;
+            }
+            return null;
         }
 
         private void HideEditor()
         {
             _editingId = null;
             _editorSection.SetActive(false);
+        }
+
+        private void RebuildStackOptions()
+        {
+            _stackIds = new List<string>();
+            _stackDisplayNames = new List<string>();
+            foreach (BasisNetworkStackRegistry.StackInfo s in BasisNetworkStackRegistry.Stacks)
+            {
+                _stackIds.Add(s.Id);
+                _stackDisplayNames.Add(s.DisplayName);
+            }
+            _editNetworkStack.AssignEntries(_stackDisplayNames);
+        }
+
+        private void SetStackDropdownToId(string stackId)
+        {
+            if (_editNetworkStack == null || _stackIds == null || _stackIds.Count == 0) return;
+            string resolved = string.IsNullOrEmpty(stackId) ? BasisNetworkStackRegistry.DefaultId : stackId;
+            int index = -1;
+            for (int i = 0; i < _stackIds.Count; i++)
+            {
+                if (string.Equals(_stackIds[i], resolved, StringComparison.OrdinalIgnoreCase)) { index = i; break; }
+            }
+            if (index < 0)
+            {
+                for (int i = 0; i < _stackIds.Count; i++)
+                {
+                    if (string.Equals(_stackIds[i], BasisNetworkStackRegistry.DefaultId, StringComparison.OrdinalIgnoreCase)) { index = i; break; }
+                }
+            }
+            if (index < 0) index = 0;
+            _editNetworkStack.SetValueWithoutNotify(_stackDisplayNames[index]);
+        }
+
+        private string ReadStackDropdownId()
+        {
+            if (_editNetworkStack == null || _stackIds == null || _stackIds.Count == 0)
+                return string.Empty;
+            string selected = _editNetworkStack.Value;
+            for (int i = 0; i < _stackDisplayNames.Count; i++)
+            {
+                if (string.Equals(_stackDisplayNames[i], selected, StringComparison.Ordinal))
+                    return _stackIds[i];
+            }
+            return BasisNetworkStackRegistry.DefaultId;
         }
 
         private void SaveEditor()
@@ -362,36 +623,36 @@ namespace Basis.BasisUI
                 return;
             }
 
+            List<SavedServerEntry> saved = SavedServerStore.Load();
             SavedServerEntry entry;
             if (string.IsNullOrEmpty(_editingId))
             {
                 entry = new SavedServerEntry();
-                _servers.Add(entry);
+                saved.Add(entry);
             }
             else
             {
-                entry = _servers.Find(s => s.Id == _editingId);
+                entry = saved.Find(s => s.Id == _editingId);
                 if (entry == null)
                 {
                     entry = new SavedServerEntry { Id = _editingId };
-                    _servers.Add(entry);
+                    saved.Add(entry);
                 }
             }
 
-            // No display-name field anymore — the row title comes from the server's own
-            // info-query response, with the address as the offline fallback.
             entry.DisplayName = string.Empty;
             entry.Address = address;
             entry.Port = port;
             string finalPassword = parsedPasswordOverride ?? (_editPassword.Password ?? string.Empty);
             entry.Password = finalPassword;
             entry.HasPassword = !string.IsNullOrEmpty(finalPassword);
+            entry.NetworkStackId = ReadStackDropdownId();
 
-            SavedServerStore.Save(_servers);
+            SavedServerStore.Save(saved);
 
             string savedId = entry.Id;
             HideEditor();
-            RebuildRows();
+            SavedServersDirectorySource.Instance?.NotifyChanged();
             _ = RefreshOneAsync(savedId);
         }
 
@@ -413,62 +674,51 @@ namespace Basis.BasisUI
             }
             _rows.Clear();
 
-            // The default row always renders, so the empty-state copy only makes sense
-            // when the user has zero *additional* servers. Hide it whenever the default
-            // alone is enough to populate the list.
             _emptyState.SetActive(false);
 
-            BuildRow(CreateDefaultEntry());
-            foreach (SavedServerEntry s in _servers)
+            foreach (ServerDirectoryEntry entry in _entries)
             {
-                BuildRow(s);
+                BuildRow(entry);
             }
         }
 
-        private void BuildRow(SavedServerEntry entry)
+        private void BuildRow(ServerDirectoryEntry entry)
         {
             bool isDefault = IsDefault(entry);
 
+            string address = entry.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+            string portString = entry.Target?.Get(ConnectionTarget.Keys.Port) ?? string.Empty;
+
             ServerRow row = new ServerRow();
             row.Group = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, _listContainer);
-            // Slot the row just above the status info element so rows live between the
-            // empty-state hint and the advanced section.
-            // Slot the row just above the advanced section so it lives between the
-            // empty-state hint (or other rows) and the host/auto-connect controls.
             row.Group.transform.SetSiblingIndex(_advancedToggle.transform.GetSiblingIndex());
 
-            string baseTitle = string.IsNullOrEmpty(entry.DisplayName) ? entry.Address : entry.DisplayName;
+            string baseTitle = string.IsNullOrEmpty(entry.DisplayName) ? address : entry.DisplayName;
             row.Group.SetTitle(isDefault
                 ? string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), baseTitle)
                 : baseTitle);
-            row.Group.SetDescription(string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port));
+            ushort portForDisplay;
+            ushort.TryParse(portString, out portForDisplay);
+            row.Group.SetDescription(string.Format(BasisLocalization.Get("menu.servers.list.address"), address, portForDisplay));
 
             RectTransform actions = BuildActionRow(row.Group.ContentParent);
 
             row.ConnectButton = PanelButton.CreateNew(actions);
-            // If this row points at the server we're already in, surface "Reconnect"
-            // so the user knows clicking will tear down + redial the same target,
-            // not switch to a fresh server. Other rows stay "Connect" since clicking
-            // them is a switch.
             bool isCurrentServer =
                 BasisNetworkConnection.LocalPlayerIsConnected
                 && BasisNetworkManagement.IsInitialized
-                && string.Equals(BasisNetworkManagement.Ip, entry.Address, StringComparison.OrdinalIgnoreCase)
-                && BasisNetworkManagement.Port == entry.Port;
+                && string.Equals(BasisNetworkManagement.Ip, address, StringComparison.OrdinalIgnoreCase)
+                && BasisNetworkManagement.Port == portForDisplay;
             row.ConnectButton.Descriptor.SetTitle(BasisLocalization.Get(
                 isCurrentServer ? "menu.servers.reconnect" : "menu.servers.connect"));
             row.ConnectButton.OnClicked += () => _ = ConnectToAsync(entry);
 
-            if (!isDefault)
+            if (entry.CanEdit)
             {
                 row.EditButton = PanelButton.CreateNew(actions);
                 row.EditButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.edit"));
                 row.EditButton.OnClicked += () => ShowEditor(entry);
 
-                // Weight the row 7:1 so Connect dominates and Edit is the small
-                // tag-along action. Zeroing min/preferred lets HorizontalLayoutGroup
-                // distribute strictly by flexibleWidth ratio instead of biasing the
-                // share toward the prefab's default preferredWidth.
                 ApplyRowButtonWeight(row.ConnectButton, 7f);
                 ApplyRowButtonWeight(row.EditButton, 1f);
             }
@@ -484,31 +734,42 @@ namespace Basis.BasisUI
             button.Layout.flexibleWidth = flex;
         }
 
-        private static string BuildConnectionString(SavedServerEntry entry)
+        private static string BuildConnectionString(ServerDirectoryEntry entry)
         {
-            string s = $"{entry.Address}:{entry.Port}";
-            if (entry.HasPassword && !string.IsNullOrEmpty(entry.Password))
+            IConnectionTargetParser parser = BasisNetworkStackRegistry.GetParser(entry?.Target?.StackId);
+            if (parser != null && entry?.Target != null)
+            {
+                return parser.Format(entry.Target);
+            }
+            string address = entry?.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+            string portString = entry?.Target?.Get(ConnectionTarget.Keys.Port) ?? string.Empty;
+            string s = $"{address}:{portString}";
+            if (entry != null && entry.HasPassword && !string.IsNullOrEmpty(entry.Password))
                 s += "#" + entry.Password;
             return s;
         }
 
-        private void ShareEntry(SavedServerEntry entry)
+        private void ShareEntry(ServerDirectoryEntry entry)
         {
             if (entry == null) return;
             BasisContentShareManager.ShareServerConnection(BuildConnectionString(entry));
         }
 
-        private async Task ConfirmAndRemoveAsync(SavedServerEntry entry)
+        private async Task ConfirmAndRemoveAsync(ServerDirectoryEntry entry)
         {
             if (_panel == null) return;
-            string label = string.IsNullOrEmpty(entry.DisplayName) ? entry.Address : entry.DisplayName;
+            string address = entry.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+            string label = string.IsNullOrEmpty(entry.DisplayName) ? address : entry.DisplayName;
             bool confirmed = await LibraryProviderDialogRemove.PromptUserForRemoval(_panel, label, "Server");
             if (!confirmed) return;
-            // Panel may have closed while the dialog was open — bail out cleanly.
-            if (_servers == null) return;
-            _servers.RemoveAll(s => s.Id == entry.Id);
-            SavedServerStore.Save(_servers);
-            RebuildRows();
+            if (_panel == null) return;
+            if (string.Equals(entry.SourceId, SavedServersDirectorySource.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                List<SavedServerEntry> saved = SavedServerStore.Load();
+                saved.RemoveAll(s => s.Id == entry.Id);
+                SavedServerStore.Save(saved);
+                SavedServersDirectorySource.Instance?.NotifyChanged();
+            }
         }
 
         /// <summary>
@@ -547,7 +808,7 @@ namespace Basis.BasisUI
 
         private async Task RefreshAllAsync()
         {
-            if (_servers == null) return;
+            if (_entries == null || _entries.Count == 0) return;
 
             _queryCts?.Cancel();
             _queryCts = new CancellationTokenSource();
@@ -556,13 +817,9 @@ namespace Basis.BasisUI
             foreach (ServerRow r in _rows.Values)
                 r.Group.SetDescription(BasisLocalization.Get("menu.servers.list.querying"));
 
-            List<SavedServerEntry> probeTargets = new List<SavedServerEntry>(_servers.Count + 1);
-            probeTargets.Add(CreateDefaultEntry());
-            probeTargets.AddRange(_servers);
-
-            List<Task> tasks = new List<Task>(probeTargets.Count);
-            foreach (SavedServerEntry s in probeTargets)
-                tasks.Add(QueryAndUpdateAsync(s, token));
+            List<Task> tasks = new List<Task>(_entries.Count);
+            foreach (ServerDirectoryEntry e in _entries)
+                tasks.Add(QueryAndUpdateAsync(e, token));
 
             try
             {
@@ -570,26 +827,23 @@ namespace Basis.BasisUI
             }
             catch (OperationCanceledException)
             {
-                // Panel was closed mid-refresh — no-op.
             }
         }
 
         private async Task RefreshOneAsync(string id)
         {
-            SavedServerEntry e = id == DefaultServerId
-                ? CreateDefaultEntry()
-                : _servers.Find(s => s.Id == id);
+            ServerDirectoryEntry e = FindEntry(id);
             if (e == null) return;
             CancellationToken token = (_queryCts ??= new CancellationTokenSource()).Token;
             await QueryAndUpdateAsync(e, token);
         }
 
-        private async Task QueryAndUpdateAsync(SavedServerEntry entry, CancellationToken ct)
+        private async Task QueryAndUpdateAsync(ServerDirectoryEntry entry, CancellationToken ct)
         {
-            BasisServerInfoClient.ServerInfoResult result;
+            ServerProbeResult result;
             try
             {
-                result = await BasisServerInfoClient.QueryAsync(entry.Address, entry.Port, 3000, ct);
+                result = await BasisNetworkStackRegistry.ProbeAsync(entry.Target, 3000, ct);
             }
             catch (OperationCanceledException) { return; }
 
@@ -597,40 +851,42 @@ namespace Basis.BasisUI
             if (!_rows.TryGetValue(entry.Id, out ServerRow row)) return;
             if (row.Group == null || row.Group.gameObject == null) return;
 
+            string address = entry.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+            string portString = entry.Target?.Get(ConnectionTarget.Keys.Port) ?? string.Empty;
+            ushort port;
+            ushort.TryParse(portString, out port);
+
             if (result != null && result.Reachable)
             {
-                BasisServerInfoClient.ServerInfo info = result.Info;
-                string name = info.Name;
+                string name = result.Name;
                 if (string.IsNullOrEmpty(name)) name = entry.DisplayName;
-                if (string.IsNullOrEmpty(name)) name = entry.Address;
+                if (string.IsNullOrEmpty(name)) name = address;
                 if (IsDefault(entry))
                     name = string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name);
-                string playerCount = string.Format(BasisLocalization.Get("menu.servers.list.players"), info.Online, info.Max);
+                string playerCount = string.Format(BasisLocalization.Get("menu.servers.list.players"), result.Online, result.Max);
                 row.Group.SetTitle(string.Format("{0} - <color={1}>{2}</color>",
                     name,
                     OnlineColor,
                     playerCount));
 
                 string description = string.Format("{0}  •  {1}",
-                    string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port),
-                    string.Format(BasisLocalization.Get("menu.servers.list.ping"), info.RoundTripMs));
-                // MOTD on its own line at 85% size — keeps the dense address/ping
-                // header readable while the server's own copy gets a visual break.
-                if (!string.IsNullOrEmpty(info.Motd))
+                    string.Format(BasisLocalization.Get("menu.servers.list.address"), address, port),
+                    string.Format(BasisLocalization.Get("menu.servers.list.ping"), result.RoundTripMs));
+                if (!string.IsNullOrEmpty(result.Motd))
                 {
-                    description += $"\n<size=85%>{info.Motd}</size>";
+                    description += $"\n<size=85%>{result.Motd}</size>";
                 }
                 row.Group.SetDescription(description);
             }
             else
             {
                 string name = entry.DisplayName;
-                if (string.IsNullOrEmpty(name)) name = entry.Address;
+                if (string.IsNullOrEmpty(name)) name = address;
                 if (IsDefault(entry))
                     name = string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name);
                 row.Group.SetTitle(name);
                 row.Group.SetDescription(string.Format("{0}  •  <color={1}>{2}</color>",
-                    string.Format(BasisLocalization.Get("menu.servers.list.address"), entry.Address, entry.Port),
+                    string.Format(BasisLocalization.Get("menu.servers.list.address"), address, port),
                     OfflineColor,
                     BasisLocalization.Get("menu.servers.list.offline")));
             }
@@ -645,9 +901,7 @@ namespace Basis.BasisUI
         private void TryAutoConnect()
         {
             if (_autoConnectAttempted) return;
-            // The deferred OnIstanceCreated callback can fire after the panel was closed —
-            // bail out if our session state was torn down.
-            if (_servers == null) return;
+            if (_panel == null) return;
             _autoConnectAttempted = true;
 
             if (!BasisSettingsDefaults.AutoConnect.RawValue) return;
@@ -657,26 +911,24 @@ namespace Basis.BasisUI
             if (string.IsNullOrEmpty(username)) return;
 
             string lastId = BasisDataStore.LoadString(LastConnectedServerIdFile, string.Empty);
-            SavedServerEntry target = ResolveAutoConnectTarget(lastId);
+            ServerDirectoryEntry target = ResolveAutoConnectTarget(lastId);
             if (target == null) return;
 
             _usernameField?.SetValueWithoutNotify(username);
             _ = ConnectToAsync(target);
         }
 
-        private SavedServerEntry ResolveAutoConnectTarget(string lastId)
+        private ServerDirectoryEntry ResolveAutoConnectTarget(string lastId)
         {
-            if (lastId == DefaultServerId) return CreateDefaultEntry();
             if (!string.IsNullOrEmpty(lastId))
             {
-                SavedServerEntry found = _servers.Find(s => s.Id == lastId);
+                ServerDirectoryEntry found = FindEntry(lastId);
                 if (found != null) return found;
             }
-            // Fall back to the built-in default — user has Auto Connect on but no usable target yet.
-            return CreateDefaultEntry();
+            return FindEntry(SavedServersDirectorySource.DefaultServerId);
         }
 
-        private async Task ConnectToAsync(SavedServerEntry entry, bool isHostMode = false)
+        private async Task ConnectToAsync(ServerDirectoryEntry entry, bool isHostMode = false)
         {
             // Validate sync inputs first so the user can correct without losing the
             // panel — only commit to the loading-bar takeover once we have something
@@ -704,7 +956,7 @@ namespace Basis.BasisUI
         /// asset bundle, and triggers the connection. Both the per-row Connect button and
         /// the <c>--connection=</c> CLI bootstrap call this directly.
         /// </summary>
-        public static async Task PerformConnectionAsync(SavedServerEntry entry, string userName, bool isHostMode = false)
+        public static async Task PerformConnectionAsync(ServerDirectoryEntry entry, string userName, bool isHostMode = false)
         {
             try
             {
@@ -735,10 +987,29 @@ namespace Basis.BasisUI
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, UsernameFileName);
                 BasisDataStore.SaveString(entry.Id, LastConnectedServerIdFile);
 
-                BasisNetworkManagement.Port = entry.Port;
-                BasisNetworkManagement.Ip = entry.Address;
+                string address = entry.Target?.Get(ConnectionTarget.Keys.Address) ?? string.Empty;
+                string portString = entry.Target?.Get(ConnectionTarget.Keys.Port) ?? string.Empty;
+                ushort port;
+                if (!ushort.TryParse(portString, out port)) port = LNLConnectionTargetParser.DefaultPort;
+                string stackId = entry.Target?.StackId ?? BasisNetworkStackRegistry.DefaultId;
+
+                BasisNetworkManagement.Port = port;
+                BasisNetworkManagement.Ip = address;
                 BasisNetworkManagement.Password = entry.HasPassword ? entry.Password : string.Empty;
                 BasisNetworkManagement.IsHostMode = isHostMode;
+                BasisNetworkManagement.NetworkStackId = stackId;
+                if (isHostMode)
+                {
+                    BasisNetworkManagement.HostServerName = BasisDataStore.LoadString(HostServerNameFile, DefaultHostServerName);
+                    BasisNetworkManagement.HostServerMotd = BasisDataStore.LoadString(HostServerMotdFile, string.Empty);
+                    BasisNetworkManagement.HostPeerLimit = BasisDataStore.LoadInt(HostPeerLimitFile, DefaultHostPeerLimit);
+                    BasisNetworkManagement.HostUseAuth = BasisDataStore.LoadInt(HostUseAuthFile, 1) != 0;
+                    BasisNetworkManagement.HostEnableConsole = BasisDataStore.LoadInt(HostEnableConsoleFile, 1) != 0;
+                    BasisNetworkManagement.HostAvatarsLocked = BasisDataStore.LoadInt(HostAvatarsLockedFile, 0) != 0;
+                    BasisNetworkManagement.HostPropsLocked = BasisDataStore.LoadInt(HostPropsLockedFile, 0) != 0;
+                    BasisNetworkManagement.HostWorldsLocked = BasisDataStore.LoadInt(HostWorldsLockedFile, 1) != 0;
+                    BasisNetworkManagement.HostThirdPersonDisabled = BasisDataStore.LoadInt(HostThirdPersonDisabledFile, 0) != 0;
+                }
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
                 await LoadDefaultAssetBundleAsync();
@@ -797,7 +1068,7 @@ namespace Basis.BasisUI
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void RegisterCommandLineAutoConnect()
         {
-            if (!TryGetCommandLineConnection(out SavedServerEntry target)) return;
+            if (!TryGetCommandLineConnection(out ServerDirectoryEntry target)) return;
 
             void Trigger()
             {
@@ -821,7 +1092,7 @@ namespace Basis.BasisUI
             else BasisNetworkManagement.OnIstanceCreated += Trigger;
         }
 
-        private static bool TryGetCommandLineConnection(out SavedServerEntry entry)
+        private static bool TryGetCommandLineConnection(out ServerDirectoryEntry entry)
         {
             entry = null;
             string[] args;
@@ -835,20 +1106,27 @@ namespace Basis.BasisUI
                 if (!arg.StartsWith(ConnectionArgPrefix, StringComparison.OrdinalIgnoreCase)) continue;
 
                 string value = arg.Substring(ConnectionArgPrefix.Length);
-                if (!SavedServerStore.TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
+                if (!LNLConnectionTargetParser.TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
                 {
                     BasisDebug.LogWarning($"--connection arg could not be parsed: {arg}");
                     return false;
                 }
 
-                entry = new SavedServerEntry
+                ConnectionTarget target = new ConnectionTarget(BasisNetworkStackRegistry.DefaultId, $"{addr}:{port}");
+                target.Set(ConnectionTarget.Keys.Address, addr);
+                target.Set(ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                target.Set(ConnectionTarget.Keys.Password, password ?? string.Empty);
+
+                entry = new ServerDirectoryEntry
                 {
                     Id = CommandLineEntryId,
+                    SourceId = SavedServersDirectorySource.Id,
                     DisplayName = string.Empty,
-                    Address = addr,
-                    Port = port,
+                    Target = target,
                     HasPassword = !string.IsNullOrEmpty(password),
                     Password = password ?? string.Empty,
+                    CanEdit = false,
+                    CanRemove = false,
                 };
                 return true;
             }

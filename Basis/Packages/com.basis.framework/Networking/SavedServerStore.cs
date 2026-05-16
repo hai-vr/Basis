@@ -1,3 +1,4 @@
+using Basis.Network.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,6 +21,7 @@ namespace Basis.Scripts.Networking
         public ushort Port;
         public string Password;
         public bool HasPassword;
+        public string NetworkStackId;
 
         public SavedServerEntry()
         {
@@ -29,6 +31,7 @@ namespace Basis.Scripts.Networking
             Port = 4296;
             Password = "default_password";
             HasPassword = true;
+            NetworkStackId = string.Empty;
         }
     }
 
@@ -92,41 +95,6 @@ namespace Basis.Scripts.Networking
         /// </summary>
         public static bool TryParseConnectionString(
             string raw, out string address, out ushort port, out bool portProvided, out string password)
-        {
-            address = string.Empty;
-            port = 4296;
-            portProvided = false;
-            password = string.Empty;
-            if (string.IsNullOrEmpty(raw)) return false;
-
-            string left = raw;
-            int hashIdx = raw.IndexOf('#');
-            if (hashIdx >= 0)
-            {
-                password = raw.Substring(hashIdx + 1);
-                left = raw.Substring(0, hashIdx);
-            }
-
-            int colonIdx = left.LastIndexOf(':');
-            if (colonIdx > 0
-                && colonIdx < left.Length - 1
-                && ushort.TryParse(left.Substring(colonIdx + 1), out ushort parsedPort)
-                && parsedPort > 0)
-            {
-                address = left.Substring(0, colonIdx).Trim();
-                port = parsedPort;
-                portProvided = true;
-            }
-            else
-            {
-                address = left.Trim();
-            }
-
-            // Strip IPv6 brackets if the user wrote them.
-            if (address.StartsWith("[") && address.EndsWith("]") && address.Length >= 2)
-                address = address.Substring(1, address.Length - 2);
-
-            return !string.IsNullOrEmpty(address);
-        }
+            => LNLConnectionTargetParser.TryParseConnectionString(raw, out address, out port, out portProvided, out password);
     }
 }

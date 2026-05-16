@@ -377,6 +377,11 @@ namespace Basis.BasisUI
             toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
             toggleDesktopReticle.Descriptor.SetDescription(BasisLocalization.Get("settings.general.desktopReticle.description"));
 
+            PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(hudGroup);
+            toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
+            toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
+            toggleAvatarPreview.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreview.description"));
+
             // Third-person camera is desktop-only; hide the entire group in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
             {
@@ -457,6 +462,52 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             helpTranslateGroup.SetTitle(BasisLocalization.Get("settings.general.language.help_translate.title"));
             helpTranslateGroup.SetDescription(BasisLocalization.Get("settings.general.language.help_translate.description"));
+
+            // NETWORKING GROUP
+            PanelElementDescriptor networkingGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
+            networkingGroup.SetDescription(BasisLocalization.Get("settings.general.networking.description"));
+
+            PanelDropdown dropdownP2PRate = PanelDropdown.CreateNewEntry(networkingGroup.ContentParent);
+            dropdownP2PRate.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.p2pAvatarRate"));
+            dropdownP2PRate.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"));
+            dropdownP2PRate.AssignEntries(new List<string>
+            {
+                BasisP2PManager.P2PRate_144Hz,
+                BasisP2PManager.P2PRate_120Hz,
+                BasisP2PManager.P2PRate_90Hz,
+                BasisP2PManager.P2PRate_72Hz,
+                BasisP2PManager.P2PRate_60Hz,
+                BasisP2PManager.P2PRate_30Hz,
+                BasisP2PManager.P2PRate_20Hz,
+            });
+            dropdownP2PRate.AssignBinding(BasisSettingsDefaults.P2PAvatarSyncRate);
+
+            PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
+            toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
+            toggleJitterBufferOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.jitterBufferOverride"));
+            toggleJitterBufferOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.jitterBufferOverride.description"));
+
+            PanelSlider sliderJitterBuffer = PanelSlider.CreateEntryAndBind(
+                networkingGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.general.networking.jitterBuffer"),
+                    BasisLocalization.Get("settings.general.networking.jitterBuffer.description"),
+                    0, 6, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.NetworkJitterBufferDepth);
+
+            sliderJitterBuffer.Descriptor.SetActive(toggleJitterBufferOverride.Value);
+            toggleJitterBufferOverride.OnValueChanged += (val) =>
+            {
+                sliderJitterBuffer.Descriptor.SetActive(val);
+                networkingGroup.ForceRebuild();
+            };
+
+            PanelToggle toggleDisableDirectConn = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
+            toggleDisableDirectConn.AssignBinding(BasisSettingsDefaults.DisableDirectConnections);
+            toggleDisableDirectConn.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.disableDirectConnections"));
+            toggleDisableDirectConn.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.disableDirectConnections.description"));
         }
 
         private static void ResetGeneralDefaults()
@@ -466,6 +517,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
+            BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
         }
 
         // ------------------

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -39,6 +40,11 @@ public class BasisDepthOfFieldInteractorVR : MonoBehaviour
     private const int UpdateOrder = 210; // After PlayerInteract (201)
 
     /// <summary>
+    /// Per-input previous trigger-down state, used to fire once on the rising edge.
+    /// </summary>
+    private readonly Dictionary<BasisInput, bool> triggerPrevDown = new Dictionary<BasisInput, bool>();
+
+    /// <summary>
     /// Unity start: ensures a camera is assigned (falls back to <see cref="Camera.main"/>).
     /// </summary>
     private void Start()
@@ -65,6 +71,7 @@ public class BasisDepthOfFieldInteractorVR : MonoBehaviour
     private void OnDisable()
     {
         BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(UpdateOrder, PollInputs);
+        triggerPrevDown.Clear();
     }
 
     /// <summary>
@@ -76,8 +83,9 @@ public class BasisDepthOfFieldInteractorVR : MonoBehaviour
     }
 
     /// <summary>
-    /// Runs after the local player's final move step. Scans inputs, checks trigger,
-    /// projects to screen space, and forwards interactions within the preview rect.
+    /// Runs after the local player's final move step. Scans inputs, edge-detects the trigger,
+    /// casts each controller's pointer ray against the preview rect's plane, and forwards
+    /// the resulting screen point to the desktop DoF interactor.
     /// </summary>
     private void PollInputs()
     {
@@ -92,11 +100,23 @@ public class BasisDepthOfFieldInteractorVR : MonoBehaviour
             if (input == null) continue;
             if (IsDesktopCenterEye(input)) continue;
 
-            if (input.CurrentInputState.Trigger < interactThreshold)
+            bool nowDown = input.CurrentInputState.Trigger >= interactThreshold;
+            triggerPrevDown.TryGetValue(input, out bool wasDown);
+            triggerPrevDown[input] = nowDown;
+
+            // Rising-edge only: match desktop's one-shot click semantics.
+            if (!nowDown || wasDown)
                 continue;
 
-            Vector3 worldPos = input.transform.position;
-            Vector2 screenPos = worldSpaceUICamera.WorldToScreenPoint(worldPos);
+            // Cast the controller's pointer ray against the preview rect's plane.
+            Ray pointer = new Ray(input.RaycastCoord.position, input.RaycastCoord.rotation * Vector3.forward);
+            Plane previewPlane = new Plane(previewRect.forward, previewRect.position);
+
+            if (!previewPlane.Raycast(pointer, out float enter))
+                continue;
+
+            Vector3 worldHit = pointer.GetPoint(enter);
+            Vector2 screenPos = worldSpaceUICamera.WorldToScreenPoint(worldHit);
 
             if (RectTransformUtility.RectangleContainsScreenPoint(previewRect, screenPos, worldSpaceUICamera))
             {

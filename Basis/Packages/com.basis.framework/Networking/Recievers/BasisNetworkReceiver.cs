@@ -115,6 +115,12 @@ namespace Basis.Scripts.Networking.Receivers
         /// the second packet (first streaming update with real sequence) does.
         /// </summary>
         private int _seenPackets;
+        /// <summary>
+        /// Sequence of the most recently staged packet. Used to detect drops/reorders and
+        /// advance the receive-side clock by the correct number of packet intervals. -1
+        /// before any packet is staged.
+        /// </summary>
+        private int _lastEnqueuedSequence = -1;
         private readonly List<BasisAvatarBuffer> _pendingSort = new List<BasisAvatarBuffer>(16);
 
         // ---------------- staging (ring buffer) ----------------
@@ -132,16 +138,57 @@ namespace Basis.Scripts.Networking.Receivers
         private const float MinPlaybackRate = 0.85f;
         private const float MaxPlaybackRate = 1.35f;
 
-        // Adaptive jitter buffer depth. Floors at MinJitterDepth (0 = no staging cushion),
-        // grows toward MaxJitterDepth on underruns, decays back when stable.
-        // Cold start warms at InitialJitterDepth so a fresh remote join doesn't cascade
-        // underruns before the adaptive logic settles.
-        private const int MinJitterDepth = 0;
-        private const int MaxJitterDepth = 4;
-        private const float InitialJitterDepth = 1f;
-        private const float DepthBumpOnUnderrun = 0.5f;
-        private const float DepthDecayPerSecond = 0.25f;
+        // Adaptive jitter buffer depth. Floors at MinJitterDepth — needs to be a real
+        // cushion so network jitter doesn't push StagedCount to 0 every packet cycle
+        // (which would land us in the slowdown branch and produce visible micro-stutters).
+        // Grows toward MaxJitterDepth on underruns, decays slowly when stable. Cold start
+        // warms at InitialJitterDepth so a fresh remote join has a settled cushion before
+        // the adaptive logic kicks in. Driven by BasisSettingsDefaults.NetworkJitterBufferDepth
+        // via SettingsProviderNetworkTab — set ApplyTargetJitterDepth to retune all three.
+        public static int MinJitterDepth = 2;
+        public static int MaxJitterDepth = 4;
+        public static float InitialJitterDepth = 3f;
+        private const float DepthBumpOnUnderrun = 1.0f;
+        private const float DepthDecayPerSecond = 0.05f;
+        // Backlog within this many packets of the target is treated as noise —
+        // playback stays at rate 1.0 instead of snapping to MaxPlaybackRate.
+        private const float CatchupDeadband = 1.0f;
+        // When true, every receiver's _dynamicJitterDepth is hard-pinned to MinJitterDepth
+        // each frame: decay-toward-floor and bump-on-underrun are both skipped, so the
+        // depth never drifts. Lets the user pick a fixed cushion via the override setting
+        // and have it actually stay there.
+        public static bool JitterDepthLocked = false;
         private float _dynamicJitterDepth = InitialJitterDepth;
+
+        /// <summary>
+        /// Sets the adaptive jitter depth parameters from a single user-facing "target depth"
+        /// value. Initial warms one packet higher than target so cold starts have headroom;
+        /// Max caps the underrun growth at target+2 but never below 4 so we still have room
+        /// to react to unstable networks. Leaves the lock off, so depth still adapts.
+        /// </summary>
+        public static void ApplyTargetJitterDepth(int target)
+        {
+            target = math.clamp(target, 0, 6);
+            MinJitterDepth = target;
+            InitialJitterDepth = target + 1f;
+            MaxJitterDepth = math.max(target + 2, 4);
+            JitterDepthLocked = false;
+        }
+
+        /// <summary>
+        /// Pins the jitter depth at a fixed target — no decay, no underrun growth. All three
+        /// fields collapse to <paramref name="target"/>, and the per-frame hot path holds
+        /// _dynamicJitterDepth at MinJitterDepth so the rate formula's equilibrium stays
+        /// exactly where the user asked.
+        /// </summary>
+        public static void ApplyLockedJitterDepth(int target)
+        {
+            target = math.clamp(target, 0, 6);
+            MinJitterDepth = target;
+            InitialJitterDepth = target;
+            MaxJitterDepth = target;
+            JitterDepthLocked = true;
+        }
 
         public bool HasCurrentBuffer = false;
         public bool HasNextBuffer = false;
@@ -267,8 +314,24 @@ namespace Basis.Scripts.Networking.Receivers
                         _serverClockSeeded = true;
                     }
 
-                    _serverClockSeconds += buffer.SecondsInterval;
+                    // Advance by the number of packet intervals this sequence step
+                    // represents, not by 1. A dropped packet means wall time advanced
+                    // by 2 × SecondsInterval but we only see one buffer — without this,
+                    // windowDuration would compress 2 packets of motion into 1 packet
+                    // of playback time and the avatar would fast-forward visibly.
+                    int gap;
+                    if (_lastEnqueuedSequence < 0)
+                    {
+                        gap = 1;
+                    }
+                    else
+                    {
+                        int seqDelta = unchecked((byte)(buffer.Sequence - (byte)_lastEnqueuedSequence));
+                        gap = math.clamp(seqDelta, 1, 16);
+                    }
+                    _serverClockSeconds += gap * buffer.SecondsInterval;
                     buffer.ServerTimeSeconds = _serverClockSeconds;
+                    _lastEnqueuedSequence = buffer.Sequence;
 
                     _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
                 }
@@ -324,15 +387,35 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
             if (HasBufferHolds)
             {
-                _dynamicJitterDepth = math.max((float)MinJitterDepth,
-                    _dynamicJitterDepth - DepthDecayPerSecond * (float)unscaledDeltaTime);
+                if (JitterDepthLocked)
+                {
+                    _dynamicJitterDepth = MinJitterDepth;
+                }
+                else
+                {
+                    _dynamicJitterDepth = math.max((float)MinJitterDepth,
+                        _dynamicJitterDepth - DepthDecayPerSecond * (float)unscaledDeltaTime);
+                }
 
                 double windowDuration = Next.ServerTimeSeconds - Current.ServerTimeSeconds;
                 if (!(windowDuration > 1e-6 && windowDuration < 1e6))
                 {
                     windowDuration = math.max(Next.SecondsInterval, 1e-3);
                 }
-                float rate = 1f + CatchupGain * (StagedCount - _dynamicJitterDepth);
+                float diff = (float)StagedCount - _dynamicJitterDepth;
+                float rate;
+                if (diff > CatchupDeadband)
+                {
+                    rate = 1f + CatchupGain * (diff - CatchupDeadband);
+                }
+                else if (diff < 0f)
+                {
+                    rate = 1f + CatchupGain * diff;
+                }
+                else
+                {
+                    rate = 1f;
+                }
                 rate = math.clamp(rate, MinPlaybackRate, MaxPlaybackRate);
 
                 interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
@@ -361,7 +444,12 @@ namespace Basis.Scripts.Networking.Receivers
                     if (!HasBufferHolds)
                     {
                         // Window starved during advance — grow target so next time has headroom.
-                        _dynamicJitterDepth = math.min(_dynamicJitterDepth + DepthBumpOnUnderrun, (float)MaxJitterDepth);
+                        // Skip the bump when the user has locked the depth; they explicitly
+                        // asked for a fixed cushion, so don't grow past it.
+                        if (!JitterDepthLocked)
+                        {
+                            _dynamicJitterDepth = math.min(_dynamicJitterDepth + DepthBumpOnUnderrun, (float)MaxJitterDepth);
+                        }
                         break;
                     }
 
@@ -433,6 +521,7 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
+            _lastEnqueuedSequence = -1;
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initialize(this);
 
@@ -517,6 +606,7 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
+            _lastEnqueuedSequence = -1;
             if (_stagedRing != null)
             {
                 while (_stagedRing.TryDequeueOldest(out var buf))

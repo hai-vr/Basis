@@ -10,7 +10,6 @@ using Basis.Scripts.Networking.Transmitters;
 using Basis.BasisUI;
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.NamePlate;
-using Basis.Scripts.Profiler;
 using GatorDragonGames.JigglePhysics;
 using HVR.Basis.Comms;
 using SteamAudio;
@@ -129,7 +128,6 @@ public partial class BasisEventDriver : MonoBehaviour
 
     public static bool StateOfOnRenderBefore = false;
 
-    private int _volumeFrameworkFrameCounter;
 
     // ── Lifecycle ───────────────────────────────────────────────
 
@@ -171,42 +169,51 @@ public partial class BasisEventDriver : MonoBehaviour
             Application.onBeforeRender -= OnBeforeRender;
     }
 
-    // ── Update ──────────────────────────────────────────────────
+        // ── Update ──────────────────────────────────────────────────
 
-    /// <summary>
-    /// Unity update loop. Drains main-thread actions, advances network simulation (compute),
-    /// schedules remote interpolation, updates input on clients, and runs periodic tasks.
-    /// </summary>
-    public void Update()
-    {
-
-        DeltaTime = Time.deltaTime;
-        unscaledDeltaTime = Time.unscaledDeltaTime;
-        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
-        TimeAsDouble = Time.timeAsDouble;
-
-        if (BasisLocalPlayer.PlayerReady)
+        /// <summary>
+        /// Unity update loop. Drains main-thread actions, advances network simulation (compute),
+        /// schedules remote interpolation, updates input on clients, and runs periodic tasks.
+        /// </summary>
+        public void Update()
         {
-            BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate(DeltaTime);
+
+            DeltaTime = Time.deltaTime;
+            unscaledDeltaTime = Time.unscaledDeltaTime;
+            realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
+            TimeAsDouble = Time.timeAsDouble;
+
+            if (BasisLocalPlayer.PlayerReady)
+            {
+                BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate(DeltaTime);
+            }
+            // Drain everything that arrived from worker threads
+            while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
+            {
+                try
+                {
+                    action.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"MainThread action failed: {ex}");
+                }
+            }
+            // Player join/leave work is budgeted separately so a mass disconnect
+            // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
+            // calls in a single frame and stall the renderer.
+            BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
+            BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
+            BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
+            if (!IsHeadlessClient)
+            {
+                InputSystem.Update();
+            }
+
+            OSCAcquisitionServer.Simulate();
+            SMModuleAvatarPerformanceLimits.SimulateDebounce();
+            timeSinceLastUpdate += DeltaTime;
         }
-        // Drain everything that arrived from worker threads
-        while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
-        {
-            try { action.Invoke(); }
-            catch (Exception ex) { Debug.LogError($"MainThread action failed: {ex}"); }
-        }
-        // Player join/leave work is budgeted separately so a mass disconnect
-        // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
-        // calls in a single frame and stall the renderer.
-        BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
-        BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
-        BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
-        if (!IsHeadlessClient)
-            InputSystem.Update();
-        OSCAcquisitionServer.Simulate();
-        SMModuleAvatarPerformanceLimits.SimulateDebounce();
-        timeSinceLastUpdate += DeltaTime;
-    }
 
     /// <summary>
     /// Fixed-step simulation used for scene-level processing.
@@ -345,9 +352,6 @@ public partial class BasisEventDriver : MonoBehaviour
         ProfileBegin(PROF_JIGGLE_POSE);
         JigglePhysics.SchedulePose(TimeAsDouble);
         ProfileEnd(PROF_JIGGLE_POSE);
-
-        TickVolumeFramework();
-
         // ── Nameplate complete ──
         ProfileBegin(PROF_NAMEPLATE_COMPLETE);
         BasisRemoteNamePlateDriver.CompleteNamePlates();
@@ -386,23 +390,6 @@ public partial class BasisEventDriver : MonoBehaviour
         }
 
         ProfileLateUpdateFinish();
-    }
-
-    private void TickVolumeFramework()
-    {
-        _volumeFrameworkFrameCounter++;
-        if (_volumeFrameworkFrameCounter < 2) return;
-        _volumeFrameworkFrameCounter = 0;
-
-        BasisLocalCameraDriver driver = BasisLocalCameraDriver.Instance;
-        if (driver == null || driver.Camera == null) return;
-
-        Transform trigger = driver.CameraData != null && driver.CameraData.volumeTrigger != null
-            ? driver.CameraData.volumeTrigger
-            : driver.Camera.transform;
-        LayerMask mask = driver.CameraData != null ? driver.CameraData.volumeLayerMask : driver.Camera.cullingMask;
-
-        VolumeManager.instance.Update(trigger, mask);
     }
 
     // ── OnBeforeRender ──────────────────────────────────────────

@@ -19,7 +19,7 @@ using static BasisPermissions.PermissionManager;
 public static class NetworkServer
 {
     public static EventBasedNetListener Listener;
-    public static LNLNetManager Server;
+    public static NetManager Server;
     public static ConcurrentDictionary<int, NetPeer> AuthenticatedPeers = new();
     public static Configuration Configuration;
     /// <summary>
@@ -64,6 +64,7 @@ public static class NetworkServer
 
     public static void StartServer(Configuration configuration)
     {
+        StopServer();
         Configuration = configuration;
 
         HighQualityLength = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
@@ -80,6 +81,23 @@ public static class NetworkServer
         }
 
         BNL.Log("Server Worker Threads Booted");
+    }
+
+    public static void StopServer()
+    {
+        if (Server == null) return;
+        try
+        {
+            Server.Stop();
+        }
+        catch (Exception ex)
+        {
+            BNL.LogWarning($"NetworkServer.StopServer failed: {ex.Message}");
+        }
+        Server = null;
+        Listener = null;
+        AuthenticatedPeers.Clear();
+        _peerSnapshot = Array.Empty<NetPeer>();
     }
 
     private static void InitializePulseSettings()
@@ -130,6 +148,10 @@ public static class NetworkServer
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
         BasisNetworkChat.LoadWordFilter(Configuration);
+        BasisNetworkStackRegistry.RegisterIntroducerFactory(
+            BasisNetworkStackRegistry.LiteNetLibId,
+            _ => new BasisNetworkServer.LNLPeerIntroducer());
+        BasisNetworkServer.BasisServerP2PBroker.Initialize();
     }
 
     #endregion
@@ -139,7 +161,7 @@ public static class NetworkServer
     public static void SetupServer(Configuration configuration)
     {
         Listener = new EventBasedNetListener();
-        Server = new LNLNetManager(Listener, configuration);
+        Server = BasisNetworkStackRegistry.Create(configuration.NetworkStackId, Listener, configuration);
 
         NetDebug.Logger = new BasisServerLogger();
         StartListening(configuration);

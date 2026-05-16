@@ -311,10 +311,16 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             bool wasCharacterEnabled = LocalCharacterDriver.IsEnabled;
             LocalCharacterDriver.IsEnabled = false;
+            Vector3 deltaPosition = position - this.transform.position;
             this.transform.SetPositionAndRotation(position, rotation);
             AvatarTransform.rotation = Quaternion.identity;
             LocalCharacterDriver.IsEnabled = wasCharacterEnabled;
             LocalAnimatorDriver.HandleTeleport();
+            var jiggleRigs = BasisLocalAvatarDriver.JiggleRigs;
+            for (int i = 0; i < jiggleRigs.Length; i++)
+            {
+                jiggleRigs[i].Teleport(deltaPosition);
+            }
             OnTeleportEvent?.Invoke();
         }
         public void Respawn()

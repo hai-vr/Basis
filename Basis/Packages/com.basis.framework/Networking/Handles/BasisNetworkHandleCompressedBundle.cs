@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Scripts.Profiler;
 using K4os.Compression.LZ4;
 using System;
 
@@ -73,6 +74,7 @@ public static class BasisNetworkHandleCompressedBundle
 
             // Window the scratch buffer over just this entry's bytes; SetSource is alloc-free.
             inner.SetSource(scratch, offset, offset + msgLen);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, msgLen);
             BasisNetworkHandleAvatar.HandleAvatarUpdate(inner, innerChannel);
             offset += msgLen;
         }

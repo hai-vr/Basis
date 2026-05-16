@@ -11,8 +11,6 @@ public static class BasisNetworkHandleAvatar
 
     public static void HandleAvatarUpdate(NetDataReader reader, byte channel)
     {
-        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, reader.AvailableBytes);
-
         if (!Message.TryDequeue(out ServerSideSyncPlayerMessage ssm))
             ssm = new ServerSideSyncPlayerMessage();
 

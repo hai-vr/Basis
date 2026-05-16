@@ -485,6 +485,10 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneMode = new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
+        public static BasisSettingsBinding<string> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<string>("60 Hz"));
+
+        public static BasisSettingsBinding<bool> DisableDirectConnections = new("disabledirectconnections", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<string> MicStartBehavior = new("micstartbehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingStartOff));
 
         public static BasisSettingsBinding<string> MicMuteBehavior = new("micmutebehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingMuteShutdown));
@@ -504,6 +508,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> NetEuroMinCutoff = new("neteuromincutoff", new BasisPlatformDefault<float>(0.05f));
         public static BasisSettingsBinding<float> NetEuroBeta = new("neteurobeta", new BasisPlatformDefault<float>(2f));
         public static BasisSettingsBinding<float> NetEuroDerivativeCutoff = new("neteuroderivativecutoff", new BasisPlatformDefault<float>(2f));
+
+        // Remote-player jitter buffer target depth (packets to stay behind by).
+        // Higher = smoother under network jitter, more latency. Default 2 (~100ms at 50ms sync).
+        // Only takes effect when NetworkJitterBufferOverride is on — otherwise the default
+        // adaptive depth (2/3/4) is used.
+        public static BasisSettingsBinding<bool> NetworkJitterBufferOverride = new("networkjitterbufferoverride", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> NetworkJitterBufferDepth = new("networkjitterbufferdepth", new BasisPlatformDefault<float>(2f));
 
         // ---------------- DEVICE SWAP MODE ----------------
         /// <summary>
@@ -1113,6 +1124,8 @@ namespace Basis.BasisUI
             HearingRange.LoadBindingValue();
             MicrophoneDenoiser.LoadBindingValue();
             MicrophoneMode.LoadBindingValue();
+            P2PAvatarSyncRate.LoadBindingValue();
+            DisableDirectConnections.LoadBindingValue();
             MicStartBehavior.LoadBindingValue();
             MicMuteBehavior.LoadBindingValue();
             UseAutomaticGain.LoadBindingValue();
@@ -1281,6 +1294,8 @@ namespace Basis.BasisUI
             NetEuroMinCutoff.LoadBindingValue();
             NetEuroBeta.LoadBindingValue();
             NetEuroDerivativeCutoff.LoadBindingValue();
+            NetworkJitterBufferOverride.LoadBindingValue();
+            NetworkJitterBufferDepth.LoadBindingValue();
 
             // Device Swap Mode
             SwapMode.LoadBindingValue();

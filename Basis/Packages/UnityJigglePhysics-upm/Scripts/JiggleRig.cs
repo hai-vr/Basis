@@ -76,6 +76,10 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
     public void SnapToRestPose() {
         jiggleRigData.SnapToRestPose();
     }
+
+    public void Teleport(Vector3 deltaPosition) {
+        segment?.Teleport(deltaPosition);
+    }
     
     /// <summary>
     /// Sends updated parameters to the jiggle tree on the jobs side.

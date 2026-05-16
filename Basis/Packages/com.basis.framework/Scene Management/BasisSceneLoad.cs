@@ -21,18 +21,36 @@ namespace Basis.Scripts.Drivers
         {
             SetIfPlayerShouldSpawnOnSceneLoad(spawnPlayerOnSceneLoad);
             BasisDebug.Log("Loading Scene " + sceneToLoad, BasisDebug.LogTag.Event);
-          string UUID =  BasisGenerateUniqueID.GenerateUniqueID();
-            AsyncOperationHandle<SceneInstance> handle =  Addressables.LoadSceneAsync(sceneToLoad, mode, activateOnLoad: true, priority: 100, SceneReleaseMode.ReleaseSceneWhenSceneUnloaded);
+            string UUID = BasisGenerateUniqueID.GenerateUniqueID();
+            AsyncOperationHandle<SceneInstance> handle = Addressables.LoadSceneAsync(sceneToLoad, mode, activateOnLoad: true, priority: 100, SceneReleaseMode.ReleaseSceneWhenSceneUnloaded);
 
-            // Report progress while loading
+            progressCallback.ReportProgress(UUID, 0f, $"Preparing scene {sceneToLoad}");
+
             while (!handle.IsDone)
             {
-                progressCallback.ReportProgress(UUID, handle.PercentComplete, $"Loading Scene {sceneToLoad}");
+                DownloadStatus dl = handle.GetDownloadStatus();
+                float percent = handle.PercentComplete * 100f;
+                string stage = (dl.TotalBytes > 0 && dl.DownloadedBytes < dl.TotalBytes)
+                    ? $"Downloading {sceneToLoad}: {FormatBytes(dl.DownloadedBytes)} / {FormatBytes(dl.TotalBytes)}"
+                    : $"Activating scene {sceneToLoad}";
+                progressCallback.ReportProgress(UUID, percent, stage);
                 await Task.Yield();
             }
 
-            await handle.Task; // Ensure completion
+            await handle.Task;
+            progressCallback.ReportProgress(UUID, 100f, $"Loaded scene {sceneToLoad}");
             BasisDebug.Log($"Loaded Scene {sceneToLoad}", BasisDebug.LogTag.Event);
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            const long KB = 1024;
+            const long MB = KB * 1024;
+            const long GB = MB * 1024;
+            if (bytes >= GB) return $"{bytes / (double)GB:0.00} GB";
+            if (bytes >= MB) return $"{bytes / (double)MB:0.0} MB";
+            if (bytes >= KB) return $"{bytes / (double)KB:0.0} KB";
+            return $"{bytes} B";
         }
 
 

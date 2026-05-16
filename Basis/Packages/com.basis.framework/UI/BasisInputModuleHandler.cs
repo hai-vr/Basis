@@ -1,7 +1,7 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
-using Basis.Scripts.Virtual_keyboard;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -165,10 +165,9 @@ namespace Basis.Scripts.UI
                 if (EventSystem.currentSelectedGameObject.TryGetComponent(out CurrentSelectedTMP_InputField))
                 {
                     CurrentSelectedInputField = null;
-                    if (BasisVirtualKeyboard.HasInstance)
+                    if (BasisMenuVirtualKeyboardPanel.HasInstance)
                     {
-                        BasisVirtualKeyboard.InputField = null;
-                        BasisVirtualKeyboard.TMPInputField = CurrentSelectedTMP_InputField;
+                        BasisMenuVirtualKeyboardPanel.Instance.RetargetInput(null, CurrentSelectedTMP_InputField);
                     }
                     if (HasHoverONInput == false)
                     {
@@ -177,9 +176,9 @@ namespace Basis.Scripts.UI
                         CrouchingLock.Add(nameof(BasisInputModuleHandler));
                         if (KeyboardRequired())
                         {
-                            if (BasisVirtualKeyboard.HasInstance == false)
+                            if (BasisMenuVirtualKeyboardPanel.HasInstance == false)
                             {
-                                BasisVirtualKeyboard.CreateMenu(CurrentSelectedInputField, CurrentSelectedTMP_InputField);
+                                BasisMenuVirtualKeyboardPanel.CreateNew(CurrentSelectedInputField, CurrentSelectedTMP_InputField);
                             }
                         }
                     }
@@ -189,10 +188,9 @@ namespace Basis.Scripts.UI
                     if (EventSystem.currentSelectedGameObject.TryGetComponent(out CurrentSelectedInputField))
                     {
                         CurrentSelectedTMP_InputField = null;
-                        if (BasisVirtualKeyboard.HasInstance)
+                        if (BasisMenuVirtualKeyboardPanel.HasInstance)
                         {
-                            BasisVirtualKeyboard.InputField = CurrentSelectedInputField;
-                            BasisVirtualKeyboard.TMPInputField = null;
+                            BasisMenuVirtualKeyboardPanel.Instance.RetargetInput(CurrentSelectedInputField, null);
                         }
                         if (HasHoverONInput == false)
                         {
@@ -201,9 +199,9 @@ namespace Basis.Scripts.UI
                             CrouchingLock.Add(nameof(BasisInputModuleHandler));
                             if (KeyboardRequired())
                             {
-                                if (BasisVirtualKeyboard.HasInstance == false)
+                                if (BasisMenuVirtualKeyboardPanel.HasInstance == false)
                                 {
-                                    BasisVirtualKeyboard.CreateMenu(CurrentSelectedInputField, CurrentSelectedTMP_InputField);
+                                    BasisMenuVirtualKeyboardPanel.CreateNew(CurrentSelectedInputField, CurrentSelectedTMP_InputField);
                                 }
                             }
                         }
@@ -227,7 +225,6 @@ namespace Basis.Scripts.UI
         public bool KeyboardRequired()
         {
             if (ForceKeyboard) return true;
-            if (TouchScreenKeyboard.isSupported) return false;
             return BasisDeviceManagement.IsCurrentModeVR();
         }
 

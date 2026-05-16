@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
@@ -69,6 +70,11 @@ public class JiggleTreeSegment {
         }
         parent?.SetDirty();
         JigglePhysics.SetGlobalDirty();
+    }
+
+    public void Teleport(float3 deltaPosition) {
+        if (jiggleTree == null) return;
+        JigglePhysics.Teleport(jiggleTree, deltaPosition);
     }
 
 }

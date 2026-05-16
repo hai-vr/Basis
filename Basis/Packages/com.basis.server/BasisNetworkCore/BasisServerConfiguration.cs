@@ -1,7 +1,9 @@
+using Basis.Network.Core;
 using BasisNetworkCore.Security;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
 
 [Serializable]
@@ -17,25 +19,7 @@ public class Configuration
     public string ServerName = "Basis Server";
     /// <summary>Short MOTD returned alongside the server name in the info query response. Two short lines render cleanly in the list UI.</summary>
     public string ServerMotd = "";
-    public bool UseNativeSockets = true;
-    public bool NatPunchEnabled = false;
-    public int PingInterval = 1500;
-    public int DisconnectTimeout = 30000;
-    public bool SimulatePacketLoss = false;
-    public bool SimulateLatency = false;
-    public int SimulationPacketLossChance = 10;
-    public int SimulationMinLatency = 50;
-    public int SimulationMaxLatency = 150;
-    public int ReconnectDelay = 500;
-    public int MaxConnectAttempts = 10;
-    public bool ReuseAddresss = false;
-    public bool DontRoute = false;
     public bool EnableStatistics = true;
-    public bool IPv6Enabled = true;
-    public int MtuOverride = 0;
-    public bool MtuDiscovery = true;
-    public bool DisconnectOnUnreachable = false;
-    public bool AllowPeerAddressChange = true;
     public bool HasFileSupport = true;
     public string HealthCheckHost = "localhost";
     public ushort HealthCheckPort = 10666;
@@ -44,15 +28,16 @@ public class Configuration
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
     public float BSRSlowestSendRate = 2.55f;
-    public float HighQualityDistance = 3f;
-    public float MediumQualityDistance = 10f;
-    public float LowQualityDistance = 20f;
+    public float HighQualityDistance = 10f;
+    public float MediumQualityDistance = 20f;
+    public float LowQualityDistance = 40f;
     public bool OverrideAutoDiscoveryOfIpv = false;
     public string IPv4Address = "0.0.0.0";
     public string IPv6Address = "::1";
     public string Password = "default_password";
     public bool UseAuth = true;
     public bool UseAuthIdentity = true;
+    public string NetworkStackId = "";
     public BasisUserRestrictionMode BasisUserRestrictionMode;
     public int HowManyDuplicateAuthCanExist = 2;
     public int AuthValidationTimeOutMiliseconds = 9000;
@@ -66,7 +51,7 @@ public class Configuration
     /// for compression to be worthwhile, or when the compressed result would
     /// exceed peer MTU. Clients must implement the matching decoder.
     /// </summary>
-    public bool EnableAvatarBundleCompression = false;
+    public bool EnableAvatarBundleCompression = true;
     /// <summary>Minimum queued avatar messages to a single receiver before a bundle is even attempted.</summary>
     public int AvatarBundleMinMessages = 4;
     /// <summary>Minimum uncompressed bundle bytes before LZ4 compression is attempted. With LZ4 having near-zero per-call setup, 128 just guards the very smallest cases where LZ4 can't find any redundancy.</summary>
@@ -93,28 +78,41 @@ public class Configuration
     /// </summary>
     public bool ThirdPersonDisabled = false;
     /// <summary>
-    /// Read config from file. If no file is found create a default config file at filePath
+    /// When true, the server strips AdditionalAvatarDatas (blendshapes, custom-behaviour
+    /// params) from every inbound avatar sync message before propagating to other peers.
+    /// Muscle/position/rotation still sync normally; only the additional-data payload is
+    /// dropped. Toggled live via the admin panel and persisted alongside the other
+    /// content lockouts. Default off.
     /// </summary>
-    /// <param name="filePath">Path to config file</param>
+    public bool AdditionalAvatarDataLock = false;
+    /// <summary>
+    /// Read config from file. If no file is found create a default config file at filePath.
+    /// Also loads per-transport config sidecars from <c>{configDir}/transports/{stackId}.xml</c>.
+    /// </summary>
     public static Configuration LoadFromXml(string filePath)
     {
+        RuntimeHelpers.RunClassConstructor(typeof(BasisNetworkStackRegistry).TypeHandle);
+
+        Configuration result;
         var serializer = new XmlSerializer(typeof(Configuration));
         if (File.Exists(filePath))
         {
             using var fileReader = new StreamReader(filePath);
-            var config = (Configuration)serializer.Deserialize(fileReader);
+            result = (Configuration)serializer.Deserialize(fileReader);
             fileReader.Close();
-            return config;
+        }
+        else
+        {
+            BNL.Log($"{filePath} not found, creating with default values");
+            result = new Configuration();
+            using var writer = new StreamWriter(filePath);
+            serializer.Serialize(writer, result);
+            writer.Close();
         }
 
-        BNL.Log($"{filePath} not found, creating with default values");
-
-        var defaultConfig = new Configuration();
-        using var writer = new StreamWriter(filePath);
-        serializer.Serialize(writer, defaultConfig);
-        writer.Close();
-
-        return defaultConfig;
+        string configDir = Path.GetDirectoryName(filePath);
+        BasisTransportConfigStore.LoadAll(configDir);
+        return result;
     }
 
     /// <summary>
@@ -136,6 +134,8 @@ public class Configuration
         }
         if (File.Exists(filePath)) File.Replace(tempPath, filePath, null);
         else File.Move(tempPath, filePath);
+
+        BasisTransportConfigStore.SaveAll(dir);
     }
 
     /// <summary>
@@ -158,70 +158,55 @@ public class Configuration
     /// </summary>
     public void ProcessEnvironmentalOverrides()
     {
-        Configuration config = this;
+        ApplyEnvironmentalOverridesTo(this);
+    }
 
-        // Override a configuration value only if we find a Environmental Variable that matches the name
-        Type type = config.GetType();
+    private static void ApplyEnvironmentalOverridesTo(object target)
+    {
+        if (target == null) return;
+        Type type = target.GetType();
         FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
         foreach (var field in fields)
         {
-            string value = Environment.GetEnvironmentVariable(field.Name);
-            if ( value != null )
+            if (!field.FieldType.IsPrimitive && field.FieldType != typeof(string) && field.FieldType.IsClass)
             {
-                BNL.Log($"Applying Environmental Override with Field:{field.Name} Value:{value}");
+                object nested = field.GetValue(target);
+                if (nested != null) ApplyEnvironmentalOverridesTo(nested);
+                continue;
+            }
 
-                if (field.FieldType == typeof(int))
-                {
-                    if (int.TryParse(value, out int number))
-                    {
-                        field.SetValue(config, number);
-                    }
-                    else
-                    {
-                        BNL.LogWarning("Could not cast to int. Failed Override");
-                    }
-                }
-                else if (field.FieldType == typeof(ushort))
-                {
-                    if (ushort.TryParse(value, out ushort number))
-                    {
-                        field.SetValue(config, number);
-                    }
-                    else
-                    {
-                        BNL.LogWarning("Could not cast to ushort. Failed Override.");
-                    }
-                }
-                else if (field.FieldType == typeof(float))
-                {
-                    if (float.TryParse(value, out float number))
-                    {
-                        field.SetValue(config, number);
-                    }
-                    else
-                    {
-                        BNL.LogWarning("Could not cast to ushort. Failed Override.");
-                    }
-                }
-                else if (field.FieldType == typeof(string))
-                {
-                    field.SetValue(config, value);
-                }
-                else if (field.FieldType == typeof(bool))
-                {
-                    if (bool.TryParse(value, out bool boolResult))
-                    {
-                        field.SetValue(config, boolResult);
-                    }
-                    else
-                    {
-                        BNL.LogWarning($"Could not parse '{value}' as bool for field {field.Name}. Failed Override");
-                    }
-                }
-                else
-                {
-                    BNL.LogWarning($"Environmental varible type could not be processed for Config Field:{field.Name} Value:{value}");
-                }
+            string value = Environment.GetEnvironmentVariable(field.Name);
+            if (value == null) continue;
+
+            BNL.Log($"Applying Environmental Override with Field:{field.Name} Value:{value}");
+
+            if (field.FieldType == typeof(int))
+            {
+                if (int.TryParse(value, out int number)) field.SetValue(target, number);
+                else BNL.LogWarning("Could not cast to int. Failed Override");
+            }
+            else if (field.FieldType == typeof(ushort))
+            {
+                if (ushort.TryParse(value, out ushort number)) field.SetValue(target, number);
+                else BNL.LogWarning("Could not cast to ushort. Failed Override.");
+            }
+            else if (field.FieldType == typeof(float))
+            {
+                if (float.TryParse(value, out float number)) field.SetValue(target, number);
+                else BNL.LogWarning("Could not cast to float. Failed Override.");
+            }
+            else if (field.FieldType == typeof(string))
+            {
+                field.SetValue(target, value);
+            }
+            else if (field.FieldType == typeof(bool))
+            {
+                if (bool.TryParse(value, out bool boolResult)) field.SetValue(target, boolResult);
+                else BNL.LogWarning($"Could not parse '{value}' as bool for field {field.Name}. Failed Override");
+            }
+            else
+            {
+                BNL.LogWarning($"Environmental varible type could not be processed for Config Field:{field.Name} Value:{value}");
             }
         }
     }

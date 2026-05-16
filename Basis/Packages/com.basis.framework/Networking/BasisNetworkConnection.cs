@@ -39,13 +39,16 @@ namespace Basis.Scripts.Networking
             localId = (ushort)LocalPlayerPeer.RemoteId;
             return true;
         }
-        public static void Connect(ushort port, string ipString, string primitivePassword, bool isHostMode)
+        public static void Connect(ushort port, string ipString, string primitivePassword, bool isHostMode, string networkStackId = "")
         {
             BNL.LogOutput += LogOutput;
             BNL.LogWarningOutput += LogWarningOutput;
             BNL.LogErrorOutput += LogErrorOutput;
 
-            var uuid = BasisDIDAuthIdentityClient.GetOrSaveDID();
+            PlayerIdentity identity = BasisPlayerIdentityRegistry.ResolveActive();
+            string uuid = identity?.Uuid ?? string.Empty;
+
+            BasisTransportConfigStore.Get<LNLTransportConfig>(BasisNetworkStackRegistry.LiteNetLibId).UseNativeSockets = false;
 
             if (isHostMode)
             {
@@ -54,17 +57,27 @@ namespace Basis.Scripts.Networking
                 var serverConfig = new Configuration
                 {
                     IPv4Address = ipString,
+                    SetPort = port,
                     HasFileSupport = false,
-                    UseNativeSockets = false,
                     UseAuthIdentity = true,
-                    UseAuth = true,
+                    UseAuth = BasisNetworkManagement.HostUseAuth,
                     Password = primitivePassword,
-                    EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue
+                    EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue,
+                    NetworkStackId = networkStackId ?? string.Empty,
+                    ServerName = string.IsNullOrWhiteSpace(BasisNetworkManagement.HostServerName) ? "Basis Server" : BasisNetworkManagement.HostServerName,
+                    ServerMotd = BasisNetworkManagement.HostServerMotd ?? string.Empty,
+                    PeerLimit = BasisNetworkManagement.HostPeerLimit <= 0 ? ushort.MaxValue : BasisNetworkManagement.HostPeerLimit,
+                    EnableConsole = BasisNetworkManagement.HostEnableConsole,
+                    AvatarsLocked = BasisNetworkManagement.HostAvatarsLocked,
+                    PropsLocked = BasisNetworkManagement.HostPropsLocked,
+                    WorldsLocked = BasisNetworkManagement.HostWorldsLocked,
+                    ThirdPersonDisabled = BasisNetworkManagement.HostThirdPersonDisabled,
                 };
                 BasisNetworkServerRunner.Initalize(serverConfig, string.Empty, uuid);
             }
 
             BasisDebug.Log($"Connecting with Port {port} IpString {ipString}");
+            BasisP2PManager.StampServerEndpoint(ipString, port);
 
             var basisLocalPlayer = BasisLocalPlayer.Instance;
             basisLocalPlayer.UUID = uuid;
@@ -100,11 +113,11 @@ namespace Basis.Scripts.Networking
                     {
                         IPv4Address = ipString,
                         HasFileSupport = false,
-                        UseNativeSockets = false,
                         UseAuthIdentity = true,
                         UseAuth = true,
                         Password = primitivePassword,
-                        EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue
+                        EnableStatistics = BasisSettingsDefaults.EnableStatistics.RawValue,
+                        NetworkStackId = networkStackId ?? string.Empty,
                     };
                     // Pass the token into anything that supports cancellation
                     LocalPlayerPeer = NetworkClient.StartClient(
@@ -211,6 +224,8 @@ namespace Basis.Scripts.Networking
                 Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput.Instance?.StopMovement();
 #endif
                 BasisNetworkAvatarCompressor.Dispose();
+                BasisP2PManager.Shutdown();
+                BasisAvatarRateRegistry.Reset();
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
 #if UNITY_SERVER
                 if (!HeadlessReconnectSuppressed)

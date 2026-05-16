@@ -1,56 +1,59 @@
 using Basis.Network.Core;
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace Basis.Scripts.Networking
 {
     /// <summary>
-    /// Fires a single unconnected "server info" probe at a server's listening port and
-    /// awaits the response — the LiteNetLib equivalent of a Minecraft Server List Ping.
-    /// Each query spins up its own ephemeral LiteNetLib NetManager so the active
-    /// connection (if any) is left alone, then tears it down on completion or timeout.
+    /// Registers the LiteNetLib server-info probe with <see cref="BasisNetworkStackRegistry"/>.
+    /// Fires a single unconnected "server info" packet at the listening port (the LiteNetLib
+    /// equivalent of a Minecraft Server List Ping) and awaits the response.
     /// </summary>
     public static class BasisServerInfoClient
     {
-        public class ServerInfo
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void AutoRegister()
         {
-            public ushort Online;
-            public ushort Max;
-            public ushort ProtocolVersion;
-            public string Name;
-            public string Motd;
-            public int RoundTripMs;
-            public IPEndPoint Endpoint;
+            BasisNetworkStackRegistry.RegisterProbe(BasisNetworkStackRegistry.LiteNetLibId, ProbeAsync);
         }
 
-        public class ServerInfoResult
+        public static async Task<ServerProbeResult> ProbeAsync(ConnectionTarget target, int timeoutMs, CancellationToken ct)
         {
-            public ServerInfo Info;
-            public string Error;
-            public bool TimedOut;
-            public bool Reachable => Info != null;
-        }
+            ServerProbeResult result = new ServerProbeResult();
+            if (target == null)
+            {
+                result.Error = "Target is null";
+                return result;
+            }
 
-        public static async Task<ServerInfoResult> QueryAsync(string host, ushort port, int timeoutMs = 3000, CancellationToken ct = default)
-        {
-            var result = new ServerInfoResult();
+            string host = target.Get(ConnectionTarget.Keys.Address, string.Empty);
             if (string.IsNullOrWhiteSpace(host))
             {
                 result.Error = "Host is empty";
                 return result;
             }
 
+            string portString = target.Get(ConnectionTarget.Keys.Port, LNLConnectionTargetParser.DefaultPort.ToString(CultureInfo.InvariantCulture));
+            if (!ushort.TryParse(portString, NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort port) || port == 0)
+            {
+                result.Error = "Port is invalid";
+                return result;
+            }
+
             EventBasedNetListener listener = new EventBasedNetListener();
-            LNLNetManager manager = new LNLNetManager(listener, new Configuration());
+            Configuration probeConfig = new Configuration { NetworkStackId = BasisNetworkStackRegistry.LiteNetLibId };
+            NetManager manager = BasisNetworkStackRegistry.Create(probeConfig.NetworkStackId, listener, probeConfig);
 
             ushort nonce;
             unchecked { nonce = (ushort)Guid.NewGuid().GetHashCode(); }
 
-            TaskCompletionSource<ServerInfo> tcs = new TaskCompletionSource<ServerInfo>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<ServerProbeResult> tcs = new TaskCompletionSource<ServerProbeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             Stopwatch rtt = new Stopwatch();
 
             void OnReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader)
@@ -70,20 +73,19 @@ namespace Basis.Scripts.Networking
                     string name = reader.GetString();
                     string motd = reader.GetString();
 
-                    tcs.TrySetResult(new ServerInfo
+                    tcs.TrySetResult(new ServerProbeResult
                     {
+                        Reachable = true,
                         Online = online,
                         Max = max,
                         ProtocolVersion = proto,
                         Name = name,
                         Motd = motd,
                         RoundTripMs = (int)rtt.ElapsedMilliseconds,
-                        Endpoint = remoteEndPoint,
                     });
                 }
                 catch
                 {
-                    // Malformed response — let the timeout path handle it.
                 }
                 finally
                 {
@@ -104,17 +106,12 @@ namespace Basis.Scripts.Networking
 
                 IPEndPoint endpoint = new IPEndPoint(address, port);
 
-                // Bind to an OS-picked ephemeral port — the response endpoint is the
-                // server's listening port, but our outbound port doesn't matter.
                 manager.Start(IPAddress.Any, IPAddress.IPv6Any, 0);
 
                 NetDataWriter writer = new NetDataWriter(true, BasisNetworkCommons.ServerInfoMinRequestBytes);
                 writer.Put(BasisNetworkCommons.ServerInfoQueryMagic);
                 writer.Put(BasisNetworkCommons.ServerInfoProtocolVersion);
                 writer.Put(nonce);
-                // Pad up to the server's minimum-request threshold. The server drops
-                // anything smaller — the padding is what makes this query unattractive
-                // as a UDP reflection/amplification vector (response size <= request size).
                 int padBytes = BasisNetworkCommons.ServerInfoMinRequestBytes - writer.Length;
                 if (padBytes > 0) writer.Put(new byte[padBytes]);
 
@@ -131,11 +128,13 @@ namespace Basis.Scripts.Networking
 
                 try
                 {
-                    result.Info = await tcs.Task.ConfigureAwait(false);
+                    ServerProbeResult probed = await tcs.Task.ConfigureAwait(false);
+                    return probed;
                 }
                 catch (OperationCanceledException)
                 {
                     result.TimedOut = true;
+                    return result;
                 }
             }
             catch (Exception ex)
@@ -145,7 +144,7 @@ namespace Basis.Scripts.Networking
             finally
             {
                 listener.NetworkReceiveUnconnectedEvent -= OnReceiveUnconnected;
-                try { manager.Stop(); } catch { /* swallow shutdown noise */ }
+                try { manager.Stop(); } catch { }
             }
 
             return result;

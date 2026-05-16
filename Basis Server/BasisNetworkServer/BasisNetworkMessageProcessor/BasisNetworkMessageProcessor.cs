@@ -195,7 +195,11 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.EventsChannel:
-                    BasisNetworkEvents.HandleEvent(reader, peer); // reads event type byte, routes, recycles inside
+                    BasisServerEventsRouter.HandleEvent(reader, peer); // reads event type byte, routes, recycles inside
+                    break;
+
+                case BasisNetworkCommons.P2PChannel:
+                    BasisServerP2PBroker.HandleP2PMessage(reader, peer); // reads sub-type byte, routes, recycles inside
                     break;
 
                 default:

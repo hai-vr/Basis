@@ -558,6 +558,107 @@ namespace Basis.BasisUI
                 volumeSlider.SetValueWithoutNotify(refreshed.VolumeLevel);
             };
 
+            // ---- Direct Connection (P2P) controls ----
+            var p2pGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            p2pGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection"));
+            p2pGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.description"));
+
+            ushort directConnPlayerId = 0;
+            bool hasDirectConnTarget = Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                remotePlayer, out BasisNetworkPlayer p2pNetTarget);
+            if (hasDirectConnTarget) directConnPlayerId = p2pNetTarget.playerId;
+
+            PanelButton directConnBtn = PanelButton.CreateNew(p2pGroup.ContentParent);
+
+            string DirectConnLabelKey(Basis.Scripts.Networking.BasisP2PManager.P2PSessionState st)
+            {
+                if (BasisSettingsDefaults.DisableDirectConnections.RawValue &&
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected &&
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting)
+                {
+                    return "menu.individualPlayer.directConnection.disabled";
+                }
+                switch (st)
+                {
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.OutgoingRequested:
+                        return "menu.individualPlayer.directConnection.requesting";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.OutgoingArmed:
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.IncomingPending:
+                        return "menu.individualPlayer.directConnection.awaitingAccept";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Punching:
+                        return "menu.individualPlayer.directConnection.punching";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected:
+                        return Basis.Scripts.Networking.BasisP2PManager.IsP2PSessionLocal(directConnPlayerId)
+                            ? "menu.individualPlayer.directConnection.connectedLan"
+                            : "menu.individualPlayer.directConnection.connected";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting:
+                        return "menu.individualPlayer.directConnection.reconnecting";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed:
+                        return "menu.individualPlayer.directConnection.failed";
+                    default:
+                        return "menu.individualPlayer.directConnection.request";
+                }
+            }
+
+            void RefreshDirectConnLabel()
+            {
+                if (directConnBtn == null || directConnBtn.Descriptor == null) return;
+                var st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
+                directConnBtn.Descriptor.SetTitle(BasisLocalization.Get(DirectConnLabelKey(st)));
+            }
+            RefreshDirectConnLabel();
+
+            directConnBtn.OnClicked += () =>
+            {
+                if (!hasDirectConnTarget) return;
+                var st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
+                if (st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Idle ||
+                    st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed)
+                {
+                    if (BasisSettingsDefaults.DisableDirectConnections.RawValue)
+                    {
+                        BasisMainMenu.Instance.OpenDialogue(
+                            BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.title"),
+                            BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.body"),
+                            BasisLocalization.Get("ui.ok"),
+                            _ => { });
+                        return;
+                    }
+
+                    BasisMainMenu.Instance.OpenDialogue(
+                        BasisLocalization.Get("menu.individualPlayer.directConnection.outgoingDialog.title"),
+                        BasisLocalization.Get("menu.individualPlayer.directConnection.outgoingDialog.body", remotePlayer.DisplayName, remotePlayer.UUID),
+                        BasisLocalization.Get("menu.individualPlayer.directConnection.request"),
+                        BasisLocalization.Get("ui.cancel"),
+                        confirmed =>
+                        {
+                            if (!confirmed) return;
+                            Basis.Scripts.Networking.BasisP2PManager.SendRequest(directConnPlayerId);
+                        });
+                }
+                else
+                {
+                    Basis.Scripts.Networking.BasisP2PManager.CancelSession(directConnPlayerId);
+                }
+            };
+
+            // Marshal to main thread — manager fires from the LiteNetLib I/O thread.
+            Action<ushort, Basis.Scripts.Networking.BasisP2PManager.P2PSessionState> p2pHandler = null;
+            p2pHandler = (changedId, _) =>
+            {
+                if (changedId != directConnPlayerId) return;
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    if (directConnBtn == null || directConnBtn.Descriptor == null)
+                    {
+                        Basis.Scripts.Networking.BasisP2PManager.OnSessionStateChanged -= p2pHandler;
+                        return;
+                    }
+                    RefreshDirectConnLabel();
+                });
+            };
+            Basis.Scripts.Networking.BasisP2PManager.OnSessionStateChanged += p2pHandler;
+
             // ---- Highlight beacon controls ----
             var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));

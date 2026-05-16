@@ -1,4 +1,5 @@
 using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.Receivers;
 using Basis.Network.Core;
 using UnityEngine;
 
@@ -6,6 +7,11 @@ namespace Basis.BasisUI
 {
     public static class SettingsProviderNetworkTab
     {
+        // Steady-state cushion used when the user hasn't enabled the manual override.
+        // Matches the default in BasisNetworkReceiver so toggling the override off
+        // restores stock behaviour rather than whatever the slider last held.
+        private const int DefaultJitterDepth = 2;
+
         [RuntimeInitializeOnLoadMethod]
         static void Init()
         {
@@ -13,11 +19,26 @@ namespace Basis.BasisUI
             BasisNetworkManagement.MinCutoff = BasisSettingsDefaults.NetEuroMinCutoff.RawValue;
             BasisNetworkManagement.Beta = BasisSettingsDefaults.NetEuroBeta.RawValue;
             BasisNetworkManagement.DerivativeCutoff = BasisSettingsDefaults.NetEuroDerivativeCutoff.RawValue;
+            ApplyJitterDepthFromSettings();
 
             // Keep them in sync when the user changes a setting
             BasisSettingsDefaults.NetEuroMinCutoff.OnChanged += v => BasisNetworkManagement.MinCutoff = v;
             BasisSettingsDefaults.NetEuroBeta.OnChanged += v => BasisNetworkManagement.Beta = v;
             BasisSettingsDefaults.NetEuroDerivativeCutoff.OnChanged += v => BasisNetworkManagement.DerivativeCutoff = v;
+            BasisSettingsDefaults.NetworkJitterBufferOverride.OnChanged += _ => ApplyJitterDepthFromSettings();
+            BasisSettingsDefaults.NetworkJitterBufferDepth.OnChanged += _ => ApplyJitterDepthFromSettings();
+        }
+
+        private static void ApplyJitterDepthFromSettings()
+        {
+            if (BasisSettingsDefaults.NetworkJitterBufferOverride.RawValue)
+            {
+                BasisNetworkReceiver.ApplyLockedJitterDepth(Mathf.RoundToInt(BasisSettingsDefaults.NetworkJitterBufferDepth.RawValue));
+            }
+            else
+            {
+                BasisNetworkReceiver.ApplyTargetJitterDepth(DefaultJitterDepth);
+            }
         }
 
         public static void BuildNetworkEuroFilterGroup(RectTransform container)
