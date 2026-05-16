@@ -205,9 +205,13 @@ public class BasisOpenXRHandInput : BasisInputController
         var originLocal = PointerPositionYScaled.position * playerToAvatar;
         var originWorld = OffsetCoords.position + (OffsetCoords.rotation * originLocal);
 
+        Quaternion aimWorldRotation = _pointerRotationAction != null
+            ? OffsetCoords.rotation * _pointerRotationAction.ReadValue<Quaternion>()
+            : HandFinal.rotation;
+
         ComputeRaycastDirection(
             originWorld,
-            HandFinal.rotation,
+            aimWorldRotation,
             ActiveRaycastOffset
         );
         UpdateInputEvents();
