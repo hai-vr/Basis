@@ -787,7 +787,7 @@ namespace Basis.Scripts.UI.NamePlate
                     }
 
                     p.UpdateChatTimeout();
-                    p.UpdateTypingIndicatorAnimation();
+                    p.RefreshTypingIndicatorAnimation();
                 }
             }
         }

@@ -1448,22 +1448,33 @@ namespace Basis.BasisUI
             chatTextField.SetValueWithoutNotify(string.Empty);
             chatTextField._inputField.characterLimit = BasisChatSanitizer.MaxMessageCharacters;
             chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
+            chatTextField._inputField.onValueChanged.AddListener(OnChatMessageChanged);
             ApplyPendingChatComposerRequest();
 
             chatTextField.Descriptor.SetActive(!BasisSettingsDefaults.ChatDisabled.RawValue);
             toggleChatDisabled.OnValueChanged += (val) =>
             {
                 chatTextField.Descriptor.SetActive(!val);
+                if (val)
+                {
+                    BasisNetworkHandleChatTyping.SendTypingState(false);
+                }
                 chatGroup.ForceRebuild();
             };
 
             void OnEndEndit(string message)
             {
+                BasisNetworkHandleChatTyping.SendTypingState(false);
                 if (!string.IsNullOrEmpty(message))
                 {
                     BasisNetworkHandleChat.SendChatMessage(message);
                     chatTextField.SetValueWithoutNotify(string.Empty);
                 }
+            }
+
+            void OnChatMessageChanged(string message)
+            {
+                BasisNetworkHandleChatTyping.SendTypingState(!string.IsNullOrEmpty(message));
             }
 
             // Nameplates live in the same tab — formerly its own page, merged here so
@@ -1495,6 +1506,7 @@ namespace Basis.BasisUI
             {
                 _chatTextField.SetValueWithoutNotify(_pendingChatComposerText);
                 _pendingChatComposerText = null;
+                BasisNetworkHandleChatTyping.SendTypingState(!string.IsNullOrEmpty(_chatTextField._inputField.text));
             }
 
             if (_pendingChatComposerPlaySound)
@@ -1514,6 +1526,7 @@ namespace Basis.BasisUI
 
         private static void ClearChatComposerReference()
         {
+            BasisNetworkHandleChatTyping.SendTypingState(false);
             _chatTextField = null;
         }
 

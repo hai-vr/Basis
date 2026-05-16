@@ -66,9 +66,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// Whether there is an active chat message being displayed.
         /// </summary>
         private bool hasChatMessage;
+        private string currentChatMessage;
         private bool wantsTypingIndicator;
         private int typingAnimationFrame = -1;
         private double typingAnimationStartTime;
+        private string typingIndicatorText = "...";
 
         // --------- Update-driven "talk pulse" state (replaces coroutine) ---------
         private bool isPulsingTalk;
@@ -405,23 +407,21 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (string.IsNullOrEmpty(message))
             {
-                ChatText.gameObject.SetActive(false);
                 hasChatMessage = false;
+                currentChatMessage = null;
                 if (wantsTypingIndicator)
                 {
                     typingAnimationFrame = -1;
                 }
-                UpdateTypingIndicatorVisual();
+                UpdateChatTextVisual();
                 UpdateBubbleVisual();
                 return;
             }
 
-            ChatText.text = message;
-            ChatText.gameObject.SetActive(true);
-
+            currentChatMessage = message;
             chatMessageSetTime = Time.timeAsDouble;
             hasChatMessage = true;
-            UpdateTypingIndicatorVisual();
+            UpdateChatTextVisual();
             UpdateBubbleVisual();
         }
 
@@ -451,27 +451,36 @@ namespace Basis.Scripts.UI.NamePlate
             UpdateBubbleVisual();
         }
 
-        public void UpdateTypingIndicatorAnimation()
+        public bool UpdateTypingIndicatorAnimation()
         {
-            if (!wantsTypingIndicator || hasChatMessage || ChatText == null || !ChatText.gameObject.activeSelf)
+            if (!wantsTypingIndicator)
             {
-                return;
+                return false;
             }
 
             int frame = (int)((Time.timeAsDouble - typingAnimationStartTime) / 0.4d) % 3;
             if (frame == typingAnimationFrame)
             {
-                return;
+                return false;
             }
 
             typingAnimationFrame = frame;
-            ChatText.text = frame switch
+            typingIndicatorText = frame switch
             {
                 0 => ".",
                 1 => "..",
                 _ => "...",
             };
-            UpdateBubbleVisual();
+            return true;
+        }
+
+        public void RefreshTypingIndicatorAnimation()
+        {
+            if (UpdateTypingIndicatorAnimation())
+            {
+                UpdateChatTextVisual();
+                UpdateBubbleVisual();
+            }
         }
 
         public TextMeshPro GetBubbleSourceText()
@@ -486,21 +495,44 @@ namespace Basis.Scripts.UI.NamePlate
 
         private void UpdateTypingIndicatorVisual()
         {
+            UpdateChatTextVisual();
+        }
+
+        private void UpdateChatTextVisual()
+        {
             if (ChatText == null)
             {
                 return;
             }
 
-            bool shouldShow = wantsTypingIndicator && !hasChatMessage;
-            if (shouldShow)
+            if (hasChatMessage)
             {
+                ChatText.text = wantsTypingIndicator
+                    ? currentChatMessage + "\n" + typingIndicatorText
+                    : currentChatMessage;
                 ChatText.gameObject.SetActive(true);
-                UpdateTypingIndicatorAnimation();
+                return;
             }
-            else if (!hasChatMessage)
+
+            if (wantsTypingIndicator)
             {
-                ChatText.gameObject.SetActive(false);
+                UpdateTypingIndicatorAnimation();
+                ChatText.text = typingIndicatorText;
+                ChatText.gameObject.SetActive(true);
+                return;
             }
+
+            ChatText.gameObject.SetActive(false);
+        }
+
+        private bool HasBubbleText()
+        {
+            if (hasChatMessage)
+            {
+                return true;
+            }
+
+            return wantsTypingIndicator;
         }
 
         private void UpdateBubbleVisual()
@@ -510,7 +542,7 @@ namespace Basis.Scripts.UI.NamePlate
                 return;
             }
 
-            if (GetBubbleSourceText() == null)
+            if (!HasBubbleText())
             {
                 ChatBubbleFilter.gameObject.SetActive(false);
                 return;
