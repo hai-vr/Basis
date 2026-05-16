@@ -319,7 +319,7 @@ namespace Basis.Scripts.Avatar
                 BasisLoadableBundle, true, BasisPlayer.ProgressReportAvatarLoad, Token,
                 Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.transform, false, true, MaxDownloadSizeInMB, HarvestedHeadChop);
 
-            BasisPlayer.ProgressReportAvatarLoad.ReportProgress(UniqueID, 100, "Setting Position");
+            BasisPlayer.ProgressReportAvatarLoad.ReportProgress(UniqueID, 100, "Avatar ready");
             return Output;
         }
 

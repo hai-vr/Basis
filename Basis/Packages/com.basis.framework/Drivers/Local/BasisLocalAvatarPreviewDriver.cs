@@ -214,7 +214,7 @@ namespace Basis.Scripts.Drivers
                     : cachedDriver.DesktopMicrophoneViewportPosition;
                 viewportPos.x = 1f - viewportPos.x;
                 Vector3 parentWorld = cam.ViewportToWorldPoint(viewportPos);
-                parentOfUIGO.transform.localPosition = cachedDriver.transform.InverseTransformPoint(parentWorld);
+                parentOfUIGO.transform.localPosition = cam.transform.InverseTransformPoint(parentWorld);
 
                 float displayHeight = halfH * DisplaySizeScale;
                 float displayWidth = displayHeight * aspect;
@@ -222,9 +222,7 @@ namespace Basis.Scripts.Drivers
 
                 // Anchor the sprite's bottom-right corner to the frustum's bottom-right corner.
                 Vector3 displayCameraLocal = new Vector3(halfW - displayWidth * 0.5f, -halfH + displayHeight * 0.5f, 1f);
-                Vector3 displayWorld = cam.transform.TransformPoint(displayCameraLocal);
-                Vector3 displayLocal = cachedDriver.transform.InverseTransformPoint(displayWorld);
-                displayGO.transform.localPosition = displayLocal - parentOfUIGO.transform.localPosition;
+                displayGO.transform.localPosition = displayCameraLocal - parentOfUIGO.transform.localPosition;
             }
         }
 
