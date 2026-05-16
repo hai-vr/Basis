@@ -2,12 +2,14 @@ using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using System.Threading;
 
 /// <summary>
 /// Sends and receives transient player chat typing state on EventsChannel.
 /// </summary>
 public static class BasisNetworkHandleChatTyping
 {
+    private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
     private static bool initialized;
     private static bool hasLastSentTypingState;
     private static bool lastSentTypingState;
@@ -55,7 +57,8 @@ public static class BasisNetworkHandleChatTyping
         hasLastSentTypingState = true;
         lastSentTypingState = isTyping;
 
-        NetDataWriter writer = new NetDataWriter();
+        NetDataWriter writer = threadLocalWriter.Value;
+        writer.Reset();
         writer.Put(BasisNetworkCommons.EventType_PlayerChatTyping);
         writer.Put(isTyping);
         BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.EventsChannel, DeliveryMethod.ReliableSequenced);
