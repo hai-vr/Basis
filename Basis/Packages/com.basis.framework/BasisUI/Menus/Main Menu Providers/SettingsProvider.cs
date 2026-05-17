@@ -1500,6 +1500,7 @@ namespace Basis.BasisUI
             chatTextField.SetValueWithoutNotify(string.Empty);
             chatTextField._inputField.characterLimit = BasisChatSanitizer.MaxMessageCharacters;
             chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
+            chatTextField._inputField.onSubmit.AddListener(OnChatSubmitted);
             chatTextField._inputField.onValueChanged.AddListener(OnChatMessageChanged);
             ApplyPendingChatComposerRequest();
 
@@ -1515,6 +1516,11 @@ namespace Basis.BasisUI
             };
 
             void OnEndEndit(string message)
+            {
+                BasisNetworkHandleChatTyping.SendTypingState(false);
+            }
+
+            void OnChatSubmitted(string message)
             {
                 BasisNetworkHandleChatTyping.SendTypingState(false);
                 if (!string.IsNullOrEmpty(message))
