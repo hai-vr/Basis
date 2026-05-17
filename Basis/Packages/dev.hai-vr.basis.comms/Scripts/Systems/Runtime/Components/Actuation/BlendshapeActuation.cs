@@ -23,7 +23,6 @@ namespace HVR.Basis.Comms
         [SerializeField] private AddressOverride[] addressOverrides = Array.Empty<AddressOverride>();
 
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
-        [HideInInspector] [SerializeField] private AcquisitionService acquisition;
 
         private HVRAvatarComms comms;
 
@@ -54,11 +53,6 @@ namespace HVR.Basis.Comms
             }
 
             comms = HVRCommsUtil.GetComms(this);
-
-            if (acquisition == null)
-            {
-                acquisition = AcquisitionService.SceneInstance;
-            }
 
             _activityRelay = FaceTrackingActivityRelay.GetOrCreate(avatar);
             renderers = HVRCommsUtil.SlowSanitizeEndUserProvidedObjectArray(renderers);
@@ -263,9 +257,14 @@ namespace HVR.Basis.Comms
                 _activityRelay.OnTrackingActivityChanged -= OnTrackingActivityUpdated;
             }
 
-            if (acquisition != null && _isWearer && _addessIdToBaseIndex.Count > 0)
+            if (_computedActuators != null)
             {
-                acquisition.UnregisterAddresses(_addessIdToBaseIndex.Keys.ToArray(), OnAddressUpdated);
+                var addressIdToListenTo = new HashSet<int>();
+                foreach (var computedActuator in _computedActuators)
+                {
+                    addressIdToListenTo.Add(computedActuator.RequestedFeature.address);
+                }
+                comms.VariableStore.UnregisterAddresses(addressIdToListenTo.ToArray(), OnAddressUpdated);
             }
         }
 

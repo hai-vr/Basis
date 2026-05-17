@@ -1,12 +1,10 @@
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Behaviour;
 using Basis.Scripts.Networking.Behaviour;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using HVR.Basis.Comms.HVRUtility;
 using System;
-using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -23,11 +21,6 @@ namespace HVR.Basis.Comms
         private const string EyeTrackingActive = "HVR/Internal/EyeTrackingActive";
         private const float EyeParameterInactivityTimeoutSeconds = 0.5f;
 
-        private const int LeftEyeFeatureIndex = 0;
-        private const int RightEyeFeatureIndex = 1;
-        private const int EyeYFeatureIndex = 2;
-        private const int EyeTrackingActiveFeatureIndex = 3;
-
         private readonly int _eyeLeftXAddress;
         private readonly int _eyeRightXAddress;
         private readonly int _eyeYAddress;
@@ -35,7 +28,6 @@ namespace HVR.Basis.Comms
         private readonly int[] _sourceEyeAddresses;
 
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
-        [HideInInspector] [SerializeField] private AcquisitionService acquisition;
         [SerializeField] internal float multiplyX = 1f;
         [SerializeField] internal float multiplyY = 1f;
 
@@ -43,6 +35,8 @@ namespace HVR.Basis.Comms
         public float _fEyeRightX;
         public float _fEyeY;
         public bool IsLocal;
+
+        private HVRAvatarComms comms;
         public BasisNetworkReceiver Receiver = null;
 
         private bool _eyeFollowDriverApplicable;
@@ -51,17 +45,7 @@ namespace HVR.Basis.Comms
         public bool IsTrackingActive => _trackingActive;
         public bool IsEyeTrackingParametersActive => _eyeTrackingParametersActive;
         private float _lastEyeParameterSampleTime = float.NegativeInfinity;
-        private bool _registeredSourceAddresses;
         private FaceTrackingActivityRelay _activityRelay;
-
-#region NetworkingFields
-        // Can be null due to:
-        // - Application with no network, or
-        // - Network late initialization.
-        // Nullability is needed for local tests without initialization scene.
-        // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
-        [NonSerialized] internal MutualizedFeatureInterpolator featureInterpolator;
-#endregion
 
         public EyeTrackingBoneActuation()
         {
@@ -69,19 +53,18 @@ namespace HVR.Basis.Comms
             _eyeRightXAddress = HVRAddress.AddressToId(EyeRightX);
             _eyeYAddress = HVRAddress.AddressToId(EyeY);
             _eyeTrackingActiveAddress = HVRAddress.AddressToId(EyeTrackingActive);
-            _sourceEyeAddresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
+            _sourceEyeAddresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress, _eyeTrackingActiveAddress };
         }
 
         private void Awake()
         {
             if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this);
-            if (acquisition == null) acquisition = AcquisitionService.SceneInstance;
+            comms = HVRCommsUtil.GetComms(this);
             _activityRelay = FaceTrackingActivityRelay.GetOrCreate(avatar);
         }
 
         public void OnHVRAvatarReady(bool isWearer)
         {
-            _registeredSourceAddresses = isWearer;
             _eyeFollowDriverApplicable = isWearer;
             _trackingActive = _activityRelay != null && _activityRelay.IsTrackingActive;
             _eyeTrackingParametersActive = false;
@@ -92,10 +75,7 @@ namespace HVR.Basis.Comms
                 _activityRelay.OnTrackingActivityChanged -= OnTrackingActivityUpdated;
                 _activityRelay.OnTrackingActivityChanged += OnTrackingActivityUpdated;
             }
-            if (isWearer)
-            {
-                acquisition.RegisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
-            }
+            comms.VariableStore.RegisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
@@ -103,19 +83,37 @@ namespace HVR.Basis.Comms
             HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
             IsLocal = isWearer;
 
+            if (isWearer)
+            {
+                var addresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
+                foreach (var address in addresses)
+                {
+                    comms.RequireVariable(new HVRVariable
+                    {
+                        addressId = address,
+                        initialValue = 0f,
+                        variableTypeCode = HVRVariableTypeCode.Float,
+                        needsInterpolation = true,
+                        min = -1f,
+                        max = 1f,
+                    });
+                }
+                comms.RequireVariable(new HVRVariable
+                {
+                    addressId = _eyeTrackingActiveAddress,
+                    initialValue = 0f,
+                    variableTypeCode = HVRVariableTypeCode.Float,
+                    needsInterpolation = false,
+                    min = 0f,
+                    max = 1f,
+                });
+            }
+
             if (!IsLocal)
             {
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
             }
 
-            var mutualizedInterpolationRanges = new List<MutualizedInterpolationRange>
-            {
-                new MutualizedInterpolationRange { addressId = _eyeLeftXAddress, lower = -1f, upper = 1f },
-                new MutualizedInterpolationRange { addressId = _eyeRightXAddress, lower = -1f, upper = 1f },
-                new MutualizedInterpolationRange { addressId = _eyeYAddress, lower = -1f, upper = 1f },
-                new MutualizedInterpolationRange { addressId = _eyeTrackingActiveAddress, lower = 0f, upper = 1f }
-            };
-            featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(avatar, mutualizedInterpolationRanges, OnInterpolatedDataChanged);
             bool shouldApply = ShouldApplyEyeTracking();
             if (IsLocal)
             {
@@ -159,10 +157,7 @@ namespace HVR.Basis.Comms
                 _activityRelay.OnTrackingActivityChanged -= OnTrackingActivityUpdated;
             }
 
-            if (acquisition != null && _registeredSourceAddresses)
-            {
-                acquisition.UnregisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
-            }
+            comms.VariableStore.UnregisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
 
             ClearRemoteOverrides();
             SetBuiltInEyeFollowDriverOverriden(false);
@@ -195,15 +190,12 @@ namespace HVR.Basis.Comms
             {
                 case var _ when address == _eyeLeftXAddress:
                     _fEyeLeftX = sanitizedValue;
-                    if (featureInterpolator != null && IsLocal) featureInterpolator.SubmitAbsolute(LeftEyeFeatureIndex, sanitizedValue);
                     break;
                 case var _ when address == _eyeRightXAddress:
                     _fEyeRightX = sanitizedValue;
-                    if (featureInterpolator != null && IsLocal) featureInterpolator.SubmitAbsolute(RightEyeFeatureIndex, sanitizedValue);
                     break;
                 case var _ when address == _eyeYAddress:
                     _fEyeY = sanitizedValue;
-                    if (featureInterpolator != null && IsLocal) featureInterpolator.SubmitAbsolute(EyeYFeatureIndex, sanitizedValue);
                     break;
                 default:
                     return;
@@ -363,26 +355,26 @@ namespace HVR.Basis.Comms
 
         private void SubmitCurrentEyeStateToNetwork()
         {
-            if (!IsLocal || featureInterpolator == null)
+            if (!IsLocal)
             {
                 return;
             }
 
-            featureInterpolator.SubmitAbsolute(LeftEyeFeatureIndex, SanitizeAndClampEyeValue(_fEyeLeftX));
-            featureInterpolator.SubmitAbsolute(RightEyeFeatureIndex, SanitizeAndClampEyeValue(_fEyeRightX));
-            featureInterpolator.SubmitAbsolute(EyeYFeatureIndex, SanitizeAndClampEyeValue(_fEyeY));
+            comms.VariableStore.Submit(_eyeLeftXAddress, SanitizeAndClampEyeValue(_fEyeLeftX));
+            comms.VariableStore.Submit(_eyeRightXAddress, SanitizeAndClampEyeValue(_fEyeRightX));
+            comms.VariableStore.Submit(_eyeYAddress, SanitizeAndClampEyeValue(_fEyeY));
         }
 
         private void SubmitNeutralEyesToNetwork()
         {
-            if (!IsLocal || featureInterpolator == null)
+            if (!IsLocal)
             {
                 return;
             }
 
-            featureInterpolator.SubmitAbsolute(LeftEyeFeatureIndex, 0f);
-            featureInterpolator.SubmitAbsolute(RightEyeFeatureIndex, 0f);
-            featureInterpolator.SubmitAbsolute(EyeYFeatureIndex, 0f);
+            comms.VariableStore.Submit(_eyeLeftXAddress, 0f);
+            comms.VariableStore.Submit(_eyeRightXAddress, 0f);
+            comms.VariableStore.Submit(_eyeYAddress, 0f);
         }
 
         private void SetLocalEyeParameterState(bool isActive)
@@ -394,12 +386,12 @@ namespace HVR.Basis.Comms
 
         private void SubmitEyeTrackingParameterStateToNetwork()
         {
-            if (!IsLocal || featureInterpolator == null)
+            if (!IsLocal)
             {
                 return;
             }
 
-            featureInterpolator.SubmitAbsolute(EyeTrackingActiveFeatureIndex, _eyeTrackingParametersActive ? 1f : 0f);
+            comms.VariableStore.Submit(_eyeTrackingActiveAddress, _eyeTrackingParametersActive ? 1f : 0f);
         }
 
         private bool ShouldApplyEyeTracking()
@@ -452,43 +444,6 @@ namespace HVR.Basis.Comms
         {
             Left, Right
         }
-
-#region NetworkingMethods
-        private void OnInterpolatedDataChanged(float[] current)
-        {
-            if (current == null)
-            {
-                return;
-            }
-
-            if (!IsLocal)
-            {
-                if (current.Length > EyeTrackingActiveFeatureIndex)
-                {
-                    _eyeTrackingParametersActive = current[EyeTrackingActiveFeatureIndex] >= 0.5f;
-                }
-                else
-                {
-                    // Legacy compatibility with senders that only stream 3 values.
-                    _eyeTrackingParametersActive = true;
-                }
-            }
-
-            bool shouldApply = ShouldApplyEyeTracking();
-            if (!shouldApply || current.Length < 3)
-            {
-                if (!IsLocal && !shouldApply)
-                {
-                    ClearRemoteOverrides();
-                }
-                return;
-            }
-
-            _fEyeLeftX = SanitizeAndClampEyeValue(current[LeftEyeFeatureIndex]);
-            _fEyeRightX = SanitizeAndClampEyeValue(current[RightEyeFeatureIndex]);
-            _fEyeY = SanitizeAndClampEyeValue(current[EyeYFeatureIndex]);
-        }
-#endregion
     }
 }
 
