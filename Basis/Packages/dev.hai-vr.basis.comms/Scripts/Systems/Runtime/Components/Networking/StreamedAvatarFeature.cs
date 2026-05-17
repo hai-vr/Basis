@@ -18,6 +18,7 @@ namespace HVR.Basis.Comms
         // We use 254, not 255 (leaving 1 value out), because 254 divided by 2 is a round number, 127.
         // This makes the value of 0 in range [-1:1] encodable as 127.
         internal const float EncodingRange = 254f;
+        internal const float FullRange = 255f;
 
         public DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable;
         private const float TransmissionDeltaSeconds = 0.1f;

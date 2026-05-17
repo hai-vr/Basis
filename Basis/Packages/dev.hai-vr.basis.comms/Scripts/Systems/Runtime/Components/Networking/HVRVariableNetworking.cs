@@ -33,12 +33,27 @@ namespace HVR.Basis.Comms
         private static byte EncodeFloat(float value, HVRVariable variable)
         {
             var lerp01 = Mathf.InverseLerp(variable.min, variable.max, value);
-            return (byte)(lerp01 * StreamedAvatarFeature.EncodingRange);
+            if (Mathf.Approximately(-variable.min, variable.max))
+            {
+                return (byte)(lerp01 * StreamedAvatarFeature.EncodingRange);
+            }
+            else
+            {
+                return (byte)(lerp01 * StreamedAvatarFeature.FullRange);
+            }
         }
 
         private static float DecodeFloat(byte encodedByte, HVRVariableHighFrequency highFrequency)
         {
-            var lerp01 = encodedByte / StreamedAvatarFeature.EncodingRange;
+            float lerp01;
+            if (Mathf.Approximately(-highFrequency.min, highFrequency.max))
+            {
+                lerp01 = encodedByte / StreamedAvatarFeature.EncodingRange;
+            }
+            else
+            {
+                lerp01 = encodedByte / StreamedAvatarFeature.FullRange;
+            }
             return Mathf.Lerp(highFrequency.min, highFrequency.max, lerp01);
         }
 
