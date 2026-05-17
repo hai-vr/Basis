@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using HVR.Basis.Comms.HVRUtility;
 
 namespace HVR.Basis.Comms
 {
@@ -29,7 +28,7 @@ namespace HVR.Basis.Comms
             {
                 foreach (var (addressId, value) in _currentSnapshot.addressIdsToValues)
                 {
-                    result.Add(addressId, value);
+                    result[addressId] = value;
                 }
                 _advanced -= _currentSnapshot.deltaTime;
                 _previousSnapshot = _currentSnapshot;

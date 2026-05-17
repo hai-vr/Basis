@@ -179,5 +179,112 @@ namespace HVR.Basis.Comms.Tests
             Assert.AreEqual(1, result.Count);
             Assert.AreEqual(3.5f, result[2], 0.0001f);
         }
+
+        [Test]
+        public void It_should_interpolate_to_the_third()
+        {
+            // Given
+            var sut = new HVRInterpolator();
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 2f,
+                addressIdsToValues = new() { { 2, 4f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 2f,
+                addressIdsToValues = new() { { 2, 0f } }
+            });
+
+            // When
+            var result = sut.Advance(4f);
+
+            // Then
+            Assert.AreEqual(1, result.Count);
+            Assert.AreEqual(2f, result[2], 0.0001f);
+        }
+
+        [Test]
+        public void It_should_interpolate_to_the_end()
+        {
+            // Given
+            var sut = new HVRInterpolator();
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 2f,
+                addressIdsToValues = new() { { 2, 4f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 2f,
+                addressIdsToValues = new() { { 2, 0f } }
+            });
+
+            // When & Then
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3f, sut.Advance(0.1f)[2], 0.0001f);
+
+            Assert.AreEqual(3.05f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.10f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.15f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.20f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.25f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.30f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.35f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.40f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.45f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.50f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.55f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.60f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.65f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.70f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.75f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.80f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.85f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.90f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.95f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(4.00f, sut.Advance(0.1f)[2], 0.0001f);
+
+            Assert.AreEqual(3.8f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.6f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.4f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.2f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(3.0f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(2.8f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(2.6f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(2.4f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(2.2f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(2.0f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(1.8f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(1.6f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(1.4f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(1.2f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(1.0f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(0.8f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(0.6f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(0.4f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(0.2f, sut.Advance(0.1f)[2], 0.0001f);
+            Assert.AreEqual(0.0f, sut.Advance(0.1f)[2], 0.0001f);
+
+            Assert.AreEqual(0, sut.Advance(0.1f).Count);
+        }
     }
 }
