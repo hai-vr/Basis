@@ -400,9 +400,6 @@ namespace HVR.Basis.Comms
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
             private readonly List<HVRVariableHighFrequency> _upgradedToHighFrequencyInOrder = new();
 
-            private HVRInterpolationTimer _interpolationTimer;
-            private HVRInterpolationData _interpolationDataThisFrame;
-
             public HVRVariableBehaviour_Remote(HVRVariableNetworking state)
             {
                 _state = state;
@@ -436,12 +433,12 @@ namespace HVR.Basis.Comms
                        )
                     {
                         var TODO_DeltaTimeInsidePacket = 0.1f; // TODO: Pass the delta time fractional inside the packet
-                        if (_interpolationDataThisFrame == null)
-                        {
-                            _interpolationDataThisFrame = new HVRInterpolationData(TODO_DeltaTimeInsidePacket);
-                        }
-
-                        _interpolationDataThisFrame.Add(addressId, currentValue);
+                        // if (_interpolationDataThisFrame == null)
+                        // {
+                        //     _interpolationDataThisFrame = new HVRInterpolationData(TODO_DeltaTimeInsidePacket);
+                        // }
+                        //
+                        // _interpolationDataThisFrame.Add(addressId, currentValue);
                     }
                     else
                     {
@@ -463,13 +460,13 @@ namespace HVR.Basis.Comms
             {
                 if (UseInterpolationTape)
                 {
-                    if (_interpolationDataThisFrame != null)
-                    {
-                        _interpolationTimer.Enqueue(_interpolationDataThisFrame);
-                        _interpolationDataThisFrame = null;
-                    }
-
-                    _interpolationTimer.Advance(Time.deltaTime);
+                    // if (_interpolationDataThisFrame != null)
+                    // {
+                    //     _interpolationTimer.Enqueue(_interpolationDataThisFrame);
+                    //     _interpolationDataThisFrame = null;
+                    // }
+                    //
+                    // _interpolationTimer.Advance(Time.deltaTime);
                 }
             }
 
@@ -716,103 +713,6 @@ namespace HVR.Basis.Comms
         public ushort networkId;
         public float min;
         public float max;
-    }
-
-    internal class HVRInterpolationData
-    {
-        public float DeltaTime { get; }
-
-        public HVRInterpolationData(float deltaTime)
-        {
-            DeltaTime = deltaTime;
-        }
-
-        public void Add(int addressId, float currentValue)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    internal class HVRInterpolationTimer
-    {
-        private const float DeltaTimeUsedForResyncs = 1 / 29f; // 29 is just a random number I picked. It really doesn't matter what value we're using for resyncs.
-
-        private readonly Queue<HVRInterpolationData> _queue = new();
-        private float _totalQueueSeconds;
-        private int _numberOfEnqueues;
-
-        private float _timeLeft;
-        private bool _isOutOfTape;
-        private bool _writtenThisFrame;
-        private float _effectiveDeltaTime;
-
-        public void Enqueue(HVRInterpolationData newData)
-        {
-            _queue.Enqueue(newData);
-            _totalQueueSeconds += newData.DeltaTime;
-            _numberOfEnqueues++;
-            if (_numberOfEnqueues % 1_000 == 0)
-            {
-                // Recalculate the queue duration for precision loss concerns.
-                _numberOfEnqueues = 0;
-                _totalQueueSeconds = 0f;
-                foreach (var data in _queue)
-                {
-                    _totalQueueSeconds += data.DeltaTime;
-                }
-            }
-        }
-
-        public void Advance(float deltaTime)
-        {
-            /*
-            _timeLeft -= deltaTime;
-
-            while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
-            {
-                _totalQueueSeconds -= eval.DeltaTime;
-                if (_totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
-
-                // If the queue is small or the total queue duration is short, use the delta from the queue
-                var effectiveDeltaTime = _queue.Count <= 5 || _totalQueueSeconds < 0.2f
-                    ? eval.DeltaTime
-                    // Otherwise, we fast-forward the queue.
-                    // NOTE: I actually can't remember why the fast-forward is defined in this way. It may be complete nonsense.
-                    : (eval.DeltaTime * Mathf.Lerp(0.66f, 0.05f, Mathf.InverseLerp(DeltaTimeUsedForResyncs, 4f, _totalQueueSeconds)));
-
-                _timeLeft += effectiveDeltaTime;
-                _previous = _target;
-                _target = eval;
-                _effectiveDeltaTime = effectiveDeltaTime;
-                _isOutOfTape = false;
-            }
-
-            var isDepleted = _timeLeft <= 0;
-            if (isDepleted)
-            {
-                if (!_isOutOfTape)
-                {
-                    _isOutOfTape = true;
-
-                    _current = _target; // FIXME: INTERPOLABLE REFACTOR. Does this have side effects?
-                    _writtenThisFrame = true;
-                }
-                else
-                {
-                    _writtenThisFrame = false;
-                }
-                _timeLeft = 0;
-            }
-            else
-            {
-                _isOutOfTape = false;
-
-                var progression01 = 1 - Mathf.Clamp01(_timeLeft / _effectiveDeltaTime);
-                _current.MutateLerp(_previous, _target, progression01);
-                _writtenThisFrame = true;
-            }
-        */
-        }
     }
 
     public enum HVRVariableTypeCode
