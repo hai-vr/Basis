@@ -39,8 +39,6 @@ namespace HVR.Basis.Comms
 
         internal class HVRVariableBehaviour_Wearer : IHVRVariableBehaviour
         {
-            private const bool UseInterpolationTape = false;
-
             private readonly HVRVariableNetworking _state;
             private readonly AcquisitionService _acquisitionService;
 
@@ -400,9 +398,28 @@ namespace HVR.Basis.Comms
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
             private readonly List<HVRVariableHighFrequency> _upgradedToHighFrequencyInOrder = new();
 
+            private readonly HVRInterpolator _lowFrequencyInterpolator = new(true);
+            private readonly HVRInterpolator _highFrequencyInterpolator = new(true);
+
+            private Dictionary<int, float> _lowFrequencyInterpolatorDict;
+            private Dictionary<int, float> _highFrequencyInterpolatorDict;
+
             public HVRVariableBehaviour_Remote(HVRVariableNetworking state)
             {
                 _state = state;
+            }
+
+            private void AfterDataReceived(float deltaTime)
+            {
+                if (_lowFrequencyInterpolatorDict != null)
+                {
+                    _lowFrequencyInterpolator.Add(new HVRInterpolationSnapshot
+                    {
+                        addressIdsToValues = _lowFrequencyInterpolatorDict,
+                        deltaTime = deltaTime,
+                    });
+                    _lowFrequencyInterpolatorDict = null;
+                }
             }
 
             private void WhenDataReceived(int addressId, float currentValue)
@@ -428,22 +445,14 @@ namespace HVR.Basis.Comms
 
                 if (UseInterpolationTape)
                 {
-                    if (true
-                        // _addressIdToHolder[addressId].needsInterpolation
-                       )
-                    {
-                        var TODO_DeltaTimeInsidePacket = 0.1f; // TODO: Pass the delta time fractional inside the packet
-                        // if (_interpolationDataThisFrame == null)
-                        // {
-                        //     _interpolationDataThisFrame = new HVRInterpolationData(TODO_DeltaTimeInsidePacket);
-                        // }
-                        //
-                        // _interpolationDataThisFrame.Add(addressId, currentValue);
-                    }
-                    else
-                    {
-                        _state.comms.VariableStore.Submit(addressId, currentValue);
-                    }
+                    //if (_addressIdToHolder[addressId].needsInterpolation) {
+                    _lowFrequencyInterpolatorDict ??= new Dictionary<int, float>();
+                    _lowFrequencyInterpolatorDict.Add(addressId, currentValue);
+                    //}
+                    // else
+                    // {
+                        // _state.comms.VariableStore.Submit(addressId, currentValue);
+                    // }
                 }
                 else
                 {
@@ -460,13 +469,16 @@ namespace HVR.Basis.Comms
             {
                 if (UseInterpolationTape)
                 {
-                    // if (_interpolationDataThisFrame != null)
-                    // {
-                    //     _interpolationTimer.Enqueue(_interpolationDataThisFrame);
-                    //     _interpolationDataThisFrame = null;
-                    // }
-                    //
-                    // _interpolationTimer.Advance(Time.deltaTime);
+                    SubmitToVariableStore(_lowFrequencyInterpolator.Advance(Time.deltaTime));
+                    SubmitToVariableStore(_highFrequencyInterpolator.Advance(Time.deltaTime));
+                }
+            }
+
+            private void SubmitToVariableStore(Dictionary<int, float> advance)
+            {
+                foreach (var (addressId, value) in advance)
+                {
+                    _state.comms.VariableStore.Submit(addressId, value);
                 }
             }
 
@@ -506,6 +518,7 @@ namespace HVR.Basis.Comms
                                 WhenDataReceived(addressId, 0f);
                             }
                         }
+                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -526,6 +539,7 @@ namespace HVR.Basis.Comms
                                 WhenDataReceived(addressId, 1f);
                             }
                         }
+                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -548,6 +562,7 @@ namespace HVR.Basis.Comms
                                 WhenDataReceived(addressId, value);
                             }
                         }
+                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -581,6 +596,7 @@ namespace HVR.Basis.Comms
                                 }
                             }
                         }
+                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
 
                         break;
                     }
