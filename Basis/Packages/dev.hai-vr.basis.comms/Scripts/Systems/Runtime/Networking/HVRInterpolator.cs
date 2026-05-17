@@ -5,7 +5,7 @@ namespace HVR.Basis.Comms
     public class HVRInterpolator
     {
         private readonly Queue<HVRInterpolationSnapshot> _snapshots = new();
-        private HVRInterpolationSnapshot _previousSnapshot;
+        private readonly Dictionary<int, float> _memoryOfPreviousSnapshotValue = new();
         private HVRInterpolationSnapshot _currentSnapshot;
         private float _advanced = 0f;
 
@@ -29,9 +29,9 @@ namespace HVR.Basis.Comms
                 foreach (var (addressId, value) in _currentSnapshot.addressIdsToValues)
                 {
                     result[addressId] = value;
+                    _memoryOfPreviousSnapshotValue[addressId] = value;
                 }
                 _advanced -= _currentSnapshot.deltaTime;
-                _previousSnapshot = _currentSnapshot;
 
                 if (_snapshots.Count > 0)
                 {
@@ -45,17 +45,16 @@ namespace HVR.Basis.Comms
 
             if (_currentSnapshot != null)
             {
-                if (_previousSnapshot != null)
+                foreach (var (addressId, currentValue) in _currentSnapshot.addressIdsToValues)
                 {
-                    foreach (var (addressId, currentValue) in _currentSnapshot.addressIdsToValues)
+                    if (_memoryOfPreviousSnapshotValue.TryGetValue(addressId, out var previousValue))
                     {
-                        var previousValue = _previousSnapshot.addressIdsToValues[addressId];
                         result[addressId] = Lerp(previousValue, currentValue, _advanced / _currentSnapshot.deltaTime);
                     }
-                }
-                else
-                {
-                    result = _currentSnapshot.addressIdsToValues;
+                    else
+                    {
+                        result[addressId] = currentValue;
+                    }
                 }
             }
 

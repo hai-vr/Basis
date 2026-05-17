@@ -2,7 +2,7 @@
 
 namespace HVR.Basis.Comms.Tests
 {
-    public class HVRInterpolatorTest
+    public class HVRInterpolatorTest_SingleValue
     {
 		[Test]
         public void It_should_return_snapshot()
@@ -285,6 +285,100 @@ namespace HVR.Basis.Comms.Tests
             Assert.AreEqual(0.0f, sut.Advance(0.1f)[2], 0.0001f);
 
             Assert.AreEqual(0, sut.Advance(0.1f).Count);
+        }
+    }
+
+    public class HVRInterpolatorTest_MultiValue
+    {
+        [Test]
+        public void It_should_return_snapshot()
+        {
+            // Given
+            var sut = new HVRInterpolator();
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 3, 4f } }
+            });
+
+            // When
+            var r0 = sut.Advance(0.5f);
+            var r1 = sut.Advance(0.5f);
+            var r2 = sut.Advance(0.5f);
+            var r3 = sut.Advance(0.5f);
+            var r4 = sut.Advance(0.5f);
+
+            // Then
+            Assert.AreEqual(1, r0.Count);
+            Assert.AreEqual(3f, r0[2]);
+            Assert.AreEqual(2, r1.Count); // This is the tricky part.
+            Assert.AreEqual(3f, r1[2]);
+            Assert.AreEqual(4f, r1[3]);
+            Assert.AreEqual(1, r2.Count);
+            Assert.AreEqual(4f, r2[3]);
+            Assert.AreEqual(1, r3.Count);
+            Assert.AreEqual(4f, r3[3]);
+            Assert.AreEqual(0, r4.Count);
+        }
+
+        [Test]
+        public void It_should_return_both_snapshots()
+        {
+            // Given
+            var sut = new HVRInterpolator();
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 3, 4f } }
+            });
+
+            // When
+            var result = sut.Advance(1f);
+
+            // Then
+            Assert.AreEqual(2, result.Count);
+            Assert.AreEqual(3f, result[2]);
+            Assert.AreEqual(4f, result[3]);
+        }
+
+        [Test]
+        public void It_should_interpolate_between_distant_snapshots()
+        {
+            // Given
+            var sut = new HVRInterpolator();
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 3, 4f } }
+            });
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 4f } }
+            });
+
+            // When
+            sut.Advance(1f);
+            sut.Advance(1f);
+            var result = sut.Advance(0.5f);
+
+            // Then
+            Assert.AreEqual(3.5f, result[2], 0.0001f);
         }
     }
 }
