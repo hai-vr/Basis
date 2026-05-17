@@ -24,6 +24,8 @@ namespace HVR.Basis.Comms
         public const byte NewNet_WearerUpgradesFloatToHighFrequency = 14;
         public const byte NewNet_WearerDowngradesFloatToLowFrequency = 15;
 
+        public const byte NewNet_WearerSubmitsUpdatedHighFrequencyVariables = 16;
+
         private readonly IHVRTransmitter _transmitter;
         private readonly bool _isWearer;
         private readonly ushort _wearerNetId;
