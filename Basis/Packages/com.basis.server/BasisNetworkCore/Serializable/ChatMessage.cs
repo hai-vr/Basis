@@ -35,10 +35,17 @@ public static partial class SerializableBasis
             int payloadSizeWire = reader.GetUShort();
             int readSize = Math.Min(payloadSizeWire, MaxPayloadBytes);
 
-            if (payloadSizeWire == 0 || reader.AvailableBytes < readSize)
+            if (payloadSizeWire == 0)
             {
                 payload = Array.Empty<byte>();
                 payloadSize = 0;
+            }
+            else if (reader.AvailableBytes < readSize)
+            {
+                payload = Array.Empty<byte>();
+                payloadSize = 0;
+                reader.SkipBytes(Math.Min(payloadSizeWire, reader.AvailableBytes));
+                return;
             }
             else
             {

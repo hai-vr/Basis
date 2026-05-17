@@ -23,6 +23,12 @@ namespace BasisNetworkServer
                 reader.Recycle();
             }
 
+            if (peer.Id < 0 || peer.Id > ushort.MaxValue)
+            {
+                BNL.LogError($"Cannot broadcast chat typing state for peer id {peer.Id}: outside ushort wire format.");
+                return;
+            }
+
             NetDataWriter writer = NetworkServer.RentWriter();
             try
             {
