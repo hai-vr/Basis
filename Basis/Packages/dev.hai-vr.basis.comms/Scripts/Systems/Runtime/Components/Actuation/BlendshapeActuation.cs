@@ -10,6 +10,10 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Blendshape Actuation")]
     public class BlendshapeActuation : MonoBehaviour, IHVRInitializable
     {
+        // This is a class originally created in September 2024, which as of 2026 sets the value of blendshapes based on addresses.
+        // Originally, this class also took care of networking the addresses, but it is no longer the case since the addition of HVRVariableNetworking in April 2026 which now takes that responsibility.
+        // There are still leftover traces of the old networking (e.g. range calculation, indexing) in this class, so this class could still be greatly simplified.
+
         private const int MaxAddresses = 256;
         private const float BlendshapeAtFullStrength = 100f;
 
@@ -131,8 +135,6 @@ namespace HVR.Basis.Comms
                         InEnd = definition.inEnd,
                         OutStart = definition.outStart,
                         OutEnd = definition.outEnd,
-                        StreamedLower = lower,
-                        StreamedUpper = upper,
                         UseCurve = definition.useCurve,
                         Curve = definition.curve,
                         Targets = actuatorTargets,
@@ -166,9 +168,11 @@ namespace HVR.Basis.Comms
                 return;
             }
 
+            var addressIdToListenTo = new HashSet<int>();
             foreach (var computedActuator in _computedActuators)
             {
                 computedActuator.AddressIndex = _addessIdToBaseIndex[computedActuator.RequestedFeature.address];
+                addressIdToListenTo.Add(computedActuator.RequestedFeature.address);
             }
 
             _addressBaseIndexToActuators = new ComputedActuator[_addessIdToBaseIndex.Count][];
@@ -183,10 +187,7 @@ namespace HVR.Basis.Comms
                 .Where(it => it.overrideDefaultValue)
                 .ToArray();
 
-            if (isWearer)
-            {
-                acquisition.RegisterAddresses(_addessIdToBaseIndex.Keys.ToArray(), OnAddressUpdated);
-            }
+            comms.VariableStore.RegisterAddresses(addressIdToListenTo.ToArray(), OnAddressUpdated);
         }
 
         public static Dictionary<SkinnedMeshRenderer, List<string>> ResolveSmrToBlendshapeNames(SkinnedMeshRenderer[] smrs)
@@ -216,10 +217,8 @@ namespace HVR.Basis.Comms
                 addressIdToDefault[HVRAddress.AddressToId(defaultOverride.address)] = defaultOverride.defaultValue;
             }
 
-            var addressIdToListenTo = new HashSet<int>();
             foreach (var actuator in _computedActuators)
             {
-                addressIdToListenTo.Add(actuator.RequestedFeature.address);
                 comms.RequireVariable(new HVRVariable
                 {
                     addressId = actuator.RequestedFeature.address,
@@ -230,21 +229,6 @@ namespace HVR.Basis.Comms
                     max = Mathf.Max(actuator.InStart, actuator.InEnd),
                 });
             }
-
-            comms.VariableStore.RegisterAddresses(addressIdToListenTo.ToArray(), OnAddressUpdated);
-
-            // if (_isWearer)
-            // {
-                // if (_trackingActive)
-                // {
-                    // SubmitDefaultOverridesToNetwork();
-                    // ReplayLatestTrackedValuesToNetwork();
-                // }
-                // else
-                // {
-                    // SubmitNeutralValuesToNetwork();
-                // }
-            // }
         }
 
         private Dictionary<int, int> MakeIndexDictionary(int[] addressBase)
@@ -297,13 +281,13 @@ namespace HVR.Basis.Comms
             {
                 if (_isWearer)
                 {
-                    ApplyDefaultOverrides();
+                    ApplyDefaultOverrides(); // 2026: This might not be necessary as the function called below will re-submit new values for the addresses, which will be carried by OnAddressUpdated. Still to be checked.
                     ReplayLatestTrackedValuesToNetwork();
                 }
                 return;
             }
 
-            ResetAllBlendshapesToZero();
+            ResetAllBlendshapesToZero(); // 2026: This might not be necessary as the function called below will re-submit new values for the addresses, which will be carried by OnAddressUpdated. Still to be checked.
             _latestAbsoluteByAddress.Clear();
             if (_isWearer)
             {
@@ -346,7 +330,9 @@ namespace HVR.Basis.Comms
                 return;
             }
 
-            foreach (var pair in _latestAbsoluteByAddress)
+            // We need to make a copy because comms.VariableStore.Submit will cause the data to be modified
+            var copy = _latestAbsoluteByAddress.ToList();
+            foreach (var pair in copy)
             {
                 comms.VariableStore.SubmitOrDefineDefaultValue(pair.Key, pair.Value);
             }
@@ -442,8 +428,6 @@ namespace HVR.Basis.Comms
         private class ComputedActuator
         {
             public int AddressIndex;
-            public float StreamedLower;
-            public float StreamedUpper;
             public float InStart;
             public float InEnd;
             public float OutStart;
