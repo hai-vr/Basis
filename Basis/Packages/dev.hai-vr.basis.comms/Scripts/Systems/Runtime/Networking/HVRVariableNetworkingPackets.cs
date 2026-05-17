@@ -19,6 +19,7 @@ namespace HVR.Basis.Comms
         {
             public string address;
             public ushort networkId;
+            public bool needsInterpolation;
             public byte variableTypeCode;
             public object initialValue;
         }
@@ -27,6 +28,7 @@ namespace HVR.Basis.Comms
         {
             public string address;
             public ushort networkId;
+            public bool needsInterpolation;
         }
 
         public byte[] Serialize()
@@ -40,6 +42,7 @@ namespace HVR.Basis.Comms
             {
                 writer.WriteString(holder.address);
                 writer.WriteUshort(holder.networkId);
+                writer.WriteByte(holder.needsInterpolation ? (byte)1 : (byte)0);
                 writer.WriteByte(holder.variableTypeCode);
                 writer.WriteFloat((float)holder.initialValue);
             }
@@ -50,12 +53,14 @@ namespace HVR.Basis.Comms
             {
                 writer.WriteString(holder.address);
                 writer.WriteUshort(holder.networkId);
+                writer.WriteByte(holder.needsInterpolation ? (byte)1 : (byte)0);
             }
 
             foreach (var holder in floatOne)
             {
                 writer.WriteString(holder.address);
                 writer.WriteUshort(holder.networkId);
+                writer.WriteByte(holder.needsInterpolation ? (byte)1 : (byte)0);
             }
 
             return writer.ToArray();
@@ -76,6 +81,7 @@ namespace HVR.Basis.Comms
                 {
                     var address = reader.ReadString();
                     var networkId = reader.ReadUshort();
+                    var needsInterpolation = reader.ReadByte() == 1;
                     var variableTypeCode = reader.ReadByte();
                     var initialValue = reader.ReadFloat();
 
@@ -83,6 +89,7 @@ namespace HVR.Basis.Comms
                     {
                         address = address,
                         networkId = networkId,
+                        needsInterpolation = needsInterpolation,
                         variableTypeCode = variableTypeCode,
                         initialValue = initialValue
                     });
@@ -94,10 +101,12 @@ namespace HVR.Basis.Comms
                 {
                     var address = reader.ReadString();
                     var networkId = reader.ReadUshort();
+                    var needsInterpolation = reader.ReadByte() == 1;
                     result.floatZero.Add(new Inner_NewQuickVariable
                     {
                         address = address,
-                        networkId = networkId
+                        networkId = networkId,
+                        needsInterpolation = needsInterpolation
                     });
                 }
 
@@ -106,10 +115,12 @@ namespace HVR.Basis.Comms
                 {
                     var address = reader.ReadString();
                     var networkId = reader.ReadUshort();
+                    var needsInterpolation = reader.ReadByte() == 1;
                     result.floatOne.Add(new Inner_NewQuickVariable
                     {
                         address = address,
-                        networkId = networkId
+                        networkId = networkId,
+                        needsInterpolation = needsInterpolation
                     });
                 }
 

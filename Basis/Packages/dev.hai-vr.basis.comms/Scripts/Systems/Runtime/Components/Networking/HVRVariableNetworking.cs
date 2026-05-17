@@ -652,7 +652,8 @@ namespace HVR.Basis.Comms
                         {
                             addressId = addressId,
                             variableTypeCode = (HVRVariableTypeCode)variable.variableTypeCode,
-                            initialValue = (float)variable.initialValue
+                            initialValue = (float)variable.initialValue,
+                            needsInterpolation = variable.needsInterpolation,
                         },
                         networkId = variable.networkId,
                         currentValue = (float)variable.initialValue
@@ -671,7 +672,8 @@ namespace HVR.Basis.Comms
                         {
                             addressId = addressId,
                             variableTypeCode = HVRVariableTypeCode.Float,
-                            initialValue = 0f
+                            initialValue = 0f,
+                            needsInterpolation = variable.needsInterpolation,
                         },
                         networkId = variable.networkId,
                         currentValue = 0f
@@ -690,7 +692,8 @@ namespace HVR.Basis.Comms
                         {
                             addressId = addressId,
                             variableTypeCode = HVRVariableTypeCode.Float,
-                            initialValue = 1f
+                            initialValue = 1f,
+                            needsInterpolation = variable.needsInterpolation,
                         },
                         networkId = variable.networkId,
                         currentValue = 1f
@@ -741,6 +744,8 @@ namespace HVR.Basis.Comms
         public int addressId;
         public object initialValue; // This is not necessarily the default value, it is the value that was current when the variable was created on a specific remote; every user might have a different initialValue.
         public HVRVariableTypeCode variableTypeCode;
+
+        public bool needsInterpolation;
 
         // If float:
         public float min;

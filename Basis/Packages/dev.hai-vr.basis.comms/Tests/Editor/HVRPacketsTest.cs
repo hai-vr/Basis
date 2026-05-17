@@ -34,17 +34,17 @@ namespace HVR.Basis.Comms.Tests
             {
                 newGeneralVariables = new List<HVRPacket_NewVariables.Inner_NewVariable>
                 {
-                    new() { address = "TestAddressA", networkId = 1, variableTypeCode = 5, initialValue = 1.23f },
-                    new() { address = "TestAddressB", networkId = 3, variableTypeCode = 10, initialValue = -4.56f },
+                    new() { address = "TestAddressA", networkId = 1, variableTypeCode = 5, initialValue = 1.23f, needsInterpolation = true },
+                    new() { address = "TestAddressB", networkId = 3, variableTypeCode = 10, initialValue = -4.56f, needsInterpolation = false },
                 },
                 floatZero = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>
                 {
-                    new() { address = "TestAddressC", networkId = 2 }
+                    new() { address = "TestAddressC", networkId = 2, needsInterpolation = false}
                 },
                 floatOne = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>
                 {
-                    new() { address = "TestAddressD", networkId = 4 },
-                    new() { address = "TestAddressE", networkId = 5 },
+                    new() { address = "TestAddressD", networkId = 4, needsInterpolation = false },
+                    new() { address = "TestAddressE", networkId = 5, needsInterpolation = true },
                 }
             };
 
@@ -61,6 +61,7 @@ namespace HVR.Basis.Comms.Tests
             {
                 Assert.AreEqual(input.newGeneralVariables[i].address, resultDeserialized.newGeneralVariables[i].address);
                 Assert.AreEqual(input.newGeneralVariables[i].networkId, resultDeserialized.newGeneralVariables[i].networkId);
+                Assert.AreEqual(input.newGeneralVariables[i].needsInterpolation, resultDeserialized.newGeneralVariables[i].needsInterpolation);
                 Assert.AreEqual(input.newGeneralVariables[i].variableTypeCode, resultDeserialized.newGeneralVariables[i].variableTypeCode);
                 Assert.AreEqual((float)input.newGeneralVariables[i].initialValue, (float)resultDeserialized.newGeneralVariables[i].initialValue, 0.0001f);
             }
@@ -70,6 +71,7 @@ namespace HVR.Basis.Comms.Tests
             {
                 Assert.AreEqual(input.floatZero[i].address, resultDeserialized.floatZero[i].address);
                 Assert.AreEqual(input.floatZero[i].networkId, resultDeserialized.floatZero[i].networkId);
+                Assert.AreEqual(input.floatZero[i].needsInterpolation, resultDeserialized.floatZero[i].needsInterpolation);
             }
 
             Assert.AreEqual(input.floatOne.Count, resultDeserialized.floatOne.Count);
@@ -77,6 +79,7 @@ namespace HVR.Basis.Comms.Tests
             {
                 Assert.AreEqual(input.floatOne[i].address, resultDeserialized.floatOne[i].address);
                 Assert.AreEqual(input.floatOne[i].networkId, resultDeserialized.floatOne[i].networkId);
+                Assert.AreEqual(input.floatOne[i].needsInterpolation, resultDeserialized.floatOne[i].needsInterpolation);
             }
         }
 
