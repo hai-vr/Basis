@@ -37,24 +37,15 @@ namespace HVR.Basis.Comms
             }
 
             OscData[] arguments = message.Arguments ?? Array.Empty<OscData>();
-            if (arguments.Length == 1 && arguments[0].Kind == OscDataKind.Boolean)
+            if (arguments.Length == 1 && arguments[0]?.Kind == OscDataKind.Boolean)
             {
                 BasisNetworkHandleChatTyping.SendTypingState(arguments[0].BoolValue);
                 return;
             }
 
-            if (arguments.Length >= 1 &&
-                arguments.Length <= 3 &&
-                arguments[0].Kind == OscDataKind.String)
+            if (TryParseChatInput(arguments, out string inputText, out bool shouldOpenKeyboard, out bool playNotificationSound))
             {
-                if (!TryReadOptionalBool(arguments, 1, false, out bool shouldOpenKeyboard) ||
-                    !TryReadOptionalBool(arguments, 2, false, out bool playNotificationSound))
-                {
-                    WarnInvalidSignature(message);
-                    return;
-                }
-
-                string sanitized = BasisChatSanitizer.Sanitize(arguments[0].StringValue);
+                string sanitized = BasisChatSanitizer.Sanitize(inputText);
                 if (shouldOpenKeyboard)
                 {
                     SettingsProvider.OpenChatComposer(sanitized, true, playNotificationSound);
@@ -77,6 +68,67 @@ namespace HVR.Basis.Comms
             WarnInvalidSignature(message);
         }
 
+        private static bool TryParseChatInput(OscData[] arguments, out string inputText, out bool shouldOpenKeyboard, out bool playNotificationSound)
+        {
+            inputText = string.Empty;
+            shouldOpenKeyboard = false;
+            playNotificationSound = false;
+
+            if (arguments.Length < 1 || arguments.Length > 3)
+            {
+                return false;
+            }
+
+            if (arguments[0]?.Kind == OscDataKind.String)
+            {
+                inputText = arguments[0].StringValue;
+                return TryReadOptionalBool(arguments, 1, false, out shouldOpenKeyboard) &&
+                       TryReadOptionalBool(arguments, 2, false, out playNotificationSound);
+            }
+
+            int stringIndex = -1;
+            int boolCount = 0;
+            for (int index = 0; index < arguments.Length; index++)
+            {
+                if (arguments[index] == null)
+                {
+                    return false;
+                }
+
+                switch (arguments[index].Kind)
+                {
+                    case OscDataKind.String:
+                        if (stringIndex != -1)
+                        {
+                            return false;
+                        }
+
+                        stringIndex = index;
+                        inputText = arguments[index].StringValue;
+                        break;
+                    case OscDataKind.Boolean:
+                        boolCount++;
+                        if (boolCount == 1)
+                        {
+                            shouldOpenKeyboard = arguments[index].BoolValue;
+                        }
+                        else if (boolCount == 2)
+                        {
+                            playNotificationSound = arguments[index].BoolValue;
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                        break;
+                    default:
+                        return false;
+                }
+            }
+
+            return stringIndex != -1;
+        }
+
         private static bool TryReadOptionalBool(OscData[] arguments, int index, bool defaultValue, out bool value)
         {
             if (index >= arguments.Length)
@@ -85,7 +137,7 @@ namespace HVR.Basis.Comms
                 return true;
             }
 
-            if (arguments[index].Kind == OscDataKind.Boolean)
+            if (arguments[index]?.Kind == OscDataKind.Boolean)
             {
                 value = arguments[index].BoolValue;
                 return true;
