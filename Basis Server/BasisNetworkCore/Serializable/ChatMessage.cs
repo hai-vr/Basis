@@ -32,20 +32,25 @@ public static partial class SerializableBasis
         public void Deserialize(NetDataReader reader)
         {
             playNotificationSound = true;
-            payloadSize = reader.GetUShort();
-            if (payloadSize > MaxPayloadBytes)
-            {
-                payloadSize = (ushort)MaxPayloadBytes;
-            }
-            if (payloadSize > 0 && reader.AvailableBytes >= payloadSize)
-            {
-                payload = new byte[payloadSize];
-                reader.GetBytes(payload, payloadSize);
-            }
-            else
+            int payloadSizeWire = reader.GetUShort();
+            int readSize = Math.Min(payloadSizeWire, MaxPayloadBytes);
+
+            if (payloadSizeWire == 0 || reader.AvailableBytes < readSize)
             {
                 payload = Array.Empty<byte>();
                 payloadSize = 0;
+            }
+            else
+            {
+                payloadSize = (ushort)readSize;
+                payload = new byte[readSize];
+                reader.GetBytes(payload, readSize);
+
+                int excessSize = payloadSizeWire - readSize;
+                if (excessSize > 0)
+                {
+                    reader.SkipBytes(Math.Min(excessSize, reader.AvailableBytes));
+                }
             }
 
             if (reader.AvailableBytes > 0)
