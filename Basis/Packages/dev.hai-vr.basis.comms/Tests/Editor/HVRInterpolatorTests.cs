@@ -8,7 +8,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_snapshot()
         {
             // Given
-	        var sut = new HVRInterpolator();
+	        var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -27,7 +27,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_snapshot_once()
         {
             // Given
-	        var sut = new HVRInterpolator();
+	        var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -46,7 +46,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_snapshot_within_delta()
         {
             // Given
-	        var sut = new HVRInterpolator();
+	        var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -66,7 +66,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_not_return_snapshot_outside_delta()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -86,7 +86,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_first_snapshot()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -110,7 +110,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_second_snapshot()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -135,7 +135,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_interpolated_value()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -160,7 +160,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_interpolate_immediately()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -184,7 +184,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_interpolate_to_the_third()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -213,7 +213,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_interpolate_to_the_end()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -294,7 +294,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_snapshot()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -330,7 +330,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_return_both_snapshots()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -355,7 +355,7 @@ namespace HVR.Basis.Comms.Tests
         public void It_should_interpolate_between_distant_snapshots()
         {
             // Given
-            var sut = new HVRInterpolator();
+            var sut = new HVRInterpolator(false);
             sut.Add(new HVRInterpolationSnapshot
             {
                 deltaTime = 1f,
@@ -379,6 +379,86 @@ namespace HVR.Basis.Comms.Tests
 
             // Then
             Assert.AreEqual(3.5f, result[2], 0.0001f);
+        }
+    }
+
+    public class HVRInterpolatorTest_CatchUp
+    {
+        [Test]
+        public void It_should_not_catch_up()
+        {
+            // Given
+            var sut = new HVRInterpolator(true);
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Advance(1f); // This effectively sets a value to remember.
+            sut.Advance(10f);
+
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 0.18f,
+                addressIdsToValues = new() { { 2, 4f } }
+            });
+
+            // When
+            var result = sut.Advance(0.09f);
+
+            // Then
+            Assert.AreEqual(3.5f, result[2], 0.0001f);
+        }
+        [Test]
+        public void It_should_catch_up_slow()
+        {
+            // Given
+            var sut = new HVRInterpolator(true);
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Advance(1f); // This effectively sets a value to remember.
+            sut.Advance(10f);
+
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 0.3f,
+                addressIdsToValues = new() { { 2, 4f } }
+            });
+
+            // When
+            var result = sut.Advance(0.15f);
+
+            // Then
+            Assert.AreEqual(3.7764608860015869f, result[2], 0.0001f);
+        }
+
+        [Test]
+        public void It_should_catch_up_fast()
+        {
+            // Given
+            var sut = new HVRInterpolator(true);
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 3f } }
+            });
+            sut.Advance(1f); // This effectively sets a value to remember.
+            sut.Advance(10f);
+
+            sut.Add(new HVRInterpolationSnapshot
+            {
+                deltaTime = 1f,
+                addressIdsToValues = new() { { 2, 4f } }
+            });
+
+            // When
+            var result = sut.Advance(0.5f);
+
+            // Then
+            Assert.AreEqual(3.940593957901001f, result[2], 0.0001f);
         }
     }
 }

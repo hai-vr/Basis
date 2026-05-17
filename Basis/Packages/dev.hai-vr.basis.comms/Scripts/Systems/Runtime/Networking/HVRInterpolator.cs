@@ -1,17 +1,69 @@
 ﻿using System.Collections.Generic;
+using HVR.Basis.Comms.HVRUtility;
+using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     public class HVRInterpolator
     {
+        private const float MinimumDurationInQueueToCatchUp = 0.2f;
+        private const float MaximumDurationInQueueToCatchUp = 4f;
+        private const float SlowCatchUpMultiplier = 0.66f;
+        private const float FastCatchUpMultiplier = 0.05f;
+
         private readonly Queue<HVRInterpolationSnapshot> _snapshots = new();
         private readonly Dictionary<int, float> _memoryOfPreviousSnapshotValue = new();
         private HVRInterpolationSnapshot _currentSnapshot;
-        private float _advanced = 0f;
+        private float _advanced;
+
+        private float _currentAdjustedDeltaTime;
+        private bool _doCatchUp = false;
+
+        public HVRInterpolator(bool doCatchUp)
+        {
+            _doCatchUp = doCatchUp;
+        }
 
         public void Add(HVRInterpolationSnapshot snapshot)
         {
             _snapshots.Enqueue(snapshot);
+        }
+
+        public void SetCatchUp(bool doCatchUp)
+        {
+            _doCatchUp = doCatchUp;
+        }
+
+        private void TryDequeue()
+        {
+            if (_snapshots.Count > 0)
+            {
+                var totalQueueSeconds = 0f;
+                foreach (var snapshot in _snapshots)
+                {
+                    totalQueueSeconds += snapshot.deltaTime;
+                }
+
+                _currentSnapshot = _snapshots.Dequeue();
+
+                var needToCatchUp = _doCatchUp && totalQueueSeconds >= MinimumDurationInQueueToCatchUp;
+                if (needToCatchUp)
+                {
+                    var howFastToRecover01 = Mathf.InverseLerp(MinimumDurationInQueueToCatchUp, MaximumDurationInQueueToCatchUp, totalQueueSeconds);
+                    var multiplierToCatchUp = Mathf.Lerp(SlowCatchUpMultiplier, FastCatchUpMultiplier, howFastToRecover01);
+                    _currentAdjustedDeltaTime = _currentSnapshot.deltaTime * multiplierToCatchUp;
+                }
+                else
+                {
+                    _currentAdjustedDeltaTime = _currentSnapshot.deltaTime;
+                }
+
+                HVRLogging.Debug($"Adjusted delta time is {_currentAdjustedDeltaTime}");
+            }
+            else
+            {
+                _currentSnapshot = null;
+            }
         }
 
         public Dictionary<int, float> Advance(float deltaTime)
@@ -19,28 +71,21 @@ namespace HVR.Basis.Comms
             Dictionary<int, float> result = new Dictionary<int, float>();
             _advanced += deltaTime;
 
-            if (_currentSnapshot == null && _snapshots.Count > 0)
+            if (_currentSnapshot == null)
             {
-                _currentSnapshot = _snapshots.Dequeue();
+                TryDequeue();
             }
 
-            while (_currentSnapshot != null && _advanced >= _currentSnapshot.deltaTime)
+            while (_currentSnapshot != null && _advanced >= _currentAdjustedDeltaTime)
             {
                 foreach (var (addressId, value) in _currentSnapshot.addressIdsToValues)
                 {
                     result[addressId] = value;
                     _memoryOfPreviousSnapshotValue[addressId] = value;
                 }
-                _advanced -= _currentSnapshot.deltaTime;
+                _advanced -= _currentAdjustedDeltaTime;
 
-                if (_snapshots.Count > 0)
-                {
-                    _currentSnapshot = _snapshots.Dequeue();
-                }
-                else
-                {
-                    _currentSnapshot = null;
-                }
+                TryDequeue();
             }
 
             if (_currentSnapshot != null)
@@ -49,7 +94,7 @@ namespace HVR.Basis.Comms
                 {
                     if (_memoryOfPreviousSnapshotValue.TryGetValue(addressId, out var previousValue))
                     {
-                        result[addressId] = Lerp(previousValue, currentValue, _advanced / _currentSnapshot.deltaTime);
+                        result[addressId] = Lerp(previousValue, currentValue, _advanced / _currentAdjustedDeltaTime);
                     }
                     else
                     {
