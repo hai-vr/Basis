@@ -67,10 +67,19 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         private bool hasChatMessage;
         private string currentChatMessage;
+        private readonly string[] currentChatMessageWithTyping = new string[TypingIndicatorFrames.Length];
         private bool wantsTypingIndicator;
         private int typingAnimationFrame = -1;
         private double typingAnimationStartTime;
         private string typingIndicatorText = "...";
+        private string visibleChatText;
+
+        private static readonly string[] TypingIndicatorFrames =
+        {
+            ".",
+            "..",
+            "..."
+        };
 
         // --------- Update-driven "talk pulse" state (replaces coroutine) ---------
         private bool isPulsingTalk;
@@ -409,6 +418,7 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 hasChatMessage = false;
                 currentChatMessage = null;
+                RefreshCachedChatTypingText();
                 if (wantsTypingIndicator)
                 {
                     typingAnimationFrame = -1;
@@ -421,6 +431,7 @@ namespace Basis.Scripts.UI.NamePlate
             currentChatMessage = message;
             chatMessageSetTime = Time.timeAsDouble;
             hasChatMessage = true;
+            RefreshCachedChatTypingText();
             UpdateChatTextVisual();
             UpdateBubbleVisual();
         }
@@ -445,8 +456,10 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 typingAnimationStartTime = Time.timeAsDouble;
                 typingAnimationFrame = -1;
+                typingIndicatorText = TypingIndicatorFrames[TypingIndicatorFrames.Length - 1];
             }
 
+            RefreshCachedChatTypingText();
             UpdateTypingIndicatorVisual();
             UpdateBubbleVisual();
         }
@@ -465,12 +478,7 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             typingAnimationFrame = frame;
-            typingIndicatorText = frame switch
-            {
-                0 => ".",
-                1 => "..",
-                _ => "...",
-            };
+            typingIndicatorText = TypingIndicatorFrames[frame];
             return true;
         }
 
@@ -479,7 +487,6 @@ namespace Basis.Scripts.UI.NamePlate
             if (UpdateTypingIndicatorAnimation())
             {
                 UpdateChatTextVisual();
-                UpdateBubbleVisual();
             }
         }
 
@@ -507,9 +514,14 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (hasChatMessage)
             {
-                ChatText.text = wantsTypingIndicator
-                    ? currentChatMessage + "\n" + typingIndicatorText
+                string text = wantsTypingIndicator
+                    ? currentChatMessageWithTyping[typingAnimationFrame < 0 ? TypingIndicatorFrames.Length - 1 : typingAnimationFrame]
                     : currentChatMessage;
+                if (!ReferenceEquals(visibleChatText, text))
+                {
+                    visibleChatText = text;
+                    ChatText.text = text;
+                }
                 ChatText.gameObject.SetActive(true);
                 return;
             }
@@ -517,12 +529,34 @@ namespace Basis.Scripts.UI.NamePlate
             if (wantsTypingIndicator)
             {
                 UpdateTypingIndicatorAnimation();
-                ChatText.text = typingIndicatorText;
+                if (!ReferenceEquals(visibleChatText, typingIndicatorText))
+                {
+                    visibleChatText = typingIndicatorText;
+                    ChatText.text = typingIndicatorText;
+                }
                 ChatText.gameObject.SetActive(true);
                 return;
             }
 
+            visibleChatText = null;
             ChatText.gameObject.SetActive(false);
+        }
+
+        private void RefreshCachedChatTypingText()
+        {
+            if (!wantsTypingIndicator || !hasChatMessage || string.IsNullOrEmpty(currentChatMessage))
+            {
+                for (int Index = 0; Index < currentChatMessageWithTyping.Length; Index++)
+                {
+                    currentChatMessageWithTyping[Index] = null;
+                }
+                return;
+            }
+
+            for (int Index = 0; Index < TypingIndicatorFrames.Length; Index++)
+            {
+                currentChatMessageWithTyping[Index] = currentChatMessage + "\n" + TypingIndicatorFrames[Index];
+            }
         }
 
         private bool HasBubbleText()
