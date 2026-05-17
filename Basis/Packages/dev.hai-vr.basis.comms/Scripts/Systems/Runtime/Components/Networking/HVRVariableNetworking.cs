@@ -429,6 +429,7 @@ namespace HVR.Basis.Comms
                         {
                             address = HVRAddress.ResolveKnownAddressFromId(holder.variable.addressId),
                             networkId = holder.networkId,
+                            needsInterpolation = holder.variable.needsInterpolation,
                         };
                         (Mathf.Approximately((float)holder.currentValue, 1f) ? ones : zeroes)
                             .Add(quickVar);
@@ -439,6 +440,7 @@ namespace HVR.Basis.Comms
                         {
                             address = HVRAddress.ResolveKnownAddressFromId(holder.variable.addressId),
                             networkId = holder.networkId,
+                            needsInterpolation = holder.variable.needsInterpolation,
                             variableTypeCode = (byte)holder.variable.variableTypeCode,
                             initialValue = holder.currentValue
                         });

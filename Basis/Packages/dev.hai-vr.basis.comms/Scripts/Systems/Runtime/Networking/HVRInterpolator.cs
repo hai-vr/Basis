@@ -57,8 +57,6 @@ namespace HVR.Basis.Comms
                 {
                     _currentAdjustedDeltaTime = _currentSnapshot.deltaTime;
                 }
-
-                HVRLogging.Debug($"Adjusted delta time is {_currentAdjustedDeltaTime}");
             }
             else
             {

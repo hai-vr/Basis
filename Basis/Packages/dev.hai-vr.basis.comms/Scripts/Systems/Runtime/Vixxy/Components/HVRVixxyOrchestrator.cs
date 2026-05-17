@@ -359,7 +359,7 @@ namespace HVR.Vixxy
                     addressId = toBeNetworked.addressId,
                     initialValue = VariableStore.GetValue(toBeNetworked.addressId),
                     variableTypeCode = HVRVariableTypeCode.Float,
-                    needsInterpolation = false,
+                    needsInterpolation = true,
                     min = toBeNetworked.min,
                     max = toBeNetworked.max
                 });
