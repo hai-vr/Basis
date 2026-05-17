@@ -9,7 +9,7 @@ namespace HVR.Basis.Comms
 {
     public class HVRVariableNetworking : MonoBehaviour, IFeatureReceiver
     {
-        private const bool PrintDebug = false;
+        private const bool PrintDebug = true;
 
         public HVRAvatarComms comms;
         public bool isWearer;
@@ -76,6 +76,7 @@ namespace HVR.Basis.Comms
             private readonly HashSet<int> _addressIdsWithNewValue = new();
             private readonly List<int> _highFrequencyAddressIds = new();
             private readonly HashSet<int> _highFrequencyAddressIdsHashSet = new();
+            private readonly List<int> _temp_addressIdsThatNeedUpgrade = new();
             private ushort _networkId = 0;
 
             private float _timeLeftUpdateValues;
@@ -162,6 +163,11 @@ namespace HVR.Basis.Comms
                     if (holder.variable.variableTypeCode == HVRVariableTypeCode.Float && !Mathf.Approximately((float)holder.currentValue, value))
                     {
                         _addressIdsWithNewValue.Add(addressId);
+                        holder.numberOfUpdates += 1;
+                        if (holder.numberOfUpdates == 100)
+                        {
+                            _temp_addressIdsThatNeedUpgrade.Add(addressId);
+                        }
 
                         holder.currentValue = value;
                         if (Mathf.Abs((float)holder.lastTransmittedValue - value) > Mathf.Abs((float)holder.lastTransmittedValue - (float)holder.valueWithGreatestDeltaSinceLastTransmittedValue))
@@ -292,20 +298,15 @@ namespace HVR.Basis.Comms
             {
                 var addressIdsToUpgradeInOrder = new List<int>();
 
-                // TODO: Decide what to upgrade.
-                foreach (var addressIdToHolder in _addressIdToHolder)
+                foreach (var addressId in _temp_addressIdsThatNeedUpgrade)
                 {
-                    var addressId = addressIdToHolder.Key;
                     if (!_highFrequencyAddressIdsHashSet.Contains(addressId))
                     {
-                        // TODO: Check the frequency of this addressId.
-                        if (false)
-                        {
-                            HVRLogging.Debug($"Upgrading address {HVRAddress.ResolveKnownAddressFromId(addressId)} to high frequency.");
-                            addressIdsToUpgradeInOrder.Add(addressId);
-                        }
+                        HVRLogging.Debug($"Upgrading address {HVRAddress.ResolveKnownAddressFromId(addressId)} to high frequency.");
+                        addressIdsToUpgradeInOrder.Add(addressId);
                     }
                 }
+                _temp_addressIdsThatNeedUpgrade.Clear();
 
                 if (addressIdsToUpgradeInOrder.Count > 0)
                 {
@@ -476,6 +477,7 @@ namespace HVR.Basis.Comms
                 public object currentValue;
                 public object lastTransmittedValue;
                 public object valueWithGreatestDeltaSinceLastTransmittedValue;
+                public int numberOfUpdates;
             }
         }
 
