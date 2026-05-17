@@ -66,6 +66,22 @@ Things that remain to be done in Comms:
 
 -----
 
+# Interpolator
+
+- When unpacking, add (time + [(address, value)] to interpolator).
+- When playing the interpolator:
+  - Check if we need to advance the tape.
+  - Advance the tape.
+    - Previous gets the value of the previous shapshot, and the previous shapshot alone.
+    - If the new tape shapshot needs a new address, get the value for that address as previous.
+    - If the new tape does not use an address that the previous shapshot has, do not interpolate, but remember that previous snapshot value, once, for that frame.
+  - Check again if we need to advance the tape, repeat if needed.
+  - If the tape is empty, then all values to be applied are "previous value" for that frame.
+  - Calculate the lerped values of the addresses to apply for that frame.
+  - Apply the "previous shapshot value" for that frame.
+
+-----
+
 # Vixxy Protocol WIP
 
 🚧 = This doesn't exist yet.
@@ -93,8 +109,8 @@ Runtime, event-driven approach:
   - Wearer treats the value of 0.0 and 1.0 specially and puts them into buckets.
   - Wearer sends a data packet of type Zero/One/Zeroes and Ones/Mixed, based on the contents of the buckets.
 - When the Remote receives a data packet:
-  - 🚧 If the address is interpolated:
-    - 🚧 Remote puts the values the addresses referenced by those network IDs into a tape, with the timing information associated with that packet.
+  - ❗ If the address is interpolated:
+    - ❗ Remote puts the values the addresses referenced by those network IDs into a tape, with the timing information associated with that packet.
   - Otherwise:
     - Remote sets the values for the addresses referenced by those network IDs.
 
@@ -107,10 +123,10 @@ Runtime, event-driven approach:
 - TODO. It is easier to add high-frequency addresses than remove them, because removal changes the schema, it doesn't just get appended at the end.
 - Consider adding a byte to encode the schema number.
 
-🚧 Runtime, Server Reduction:
+❗ Runtime, Server Reduction:
 - Every 1/10 of a second, after a networked address has at least changed to a different value once:
   - Wearer records the actual delta time since the last evaluated 1/10 of a second (even if a packet was not sent).
-  - 🚧 Wearer collects the largest delta of each changed address.
+  - ❗ Wearer collects the largest delta of each changed address.
   - Wearer quantizes floats to byte from the min to max value.
-    - 🚧 If -min == max, only 255 out of the 256 possible values are used for quantization so that the value of 0 can be encoded.
+    - ❗ If -min == max, only 255 out of the 256 possible values are used for quantization so that the value of 0 can be encoded.
   - Data is packed in the order that the network IDs were last upgraded to high frequency.
