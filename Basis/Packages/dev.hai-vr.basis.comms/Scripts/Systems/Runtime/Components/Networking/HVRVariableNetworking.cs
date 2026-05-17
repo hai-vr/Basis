@@ -445,14 +445,17 @@ namespace HVR.Basis.Comms
 
                 if (UseInterpolationTape)
                 {
-                    //if (_addressIdToHolder[addressId].needsInterpolation) {
+                    // We need a new instance each time because this instance gets stored inside the snapshot class,
+                    // and each snapshot needs a different dictionary.
                     _lowFrequencyInterpolatorDict ??= new Dictionary<int, float>();
-                    _lowFrequencyInterpolatorDict.Add(addressId, currentValue);
-                    //}
-                    // else
-                    // {
-                        // _state.comms.VariableStore.Submit(addressId, currentValue);
-                    // }
+                    if (_addressIdToHolder[addressId].variable.needsInterpolation)
+                    {
+                        _lowFrequencyInterpolatorDict.Add(addressId, currentValue);
+                    }
+                    else
+                    {
+                        _state.comms.VariableStore.Submit(addressId, currentValue);
+                    }
                 }
                 else
                 {

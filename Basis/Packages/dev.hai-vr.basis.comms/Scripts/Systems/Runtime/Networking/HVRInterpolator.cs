@@ -68,7 +68,7 @@ namespace HVR.Basis.Comms
 
         public Dictionary<int, float> Advance(float deltaTime)
         {
-            Dictionary<int, float> result = new Dictionary<int, float>();
+            var result = new Dictionary<int, float>();
             _advanced += deltaTime;
 
             if (_currentSnapshot == null)
