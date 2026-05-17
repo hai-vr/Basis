@@ -40,7 +40,7 @@ public static class BasisNetworkHandleChat
     /// The message is sent to the server which applies word filtering before broadcasting.
     /// </summary>
     /// <param name="message">The text message to send.</param>
-    public static void SendChatMessage(string message)
+    public static void SendChatMessage(string message, bool playNotificationSound = true)
     {
         if (BasisNetworkConnection.LocalPlayerIsConnected == false)
         {
@@ -64,7 +64,8 @@ public static class BasisNetworkHandleChat
         ChatMessage chatMessage = new ChatMessage
         {
             payload = payload,
-            payloadSize = (ushort)payload.Length
+            payloadSize = (ushort)payload.Length,
+            playNotificationSound = playNotificationSound
         };
 
         NetDataWriter writer = threadLocalWriter.Value;
@@ -121,7 +122,7 @@ public static class BasisNetworkHandleChat
         OnChatMessageReceived?.Invoke(senderPlayerId, message);
         ApplyChatToNamePlate(senderPlayerId, message);
 
-        if (!string.IsNullOrEmpty(message))
+        if (!string.IsNullOrEmpty(message) && serverChatMessage.chatMessage.playNotificationSound)
         {
             PlayChatNotification();
         }

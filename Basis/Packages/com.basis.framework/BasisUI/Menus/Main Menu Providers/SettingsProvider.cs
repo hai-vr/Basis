@@ -21,6 +21,7 @@ namespace Basis.BasisUI
         private static string _pendingChatComposerText;
         private static bool _pendingChatComposerFocus;
         private static bool _pendingChatComposerPlaySound;
+        private static bool _chatComposerPlayNotificationSound = true;
 
         /// <summary>
         /// Maps a tab localization key to the index of its button inside
@@ -1525,14 +1526,19 @@ namespace Basis.BasisUI
                 BasisNetworkHandleChatTyping.SendTypingState(false);
                 if (!string.IsNullOrEmpty(message))
                 {
-                    BasisNetworkHandleChat.SendChatMessage(message);
+                    BasisNetworkHandleChat.SendChatMessage(message, _chatComposerPlayNotificationSound);
                     chatTextField.SetValueWithoutNotify(string.Empty);
+                    _chatComposerPlayNotificationSound = true;
                 }
             }
 
             void OnChatMessageChanged(string message)
             {
                 BasisNetworkHandleChatTyping.SendTypingState(!string.IsNullOrEmpty(message));
+                if (string.IsNullOrEmpty(message))
+                {
+                    _chatComposerPlayNotificationSound = true;
+                }
             }
 
             // Nameplates live in the same tab — formerly its own page, merged here so
@@ -1564,6 +1570,7 @@ namespace Basis.BasisUI
             {
                 _chatTextField.SetValueWithoutNotify(_pendingChatComposerText);
                 _pendingChatComposerText = null;
+                _chatComposerPlayNotificationSound = _pendingChatComposerPlaySound;
                 BasisNetworkHandleChatTyping.SendTypingState(!string.IsNullOrEmpty(_chatTextField._inputField.text));
             }
 
@@ -1585,6 +1592,7 @@ namespace Basis.BasisUI
         private static void ClearChatComposerReference()
         {
             BasisNetworkHandleChatTyping.SendTypingState(false);
+            _chatComposerPlayNotificationSound = true;
             _chatTextField = null;
         }
 

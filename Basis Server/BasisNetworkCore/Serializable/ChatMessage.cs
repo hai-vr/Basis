@@ -24,8 +24,14 @@ public static partial class SerializableBasis
         /// </summary>
         public ushort payloadSize;
 
+        /// <summary>
+        /// Whether receivers should play their chat notification sound.
+        /// </summary>
+        public bool playNotificationSound;
+
         public void Deserialize(NetDataReader reader)
         {
+            playNotificationSound = true;
             payloadSize = reader.GetUShort();
             if (payloadSize > MaxPayloadBytes)
             {
@@ -41,6 +47,11 @@ public static partial class SerializableBasis
                 payload = Array.Empty<byte>();
                 payloadSize = 0;
             }
+
+            if (reader.AvailableBytes > 0)
+            {
+                playNotificationSound = reader.GetBool();
+            }
         }
 
         public void Serialize(NetDataWriter writer)
@@ -48,11 +59,13 @@ public static partial class SerializableBasis
             if (payload == null || payload.Length == 0)
             {
                 writer.Put((ushort)0);
+                writer.Put(playNotificationSound);
                 return;
             }
             payloadSize = (ushort)Math.Min(payload.Length, MaxPayloadBytes);
             writer.Put(payloadSize);
             writer.Put(payload, 0, payloadSize);
+            writer.Put(playNotificationSound);
         }
     }
 }

@@ -54,12 +54,7 @@ namespace HVR.Basis.Comms
 
                 if (!string.IsNullOrEmpty(sanitized))
                 {
-                    BasisNetworkHandleChat.SendChatMessage(sanitized);
-                }
-
-                if (playNotificationSound)
-                {
-                    BasisNetworkHandleChat.PlayChatNotification();
+                    BasisNetworkHandleChat.SendChatMessage(sanitized, playNotificationSound);
                 }
 
                 return;
