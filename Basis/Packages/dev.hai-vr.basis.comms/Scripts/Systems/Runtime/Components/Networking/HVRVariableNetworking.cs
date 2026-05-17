@@ -100,7 +100,18 @@ namespace HVR.Basis.Comms
 
             public void RequireVariable(HVRVariable variable)
             {
-                if (_addressIdToHolder.ContainsKey(variable.addressId)) return;
+                if (_addressIdToHolder.TryGetValue(variable.addressId, out var existing))
+                {
+                    HVRLogging.Debug($"Variable {HVRAddress.ResolveKnownAddressFromId(variable.addressId)} was already created, so we're extending it. This can happen if Vixxy and Face Tracking are sharing variables.");
+
+                    // This happens when FaceTracking and Vixxy are listening to the same address (called once by Orchestrator, and once again by BlendshapeActuation/misc).
+                    var holder = existing.variable;
+                    if (variable.min < holder.min) holder.min = variable.min;
+                    if (variable.max > holder.max) holder.max = variable.max;
+                    if (variable.needsInterpolation) holder.needsInterpolation = variable.needsInterpolation;
+
+                    return;
+                }
 
                 if (variable.variableTypeCode == HVRVariableTypeCode.Float)
                 {
