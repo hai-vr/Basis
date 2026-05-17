@@ -103,13 +103,15 @@ public static class BasisNetworkHandleChat
     /// </summary>
     public static void HandleServerChatMessage(NetPacketReader reader)
     {
+        if (Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.RawValue)
+        {
+            reader.Recycle();
+            return;
+        }
         ServerChatMessage serverChatMessage = new ServerChatMessage();
         serverChatMessage.Deserialize(reader);
 
-        if (Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.RawValue)
-        {
-            return;
-        }
+        
 
         ushort senderPlayerId = serverChatMessage.playerIdMessage.playerID;
         string message = string.Empty;
