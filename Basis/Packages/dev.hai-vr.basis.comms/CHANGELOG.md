@@ -33,6 +33,7 @@ Fixes:
 - Workaround initialization packet was exceeding the maximum size when a large number of toggles was created.
   - The initialization packet is now chunked into groups of 10 toggles per packet.
 - Fix HDR properties was using the wrong type.
+- When a user requests initialization, the wearer sends the responses to that user instead of all users.
 
 ## 2025-05-02
 

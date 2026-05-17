@@ -66,6 +66,8 @@ namespace HVR.Basis.Comms
 
         internal class HVRVariableBehaviour_Wearer : IHVRVariableBehaviour
         {
+            private const DeliveryMethod MainDeliveryMethod = DeliveryMethod.ReliableSequenced;
+
             private readonly HVRVariableNetworking _state;
             private readonly AcquisitionService _acquisitionService;
 
@@ -90,12 +92,24 @@ namespace HVR.Basis.Comms
 
             public void OnResyncEveryoneRequested()
             {
-                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncEveryoneRequested");
+                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncEveryoneRequested", null);
+                SubmitUpgradedVariables(_highFrequencyAddressIds, null);
             }
 
             public void OnResyncRequested(ushort[] whoAsked)
             {
-                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncRequested");
+                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncRequested", whoAsked);
+                SubmitUpgradedVariables(_highFrequencyAddressIds, whoAsked);
+            }
+
+            private void SubmitUpgradedVariables(List<int> highFrequencyAddressIds, ushort[] whoAsked)
+            {
+                if (highFrequencyAddressIds.Count > 0)
+                {
+                    var upgradePacket = BuildUpgradePacket(highFrequencyAddressIds);
+                    _state.transmitter.NetworkMessageSend(upgradePacket, MainDeliveryMethod, whoAsked);
+                    if (PrintDebug) HVRLogging.ProtocolDebug($"(Resync) Sending UpgradeFloatToHighFrequencyPacket (at T={Time.time:0.00}).");
+                }
             }
 
             public void RequireVariable(HVRVariable variable)
@@ -162,7 +176,7 @@ namespace HVR.Basis.Comms
             {
                 if (_newVariablesAddressIds.Count > 0)
                 {
-                    SubmitNewVariablesPacket(_newVariablesAddressIds, "Update");
+                    SubmitNewVariablesPacket(_newVariablesAddressIds, "Update", null);
                     _newVariablesAddressIds.Clear();
                 }
 
@@ -182,7 +196,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            private void SubmitNewVariablesPacket(List<int> addressIds, string hook)
+            private void SubmitNewVariablesPacket(List<int> addressIds, string hook, ushort[] whoAsked)
             {
                 if (addressIds.Count > 0)
                 {
@@ -191,7 +205,7 @@ namespace HVR.Basis.Comms
                     {
                         var group = addressIds.Skip(i).Take(groupSize).ToList();
                         var packet = BuildNewVariablesPacket(group);
-                        _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                        _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod, whoAsked);
                         if (PrintDebug)
                         {
                             HVRLogging.ProtocolDebug($"({hook}) Sending NewVariablesPacket (group {i / groupSize + 1}).");
@@ -201,7 +215,7 @@ namespace HVR.Basis.Comms
                 else
                 {
                     var packet = BuildNewVariablesPacket(addressIds);
-                    _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                    _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod, whoAsked);
                     if (PrintDebug)
                     {
                         HVRLogging.ProtocolDebug($"({hook}) Sending NewVariablesPacket (empty).");
@@ -242,7 +256,7 @@ namespace HVR.Basis.Comms
                     var packet = BuildUpdatedVariablesPacketOrNull(addressIdsToValueToTransmit, deltaTimeSinceLastTick);
                     if (packet != null)
                     {
-                        _state.transmitter.NetworkMessageSend(packet, DeliveryMethod.ReliableSequenced);
+                        _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod);
                         if (PrintDebug) HVRLogging.ProtocolDebug($"(Update) Sending UpdatedVariablesPacket (at T={Time.time:0.00}).");
                     }
 
@@ -301,7 +315,7 @@ namespace HVR.Basis.Comms
                     _highFrequencyBytes[0] = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedHighFrequencyVariables;
 
                     var upgradePacket = BuildUpgradePacket(addressIdsToUpgradeInOrder);
-                    _state.transmitter.NetworkMessageSend(upgradePacket, DeliveryMethod.ReliableSequenced);
+                    _state.transmitter.NetworkMessageSend(upgradePacket, MainDeliveryMethod);
                     if (PrintDebug) HVRLogging.ProtocolDebug($"(Update) Sending UpgradeFloatToHighFrequencyPacket (at T={Time.time:0.00}).");
                 }
             }
