@@ -2,9 +2,10 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.Behaviour;
 using Basis.Scripts.Networking.Receivers;
-using Basis.Scripts.Networking.Transmitters;
 using HVR.Basis.Comms.HVRUtility;
 using System;
+using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.Transmitters;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -14,7 +15,6 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Eye Tracking Bone Actuation")]
     public class EyeTrackingBoneActuation : BasisNetworkAvatarBehaviour, IHVRInitializable
     {
-        new public static bool VisibleInAvatarMenu = false;
         private const string EyeLeftX = "FT/v2/EyeLeftX";
         private const string EyeRightX = "FT/v2/EyeRightX";
         private const string EyeY = "FT/v2/EyeY";
@@ -34,18 +34,17 @@ namespace HVR.Basis.Comms
         public float _fEyeLeftX;
         public float _fEyeRightX;
         public float _fEyeY;
-        public bool IsLocal;
 
         private HVRAvatarComms comms;
         public BasisNetworkReceiver Receiver = null;
 
-        private bool _eyeFollowDriverApplicable;
         private bool _trackingActive;
-        private bool _eyeTrackingParametersActive;
         public bool IsTrackingActive => _trackingActive;
-        public bool IsEyeTrackingParametersActive => _eyeTrackingParametersActive;
-        private float _lastEyeParameterSampleTime = float.NegativeInfinity;
+        public bool IsEyeTrackingParametersActive => _eyeTracking?.IsEyeTrackingParametersActive ?? false;
         private FaceTrackingActivityRelay _activityRelay;
+
+        private IEyeTracking _eyeTracking;
+        private bool _isWearer;
 
         public EyeTrackingBoneActuation()
         {
@@ -63,91 +62,72 @@ namespace HVR.Basis.Comms
             _activityRelay = FaceTrackingActivityRelay.GetOrCreate(avatar);
         }
 
+
         public void OnHVRAvatarReady(bool isWearer)
         {
-            _eyeFollowDriverApplicable = isWearer;
-            _trackingActive = _activityRelay != null && _activityRelay.IsTrackingActive;
-            _eyeTrackingParametersActive = false;
-            _lastEyeParameterSampleTime = float.NegativeInfinity;
+            _isWearer = isWearer;
+            _eyeTracking = isWearer ? new EyeTracking_Wearer(this) : new EyeTracking_Remote(this);
 
             if (_activityRelay != null)
             {
+                _eyeTracking.OnEyeTrackingAddressUpdated(_activityRelay != null && _activityRelay.IsTrackingActive);
                 _activityRelay.OnTrackingActivityChanged -= OnTrackingActivityUpdated;
                 _activityRelay.OnTrackingActivityChanged += OnTrackingActivityUpdated;
             }
+
             comms.VariableStore.RegisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
             HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
-            IsLocal = isWearer;
 
-            if (isWearer)
+            var addresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
+            foreach (var address in addresses)
             {
-                var addresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
-                foreach (var address in addresses)
-                {
-                    comms.RequireVariable(new HVRVariable
-                    {
-                        addressId = address,
-                        initialValue = 0f,
-                        variableTypeCode = HVRVariableTypeCode.Float,
-                        needsInterpolation = true,
-                        min = -1f,
-                        max = 1f,
-                    });
-                }
                 comms.RequireVariable(new HVRVariable
                 {
-                    addressId = _eyeTrackingActiveAddress,
+                    addressId = address,
                     initialValue = 0f,
                     variableTypeCode = HVRVariableTypeCode.Float,
-                    needsInterpolation = false,
-                    min = 0f,
+                    needsInterpolation = true,
+                    min = -1f,
                     max = 1f,
                 });
             }
-
-            if (!IsLocal)
+            comms.RequireVariable(new HVRVariable
             {
+                addressId = _eyeTrackingActiveAddress,
+                initialValue = 0f,
+                variableTypeCode = HVRVariableTypeCode.Float,
+                needsInterpolation = false,
+                min = 0f,
+                max = 1f,
+            });
+
+            BasisDebug.Log($"IsWearer is {isWearer}");
+            if (!isWearer)
+            {
+                BasisDebug.Log($"Setting receiver");
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
-            }
-
-            bool shouldApply = ShouldApplyEyeTracking();
-            if (IsLocal)
-            {
-                SubmitEyeTrackingParameterStateToNetwork();
-                SetBuiltInEyeFollowDriverOverriden(shouldApply);
-                if (shouldApply)
+                if (Receiver == null)
                 {
-                    SubmitCurrentEyeStateToNetwork();
+                    if (BasisNetworkPlayers.AvatarToPlayer(avatar, out _, out var networkPlayer))
+                    {
+                        Receiver = networkPlayer as BasisNetworkReceiver;
+                    }
                 }
-                else
-                {
-                    SubmitNeutralEyesToNetwork();
-                }
-            }
-            else if (!shouldApply)
-            {
-                ClearRemoteOverrides();
             }
         }
 
         private void OnEnable()
         {
-            if (ShouldApplyEyeTracking() && _eyeFollowDriverApplicable)
-            {
-                SetBuiltInEyeFollowDriverOverriden(true);
-            }
             BasisNetworkTransmitter.AfterAvatarChanges += ForceUpdate;
         }
 
         private void OnDisable()
         {
-            SetBuiltInEyeFollowDriverOverriden(false);
             BasisNetworkTransmitter.AfterAvatarChanges -= ForceUpdate;
-            ClearRemoteOverrides();
         }
 
         private void OnDestroy()
@@ -158,137 +138,98 @@ namespace HVR.Basis.Comms
             }
 
             comms.VariableStore.UnregisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
-
-            ClearRemoteOverrides();
-            SetBuiltInEyeFollowDriverOverriden(false);
+            _eyeTracking?.OnDestroy();
         }
 
         private void Update()
         {
-            if (!_eyeFollowDriverApplicable || !_trackingActive || !_eyeTrackingParametersActive)
-            {
-                return;
-            }
-
-            if (Time.unscaledTime - _lastEyeParameterSampleTime > EyeParameterInactivityTimeoutSeconds)
-            {
-                SetLocalEyeParameterState(false);
-                SetBuiltInEyeFollowDriverOverriden(false);
-                SubmitNeutralEyesToNetwork();
-            }
-        }
-
-        private void OnAddressUpdated(int address, float value)
-        {
-            if (!_trackingActive)
-            {
-                return;
-            }
-
-            float sanitizedValue = SanitizeAndClampEyeValue(value);
-            switch (address)
-            {
-                case var _ when address == _eyeLeftXAddress:
-                    _fEyeLeftX = sanitizedValue;
-                    break;
-                case var _ when address == _eyeRightXAddress:
-                    _fEyeRightX = sanitizedValue;
-                    break;
-                case var _ when address == _eyeYAddress:
-                    _fEyeY = sanitizedValue;
-                    break;
-                default:
-                    return;
-            }
-
-            if (_eyeFollowDriverApplicable)
-            {
-                _lastEyeParameterSampleTime = Time.unscaledTime;
-                if (!_eyeTrackingParametersActive)
-                {
-                    SetLocalEyeParameterState(true);
-                    SetBuiltInEyeFollowDriverOverriden(true);
-                }
-            }
-        }
-
-        private void OnTrackingActivityUpdated(bool isTrackingActive)
-        {
-            if (_trackingActive == isTrackingActive)
-            {
-                return;
-            }
-
-            _trackingActive = isTrackingActive;
-            if (_eyeFollowDriverApplicable && !_trackingActive)
-            {
-                SetLocalEyeParameterState(false);
-            }
-
-            bool shouldApplyEyeTracking = ShouldApplyEyeTracking();
-            if (_eyeFollowDriverApplicable)
-            {
-                SetBuiltInEyeFollowDriverOverriden(shouldApplyEyeTracking);
-            }
-
-            if (_trackingActive)
-            {
-                if (_eyeFollowDriverApplicable)
-                {
-                    if (shouldApplyEyeTracking)
-                    {
-                        SubmitCurrentEyeStateToNetwork();
-                    }
-                    else
-                    {
-                        SubmitNeutralEyesToNetwork();
-                    }
-                }
-                else if (!shouldApplyEyeTracking)
-                {
-                    ClearRemoteOverrides();
-                }
-                return;
-            }
-
-            ResetEyeValuesToZero();
-            _eyeTrackingParametersActive = false;
-
-            if (_eyeFollowDriverApplicable)
-            {
-                SubmitNeutralEyesToNetwork();
-            }
-            else
-            {
-                SetNeutralRemoteEyes();
-                ClearRemoteOverrides();
-            }
+            _eyeTracking?.Update();
         }
 
         private void ForceUpdate()
         {
-            if (!ShouldApplyEyeTracking())
-            {
-                return;
-            }
-
-            SetEyeRotation(_fEyeLeftX, _fEyeY, EyeSide.Left);
-            SetEyeRotation(_fEyeRightX, _fEyeY, EyeSide.Right);
+            _eyeTracking?.ForceUpdate();
         }
 
-        private void SetEyeRotation(float x, float y, EyeSide side)
+        private class EyeTracking_Wearer : IEyeTracking
         {
-            x = SanitizeAndClampEyeValue(x);
-            y = SanitizeAndClampEyeValue(y);
+            private readonly EyeTrackingBoneActuation our;
+            private bool _trackingActive;
+            private float _lastEyeParameterSampleTime = float.NegativeInfinity;
+            private bool _eyeTrackingParametersActive;
+            private bool _eyeTrackingActive;
 
-            if (_eyeFollowDriverApplicable)
+            public EyeTracking_Wearer(EyeTrackingBoneActuation our)
             {
+                this.our = our;
+            }
 
+            public void Update()
+            {
+                if (_eyeTrackingParametersActive && Time.unscaledTime - _lastEyeParameterSampleTime > EyeParameterInactivityTimeoutSeconds)
+                {
+                    TurnOffEyeTracking();
+                }
+            }
+
+            public void OnTrackingActivityUpdated(bool isTrackingActive)
+            {
+                _trackingActive = isTrackingActive;
+
+                if (!_trackingActive)
+                {
+                    TurnOffEyeTracking();
+                }
+            }
+
+            public void ApplyEye(float xLeft, float xRight, float y)
+            {
+                if (!(xLeft == 0f && xRight == 0f && y == 0f))
+                {
+                    _lastEyeParameterSampleTime = Time.unscaledTime;
+                    our.comms.VariableStore.Submit(our._eyeTrackingActiveAddress, 1f);
+                }
+
+                ApplyEye(xLeft, y, EyeSide.Left);
+                ApplyEye(xRight, y, EyeSide.Right);
+            }
+
+            public void OnDestroy()
+            {
+                TurnOffEyeTracking();
+            }
+
+            public bool IsEyeTrackingParametersActive => _eyeTrackingParametersActive;
+
+            public void OnEyeTrackingAddressUpdated(bool eyeTrackingActive)
+            {
+                if (_eyeTrackingActive == eyeTrackingActive) return;
+
+                _eyeTrackingActive = eyeTrackingActive;
+
+                BasisLocalEyeDriver.Override = eyeTrackingActive;
+
+                var localPlayer = BasisLocalPlayer.Instance;
+                if (localPlayer != null && localPlayer.FacialBlinkDriver != null)
+                {
+                    localPlayer.FacialBlinkDriver.SetOverride(eyeTrackingActive);
+                }
+            }
+
+            public void ForceUpdate()
+            {
+                ApplyEye(our._fEyeLeftX, our._fEyeY, EyeSide.Left);
+                ApplyEye(our._fEyeRightX, our._fEyeY, EyeSide.Right);
+            }
+
+            private void ApplyEye(float x, float y, EyeSide side)
+            {
                 // Uses EyeCalibration from BasisLocalEyeDriver to handle arbitrary eye bone orientations for local player.
                 // Retaining Hai's original FIXME: This could/should be replaced by a WIP normalized muscle system
 
-                float xRad = Mathf.Asin(x) * multiplyX;
-                float yRad = Mathf.Asin(-y) * multiplyY;
+                var xRad = ClampToEyeAngleLimits(Mathf.Asin(x) * our.multiplyX);
+                var yRad = ClampToEyeAngleLimits(Mathf.Asin(-y) * our.multiplyY);
+
                 quaternion yaw = quaternion.AxisAngle(new float3(0, 1, 0), xRad);
                 quaternion pitch = quaternion.AxisAngle(new float3(1, 0, 0), yRad);
                 quaternion canonical = math.mul(yaw, pitch);
@@ -315,88 +256,147 @@ namespace HVR.Basis.Comms
                         throw new ArgumentOutOfRangeException(nameof(side), side, null);
                 }
             }
-            else if (!IsLocal && Receiver != null)
+
+            private void TurnOffEyeTracking()
             {
-                Receiver.RemotePlayer.RemoteFaceDriver.OverrideEye = true;
-                Receiver.RemotePlayer.RemoteFaceDriver.OverrideBlinking = true;
-                // Signed [-1, 1] — matches BasisRemoteFaceManagement's EyeOutput convention,
-                // which is what BasisRemoteFaceDriver.ApplyEyeRotations consumes (asin domain).
-                switch (side)
+                _eyeTrackingParametersActive = false;
+                _lastEyeParameterSampleTime = float.NegativeInfinity;
+                our.comms.VariableStore.Submit(our._eyeTrackingActiveAddress, 0f);
+                our.comms.VariableStore.Submit(our._eyeLeftXAddress, 0f);
+                our.comms.VariableStore.Submit(our._eyeRightXAddress, 0f);
+                our.comms.VariableStore.Submit(our._eyeYAddress, 0f);
+            }
+        }
+
+        private class EyeTracking_Remote : IEyeTracking
+        {
+            private readonly EyeTrackingBoneActuation our;
+
+            private bool _isTrackingActive;
+            private bool _isEyeTrackingActive;
+            private float _yClamped;
+            private float _xLeftClamped;
+            private float _xRightClamped;
+
+            public bool IsEyeTrackingParametersActive => false;
+
+            public EyeTracking_Remote(EyeTrackingBoneActuation our)
+            {
+                this.our = our;
+            }
+
+            public void Update()
+            {
+            }
+
+            public void OnEyeTrackingAddressUpdated(bool eyeTrackingActive)
+            {
+                if (_isEyeTrackingActive == eyeTrackingActive) return;
+
+                _isEyeTrackingActive = eyeTrackingActive;
+                ReevaluateActivity();
+            }
+
+            public void ForceUpdate()
+            {
+                if (our.Receiver != null)
                 {
-                    case EyeSide.Left:
-                        Receiver.EyesAndMouth[0] = y;
-                        Receiver.EyesAndMouth[1] = x;
-                        break;
-                    case EyeSide.Right:
-                        Receiver.EyesAndMouth[2] = y;
-                        Receiver.EyesAndMouth[3] = x;
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(side), side, null);
+                    our.Receiver.EyesAndMouth[0] = _yClamped;
+                    our.Receiver.EyesAndMouth[1] = _xLeftClamped;
+                    our.Receiver.EyesAndMouth[2] = _yClamped;
+                    our.Receiver.EyesAndMouth[3] = _xRightClamped;
+                }
+            }
+
+            public void OnTrackingActivityUpdated(bool isTrackingActive)
+            {
+                _isTrackingActive = isTrackingActive;
+                ReevaluateActivity();
+            }
+
+            private void ReevaluateActivity()
+            {
+                var shouldOverride = _isTrackingActive && _isEyeTrackingActive;
+                if (our.Receiver != null)
+                {
+                    our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideEye = shouldOverride;
+                    our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideBlinking = shouldOverride;
+                }
+            }
+
+            public void ApplyEye(float xLeft, float xRight, float y)
+            {
+                // We convert to an angle, multiply, clamp, and convert back.
+                _yClamped = -Mathf.Sin(ClampToEyeAngleLimits(Mathf.Asin(-y) * our.multiplyY));
+                _xLeftClamped = Mathf.Sin(ClampToEyeAngleLimits(Mathf.Asin(xLeft) * our.multiplyX));
+                _xRightClamped = Mathf.Sin(ClampToEyeAngleLimits(Mathf.Asin(xRight) * our.multiplyX));
+
+                if (our.Receiver != null)
+                {
+                    our.Receiver.EyesAndMouth[0] = _yClamped;
+                    our.Receiver.EyesAndMouth[1] = _xLeftClamped;
+                    our.Receiver.EyesAndMouth[2] = _yClamped;
+                    our.Receiver.EyesAndMouth[3] = _xRightClamped;
+                }
+            }
+
+            public void OnDestroy()
+            {
+                if (our.Receiver != null)
+                {
+                    our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideEye = false;
+                    our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideBlinking = false;
                 }
             }
         }
 
-        private void SetBuiltInEyeFollowDriverOverriden(bool value)
+        private interface IEyeTracking
         {
-            if (!_eyeFollowDriverApplicable)
+            void Update();
+            void OnTrackingActivityUpdated(bool isTrackingActive);
+            void ApplyEye(float xLeft, float xRight, float y);
+            void OnDestroy();
+            bool IsEyeTrackingParametersActive { get; }
+            void OnEyeTrackingAddressUpdated(bool eyeTrackingActive);
+            void ForceUpdate();
+        }
+
+        private static float ClampToEyeAngleLimits(float value)
+        {
+            return Mathf.Clamp(value, -Mathf.PI / 2, Mathf.PI / 2);
+        }
+
+        private void OnAddressUpdated(int address, float value)
+        {
+            if (_eyeTrackingActiveAddress == address)
             {
-                return;
+                _eyeTracking?.OnEyeTrackingAddressUpdated(value > 0.5f);
             }
-
-            BasisLocalEyeDriver.Override = value;
-
-            BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;
-            if (localPlayer != null && localPlayer.FacialBlinkDriver != null)
+            else
             {
-                localPlayer.FacialBlinkDriver.SetOverride(value);
+                float sanitizedValue = SanitizeAndClampEyeValue(value);
+                switch (address)
+                {
+                    case var _ when address == _eyeLeftXAddress:
+                        _fEyeLeftX = sanitizedValue;
+                        break;
+                    case var _ when address == _eyeRightXAddress:
+                        _fEyeRightX = sanitizedValue;
+                        break;
+                    case var _ when address == _eyeYAddress:
+                        _fEyeY = sanitizedValue;
+                        break;
+                    default:
+                        return;
+                }
+
+                _eyeTracking?.ApplyEye(_fEyeLeftX, _fEyeRightX, _fEyeY);
             }
         }
 
-        private void SubmitCurrentEyeStateToNetwork()
+        private void OnTrackingActivityUpdated(bool isTrackingActive)
         {
-            if (!IsLocal)
-            {
-                return;
-            }
-
-            comms.VariableStore.Submit(_eyeLeftXAddress, SanitizeAndClampEyeValue(_fEyeLeftX));
-            comms.VariableStore.Submit(_eyeRightXAddress, SanitizeAndClampEyeValue(_fEyeRightX));
-            comms.VariableStore.Submit(_eyeYAddress, SanitizeAndClampEyeValue(_fEyeY));
-        }
-
-        private void SubmitNeutralEyesToNetwork()
-        {
-            if (!IsLocal)
-            {
-                return;
-            }
-
-            comms.VariableStore.Submit(_eyeLeftXAddress, 0f);
-            comms.VariableStore.Submit(_eyeRightXAddress, 0f);
-            comms.VariableStore.Submit(_eyeYAddress, 0f);
-        }
-
-        private void SetLocalEyeParameterState(bool isActive)
-        {
-            _eyeTrackingParametersActive = isActive;
-            _lastEyeParameterSampleTime = isActive ? Time.unscaledTime : float.NegativeInfinity;
-            SubmitEyeTrackingParameterStateToNetwork();
-        }
-
-        private void SubmitEyeTrackingParameterStateToNetwork()
-        {
-            if (!IsLocal)
-            {
-                return;
-            }
-
-            comms.VariableStore.Submit(_eyeTrackingActiveAddress, _eyeTrackingParametersActive ? 1f : 0f);
-        }
-
-        private bool ShouldApplyEyeTracking()
-        {
-            return _trackingActive && _eyeTrackingParametersActive;
+            _eyeTracking?.OnTrackingActivityUpdated(isTrackingActive);
         }
 
         private static float SanitizeAndClampEyeValue(float value)
@@ -407,37 +407,6 @@ namespace HVR.Basis.Comms
             }
 
             return Mathf.Clamp(value, -1f, 1f);
-        }
-
-        private void ResetEyeValuesToZero()
-        {
-            _fEyeLeftX = 0f;
-            _fEyeRightX = 0f;
-            _fEyeY = 0f;
-        }
-
-        private void SetNeutralRemoteEyes()
-        {
-            if (Receiver == null)
-            {
-                return;
-            }
-
-            Receiver.EyesAndMouth[0] = 0f;
-            Receiver.EyesAndMouth[1] = 0f;
-            Receiver.EyesAndMouth[2] = 0f;
-            Receiver.EyesAndMouth[3] = 0f;
-        }
-
-        private void ClearRemoteOverrides()
-        {
-            if (IsLocal || Receiver == null)
-            {
-                return;
-            }
-
-            Receiver.RemotePlayer.RemoteFaceDriver.OverrideEye = false;
-            Receiver.RemotePlayer.RemoteFaceDriver.OverrideBlinking = false;
         }
 
         private enum EyeSide
