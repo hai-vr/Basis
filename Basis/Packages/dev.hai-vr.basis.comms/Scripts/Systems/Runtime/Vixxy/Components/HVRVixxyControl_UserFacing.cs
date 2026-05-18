@@ -413,13 +413,22 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
-    public class HVRVixxyPropertyQuaternion : HVRVixxyProperty<Quaternion>
+    public class HVRVixxyPropertyQuaternion : HVRVixxyProperty<Vector3>
     {
         public HVRVixxyPropertyQuaternionInterpolation interpolation;
 
+        [NonSerialized] private bool _initialized;
+        [NonSerialized] private Quaternion _a = Quaternion.identity;
+        [NonSerialized] private Quaternion _b = Quaternion.identity;
+
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            return Quaternion.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
+            if (!_initialized)
+            {
+                _a = Quaternion.Euler(choices[inactiveIndex]);
+                _b = Quaternion.Euler(choices[activeIndex]);
+            }
+            return Quaternion.Slerp(_a, _b, active01);
         }
     }
 
