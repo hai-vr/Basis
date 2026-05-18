@@ -167,10 +167,17 @@ namespace HVR.Vixxy.Editor
                         for (var propertyIndex = 0; propertyIndex < propertiesSp.arraySize; propertyIndex++)
                         {
                             var propertySp = propertiesSp.GetArrayElementAtIndex(propertyIndex);
-                            var fullClassName = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)).stringValue;
+                            if (propertySp != null) // SerializeReference
+                            {
+                                var fullClassNameSp = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName));
+                                if (fullClassNameSp != null) // SerializeReference
+                                {
+                                    var fullClassName = fullClassNameSp.stringValue;
 
-                            if (fullClassName != type.FullName) continue;
-                            if (DrawPropertyOrReturn(propertySp, propertyIndex, propertiesSp)) return true;
+                                    if (fullClassName != type.FullName) continue;
+                                    if (DrawPropertyOrReturn(propertySp, propertyIndex, propertiesSp)) return true;
+                                }
+                            }
                         }
 
                         GUILayout.EndVertical();
@@ -477,6 +484,31 @@ namespace HVR.Vixxy.Editor
                         EditorGUILayout.TextField(prop.type.Name);
                     }
                     EditorGUILayout.Toggle(prop.isLegal, GUILayout.Width(EditorGUIUtility.singleLineHeight));
+
+                    if (GUILayout.Button("+"))
+                    {
+                        if (prop.type == typeof(string) || prop.type == typeof(Quaternion))
+                        {
+                            var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
+
+                            var indexToPutData = propertiesSp.arraySize;
+                            propertiesSp.arraySize = indexToPutData + 1;
+                            propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = prop.type == typeof(string)
+                                ? new HVRVixxyPropertyString
+                                {
+                                    fullClassName = targetedType.FullName,
+                                    variant = HVRVixxyPropertyVariant.Standard,
+                                    propertyName = prop.name,
+                                }
+                                : new HVRVixxyPropertyQuaternion
+                                {
+                                    fullClassName = targetedType.FullName,
+                                    variant = HVRVixxyPropertyVariant.Standard,
+                                    propertyName = prop.name,
+                                };
+                        }
+                    }
+
                     EditorGUILayout.EndHorizontal();
                     EditorGUI.EndDisabledGroup();
                 }
@@ -687,6 +719,7 @@ namespace HVR.Vixxy.Editor
                 .ToArray() : Array.Empty<string>();
 
             var classNames = subject.properties
+                .Where(property => property != null) // SerializeReference
                 .Select(property => property.fullClassName)
                 .Distinct()
                 .Where(fullClassName => mainTargetFullClassNames.Any(existingFullClassNamesInTarget => fullClassName == existingFullClassNamesInTarget))
