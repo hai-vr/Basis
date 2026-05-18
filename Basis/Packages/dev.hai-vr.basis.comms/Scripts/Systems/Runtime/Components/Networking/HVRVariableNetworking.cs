@@ -11,6 +11,13 @@ namespace HVR.Basis.Comms
     {
         private const bool PrintDebug = true;
 
+        // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
+        private const float DeltaLocalIntToSeconds = 1 / 60f;
+        // We use 254, not 255 (leaving 1 value out), because 254 divided by 2 is a round number, 127.
+        // This makes the value of 0 in range [-1:1] encodable as 127.
+        private const float EncodingRange = 254f;
+        private const float FullRange = 255f;
+
         public HVRAvatarComms comms;
         public bool isWearer;
         public IHVRTransmitter transmitter;
@@ -35,11 +42,11 @@ namespace HVR.Basis.Comms
             var lerp01 = Mathf.InverseLerp(variable.min, variable.max, value);
             if (Mathf.Approximately(-variable.min, variable.max))
             {
-                return (byte)(lerp01 * StreamedAvatarFeature.EncodingRange);
+                return (byte)(lerp01 * EncodingRange);
             }
             else
             {
-                return (byte)(lerp01 * StreamedAvatarFeature.FullRange);
+                return (byte)(lerp01 * FullRange);
             }
         }
 
@@ -48,11 +55,11 @@ namespace HVR.Basis.Comms
             float lerp01;
             if (Mathf.Approximately(-highFrequency.min, highFrequency.max))
             {
-                lerp01 = encodedByte / StreamedAvatarFeature.EncodingRange;
+                lerp01 = encodedByte / EncodingRange;
             }
             else
             {
-                lerp01 = encodedByte / StreamedAvatarFeature.FullRange;
+                lerp01 = encodedByte / FullRange;
             }
             return Mathf.Lerp(highFrequency.min, highFrequency.max, lerp01);
         }
@@ -268,7 +275,7 @@ namespace HVR.Basis.Comms
 
                     if (_highFrequencyAddressIdsHashSet.Count > 0 && _highFrequencyAddressIdsHashSet.Overlaps(addressIdsToValueToTransmit.Keys))
                     {
-                        _highFrequencyBytes[1] = (byte)(deltaTimeSinceLastTick / StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                        _highFrequencyBytes[1] = (byte)(deltaTimeSinceLastTick / DeltaLocalIntToSeconds);
 
                         for (var index = 0; index < _highFrequencyAddressIds.Count; index++)
                         {
@@ -342,7 +349,7 @@ namespace HVR.Basis.Comms
 
             private byte[] BuildUpdatedVariablesPacketOrNull(Dictionary<int, object> addressIdsToValueToTransmit, float deltaTimeSinceLastTick)
             {
-                var deltaLocalIntToSeconds = (int)(deltaTimeSinceLastTick / StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                var deltaLocalIntToSeconds = (int)(deltaTimeSinceLastTick / DeltaLocalIntToSeconds);
                 if (deltaLocalIntToSeconds > byte.MaxValue) deltaLocalIntToSeconds = byte.MaxValue;
 
                 var timingSteps = (byte)deltaLocalIntToSeconds;
@@ -612,7 +619,7 @@ namespace HVR.Basis.Comms
                                 WhenDataReceived(addressId, 0f);
                             }
                         }
-                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                        AfterDataReceived(packet.timingSteps * DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -633,7 +640,7 @@ namespace HVR.Basis.Comms
                                 WhenDataReceived(addressId, 1f);
                             }
                         }
-                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                        AfterDataReceived(packet.timingSteps * DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -656,7 +663,7 @@ namespace HVR.Basis.Comms
                                 WhenDataReceived(addressId, value);
                             }
                         }
-                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                        AfterDataReceived(packet.timingSteps * DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -690,7 +697,7 @@ namespace HVR.Basis.Comms
                                 }
                             }
                         }
-                        AfterDataReceived(packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds);
+                        AfterDataReceived(packet.timingSteps * DeltaLocalIntToSeconds);
 
                         break;
                     }
@@ -702,7 +709,7 @@ namespace HVR.Basis.Comms
                             return;
                         }
 
-                        var deltaTime = packet.timingSteps * StreamedAvatarFeature.DeltaLocalIntToSeconds;
+                        var deltaTime = packet.timingSteps * DeltaLocalIntToSeconds;
                         var highFrequencyInterpolatorDict = new Dictionary<int, float>();
                         for (var index = 0; index < packet.values.Length; index++)
                         {

@@ -1,3 +1,7 @@
+// This class should be deleted, but we're keeping this here dormant to help check the git annotate history,
+// as most of the logic of this class is moved to the HVRInterpolator class.
+// This can be removed after we've checked that the fixes made to StreamedAvatarFeature were also applied to HVRInterpolator.
+#if HVR__NOTE__DISABLED_BECAUSE_MIGRATED
 using System;
 using System.Collections.Generic;
 using Basis.Network.Core;
@@ -304,3 +308,4 @@ namespace HVR.Basis.Comms
         public float[] FloatValues;
     }
 }
+#endif
