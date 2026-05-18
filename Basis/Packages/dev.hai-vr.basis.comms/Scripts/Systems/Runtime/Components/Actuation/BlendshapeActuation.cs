@@ -442,5 +442,13 @@ namespace HVR.Basis.Comms
             public SkinnedMeshRenderer Renderer;
             public int[] BlendshapeIndices;
         }
+
+        private class RequestedFeature
+        {
+            public string identifier;
+            public int address;
+            public float lower;
+            public float upper;
+        }
     }
 }

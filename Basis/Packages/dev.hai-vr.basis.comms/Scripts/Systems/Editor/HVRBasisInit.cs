@@ -25,7 +25,6 @@ namespace HVR.Basis.Comms.Editor
                 // Not created by user
                 typeof(HVRVariableNetworking),
                 typeof(HVRVixxyOrchestrator),
-                typeof(StreamedAvatarFeature),
                 typeof(OSCAcquisition),
                 typeof(EyeTrackingBoneActuation),
                 typeof(BlendshapeActuation),
