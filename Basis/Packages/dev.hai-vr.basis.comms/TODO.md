@@ -28,7 +28,8 @@ Things that remain to be done in Vixxy:
   - ⬜ Auto-downgrade addresses that used the server reduction system when the same value has stalled for way too long.
 - ⬜ Allow receiving values from external programs even when Face Tracking is not present on the avatar / Let the user specify that an address is driven by an external program / Each control should have a component that depends on it so that we can build avatar optimizers.
 - ⬜ Support more property types:
-  - ⬜ Add transform position, rotation, and scale.
+  - ⬜ Add transform position and scale.
+  - ✅ Add transform rotation.
   - ⬜ Add materials slot swaps.
   - ⬜ Add array swaps in general.
   - ⬜ Add effect triggers, such as audio and particle systems.
