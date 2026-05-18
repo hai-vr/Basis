@@ -633,7 +633,11 @@ namespace Basis.BasisUI
             switch (entry.Special)
             {
                 case BasisVirtualKeyboardSpecialKey.IsCloseKey:
+                    ReleaseInstance();
+                    return;
+
                 case BasisVirtualKeyboardSpecialKey.IsEnterKey:
+                    SubmitTarget();
                     ReleaseInstance();
                     return;
 
@@ -694,6 +698,21 @@ namespace Basis.BasisUI
             if (InputField)
             {
                 InputField.text += value;
+            }
+        }
+
+        private void SubmitTarget()
+        {
+            if (TMPInputField)
+            {
+                string text = TMPInputField.text;
+                TMPInputField.onSubmit?.Invoke(text);
+                TMPInputField.onEndEdit?.Invoke(text);
+                return;
+            }
+            if (InputField)
+            {
+                InputField.onEndEdit?.Invoke(InputField.text);
             }
         }
 
