@@ -84,11 +84,12 @@ namespace HVR.Basis.Comms
             private readonly List<int> _highFrequencyAddressIds = new();
             private readonly HashSet<int> _highFrequencyAddressIdsHashSet = new();
             private readonly List<int> _temp_addressIdsThatNeedUpgrade = new();
-            private ushort _networkId = 0;
+            private ushort _lastAddedNetworkId = 0;
 
             private float _timeLeftUpdateValues;
             private float _timeLeftUpgradeAddresses;
             private byte[] _highFrequencyBytes;
+            private bool _needsUshortAddresses;
 
             public HVRVariableBehaviour_Wearer(HVRVariableNetworking state)
             {
@@ -97,25 +98,22 @@ namespace HVR.Basis.Comms
             }
 
             public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data) { } // Not applicable
+            public void OnResyncEveryoneRequested() => ResyncRequestedAny(null);
+            public void OnResyncRequested(ushort[] whoAsked) => ResyncRequestedAny(whoAsked);
 
-            public void OnResyncEveryoneRequested()
+            private void ResyncRequestedAny(ushort[] whoAskedNullable)
             {
-                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncEveryoneRequested", null);
-                SubmitUpgradedVariables(_highFrequencyAddressIds, null);
+                if (_needsUshortAddresses) _state.transmitter.NetworkMessageSend(new[] { AvatarMessageProcessing.NewNet_WearerNeedsUshortForAddresses }, MainDeliveryMethod, whoAskedNullable);
+                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncRequested", whoAskedNullable);
+                SubmitUpgradedVariables(_highFrequencyAddressIds, whoAskedNullable);
             }
 
-            public void OnResyncRequested(ushort[] whoAsked)
-            {
-                SubmitNewVariablesPacket(_addressIdToHolder.Keys.ToList(), "OnResyncRequested", whoAsked);
-                SubmitUpgradedVariables(_highFrequencyAddressIds, whoAsked);
-            }
-
-            private void SubmitUpgradedVariables(List<int> highFrequencyAddressIds, ushort[] whoAsked)
+            private void SubmitUpgradedVariables(List<int> highFrequencyAddressIds, ushort[] whoAskedNullable)
             {
                 if (highFrequencyAddressIds.Count > 0)
                 {
                     var upgradePacket = BuildUpgradePacket(highFrequencyAddressIds);
-                    _state.transmitter.NetworkMessageSend(upgradePacket, MainDeliveryMethod, whoAsked);
+                    _state.transmitter.NetworkMessageSend(upgradePacket, MainDeliveryMethod, whoAskedNullable);
                     if (PrintDebug) HVRLogging.ProtocolDebug($"(Resync) Sending UpgradeFloatToHighFrequencyPacket (at T={Time.time:0.00}).");
                 }
             }
@@ -146,16 +144,23 @@ namespace HVR.Basis.Comms
 
                 _acquisitionService.RegisterAddresses(new []{ variable.addressId }, OnAddressUpdated);
 
+                _lastAddedNetworkId++;
                 _addressIdToHolder.Add(variable.addressId, new HVRVariableHolder
                 {
                     variable = variable,
-                    networkId = ++_networkId,
+                    networkId = _lastAddedNetworkId,
                     currentValue = variable.initialValue,
                     lastTransmittedValue = variable.initialValue,
                     valueWithGreatestDeltaSinceLastTransmittedValue = variable.initialValue
                 });
 
                 _newVariablesAddressIds.Add(variable.addressId);
+
+                if (_lastAddedNetworkId >= 256)
+                {
+                    HVRLogging.Debug("Addresses will be encoded as ushort instead of bytes.");
+                    _needsUshortAddresses = true;
+                }
             }
 
             public void OnDestroy()
@@ -209,7 +214,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            private void SubmitNewVariablesPacket(List<int> addressIds, string hook, ushort[] whoAsked)
+            private void SubmitNewVariablesPacket(List<int> addressIds, string hook, ushort[] whoAskedNullable)
             {
                 if (addressIds.Count > 0)
                 {
@@ -218,7 +223,7 @@ namespace HVR.Basis.Comms
                     {
                         var group = addressIds.Skip(i).Take(groupSize).ToList();
                         var packet = BuildNewVariablesPacket(group);
-                        _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod, whoAsked);
+                        _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod, whoAskedNullable);
                         if (PrintDebug)
                         {
                             HVRLogging.ProtocolDebug($"({hook}) Sending NewVariablesPacket (group {i / groupSize + 1}).");
@@ -228,7 +233,7 @@ namespace HVR.Basis.Comms
                 else
                 {
                     var packet = BuildNewVariablesPacket(addressIds);
-                    _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod, whoAsked);
+                    _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod, whoAskedNullable);
                     if (PrintDebug)
                     {
                         HVRLogging.ProtocolDebug($"({hook}) Sending NewVariablesPacket (empty).");
@@ -344,7 +349,7 @@ namespace HVR.Basis.Comms
                             max = holder.variable.max,
                         };
                     }).ToList()
-                }.Serialize();
+                }.Serialize(_needsUshortAddresses);
             }
 
             private byte[] BuildUpdatedVariablesPacketOrNull(Dictionary<int, object> addressIdsToValueToTransmit, float deltaTimeSinceLastTick)
@@ -407,7 +412,7 @@ namespace HVR.Basis.Comms
                             networkId = _addressIdToHolder[addressId].networkId,
                             value = addressIdsToValueToTransmit[addressId]
                         }).ToList()
-                    }.Serialize();
+                    }.Serialize(_needsUshortAddresses);
                 }
 
                 if (zeroesNetworkIds.Count > 0 && onesNetworkIds.Count > 0)
@@ -418,7 +423,7 @@ namespace HVR.Basis.Comms
                         timingSteps = timingSteps,
                         numberOfZeroes = (ushort)zeroesNetworkIds.Count,
                         networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList()
-                    }.Serialize();
+                    }.Serialize(_needsUshortAddresses);
                 }
 
                 if (PrintDebug) HVRLogging.ProtocolDebug($"(BuildUpdatedVariablesPacket) Building a {(zeroesNetworkIds.Count > 0 ? "UpdatedVariables_Zeroes" : "UpdatedVariables_Ones")} packet.");
@@ -427,7 +432,7 @@ namespace HVR.Basis.Comms
                     timingSteps = timingSteps,
                     packetType = zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
                     networkIds = zeroesNetworkIds.Count > 0 ? zeroesNetworkIds : onesNetworkIds
-                }.Serialize();
+                }.Serialize(_needsUshortAddresses);
             }
 
             private byte[] BuildNewVariablesPacket(List<int> newVariablesAddressIds)
@@ -474,7 +479,7 @@ namespace HVR.Basis.Comms
                     newGeneralVariables = other,
                     floatZero = zeroes,
                     floatOne = ones,
-                }.Serialize();
+                }.Serialize(_needsUshortAddresses);
             }
 
             internal class HVRVariableHolder
@@ -501,6 +506,7 @@ namespace HVR.Basis.Comms
             private readonly HVRInterpolator _highFrequencyInterpolator = new(true);
 
             private Dictionary<int, float> _lowFrequencyInterpolatorDict;
+            private bool _needsUshortAddresses;
 
             public HVRVariableBehaviour_Remote(HVRVariableNetworking state)
             {
@@ -590,9 +596,22 @@ namespace HVR.Basis.Comms
                 var packetType = data[0];
                 switch (packetType)
                 {
+                    case AvatarMessageProcessing.NewNet_WearerNeedsUshortForAddresses:
+                    {
+                        if (data.Count != 1)
+                        {
+                            HVRLogging.ProtocolError("Packet for WearerNeedsUshortForAddresses exceeds expected size");
+                            return;
+                        }
+
+                        if (PrintDebug) HVRLogging.ProtocolDebug("(OnPacketReceived) Receiving NeedsUshortForAddresses packet.");
+                        _needsUshortAddresses = true;
+
+                        break;
+                    }
                     case AvatarMessageProcessing.NewNet_WearerSubmitsNewVariables:
                     {
-                        if (!HVRPacket_NewVariables.TryDeserialize(data, out var packet))
+                        if (!HVRPacket_NewVariables.TryDeserialize(_needsUshortAddresses, data, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize NewVariables packet.");
                             return;
@@ -604,7 +623,7 @@ namespace HVR.Basis.Comms
                     }
                     case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes:
                     {
-                        if (!HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(data, packetType, out var packet))
+                        if (!HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(_needsUshortAddresses, data, packetType, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Zeroes packet.");
                             return;
@@ -625,7 +644,7 @@ namespace HVR.Basis.Comms
                     }
                     case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones:
                     {
-                        if (!HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(data, packetType, out var packet))
+                        if (!HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(_needsUshortAddresses, data, packetType, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Ones packet.");
                             return;
@@ -646,7 +665,7 @@ namespace HVR.Basis.Comms
                     }
                     case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes:
                     {
-                        if (!HVRPacket_UpdatedVariables_ZeroesAndOnes.TryDeserialize(data, out var packet))
+                        if (!HVRPacket_UpdatedVariables_ZeroesAndOnes.TryDeserialize(_needsUshortAddresses, data, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_ZeroesAndOnes packet.");
                             return;
@@ -669,7 +688,7 @@ namespace HVR.Basis.Comms
                     }
                     case AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Mixed:
                     {
-                        if (!HVRPacket_UpdatedVariables_Mixed.TryDeserialize(data, out var packet))
+                        if (!HVRPacket_UpdatedVariables_Mixed.TryDeserialize(_needsUshortAddresses, data, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize UpdatedVariables_Mixed packet.");
                             return;
@@ -730,7 +749,7 @@ namespace HVR.Basis.Comms
                     }
                     case AvatarMessageProcessing.NewNet_WearerUpgradesFloatToHighFrequency:
                     {
-                        if (!HVRPacket_UpgradeFloatToHighFrequency.TryDeserialize(data, out var packet))
+                        if (!HVRPacket_UpgradeFloatToHighFrequency.TryDeserialize(_needsUshortAddresses, data, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize UpgradeFloatToHighFrequency packet.");
                             return;

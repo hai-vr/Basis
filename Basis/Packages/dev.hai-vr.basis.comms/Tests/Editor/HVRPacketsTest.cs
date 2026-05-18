@@ -16,7 +16,7 @@ namespace HVR.Basis.Comms.Tests
         [Test]
         public void It_should_throw_exception_when_buffer_exceeded()
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(false);
 
             for (var i = 0; i < 4096; i++)
             {
@@ -49,8 +49,8 @@ namespace HVR.Basis.Comms.Tests
             };
 
             // When
-            var resultSerialized = input.Serialize();
-            var success = HVRPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var resultSerialized = input.Serialize(false);
+            var success = HVRPacket_NewVariables.TryDeserialize(false, new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -93,13 +93,13 @@ namespace HVR.Basis.Comms.Tests
                 floatZero = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>(),
                 floatOne = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>()
             };
-            var serialized = input.Serialize();
+            var serialized = input.Serialize(false);
             var extraData = new byte[serialized.Length + 1];
             Buffer.BlockCopy(serialized, 0, extraData, 0, serialized.Length);
             extraData[serialized.Length] = 0xFF; // Extra byte
 
             // When
-            var success = HVRPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(extraData), out _);
+            var success = HVRPacket_NewVariables.TryDeserialize(false, new ArraySegment<byte>(extraData), out _);
 
             // Then
             Assert.IsFalse(success);
@@ -115,12 +115,12 @@ namespace HVR.Basis.Comms.Tests
                 floatZero = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>(),
                 floatOne = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>()
             };
-            var serialized = input.Serialize();
+            var serialized = input.Serialize(false);
             var missingData = new byte[serialized.Length - 1];
             Buffer.BlockCopy(serialized, 0, missingData, 0, serialized.Length - 1);
 
             // When
-            var success = HVRPacket_NewVariables.TryDeserialize(new ArraySegment<byte>(missingData), out _);
+            var success = HVRPacket_NewVariables.TryDeserialize(false, new ArraySegment<byte>(missingData), out _);
 
             // Then
             Assert.IsFalse(success);
@@ -138,8 +138,8 @@ namespace HVR.Basis.Comms.Tests
             };
 
             // When
-            var resultSerialized = input.Serialize();
-            var success = HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(new ArraySegment<byte>(resultSerialized), input.packetType, out var resultDeserialized);
+            var resultSerialized = input.Serialize(false);
+            var success = HVRPacket_UpdatedVariables_ZeroesOrOnes.TryDeserialize(false, new ArraySegment<byte>(resultSerialized), input.packetType, out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -164,8 +164,8 @@ namespace HVR.Basis.Comms.Tests
             };
 
             // When
-            var resultSerialized = input.Serialize();
-            var success = HVRPacket_UpdatedVariables_ZeroesAndOnes.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var resultSerialized = input.Serialize(false);
+            var success = HVRPacket_UpdatedVariables_ZeroesAndOnes.TryDeserialize(false, new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -196,8 +196,8 @@ namespace HVR.Basis.Comms.Tests
             };
 
             // When
-            var resultSerialized = input.Serialize();
-            var success = HVRPacket_UpdatedVariables_Mixed.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var resultSerialized = input.Serialize(false);
+            var success = HVRPacket_UpdatedVariables_Mixed.TryDeserialize(false, new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -231,8 +231,8 @@ namespace HVR.Basis.Comms.Tests
             };
 
             // When
-            var resultSerialized = input.Serialize();
-            var success = HVRPacket_UpgradeFloatToHighFrequency.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var resultSerialized = input.Serialize(false);
+            var success = HVRPacket_UpgradeFloatToHighFrequency.TryDeserialize(false, new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);
@@ -256,8 +256,8 @@ namespace HVR.Basis.Comms.Tests
             };
 
             // When
-            var resultSerialized = input.Serialize();
-            var success = HVRPacket_DowngradeFloatToLowFrequency.TryDeserialize(new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
+            var resultSerialized = input.Serialize(false);
+            var success = HVRPacket_DowngradeFloatToLowFrequency.TryDeserialize(false, new ArraySegment<byte>(resultSerialized), out var resultDeserialized);
 
             // Then
             Assert.IsTrue(success);

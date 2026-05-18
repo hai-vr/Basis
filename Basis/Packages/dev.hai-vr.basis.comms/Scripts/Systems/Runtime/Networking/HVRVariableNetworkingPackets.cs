@@ -31,9 +31,9 @@ namespace HVR.Basis.Comms
             public bool needsInterpolation;
         }
 
-        public byte[] Serialize()
+        public byte[] Serialize(bool needsUshortAddresses)
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(needsUshortAddresses);
             writer.WriteByte(packetType);
 
             writer.WriteUshort((ushort)newGeneralVariables.Count);
@@ -41,7 +41,7 @@ namespace HVR.Basis.Comms
             foreach (var holder in newGeneralVariables)
             {
                 writer.WriteString(holder.address);
-                writer.WriteUshort(holder.networkId);
+                writer.WriteAddress(holder.networkId);
                 writer.WriteByte(holder.needsInterpolation ? (byte)1 : (byte)0);
                 writer.WriteByte(holder.variableTypeCode);
                 writer.WriteFloat((float)holder.initialValue);
@@ -52,25 +52,25 @@ namespace HVR.Basis.Comms
             foreach (var holder in floatZero)
             {
                 writer.WriteString(holder.address);
-                writer.WriteUshort(holder.networkId);
+                writer.WriteAddress(holder.networkId);
                 writer.WriteByte(holder.needsInterpolation ? (byte)1 : (byte)0);
             }
 
             foreach (var holder in floatOne)
             {
                 writer.WriteString(holder.address);
-                writer.WriteUshort(holder.networkId);
+                writer.WriteAddress(holder.networkId);
                 writer.WriteByte(holder.needsInterpolation ? (byte)1 : (byte)0);
             }
 
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_NewVariables result)
+        public static bool TryDeserialize(bool needsUshortAddresses, ArraySegment<byte> data, out HVRPacket_NewVariables result)
         {
             try
             {
-                var reader = new HVRNetReader(data);
+                var reader = new HVRNetReader(data, needsUshortAddresses);
 
                 var packetType = reader.ReadByte();
                 result = new HVRPacket_NewVariables();
@@ -80,7 +80,7 @@ namespace HVR.Basis.Comms
                 for (var i = 0; i < countGeneral; i++)
                 {
                     var address = reader.ReadString();
-                    var networkId = reader.ReadUshort();
+                    var networkId = reader.ReadAddress();
                     var needsInterpolation = reader.ReadByte() == 1;
                     var variableTypeCode = reader.ReadByte();
                     var initialValue = reader.ReadFloat();
@@ -100,7 +100,7 @@ namespace HVR.Basis.Comms
                 for (var i = 0; i < countZero; i++)
                 {
                     var address = reader.ReadString();
-                    var networkId = reader.ReadUshort();
+                    var networkId = reader.ReadAddress();
                     var needsInterpolation = reader.ReadByte() == 1;
                     result.floatZero.Add(new Inner_NewQuickVariable
                     {
@@ -114,7 +114,7 @@ namespace HVR.Basis.Comms
                 while (!reader.IsExhausted)
                 {
                     var address = reader.ReadString();
-                    var networkId = reader.ReadUshort();
+                    var networkId = reader.ReadAddress();
                     var needsInterpolation = reader.ReadByte() == 1;
                     result.floatOne.Add(new Inner_NewQuickVariable
                     {
@@ -141,25 +141,25 @@ namespace HVR.Basis.Comms
         public byte timingSteps;
         public List<ushort> networkIds;
 
-        public byte[] Serialize()
+        public byte[] Serialize(bool needsUshortAddresses)
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(needsUshortAddresses);
             writer.WriteByte(packetType);
             writer.WriteByte(timingSteps);
 
             foreach (var networkId in networkIds)
             {
-                writer.WriteUshort(networkId);
+                writer.WriteAddress(networkId);
             }
 
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, byte packetType, out HVRPacket_UpdatedVariables_ZeroesOrOnes result)
+        public static bool TryDeserialize(bool needsUshortAddresses, ArraySegment<byte> data, byte packetType, out HVRPacket_UpdatedVariables_ZeroesOrOnes result)
         {
             try
             {
-                var reader = new HVRNetReader(data);
+                var reader = new HVRNetReader(data, needsUshortAddresses);
 
                 var receivedPacketType = reader.ReadByte();
                 var timingSteps = reader.ReadByte();
@@ -173,7 +173,7 @@ namespace HVR.Basis.Comms
 
                 while (!reader.IsExhausted)
                 {
-                    result.networkIds.Add(reader.ReadUshort());
+                    result.networkIds.Add(reader.ReadAddress());
                 }
 
                 reader.Finish();
@@ -194,9 +194,9 @@ namespace HVR.Basis.Comms
         public ushort numberOfZeroes;
         public List<ushort> networkIds;
 
-        public byte[] Serialize()
+        public byte[] Serialize(bool needsUshortAddresses)
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(needsUshortAddresses);
             writer.WriteByte(packetType);
             writer.WriteByte(timingSteps);
 
@@ -204,17 +204,17 @@ namespace HVR.Basis.Comms
 
             foreach (var networkId in networkIds)
             {
-                writer.WriteUshort(networkId);
+                writer.WriteAddress(networkId);
             }
 
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpdatedVariables_ZeroesAndOnes result)
+        public static bool TryDeserialize(bool needsUshortAddresses, ArraySegment<byte> data, out HVRPacket_UpdatedVariables_ZeroesAndOnes result)
         {
             try
             {
-                var reader = new HVRNetReader(data);
+                var reader = new HVRNetReader(data, needsUshortAddresses);
 
                 var packetType = reader.ReadByte();
                 var timingSteps = reader.ReadByte();
@@ -229,7 +229,7 @@ namespace HVR.Basis.Comms
 
                 while (!reader.IsExhausted)
                 {
-                    result.networkIds.Add(reader.ReadUshort());
+                    result.networkIds.Add(reader.ReadAddress());
                 }
 
                 reader.Finish();
@@ -257,9 +257,9 @@ namespace HVR.Basis.Comms
             public object value;
         }
 
-        public byte[] Serialize()
+        public byte[] Serialize(bool needsUshortAddresses)
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(needsUshortAddresses);
             writer.WriteByte(packetType);
             writer.WriteByte(timingSteps);
 
@@ -269,23 +269,23 @@ namespace HVR.Basis.Comms
 
             foreach (var networkId in networkIds)
             {
-                writer.WriteUshort(networkId);
+                writer.WriteAddress(networkId);
             }
 
             foreach (var updatedValue in other)
             {
-                writer.WriteUshort(updatedValue.networkId);
+                writer.WriteAddress(updatedValue.networkId);
                 writer.WriteFloat((float)updatedValue.value);
             }
 
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpdatedVariables_Mixed result)
+        public static bool TryDeserialize(bool needsUshortAddresses, ArraySegment<byte> data, out HVRPacket_UpdatedVariables_Mixed result)
         {
             try
             {
-                var reader = new HVRNetReader(data);
+                var reader = new HVRNetReader(data, needsUshortAddresses);
 
                 var packetType = reader.ReadByte();
                 var timingSteps = reader.ReadByte();
@@ -301,14 +301,14 @@ namespace HVR.Basis.Comms
 
                 for (var i = 0; i < networkIdsCount; i++)
                 {
-                    result.networkIds.Add(reader.ReadUshort());
+                    result.networkIds.Add(reader.ReadAddress());
                 }
 
                 result.other = new List<Inner_UpdatedValue>();
 
                 while (!reader.IsExhausted)
                 {
-                    var networkId = reader.ReadUshort();
+                    var networkId = reader.ReadAddress();
                     var floatValue = reader.ReadFloat();
 
                     result.other.Add(new Inner_UpdatedValue
@@ -337,7 +337,7 @@ namespace HVR.Basis.Comms
 
         public byte[] Serialize()
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(AvatarMessageProcessing.Irrelevant_NoAddressesAreInThePacket);
             writer.WriteByte(packetType);
             writer.WriteByte(timingSteps);
 
@@ -351,7 +351,7 @@ namespace HVR.Basis.Comms
 
         public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpdatedHighFrequencyVariables result)
         {
-            var reader = new HVRNetReader(data);
+            var reader = new HVRNetReader(data, AvatarMessageProcessing.Irrelevant_NoAddressesAreInThePacket);
             var packetType = reader.ReadByte();
             var timingSteps = reader.ReadByte();
             var values = new byte[data.Count - 2];
@@ -376,24 +376,24 @@ namespace HVR.Basis.Comms
         public readonly byte packetType = AvatarMessageProcessing.NewNet_WearerDowngradesFloatToLowFrequency;
         public List<ushort> networkIds;
 
-        public byte[] Serialize()
+        public byte[] Serialize(bool needsUshortAddresses)
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(needsUshortAddresses);
             writer.WriteByte(packetType);
 
             foreach (var networkId in networkIds)
             {
-                writer.WriteUshort(networkId);
+                writer.WriteAddress(networkId);
             }
 
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_DowngradeFloatToLowFrequency result)
+        public static bool TryDeserialize(bool needsUshortAddresses, ArraySegment<byte> data, out HVRPacket_DowngradeFloatToLowFrequency result)
         {
             try
             {
-                var reader = new HVRNetReader(data);
+                var reader = new HVRNetReader(data, needsUshortAddresses);
 
                 var packetType = reader.ReadByte();
 
@@ -404,7 +404,7 @@ namespace HVR.Basis.Comms
 
                 while (!reader.IsExhausted)
                 {
-                    result.networkIds.Add(reader.ReadUshort());
+                    result.networkIds.Add(reader.ReadAddress());
                 }
 
                 reader.Finish();
@@ -430,14 +430,14 @@ namespace HVR.Basis.Comms
             public float max;
         }
 
-        public byte[] Serialize()
+        public byte[] Serialize(bool needsUshortAddresses)
         {
-            var writer = new HVRNetWriter();
+            var writer = new HVRNetWriter(needsUshortAddresses);
             writer.WriteByte(packetType);
 
             foreach (var item in items)
             {
-                writer.WriteUshort(item.networkId);
+                writer.WriteAddress(item.networkId);
                 writer.WriteFloat(item.min);
                 writer.WriteFloat(item.max);
             }
@@ -445,11 +445,11 @@ namespace HVR.Basis.Comms
             return writer.ToArray();
         }
 
-        public static bool TryDeserialize(ArraySegment<byte> data, out HVRPacket_UpgradeFloatToHighFrequency result)
+        public static bool TryDeserialize(bool needsUshortAddresses, ArraySegment<byte> data, out HVRPacket_UpgradeFloatToHighFrequency result)
         {
             try
             {
-                var reader = new HVRNetReader(data);
+                var reader = new HVRNetReader(data, needsUshortAddresses);
 
                 var packetType = reader.ReadByte();
 
@@ -462,7 +462,7 @@ namespace HVR.Basis.Comms
                 {
                     result.items.Add(new Inner_Item
                     {
-                        networkId = reader.ReadUshort(),
+                        networkId = reader.ReadAddress(),
                         min = reader.ReadFloat(),
                         max = reader.ReadFloat()
                     });
@@ -481,11 +481,13 @@ namespace HVR.Basis.Comms
 
     internal class HVRNetWriter
     {
+        private readonly bool _needsUshortAddresses;
         private byte[] _buffer;
         private int _offset;
 
-        public HVRNetWriter()
+        public HVRNetWriter(bool needsUshortAddresses)
         {
+            _needsUshortAddresses = needsUshortAddresses;
             _buffer = new byte[4096];
             _offset = 0;
         }
@@ -534,16 +536,28 @@ namespace HVR.Basis.Comms
             Buffer.BlockCopy(bytes, 0, _buffer, _offset, bytes.Length);
             _offset += bytes.Length;
         }
+
+        public void WriteAddress(ushort networkId)
+        {
+            if (_needsUshortAddresses) WriteUshort(networkId);
+            else
+            {
+                if (networkId > 255) throw new InvalidOperationException($"Network ID {networkId} is out of range, this indicates a programming error. Writer should have been supplied with needsUshortAddresses set to true.");
+                WriteByte((byte)networkId);
+            }
+        }
     }
 
     internal class HVRNetReader
     {
+        private readonly bool _needsUshortAddresses;
         private readonly byte[] _buffer;
         private readonly int _end;
         private int _offset;
 
-        public HVRNetReader(ArraySegment<byte> data)
+        public HVRNetReader(ArraySegment<byte> data, bool needsUshortAddresses)
         {
+            _needsUshortAddresses = needsUshortAddresses;
             _buffer = data.Array;
             _offset = data.Offset;
             _end = data.Offset + data.Count;
@@ -596,6 +610,12 @@ namespace HVR.Basis.Comms
             var value = Encoding.UTF8.GetString(_buffer, _offset, length);
             _offset += length;
             return value;
+        }
+
+        public ushort ReadAddress()
+        {
+            if (_needsUshortAddresses) return ReadUshort();
+            return (ushort)ReadByte();
         }
     }
 }
