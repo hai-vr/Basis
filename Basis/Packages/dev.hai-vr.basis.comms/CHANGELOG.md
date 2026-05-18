@@ -16,6 +16,8 @@ Modifications in existing HVR.Basis systems:
   - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
   - Addresses chosen automatically for controls now account for objects having the same name.
   - Value is clamped per-control between the minimum and the maximum choice value. This is done in preparation for high-frequency networking, where the value is clamped by technical necessity.
+  - Migrate Face Tracking to use the same system as Vixxy.
+    - FaceTrackingActivityRelay only triggers on addresses that start with FT/, as the migration of Face Tracking to the same system as Vixxy was causing a feedback loop.
 - Usability:
   - When a Vixxy Control is created, the choices are named by default to "OFF" and "ON"
   - In the Toggle Objects UI, "Enable these when active" has been replaced with "Affect these objects" and now uses the same system as multiple choices.
