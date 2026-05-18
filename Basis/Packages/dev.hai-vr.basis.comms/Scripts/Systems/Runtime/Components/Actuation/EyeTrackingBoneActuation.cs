@@ -1,6 +1,5 @@
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Networking.Behaviour;
 using Basis.Scripts.Networking.Receivers;
 using HVR.Basis.Comms.HVRUtility;
 using System;
@@ -13,7 +12,7 @@ namespace HVR.Basis.Comms
 {
     [DefaultExecutionOrder(15010)] // Run after BasisEyeFollowBase
     [AddComponentMenu("HVR.Basis/Comms/Eye Tracking Bone Actuation")]
-    public class EyeTrackingBoneActuation : BasisNetworkAvatarBehaviour, IHVRInitializable
+    public class EyeTrackingBoneActuation : MonoBehaviour, IHVRInitializable
     {
         private const string EyeLeftX = "FT/v2/EyeLeftX";
         private const string EyeRightX = "FT/v2/EyeRightX";
@@ -44,7 +43,6 @@ namespace HVR.Basis.Comms
         private FaceTrackingActivityRelay _activityRelay;
 
         private IEyeTracking _eyeTracking;
-        private bool _isWearer;
 
         public EyeTrackingBoneActuation()
         {
@@ -65,12 +63,11 @@ namespace HVR.Basis.Comms
 
         public void OnHVRAvatarReady(bool isWearer)
         {
-            _isWearer = isWearer;
             _eyeTracking = isWearer ? new EyeTracking_Wearer(this) : new EyeTracking_Remote(this);
 
             if (_activityRelay != null)
             {
-                _eyeTracking.OnEyeTrackingAddressUpdated(_activityRelay != null && _activityRelay.IsTrackingActive);
+                _eyeTracking.OnEyeTrackingActiveAddressUpdated(_activityRelay != null && _activityRelay.IsTrackingActive);
                 _activityRelay.OnTrackingActivityChanged -= OnTrackingActivityUpdated;
                 _activityRelay.OnTrackingActivityChanged += OnTrackingActivityUpdated;
             }
@@ -105,29 +102,27 @@ namespace HVR.Basis.Comms
                 max = 1f,
             });
 
-            BasisDebug.Log($"IsWearer is {isWearer}");
             if (!isWearer)
             {
-                BasisDebug.Log($"Setting receiver");
-                Receiver = NetworkedPlayer as BasisNetworkReceiver;
-                if (Receiver == null)
+                if (BasisNetworkPlayers.AvatarToPlayer(avatar, out _, out var networkPlayer))
                 {
-                    if (BasisNetworkPlayers.AvatarToPlayer(avatar, out _, out var networkPlayer))
-                    {
-                        Receiver = networkPlayer as BasisNetworkReceiver;
-                    }
+                    Receiver = networkPlayer as BasisNetworkReceiver;
+                }
+                else
+                {
+                    BasisDebug.LogError($"Could not find BasisNetworkReceiver for avatar {avatar.name}");
                 }
             }
         }
 
         private void OnEnable()
         {
-            BasisNetworkTransmitter.AfterAvatarChanges += ForceUpdate;
+            BasisNetworkTransmitter.AfterAvatarChanges += UpdateAfterAvatarChangesApplied;
         }
 
         private void OnDisable()
         {
-            BasisNetworkTransmitter.AfterAvatarChanges -= ForceUpdate;
+            BasisNetworkTransmitter.AfterAvatarChanges -= UpdateAfterAvatarChangesApplied;
         }
 
         private void OnDestroy()
@@ -141,15 +136,8 @@ namespace HVR.Basis.Comms
             _eyeTracking?.OnDestroy();
         }
 
-        private void Update()
-        {
-            _eyeTracking?.Update();
-        }
-
-        private void ForceUpdate()
-        {
-            _eyeTracking?.ForceUpdate();
-        }
+        private void Update() => _eyeTracking?.Update();
+        private void UpdateAfterAvatarChangesApplied() => _eyeTracking?.UpdateAfterAvatarChangesApplied();
 
         private class EyeTracking_Wearer : IEyeTracking
         {
@@ -158,6 +146,9 @@ namespace HVR.Basis.Comms
             private float _lastEyeParameterSampleTime = float.NegativeInfinity;
             private bool _eyeTrackingParametersActive;
             private bool _eyeTrackingActive;
+            private float _xLeft;
+            private float _xRight;
+            private float _y;
 
             public EyeTracking_Wearer(EyeTrackingBoneActuation our)
             {
@@ -182,7 +173,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            public void ApplyEye(float xLeft, float xRight, float y)
+            public void OnEyeAngleAddressUpdated(float xLeft, float xRight, float y)
             {
                 if (!(xLeft == 0f && xRight == 0f && y == 0f))
                 {
@@ -190,8 +181,9 @@ namespace HVR.Basis.Comms
                     our.comms.VariableStore.Submit(our._eyeTrackingActiveAddress, 1f);
                 }
 
-                ApplyEye(xLeft, y, EyeSide.Left);
-                ApplyEye(xRight, y, EyeSide.Right);
+                _xLeft = xLeft;
+                _xRight = xRight;
+                _y = y;
             }
 
             public void OnDestroy()
@@ -201,7 +193,7 @@ namespace HVR.Basis.Comms
 
             public bool IsEyeTrackingParametersActive => _eyeTrackingParametersActive;
 
-            public void OnEyeTrackingAddressUpdated(bool eyeTrackingActive)
+            public void OnEyeTrackingActiveAddressUpdated(bool eyeTrackingActive)
             {
                 if (_eyeTrackingActive == eyeTrackingActive) return;
 
@@ -216,10 +208,10 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            public void ForceUpdate()
+            public void UpdateAfterAvatarChangesApplied()
             {
-                ApplyEye(our._fEyeLeftX, our._fEyeY, EyeSide.Left);
-                ApplyEye(our._fEyeRightX, our._fEyeY, EyeSide.Right);
+                ApplyEye(_xLeft, _y, EyeSide.Left);
+                ApplyEye(_xRight, _y, EyeSide.Right);
             }
 
             private void ApplyEye(float x, float y, EyeSide side)
@@ -289,7 +281,7 @@ namespace HVR.Basis.Comms
             {
             }
 
-            public void OnEyeTrackingAddressUpdated(bool eyeTrackingActive)
+            public void OnEyeTrackingActiveAddressUpdated(bool eyeTrackingActive)
             {
                 if (_isEyeTrackingActive == eyeTrackingActive) return;
 
@@ -297,7 +289,7 @@ namespace HVR.Basis.Comms
                 ReevaluateActivity();
             }
 
-            public void ForceUpdate()
+            public void UpdateAfterAvatarChangesApplied()
             {
                 if (our.Receiver != null)
                 {
@@ -324,20 +316,12 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            public void ApplyEye(float xLeft, float xRight, float y)
+            public void OnEyeAngleAddressUpdated(float xLeft, float xRight, float y)
             {
                 // We convert to an angle, multiply, clamp, and convert back.
                 _yClamped = -Mathf.Sin(ClampToEyeAngleLimits(Mathf.Asin(-y) * our.multiplyY));
                 _xLeftClamped = Mathf.Sin(ClampToEyeAngleLimits(Mathf.Asin(xLeft) * our.multiplyX));
                 _xRightClamped = Mathf.Sin(ClampToEyeAngleLimits(Mathf.Asin(xRight) * our.multiplyX));
-
-                if (our.Receiver != null)
-                {
-                    our.Receiver.EyesAndMouth[0] = _yClamped;
-                    our.Receiver.EyesAndMouth[1] = _xLeftClamped;
-                    our.Receiver.EyesAndMouth[2] = _yClamped;
-                    our.Receiver.EyesAndMouth[3] = _xRightClamped;
-                }
             }
 
             public void OnDestroy()
@@ -354,11 +338,11 @@ namespace HVR.Basis.Comms
         {
             void Update();
             void OnTrackingActivityUpdated(bool isTrackingActive);
-            void ApplyEye(float xLeft, float xRight, float y);
+            void OnEyeAngleAddressUpdated(float xLeft, float xRight, float y);
             void OnDestroy();
             bool IsEyeTrackingParametersActive { get; }
-            void OnEyeTrackingAddressUpdated(bool eyeTrackingActive);
-            void ForceUpdate();
+            void OnEyeTrackingActiveAddressUpdated(bool eyeTrackingActive);
+            void UpdateAfterAvatarChangesApplied();
         }
 
         private static float ClampToEyeAngleLimits(float value)
@@ -370,7 +354,7 @@ namespace HVR.Basis.Comms
         {
             if (_eyeTrackingActiveAddress == address)
             {
-                _eyeTracking?.OnEyeTrackingAddressUpdated(value > 0.5f);
+                _eyeTracking?.OnEyeTrackingActiveAddressUpdated(value > 0.5f);
             }
             else
             {
@@ -390,7 +374,7 @@ namespace HVR.Basis.Comms
                         return;
                 }
 
-                _eyeTracking?.ApplyEye(_fEyeLeftX, _fEyeRightX, _fEyeY);
+                _eyeTracking?.OnEyeAngleAddressUpdated(_fEyeLeftX, _fEyeRightX, _fEyeY);
             }
         }
 
