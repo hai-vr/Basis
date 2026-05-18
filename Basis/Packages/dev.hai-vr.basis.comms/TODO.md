@@ -24,6 +24,7 @@ Optimizations:
 Things that remain to be done in Vixxy:
 - 🟨 Auto-upgrade addresses to use the server reduction system when a different value **is sent** too many times per second.
   - We do not want to auto-upgrade addresses based on how many times OnAddressUpdated is called, as it may be called multiple times with the same value.
+    - ⬜ Improve the heuristic for upgrading the address.
   - ⬜ Auto-downgrade addresses that used the server reduction system when the same value has stalled for way too long.
 - ⬜ Allow receiving values from external programs even when Face Tracking is not present on the avatar / Let the user specify that an address is driven by an external program / Each control should have a component that depends on it so that we can build avatar optimizers.
 - ⬜ Support more property types:
@@ -39,7 +40,14 @@ Things that remain to be done in Vixxy:
   - ✅ Add Curve filter.
 
 Things that remain to be done in Comms:
-- ⬜ Migrate Face Tracking and Eye Tracking to use the underlying facilities of this system (OnAddressUpdated becomes the only input, removing OnInterpolationDataChanged).
+- 🟨 Migrate Face Tracking and Eye Tracking to use the underlying facilities of this system (OnAddressUpdated becomes the only input, removing OnInterpolationDataChanged).
+  - ✅ Migrate BlendshapeActuation
+  - 🟨 Migrate EyeTrackingBoneActuation
+    - ⬜ Make a fix for eye tracking isn't playing on remotes.
+    - ⬜ Make a fix for when the user closes both eyes, EyeTrackingActive sets to off, because there's effectively no data coming in.
+      - ⬜ Toys suggests that we ought to expose eye tracking as a toggle in the avatar customization menu. This sounds good
+  - ✅ Migrate FaceTrackingActivityRelay
+  - ⬜ Make sure that both BlendshapeActuation and EyeTrackingBoneActuation still work even if Vixxy is not present in the avatar.
 - ⬜ Migrate HVRVariableNetworking.Update() and HVRVixxyOrchestrator.Update() to use BasisEventDriver functions.
 - ⬜ Add renderer visibility component (if renderer is visible -> enable Control).
   - For use with conflict prevention blendshapes / JiggleRig disablers.
