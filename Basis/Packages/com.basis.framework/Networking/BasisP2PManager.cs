@@ -219,6 +219,19 @@ namespace Basis.Scripts.Networking
             return s.ConnectionType == LiteNatAddressType.Internal;
         }
 
+        // Round-trip time in milliseconds for the P2P link to the given player.
+        // Returns false (rttMs = 0) unless the session is Connected with a live peer.
+        public static bool TryGetP2PRoundTripTime(ushort otherPlayerId, out int rttMs)
+        {
+            rttMs = 0;
+            if (!_sessionsByOtherId.TryGetValue(otherPlayerId, out Session s)) return false;
+            if (s.State != P2PSessionState.Connected) return false;
+            var peer = s.P2PPeer;
+            if (peer == null) return false;
+            rttMs = peer.RoundTripTime;
+            return true;
+        }
+
         public static bool HasAnyConnectedSession()
         {
             foreach (var s in _sessionsByOtherId.Values)

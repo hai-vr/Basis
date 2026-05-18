@@ -659,6 +659,13 @@ namespace Basis.BasisUI
             };
             Basis.Scripts.Networking.BasisP2PManager.OnSessionStateChanged += p2pHandler;
 
+            var directConnPingField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, p2pGroup.ContentParent);
+            directConnPingField.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.ping"));
+            directConnPingField.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.ping.value", 0));
+            // Hidden until the updater observes a Connected P2P session — see
+            // IndividualPlayerPanelUpdater.UpdateDirectConnPingField.
+            directConnPingField.SetActive(false);
+
             // ---- Highlight beacon controls ----
             var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));
@@ -1172,11 +1179,13 @@ namespace Basis.BasisUI
 
             var updater = panel.gameObject.AddComponent<IndividualPlayerPanelUpdater>();
             updater.RemotePlayer = remotePlayer;
+            updater.PanelDescriptor = panel.Descriptor;
             updater.DebugField = debugField;
             updater.DistanceField = distanceField;
             updater.LodField = lodField;
             updater.RangesField = rangesField;
             updater.BufferField = bufferField;
+            updater.DirectConnPingField = directConnPingField;
 
             // Wire audio debug fields
             updater.AudioSourceField = audioSourceField;

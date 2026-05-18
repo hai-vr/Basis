@@ -10,11 +10,14 @@ namespace Basis.BasisUI
     public class IndividualPlayerPanelUpdater : MonoBehaviour
     {
         public BasisRemotePlayer RemotePlayer;
+        public PanelElementDescriptor PanelDescriptor;
         public PanelElementDescriptor DebugField;
         public PanelElementDescriptor DistanceField;
         public PanelElementDescriptor LodField;
         public PanelElementDescriptor RangesField;
         public PanelElementDescriptor BufferField;
+        public PanelElementDescriptor DirectConnPingField;
+        private bool _pingVisible;
 
         // Audio debug fields
         public PanelElementDescriptor AudioSourceField;
@@ -41,6 +44,7 @@ namespace Basis.BasisUI
             LodField?.DisableRichText();
             RangesField?.DisableRichText();
             BufferField?.DisableRichText();
+            DirectConnPingField?.DisableRichText();
             AudioSourceField?.DisableRichText();
             VolumeChainField?.DisableRichText();
             DecodedBufferField?.DisableRichText();
@@ -61,6 +65,8 @@ namespace Basis.BasisUI
             LodField?.FreezeLayoutSize(90f);
             RangesField?.FreezeLayoutSize(110f);
             BufferField?.FreezeLayoutSize(130f);
+            // DirectConnPingField intentionally not frozen — it toggles SetActive
+            // based on P2P connection state, and freezing pins height even when hidden.
             AudioSourceField?.FreezeLayoutSize(140f);
             VolumeChainField?.FreezeLayoutSize(130f);
             DecodedBufferField?.FreezeLayoutSize(120f);
@@ -76,6 +82,10 @@ namespace Basis.BasisUI
             _updateTimer = 0f;
 
             DisableRichTextOnce();
+
+            // P2P ping is independent of the receiver/transmitter pipeline — refresh
+            // it on every tick, before any of the early-returns below kick us out.
+            UpdateDirectConnPingField();
 
             if (RemotePlayer == null)
             {
@@ -220,6 +230,32 @@ namespace Basis.BasisUI
                 {
                     FreezeLayoutOnce();
                 }
+            }
+        }
+
+        private void UpdateDirectConnPingField()
+        {
+            if (DirectConnPingField == null) return;
+
+            bool shouldShow = false;
+            int rttMs = 0;
+            if (RemotePlayer != null &&
+                BasisNetworkPlayers.PlayerToNetworkedPlayer(RemotePlayer, out var net))
+            {
+                shouldShow = BasisP2PManager.TryGetP2PRoundTripTime(net.playerId, out rttMs);
+            }
+
+            if (shouldShow)
+            {
+                DirectConnPingField.SetDescription(
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.ping.value", rttMs));
+            }
+
+            if (shouldShow != _pingVisible)
+            {
+                _pingVisible = shouldShow;
+                DirectConnPingField.SetActive(shouldShow);
+                PanelDescriptor?.ForceRebuild();
             }
         }
 

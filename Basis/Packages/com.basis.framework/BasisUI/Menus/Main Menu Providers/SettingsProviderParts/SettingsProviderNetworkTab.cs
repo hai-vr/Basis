@@ -10,7 +10,7 @@ namespace Basis.BasisUI
         // Steady-state cushion used when the user hasn't enabled the manual override.
         // Matches the default in BasisNetworkReceiver so toggling the override off
         // restores stock behaviour rather than whatever the slider last held.
-        private const int DefaultJitterDepth = 2;
+        private const int DefaultJitterDepth = 1;
 
         [RuntimeInitializeOnLoadMethod]
         static void Init()
