@@ -75,6 +75,10 @@ namespace HVR.Vixxy
             (
                 new List<string> { typeof(Text).FullName, "TMPro.TextMeshPro", "TMPro.TextMeshProUGUI" },
                 new List<string> { "text" }
+            ),
+            (
+                new List<string> { typeof(Transform).FullName },
+                new List<string> { "rotation", "localRotation", "position", "localPosition", "localScale" }
             )
         };
 
