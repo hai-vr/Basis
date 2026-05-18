@@ -34,7 +34,7 @@ namespace HVR.Basis.Comms
         public void OnResyncEveryoneRequested() => _behaviour.OnResyncEveryoneRequested();
         public void OnResyncRequested(ushort[] whoAsked) => _behaviour.OnResyncRequested(whoAsked);
 
-        private const float TransmissionDeltaSeconds = 0.1f;
+        public float transmissionDeltaSeconds = 0.05f;
         private const float UpgradeAddressesDeltaSeconds = 5f;
 
         private static byte EncodeFloat(float value, HVRVariable variable)
@@ -207,7 +207,7 @@ namespace HVR.Basis.Comms
 
                 // This runs every 0.1 seconds in general.
                 _timeLeftUpdateValues += Time.deltaTime;
-                if (_timeLeftUpdateValues > TransmissionDeltaSeconds)
+                if (_timeLeftUpdateValues > _state.transmissionDeltaSeconds)
                 {
                     DoTick(_timeLeftUpdateValues);
                     _timeLeftUpdateValues = 0;
