@@ -9,6 +9,10 @@ namespace HVR.Basis.Comms
 {
     public class HVRVariableNetworking : MonoBehaviour, IFeatureReceiver
     {
+        // These are limits put in place to try avoiding clients from sending an arbitrary number of variables and addresses containing an arbitrary length.
+        private const int MaximumNumberOfNetworkedVariables = 8192;
+        private const int MaximumNumberOfCharactersInAnAddress = 512;
+
         private const bool PrintDebug = false;
 
         // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
@@ -133,6 +137,13 @@ namespace HVR.Basis.Comms
                     return;
                 }
 
+                var addressName = HVRAddress.ResolveKnownAddressFromId(variable.addressId);
+                if (addressName.Length > MaximumNumberOfCharactersInAnAddress)
+                {
+                    HVRLogging.LimitReached($"The name of the variable {addressName} is too long. Maximum is {MaximumNumberOfCharactersInAnAddress} characters. The variable will be ignored.");
+                    return;
+                }
+
                 if (variable.variableTypeCode == HVRVariableTypeCode.Float)
                 {
                     if (variable.initialValue is not float) throw new InvalidOperationException("Initial value does not match variable type code.");
@@ -160,6 +171,10 @@ namespace HVR.Basis.Comms
                 {
                     HVRLogging.Debug("Addresses will be encoded as ushort instead of bytes.");
                     _needsUshortAddresses = true;
+                }
+                if (_addressIdToHolder.Count > MaximumNumberOfNetworkedVariables)
+                {
+                    HVRLogging.LimitReached($"There are too many networked variables. Currently registered {_addressIdToHolder.Count} variables. The receiver may ignore any variables beyond this point.");
                 }
             }
 
@@ -611,6 +626,12 @@ namespace HVR.Basis.Comms
                     }
                     case AvatarMessageProcessing.NewNet_WearerSubmitsNewVariables:
                     {
+                        if (_networkIdToAddressId.Count > MaximumNumberOfNetworkedVariables)
+                        {
+                            HVRLogging.ProtocolError($"We have received a NewVariables packet, but we already have too many networked variables ({_networkIdToAddressId.Count} > {MaximumNumberOfNetworkedVariables}) received so far. We will ignore any new ones because we can't store all of them.");
+                            return;
+                        }
+
                         if (!HVRPacket_NewVariables.TryDeserialize(_needsUshortAddresses, data, out var packet))
                         {
                             HVRLogging.ProtocolError("Failed to deserialize NewVariables packet.");
@@ -792,6 +813,12 @@ namespace HVR.Basis.Comms
 
                 foreach (var variable in packet.newGeneralVariables)
                 {
+                    if (variable.address.Length > MaximumNumberOfCharactersInAnAddress)
+                    {
+                        HVRLogging.ProtocolError("A variable we received has a name which is too long. We will ignore it.");
+                        continue;
+                    }
+
                     var addressId = HVRAddress.AddressToId(variable.address);
                     _addressIdToHolder[addressId] = new HVRVariableHolder
                     {
@@ -812,6 +839,12 @@ namespace HVR.Basis.Comms
 
                 foreach (var variable in packet.floatZero)
                 {
+                    if (variable.address.Length > MaximumNumberOfCharactersInAnAddress)
+                    {
+                        HVRLogging.ProtocolError("A variable we received has a name which is too long. We will ignore it.");
+                        continue;
+                    }
+
                     var addressId = HVRAddress.AddressToId(variable.address);
                     _addressIdToHolder[addressId] = new HVRVariableHolder
                     {
@@ -832,6 +865,12 @@ namespace HVR.Basis.Comms
 
                 foreach (var variable in packet.floatOne)
                 {
+                    if (variable.address.Length > MaximumNumberOfCharactersInAnAddress)
+                    {
+                        HVRLogging.ProtocolError("A variable we received has a name which is too long. We will ignore it.");
+                        continue;
+                    }
+
                     var addressId = HVRAddress.AddressToId(variable.address);
                     _addressIdToHolder[addressId] = new HVRVariableHolder
                     {
