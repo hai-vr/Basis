@@ -364,8 +364,6 @@ namespace HVR.Vixxy
                     max = toBeNetworked.max
                 });
             }
-
-            _builtInAddressesNullable?.OnHVRReadyBothAvatarAndNetwork(isWearer);
         }
 
         private void OnDestroy()

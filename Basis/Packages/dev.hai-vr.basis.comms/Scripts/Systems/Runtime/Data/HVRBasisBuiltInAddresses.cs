@@ -70,17 +70,6 @@ namespace HVR.Basis.Comms
             ReaggregateFlags();
         }
 
-        public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
-        {
-            if (!isWearer)
-            {
-                if (BasisNetworkPlayers.AvatarToPlayer(_avatar, out _, out var netPlayer) && netPlayer is BasisNetworkReceiver netReceiver)
-                {
-                    _remoteReceiver = netReceiver;
-                }
-            }
-        }
-
         public void Destroy()
         {
             if (_comms == null) return;
@@ -113,6 +102,10 @@ namespace HVR.Basis.Comms
 
         private void ApplyForAllInComms(HVRAvatarComms comms)
         {
+            if (!_isWearer && _remoteReceiver == null && BasisNetworkPlayers.AvatarToPlayer(_avatar, out _, out var netPlayer) && netPlayer is BasisNetworkReceiver netReceiver)
+            {
+                _remoteReceiver = netReceiver;
+            }
             ProcessViseme(comms);
         }
 
