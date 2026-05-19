@@ -183,9 +183,11 @@ namespace HVR.Vixxy.Editor
 
         private bool DrawPropertyOrReturn(SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp, bool isPlaying)
         {
+            var managedReferenceValue = propertySp.managedReferenceValue;
+            if (managedReferenceValue == null) return false; // SerializeReference
             EditorGUILayout.BeginVertical(HVR_EditorHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
-            var managedReferenceValue = propertySp.managedReferenceValue;
+
             var managedReferenceValueType = managedReferenceValue.GetType();
 
             var inheritsFromVixxyProperty = false;

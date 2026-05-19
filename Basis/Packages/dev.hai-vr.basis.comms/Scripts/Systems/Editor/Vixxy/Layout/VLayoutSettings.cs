@@ -11,7 +11,6 @@ namespace HVR.Vixxy.Editor
     internal class VLayoutSettings
     {
         private static readonly string[] Visemes = { "sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "ih", "oh", "ou", };
-        private const string MenuLabel = "Menu";
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
 
@@ -38,12 +37,13 @@ namespace HVR.Vixxy.Editor
 
         public bool LayoutSettings()
         {
-            EditorGUILayout.Separator();
-
             if (!_editor.IsSystemAddress())
             {
-                EditorGUILayout.LabelField(MenuLabel, EditorStyles.boldLabel);
                 var menuNullable = my.GetComponent<HVRVixxyMenuItem>();
+                if (menuNullable != null || _outsideMenus.Count != 0)
+                {
+                    EditorGUILayout.LabelField("This control is activated by a menu.", EditorStyles.boldLabel);
+                }
                 EditorGUI.BeginDisabledGroup(true);
                 foreach (var outsideMenu in _outsideMenus)
                 {
@@ -83,7 +83,8 @@ namespace HVR.Vixxy.Editor
             }
             else
             {
-                EditorGUILayout.LabelField(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "???", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("This control is activated by a special input.", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "???");
                 LayoutSystemAddressSelector();
             }
             EditorGUILayout.Separator();

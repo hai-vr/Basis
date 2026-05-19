@@ -14,7 +14,6 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
         internal static readonly Color FilledColor = new Color(0.76f, 0.97f, 0.74f);
 
-        public static bool _settingsFoldout;
         public static bool _advancedSettingsFoldout;
         public static bool _toggleObjectsFoldout;
         public static bool _changePropertiesFoldout;
@@ -50,13 +49,8 @@ namespace HVR.Vixxy.Editor
 
             var anyChanged = false;
             if (_settings.LayoutChoices()) return;
+            if (_settings.LayoutSettings()) return;
 
-            var settingsLabel = HVRVixxyLocalizationPhrase.SettingsLabel + (IsSystemAddress() ? $" ({(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "")})" : "");
-            _settingsFoldout = HaiEFCommon.LilFoldout(settingsLabel, "", _settingsFoldout, ref anyChanged);
-            if (_settingsFoldout)
-            {
-                if (_settings.LayoutSettings()) return;
-            }
             _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged, my.activations.Length > 0, FilledColor);
             if (_toggleObjectsFoldout)
             {
@@ -176,6 +170,7 @@ namespace HVR.Vixxy.Editor
             {
                 foreach (var property in subject.properties)
                 {
+                    if (property == null) continue; // SerializeReference
                     property.RemoveChoiceAtIndex(choiceIndex);
                 }
             }
