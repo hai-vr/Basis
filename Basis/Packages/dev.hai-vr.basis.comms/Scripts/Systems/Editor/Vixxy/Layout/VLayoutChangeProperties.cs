@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using HVR.Basis.Comms;
-using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -15,10 +14,8 @@ namespace HVR.Vixxy.Editor
     internal class VLayoutChangeProperties
     {
         private const int MaxSearchQueryLength = 100;
-        private const string AddArbitraryBlendshapeLabel = "Add arbitrary blendshape";
-        private const string AddLabel = "Add";
+        private const string ObjectGroupIndicator = "◆";
         private static readonly Regex HasAnyNonLetterNonSpace = new Regex(@"[^A-Za-z\s]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly string[] CoordsSuffixes = {".x", ".y", ".z", ".w", ".r", ".g", ".b", ".a"};
 
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
@@ -75,7 +72,7 @@ namespace HVR.Vixxy.Editor
                 var subjectSp = subjectsReorderableList.serializedProperty.GetArrayElementAtIndex(selectedIndex);
                 var mySelectedElement = my.subjects[selectedIndex];
 
-                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ObjectGroupLabel} #{selectedIndex + 1}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ObjectGroupLabel} {ObjectGroupIndicator}{selectedIndex + 1}", EditorStyles.boldLabel);
 
                 EditorGUILayout.PropertyField(subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.selection)));
                 if (mySelectedElement.selection == HVRVixxySelection.Normal)
@@ -104,16 +101,19 @@ namespace HVR.Vixxy.Editor
 
                 EditorGUILayout.Separator();
 
-                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.PropertiesLabel, EditorStyles.boldLabel);
-                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.SampleFromLabel);
-                EditorGUI.BeginDisabledGroup(mySelectedElement.selection == HVRVixxySelection.Normal);
-                CreateArrayAddition(subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.targets)), typeof(GameObject), true);
-                EditorGUI.EndDisabledGroup();
-
                 var validTargets = mySelectedElement.targets
                     .Where(o => o != null)
                     .Distinct()
                     .ToArray();
+
+                EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.PropertiesLabel, EditorStyles.boldLabel);
+                if (mySelectedElement.selection != HVRVixxySelection.Normal || mySelectedElement.targets.Length > 1)
+                {
+                    EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.SampleFromLabel);
+                    EditorGUI.BeginDisabledGroup(mySelectedElement.selection == HVRVixxySelection.Normal);
+                    CreateArrayAddition(subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.targets)), typeof(GameObject), true);
+                    EditorGUI.EndDisabledGroup();
+                }
 
                 var propertiesSp = subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
                 if (validTargets.Length > 0)
@@ -175,7 +175,7 @@ namespace HVR.Vixxy.Editor
                                     var fullClassName = fullClassNameSp.stringValue;
 
                                     if (fullClassName != type.FullName) continue;
-                                    if (DrawPropertyOrReturn(propertySp, propertyIndex, propertiesSp)) return true;
+                                    if (DrawPropertyOrReturn(targetObject, propertySp, propertyIndex, propertiesSp)) return true;
                                 }
                             }
                         }
@@ -202,7 +202,7 @@ namespace HVR.Vixxy.Editor
             return false;
         }
 
-        private bool DrawPropertyOrReturn(SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp)
+        private bool DrawPropertyOrReturn(GameObject targetObject, SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp)
         {
             EditorGUILayout.BeginVertical(HVR_EditorHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
@@ -228,9 +228,19 @@ namespace HVR.Vixxy.Editor
                 }
             }
 
+            var variantSp = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.variant));
             if (inheritsFromVixxyProperty)
             {
-                EditorGUILayout.LabelField($"{genericType.Name}", EditorStyles.boldLabel, GUILayout.Width(100));
+                if (variantSp.intValue == (int)HVRVixxyPropertyVariant.BlendShape)
+                {
+                    EditorGUILayout.LabelField("Blendshape", EditorStyles.boldLabel, GUILayout.Width(100));
+                }
+                else
+                {
+                    var genericTypeName = managedReferenceValueType.Name;
+                    if (genericTypeName.StartsWith("HVRVixxyProperty")) genericTypeName = genericTypeName.Substring("HVRVixxyProperty".Length);
+                    EditorGUILayout.LabelField($"{genericTypeName}", EditorStyles.boldLabel, GUILayout.Width(100));
+                }
             }
             else if (managedReferenceValue is HVRVixxyPropertyBase)
             {
@@ -241,16 +251,57 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField($"CAUTION: Not a HVRVixxyPropertyBase, type is {managedReferenceValueType.FullName}", EditorStyles.boldLabel);
             }
 
-            EditorGUI.BeginDisabledGroup(true);
-            // EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)));
-            EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.variant)), GUIContent.none);
-            EditorGUI.EndDisabledGroup();
+            if (variantSp.intValue != (int)HVRVixxyPropertyVariant.BlendShape)
+            {
+                EditorGUI.BeginDisabledGroup(true);
+                // EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)));
+                EditorGUILayout.PropertyField(variantSp, GUIContent.none);
+                EditorGUI.EndDisabledGroup();
+            }
 
             EditorGUI.BeginDisabledGroup(managedReferenceValue is HVRVixxyPropertyBase { variant: HVRVixxyPropertyVariant.Standard });
             EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.propertyName)), GUIContent.none);
             EditorGUI.EndDisabledGroup();
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+            {
+                var currentFullClassName = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)).stringValue;
+
+                var previousPropertyIndex = -1;
+                var nextPropertyIndex = -1;
+                for (var i = 0; i < propertiesSp.arraySize; i++)
+                {
+                    if (i == propertyIndex) continue;
+                    var otherPropertySp = propertiesSp.GetArrayElementAtIndex(i);
+                    if (otherPropertySp == null) continue;
+                    var otherFullClassNameSp = otherPropertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName));
+                    if (otherFullClassNameSp == null) continue;
+                    if (otherFullClassNameSp.stringValue != currentFullClassName) continue;
+
+                    if (i < propertyIndex)
+                    {
+                        previousPropertyIndex = i;
+                    }
+                    else if (i > propertyIndex && nextPropertyIndex == -1)
+                    {
+                        nextPropertyIndex = i;
+                    }
+                }
+
+                EditorGUI.BeginDisabledGroup(previousPropertyIndex == -1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    propertiesSp.MoveArrayElement(propertyIndex, previousPropertyIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.BeginDisabledGroup(nextPropertyIndex == -1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    propertiesSp.MoveArrayElement(propertyIndex, nextPropertyIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+            }
+
+            if (GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 
@@ -279,20 +330,35 @@ namespace HVR.Vixxy.Editor
 
                 for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                 {
+                    EditorGUILayout.BeginHorizontal();
+                    var choiceElementSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
+
                     var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
                     if (managedReferenceValueType == typeof(HVRVixxyPropertyColorHDR))
                     {
-                        var from = choicesSp.GetArrayElementAtIndex(choiceIndex).colorValue;
+                        var from = choiceElementSp.colorValue;
                         var to = EditorGUILayout.ColorField(new GUIContent(description), from, true, true, true);
                         if (from != to)
                         {
-                            choicesSp.GetArrayElementAtIndex(choiceIndex).colorValue = to;
+                            choiceElementSp.colorValue = to;
                         }
                     }
                     else
                     {
-                        EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
+                        EditorGUILayout.PropertyField(choiceElementSp, new GUIContent(description));
                     }
+
+                    if (inheritsFromVixxyProperty)
+                    {
+                        if (GUILayout.Button(new GUIContent(EditorGUIUtility.IconContent("Download-Available").image, HVRVixxyLocalizationPhrase.SampleValueFromSceneLabel), GUILayout.Width(25)))
+                        {
+                            if (HVR_EditorHelpers.TryCaptureProperty(targetObject, managedReferenceValue, propertySp, out var capturedValue))
+                            {
+                                TryApplyProperty(capturedValue, choiceElementSp);
+                            }
+                        }
+                    }
+                    EditorGUILayout.EndHorizontal();
                 }
             }
 
@@ -311,6 +377,18 @@ namespace HVR.Vixxy.Editor
 
             EditorGUILayout.EndVertical();
             return false;
+        }
+
+        private static void TryApplyProperty(object capturedValue, SerializedProperty choiceElementSp)
+        {
+            if (capturedValue is Color colorValue) { choiceElementSp.colorValue = colorValue; }
+            else if (capturedValue is float floatValue) { choiceElementSp.floatValue = floatValue; }
+            else if (capturedValue is int intValue) { choiceElementSp.intValue = intValue; }
+            else if (capturedValue is Quaternion quaternionValue) { choiceElementSp.vector3Value = quaternionValue.eulerAngles; } // !!!
+            else if (capturedValue is Vector4 vector4Value) { choiceElementSp.vector4Value = vector4Value; }
+            else if (capturedValue is Vector3 vector3Value) { choiceElementSp.vector3Value = vector3Value; }
+            else if (capturedValue is Vector2 vector2Value) { choiceElementSp.vector2Value = vector2Value; }
+            else if (capturedValue is Object objectValue) { choiceElementSp.objectReferenceValue = objectValue; }
         }
 
         private static void CreateArrayAddition(SerializedProperty whichArrayProperty, Type arrayType, bool limitToOne = false)
@@ -361,7 +439,20 @@ namespace HVR.Vixxy.Editor
                     }
                 }
 
-                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(25)))
+                EditorGUI.BeginDisabledGroup(i == 0);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    whichArrayProperty.MoveArrayElement(i, i - 1);
+                }
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.BeginDisabledGroup(i == whichArrayProperty.arraySize - 1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    whichArrayProperty.MoveArrayElement(i, i + 1);
+                }
+                EditorGUI.EndDisabledGroup();
+
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
                 {
                     whichArrayProperty.GetArrayElementAtIndex(i).objectReferenceValue = null;
                     whichArrayProperty.DeleteArrayElementAtIndex(i);
@@ -437,7 +528,7 @@ namespace HVR.Vixxy.Editor
                 }
             }
 
-            var hasSearch = !string.IsNullOrEmpty(_search) && (_search.Length >= 3 || (_search.Length == 2 && HasAnyNonLetterNonSpace.IsMatch(_search)) || _search.StartsWith(" "));
+            var hasSearch = !string.IsNullOrEmpty(_search) && _search.Length < MaxSearchQueryLength && (_search.Length >= 3 || (_search.Length == 2 && HasAnyNonLetterNonSpace.IsMatch(_search)) || _search.StartsWith(" "));
 
             if (showProperties)
             {
@@ -472,6 +563,8 @@ namespace HVR.Vixxy.Editor
 
                 foreach (var prop in props)
                 {
+                    if (!prop.isPermitted && !HVRVixxyControlEditor._developerViewFoldout) continue;
+
                     EditorGUI.BeginDisabledGroup(!prop.isPermitted);
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.TextField(prop.name);
@@ -491,7 +584,7 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol))
+                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusButtonWidth)))
                     {
                         var managedReferenceValue = ToPropertyOrNull(targetedType, prop);
                         if (managedReferenceValue != null)
@@ -524,7 +617,7 @@ namespace HVR.Vixxy.Editor
                         propertyName = blendshape,
                     };
                 }
-                if (GUILayout.Button($"+ {AddArbitraryBlendshapeLabel}"))
+                if (GUILayout.Button($"+ {HVRVixxyLocalizationPhrase.AddArbitraryBlendshapeLabel}"))
                 {
                     AddBlendshape("");
                 }
@@ -534,7 +627,7 @@ namespace HVR.Vixxy.Editor
 
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.TextField(blendshape);
-                    if (GUILayout.Button(AddLabel, GUILayout.Width(60)))
+                    if (GUILayout.Button(HVRVixxyLocalizationPhrase.AddLabel, GUILayout.Width(60)))
                     {
                         AddBlendshape(blendshape);
                     }
@@ -558,7 +651,7 @@ namespace HVR.Vixxy.Editor
 
                         EditorGUILayout.BeginHorizontal();
                         EditorGUILayout.TextField(materialProperty);
-                        if (GUILayout.Button(mptype == MaterialPropertyType.Vector ? "Vector4" : AddLabel, GUILayout.Width(55)))
+                        if (GUILayout.Button(mptype == MaterialPropertyType.Vector ? "Vector4" : HVRVixxyLocalizationPhrase.AddLabel, GUILayout.Width(55)))
                         {
                             var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
 
@@ -758,12 +851,12 @@ namespace HVR.Vixxy.Editor
             {
                 var targetNames = subject.targets.Where(o => o != null).Select(o => o.name).ToArray();
                 return
-                    $"#{index + 1} {(targetNames.Length > 1 ? $"[{targetNames.Length} objects] " : "")}{string.Join(", ", targetNames)} ({string.Join(", ", classNames)})";
+                    ObjectGroupIndicator + $"{index + 1} {(targetNames.Length > 1 ? $"[{targetNames.Length} objects] " : "")}{string.Join(", ", targetNames)} ({string.Join(", ", classNames)})";
             }
             else
             {
                 var label = subject.selection == HVRVixxySelection.RecursiveSearch ? HVRVixxyLocalizationPhrase.RecursiveSearchLabel : HVRVixxyLocalizationPhrase.EverythingLabel;
-                return $"#{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
+                return ObjectGroupIndicator + $"{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
             }
         }
     }

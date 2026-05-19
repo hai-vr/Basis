@@ -14,9 +14,6 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
         internal static readonly Color FilledColor = new Color(0.76f, 0.97f, 0.74f);
 
-        internal const float DeleteButtonWidth = 40;
-
-        public static bool _settingsFoldout;
         public static bool _advancedSettingsFoldout;
         public static bool _toggleObjectsFoldout;
         public static bool _changePropertiesFoldout;
@@ -51,12 +48,9 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
-            var settingsLabel = HVRVixxyLocalizationPhrase.SettingsLabel + (IsSystemAddress() ? $" ({(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "")})" : "");
-            _settingsFoldout = HaiEFCommon.LilFoldout(settingsLabel, "", _settingsFoldout, ref anyChanged);
-            if (_settingsFoldout)
-            {
-                if (_settings.LayoutSettings()) return;
-            }
+            if (_settings.LayoutChoices()) return;
+            if (_settings.LayoutSettings()) return;
+
             _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged, my.activations.Length > 0, FilledColor);
             if (_toggleObjectsFoldout)
             {
@@ -130,7 +124,7 @@ namespace HVR.Vixxy.Editor
             EditorGUI.EndDisabledGroup();
 
             EditorGUI.BeginDisabledGroup(string.IsNullOrWhiteSpace(pathSp.stringValue) && assetSp.objectReferenceValue == null);
-            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(20)))
+            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
             {
                 assetSp.objectReferenceValue = null;
                 pathSp.stringValue = "";
@@ -176,6 +170,7 @@ namespace HVR.Vixxy.Editor
             {
                 foreach (var property in subject.properties)
                 {
+                    if (property == null) continue; // SerializeReference
                     property.RemoveChoiceAtIndex(choiceIndex);
                 }
             }
@@ -183,10 +178,46 @@ namespace HVR.Vixxy.Editor
             Undo.RecordObject(my, HVRVixxyLocalizationPhrase.RemoveChoiceLabel);
         }
 
+        public void MoveChoiceUp(int choiceIndex)
+        {
+            MoveChoice(choiceIndex, choiceIndex - 1);
+        }
+
+        public void MoveChoiceDown(int choiceIndex)
+        {
+            var my = (HVRVixxyControl)target;
+            if (choiceIndex >= my.choices.Length - 1) return;
+
+            MoveChoice(choiceIndex, choiceIndex + 1);
+        }
+
+        private void MoveChoice(int fromIndex, int toIndex)
+        {
+            if (fromIndex < 0 || toIndex < 0) return;
+
+            var my = (HVRVixxyControl)target;
+            if (fromIndex >= my.choices.Length || toIndex >= my.choices.Length) return;
+
+            foreach (var activation in my.activations)
+            {
+                (activation.choices[fromIndex], activation.choices[toIndex]) = (activation.choices[toIndex], activation.choices[fromIndex]);
+            }
+            foreach (var subject in my.subjects)
+            {
+                foreach (var property in subject.properties)
+                {
+                    property.SwapChoiceIndices(fromIndex, toIndex);
+                }
+            }
+            (my.choices[fromIndex], my.choices[toIndex]) = (my.choices[toIndex], my.choices[fromIndex]);
+
+            Undo.RecordObject(my, "Swap choices");
+        }
+
         internal static string EditorChoiceDescription(int choiceIndex, HVRVixxyChoiceControl[] choices)
         {
             var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
-            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
+            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"#{choiceIndex + 1} {descriptionTemp}" : $"#{choiceIndex + 1}";
             return $"{description} (={choices[choiceIndex].value:0})";
         }
 

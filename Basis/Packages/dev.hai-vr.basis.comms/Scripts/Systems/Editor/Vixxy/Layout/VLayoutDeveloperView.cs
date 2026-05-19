@@ -92,7 +92,7 @@ namespace HVR.Vixxy.Editor
 
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField($"[{subjectIndex}] Subject", EditorStyles.boldLabel);
-                if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+                if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth))))
                 {
                     subjectsSp.DeleteArrayElementAtIndex(subjectIndex);
 
@@ -183,9 +183,11 @@ namespace HVR.Vixxy.Editor
 
         private bool DrawPropertyOrReturn(SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp, bool isPlaying)
         {
+            var managedReferenceValue = propertySp.managedReferenceValue;
+            if (managedReferenceValue == null) return false; // SerializeReference
             EditorGUILayout.BeginVertical(HVR_EditorHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
-            var managedReferenceValue = propertySp.managedReferenceValue;
+
             var managedReferenceValueType = managedReferenceValue.GetType();
 
             var inheritsFromVixxyProperty = false;
@@ -220,7 +222,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField($"[{propertyIndex}] CAUTION: Not a HVRVixxyPropertyBase, type is {managedReferenceValueType.FullName}", EditorStyles.boldLabel);
             }
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth))))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 

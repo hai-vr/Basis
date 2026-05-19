@@ -1,8 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using HVR.Basis.Comms;
 using HVR.Basis.Comms.Editor;
 using UnityEditor;
+using UnityEditor.IMGUI.Controls;
 using UnityEditorInternal;
 using UnityEngine;
 
@@ -10,8 +13,6 @@ namespace HVR.Vixxy.Editor
 {
     internal class VLayoutSettings
     {
-        private static readonly string[] Visemes = { "sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "ih", "oh", "ou", };
-        private const string MenuLabel = "Menu";
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
 
@@ -38,12 +39,14 @@ namespace HVR.Vixxy.Editor
 
         public bool LayoutSettings()
         {
-            EditorGUILayout.Separator();
-
             if (!_editor.IsSystemAddress())
             {
-                EditorGUILayout.LabelField(MenuLabel, EditorStyles.boldLabel);
                 var menuNullable = my.GetComponent<HVRVixxyMenuItem>();
+                var isMenuDriven = menuNullable != null || _outsideMenus.Count != 0;
+                if (isMenuDriven)
+                {
+                    EditorGUILayout.LabelField("This control is activated by a menu.", EditorStyles.boldLabel);
+                }
                 EditorGUI.BeginDisabledGroup(true);
                 foreach (var outsideMenu in _outsideMenus)
                 {
@@ -59,15 +62,121 @@ namespace HVR.Vixxy.Editor
                 var isControlNotDrivenByAnything = _outsideMenus.Count == 0 && menuNullable == null && (!my.address.TryResolvePath(out var actualAddress) || HVRAddress.IsSystemAddressName(actualAddress));
                 if (isControlNotDrivenByAnything)
                 {
-                    if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuOnThisControlLabel))
+                    EditorGUILayout.LabelField("What activates this control?", EditorStyles.boldLabel);
+                    LayoutSystemAddressSelector(null, "Select...");
+                    EditorGUILayout.HelpBox("This control is not activated by anything. Make sure you select one using the button above.", MessageType.Warning);
+                }
+                else if (!isMenuDriven)
+                {
+                    EditorGUILayout.LabelField("This control is activated by an input.", EditorStyles.boldLabel);
+                    LayoutExistingAddress();
+                }
+            }
+            else
+            {
+                EditorGUILayout.LabelField("This control is activated by a special input.", EditorStyles.boldLabel);
+                LayoutExistingAddress();
+            }
+            EditorGUILayout.Separator();
+
+            return false;
+        }
+
+        private void LayoutExistingAddress()
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "???");
+            LayoutSystemAddressSelector(GUILayout.Width(100), "Select...");
+            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
+            {
+                var prop = serializedObject.FindProperty(nameof(HVRVixxyControl.address));
+                prop.FindPropertyRelative(nameof(HVRAddressSelector.path)).stringValue = "";
+                prop.FindPropertyRelative(nameof(HVRAddressSelector.asset)).objectReferenceValue = null;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        internal bool LayoutChoices()
+        {
+            var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("", GUILayout.Width(30));
+            EditorGUILayout.LabelField("Description / Icon / Value");
+            EditorGUILayout.LabelField("", GUILayout.Width(20));
+            EditorGUILayout.EndHorizontal();
+
+            for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
+            {
+                var choiceSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(30));
+
+                EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.title)), GUIContent.none);
+                EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
+                var valueSp = choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value));
+                EditorGUILayout.PropertyField(valueSp, GUIContent.none, GUILayout.Width(30));
+                var choiceValue = valueSp.floatValue;
+                if (HaiEFCommon.ColoredBackground(Mathf.Approximately(my.defaultValue, choiceValue), HVRVixxyControlEditor.FilledColor,
+                        () => GUILayout.Button(HVRVixxyLocalizationPhrase.DefaultLabel, GUILayout.Width(60))))
+                {
+                    var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
+                    defaultValueSp.floatValue = choiceValue;
+                }
+                EditorGUI.BeginDisabledGroup(choiceIndex == 0);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    _editor.MoveChoiceUp(choiceIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.BeginDisabledGroup(choiceIndex == choicesSp.arraySize - 1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    _editor.MoveChoiceDown(choiceIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+
+                EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
+                {
+                    _editor.RemoveChoice(choiceIndex);
+                    return true;
+                }
+                EditorGUI.EndDisabledGroup();
+
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("", GUILayout.Width(30));
+            if (GUILayout.Button($"{HVR_EditorHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
+            {
+                _editor.AddChoice();
+                return true;
+            }
+            EditorGUILayout.LabelField("", GUILayout.Width(20));
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.Separator();
+            return false;
+        }
+
+        private void LayoutSystemAddressSelector(GUILayoutOption layoutOption, string label)
+        {
+            var buttonRect = layoutOption != null ? EditorGUILayout.GetControlRect(layoutOption) : EditorGUILayout.GetControlRect();
+            if (GUI.Button(buttonRect, label))
+            {
+                VAddressSelection.Show(buttonRect, selected =>
+                {
+                    if (selected == VAddressSelection.MakeMenu)
                     {
                         var comp = Undo.AddComponent<HVRVixxyMenuItem>(my.gameObject);
                         ComponentUtility.MoveComponentUp(comp);
                     }
-                    if (GUILayout.Button(HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel))
+                    else if (selected == VAddressSelection.MakeMenuNewGameObject)
                     {
                         var go = new GameObject($"{my.gameObject.name} Menu");
-                        Undo.RegisterCreatedObjectUndo(go, HVRVixxyLocalizationPhrase.CreateMenuInASeparateGameObjectLabel);
+                        Undo.RegisterCreatedObjectUndo(go, HVRVixxyLocalizationPhrase.CreateMenuLabel);
                         go.transform.SetParent(my.transform);
                         go.transform.localPosition = Vector3.zero;
                         go.transform.localRotation = Quaternion.identity;
@@ -77,102 +186,23 @@ namespace HVR.Vixxy.Editor
                         comp.control = my;
 
                         _outsideMenus.Add(comp);
+                        EditorApplication.delayCall += () =>
+                        {
+                            EditorGUIUtility.PingObject(comp.gameObject);
+                        };
                     }
-                    LayoutSystemAddressSelector();
-                }
-            }
-            else
-            {
-                EditorGUILayout.LabelField(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "???", EditorStyles.boldLabel);
-                LayoutSystemAddressSelector();
-            }
-            EditorGUILayout.Separator();
-
-            {
-                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
-                var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
-
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("", GUILayout.Width(30));
-                EditorGUILayout.LabelField("Description / Icon / Value");
-                EditorGUILayout.LabelField("", GUILayout.Width(20));
-                EditorGUILayout.EndHorizontal();
-
-                for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
-                {
-                    var choiceSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
-
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(30));
-
-                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.title)), GUIContent.none);
-                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
-                    var valueSp = choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value));
-                    EditorGUILayout.PropertyField(valueSp, GUIContent.none, GUILayout.Width(30));
-                    var choiceValue = valueSp.floatValue;
-                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(my.defaultValue, choiceValue), HVRVixxyControlEditor.FilledColor,
-                            () => GUILayout.Button(HVRVixxyLocalizationPhrase.DefaultLabel, GUILayout.Width(60))))
+                    else
                     {
-                        var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
-                        defaultValueSp.floatValue = choiceValue;
+                        var prop = serializedObject.FindProperty(nameof(HVRVixxyControl.address));
+                        prop.FindPropertyRelative(nameof(HVRAddressSelector.path)).stringValue = selected;
+                        prop.FindPropertyRelative(nameof(HVRAddressSelector.asset)).objectReferenceValue = null;
+                        serializedObject.ApplyModifiedProperties();
+                        _editor.Repaint();
                     }
-
-                    EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
-                    if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(20)))
-                    {
-                        _editor.RemoveChoice(choiceIndex);
-                        return true;
-                    }
-                    EditorGUI.EndDisabledGroup();
-
-                    EditorGUILayout.EndHorizontal();
-                }
-
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("", GUILayout.Width(30));
-                if (GUILayout.Button($"{HVR_EditorHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
-                {
-                    _editor.AddChoice();
-                    return true;
-                }
-                EditorGUILayout.LabelField("", GUILayout.Width(20));
-                EditorGUILayout.EndHorizontal();
-
+                });
             }
-            EditorGUILayout.Separator();
 
-            return false;
-        }
-
-        private void LayoutSystemAddressSelector()
-        {
             var bindAddress = my.address.TryResolvePath(out var actualAddress) ? actualAddress : "";
-
-            EditorGUILayout.LabelField("Viseme", EditorStyles.boldLabel);
-            EditorGUILayout.BeginHorizontal();
-            for (var index = 0; index < Visemes.Length; index++)
-            {
-                if (index % 5 == 0 && index != 0)
-                {
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.BeginHorizontal();
-                }
-
-                var viseme = Visemes[index];
-                LayoutButtonForAddress(viseme, HVRAddress.System.User.Viseme.VisemeAddressPrefix + viseme, bindAddress);
-            }
-            EditorGUILayout.EndHorizontal();
-            LayoutButtonForAddress("Voice Gain", HVRAddress.System.User.VoiceGain.address, bindAddress);
-        }
-
-        private void LayoutButtonForAddress(string viseme, string address, string bindAddress)
-        {
-            if (HaiEFCommon.ColoredBackground(bindAddress == address, HVRVixxyControlEditor.FilledColor, () => GUILayout.Button(viseme)))
-            {
-                var prop = serializedObject.FindProperty(nameof(HVRVixxyControl.address));
-                prop.FindPropertyRelative(nameof(HVRAddressSelector.path)).stringValue = address;
-                prop.FindPropertyRelative(nameof(HVRAddressSelector.asset)).objectReferenceValue = null;
-            }
         }
 
         public bool LayoutAdvancedSettings()
@@ -208,6 +238,81 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             return false;
+        }
+    }
+
+    internal class VAddressSelection : AdvancedDropdown
+    {
+        public const string MakeMenu = "make.menu";
+        public const string MakeMenuNewGameObject = "make.menu_new_gameobject";
+
+        private static readonly string[] Visemes = { "sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "ih", "oh", "ou", };
+        private static readonly string[] FaceTracking = { "BrowDownLeft", "BrowDownRight", "BrowInnerUp", "BrowInnerUpLeft", "BrowInnerUpRight", "BrowLowererLeft", "BrowLowererRight", "BrowOuterUpLeft", "BrowOuterUpRight", "BrowPinchLeft", "BrowPinchRight", "CheekPuffSuck", "CheekPuffSuckLeft", "CheekPuffSuckRight", "CheekSquintLeft", "CheekSquintRight", "EyeLeftX", "EyeLidLeft", "EyeLidRight", "EyeRightX", "EyeSquintLeft", "EyeSquintRight", "EyeY", "JawClench", "JawMandibleRaise", "JawOpen", "JawX", "JawZ", "LipFunnel", "LipFunnelLowerLeft", "LipFunnelLowerRight", "LipFunnelUpperLeft", "LipFunnelUpperRight", "LipPucker", "LipPuckerLowerLeft", "LipPuckerLowerRight", "LipPuckerUpperLeft", "LipPuckerUpperRight", "LipSuckCornerLeft", "LipSuckCornerRight", "LipSuckLower", "LipSuckLowerLeft", "LipSuckLowerRight", "LipSuckUpper", "LipSuckUpperLeft", "LipSuckUpperRight", "MouthClosed", "MouthCornerPullLeft", "MouthCornerPullRight", "MouthCornerSlantLeft", "MouthCornerSlantRight", "MouthDimpleLeft", "MouthDimpleRight", "MouthFrownLeft", "MouthFrownRight", "MouthLowerDownLeft", "MouthLowerDownRight", "MouthLowerX", "MouthPressLeft", "MouthPressRight", "MouthRaiserLower", "MouthRaiserUpper", "MouthSmileLeft", "MouthSmileRight", "MouthStretchLeft", "MouthStretchRight", "MouthTightenerLeft", "MouthTightenerRight", "MouthUpperDeepenLeft", "MouthUpperDeepenRight", "MouthUpperUpLeft", "MouthUpperUpRight", "MouthUpperX", "NasalConstrictLeft", "NasalConstrictRight", "NasalDilationLeft", "NasalDilationRight", "NeckFlexLeft", "NeckFlexRight", "NoseSneerLeft", "NoseSneerRight", "SoftPalateClose", "ThroatSwallow", "TongueArchY", "TongueOut", "TongueRoll", "TongueShape", "TongueTwistLeft", "TongueTwistRight", "TongueX", "TongueY" };
+        private static readonly string[] EyeTracking = { "EyeLeftX", "EyeRightX", "EyeY", "EyeLidLeft", "EyeLidRight", "EyeSquintLeft", "EyeSquintRight" };
+
+        private readonly Action<string> _onSelected;
+
+        public VAddressSelection(AdvancedDropdownState state, Action<string> onSelected) : base(state)
+        {
+            _onSelected = onSelected;
+            minimumSize = new Vector2(200, 300);
+        }
+
+        protected override AdvancedDropdownItem BuildRoot()
+        {
+            var root = new AdvancedDropdownItem(HVRVixxyLocalizationPhrase.AddressesLabel);
+
+            root.AddChild(NewAdvancedDropdownItem(MakeMenu, HVRVixxyLocalizationPhrase.MenuItemLabel));
+            root.AddChild(NewAdvancedDropdownItem(MakeMenuNewGameObject, HVRVixxyLocalizationPhrase.MenuItemNewGameObjectLabel));
+            root.AddChild(CreateVisemeDropdown());
+            root.AddChild(NewAdvancedDropdownItem(HVRAddress.System.User.VoiceGain.address, HVRVixxyLocalizationPhrase.VoiceGainLabel));
+            root.AddChild(CreateFaceTrackingDropdown(HVRVixxyLocalizationPhrase.FaceTrackingLabel, FaceTracking));
+            root.AddChild(CreateFaceTrackingDropdown(HVRVixxyLocalizationPhrase.EyeTrackingLabel, EyeTracking));
+
+            return root;
+        }
+
+        private static AdvancedDropdownItem CreateVisemeDropdown()
+        {
+            var parent = new AdvancedDropdownItem(HVRVixxyLocalizationPhrase.VisemeLabel);
+            foreach (var viseme in Visemes)
+            {
+                parent.AddChild(NewAdvancedDropdownItem(HVRAddress.System.User.Viseme.VisemeAddressPrefix + viseme, viseme));
+            }
+
+            return parent;
+        }
+
+        private static AdvancedDropdownItem CreateFaceTrackingDropdown(string label, string[] array)
+        {
+            var parent = new AdvancedDropdownItem(label);
+            foreach (var ft in array)
+            {
+                parent.AddChild(NewAdvancedDropdownItem($"FT/v2/{ft}", ft));
+            }
+
+            return parent;
+        }
+
+        private static AdvancedDropdownItem NewAdvancedDropdownItem(string name, string displayName)
+        {
+            var constructor = typeof(AdvancedDropdownItem).GetConstructor(
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                new[] { typeof(string), typeof(string) },
+                null);
+            return (AdvancedDropdownItem)constructor.Invoke(new object[] { name, displayName });
+        }
+
+        protected override void ItemSelected(AdvancedDropdownItem item)
+        {
+            _onSelected?.Invoke(item.name);
+        }
+
+        public static void Show(Rect buttonRect, Action<string> onSelected)
+        {
+            var dropdown = new VAddressSelection(new AdvancedDropdownState(), onSelected);
+            dropdown.Show(buttonRect);
         }
     }
 }
