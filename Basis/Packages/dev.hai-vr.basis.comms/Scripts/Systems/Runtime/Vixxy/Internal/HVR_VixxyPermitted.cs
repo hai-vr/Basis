@@ -78,7 +78,7 @@ namespace HVR.Vixxy
             ),
             (
                 new List<string> { typeof(Transform).FullName },
-                new List<string> { "rotation", "localRotation" }
+                new List<string> { "rotation", "localRotation", "position", "localPosition", "localScale" }
             )
         };
 

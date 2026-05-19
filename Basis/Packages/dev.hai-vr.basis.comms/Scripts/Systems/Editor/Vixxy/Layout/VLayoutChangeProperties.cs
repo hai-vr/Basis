@@ -460,12 +460,12 @@ namespace HVR.Vixxy.Editor
                                 name = prop.Name,
                                 type = type,
                                 isPermitted = HVR_VixxyPermitted.AllowArbitraryPropertyAccess || HVR_VixxyPermitted.IsStandardAccessPermitted(targetedType.FullName, prop.Name),
-                                isLegal = IsLegal(type)
+                                isStoredTypeSupported = IsStoredTypeSupported(type)
                             };
                         }))
                     .Distinct()
                     .OrderBy(prop => !prop.isPermitted)
-                    .ThenBy(prop => !prop.isLegal)
+                    .ThenBy(prop => !prop.isStoredTypeSupported)
                     .ThenBy(prop => prop.type.FullName)
                     .ThenBy(tuple => tuple.name)
                     .ToList();
@@ -481,31 +481,26 @@ namespace HVR.Vixxy.Editor
                     }
                     else
                     {
-                        EditorGUILayout.TextField(prop.type.Name);
+                        if (prop.isStoredTypeSupported)
+                        {
+                            EditorGUILayout.TextField(prop.type.Name);
+                        }
+                        else
+                        {
+                            EditorGUILayout.TextField($"{prop.type.Name} (not supported)");
+                        }
                     }
-                    EditorGUILayout.Toggle(prop.isLegal, GUILayout.Width(EditorGUIUtility.singleLineHeight));
 
-                    if (GUILayout.Button("+"))
+                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol))
                     {
-                        if (prop.type == typeof(string) || prop.type == typeof(Quaternion))
+                        var managedReferenceValue = ToPropertyOrNull(targetedType, prop);
+                        if (managedReferenceValue != null)
                         {
                             var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
 
                             var indexToPutData = propertiesSp.arraySize;
                             propertiesSp.arraySize = indexToPutData + 1;
-                            propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = prop.type == typeof(string)
-                                ? new HVRVixxyPropertyString
-                                {
-                                    fullClassName = targetedType.FullName,
-                                    variant = HVRVixxyPropertyVariant.Standard,
-                                    propertyName = prop.name,
-                                }
-                                : new HVRVixxyPropertyQuaternion
-                                {
-                                    fullClassName = targetedType.FullName,
-                                    variant = HVRVixxyPropertyVariant.Standard,
-                                    propertyName = prop.name,
-                                };
+                            propertiesSp.GetArrayElementAtIndex(indexToPutData).managedReferenceValue = managedReferenceValue;
                         }
                     }
 
@@ -605,7 +600,40 @@ namespace HVR.Vixxy.Editor
             }
         }
 
-        private static bool IsLegal(Type type)
+        private static object ToPropertyOrNull(Type targetedType, VProp prop)
+        {
+            var memberInfo = prop.type;
+            if (memberInfo == typeof(string))
+            {
+                return new HVRVixxyPropertyString
+                {
+                    fullClassName = targetedType.FullName,
+                    variant = HVRVixxyPropertyVariant.Standard,
+                    propertyName = prop.name,
+                };
+            }
+            if (memberInfo == typeof(Quaternion))
+            {
+                return new HVRVixxyPropertyQuaternion
+                {
+                    fullClassName = targetedType.FullName,
+                    variant = HVRVixxyPropertyVariant.Standard,
+                    propertyName = prop.name,
+                };
+            }
+            if (memberInfo == typeof(Vector3))
+            {
+                return new HVRVixxyPropertyVector3
+                {
+                    fullClassName = targetedType.FullName,
+                    variant = HVRVixxyPropertyVariant.Standard,
+                    propertyName = prop.name,
+                };
+            }
+            return null;
+        }
+
+        private static bool IsStoredTypeSupported(Type type)
         {
             return type == typeof(float)
                    || type == typeof(bool)
@@ -745,6 +773,6 @@ namespace HVR.Vixxy.Editor
         public string name;
         public Type type;
         public bool isPermitted;
-        public bool isLegal;
+        public bool isStoredTypeSupported;
     }
 }
