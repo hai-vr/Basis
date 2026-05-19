@@ -10,7 +10,9 @@ namespace HVR.Vixxy.Editor
         public const string CrossSymbol = "×";
         public const string PlusSymbol = "+";
         public const string SwapSymbol = "⇅";
-        public const string ArrowSymbol = "→";
+        public const string ArrowRightSymbol = "→";
+        public const string ArrowUpSymbol = "↑";
+        public const string ArrowDownSymbol = "↓";
         public const string GroupBoxStyle = "GroupBox";
 
         public static List<string> ListAllBlendshapes(SkinnedMeshRenderer renderer)

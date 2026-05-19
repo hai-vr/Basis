@@ -361,7 +361,7 @@ namespace HVR.Vixxy.Editor
                     }
                 }
 
-                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(25)))
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth)))
                 {
                     whichArrayProperty.GetArrayElementAtIndex(i).objectReferenceValue = null;
                     whichArrayProperty.DeleteArrayElementAtIndex(i);

@@ -120,9 +120,21 @@ namespace HVR.Vixxy.Editor
                     var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
                     defaultValueSp.floatValue = choiceValue;
                 }
+                EditorGUI.BeginDisabledGroup(choiceIndex == 0);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(15)))
+                {
+                    _editor.MoveChoiceUp(choiceIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.BeginDisabledGroup(choiceIndex == choicesSp.arraySize - 1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(15)))
+                {
+                    _editor.MoveChoiceDown(choiceIndex);
+                }
+                EditorGUI.EndDisabledGroup();
 
                 EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
-                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(20)))
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth)))
                 {
                     _editor.RemoveChoice(choiceIndex);
                     return true;

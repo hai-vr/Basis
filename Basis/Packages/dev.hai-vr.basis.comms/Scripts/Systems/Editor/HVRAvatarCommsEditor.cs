@@ -124,7 +124,7 @@ namespace HVR.Basis.Comms.Editor
                         EditorGUILayout.ObjectField(new GUIContent(""), renderer, typeof(Renderer), true);
                         EditorGUILayout.Toggle(GUIContent.none, renderer.gameObject.activeInHierarchy, GUILayout.Width(20));
                         EditorGUILayout.Toggle(GUIContent.none, renderer.enabled, GUILayout.Width(20));
-                        EditorGUILayout.LabelField(HVR_EditorHelpers.ArrowSymbol, GUILayout.Width(20));
+                        EditorGUILayout.LabelField(HVR_EditorHelpers.ArrowRightSymbol, GUILayout.Width(20));
                         if (_transformToControlsDict.TryGetValue(renderer.transform, out var controls))
                         {
                             foreach (var control in controls)

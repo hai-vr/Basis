@@ -130,7 +130,7 @@ namespace HVR.Vixxy.Editor
                         choicesSp.GetArrayElementAtIndex(HVRVixxyPropertyBase.ActiveIndex).boolValue = !showThoseActive;
                     }
 
-                    if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(25)))
+                    if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth)))
                     {
                         activationsSp.GetArrayElementAtIndex(i).objectReferenceValue = null;
                         activationsSp.DeleteArrayElementAtIndex(i);

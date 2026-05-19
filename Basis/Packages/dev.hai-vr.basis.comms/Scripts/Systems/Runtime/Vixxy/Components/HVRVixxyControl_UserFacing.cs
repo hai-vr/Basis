@@ -178,6 +178,16 @@ namespace HVR.Vixxy
             choices = choices.Where((_, i) => i != choiceIndex).ToArray();
         }
 
+        public override void SwapChoiceIndices(int indexA, int indexB)
+        {
+            if (indexA < 0 || indexA >= choices.Length || indexB < 0 || indexB >= choices.Length)
+            {
+                return;
+            }
+
+            (choices[indexA], choices[indexB]) = (choices[indexB], choices[indexA]);
+        }
+
         public override object GetValueForChoice(int choice)
         {
             return choices[choice];
@@ -230,6 +240,7 @@ namespace HVR.Vixxy
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}
         public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
+        public virtual void SwapChoiceIndices(int indexA, int indexB) {}
         public virtual object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue) { throw new NotImplementedException(); }
         public virtual object GetValueForChoice(int choice) { throw new NotImplementedException(); }
         public virtual void ApplyMaterialProperty(MaterialPropertyBlock materialPropertyBlock, object resolvedValue)
