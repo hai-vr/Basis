@@ -93,7 +93,6 @@ namespace HVR.Vixxy.Editor
 
         internal bool LayoutChoices()
         {
-            EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
             var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
 
             EditorGUILayout.BeginHorizontal();
