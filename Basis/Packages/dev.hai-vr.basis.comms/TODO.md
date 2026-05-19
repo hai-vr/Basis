@@ -42,7 +42,7 @@ Things that remain to be done in Vixxy:
   - ✅ Add Linear move towards value filter.
   - ✅ Add Smooth towards value filter.
   - ✅ Add Curve filter.
-- ⬜ Allow changing the order of choices in the UI.
+- ✅ Allow changing the order of choices in the UI.
 
 Things that remain to be done in Comms:
 - ⬜ Disable the debug logging before opening the PR.
