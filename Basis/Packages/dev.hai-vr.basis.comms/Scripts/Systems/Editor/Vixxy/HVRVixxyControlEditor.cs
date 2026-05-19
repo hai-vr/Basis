@@ -51,6 +51,8 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
+            if (_settings.LayoutChoices()) return;
+
             var settingsLabel = HVRVixxyLocalizationPhrase.SettingsLabel + (IsSystemAddress() ? $" ({(my.address.TryResolvePath(out var actualAddress) ? actualAddress : "")})" : "");
             _settingsFoldout = HaiEFCommon.LilFoldout(settingsLabel, "", _settingsFoldout, ref anyChanged);
             if (_settingsFoldout)

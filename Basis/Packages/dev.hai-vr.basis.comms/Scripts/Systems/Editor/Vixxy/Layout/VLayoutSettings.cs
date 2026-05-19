@@ -88,59 +88,60 @@ namespace HVR.Vixxy.Editor
             }
             EditorGUILayout.Separator();
 
+            return false;
+        }
+
+        internal bool LayoutChoices()
+        {
+            EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
+            var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("", GUILayout.Width(30));
+            EditorGUILayout.LabelField("Description / Icon / Value");
+            EditorGUILayout.LabelField("", GUILayout.Width(20));
+            EditorGUILayout.EndHorizontal();
+
+            for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
             {
-                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ChoicesLabel} ({my.NumberOfChoices})", EditorStyles.boldLabel);
-                var choicesSp = serializedObject.FindProperty(nameof(HVRVixxyControl.choices));
+                var choiceSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("", GUILayout.Width(30));
-                EditorGUILayout.LabelField("Description / Icon / Value");
-                EditorGUILayout.LabelField("", GUILayout.Width(20));
-                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(30));
 
-                for (var choiceIndex = 0; choiceIndex < choicesSp.arraySize; choiceIndex++)
+                EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.title)), GUIContent.none);
+                EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
+                var valueSp = choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value));
+                EditorGUILayout.PropertyField(valueSp, GUIContent.none, GUILayout.Width(30));
+                var choiceValue = valueSp.floatValue;
+                if (HaiEFCommon.ColoredBackground(Mathf.Approximately(my.defaultValue, choiceValue), HVRVixxyControlEditor.FilledColor,
+                        () => GUILayout.Button(HVRVixxyLocalizationPhrase.DefaultLabel, GUILayout.Width(60))))
                 {
-                    var choiceSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
-
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField($"#{choiceIndex + 1}", GUILayout.Width(30));
-
-                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.title)), GUIContent.none);
-                    EditorGUILayout.PropertyField(choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.icon)), GUIContent.none);
-                    var valueSp = choiceSp.FindPropertyRelative(nameof(HVRVixxyChoiceControl.value));
-                    EditorGUILayout.PropertyField(valueSp, GUIContent.none, GUILayout.Width(30));
-                    var choiceValue = valueSp.floatValue;
-                    if (HaiEFCommon.ColoredBackground(Mathf.Approximately(my.defaultValue, choiceValue), HVRVixxyControlEditor.FilledColor,
-                            () => GUILayout.Button(HVRVixxyLocalizationPhrase.DefaultLabel, GUILayout.Width(60))))
-                    {
-                        var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
-                        defaultValueSp.floatValue = choiceValue;
-                    }
-
-                    EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
-                    if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(20)))
-                    {
-                        _editor.RemoveChoice(choiceIndex);
-                        return true;
-                    }
-                    EditorGUI.EndDisabledGroup();
-
-                    EditorGUILayout.EndHorizontal();
+                    var defaultValueSp = serializedObject.FindProperty(nameof(HVRVixxyControl.defaultValue));
+                    defaultValueSp.floatValue = choiceValue;
                 }
 
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("", GUILayout.Width(30));
-                if (GUILayout.Button($"{HVR_EditorHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
+                EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(20)))
                 {
-                    _editor.AddChoice();
+                    _editor.RemoveChoice(choiceIndex);
                     return true;
                 }
-                EditorGUILayout.LabelField("", GUILayout.Width(20));
+                EditorGUI.EndDisabledGroup();
+
                 EditorGUILayout.EndHorizontal();
-
             }
-            EditorGUILayout.Separator();
 
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("", GUILayout.Width(30));
+            if (GUILayout.Button($"{HVR_EditorHelpers.PlusSymbol} {HVRVixxyLocalizationPhrase.AddChoiceLabel}"))
+            {
+                _editor.AddChoice();
+                return true;
+            }
+            EditorGUILayout.LabelField("", GUILayout.Width(20));
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.Separator();
             return false;
         }
 
