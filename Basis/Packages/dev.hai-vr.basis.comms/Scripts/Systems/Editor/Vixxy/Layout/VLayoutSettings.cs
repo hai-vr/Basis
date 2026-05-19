@@ -121,20 +121,20 @@ namespace HVR.Vixxy.Editor
                     defaultValueSp.floatValue = choiceValue;
                 }
                 EditorGUI.BeginDisabledGroup(choiceIndex == 0);
-                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(15)))
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
                 {
                     _editor.MoveChoiceUp(choiceIndex);
                 }
                 EditorGUI.EndDisabledGroup();
                 EditorGUI.BeginDisabledGroup(choiceIndex == choicesSp.arraySize - 1);
-                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(15)))
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
                 {
                     _editor.MoveChoiceDown(choiceIndex);
                 }
                 EditorGUI.EndDisabledGroup();
 
                 EditorGUI.BeginDisabledGroup(!my.HasThreeOrMoreChoices);
-                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth)))
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
                 {
                     _editor.RemoveChoice(choiceIndex);
                     return true;

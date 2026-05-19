@@ -14,8 +14,6 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
         internal static readonly Color FilledColor = new Color(0.76f, 0.97f, 0.74f);
 
-        internal const float DeleteButtonWidth = 20;
-
         public static bool _settingsFoldout;
         public static bool _advancedSettingsFoldout;
         public static bool _toggleObjectsFoldout;
@@ -132,7 +130,7 @@ namespace HVR.Vixxy.Editor
             EditorGUI.EndDisabledGroup();
 
             EditorGUI.BeginDisabledGroup(string.IsNullOrWhiteSpace(pathSp.stringValue) && assetSp.objectReferenceValue == null);
-            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(DeleteButtonWidth)))
+            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
             {
                 assetSp.objectReferenceValue = null;
                 pathSp.stringValue = "";

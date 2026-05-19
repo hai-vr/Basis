@@ -92,7 +92,7 @@ namespace HVR.Vixxy.Editor
 
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField($"[{subjectIndex}] Subject", EditorStyles.boldLabel);
-                if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+                if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth))))
                 {
                     subjectsSp.DeleteArrayElementAtIndex(subjectIndex);
 
@@ -220,7 +220,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField($"[{propertyIndex}] CAUTION: Not a HVRVixxyPropertyBase, type is {managedReferenceValueType.FullName}", EditorStyles.boldLabel);
             }
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth))))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 

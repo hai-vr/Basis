@@ -15,6 +15,10 @@ namespace HVR.Vixxy.Editor
         public const string ArrowDownSymbol = "↓";
         public const string GroupBoxStyle = "GroupBox";
 
+        public const float SwapElementWidth = 15;
+        public const float PlusWidth = 15;
+        public const float DeleteButtonWidth = 20;
+
         public static List<string> ListAllBlendshapes(SkinnedMeshRenderer renderer)
         {
             var results = new List<string>();

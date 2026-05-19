@@ -250,7 +250,45 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.propertyName)), GUIContent.none);
             EditorGUI.EndDisabledGroup();
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth))))
+            {
+                var currentFullClassName = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)).stringValue;
+
+                var previousPropertyIndex = -1;
+                var nextPropertyIndex = -1;
+                for (var i = 0; i < propertiesSp.arraySize; i++)
+                {
+                    if (i == propertyIndex) continue;
+                    var otherPropertySp = propertiesSp.GetArrayElementAtIndex(i);
+                    if (otherPropertySp == null) continue;
+                    var otherFullClassNameSp = otherPropertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName));
+                    if (otherFullClassNameSp == null) continue;
+                    if (otherFullClassNameSp.stringValue != currentFullClassName) continue;
+
+                    if (i < propertyIndex)
+                    {
+                        previousPropertyIndex = i;
+                    }
+                    else if (i > propertyIndex && nextPropertyIndex == -1)
+                    {
+                        nextPropertyIndex = i;
+                    }
+                }
+
+                EditorGUI.BeginDisabledGroup(previousPropertyIndex == -1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    propertiesSp.MoveArrayElement(propertyIndex, previousPropertyIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.BeginDisabledGroup(nextPropertyIndex == -1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    propertiesSp.MoveArrayElement(propertyIndex, nextPropertyIndex);
+                }
+                EditorGUI.EndDisabledGroup();
+            }
+
+            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth))))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 
@@ -361,7 +399,20 @@ namespace HVR.Vixxy.Editor
                     }
                 }
 
-                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVRVixxyControlEditor.DeleteButtonWidth)))
+                EditorGUI.BeginDisabledGroup(i == 0);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowUpSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    whichArrayProperty.MoveArrayElement(i, i - 1);
+                }
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.BeginDisabledGroup(i == whichArrayProperty.arraySize - 1);
+                if (GUILayout.Button(HVR_EditorHelpers.ArrowDownSymbol, GUILayout.Width(HVR_EditorHelpers.SwapElementWidth)))
+                {
+                    whichArrayProperty.MoveArrayElement(i, i + 1);
+                }
+                EditorGUI.EndDisabledGroup();
+
+                if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
                 {
                     whichArrayProperty.GetArrayElementAtIndex(i).objectReferenceValue = null;
                     whichArrayProperty.DeleteArrayElementAtIndex(i);
@@ -374,7 +425,7 @@ namespace HVR.Vixxy.Editor
             if (!limitToOne || whichArrayProperty.arraySize == 0)
             {
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(15));
+                EditorGUILayout.LabelField(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusWidth));
                 var newAddition = EditorGUILayout.ObjectField(GUIContent.none, null, arrayType);
                 EditorGUILayout.LabelField(GUIContent.none, GUILayout.Width(25));
                 EditorGUILayout.EndHorizontal();
@@ -491,7 +542,7 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol))
+                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusWidth)))
                     {
                         var managedReferenceValue = ToPropertyOrNull(targetedType, prop);
                         if (managedReferenceValue != null)
