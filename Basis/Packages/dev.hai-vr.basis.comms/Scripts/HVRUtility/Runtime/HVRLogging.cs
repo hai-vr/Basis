@@ -14,5 +14,6 @@ namespace HVR.Basis.Comms.HVRUtility
         [HideInCallstack] public static void StateError(string message) => BasisDebug.LogError(message, BasisDebug.LogTag.Avatar);
 
         [HideInCallstack] public static void Debug(string message) => BasisDebug.Log(message, BasisDebug.LogTag.Avatar);
+        [HideInCallstack] public static void LimitReached(string message) => BasisDebug.LogError(message, BasisDebug.LogTag.Avatar);
     }
 }
