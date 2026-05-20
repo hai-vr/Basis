@@ -347,7 +347,7 @@ namespace HVR.Vixxy.Editor
 
                     if (inheritsFromVixxyProperty)
                     {
-                        if (GUILayout.Button("R", GUILayout.Width(25)))
+                        if (GUILayout.Button(new GUIContent(EditorGUIUtility.IconContent("Download-Available").image, HVRVixxyLocalizationPhrase.SampleValueFromSceneLabel), GUILayout.Width(25)))
                         {
                             if (HVR_EditorHelpers.TryCaptureProperty(targetObject, managedReferenceValue, propertySp, out var capturedValue))
                             {
