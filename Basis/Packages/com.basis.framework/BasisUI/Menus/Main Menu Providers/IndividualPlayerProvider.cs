@@ -583,12 +583,22 @@ namespace Basis.BasisUI
             };
 
             PanelButton talkToOnlyBtn = PanelButton.CreateNew(privateChatGroup.ContentParent);
-            talkToOnlyBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.talkToOnly"));
+            talkToOnlyBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                hasPrivateChatTarget && Basis.Scripts.Networking.BasisTalkModeManager.IsTalkingOnlyTo(privateChatPlayerId)
+                    ? "menu.individualPlayer.talkToOnly.stop"
+                    : "menu.individualPlayer.talkToOnly"));
             talkToOnlyBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.talkToOnly.description"));
             talkToOnlyBtn.OnClicked += () =>
             {
                 if (!hasPrivateChatTarget) return;
-                Basis.Scripts.Networking.BasisTalkModeManager.SetThisPersonTarget(privateChatPlayerId);
+                if (Basis.Scripts.Networking.BasisTalkModeManager.IsTalkingOnlyTo(privateChatPlayerId))
+                    Basis.Scripts.Networking.BasisTalkModeManager.StopThisPerson();
+                else
+                    Basis.Scripts.Networking.BasisTalkModeManager.SetThisPersonTarget(privateChatPlayerId);
+                talkToOnlyBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                    Basis.Scripts.Networking.BasisTalkModeManager.IsTalkingOnlyTo(privateChatPlayerId)
+                        ? "menu.individualPlayer.talkToOnly.stop"
+                        : "menu.individualPlayer.talkToOnly"));
             };
 
             // ---- Direct Connection (P2P) controls ----

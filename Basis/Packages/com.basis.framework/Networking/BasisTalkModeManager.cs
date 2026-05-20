@@ -163,6 +163,24 @@ namespace Basis.Scripts.Networking
             return hasThisPersonTarget;
         }
 
+        public static bool IsTalkingOnlyTo(ushort playerId)
+        {
+            return CurrentMode == BasisTalkMode.ThisPerson && hasThisPersonTarget && thisPersonTarget == playerId;
+        }
+
+        public static void StopThisPerson()
+        {
+            hasThisPersonTarget = false;
+            if (CurrentMode == BasisTalkMode.ThisPerson)
+            {
+                ApplyMode(BasisTalkMode.Normal);
+            }
+            else
+            {
+                OnLocalTalkModeChanged?.Invoke();
+            }
+        }
+
         public static bool IsRecipient(ushort playerId)
         {
             switch (CurrentMode)
