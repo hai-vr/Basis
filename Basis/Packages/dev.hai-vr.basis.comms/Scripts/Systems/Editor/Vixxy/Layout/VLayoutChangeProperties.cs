@@ -53,11 +53,11 @@ namespace HVR.Vixxy.Editor
                 ++list.serializedProperty.arraySize;
                 var newIndex = list.serializedProperty.arraySize - 1;
                 var element = list.serializedProperty.GetArrayElementAtIndex(newIndex);
-                // element.FindPropertyRelative(nameof(HVRVixxySubject.selection)).intValue = (int)HVRVixxySelection.Normal;
-                // element.FindPropertyRelative(nameof(HVRVixxySubject.targets)).arraySize = 0;
-                // element.FindPropertyRelative(nameof(HVRVixxySubject.childrenOf)).arraySize = 0;
-                // element.FindPropertyRelative(nameof(HVRVixxySubject.exceptions)).arraySize = 0;
-                // element.FindPropertyRelative(nameof(HVRVixxySubject.properties)).arraySize = 0;
+                element.FindPropertyRelative(nameof(HVRVixxySubject.selection)).intValue = (int)HVRVixxySelection.Normal;
+                element.FindPropertyRelative(nameof(HVRVixxySubject.targets)).arraySize = 0;
+                element.FindPropertyRelative(nameof(HVRVixxySubject.childrenOf)).arraySize = 0;
+                element.FindPropertyRelative(nameof(HVRVixxySubject.exceptions)).arraySize = 0;
+                element.FindPropertyRelative(nameof(HVRVixxySubject.properties)).arraySize = 0;
                 serializedObject.ApplyModifiedProperties();
                 subjectsReorderableList.index = newIndex;
             };
