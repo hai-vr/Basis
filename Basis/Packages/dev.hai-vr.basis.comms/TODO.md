@@ -76,6 +76,7 @@ Things that remain to be done in Comms:
   - it must happen even if OSC controls happen sub-frame, or
   - we have to change the networking to only take into consideration applied values for variables each frame; ignoring sub-frame changes.
 - ✅ Add abuse limitations (max string length, max number of variables).
+- ⬜ Specify whether transitions should go across choices.
 
 Long-term objectives:
 - ⬜ Migrate HVRVariableNetworking.Update() and HVRVixxyOrchestrator.Update() to use BasisEventDriver functions.
