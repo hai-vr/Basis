@@ -560,6 +560,8 @@ namespace HVR.Vixxy.Editor
 
                 foreach (var prop in props)
                 {
+                    if (!prop.isPermitted && !HVRVixxyControlEditor._developerViewFoldout) continue;
+
                     EditorGUI.BeginDisabledGroup(!prop.isPermitted);
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.TextField(prop.name);
