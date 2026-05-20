@@ -40,9 +40,20 @@ namespace HVR.Vixxy
         [SerializeField] internal bool networked = true;
         [SerializeField] internal HVRVixxyNetworkingType advancedNetworking = HVRVixxyNetworkingType.Automatic;
 
+        [SerializeField] internal HVRVixxyTransitionMode transition;
+        [SerializeField] internal float transitionDuration = 0.5f;
+
         /// If true, we only run the logic of this control if it's enabled. By default, this is false, so that users can put a toggle control
         /// directly inside the component hierarchy that is being toggled OFF.
         [SerializeField] internal bool onlyExecuteWhenEnabled = false;
+    }
+
+    [Serializable]
+    public enum HVRVixxyTransitionMode
+    {
+        None,
+        Simplified,
+        Advanced,
     }
 
     [Serializable]
