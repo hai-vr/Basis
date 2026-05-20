@@ -72,7 +72,7 @@ namespace HVR.Vixxy.Editor
                 var subjectSp = subjectsReorderableList.serializedProperty.GetArrayElementAtIndex(selectedIndex);
                 var mySelectedElement = my.subjects[selectedIndex];
 
-                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ObjectGroupLabel} #{selectedIndex + 1}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ObjectGroupLabel} n°{selectedIndex + 1}", EditorStyles.boldLabel);
 
                 EditorGUILayout.PropertyField(subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.selection)));
                 if (mySelectedElement.selection == HVRVixxySelection.Normal)
@@ -854,12 +854,12 @@ namespace HVR.Vixxy.Editor
             {
                 var targetNames = subject.targets.Where(o => o != null).Select(o => o.name).ToArray();
                 return
-                    $"#{index + 1} {(targetNames.Length > 1 ? $"[{targetNames.Length} objects] " : "")}{string.Join(", ", targetNames)} ({string.Join(", ", classNames)})";
+                    $"n°{index + 1} {(targetNames.Length > 1 ? $"[{targetNames.Length} objects] " : "")}{string.Join(", ", targetNames)} ({string.Join(", ", classNames)})";
             }
             else
             {
                 var label = subject.selection == HVRVixxySelection.RecursiveSearch ? HVRVixxyLocalizationPhrase.RecursiveSearchLabel : HVRVixxyLocalizationPhrase.EverythingLabel;
-                return $"#{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
+                return $"n°{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
             }
         }
     }
