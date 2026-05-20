@@ -221,7 +221,7 @@ namespace HVR.Vixxy.Editor
         internal static string EditorChoiceDescription(int choiceIndex, HVRVixxyChoiceControl[] choices)
         {
             var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
-            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
+            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"#{choiceIndex + 1} {descriptionTemp}" : $"#{choiceIndex + 1}";
             return $"{description} (={choices[choiceIndex].value:0})";
         }
 

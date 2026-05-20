@@ -15,10 +15,7 @@ namespace HVR.Vixxy.Editor
     internal class VLayoutChangeProperties
     {
         private const int MaxSearchQueryLength = 100;
-        private const string AddArbitraryBlendshapeLabel = "Add arbitrary blendshape";
-        private const string AddLabel = "Add";
         private static readonly Regex HasAnyNonLetterNonSpace = new Regex(@"[^A-Za-z\s]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly string[] CoordsSuffixes = {".x", ".y", ".z", ".w", ".r", ".g", ".b", ".a"};
 
         private readonly HVRVixxyControl my;
         private readonly SerializedObject serializedObject;
@@ -230,7 +227,9 @@ namespace HVR.Vixxy.Editor
 
             if (inheritsFromVixxyProperty)
             {
-                EditorGUILayout.LabelField($"{genericType.Name}", EditorStyles.boldLabel, GUILayout.Width(100));
+                var genericTypeName = genericType.Name;
+                if (genericTypeName == "Single") genericTypeName = "Float";
+                EditorGUILayout.LabelField($"{genericTypeName}", EditorStyles.boldLabel, GUILayout.Width(100));
             }
             else if (managedReferenceValue is HVRVixxyPropertyBase)
             {
@@ -288,7 +287,7 @@ namespace HVR.Vixxy.Editor
                 EditorGUI.EndDisabledGroup();
             }
 
-            if (HaiEFCommon.ColoredBackground(true, Color.red, () => GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth))))
+            if (GUILayout.Button($"{HVR_EditorHelpers.CrossSymbol}", GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
             {
                 propertiesSp.DeleteArrayElementAtIndex(propertyIndex);
 
@@ -488,7 +487,7 @@ namespace HVR.Vixxy.Editor
                 }
             }
 
-            var hasSearch = !string.IsNullOrEmpty(_search) && (_search.Length >= 3 || (_search.Length == 2 && HasAnyNonLetterNonSpace.IsMatch(_search)) || _search.StartsWith(" "));
+            var hasSearch = !string.IsNullOrEmpty(_search) && _search.Length < MaxSearchQueryLength && (_search.Length >= 3 || (_search.Length == 2 && HasAnyNonLetterNonSpace.IsMatch(_search)) || _search.StartsWith(" "));
 
             if (showProperties)
             {
@@ -575,7 +574,7 @@ namespace HVR.Vixxy.Editor
                         propertyName = blendshape,
                     };
                 }
-                if (GUILayout.Button($"+ {AddArbitraryBlendshapeLabel}"))
+                if (GUILayout.Button($"+ {HVRVixxyLocalizationPhrase.AddArbitraryBlendshapeLabel}"))
                 {
                     AddBlendshape("");
                 }
@@ -585,7 +584,7 @@ namespace HVR.Vixxy.Editor
 
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.TextField(blendshape);
-                    if (GUILayout.Button(AddLabel, GUILayout.Width(60)))
+                    if (GUILayout.Button(HVRVixxyLocalizationPhrase.AddLabel, GUILayout.Width(60)))
                     {
                         AddBlendshape(blendshape);
                     }
@@ -609,7 +608,7 @@ namespace HVR.Vixxy.Editor
 
                         EditorGUILayout.BeginHorizontal();
                         EditorGUILayout.TextField(materialProperty);
-                        if (GUILayout.Button(mptype == MaterialPropertyType.Vector ? "Vector4" : AddLabel, GUILayout.Width(55)))
+                        if (GUILayout.Button(mptype == MaterialPropertyType.Vector ? "Vector4" : HVRVixxyLocalizationPhrase.AddLabel, GUILayout.Width(55)))
                         {
                             var propertiesSp = selectedElementSp.FindPropertyRelative(nameof(HVRVixxySubject.properties));
 

@@ -49,5 +49,15 @@
         internal const string SmoothTowardsValueLabel = "Smooth towards value";
         internal const string AdvancedTransitionLabel = "Advanced Transition";
         internal const string TransitionDurationLabel = "Transition Duration (s)";
+        public const string CreateMenuLabel = "Create menu";
+        public const string AddressesLabel = "Addresses";
+        public const string VisemeLabel = "Viseme";
+        public const string VoiceGainLabel = "Voice Gain";
+        public const string MenuItemLabel = "Menu Item";
+        public const string MenuItemNewGameObjectLabel = "Menu Item (new GameObject)";
+        public const string FaceTrackingLabel = "Face Tracking";
+        public const string EyeTrackingLabel = "Eye Tracking";
+        public const string AddArbitraryBlendshapeLabel = "Add arbitrary blendshape";
+        public const string AddLabel = "Add";
     }
 }
