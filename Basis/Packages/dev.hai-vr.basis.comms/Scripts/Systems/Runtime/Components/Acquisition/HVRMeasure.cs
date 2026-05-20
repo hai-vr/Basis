@@ -92,7 +92,7 @@ namespace HVR.Basis.Comms
             }
             else
             {
-                if (measurementType == HVRMeasureType.ComplexRotationAngle)
+                if (measurementType == HVRMeasureType.RotationDifference)
                 {
                     Gizmos.color = Color.red;
                     Gizmos.DrawLine(from.position, from.position + from.forward * Distance);
@@ -173,7 +173,7 @@ namespace HVR.Basis.Comms
 
                 ProcessAndSubmit(intermediateValue, true);
             }
-            else if (measurementType == HVRMeasureType.ComplexRotationAngle)
+            else if (measurementType == HVRMeasureType.RotationDifference)
             {
                 if (angleMeasurement == HVRMeasureAngleKind.IncludeRoll)
                 {
@@ -184,8 +184,7 @@ namespace HVR.Basis.Comms
                 }
                 else
                 {
-                    var dot = Vector3.Dot(from.forward, to.forward);
-                    var angleDeg = Mathf.Acos(dot) * Mathf.Rad2Deg;
+                    var angleDeg = Vector3.Angle(from.forward, to.forward);
                     var intermediateValue = angleDeg;
 
                     ProcessAndSubmit(intermediateValue, true);
@@ -413,7 +412,7 @@ namespace HVR.Basis.Comms
         /// Measures the angle between source and target transform rotations, or the angle between source and target's transform forward direction in world space.<br/>
         /// <br/>
         /// The minimum value is 0, the maximum value is 180.
-        ComplexRotationAngle,
+        RotationDifference,
         /// Shoots a physics raycast from source, in a direction specified by the source's local space. The distance is measured in source's local space.<br/>
         /// The maximum distance is specified in source's local space.<br/>
         /// <br/>

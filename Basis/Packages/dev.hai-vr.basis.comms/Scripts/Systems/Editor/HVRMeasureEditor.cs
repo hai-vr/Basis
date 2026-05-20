@@ -46,13 +46,13 @@ namespace HVR.Basis.Comms.Editor
             {
                 HVRMeasureType.Distance => MsgDescribeDistance,
                 HVRMeasureType.Angle => MsgDescribeAngle,
-                HVRMeasureType.ComplexRotationAngle => MsgDescribeRotation,
+                HVRMeasureType.RotationDifference => MsgDescribeRotation,
                 HVRMeasureType.Raycast => MsgDescribeRaycast,
                 HVRMeasureType.Speed => MsgDescribeSpeed,
                 _ => throw new ArgumentOutOfRangeException()
             };
             EditorGUILayout.HelpBox(description, MessageType.None);
-            if (my.measurementType == HVRMeasureType.ComplexRotationAngle)
+            if (my.measurementType == HVRMeasureType.RotationDifference)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.angleMeasurement)));
             }
@@ -126,7 +126,7 @@ namespace HVR.Basis.Comms.Editor
 
             var valueAddressLabel = my.measurementType == HVRMeasureType.Speed
                 ? SpeedLabel
-                : my.measurementType is HVRMeasureType.Angle or HVRMeasureType.ComplexRotationAngle
+                : my.measurementType is HVRMeasureType.Angle or HVRMeasureType.RotationDifference
                 ? AngleLabel
                 : DistanceLabel;
             // NOTE: The rate of change of speed is not the acceleration in 3D, as the acceleration can be nonzero on a curved path of constant speed,
