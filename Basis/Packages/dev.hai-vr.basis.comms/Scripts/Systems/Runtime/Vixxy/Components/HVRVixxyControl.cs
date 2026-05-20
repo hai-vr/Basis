@@ -137,24 +137,14 @@ namespace HVR.Vixxy
                 var newFilters = new List<HVRVixxyFilterBase>();
                 if (transitionDuration > 0f)
                 {
-                    if (Mathf.Approximately(MaximumValue, 1f) && Mathf.Approximately(MaximumValue, 0f))
+                    newFilters.Add(new HVRMoveTowardsVixxyFilter
                     {
-                        newFilters.Add(new HVRMoveTowardsVixxyFilter
-                        {
-                            secondsPerUnit = transitionDuration
-                        });
-                        newFilters.Add(new HVRCurveVixxyFilter
-                        {
-                            curve = AnimationCurve.EaseInOut(0, 0, 1, 1)
-                        });
-                    }
-                    else
+                        secondsPerUnit = (MaximumValue - MinimumValue) * transitionDuration
+                    });
+                    newFilters.Add(new HVRCurveVixxyFilter
                     {
-                        newFilters.Add(new HVRSmoothVixxyFilter
-                        {
-                            secondsPerUnit = (MaximumValue - MinimumValue) * transitionDuration
-                        });
-                    }
+                        curve = AnimationCurve.EaseInOut(MinimumValue, MinimumValue, MaximumValue, MaximumValue)
+                    });
                 }
                 Filters = newFilters;
             }
