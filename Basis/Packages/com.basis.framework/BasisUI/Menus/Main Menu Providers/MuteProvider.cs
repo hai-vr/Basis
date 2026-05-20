@@ -18,7 +18,7 @@ namespace Basis.BasisUI
         public override string IconAddress => BasisLocalMicrophoneDriver.isPaused
             ? AddressableAssets.Sprites.MicrophoneMute
             : AddressableAssets.Sprites.Microphone;
-        public override int Order => 1;
+        public override int Order => 0; // first — in front of Settings
         public override bool Hidden => false;
 
         public override void RunAction()
@@ -35,6 +35,10 @@ namespace Basis.BasisUI
             BasisNetworkModeration.OnShoutModeChanged += OnShoutModeChanged;
 
             UpdateButtonVisuals(button, BasisLocalMicrophoneDriver.isPaused);
+
+            // Half the normal hotbar button width — a compact mute button (like Exit).
+            Vector2 size = button.rectTransform.sizeDelta;
+            if (size.x > 0f) button.SetSize(new Vector2(size.x * 0.5f, size.y));
         }
 
         private void OnMuteChanged(bool isMuted)

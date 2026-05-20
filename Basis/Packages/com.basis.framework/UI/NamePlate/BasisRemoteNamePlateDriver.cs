@@ -1,6 +1,7 @@
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Networking;
 using System.Collections.Generic;
 using TMPro;
 using Unity.Burst;
@@ -21,6 +22,18 @@ namespace Basis.Scripts.UI.NamePlate
         public static Color OutOfRangeColor = new Color(0.105882354f, 0.23137255f, 0.29411766f, 0.7490196f);
         public static Color FailedLoadColor = new Color(1f, 0.2f, 0.2f, 1f);
 
+        // Per-talk-mode nameplate colors (resting + lighter "talking" variant). Alpha is
+        // replaced by NamePlateTransparency in UpdateCachedColors, so RGB is what matters.
+        public static Color PrivateColor = new Color(0.6078432f, 0.1882353f, 1f, 1f);
+        public static Color PrivateTalkColor = new Color(0.8156863f, 0.627451f, 1f, 1f);
+        public static Color DirectColor = new Color(0f, 0.7176471f, 0.7607843f, 1f);
+        public static Color DirectTalkColor = new Color(0.4980392f, 0.9058824f, 0.9333333f, 1f);
+        public static Color ThisPersonColor = new Color(0.8784314f, 0.6901961f, 0f, 1f);
+        public static Color ThisPersonTalkColor = new Color(1f, 0.9019608f, 0.5411765f, 1f);
+        public static Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
+        public static Color ShoutTalkColor = new Color(1f, 0.7215686f, 0.3764706f, 1f);
+        public static Color MutedColor = new Color(0.5411765f, 0.5411765f, 0.5411765f, 1f);
+
         public static float transitionDuration = 0.3f;
         public static float returnDelay = 0.4f;
 
@@ -28,6 +41,15 @@ namespace Basis.Scripts.UI.NamePlate
         public static Color StaticIsTalkingColor;
         public static Color StaticOutOfRangeColor;
         public static Color StaticFailedLoadColor;
+        public static Color StaticPrivateColor;
+        public static Color StaticPrivateTalkColor;
+        public static Color StaticDirectColor;
+        public static Color StaticDirectTalkColor;
+        public static Color StaticThisPersonColor;
+        public static Color StaticThisPersonTalkColor;
+        public static Color StaticShoutColor;
+        public static Color StaticShoutTalkColor;
+        public static Color StaticMutedColor;
         public static float4 NormalColorFloat4;
 
         // Lazy-created at runtime — replaces the prefab's TMP child used for baking.
@@ -277,7 +299,40 @@ namespace Basis.Scripts.UI.NamePlate
                 ? new Color(1f, 0.2f, 0.2f, 1f)
                 : FailedLoadColor;
             StaticFailedLoadColor = new Color(failedSource.r, failedSource.g, failedSource.b, transparency);
+            StaticPrivateColor = new Color(PrivateColor.r, PrivateColor.g, PrivateColor.b, transparency);
+            StaticPrivateTalkColor = new Color(PrivateTalkColor.r, PrivateTalkColor.g, PrivateTalkColor.b, transparency);
+            StaticDirectColor = new Color(DirectColor.r, DirectColor.g, DirectColor.b, transparency);
+            StaticDirectTalkColor = new Color(DirectTalkColor.r, DirectTalkColor.g, DirectTalkColor.b, transparency);
+            StaticThisPersonColor = new Color(ThisPersonColor.r, ThisPersonColor.g, ThisPersonColor.b, transparency);
+            StaticThisPersonTalkColor = new Color(ThisPersonTalkColor.r, ThisPersonTalkColor.g, ThisPersonTalkColor.b, transparency);
+            StaticShoutColor = new Color(ShoutColor.r, ShoutColor.g, ShoutColor.b, transparency);
+            StaticShoutTalkColor = new Color(ShoutTalkColor.r, ShoutTalkColor.g, ShoutTalkColor.b, transparency);
+            StaticMutedColor = new Color(MutedColor.r, MutedColor.g, MutedColor.b, transparency);
             NormalColorFloat4 = new float4(StaticNormalColor.r, StaticNormalColor.g, StaticNormalColor.b, StaticNormalColor.a);
+        }
+
+        public static Color GetModeRestingColor(BasisTalkMode mode)
+        {
+            switch (mode)
+            {
+                case BasisTalkMode.Private: return StaticPrivateColor;
+                case BasisTalkMode.Direct: return StaticDirectColor;
+                case BasisTalkMode.ThisPerson: return StaticThisPersonColor;
+                case BasisTalkMode.Shout: return StaticShoutColor;
+                default: return StaticNormalColor;
+            }
+        }
+
+        public static Color GetModeTalkColor(BasisTalkMode mode)
+        {
+            switch (mode)
+            {
+                case BasisTalkMode.Private: return StaticPrivateTalkColor;
+                case BasisTalkMode.Direct: return StaticDirectTalkColor;
+                case BasisTalkMode.ThisPerson: return StaticThisPersonTalkColor;
+                case BasisTalkMode.Shout: return StaticShoutTalkColor;
+                default: return StaticIsTalkingColor;
+            }
         }
 
         /// <summary>
@@ -383,7 +438,7 @@ namespace Basis.Scripts.UI.NamePlate
                     plate.Self.localScale = scale;
                 }
 
-                plate.ApplyColorFromJob(StaticNormalColor);
+                plate.ApplyTalkModeColors();
             }
 
             SetAllPlateVisibility();
@@ -706,6 +761,7 @@ namespace Basis.Scripts.UI.NamePlate
                     }
 
                     var input = new PlateInput { isVisible = (ushort)p.IsVisibleRaw };
+                    input.restingColor = p.GetRestingColorFloat4ForJob();
                     if (pulsing)
                     {
                         input.isPulsing = 1;
@@ -875,6 +931,7 @@ namespace Basis.Scripts.UI.NamePlate
             public ushort isVisible; // 0/1
             public double startTime;
             public float4 talkColor;
+            public float4 restingColor;
         }
 
         public struct PlateOutput
@@ -933,7 +990,7 @@ namespace Basis.Scripts.UI.NamePlate
 
                 if (t >= 1f)
                 {
-                    o.color = normalColor;
+                    o.color = st.restingColor;
                     o.hasChange = 1;
                     o.stopPulsing = 1;
                     outputs[i] = o;
@@ -941,7 +998,7 @@ namespace Basis.Scripts.UI.NamePlate
                 }
 
                 t = math.saturate(t);
-                o.color = math.lerp(st.talkColor, normalColor, t);
+                o.color = math.lerp(st.talkColor, st.restingColor, t);
                 o.hasChange = 1;
                 outputs[i] = o;
             }

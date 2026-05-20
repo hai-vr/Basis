@@ -366,6 +366,8 @@ namespace Basis.BasisUI
 
             private void OnEnable()
             {
+                // Admin panel open → route every popup into the notification list.
+                BasisNotificationCenter.BeginForcedScope();
                 BasisNetworkModeration.OnGlobalLockStateChanged -= OnGlobalLockStateChanged;
                 BasisNetworkModeration.OnGlobalLockStateChanged += OnGlobalLockStateChanged;
                 BasisNetworkModeration.OnGlobalThirdPersonDisabledChanged -= OnGlobalThirdPersonDisabledChanged;
@@ -382,6 +384,8 @@ namespace Basis.BasisUI
 
             private void OnDisable()
             {
+                // Admin panel closed/hidden → resume normal popup handling.
+                BasisNotificationCenter.EndForcedScope();
                 BasisNetworkModeration.OnGlobalLockStateChanged -= OnGlobalLockStateChanged;
                 BasisNetworkModeration.OnGlobalThirdPersonDisabledChanged -= OnGlobalThirdPersonDisabledChanged;
                 BasisNetworkModeration.OnGlobalAdditionalAvatarDataLockChanged -= OnGlobalAdditionalAvatarDataLockChanged;

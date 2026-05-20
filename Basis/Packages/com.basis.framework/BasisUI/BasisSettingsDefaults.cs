@@ -485,7 +485,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneMode = new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
-        public static BasisSettingsBinding<string> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<string>("60 Hz"));
+        public static BasisSettingsBinding<float> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<float>(60));
 
         public static BasisSettingsBinding<bool> DisableDirectConnections = new("disabledirectconnections", new BasisPlatformDefault<bool>(false));
 

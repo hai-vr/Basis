@@ -36,32 +36,21 @@ namespace Basis.BasisUI
         public Action<LoadResponse> Callback;
 
 
+        private bool _resolved;
+
         public override void OnCreateEvent()
         {
             base.OnCreateEvent();
-            AcceptButton.OnClicked +=() =>
-            {
-                Respond(true);
-                ReleaseInstance();
-            };
-            DeclineButton.OnClicked += () =>
-            {
-                Respond(false);
-                ReleaseInstance();
-            };
+            AcceptButton.OnClicked += () => Respond(true);
+            DeclineButton.OnClicked += () => Respond(false);
             RememberToggle.OnValueChanged += (value) =>
             {
                 ScopeDropdown.gameObject.SetActive(value);
             };
-            CloseButton.OnClicked += () =>
-            {
-                Respond(false);
-                ReleaseInstance();
-            };
-            OnInstanceReleased += () =>
-            {
-                Respond(false);
-            };
+            // Closing no longer auto-denies the request. An unanswered close routes it
+            // to the notification center as a pending entry that can be brought back up.
+            CloseButton.OnClicked += () => ReleaseInstance();
+            OnInstanceReleased += CaptureIfUnresolved;
         }
 
         public void Setup(string url, Action<LoadResponse> callback)
@@ -81,7 +70,15 @@ namespace Basis.BasisUI
         public void Respond(bool accepted)
         {
             if (Callback == null) return;
-            Callback.Invoke(new LoadResponse { 
+            _resolved = true;
+
+            BasisNotificationCenter.LogResolved(
+                BasisLocalization.Get("notifications.url.title"),
+                URLTextField._inputField.text,
+                AddressableAssets.Sprites.World,
+                accepted ? BasisNotificationStatus.Accepted : BasisNotificationStatus.Denied);
+
+            Callback.Invoke(new LoadResponse {
                 Accepted = accepted,
                 RememberChoice = RememberToggle.Value,
                 Scope = (RememberChoiceScope)ScopeDropdown.Index
@@ -90,10 +87,57 @@ namespace Basis.BasisUI
             ReleaseInstance();
         }
 
+        private void CaptureIfUnresolved()
+        {
+            if (_resolved) return;
+            _resolved = true;
+
+            Action<LoadResponse> callback = Callback;
+            Callback = null;
+            if (callback == null) return;
+
+            // The GameObject still exists while OnInstanceReleased runs, but guard for
+            // the hard-destroy path where the field reads back as a Unity fake-null.
+            string url = (URLTextField != null && URLTextField._inputField != null)
+                ? URLTextField._inputField.text
+                : string.Empty;
+
+            BasisNotificationCenter.AddPending(
+                BasisLocalization.Get("notifications.url.title"),
+                url,
+                AddressableAssets.Sprites.World,
+                reopen: () =>
+                {
+                    if (!BasisMainMenu.Instance) BasisMainMenu.Open();
+                    if (!BasisMainMenu.Instance) return;
+                    // CreateInternal bypasses ignore mode so re-open always shows.
+                    CreateInternal(url, callback);
+                },
+                onDismiss: () => callback.Invoke(new LoadResponse { Accepted = false }));
+        }
+
         /// <summary>
         /// Instantiate a new Panel and load in the corresponding panel data.
         /// </summary>
         public static BasisMenuURLPromptPanel CreateNew(
+            string url,
+            Action<LoadResponse> callback,
+            bool divertible = false)
+        {
+            // Only divertible (content-driven/incoming) prompts route to the list under
+            // do-not-disturb or while the admin/moderator panel is open.
+            if (divertible && BasisNotificationCenter.RouteToNotifications)
+            {
+                return SuppressToNotifications(url, callback);
+            }
+            return CreateInternal(url, callback);
+        }
+
+        /// <summary>
+        /// Actually instantiate and show the prompt, bypassing ignore mode. Used both by
+        /// the normal path and when a suppressed/captured prompt is re-opened.
+        /// </summary>
+        private static BasisMenuURLPromptPanel CreateInternal(
             string url,
             Action<LoadResponse> callback)
         {
@@ -111,6 +155,28 @@ namespace Basis.BasisUI
             UIAnimations.PopIn(panel);
 
             return panel;
+        }
+
+        /// <summary>
+        /// Register an unshown load request as a pending notification that can be brought
+        /// up on demand. Returns null since no panel is created.
+        /// </summary>
+        private static BasisMenuURLPromptPanel SuppressToNotifications(
+            string url,
+            Action<LoadResponse> callback)
+        {
+            BasisNotificationCenter.AddPending(
+                BasisLocalization.Get("notifications.url.title"),
+                url,
+                AddressableAssets.Sprites.World,
+                reopen: () =>
+                {
+                    if (!BasisMainMenu.Instance) BasisMainMenu.Open();
+                    if (!BasisMainMenu.Instance) return;
+                    CreateInternal(url, callback);
+                },
+                onDismiss: () => callback?.Invoke(new LoadResponse { Accepted = false }));
+            return null;
         }
     }
 }

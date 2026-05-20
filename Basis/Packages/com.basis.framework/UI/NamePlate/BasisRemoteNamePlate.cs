@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Threading;
@@ -72,6 +73,7 @@ namespace Basis.Scripts.UI.NamePlate
         private double talkStartTime;
         private Color talkColorCached;
         private float4 talkColorFloat4;
+        private float4 restingColorFloat4;
         /// <summary>
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
@@ -86,6 +88,7 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemotePlayer.OnChatMessageReceived += SetChatText;
             BasisRemotePlayer.OnNamePlateActiveStateShouldRefresh += RefreshActiveState;
             BasisRemotePlayer.OnRemotePlayerDestroying += HandlePlayerDestroying;
+            BasisRemotePlayer.OnTalkModeChanged += HandleTalkModeChanged;
             BasisRemotePlayer.NamePlateTransformProvider = GetSelfTransform;
 
             Self = this.transform;
@@ -94,6 +97,7 @@ namespace Basis.Scripts.UI.NamePlate
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(mpb, 0);
+            ApplyTalkModeColors();
             BasisRemoteNamePlateDriver.Register(this);
 
             // Create chat text display above nameplate
@@ -169,7 +173,7 @@ namespace Basis.Scripts.UI.NamePlate
             }
             else
             {
-                Color normal = BasisRemoteNamePlateDriver.StaticNormalColor;
+                Color normal = BasisRemoteNamePlateDriver.GetModeRestingColor(BasisRemotePlayer != null ? BasisRemotePlayer.TalkMode : BasisTalkMode.Normal);
                 SetPlateColor(normal);
                 CurrentColor = normal;
             }
@@ -242,6 +246,7 @@ namespace Basis.Scripts.UI.NamePlate
                 BasisRemotePlayer.OnChatMessageReceived -= SetChatText;
                 BasisRemotePlayer.OnNamePlateActiveStateShouldRefresh -= RefreshActiveState;
                 BasisRemotePlayer.OnRemotePlayerDestroying -= HandlePlayerDestroying;
+                BasisRemotePlayer.OnTalkModeChanged -= HandleTalkModeChanged;
                 if (BasisRemotePlayer.NamePlateTransformProvider == GetSelfTransform)
                 {
                     BasisRemotePlayer.NamePlateTransformProvider = null;
@@ -359,7 +364,7 @@ namespace Basis.Scripts.UI.NamePlate
                 // can't be done safely off the main thread.
                 if (!CanCurrentlyBeHeard()) return;
 
-                talkColorCached = BasisRemoteNamePlateDriver.StaticIsTalkingColor;
+                talkColorCached = BasisRemoteNamePlateDriver.GetModeTalkColor(BasisRemotePlayer != null ? BasisRemotePlayer.TalkMode : BasisTalkMode.Normal);
                 talkColorFloat4 = new float4(talkColorCached.r, talkColorCached.g, talkColorCached.b, talkColorCached.a);
 
                 // Start pulse timeline
@@ -373,9 +378,40 @@ namespace Basis.Scripts.UI.NamePlate
         internal bool GetIsPulsingForJob() => isPulsingTalk;
         internal double GetTalkStartTimeForJob() => talkStartTime;
         internal float4 GetTalkColorFloat4ForJob() => talkColorFloat4;
+        internal float4 GetRestingColorFloat4ForJob() => restingColorFloat4;
         internal void StopPulseFromJob()
         {
             isPulsingTalk = false;
+        }
+
+        private void HandleTalkModeChanged()
+        {
+            ApplyTalkModeColors();
+        }
+
+        /// <summary>
+        /// Recomputes this plate's resting + talking colors from the player's current
+        /// talk mode and snaps to the resting color when not mid-pulse.
+        /// </summary>
+        public void ApplyTalkModeColors()
+        {
+            BasisTalkMode mode = BasisRemotePlayer != null ? BasisRemotePlayer.TalkMode : BasisTalkMode.Normal;
+            bool muted = BasisRemotePlayer != null && BasisRemotePlayer.IsSelfMuted;
+
+            Color resting = muted
+                ? BasisRemoteNamePlateDriver.StaticMutedColor
+                : BasisRemoteNamePlateDriver.GetModeRestingColor(mode);
+            restingColorFloat4 = new float4(resting.r, resting.g, resting.b, resting.a);
+
+            Color talk = BasisRemoteNamePlateDriver.GetModeTalkColor(mode);
+            talkColorCached = talk;
+            talkColorFloat4 = new float4(talk.r, talk.g, talk.b, talk.a);
+
+            if (!isPulsingTalk)
+            {
+                SetPlateColor(resting);
+                CurrentColor = resting;
+            }
         }
 
         internal void ApplyColorFromJob(Color c)

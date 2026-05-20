@@ -20,7 +20,7 @@ namespace Basis.BasisUI
 
         public override string Title => _title; // or a nicer name
         public override string IconAddress => _iconAddress;
-        public override int Order => 10; // after static items
+        public override int Order => 50; // after static items
         public override bool Hidden => false;
 
         public override async void RunAction()

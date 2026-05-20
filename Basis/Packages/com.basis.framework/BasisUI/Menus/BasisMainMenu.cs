@@ -83,8 +83,16 @@ namespace Basis.BasisUI
             }
         }
 
+        // Guards against more than one input handler toggling in the same frame
+        // (e.g. desktop Escape via BasisLocalInputActions + BasisOnScreenControls.OnEscape
+        // both firing), which would open then immediately close the menu — a one-frame flash.
+        private static int _lastToggleFrame = -1;
+
         public static void Toggle()
         {
+            if (_lastToggleFrame == Time.frameCount) return;
+            _lastToggleFrame = Time.frameCount;
+
             if (Instance)
             {
                 Close();

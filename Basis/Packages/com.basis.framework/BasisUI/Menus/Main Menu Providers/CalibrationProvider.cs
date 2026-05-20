@@ -21,7 +21,7 @@ namespace Basis.BasisUI
 
         public override string Title => BasisLocalization.Get("menu.provider.calibration");
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
-        public override int Order => 50;
+        public override int Order => 70;
 
         public override bool Hidden => false;
 

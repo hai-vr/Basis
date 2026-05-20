@@ -1,0 +1,105 @@
+#if !BASIS_DISABLE_MICROPHONE
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Networking;
+using UnityEngine;
+
+namespace Basis.BasisUI
+{
+    public class MicModeProvider : BasisMenuActionProvider<BasisMainMenu>
+    {
+        static MicModeProvider _instance;
+        static bool _added;
+
+        [RuntimeInitializeOnLoadMethod]
+        public static void Init()
+        {
+            _instance = new MicModeProvider();
+            BasisTalkModeManager.OnLocalTalkModeChanged -= Refresh;
+            BasisTalkModeManager.OnLocalTalkModeChanged += Refresh;
+            Refresh();
+        }
+
+        static void Refresh()
+        {
+            BasisDeviceManagement.EnqueueOnMainThread(RefreshMainThread);
+        }
+
+        static void RefreshMainThread()
+        {
+            bool show = BasisTalkModeManager.ShouldShowModeButton();
+            if (show && !_added)
+            {
+                _added = true;
+                BasisMenuBase<BasisMainMenu>.AddProvider(_instance);
+            }
+            else if (!show && _added)
+            {
+                _added = false;
+                BasisMenuBase<BasisMainMenu>.RemoveProvider(_instance);
+            }
+            else if (show && _added && _instance.BoundButton != null)
+            {
+                _instance.UpdateButtonVisuals(_instance.BoundButton);
+            }
+        }
+
+        public override string Title => BasisLocalization.Get(TitleKey(BasisTalkModeManager.CurrentMode));
+        public override string IconAddress => AddressableAssets.Sprites.People;
+        public override int Order => -1; // left of the mute button (Order 0)
+        public override bool Hidden => false;
+
+        public override void RunAction()
+        {
+            BasisTalkModeManager.CycleMode();
+        }
+
+        public override void OnButtonCreated(PanelButton button)
+        {
+            UpdateButtonVisuals(button);
+
+            Vector2 size = button.rectTransform.sizeDelta;
+            if (size.x > 0f) button.SetSize(new Vector2(size.x * 0.5f, size.y));
+        }
+
+        private static readonly Color NormalColor = Color.white;
+        private static readonly Color PrivateColor = new Color(0.6078432f, 0.1882353f, 1f, 1f);
+        private static readonly Color DirectColor = new Color(0f, 0.7176471f, 0.7607843f, 1f);
+        private static readonly Color ThisPersonColor = new Color(0.8784314f, 0.6901961f, 0f, 1f);
+        private static readonly Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
+
+        private void UpdateButtonVisuals(PanelButton button)
+        {
+            BasisTalkMode mode = BasisTalkModeManager.CurrentMode;
+            button.SetIcon(IconAddress);
+            button.Descriptor.SetTitle(BasisLocalization.Get(TitleKey(mode)));
+            Color color = ColorFor(mode);
+            button.Descriptor.IconImage.color = color;
+            button.Descriptor.TitleLabel.color = color;
+        }
+
+        private static Color ColorFor(BasisTalkMode mode)
+        {
+            switch (mode)
+            {
+                case BasisTalkMode.Private: return PrivateColor;
+                case BasisTalkMode.Direct: return DirectColor;
+                case BasisTalkMode.ThisPerson: return ThisPersonColor;
+                case BasisTalkMode.Shout: return ShoutColor;
+                default: return NormalColor;
+            }
+        }
+
+        private static string TitleKey(BasisTalkMode mode)
+        {
+            switch (mode)
+            {
+                case BasisTalkMode.Private: return "menu.provider.micmode.private";
+                case BasisTalkMode.Direct: return "menu.provider.micmode.direct";
+                case BasisTalkMode.ThisPerson: return "menu.provider.micmode.thisperson";
+                case BasisTalkMode.Shout: return "menu.provider.micmode.shout";
+                default: return "menu.provider.micmode.normal";
+            }
+        }
+    }
+}
+#endif

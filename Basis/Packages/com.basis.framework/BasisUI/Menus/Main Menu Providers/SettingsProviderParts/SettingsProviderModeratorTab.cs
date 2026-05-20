@@ -267,6 +267,8 @@ namespace Basis.BasisUI
 
             private void OnEnable()
             {
+                // Moderator panel open → route every popup into the notification list.
+                BasisNotificationCenter.BeginForcedScope();
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
@@ -276,6 +278,8 @@ namespace Basis.BasisUI
 
             private void OnDisable()
             {
+                // Moderator panel closed/hidden → resume normal popup handling.
+                BasisNotificationCenter.EndForcedScope();
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
             }

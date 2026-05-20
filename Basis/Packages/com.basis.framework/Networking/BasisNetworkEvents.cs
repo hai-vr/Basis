@@ -465,6 +465,24 @@ public static class BasisNetworkEvents
                             Reader.Recycle();
                             Basis.Scripts.Networking.BasisAvatarRateRegistry.UpdateRemoteRate(rateSenderId, rateIntervalMs);
                             break;
+                        case BasisNetworkCommons.EventType_TalkModeChanged:
+                            ushort talkModeSenderId = Reader.GetUShort();
+                            byte talkModeValue = Reader.GetByte();
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteTalkModeReceived(talkModeSenderId, talkModeValue);
+                            });
+                            break;
+                        case BasisNetworkCommons.EventType_MuteStateChanged:
+                            ushort muteSenderId = Reader.GetUShort();
+                            byte muteValue = Reader.GetByte();
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteMuteReceived(muteSenderId, muteValue != 0);
+                            });
+                            break;
                         default:
                             BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                             Reader.Recycle();

@@ -27,7 +27,7 @@ namespace Basis.BasisUI
         public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
-        public override int Order => 50;
+        public override int Order => 80;
         public override bool Hidden => true;
 
         // ---- Context (who are we editing?) ----
@@ -558,6 +558,39 @@ namespace Basis.BasisUI
                 volumeSlider.SetValueWithoutNotify(refreshed.VolumeLevel);
             };
 
+            // ---- Private chat (who can hear me) ----
+            var privateChatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            privateChatGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.privateChat"));
+            privateChatGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.privateChat.description"));
+
+            ushort privateChatPlayerId = 0;
+            bool hasPrivateChatTarget = Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                remotePlayer, out BasisNetworkPlayer privateChatNet);
+            if (hasPrivateChatTarget) privateChatPlayerId = privateChatNet.playerId;
+
+            PanelButton privateChatBtn = PanelButton.CreateNew(privateChatGroup.ContentParent);
+            privateChatBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                hasPrivateChatTarget && Basis.Scripts.Networking.BasisTalkModeManager.IsPrivateMember(privateChatPlayerId)
+                    ? "menu.individualPlayer.privateChat.remove"
+                    : "menu.individualPlayer.privateChat.add"));
+            privateChatBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.privateChat.add.description"));
+            privateChatBtn.OnClicked += () =>
+            {
+                if (!hasPrivateChatTarget) return;
+                bool nowMember = Basis.Scripts.Networking.BasisTalkModeManager.TogglePrivateMember(privateChatPlayerId);
+                privateChatBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                    nowMember ? "menu.individualPlayer.privateChat.remove" : "menu.individualPlayer.privateChat.add"));
+            };
+
+            PanelButton talkToOnlyBtn = PanelButton.CreateNew(privateChatGroup.ContentParent);
+            talkToOnlyBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.talkToOnly"));
+            talkToOnlyBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.talkToOnly.description"));
+            talkToOnlyBtn.OnClicked += () =>
+            {
+                if (!hasPrivateChatTarget) return;
+                Basis.Scripts.Networking.BasisTalkModeManager.SetThisPersonTarget(privateChatPlayerId);
+            };
+
             // ---- Direct Connection (P2P) controls ----
             var p2pGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             p2pGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection"));
@@ -659,12 +692,58 @@ namespace Basis.BasisUI
             };
             Basis.Scripts.Networking.BasisP2PManager.OnSessionStateChanged += p2pHandler;
 
+            // Tell the user on the direct-connection control if this player disconnects
+            // while the panel is open. Self-cleans once the button is gone (panel closed).
+            Action<BasisNetworkPlayer, BasisRemotePlayer> directConnLeftHandler = null;
+            directConnLeftHandler = (leftNet, leftRemote) =>
+            {
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    if (directConnBtn == null || directConnBtn.Descriptor == null)
+                    {
+                        BasisNetworkPlayer.OnRemotePlayerLeft -= directConnLeftHandler;
+                        return;
+                    }
+                    if (leftNet == null || leftNet.playerId != directConnPlayerId) return;
+                    directConnBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.playerDisconnected"));
+                    directConnBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.playerDisconnected.description"));
+                    BasisNetworkPlayer.OnRemotePlayerLeft -= directConnLeftHandler;
+                });
+            };
+            BasisNetworkPlayer.OnRemotePlayerLeft += directConnLeftHandler;
+
             var directConnPingField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, p2pGroup.ContentParent);
             directConnPingField.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.ping"));
             directConnPingField.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.ping.value", 0));
             // Hidden until the updater observes a Connected P2P session — see
             // IndividualPlayerPanelUpdater.UpdateDirectConnPingField.
             directConnPingField.SetActive(false);
+
+            // Per-person policy for *incoming* direct-connection requests from this
+            // player. Saved to disc and consulted by BasisP2PIncomingDialog before it
+            // prompts — "Always accept" trusts them, "Always decline" blocks silently.
+            if (!string.IsNullOrEmpty(remotePlayer.UUID))
+            {
+                PanelDropdown directConnPolicy = PanelDropdown.CreateNewEntry(p2pGroup.ContentParent);
+                directConnPolicy.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.policy"));
+                directConnPolicy.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.policy.description"));
+
+                // Order must match BasisDirectConnectionPolicy (Ask, AlwaysAccept, AlwaysDecline).
+                List<string> policyOptions = new List<string>
+                {
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.ask"),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.accept"),
+                    BasisLocalization.Get("menu.individualPlayer.directConnection.policy.decline"),
+                };
+                directConnPolicy.AssignEntries(policyOptions);
+                directConnPolicy.SetValueWithoutNotify(policyOptions[(int)BasisTrustedConnections.GetPolicy(remotePlayer.UUID)]);
+                directConnPolicy.OnValueChanged = selected =>
+                {
+                    int idx = policyOptions.IndexOf(selected);
+                    if (idx < 0) idx = 0;
+                    BasisTrustedConnections.SetPolicy(remotePlayer.UUID, (BasisDirectConnectionPolicy)idx);
+                };
+            }
 
             // ---- Highlight beacon controls ----
             var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);

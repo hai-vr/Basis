@@ -148,6 +148,14 @@ namespace Basis.Network.Core
         // Wire (client→server): [eventType:1][intervalMs:2]
         // Wire (server→client): [eventType:1][senderId:2][intervalMs:2]
         public const byte EventType_AvatarRateChange = 3;
+        /// <summary>Per-player talk mode for nameplate coloring (Normal/Private/Direct/ThisPerson/Shout).</summary>
+        // Wire (client→server): [eventType:1][modeByte:1]
+        // Wire (server→client): [eventType:1][senderId:2][modeByte:1]
+        public const byte EventType_TalkModeChanged = 4;
+        /// <summary>Per-player self-mute state for nameplate coloring.</summary>
+        // Wire (client→server): [eventType:1][muted:1]
+        // Wire (server→client): [eventType:1][senderId:2][muted:1]
+        public const byte EventType_MuteStateChanged = 5;
 
         // ── Per-quality avatar channels (ushort playerID, for IDs >255) ──
         // Same layout as byte-ID channels: base + quality * 2 + hasAdditional

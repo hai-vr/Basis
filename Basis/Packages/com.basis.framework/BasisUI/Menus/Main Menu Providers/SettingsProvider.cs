@@ -1,4 +1,5 @@
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using BasisNetworkClient;
 using BasisPermissions;
@@ -70,7 +71,7 @@ namespace Basis.BasisUI
         public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Settings;
-        public override int Order => 0;
+        public override int Order => 10;
         public override bool Hidden => false;
 
         /// <summary>
@@ -444,20 +445,33 @@ namespace Basis.BasisUI
             networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
             networkingGroup.SetDescription(BasisLocalization.Get("settings.general.networking.description"));
 
-            PanelDropdown dropdownP2PRate = PanelDropdown.CreateNewEntry(networkingGroup.ContentParent);
-            dropdownP2PRate.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.p2pAvatarRate"));
-            dropdownP2PRate.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"));
-            dropdownP2PRate.AssignEntries(new List<string>
+            PanelSlider sliderP2PRate = PanelSlider.CreateEntryAndBind(
+                networkingGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.general.networking.p2pAvatarRate"),
+                    BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"),
+                    BasisP2PManager.MinAvatarSyncHz, BasisP2PManager.MaxAvatarSyncHz, true, 0, ValueDisplayMode.Hz),
+                BasisSettingsDefaults.P2PAvatarSyncRate);
+
+            PanelElementDescriptor p2pRateWarning = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
+            p2pRateWarning.SetTitle(string.Empty);
+            if (p2pRateWarning.HasDescription)
             {
-                BasisP2PManager.P2PRate_144Hz,
-                BasisP2PManager.P2PRate_120Hz,
-                BasisP2PManager.P2PRate_90Hz,
-                BasisP2PManager.P2PRate_72Hz,
-                BasisP2PManager.P2PRate_60Hz,
-                BasisP2PManager.P2PRate_30Hz,
-                BasisP2PManager.P2PRate_20Hz,
-            });
-            dropdownP2PRate.AssignBinding(BasisSettingsDefaults.P2PAvatarSyncRate);
+                p2pRateWarning.DescriptionLabel.color = new Color(1f, 0.78f, 0.28f);
+            }
+            p2pRateWarning.SetActive(false);
+
+            _avatarRateSlider = sliderP2PRate;
+            _avatarRateWarning = p2pRateWarning;
+            _avatarRateLastFps = -1;
+            _avatarRateLastRate = -1;
+            _avatarRateWarnShown = false;
+            if (!_avatarRateTickSubscribed)
+            {
+                BasisFrameClock.OnTick += UpdateAvatarRateWarning;
+                _avatarRateTickSubscribed = true;
+            }
 
             PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
             toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
@@ -493,6 +507,52 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
             BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
+        }
+
+        private static PanelSlider _avatarRateSlider;
+        private static PanelElementDescriptor _avatarRateWarning;
+        private static bool _avatarRateTickSubscribed;
+        private static int _avatarRateLastFps = -1;
+        private static int _avatarRateLastRate = -1;
+        private static bool _avatarRateWarnShown;
+
+        private static void UpdateAvatarRateWarning()
+        {
+            PanelElementDescriptor warning = _avatarRateWarning;
+            if (warning == null)
+            {
+                BasisFrameClock.OnTick -= UpdateAvatarRateWarning;
+                _avatarRateTickSubscribed = false;
+                return;
+            }
+            if (_avatarRateSlider == null || !_avatarRateSlider.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            int fps = Mathf.RoundToInt(BasisFrameClock.SmoothedFramesPerSecond);
+            int rate = Mathf.RoundToInt(BasisSettingsDefaults.P2PAvatarSyncRate.RawValue);
+            bool insufficient = fps > 0 && rate > Mathf.RoundToInt(fps * 1.02f);
+
+            if (!insufficient)
+            {
+                if (_avatarRateWarnShown)
+                {
+                    _avatarRateWarnShown = false;
+                    warning.SetActive(false);
+                }
+                return;
+            }
+
+            if (_avatarRateWarnShown && fps == _avatarRateLastFps && rate == _avatarRateLastRate)
+            {
+                return;
+            }
+            _avatarRateWarnShown = true;
+            _avatarRateLastFps = fps;
+            _avatarRateLastRate = rate;
+            warning.SetActive(true);
+            warning.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", fps, rate));
         }
 
         // ------------------

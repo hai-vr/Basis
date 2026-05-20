@@ -81,7 +81,7 @@ namespace Basis.BasisUI
 
         public override string Title => BasisLocalization.Get("menu.provider.library");
         public override string IconAddress => AddressableAssets.Sprites.Library;
-        public override int Order => 2; // after Mute
+        public override int Order => 15; // after Settings
         public override bool Hidden => false;
         private static protected bool IsProtected = false; // we use this to determine if the user is admin for admin related queries on the library provider
         public static BasisMenuPanel panel;

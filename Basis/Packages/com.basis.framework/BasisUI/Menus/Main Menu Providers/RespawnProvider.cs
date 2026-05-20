@@ -13,7 +13,7 @@ namespace Basis.BasisUI
 
         public override string Title => BasisLocalization.Get("menu.provider.respawn");
         public override string IconAddress => AddressableAssets.Sprites.Respawn;
-        public override int Order => 11;
+        public override int Order => 60;
 
         public override bool Hidden => false;
 

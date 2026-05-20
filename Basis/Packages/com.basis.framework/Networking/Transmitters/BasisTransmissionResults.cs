@@ -131,6 +131,9 @@ public partial class BasisTransmissionResults
     public static float LastHearingRange = -1;
     public static bool RevaluteAudioRanges = false;
     public static float ConvertedVoiceDistance;
+
+    /// <summary>Set by BasisTalkModeManager to force a recipient-list resend on the next tick after a talk-mode change.</summary>
+    public static bool ForceVoiceRecipientResend;
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
     /// </summary>
@@ -395,7 +398,7 @@ public partial class BasisTransmissionResults
             SquaredSmallestDistance = 0f;
         }
 
-        bool microphoneChange = IndexChanged || AnyMicrophoneRangeChanged;
+        bool microphoneChange = IndexChanged || AnyMicrophoneRangeChanged || ForceVoiceRecipientResend;
         bool lodChange = IndexChanged || AnyLodRangeChanged;
 
         // Avatar range is always evaluated per-player in the loop below — the debounce
@@ -515,6 +518,7 @@ public partial class BasisTransmissionResults
         if (microphoneChange)
         {
             BuildAndSendTalkingPoints(snapshot, receiverCount);
+            ForceVoiceRecipientResend = false;
         }
 #if UNITY_EDITOR
         if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_TalkingPointsMs = _psw.Elapsed.TotalMilliseconds; }
@@ -579,6 +583,10 @@ public partial class BasisTransmissionResults
         ExcludedPoints.Clear();
         ushort maxId = 0;
 
+        BasisTalkMode talkMode = BasisTalkModeManager.CurrentMode;
+        bool restricted = talkMode == BasisTalkMode.Private || talkMode == BasisTalkMode.ThisPerson;
+        bool direct = talkMode == BasisTalkMode.Direct;
+
         unsafe
         {
             bool* pMicRange = (bool*)MicrophoneRange.GetUnsafeReadOnlyPtr();
@@ -590,7 +598,21 @@ public partial class BasisTransmissionResults
                     maxId = id;
                 }
 
-                if (pMicRange[i])
+                bool include;
+                if (restricted)
+                {
+                    include = BasisTalkModeManager.IsRecipient(id);
+                }
+                else if (direct)
+                {
+                    include = false;
+                }
+                else
+                {
+                    include = pMicRange[i];
+                }
+
+                if (include)
                 {
                     TalkingPoints.Add(id);
                 }
@@ -601,17 +623,32 @@ public partial class BasisTransmissionResults
             }
         }
 
-        // micRangeCount captured BEFORE the P2P strip so HasReasonToSendAudio
-        // (which gates EncodeAndSend upstream) reflects "anyone in mic range",
-        // not "anyone the server still relays to".
-        int micRangeCount = TalkingPoints.Count;
+        if (restricted)
+        {
+            // Private / This-person route entirely through the server recipient list; P2P
+            // broadcast is suppressed (see BasisAudioTransmission) so non-members can't hear.
+            BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
+        }
+        else if (direct)
+        {
+            // Direct mode: nobody via the server, audio reaches P2P-connected peers only.
+            BasisNetworkTransmitter.HasReasonToSendAudio = Basis.Scripts.Networking.BasisP2PManager.GetConnectedSessionCount() > 0;
+        }
+        else
+        {
+            // micRangeCount captured BEFORE the P2P strip so HasReasonToSendAudio
+            // (which gates EncodeAndSend upstream) reflects "anyone in mic range",
+            // not "anyone the server still relays to".
+            int micRangeCount = TalkingPoints.Count;
 
-        Basis.Scripts.Networking.BasisP2PManager.StripP2PConnectedFromRecipients(TalkingPoints);
-        Basis.Scripts.Networking.BasisP2PManager.AddP2PConnectedToExcluded(ExcludedPoints);
+            Basis.Scripts.Networking.BasisP2PManager.StripP2PConnectedFromRecipients(TalkingPoints);
+            Basis.Scripts.Networking.BasisP2PManager.AddP2PConnectedToExcluded(ExcludedPoints);
+
+            BasisNetworkTransmitter.HasReasonToSendAudio = micRangeCount != 0;
+        }
 
         int recipientCount = TalkingPoints.Count;
         int excludedCount = ExcludedPoints.Count;
-        BasisNetworkTransmitter.HasReasonToSendAudio = micRangeCount != 0;
         // Compute wire sizes for each mode
         int listSize = (recipientCount <= byte.MaxValue ? 1 : 2) + recipientCount * 2;
         int invertedSize = (excludedCount <= byte.MaxValue ? 1 : 2) + excludedCount * 2;

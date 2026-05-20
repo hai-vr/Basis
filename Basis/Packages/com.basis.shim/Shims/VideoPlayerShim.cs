@@ -225,7 +225,9 @@ namespace Basis.Shims
                 int requestId = pendingConfirmedUrlRequestId;
                 pendingUrlTimeoutCoroutine = StartCoroutine(ExpirePendingUrlRequest(requestId));
 
-                BasisMainMenu.Open();
+                // Don't pop the menu if the prompt is going to be routed to the
+                // notification list (do-not-disturb / admin panel open).
+                if (!BasisNotificationCenter.RouteToNotifications) BasisMainMenu.Open();
                 BasisMenuURLPromptPanel.CreateNew(
                     url,
                     response =>
@@ -265,7 +267,8 @@ namespace Basis.Shims
                             }
                         }
                         ApplyPendingUrl(url);
-                    }
+                    },
+                    divertible: true
                 );
             }
         }

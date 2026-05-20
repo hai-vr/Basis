@@ -28,30 +28,19 @@ namespace Basis.Scripts.Networking
 
         private const int MaxPunchAttempts = 5;
 
-        public const string P2PRate_144Hz = "144 Hz";
-        public const string P2PRate_120Hz = "120 Hz";
-        public const string P2PRate_90Hz  = "90 Hz";
-        public const string P2PRate_72Hz  = "72 Hz";
-        public const string P2PRate_60Hz  = "60 Hz";
-        public const string P2PRate_30Hz  = "30 Hz";
-        public const string P2PRate_20Hz  = "20 Hz";
+        public const float MinAvatarSyncHz = 20f;
+        public const float MaxAvatarSyncHz = 250f;
+        public const float DefaultAvatarSyncHz = 60f;
 
         public static float FastAvatarIntervalSeconds
         {
             get
             {
-                string choice = BasisSettingsDefaults.P2PAvatarSyncRate?.RawValue;
-                switch (choice)
-                {
-                    case P2PRate_144Hz: return 1f / 144f;
-                    case P2PRate_120Hz: return 1f / 120f;
-                    case P2PRate_90Hz:  return 1f / 90f;
-                    case P2PRate_72Hz:  return 1f / 72f;
-                    case P2PRate_60Hz:  return 1f / 60f;
-                    case P2PRate_30Hz:  return 1f / 30f;
-                    case P2PRate_20Hz:  return 1f / 20f;
-                    default:            return 1f / 60f;
-                }
+                float hz = BasisSettingsDefaults.P2PAvatarSyncRate != null
+                    ? BasisSettingsDefaults.P2PAvatarSyncRate.RawValue
+                    : DefaultAvatarSyncHz;
+                hz = Math.Clamp(hz, MinAvatarSyncHz, MaxAvatarSyncHz);
+                return 1f / hz;
             }
         }
 
