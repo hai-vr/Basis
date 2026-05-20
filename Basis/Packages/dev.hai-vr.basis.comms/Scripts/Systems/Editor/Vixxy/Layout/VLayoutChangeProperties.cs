@@ -225,11 +225,19 @@ namespace HVR.Vixxy.Editor
                 }
             }
 
+            var variantSp = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.variant));
             if (inheritsFromVixxyProperty)
             {
-                var genericTypeName = genericType.Name;
-                if (genericTypeName == "Single") genericTypeName = "Float";
-                EditorGUILayout.LabelField($"{genericTypeName}", EditorStyles.boldLabel, GUILayout.Width(100));
+                if (variantSp.intValue == (int)HVRVixxyPropertyVariant.BlendShape)
+                {
+                    EditorGUILayout.LabelField("Blendshape", EditorStyles.boldLabel, GUILayout.Width(100));
+                }
+                else
+                {
+                    var genericTypeName = managedReferenceValueType.Name;
+                    if (genericTypeName.StartsWith("HVRVixxyProperty")) genericTypeName = genericTypeName.Substring("HVRVixxyProperty".Length);
+                    EditorGUILayout.LabelField($"{genericTypeName}", EditorStyles.boldLabel, GUILayout.Width(100));
+                }
             }
             else if (managedReferenceValue is HVRVixxyPropertyBase)
             {
@@ -240,10 +248,13 @@ namespace HVR.Vixxy.Editor
                 EditorGUILayout.LabelField($"CAUTION: Not a HVRVixxyPropertyBase, type is {managedReferenceValueType.FullName}", EditorStyles.boldLabel);
             }
 
-            EditorGUI.BeginDisabledGroup(true);
-            // EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)));
-            EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.variant)), GUIContent.none);
-            EditorGUI.EndDisabledGroup();
+            if (variantSp.intValue != (int)HVRVixxyPropertyVariant.BlendShape)
+            {
+                EditorGUI.BeginDisabledGroup(true);
+                // EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)));
+                EditorGUILayout.PropertyField(variantSp, GUIContent.none);
+                EditorGUI.EndDisabledGroup();
+            }
 
             EditorGUI.BeginDisabledGroup(managedReferenceValue is HVRVixxyPropertyBase { variant: HVRVixxyPropertyVariant.Standard });
             EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.propertyName)), GUIContent.none);
