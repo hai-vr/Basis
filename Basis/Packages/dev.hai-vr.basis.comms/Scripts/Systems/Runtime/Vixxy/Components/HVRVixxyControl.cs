@@ -54,6 +54,7 @@ namespace HVR.Vixxy
         [NonSerialized] internal List<int> ChoiceIndexOrderedByValue;
         [NonSerialized] internal float MinimumValue;
         [NonSerialized] internal float MaximumValue;
+        [NonSerialized] internal List<HVRVixxyFilterBase> Filters;
 
         [NonSerialized] internal bool Networked;
         [NonSerialized] internal HVRVixxyNetworkingType NetworkingType;
@@ -123,6 +124,40 @@ namespace HVR.Vixxy
             subjects ??= Array.Empty<HVRVixxySubject>();
             filters ??= new List<HVRVixxyFilterBase>();
             HVR_VixxyUtil.SanitizeFieldOfTypeSerializeReference(filters);
+            if (transition == HVRVixxyTransitionMode.None)
+            {
+                Filters = new List<HVRVixxyFilterBase>();
+            }
+            else if (transition == HVRVixxyTransitionMode.Advanced)
+            {
+                Filters = filters;
+            }
+            else // Simplified
+            {
+                var newFilters = new List<HVRVixxyFilterBase>();
+                if (transitionDuration > 0f)
+                {
+                    if (Mathf.Approximately(MaximumValue, 1f) && Mathf.Approximately(MaximumValue, 0f))
+                    {
+                        newFilters.Add(new HVRMoveTowardsVixxyFilter
+                        {
+                            secondsPerUnit = transitionDuration
+                        });
+                        newFilters.Add(new HVRCurveVixxyFilter
+                        {
+                            curve = AnimationCurve.EaseInOut(0, 0, 1, 1)
+                        });
+                    }
+                    else
+                    {
+                        newFilters.Add(new HVRSmoothVixxyFilter
+                        {
+                            secondsPerUnit = (MaximumValue - MinimumValue) * transitionDuration
+                        });
+                    }
+                }
+                Filters = newFilters;
+            }
             BakeControlSubjectsAndActivationsForRuntime();
 
             if (_avatarNullable != null)
@@ -144,7 +179,7 @@ namespace HVR.Vixxy
 
                 _registeredActuator = orchestrator.RegisterActuator(AddressId, this, OnImplicitAddressUpdated);
                 _objectiveValue = defaultValue;
-                if (filters.Count == 0)
+                if (Filters.Count == 0)
                 {
                     _actuatedValue = defaultValue;
                 }
@@ -558,7 +593,7 @@ namespace HVR.Vixxy
             if (Mathf.Approximately(value, _previousValue)) return;
             _previousValue = value;
             _objectiveValue = value;
-            if (filters.Count == 0)
+            if (Filters.Count == 0)
             {
                 _actuatedValue = _objectiveValue;
             }
@@ -568,13 +603,13 @@ namespace HVR.Vixxy
 
         public bool HasFilters()
         {
-            return filters.Count > 0;
+            return Filters.Count > 0;
         }
 
         private void PrimeFilters()
         {
             var filteredValue = _objectiveValue;
-            foreach (var filter in filters)
+            foreach (var filter in Filters)
             {
                 filteredValue = filter.isTimeFilter ? filter.PrimeFilter(_objectiveValue) : filter.Filter(filteredValue);
             }
@@ -583,12 +618,12 @@ namespace HVR.Vixxy
 
         public HVRVixxyActuatorApplyFilterResult ApplyFilters()
         {
-            if (filters.Count == 0) throw new InvalidOperationException("ApplyFilters must never be called when there are no filters, this indicates a programming error.");
+            if (Filters.Count == 0) throw new InvalidOperationException("ApplyFilters must never be called when there are no filters, this indicates a programming error.");
 
             var filterNeedsCheckNextTick = false;
 
             var filteredValue = _objectiveValue;
-            foreach (var filter in filters)
+            foreach (var filter in Filters)
             {
                 if (filter.isTimeFilter)
                 {

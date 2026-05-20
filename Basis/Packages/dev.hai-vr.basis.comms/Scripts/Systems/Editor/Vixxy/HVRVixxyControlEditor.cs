@@ -69,10 +69,14 @@ namespace HVR.Vixxy.Editor
             {
                 if (_settings.LayoutAdvancedSettings()) return;
             }
-            _filtersFoldout = HaiEFCommon.LilFoldout("Transition", "", _filtersFoldout, ref anyChanged, my.filters.Count > 0, FilledColor);
-            if (_filtersFoldout)
+
+            if (my.transition == HVRVixxyTransitionMode.Advanced)
             {
-                if (_filters.Layout()) return;
+                _filtersFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.AdvancedTransitionLabel, "", _filtersFoldout, ref anyChanged, my.filters.Count > 0, FilledColor);
+                if (_filtersFoldout)
+                {
+                    if (_filters.Layout()) return;
+                }
             }
 
             EditorGUILayout.Separator();

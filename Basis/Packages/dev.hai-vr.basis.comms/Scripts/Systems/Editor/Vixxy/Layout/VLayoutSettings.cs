@@ -37,6 +37,13 @@ namespace HVR.Vixxy.Editor
 
         public bool LayoutSettings()
         {
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.transition)));
+            if (my.transition == HVRVixxyTransitionMode.Simplified)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyControl.transitionDuration)), new GUIContent(HVRVixxyLocalizationPhrase.TransitionDurationLabel));
+            }
+            EditorGUILayout.Separator();
+
             if (!_editor.IsSystemAddress())
             {
                 var menuNullable = my.GetComponent<HVRVixxyMenuItem>();

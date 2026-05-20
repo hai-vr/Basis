@@ -47,6 +47,7 @@
         internal const string FilterLabel = "Filter";
         internal const string LinearMoveTowardsValueLabel = "Linear move towards value";
         internal const string SmoothTowardsValueLabel = "Smooth towards value";
-        public const string MenuLabel = "Menu";
+        internal const string AdvancedTransitionLabel = "Advanced Transition";
+        internal const string TransitionDurationLabel = "Transition Duration (s)";
     }
 }
