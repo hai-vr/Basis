@@ -224,7 +224,7 @@
     { "key": "menu.individualPlayer.directConnection.policy.description", "value": "What to do when this player sends you a direct connection request." },
     { "key": "menu.individualPlayer.directConnection.policy.ask", "value": "Ask each time" },
     { "key": "menu.individualPlayer.directConnection.policy.accept", "value": "Always accept" },
-    { "key": "menu.individualPlayer.directConnection.policy.decline", "value": "Always decline" },
+    { "key": "menu.individualPlayer.directConnection.policy.decline", "value": "<color=#ef4444>Always decline</color>" },
     { "key": "menu.individualPlayer.directConnection.disabledDialog.title", "value": "Direct connections disabled" },
     { "key": "menu.individualPlayer.directConnection.disabledDialog.body", "value": "You have direct connections disabled in General settings. Enable them there to request a peer-to-peer link." },
     { "key": "menu.individualPlayer.directConnection.accept", "value": "Accept" },

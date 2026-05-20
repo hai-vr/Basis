@@ -31,9 +31,10 @@ namespace Basis.BasisUI
                 return;
             }
 
-            // Only open the menu if it isn't already — calling Open() while it's open
-            // tears down and rebuilds the whole menu (a one-frame flash).
-            if (!BasisMainMenu.Instance) BasisMainMenu.Open();
+            // Open the menu fresh. Done unconditionally on purpose: when re-opened from
+            // the notification page this clears that panel, so the prompt stands alone
+            // instead of being created alongside it (which closed it instantly).
+            BasisMainMenu.Open();
             if (!BasisMainMenu.Instance)
             {
                 respond(false);
