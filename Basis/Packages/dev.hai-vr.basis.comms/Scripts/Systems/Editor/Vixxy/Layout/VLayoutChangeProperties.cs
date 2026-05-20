@@ -172,7 +172,7 @@ namespace HVR.Vixxy.Editor
                                     var fullClassName = fullClassNameSp.stringValue;
 
                                     if (fullClassName != type.FullName) continue;
-                                    if (DrawPropertyOrReturn(propertySp, propertyIndex, propertiesSp)) return true;
+                                    if (DrawPropertyOrReturn(targetObject, propertySp, propertyIndex, propertiesSp)) return true;
                                 }
                             }
                         }
@@ -199,7 +199,7 @@ namespace HVR.Vixxy.Editor
             return false;
         }
 
-        private bool DrawPropertyOrReturn(SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp)
+        private bool DrawPropertyOrReturn(GameObject targetObject, SerializedProperty propertySp, int propertyIndex, SerializedProperty propertiesSp)
         {
             EditorGUILayout.BeginVertical(HVR_EditorHelpers.GroupBoxStyle);
             EditorGUILayout.BeginHorizontal();
@@ -327,20 +327,35 @@ namespace HVR.Vixxy.Editor
 
                 for (var choiceIndex = 0; choiceIndex < my.NumberOfChoices; choiceIndex++)
                 {
+                    EditorGUILayout.BeginHorizontal();
+                    var choiceElementSp = choicesSp.GetArrayElementAtIndex(choiceIndex);
+
                     var description = HVRVixxyControlEditor.EditorChoiceDescription(choiceIndex, choices);
                     if (managedReferenceValueType == typeof(HVRVixxyPropertyColorHDR))
                     {
-                        var from = choicesSp.GetArrayElementAtIndex(choiceIndex).colorValue;
+                        var from = choiceElementSp.colorValue;
                         var to = EditorGUILayout.ColorField(new GUIContent(description), from, true, true, true);
                         if (from != to)
                         {
-                            choicesSp.GetArrayElementAtIndex(choiceIndex).colorValue = to;
+                            choiceElementSp.colorValue = to;
                         }
                     }
                     else
                     {
-                        EditorGUILayout.PropertyField(choicesSp.GetArrayElementAtIndex(choiceIndex), new GUIContent(description));
+                        EditorGUILayout.PropertyField(choiceElementSp, new GUIContent(description));
                     }
+
+                    if (inheritsFromVixxyProperty)
+                    {
+                        if (GUILayout.Button("R", GUILayout.Width(25)))
+                        {
+                            if (HVR_EditorHelpers.TryCaptureProperty(targetObject, managedReferenceValue, propertySp, out var capturedValue))
+                            {
+                                TryApplyProperty(capturedValue, choiceElementSp);
+                            }
+                        }
+                    }
+                    EditorGUILayout.EndHorizontal();
                 }
             }
 
@@ -359,6 +374,18 @@ namespace HVR.Vixxy.Editor
 
             EditorGUILayout.EndVertical();
             return false;
+        }
+
+        private static void TryApplyProperty(object capturedValue, SerializedProperty choiceElementSp)
+        {
+            if (capturedValue is Color colorValue) { choiceElementSp.colorValue = colorValue; }
+            else if (capturedValue is float floatValue) { choiceElementSp.floatValue = floatValue; }
+            else if (capturedValue is int intValue) { choiceElementSp.intValue = intValue; }
+            else if (capturedValue is Quaternion quaternionValue) { choiceElementSp.vector3Value = quaternionValue.eulerAngles; } // !!!
+            else if (capturedValue is Vector4 vector4Value) { choiceElementSp.vector4Value = vector4Value; }
+            else if (capturedValue is Vector3 vector3Value) { choiceElementSp.vector3Value = vector3Value; }
+            else if (capturedValue is Vector2 vector2Value) { choiceElementSp.vector2Value = vector2Value; }
+            else if (capturedValue is Object objectValue) { choiceElementSp.objectReferenceValue = objectValue; }
         }
 
         private static void CreateArrayAddition(SerializedProperty whichArrayProperty, Type arrayType, bool limitToOne = false)

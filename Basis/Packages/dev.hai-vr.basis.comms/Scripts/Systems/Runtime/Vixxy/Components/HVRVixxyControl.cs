@@ -925,7 +925,7 @@ namespace HVR.Vixxy
             }
         }
 
-        private static FieldInfo GetFieldInfoOrNull(Type foundType, string propertyName)
+        public static FieldInfo GetFieldInfoOrNull(Type foundType, string propertyName)
         {
             var fields = foundType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             foreach (var fieldInfo in fields)
@@ -939,7 +939,7 @@ namespace HVR.Vixxy
             return null;
         }
 
-        private static PropertyInfo GetPropertyInfoOrNull(Type foundType, string propertyName)
+        public static PropertyInfo GetPropertyInfoOrNull(Type foundType, string propertyName)
         {
             var typeProperties = foundType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             foreach (var propertyInfo in typeProperties)
