@@ -445,12 +445,20 @@ namespace HVR.Vixxy
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            if (!_initialized)
+            if (interpolation == HVRVixxyPropertyQuaternionInterpolation.Spherical)
             {
-                _a = Quaternion.Euler(choices[inactiveIndex]);
-                _b = Quaternion.Euler(choices[activeIndex]);
+                if (!_initialized)
+                {
+                    _a = Quaternion.Euler(choices[inactiveIndex]);
+                    _b = Quaternion.Euler(choices[activeIndex]);
+                }
+                return Quaternion.Slerp(_a, _b, active01);
             }
-            return Quaternion.Slerp(_a, _b, active01);
+            else // Euler
+            {
+                // https://docs.unity3d.com/6000.4/Documentation/Manual/AnimationRotate.html#:~:text=if%20the%20rotation%20is%20greater%20than%20360%20degrees%2C%20the%20GameObject%20rotates%20fully
+                return Quaternion.Euler(Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01));
+            }
         }
     }
 
@@ -486,6 +494,7 @@ namespace HVR.Vixxy
     public enum HVRVixxyPropertyQuaternionInterpolation
     {
         Spherical,
+        Euler,
     }
 
     [Serializable]

@@ -369,7 +369,13 @@ namespace HVR.Vixxy.Editor
             }
             if (managedReferenceValueType == typeof(HVRVixxyPropertyQuaternion))
             {
-                EditorGUILayout.PropertyField(propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyQuaternion.interpolation)));
+                var interpolationSp = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyColor.interpolation));
+                EditorGUILayout.PropertyField(interpolationSp);
+                if (interpolationSp.intValue == (int)HVRVixxyPropertyQuaternionInterpolation.Euler)
+                {
+                    // https://docs.unity3d.com/6000.4/Documentation/Manual/AnimationRotate.html#:~:text=if%20the%20rotation%20is%20greater%20than%20360%20degrees%2C%20the%20GameObject%20rotates%20fully
+                    EditorGUILayout.HelpBox("Euler interpolation allows rotations greater than 180 degrees (for example, 720 degrees).", MessageType.Info);
+                }
             }
 
             EditorGUILayout.EndVertical();
