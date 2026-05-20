@@ -11,6 +11,8 @@ New additions:
   - This processing is done locally; the value of the address itself does not change over time.
 - Lipsync values are available as addresses to be read by Vixxy.
 - Effects can be triggered based on the distance, angle, raycast, or speed between objects.
+- Changing Transform rotation, position, and scale is now permitted.
+- In the editor, add a button to capture the current value of a property from the scene.
 
 Major modifications:
 - Migrate Face Tracking to use the same system as Vixxy.
@@ -23,6 +25,7 @@ Modifications in existing HVR.Basis systems:
   - Sliders for controls that use multiple choices now fade between the choices. Previously, the slider would snap settings to the nearest whole number.
   - Addresses chosen automatically for controls now account for objects having the same name.
   - Value is clamped per-control between the minimum and the maximum choice value. This is done in preparation for high-frequency networking, where the value is clamped by technical necessity.
+  - Handle quaternion properties represented as Euler angles, with Spherical or Euler interpolation.
 - Usability:
   - When a Vixxy Control is created, the choices are named by default to "OFF" and "ON"
   - In the Toggle Objects UI, "Enable these when active" has been replaced with "Affect these objects" and now uses the same system as multiple choices.
@@ -47,6 +50,7 @@ Fixes:
 - Fix HDR properties was using the wrong type.
 - When a user requests initialization, the wearer sends the responses to that user instead of all users.
 - Fix Toggle Objects sometimes did not show all objects being toggled.
+- Fix adding a new object group should now produce an empty group without stray references of existing objects.
 
 ## 2025-05-02
 
