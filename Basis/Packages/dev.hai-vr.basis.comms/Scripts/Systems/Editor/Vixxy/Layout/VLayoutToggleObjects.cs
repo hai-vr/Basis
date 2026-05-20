@@ -136,7 +136,7 @@ namespace HVR.Vixxy.Editor
             }
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusWidth));
+            EditorGUILayout.LabelField(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(15));
             var newComponent = EditorGUILayout.ObjectField(null, typeof(Component), true);
             if (newComponent != null)
             {

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using HVR.Basis.Comms;
-using HVR.Basis.Comms.Editor;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -15,6 +14,7 @@ namespace HVR.Vixxy.Editor
     internal class VLayoutChangeProperties
     {
         private const int MaxSearchQueryLength = 100;
+        private const string ObjectGroupIndicator = "◆";
         private static readonly Regex HasAnyNonLetterNonSpace = new Regex(@"[^A-Za-z\s]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly HVRVixxyControl my;
@@ -72,7 +72,7 @@ namespace HVR.Vixxy.Editor
                 var subjectSp = subjectsReorderableList.serializedProperty.GetArrayElementAtIndex(selectedIndex);
                 var mySelectedElement = my.subjects[selectedIndex];
 
-                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ObjectGroupLabel} n°{selectedIndex + 1}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{HVRVixxyLocalizationPhrase.ObjectGroupLabel} {ObjectGroupIndicator}{selectedIndex + 1}", EditorStyles.boldLabel);
 
                 EditorGUILayout.PropertyField(subjectSp.FindPropertyRelative(nameof(HVRVixxySubject.selection)));
                 if (mySelectedElement.selection == HVRVixxySelection.Normal)
@@ -468,7 +468,7 @@ namespace HVR.Vixxy.Editor
             if (!limitToOne || whichArrayProperty.arraySize == 0)
             {
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusWidth));
+                EditorGUILayout.LabelField(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(15));
                 var newAddition = EditorGUILayout.ObjectField(GUIContent.none, null, arrayType);
                 EditorGUILayout.LabelField(GUIContent.none, GUILayout.Width(25));
                 EditorGUILayout.EndHorizontal();
@@ -587,7 +587,7 @@ namespace HVR.Vixxy.Editor
                         }
                     }
 
-                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusWidth)))
+                    if (GUILayout.Button(HVR_EditorHelpers.PlusSymbol, GUILayout.Width(HVR_EditorHelpers.PlusButtonWidth)))
                     {
                         var managedReferenceValue = ToPropertyOrNull(targetedType, prop);
                         if (managedReferenceValue != null)
@@ -854,12 +854,12 @@ namespace HVR.Vixxy.Editor
             {
                 var targetNames = subject.targets.Where(o => o != null).Select(o => o.name).ToArray();
                 return
-                    $"n°{index + 1} {(targetNames.Length > 1 ? $"[{targetNames.Length} objects] " : "")}{string.Join(", ", targetNames)} ({string.Join(", ", classNames)})";
+                    ObjectGroupIndicator + $"{index + 1} {(targetNames.Length > 1 ? $"[{targetNames.Length} objects] " : "")}{string.Join(", ", targetNames)} ({string.Join(", ", classNames)})";
             }
             else
             {
                 var label = subject.selection == HVRVixxySelection.RecursiveSearch ? HVRVixxyLocalizationPhrase.RecursiveSearchLabel : HVRVixxyLocalizationPhrase.EverythingLabel;
-                return $"n°{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
+                return ObjectGroupIndicator + $"{index + 1} {label}: {(classNames.Length > 1 ? $"[{classNames.Length} types] " : "")}{string.Join(", ", classNames)}";
             }
         }
     }

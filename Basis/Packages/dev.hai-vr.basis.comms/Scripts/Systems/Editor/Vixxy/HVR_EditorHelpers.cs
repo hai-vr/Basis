@@ -16,7 +16,7 @@ namespace HVR.Vixxy.Editor
         public const string GroupBoxStyle = "GroupBox";
 
         public const float SwapElementWidth = 15;
-        public const float PlusWidth = 25;
+        public const float PlusButtonWidth = 25;
         public const float DeleteButtonWidth = 20;
 
         public static List<string> ListAllBlendshapes(SkinnedMeshRenderer renderer)
