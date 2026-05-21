@@ -261,6 +261,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
 
     private void Update()
     {
+        if (BasisTrackerIdentifyGizmos.HasActive)
+        {
+            BasisTrackerIdentifyGizmos.Tick();
+        }
+
         if (!UseGizmos)
         {
             return;

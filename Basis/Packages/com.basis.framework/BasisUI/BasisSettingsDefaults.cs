@@ -959,6 +959,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSpineSquishBoost = new("fbikspinesquishboost", new BasisPlatformDefault<float>(0.5f));
         // Spine relax: crouch counterweight (hips shift back as the head drops)
         public static BasisSettingsBinding<float> FBIKMoveBodyBackWhenCrouching = new("fbikmovebodybackwhencrouching", new BasisPlatformDefault<float>(1f));
+        // Swing continuity: max elbow/knee swing speed (deg/s); lower = smoother, 0 = off
+        public static BasisSettingsBinding<float> FBIKSwingSmoothRate = new("fbikswingsmoothrate", new BasisPlatformDefault<float>(720f));
         // Spine relax: CCD solve smoothing + neck overbend cone limit
         public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax", new BasisPlatformDefault<float>(0.8f));
         public static BasisSettingsBinding<float> FBIKNeckMaxConeDeg = new("fbikneckmaxconedeg", new BasisPlatformDefault<float>(45f));
@@ -1508,6 +1510,7 @@ namespace Basis.BasisUI
             FBIKSpineMaxLateralDeg.LoadBindingValue();
             FBIKSpineSquishBoost.LoadBindingValue();
             FBIKMoveBodyBackWhenCrouching.LoadBindingValue();
+            FBIKSwingSmoothRate.LoadBindingValue();
             FBIKSpineCCDRelax.LoadBindingValue();
             FBIKNeckMaxConeDeg.LoadBindingValue();
             FBIKChestArmSwingFactor.LoadBindingValue();

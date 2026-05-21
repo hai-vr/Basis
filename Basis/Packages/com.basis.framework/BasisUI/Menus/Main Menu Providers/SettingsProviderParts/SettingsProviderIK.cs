@@ -452,6 +452,13 @@ public static class SettingsProviderIK
             if (moveBodyBack != null)
                 moveBodyBack.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.description"));
 
+            var swingSmooth = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.swingSmoothRate.title"), 0f, 3600f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKSwingSmoothRate);
+            if (swingSmooth != null)
+                swingSmooth.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.swingSmoothRate.description"));
+
             var chestSpringHz = PanelSlider.CreateAndBind(
                 dynamicsParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestSpringHz.title"), 0f, 30f, false, 1, ValueDisplayMode.Raw),
@@ -797,6 +804,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHipHingeStartDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.ResetToDefault();
+        BasisSettingsDefaults.FBIKSwingSmoothRate.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringDamping.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisPitchGainDeg.ResetToDefault();

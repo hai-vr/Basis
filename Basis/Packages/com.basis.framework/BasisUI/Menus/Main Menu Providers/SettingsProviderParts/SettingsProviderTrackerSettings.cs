@@ -1,4 +1,5 @@
 using Basis.Scripts.Avatar;
+using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Pairing;
@@ -59,6 +60,7 @@ namespace Basis.BasisUI
         {
             public string Id;
             public PanelElementDescriptor Group;
+            public PanelButton IdentifyButton;
             public PanelDropdown LinkDropdown;
             public PanelDropdown RoleDropdown;
         }
@@ -154,6 +156,7 @@ namespace Basis.BasisUI
             }
             BasisTrackerPairing.OnPairingsChanged += handleChange;
             BasisTrackerRoleOverride.OnOverridesChanged += handleChange;
+            BasisTrackerIdentifyGizmos.OnIdentifyChanged += handleChange;
 
             tabPage.OnInstanceReleased += () =>
             {
@@ -164,6 +167,7 @@ namespace Basis.BasisUI
                 }
                 BasisTrackerPairing.OnPairingsChanged -= handleChange;
                 BasisTrackerRoleOverride.OnOverridesChanged -= handleChange;
+                BasisTrackerIdentifyGizmos.OnIdentifyChanged -= handleChange;
                 state.TrackersContainer = null;
                 state.TrackersGroup = null;
                 state.TabDescriptor = null;
@@ -276,6 +280,7 @@ namespace Basis.BasisUI
                 {
                     entry.Group.SetDescription(BuildEntryDescription(input));
                 }
+                ApplyIdentifyVisual(entry.IdentifyButton, input);
                 if (entry.LinkDropdown != null && !entry.LinkDropdown.IsReleased)
                 {
                     entry.LinkDropdown.SetValueWithoutNotify(ResolveCurrentLink(id, ids));
@@ -355,6 +360,16 @@ namespace Basis.BasisUI
             group.SetTitle(title);
             group.SetDescription(BuildEntryDescription(input));
 
+            PanelButton identifyButton = PanelButton.CreateNew(group.ContentParent);
+            identifyButton.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.identifyDescription"));
+            if (identifyButton.ButtonStyling != null)
+            {
+                identifyButton.ButtonStyling.ShowIndicator(false);
+            }
+            ApplyIdentifyVisual(identifyButton, input);
+            BasisInput capturedInput = input;
+            identifyButton.OnClicked += () => BasisTrackerIdentifyGizmos.Toggle(capturedInput);
+
             PanelDropdown linkDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
             linkDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.linkLabel"));
             linkDropdown.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.linkDescription"));
@@ -409,9 +424,27 @@ namespace Basis.BasisUI
             {
                 Id = id,
                 Group = group,
+                IdentifyButton = identifyButton,
                 LinkDropdown = linkDropdown,
                 RoleDropdown = roleDropdown,
             });
+        }
+
+        private static void ApplyIdentifyVisual(PanelButton button, BasisInput input)
+        {
+            if (button == null || button.IsReleased) return;
+            PanelElementDescriptor descriptor = button.Descriptor;
+            if (descriptor == null || !descriptor.HasTitle) return;
+
+            if (BasisTrackerIdentifyGizmos.TryGetColor(input, out Color color))
+            {
+                string hex = ColorUtility.ToHtmlStringRGB(color);
+                descriptor.SetTitle($"<color=#{hex}>{BasisLocalization.Get("trackerLinking.identifyShowing")}</color>");
+            }
+            else
+            {
+                descriptor.SetTitle(BasisLocalization.Get("trackerLinking.identifyLabel"));
+            }
         }
 
         private static string BuildEntryDescription(BasisInput input)
@@ -576,6 +609,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PairingEmaAlpha.ResetToDefault();
             BasisSettingsDefaults.PairingDistanceEmaAlpha.ResetToDefault();
             BasisSettingsDefaults.PairingWeightSmoothing.ResetToDefault();
+            BasisTrackerIdentifyGizmos.ClearAll();
         }
 
         private static List<BasisInput> CollectEligibleTrackers()
