@@ -72,10 +72,13 @@ public static class BasisHandHeldCameraPhotoMetadata
         if (captureCamera == null)
             return meta;
 
-        bool details = BasisSettingsDefaults.PhotoEmbedPersonDetails.RawValue;
-        meta.People = CollectTaggedPeople(captureCamera, ignoreRoot, details);
+        bool tagPeopleAllowed = !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_TagPeople);
+        bool details = BasisSettingsDefaults.PhotoEmbedPersonDetails.RawValue
+            && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_PersonDetails);
+        meta.People = tagPeopleAllowed ? CollectTaggedPeople(captureCamera, ignoreRoot, details) : new List<TaggedPerson>();
 
-        if (BasisSettingsDefaults.PhotoEmbedCameraSettings.RawValue)
+        if (BasisSettingsDefaults.PhotoEmbedCameraSettings.RawValue
+            && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_CameraExif))
         {
             meta.HasCamera = true;
             meta.FocalLengthMm = captureCamera.focalLength;
@@ -87,7 +90,8 @@ public static class BasisHandHeldCameraPhotoMetadata
             meta.FieldOfView = captureCamera.fieldOfView;
         }
 
-        if (BasisSettingsDefaults.PhotoEmbedCaptureInfo.RawValue)
+        if (BasisSettingsDefaults.PhotoEmbedCaptureInfo.RawValue
+            && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_CaptureInfo))
         {
             meta.HasCaptureInfo = true;
             meta.Software = "Basis Handheld Camera";
@@ -95,7 +99,8 @@ public static class BasisHandHeldCameraPhotoMetadata
             meta.UnityVersion = Application.unityVersion;
         }
 
-        if (BasisSettingsDefaults.PhotoEmbedPhotographer.RawValue)
+        if (BasisSettingsDefaults.PhotoEmbedPhotographer.RawValue
+            && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_Photographer))
         {
             BasisPlayer local = BasisLocalPlayer.Instance;
             if (local != null)
@@ -106,7 +111,8 @@ public static class BasisHandHeldCameraPhotoMetadata
             }
         }
 
-        if (BasisSettingsDefaults.PhotoEmbedWorld.RawValue)
+        if (BasisSettingsDefaults.PhotoEmbedWorld.RawValue
+            && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_World))
         {
             meta.HasWorld = true;
             meta.WorldName = SafeWorldName();

@@ -578,6 +578,26 @@ public static class BasisNetworkModeration
     public static event Action<bool> OnGlobalAdditionalAvatarDataLockChanged;
 
     /// <summary>
+    /// Server-pushed per-category camera photo-metadata disallow mask. A set bit forbids
+    /// that embedding category for every client regardless of the user's own toggles.
+    /// 0 = everything allowed. Bits are the CameraPolicy_* constants.
+    /// </summary>
+    public static byte GlobalCameraDisallowMask { get; private set; }
+
+    public const byte CameraPolicy_TagPeople = 1 << 0;
+    public const byte CameraPolicy_PersonDetails = 1 << 1;
+    public const byte CameraPolicy_CameraExif = 1 << 2;
+    public const byte CameraPolicy_CaptureInfo = 1 << 3;
+    public const byte CameraPolicy_Photographer = 1 << 4;
+    public const byte CameraPolicy_World = 1 << 5;
+
+    /// <summary>True when the server forbids the given camera metadata category (a CameraPolicy_* bit).</summary>
+    public static bool IsCameraCategoryDisallowed(byte categoryBit) => (GlobalCameraDisallowMask & categoryBit) != 0;
+
+    /// <summary>Fired when the server-pushed camera metadata policy mask changes.</summary>
+    public static event Action<byte> OnGlobalCameraPolicyChanged;
+
+    /// <summary>
     /// Current headless audio state received from the server.
     /// True means headless clients should keep BasisAudioClipPlayer off.
     /// </summary>
@@ -632,7 +652,17 @@ public static class BasisNetworkModeration
                 OnGlobalAdditionalAvatarDataLockChanged?.Invoke(GlobalAdditionalAvatarDataLock);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}", BasisDebug.LogTag.Networking);
+        // CameraMetadataDisallowMask appended after AdditionalAvatarDataLock (1 byte). Same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            byte nextCameraMask = reader.GetByte();
+            if (nextCameraMask != GlobalCameraDisallowMask)
+            {
+                GlobalCameraDisallowMask = nextCameraMask;
+                OnGlobalCameraPolicyChanged?.Invoke(GlobalCameraDisallowMask);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -685,6 +715,18 @@ public static class BasisNetworkModeration
     public static void GlobalToggleAdditionalAvatarDataLock()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleAdditionalAvatarDataLock);
+    }
+
+    /// <summary>
+    /// Admin: set the per-category camera photo-metadata disallow mask. A set bit forbids
+    /// that embedding category for every client. The server stores it and rebroadcasts it
+    /// in GlobalGetLockState.
+    /// </summary>
+    public static void SetGlobalCameraPolicy(byte disallowMask)
+    {
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalCameraPolicy,
+            w => w.Put(disallowMask));
     }
 
     private static void HandleGlobalHeadlessAudioState(NetDataReader reader)

@@ -108,6 +108,68 @@ namespace Basis.BasisUI
             controller.HeadlessDisallowToggle = disallowHeadlessToggle;
             controller.OpusPacketLossSlider = opusPacketLossSlider;
 
+            // --- Camera photo metadata policy (per-category disallow; default allowed) ---
+            PanelElementDescriptor cameraPolicyGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            cameraPolicyGroup.SetTitle("Camera Photo Metadata");
+            cameraPolicyGroup.SetDescription("Disallow categories of metadata that players' handheld cameras may embed into saved photos. Off = allowed.");
+
+            PanelToggle camTagPeople = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
+            camTagPeople.Descriptor.SetTitle("Disallow Tagging People");
+            camTagPeople.Descriptor.SetDescription("Blocks embedding the names and boxes of people in photos.");
+
+            PanelToggle camPersonDetails = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
+            camPersonDetails.Descriptor.SetTitle("Disallow Per-Person Details");
+            camPersonDetails.Descriptor.SetDescription("Blocks embedding avatar name, UUID, platform, distance and 3D position per person.");
+
+            PanelToggle camExif = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
+            camExif.Descriptor.SetTitle("Disallow Camera Settings (EXIF)");
+            camExif.Descriptor.SetDescription("Blocks embedding focal length, f-stop, shutter, ISO.");
+
+            PanelToggle camCapture = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
+            camCapture.Descriptor.SetTitle("Disallow Capture Info");
+            camCapture.Descriptor.SetDescription("Blocks embedding app/version and capture date.");
+
+            PanelToggle camPhotographer = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
+            camPhotographer.Descriptor.SetTitle("Disallow Photographer");
+            camPhotographer.Descriptor.SetDescription("Blocks embedding the photographer's name and UUID.");
+
+            PanelToggle camWorld = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
+            camWorld.Descriptor.SetTitle("Disallow World & Viewpoint");
+            camWorld.Descriptor.SetDescription("Blocks embedding the world name and camera position/rotation.");
+
+            byte BuildCameraMask()
+            {
+                byte mask = 0;
+                if (camTagPeople.Value) mask |= BasisNetworkModeration.CameraPolicy_TagPeople;
+                if (camPersonDetails.Value) mask |= BasisNetworkModeration.CameraPolicy_PersonDetails;
+                if (camExif.Value) mask |= BasisNetworkModeration.CameraPolicy_CameraExif;
+                if (camCapture.Value) mask |= BasisNetworkModeration.CameraPolicy_CaptureInfo;
+                if (camPhotographer.Value) mask |= BasisNetworkModeration.CameraPolicy_Photographer;
+                if (camWorld.Value) mask |= BasisNetworkModeration.CameraPolicy_World;
+                return mask;
+            }
+
+            void ApplyCameraMask(byte mask)
+            {
+                camTagPeople.SetValueWithoutNotify((mask & BasisNetworkModeration.CameraPolicy_TagPeople) != 0);
+                camPersonDetails.SetValueWithoutNotify((mask & BasisNetworkModeration.CameraPolicy_PersonDetails) != 0);
+                camExif.SetValueWithoutNotify((mask & BasisNetworkModeration.CameraPolicy_CameraExif) != 0);
+                camCapture.SetValueWithoutNotify((mask & BasisNetworkModeration.CameraPolicy_CaptureInfo) != 0);
+                camPhotographer.SetValueWithoutNotify((mask & BasisNetworkModeration.CameraPolicy_Photographer) != 0);
+                camWorld.SetValueWithoutNotify((mask & BasisNetworkModeration.CameraPolicy_World) != 0);
+            }
+
+            ApplyCameraMask(BasisNetworkModeration.GlobalCameraDisallowMask);
+            camTagPeople.OnValueChanged += _ => BasisNetworkModeration.SetGlobalCameraPolicy(BuildCameraMask());
+            camPersonDetails.OnValueChanged += _ => BasisNetworkModeration.SetGlobalCameraPolicy(BuildCameraMask());
+            camExif.OnValueChanged += _ => BasisNetworkModeration.SetGlobalCameraPolicy(BuildCameraMask());
+            camCapture.OnValueChanged += _ => BasisNetworkModeration.SetGlobalCameraPolicy(BuildCameraMask());
+            camPhotographer.OnValueChanged += _ => BasisNetworkModeration.SetGlobalCameraPolicy(BuildCameraMask());
+            camWorld.OnValueChanged += _ => BasisNetworkModeration.SetGlobalCameraPolicy(BuildCameraMask());
+
+            controller.ApplyCameraMask = ApplyCameraMask;
+
             // --- Server configuration (persisted to config.xml on every change) ---
             PanelElementDescriptor serverGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -363,6 +425,7 @@ namespace Basis.BasisUI
             public PanelToggle HeadlessAudioToggle;
             public PanelToggle HeadlessDisallowToggle;
             public PanelSlider OpusPacketLossSlider;
+            public System.Action<byte> ApplyCameraMask;
 
             private void OnEnable()
             {
@@ -380,6 +443,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged += OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged += OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
+                BasisNetworkModeration.OnGlobalCameraPolicyChanged += OnGlobalCameraPolicyChanged;
             }
 
             private void OnDisable()
@@ -392,6 +457,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
             }
 
             private void OnDestroy()
@@ -402,6 +468,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -435,6 +502,11 @@ namespace Basis.BasisUI
             private void OnGlobalOpusPacketLossChanged(int percent)
             {
                 if (OpusPacketLossSlider != null) OpusPacketLossSlider.SetValueWithoutNotify(percent);
+            }
+
+            private void OnGlobalCameraPolicyChanged(byte mask)
+            {
+                ApplyCameraMask?.Invoke(mask);
             }
         }
     }
