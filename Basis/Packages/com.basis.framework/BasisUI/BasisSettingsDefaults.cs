@@ -957,6 +957,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSpineMaxLateralDeg = new("fbikspinemaxlateraldeg", new BasisPlatformDefault<float>(25f));
         // Spine relax: squish-driven bend coupling
         public static BasisSettingsBinding<float> FBIKSpineSquishBoost = new("fbikspinesquishboost", new BasisPlatformDefault<float>(0.5f));
+        // Spine relax: CCD solve smoothing + neck overbend cone limit
+        public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax", new BasisPlatformDefault<float>(0.8f));
+        public static BasisSettingsBinding<float> FBIKNeckMaxConeDeg = new("fbikneckmaxconedeg", new BasisPlatformDefault<float>(45f));
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
@@ -1502,6 +1505,8 @@ namespace Basis.BasisUI
             FBIKSpineMaxBackwardDeg.LoadBindingValue();
             FBIKSpineMaxLateralDeg.LoadBindingValue();
             FBIKSpineSquishBoost.LoadBindingValue();
+            FBIKSpineCCDRelax.LoadBindingValue();
+            FBIKNeckMaxConeDeg.LoadBindingValue();
             FBIKChestArmSwingFactor.LoadBindingValue();
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
             FBIKLowerArmTwistFraction.LoadBindingValue();

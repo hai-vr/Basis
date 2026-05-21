@@ -708,6 +708,8 @@
     { "key": "settings.bodyTracking.spineMaxBackward.description", "value": "Maximum backward bend per spine joint contribution. Default: 25" },
     { "key": "settings.bodyTracking.spineMaxLateral.title", "value": "Spine Max Lateral (deg)" },
     { "key": "settings.bodyTracking.spineMaxLateral.description", "value": "Maximum side-bend per spine joint contribution. Default: 25" },
+    { "key": "settings.bodyTracking.neckMaxCone.title", "value": "Neck Max Bend (deg)" },
+    { "key": "settings.bodyTracking.neckMaxCone.description", "value": "Caps how far the neck bends away from the chest before the chest and spine take over, preventing neck overbend. Default: 45" },
 
     { "key": "settings.bodyTracking.hipHingeStart.title", "value": "Hip Hinge Start (deg)" },
     { "key": "settings.bodyTracking.hipHingeStart.description", "value": "Forward lean angle past which the pelvis tilts forward to share the bend. Default: 30" },
@@ -717,6 +719,8 @@
     { "key": "settings.bodyTracking.chestSpringHz.description", "value": "Spring frequency for the body's lag behind head motion. 0 disables. Default: 12" },
     { "key": "settings.bodyTracking.chestSpringDamping.title", "value": "Chest Spring Damping" },
     { "key": "settings.bodyTracking.chestSpringDamping.description", "value": "Damping ratio. 1 = critically damped (no overshoot). Default: 1.0" },
+    { "key": "settings.bodyTracking.spineCcdRelax.title", "value": "Spine Solver Smoothing" },
+    { "key": "settings.bodyTracking.spineCcdRelax.description", "value": "Under-relaxation for the spine CCD aim. Lower = smoother but softer reach; 1 = full step. Default: 0.8" },
     { "key": "settings.bodyTracking.chestArmSwingFactor.title", "value": "Chest Arm-Swing Factor" },
     { "key": "settings.bodyTracking.chestArmSwingFactor.description", "value": "How much the chest yaws to follow hand targets when no chest tracker is present. 0 disables. Default: 0.3" },
     { "key": "settings.bodyTracking.chestArmSwingMax.title", "value": "Chest Arm-Swing Max (deg)" },

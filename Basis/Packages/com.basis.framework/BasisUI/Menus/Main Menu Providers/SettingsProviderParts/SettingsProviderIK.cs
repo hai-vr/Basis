@@ -417,6 +417,13 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.FBIKSpineMaxLateralDeg);
             if (spineMaxLat != null)
                 spineMaxLat.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.spineMaxLateral.description"));
+
+            var neckMaxCone = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.neckMaxCone.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKNeckMaxConeDeg);
+            if (neckMaxCone != null)
+                neckMaxCone.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.neckMaxCone.description"));
         });
 
         // ============== Spine: Dynamics ==============
@@ -451,6 +458,13 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.FBIKChestSpringDamping);
             if (chestSpringDamping != null)
                 chestSpringDamping.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.chestSpringDamping.description"));
+
+            var spineCcdRelax = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineCcdRelax.title"), 0.1f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKSpineCCDRelax);
+            if (spineCcdRelax != null)
+                spineCcdRelax.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.spineCcdRelax.description"));
 
             var chestArmSwingFactor = PanelSlider.CreateAndBind(
                 dynamicsParent,
@@ -791,6 +805,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxLateralDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineSquishBoost.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineCCDRelax.ResetToDefault();
+        BasisSettingsDefaults.FBIKNeckMaxConeDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKChestArmSwingFactor.ResetToDefault();
         BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKLowerArmTwistFraction.ResetToDefault();

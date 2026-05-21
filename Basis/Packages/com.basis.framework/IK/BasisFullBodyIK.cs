@@ -350,6 +350,11 @@ namespace UnityEngine.Animations.Rigging
         // AnatCervicalLordosis is on.
         [SyncSceneToStream, SerializeField, Min(0f)] float m_LordosisPitchGainDeg;
 
+        // Spine CCD solve: per-iteration under-relaxation (1 = full step) and the neck's max bend
+        // cone vs the chest→neck direction, which stops the short neck bone overbending.
+        [SyncSceneToStream, SerializeField, Range(0.1f, 1f)] float m_SpineCCDRelax;
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_NeckMaxConeDeg;
+
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -535,6 +540,10 @@ namespace UnityEngine.Animations.Rigging
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
         public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
         public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
+        public float SpineCCDRelax { get => m_SpineCCDRelax; set => m_SpineCCDRelax = value; }
+        public string SpineCCDRelaxFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineCCDRelax));
+        public float NeckMaxConeDeg { get => m_NeckMaxConeDeg; set => m_NeckMaxConeDeg = value; }
+        public string NeckMaxConeDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_NeckMaxConeDeg));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -635,6 +644,8 @@ namespace UnityEngine.Animations.Rigging
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
             m_LordosisPitchGainDeg = 8f;
+            m_SpineCCDRelax = 0.8f;
+            m_NeckMaxConeDeg = 45f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -933,6 +944,7 @@ w20, w54;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
         public FloatProperty lordosisPitchGainDeg;
+        public FloatProperty spineCCDRelax, neckMaxConeDeg;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -1136,6 +1148,8 @@ w20, w54;
             float tolerance = Mathf.Max(0f, spineCache.GetRaw(spineToleranceIdx));
             float tolSqr = tolerance * tolerance;
 
+            float ccdRelax = spineCCDRelax.Get(stream);
+            float neckCone = neckMaxConeDeg.Get(stream);
             Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
 
             for (int iter = 0; iter < maxIters; iter++)
@@ -1158,11 +1172,40 @@ w20, w54;
                         continue;
 
                     Quaternion delta = QuaternionExt.FromToRotation(cur, tgt);
+                    delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
                     ChainHeadToSpine[i].SetRotation(stream, delta * ChainHeadToSpine[i].GetRotation(stream));
+
+                    if (i == firstJoint)
+                        ClampNeckCone(stream, i, neckCone);
                 }
             }
 
             ChainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
+        }
+        // Constrains the neck (chain index neckIdx) to within maxConeDeg of the chest→neck
+        // direction. Enforced in-loop so chest/spine take the slack on the next CCD sweep.
+        void ClampNeckCone(AnimationStream stream, int neckIdx, float maxConeDeg)
+        {
+            Vector3 chestPos = ChainHeadToSpine[neckIdx + 1].GetPosition(stream);
+            Vector3 neckPos = ChainHeadToSpine[neckIdx].GetPosition(stream);
+            Vector3 headPos = ChainHeadToSpine[0].GetPosition(stream);
+
+            Vector3 parentDir = neckPos - chestPos;
+            Vector3 boneDir = headPos - neckPos;
+            if (parentDir.sqrMagnitude < k_SqrEpsilon || boneDir.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            float ang = Vector3.Angle(parentDir, boneDir);
+            if (ang <= maxConeDeg)
+                return;
+
+            Vector3 axis = Vector3.Cross(boneDir, parentDir);
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            axis.Normalize();
+            Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
+            ChainHeadToSpine[neckIdx].SetRotation(stream, correction * ChainHeadToSpine[neckIdx].GetRotation(stream));
         }
         // Pre-distributes the hips→head bend onto spine and upperChest in hips-local space, split
         // into independent pitch / yaw / roll contributions so anisotropic human ranges of motion
@@ -2648,6 +2691,8 @@ w20, w54;
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
                 lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
+                spineCCDRelax = FloatProperty.Bind(animator, component, data.SpineCCDRelaxFloatProperty),
+                neckMaxConeDeg = FloatProperty.Bind(animator, component, data.NeckMaxConeDegFloatProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),
