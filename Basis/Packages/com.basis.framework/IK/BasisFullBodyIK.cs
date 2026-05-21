@@ -1091,16 +1091,6 @@ w20, w54;
                 HandleHips.SetPosition(stream, hipsTargetPos);
                 HandleHips.SetRotation(stream, hipDesired);
             }
-            if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
-            {
-                Vector3 headPos = targetPositionHead.Get(stream);
-                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
-
-                DistributeSpineBend(stream, headPos);
-                if (!HasChestTracker.Get(stream))
-                    ApplyArmSwingChestFollow(stream);
-                SolveSequentialSpineIK(stream, headPos, headRot);
-            }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
                 // Neck rotation produced by your spine IK pass – we keep this
@@ -1120,6 +1110,16 @@ w20, w54;
                 Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
 
                 DistributeSpineBend(stream, headPos);
+                BiasSpineTowardChest(stream);
+                SolveSequentialSpineIK(stream, headPos, headRot);
+            }
+            else if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+            {
+                Vector3 headPos = targetPositionHead.Get(stream);
+                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
+
+                DistributeSpineBend(stream, headPos);
+                ApplyArmSwingChestFollow(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
         }
@@ -1150,6 +1150,7 @@ w20, w54;
 
             float ccdRelax = spineCCDRelax.Get(stream);
             float neckCone = neckMaxConeDeg.Get(stream);
+            float chestCone = MaxChestDeltaProperty.Get(stream);
             Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
 
             for (int iter = 0; iter < maxIters; iter++)
@@ -1177,6 +1178,8 @@ w20, w54;
 
                     if (i == firstJoint)
                         ClampNeckCone(stream, i, neckCone);
+                    else if (chainLen >= 5 && i == chainLen - 3)
+                        ClampChestCone(stream, i, chestCone);
                 }
             }
 
@@ -1206,6 +1209,52 @@ w20, w54;
             axis.Normalize();
             Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
             ChainHeadToSpine[neckIdx].SetRotation(stream, correction * ChainHeadToSpine[neckIdx].GetRotation(stream));
+        }
+        const float k_ChestPosPullMaxDeg = 20f;
+        const float k_ChestPullMaxDistSqr = 0.25f;
+        const float k_ChestFollowChestShare = 0.6f;
+        void ClampChestCone(AnimationStream stream, int chestIdx, float maxConeDeg)
+        {
+            Vector3 spinePos = ChainHeadToSpine[chestIdx + 1].GetPosition(stream);
+            Vector3 chestPos = ChainHeadToSpine[chestIdx].GetPosition(stream);
+            Vector3 childPos = ChainHeadToSpine[chestIdx - 1].GetPosition(stream);
+
+            Vector3 parentDir = chestPos - spinePos;
+            Vector3 boneDir = childPos - chestPos;
+            if (parentDir.sqrMagnitude < k_SqrEpsilon || boneDir.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            float ang = Vector3.Angle(parentDir, boneDir);
+            if (ang <= maxConeDeg)
+                return;
+
+            Vector3 axis = Vector3.Cross(boneDir, parentDir);
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            axis.Normalize();
+            Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
+            ChainHeadToSpine[chestIdx].SetRotation(stream, correction * ChainHeadToSpine[chestIdx].GetRotation(stream));
+        }
+        void BiasSpineTowardChest(AnimationStream stream)
+        {
+            if (!HandleSpine.IsValid(stream) || !HandleChest.IsValid(stream))
+                return;
+
+            Vector3 chestTargetPos = TargetChestPosition.Get(stream);
+            Vector3 spinePos = HandleSpine.GetPosition(stream);
+            Vector3 chestPos = HandleChest.GetPosition(stream);
+
+            if ((chestTargetPos - chestPos).sqrMagnitude > k_ChestPullMaxDistSqr)
+                return;
+
+            Vector3 cur = chestPos - spinePos;
+            Vector3 tgt = chestTargetPos - spinePos;
+            if (cur.sqrMagnitude < k_SqrEpsilon || tgt.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            Quaternion pull = ClampRotation(QuaternionExt.FromToRotation(cur, tgt), Quaternion.identity, k_ChestPosPullMaxDeg);
+            HandleSpine.SetRotation(stream, pull * HandleSpine.GetRotation(stream));
         }
         // Pre-distributes the hips→head bend onto spine and upperChest in hips-local space, split
         // into independent pitch / yaw / roll contributions so anisotropic human ranges of motion
@@ -1628,12 +1677,30 @@ w20, w54;
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
 
+            Vector3 localMidChest = invHips * (handMid - HandleChest.GetPosition(stream));
+            float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
+
             float maxDeg = chestArmSwingMaxDeg.Get(stream);
             if (maxDeg > 0f)
+            {
                 yawDeg = Mathf.Clamp(yawDeg, -maxDeg, maxDeg);
+                pitchDeg = Mathf.Clamp(pitchDeg, -maxDeg, maxDeg);
+            }
 
-            Quaternion deltaWorld = hipsRot * Quaternion.AngleAxis(yawDeg, Vector3.up) * invHips;
-            HandleChest.SetRotation(stream, deltaWorld * HandleChest.GetRotation(stream));
+            Quaternion local = Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.AngleAxis(pitchDeg, Vector3.right);
+            Quaternion deltaWorld = hipsRot * local * invHips;
+
+            if (HandleUpperChest.IsValid(stream))
+            {
+                Quaternion chestPart = Quaternion.Slerp(Quaternion.identity, deltaWorld, k_ChestFollowChestShare);
+                Quaternion upperPart = Quaternion.Slerp(Quaternion.identity, deltaWorld, 1f - k_ChestFollowChestShare);
+                HandleChest.SetRotation(stream, chestPart * HandleChest.GetRotation(stream));
+                HandleUpperChest.SetRotation(stream, upperPart * HandleUpperChest.GetRotation(stream));
+            }
+            else
+            {
+                HandleChest.SetRotation(stream, deltaWorld * HandleChest.GetRotation(stream));
+            }
         }
         // Distributes a fraction of the child bone's roll (around the parent bone's longitudinal
         // axis) onto a twist bone that sits as a child of the parent. Uses swing-twist quaternion
@@ -2829,7 +2896,9 @@ w20, w54;
         }
         public void GenerateHeadToSpine(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
         {
-            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
+            var HeadToSpine = data.upperChest != null
+                ? new Transform[] { data.head, data.neck, data.upperChest, data.chest, data.spine, data.hips }
+                : new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
             int SpineToHeadLength = HeadToSpine.Length;
             job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
             job.ChainHeadToSpineLengths = new NativeArray<float>(SpineToHeadLength, Allocator.Persistent);
