@@ -335,7 +335,9 @@ namespace HVR.Basis.Comms
                 var finalValue = Remap(remapFrom.x, remapFrom.y, remapTo.x, remapTo.y, intermediateValue);
                 if (clampToBounds)
                 {
-                    finalValue = Mathf.Clamp(finalValue, remapTo.x, remapTo.y);
+                    finalValue = remapTo.x < remapTo.y
+                        ? Mathf.Clamp(finalValue, remapTo.x, remapTo.y)
+                        : Mathf.Clamp(finalValue, remapTo.y, remapTo.x);
                 }
 
                 if (valueAddress.isActive) FinallySubmit(DistanceAddressId, finalValue);
