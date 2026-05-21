@@ -219,7 +219,7 @@ namespace HVR.Basis.Comms
                     ? actualMeasurementSpaceOrNull.InverseTransformPoint(from.position)
                     : from.position;
 
-                if (speedMeasurement == HVRMeasureSpeedKind.ProjectOnNormal2D)
+                if (speedMeasurement == HVRMeasureSpeedKind.ProjectOnPlane2D)
                 {
                     vectorInAnySpace = Vector3.ProjectOnPlane(vectorInAnySpace, speedProjection);
                 }
@@ -395,7 +395,7 @@ namespace HVR.Basis.Comms
     [Serializable]
     public enum HVRMeasureType
     {
-        /// Measures the distance from source to target. The distance is measured in source's local space.<br/>
+        /// Measures the distance from source to target.<br/>
         /// <br/>
         /// The minimum value is 0, and there is no maximum value except game engine limits.
         Distance,
@@ -407,8 +407,7 @@ namespace HVR.Basis.Comms
         /// <br/>
         /// The minimum value is 0, the maximum value is 180.
         RotationDifference,
-        /// Shoots a physics raycast from source, in a direction specified by the source's local space. The distance is measured in source's local space.<br/>
-        /// The maximum distance is specified in source's local space.<br/>
+        /// Shoots a physics raycast from source, in a direction specified by the source's local space.<br/>
         /// <br/>
         /// If a target is specified, the raycast is towards that target, up to the distance to that target.<br/>
         /// <br/>
@@ -416,8 +415,7 @@ namespace HVR.Basis.Comms
         /// - If no target is specified, the maximum distance is the value of the constant HVRMeasure.MaximumRaycastDistanceInWorldSpace, or the maximum distance of the raycast, whichever is smaller.<br/>
         /// - If a target is specified, the maximum distance is 1, where 1 corresponds to the distance between the source and the target.
         Raycast,
-        /// Measures the speed of the object, in target's (!!!) local space if it is defined, or in world space otherwise.<br/>
-        /// Projection is done in the target's local space if it is defined, or in world space otherwise.<br/>
+        /// Measures the speed of the object.
         Speed,
         //UnityColliderTrigger,
         //UnityColliderPhysics,
@@ -435,7 +433,7 @@ namespace HVR.Basis.Comms
     public enum HVRMeasureSpeedKind
     {
         ThreeDimensional,
-        ProjectOnNormal2D,
+        ProjectOnPlane2D,
         ProjectOnLine1D,
     }
 }

@@ -14,7 +14,6 @@ namespace HVR.Basis.Comms.Editor
         private const string ConvertRangeLabel = "Convert range";
         private const string DistanceLabel = "Distance";
         private const string HitLabel = "Hit";
-        private const string IrrelevantLabel = "Irrelevant";
         private const string IsSpherecastLabel = "Is Spherecast";
         private const string MeasurementLabel = "Measurement";
         private const string MsgDescribeAngle = "Angle that separates Target A and Target B measured at the Origin object, in degrees.";
@@ -26,7 +25,6 @@ namespace HVR.Basis.Comms.Editor
         private const string OriginLabel = "Origin";
         private const string OutputLabel = "Output";
         private const string RateOfChangeOfSpeedLabel = "Rate of change of speed";
-        private const string RelativeToLabel = "(Optional) Relative to";
         private const string SpeedLabel = "Speed";
         private const string SpherecastRadiusLabel = "Spherecast Radius";
         private const string TargetALabel = "Target A";
@@ -41,7 +39,11 @@ namespace HVR.Basis.Comms.Editor
             HVRAvatarCommsEditor.EnsureAvatarHasPrefab(my.transform);
 
             EditorGUILayout.LabelField(MeasurementLabel, EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.measurementType)));
+
+            // We're limiting the types because Speed and Raycast are not tested enough for the first release.
+            var measurementTypeProp = serializedObject.FindProperty(nameof(HVRMeasure.measurementType));
+            measurementTypeProp.enumValueIndex = EditorGUILayout.Popup(measurementTypeProp.displayName, measurementTypeProp.enumValueIndex, new string[] { "Distance", "Angle", "Rotation Difference" });
+
             var description = my.measurementType switch
             {
                 HVRMeasureType.Distance => MsgDescribeDistance,
