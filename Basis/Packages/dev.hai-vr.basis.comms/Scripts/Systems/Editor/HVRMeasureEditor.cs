@@ -18,10 +18,10 @@ namespace HVR.Basis.Comms.Editor
         private const string IsSpherecastLabel = "Is Spherecast";
         private const string MeasurementLabel = "Measurement";
         private const string MsgDescribeAngle = "Angle that separates Target A and Target B measured at the Origin object, in degrees.";
-        private const string MsgDescribeDistance = "Distance between two objects, in source's local space.";
-        private const string MsgDescribeRaycast = "Raycast from a source object. Distance is measured in source's local space.";
+        private const string MsgDescribeDistance = "Distance between two objects.";
+        private const string MsgDescribeRaycast = "Raycast from a source object.";
         private const string MsgDescribeRotation = "Compares the rotation of two objects, in degrees.\nIf roll is not included, it uses the forward direction of each object to measure the angle.";
-        private const string MsgDescribeSpeed = "Speed of an object.\nIf a relative object is specified, speed is measured in the relative object's local space, and projection is also done in that relative object's local space. Otherwise, speed and projection is in world space.";
+        private const string MsgDescribeSpeed = "Speed of an object.";
         private const string MsgRaycastIsBasedOnTargetPosition = "A target is defined, so raycast direction and maximum distance do not matter.";
         private const string OriginLabel = "Origin";
         private const string OutputLabel = "Output";
@@ -31,7 +31,7 @@ namespace HVR.Basis.Comms.Editor
         private const string SpherecastRadiusLabel = "Spherecast Radius";
         private const string TargetALabel = "Target A";
         private const string TargetBLabel = "Target B";
-        private const string ValueBeforePostProcessingLabel = "Value before post-processing";
+        private const string ValueBeforeRangeConversionLabel = "Value before range conversion";
 
         private HVRMeasure my;
 
@@ -90,7 +90,6 @@ namespace HVR.Basis.Comms.Editor
             if (my.measurementType == HVRMeasureType.Speed)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)), new GUIContent(RelativeToLabel));
             }
             else if (my.measurementType == HVRMeasureType.Angle)
             {
@@ -102,6 +101,15 @@ namespace HVR.Basis.Comms.Editor
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.target)));
+            }
+
+            if (my.measurementType != HVRMeasureType.Angle || my.measurementType != HVRMeasureType.RotationDifference)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.spaceReference)));
+                if (my.spaceReference == null)
+                {
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.space)));
+                }
             }
 
             if (my.measurementType == HVRMeasureType.Raycast && my.target != null)
@@ -142,7 +150,7 @@ namespace HVR.Basis.Comms.Editor
             {
                 EditorGUILayout.Separator();
                 EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DeveloperViewLabel, EditorStyles.boldLabel);
-                EditorGUILayout.FloatField(ValueBeforePostProcessingLabel, my.LastIntermediateValue);
+                EditorGUILayout.FloatField(ValueBeforeRangeConversionLabel, my.LastIntermediateValue);
                 EditorGUILayout.FloatField(valueAddressLabel, my.LastSentValue);
                 if (my.clampToBounds)
                 {
