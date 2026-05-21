@@ -331,6 +331,8 @@ MonoBehaviour:
     UnMutedMutedIconColorActive: {r: 1, g: 1, b: 1, a: 0.67058825}
     UnMutedMutedIconColorInactive: {r: 0.5, g: 0.5, b: 0.5, a: 0.67058825}
     MutedColor: {r: 1, g: 0, b: 0, a: 0.67058825}
+    DirectColorActive: {r: 0.12156863, g: 0.7490196, b: 0.3529412, a: 1}
+    DirectColorInactive: {r: 0.07294118, g: 0.44941176, b: 0.21176471, a: 1}
     StartingScale: {x: 0, y: 0, z: 0}
     largerScale: {x: 0, y: 0, z: 0}
     MuteSound: {fileID: 8300000, guid: 5b9ed5013ea1941499840ac97ad2b8e9, type: 3}
