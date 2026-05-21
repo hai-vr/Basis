@@ -386,6 +386,9 @@ namespace Basis.Scripts.UI.NamePlate
 
         private void HandleTalkModeChanged()
         {
+            // A mode/mute change must recolor the plate immediately, even mid-pulse,
+            // so it doesn't wait for the player to talk before showing the new color.
+            isPulsingTalk = false;
             ApplyTalkModeColors();
         }
 

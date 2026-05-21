@@ -28,8 +28,8 @@ namespace Basis.Scripts.UI.NamePlate
         public static Color PrivateTalkColor = new Color(0.8156863f, 0.627451f, 1f, 1f);
         public static Color DirectColor = new Color(0f, 0.7176471f, 0.7607843f, 1f);
         public static Color DirectTalkColor = new Color(0.4980392f, 0.9058824f, 0.9333333f, 1f);
-        public static Color ThisPersonColor = new Color(0.8784314f, 0.6901961f, 0f, 1f);
-        public static Color ThisPersonTalkColor = new Color(1f, 0.9019608f, 0.5411765f, 1f);
+        public static Color ThisPersonColor = new Color(1f, 0.3098039f, 0.627451f, 1f);
+        public static Color ThisPersonTalkColor = new Color(1f, 0.6588235f, 0.8156863f, 1f);
         public static Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
         public static Color ShoutTalkColor = new Color(1f, 0.7215686f, 0.3764706f, 1f);
         public static Color MutedColor = new Color(0.5411765f, 0.5411765f, 0.5411765f, 1f);
@@ -755,7 +755,8 @@ namespace Basis.Scripts.UI.NamePlate
                     // instead of letting the 0.7s hold+fade finish the transition.
                     if (pulsing && !p.CanCurrentlyBeHeard())
                     {
-                        p.ApplyColorFromJob(StaticNormalColor);
+                        float4 rc = p.GetRestingColorFloat4ForJob();
+                        p.ApplyColorFromJob(new Color(rc.x, rc.y, rc.z, rc.w));
                         p.StopPulseFromJob();
                         pulsing = false;
                     }

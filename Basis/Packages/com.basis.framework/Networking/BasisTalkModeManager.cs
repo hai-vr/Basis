@@ -27,9 +27,6 @@ namespace Basis.Scripts.Networking
         private static ushort thisPersonTarget;
         private static bool hasThisPersonTarget;
 
-        public static bool AllowP2PVoiceBroadcast =>
-            CurrentMode == BasisTalkMode.Normal || CurrentMode == BasisTalkMode.Direct;
-
         [RuntimeInitializeOnLoadMethod]
         private static void Init()
         {
@@ -138,6 +135,13 @@ namespace Basis.Scripts.Networking
             {
                 privateMembers.Add(playerId);
                 added = true;
+            }
+
+            if (!added && privateMembers.Count == 0 && CurrentMode == BasisTalkMode.Private)
+            {
+                // Removed the last private member while in Private mode — fall back to Normal.
+                SetMode(BasisTalkMode.Normal);
+                return added;
             }
 
             if (CurrentMode == BasisTalkMode.Private)

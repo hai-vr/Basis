@@ -200,7 +200,7 @@
     { "key": "menu.individualPlayer.privateChat.remove", "value": "<color=#b388ff>Remove from Private Chat</color>" },
     { "key": "menu.individualPlayer.privateChat.add.description", "value": "When in Private voice mode, only people you add can hear you." },
     { "key": "menu.individualPlayer.talkToOnly", "value": "Talk Only To This Person" },
-    { "key": "menu.individualPlayer.talkToOnly.stop", "value": "<color=#ffd54f>Stop Talking To This Person</color>" },
+    { "key": "menu.individualPlayer.talkToOnly.stop", "value": "<color=#ff8fc4>Stop Talking To This Person</color>" },
     { "key": "menu.individualPlayer.talkToOnly.description", "value": "Switch your microphone to talk only to this player." },
     { "key": "menu.individualPlayer.directConnection", "value": "Direct Connection" },
     { "key": "menu.individualPlayer.directConnection.description", "value": "Open a peer-to-peer link with this player. Voice and avatar position bypass the server once the link is established; everything else still goes through the server." },

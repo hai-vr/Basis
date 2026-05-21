@@ -64,7 +64,7 @@ namespace Basis.BasisUI
         private static readonly Color NormalColor = Color.white;
         private static readonly Color PrivateColor = new Color(0.6078432f, 0.1882353f, 1f, 1f);
         private static readonly Color DirectColor = new Color(0f, 0.7176471f, 0.7607843f, 1f);
-        private static readonly Color ThisPersonColor = new Color(0.8784314f, 0.6901961f, 0f, 1f);
+        private static readonly Color ThisPersonColor = new Color(1f, 0.3098039f, 0.627451f, 1f);
         private static readonly Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
 
         private void UpdateButtonVisuals(PanelButton button)

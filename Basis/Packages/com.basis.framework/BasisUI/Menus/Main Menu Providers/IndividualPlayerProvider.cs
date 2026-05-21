@@ -702,26 +702,6 @@ namespace Basis.BasisUI
             };
             Basis.Scripts.Networking.BasisP2PManager.OnSessionStateChanged += p2pHandler;
 
-            // Tell the user on the direct-connection control if this player disconnects
-            // while the panel is open. Self-cleans once the button is gone (panel closed).
-            Action<BasisNetworkPlayer, BasisRemotePlayer> directConnLeftHandler = null;
-            directConnLeftHandler = (leftNet, leftRemote) =>
-            {
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    if (directConnBtn == null || directConnBtn.Descriptor == null)
-                    {
-                        BasisNetworkPlayer.OnRemotePlayerLeft -= directConnLeftHandler;
-                        return;
-                    }
-                    if (leftNet == null || leftNet.playerId != directConnPlayerId) return;
-                    directConnBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.playerDisconnected"));
-                    directConnBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.playerDisconnected.description"));
-                    BasisNetworkPlayer.OnRemotePlayerLeft -= directConnLeftHandler;
-                });
-            };
-            BasisNetworkPlayer.OnRemotePlayerLeft += directConnLeftHandler;
-
             var directConnPingField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, p2pGroup.ContentParent);
             directConnPingField.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.ping"));
             directConnPingField.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.ping.value", 0));

@@ -49,8 +49,8 @@ namespace Basis.Scripts.Drivers
         public Color PrivateColorInactive = new Color(0.3647059f, 0.1129412f, 0.6f, 1f);
         public Color DirectColorActive = new Color(0f, 0.7176471f, 0.7607843f, 1f);
         public Color DirectColorInactive = new Color(0f, 0.4305882f, 0.4564706f, 1f);
-        public Color ThisPersonColorActive = new Color(0.8784314f, 0.6901961f, 0f, 1f);
-        public Color ThisPersonColorInactive = new Color(0.5270588f, 0.4141177f, 0f, 1f);
+        public Color ThisPersonColorActive = new Color(1f, 0.3098039f, 0.627451f, 1f);
+        public Color ThisPersonColorInactive = new Color(0.6f, 0.1858823f, 0.3764706f, 1f);
 
         // Scale / FX
         public Vector3 StartingScale = Vector3.zero;

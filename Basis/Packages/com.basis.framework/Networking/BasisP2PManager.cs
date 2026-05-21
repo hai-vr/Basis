@@ -270,7 +270,26 @@ namespace Basis.Scripts.Networking
             else w.Put((byte)localId);
             w.Put(clientFormatWriter.Data, 0, clientFormatWriter.Length);
 
-            SendToAllConnected(w, channel, DeliveryMethod.Unreliable);
+            // Allowlist talk modes (Private / 1-on-1) only deliver to P2P peers that are
+            // actually recipients, so a direct link with a non-member doesn't leak voice.
+            bool restricted = BasisTalkModeManager.CurrentMode == BasisTalkMode.Private
+                           || BasisTalkModeManager.CurrentMode == BasisTalkMode.ThisPerson;
+
+            foreach (var s in _sessionsByOtherId.Values)
+            {
+                if (s.State != P2PSessionState.Connected) continue;
+                if (restricted && !BasisTalkModeManager.IsRecipient(s.OtherPlayerId)) continue;
+                var peer = s.P2PPeer;
+                if (peer == null) continue;
+                try
+                {
+                    peer.Send(w, channel, DeliveryMethod.Unreliable);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError($"[P2P] Voice send to player {s.OtherPlayerId} failed: {ex.Message}");
+                }
+            }
         }
 
         public static void BroadcastAvatarViaP2P(NetDataWriter clientFormatWriter, byte smallChannel)

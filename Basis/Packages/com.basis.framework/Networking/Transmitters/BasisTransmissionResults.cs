@@ -677,9 +677,9 @@ public partial class BasisTransmissionResults
             VRMWriter.Put((ushort)bitfieldBytes);
             VRMWriter.Put(bitfieldBuffer, 0, bitfieldBytes);
         }
-        else if (invertedSize < listSize)
+        else if (!restricted && invertedSize < listSize)
         {
-            // Inverted list mode: send excluded IDs
+            // Inverted list mode: send excluded IDs (denylist — never used for allowlist modes)
             bool largeCnt = excludedCount > byte.MaxValue;
             channel = largeCnt  ? BasisNetworkCommons.AudioRecipientsInvertedLargeChannel : BasisNetworkCommons.AudioRecipientsInvertedChannel;
             if (largeCnt)
