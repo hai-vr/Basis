@@ -594,6 +594,16 @@ namespace Basis.BasisUI
             {
                 weightSmoothing.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.weightSmoothing.description"));
             }
+
+            // Rotation low-pass half-life (seconds).
+            PanelSlider rotationHalfLife = PanelSlider.CreateAndBind(parent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("trackerLinking.tuning.rotationHalfLife"),
+                    0f, 0.3f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.PairingRotationHalfLife);
+            if (rotationHalfLife != null)
+            {
+                rotationHalfLife.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.rotationHalfLife.description"));
+            }
         }
 
         private static void ResetTrackerSettingsDefaults()
@@ -609,6 +619,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PairingEmaAlpha.ResetToDefault();
             BasisSettingsDefaults.PairingDistanceEmaAlpha.ResetToDefault();
             BasisSettingsDefaults.PairingWeightSmoothing.ResetToDefault();
+            BasisSettingsDefaults.PairingRotationHalfLife.ResetToDefault();
             BasisTrackerIdentifyGizmos.ClearAll();
         }
 

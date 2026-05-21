@@ -69,6 +69,8 @@
     { "key": "trackerLinking.tuning.distanceEmaAlpha.description", "value": "Smoothing rate for the inter-tracker rest distance. Default: 0.05." },
     { "key": "trackerLinking.tuning.weightSmoothing", "value": "Weight Smoothing" },
     { "key": "trackerLinking.tuning.weightSmoothing.description", "value": "How quickly the per-tracker confidence weights track current motion surprise. Lower = steadier midpoint with slower glitch recovery; higher = faster reaction but more midpoint motion during normal use. Default: 0.25." },
+    { "key": "trackerLinking.tuning.rotationHalfLife", "value": "Rotation Smoothing Half-Life" },
+    { "key": "trackerLinking.tuning.rotationHalfLife.description", "value": "Temporal smoothing for the linked pair's fused rotation. Higher = smoother hips but more rotational lag; lower = snappier when the two trackers flex apart. 0 = no smoothing. Default: 0.08 s." },
 
     { "key": "menu.exit.dialog.title", "value": "Basis VR" },
     { "key": "menu.exit.dialog.body", "value": "Are you sure you want to close Basis?" },

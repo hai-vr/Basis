@@ -54,6 +54,10 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
         // hemispheres at different moments.
         private Quaternion _halfRestOffset = Quaternion.identity;
 
+        // Temporal low-pass state for the fused rotation; strength is PairingRotationHalfLife.
+        private Quaternion _smoothedMidRot = Quaternion.identity;
+        private bool _hasSmoothedRot;
+
         /// <summary>
         /// Set up this virtual as the merged proxy for the two partner trackers.
         /// Marks both partners as <see cref="BasisInput.IsLinked"/> so calibration
@@ -237,6 +241,21 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
 
             _lastA = a;
             _lastB = b;
+
+            // Low-pass the fused rotation. Half-life <= 0 disables.
+            float rotHalfLife = BasisSettingsDefaults.PairingRotationHalfLife.RawValue;
+            if (!_hasSmoothedRot || rotHalfLife <= 1e-5f)
+            {
+                _smoothedMidRot = midRot;
+                _hasSmoothedRot = true;
+            }
+            else
+            {
+                float rotDt = Mathf.Max(Time.deltaTime, 0f);
+                float rotAlpha = 1f - Mathf.Pow(2f, -rotDt / rotHalfLife);
+                _smoothedMidRot = Quaternion.Slerp(_smoothedMidRot, midRot, rotAlpha);
+            }
+            midRot = _smoothedMidRot;
 
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, mid);
             UnscaledDeviceCoord.rotation = midRot;

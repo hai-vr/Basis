@@ -1049,6 +1049,8 @@ namespace Basis.BasisUI
         // midpoint snaps. Higher = more reactive (catches glitches faster but
         // jitters more); lower = smoother (longer to recover from a glitch).
         public static BasisSettingsBinding<float> PairingWeightSmoothing = new("pairing_weightsmoothing", new BasisPlatformDefault<float>(0.25f));
+        // Half-life (seconds) of the low-pass on the fused midpoint rotation; 0 = raw.
+        public static BasisSettingsBinding<float> PairingRotationHalfLife = new("pairing_rothalflife", new BasisPlatformDefault<float>(0.08f));
 
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled = new("np_enabled", new BasisPlatformDefault<bool>(true));
