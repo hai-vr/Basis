@@ -545,6 +545,13 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> TrueBinding = new("truebinding", new BasisPlatformDefault<bool>(false));
 
+        // ---------------- CAMERA / PHOTO ----------------
+        public const string PhotoTagging_NoOne = "No One";
+        public const string PhotoTagging_EveryoneInPhoto = "Everyone In Photo";
+        public const string PhotoTagging_JustMe = "Just Me";
+
+        public static BasisSettingsBinding<string> PhotoMetadataTagging = new("photometadatatagging", new BasisPlatformDefault<string>(PhotoTagging_NoOne));
+
         // ---------------- GLOBAL ONE EURO PARAMS ----------------
         public static BasisSettingsBinding<float> FBIKMinCutoff = new("fbikmincutoff", new BasisPlatformDefault<float>(5.5f));
 

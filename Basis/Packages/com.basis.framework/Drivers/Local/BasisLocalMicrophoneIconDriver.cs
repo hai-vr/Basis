@@ -43,8 +43,8 @@ namespace Basis.Scripts.Drivers
         public Color UnMutedMutedIconColorActive = Color.white;
         public Color UnMutedMutedIconColorInactive = Color.grey;
         public Color MutedColor = Color.grey;
-        public Color ShoutColorActive = Color.yellow;
-        public Color ShoutColorInactive = new Color(0.6f, 0.6f, 0f, 1f);
+        public Color ShoutColorActive = new Color(1f, 0.5490196f, 0f, 1f);
+        public Color ShoutColorInactive = new Color(0.6f, 0.3294118f, 0f, 1f);
         public Color PrivateColorActive = new Color(0.6078432f, 0.1882353f, 1f, 1f);
         public Color PrivateColorInactive = new Color(0.3647059f, 0.1129412f, 0.6f, 1f);
         public Color DirectColorActive = new Color(0f, 0.7176471f, 0.7607843f, 1f);

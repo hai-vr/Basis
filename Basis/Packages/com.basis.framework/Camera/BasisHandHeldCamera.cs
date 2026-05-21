@@ -403,6 +403,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         captureCamera.Render();
 
+        List<string> taggedNames = BasisHandHeldCameraPhotoMetadata.CollectTaggedNames(captureCamera);
+
         EnsureTexturePool(renderTexture.width, renderTexture.height, TextureFormat);
 
         AsyncGPUReadback.Request(renderTexture, 0, request =>
@@ -419,7 +421,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             pooledScreenshot.Apply(false);
 
             SetNormalAfterCapture();
-            SaveScreenshotAsync(pooledScreenshot);
+            SaveScreenshotAsync(pooledScreenshot, taggedNames);
         });
     }
 
@@ -587,7 +589,9 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// Encodes and writes the screenshot to disk asynchronously using the selected format.
     /// </summary>
     /// <param name="screenshot">CPU-side texture to encode.</param>
-    public async void SaveScreenshotAsync(Texture2D screenshot)
+    public void SaveScreenshotAsync(Texture2D screenshot) => SaveScreenshotAsync(screenshot, null);
+
+    public async void SaveScreenshotAsync(Texture2D screenshot, IReadOnlyList<string> taggedNames)
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string extension = captureFormat == "EXR" ? "exr" : "png";
@@ -597,6 +601,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         byte[] imageData = captureFormat == "EXR"
             ? screenshot.EncodeToEXR(Texture2D.EXRFlags.CompressZIP)
             : screenshot.EncodeToPNG();
+
+        imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, taggedNames);
 
         await File.WriteAllBytesAsync(path, imageData);
     }

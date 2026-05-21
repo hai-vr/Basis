@@ -32,7 +32,7 @@ namespace Basis.Scripts.UI.NamePlate
         public static Color ThisPersonTalkColor = new Color(1f, 0.6588235f, 0.8156863f, 1f);
         public static Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
         public static Color ShoutTalkColor = new Color(1f, 0.7215686f, 0.3764706f, 1f);
-        public static Color MutedColor = new Color(0.5411765f, 0.5411765f, 0.5411765f, 1f);
+        public static Color MutedColor = new Color(0.12f, 0.14f, 0.18f, 1f);
 
         public static float transitionDuration = 0.3f;
         public static float returnDelay = 0.4f;

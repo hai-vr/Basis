@@ -1550,6 +1550,21 @@ namespace Basis.BasisUI
                 }
             }
 
+            PanelElementDescriptor cameraGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            cameraGroup.SetTitle(BasisLocalization.Get("settings.chat.camera.title"));
+            cameraGroup.SetDescription(BasisLocalization.Get("settings.chat.camera.description"));
+
+            PanelDropdown dropdownPhotoMetadata = PanelDropdown.CreateNewEntry(cameraGroup);
+            dropdownPhotoMetadata.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
+            dropdownPhotoMetadata.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photoMetadata.description"));
+            dropdownPhotoMetadata.AssignEntries(new List<string>
+            {
+                BasisSettingsDefaults.PhotoTagging_NoOne,
+                BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
+                BasisSettingsDefaults.PhotoTagging_JustMe
+            });
+            dropdownPhotoMetadata.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
+
             // Nameplates live in the same tab — formerly its own page, merged here so
             // chat-adjacent presence settings (notifications, name visibility) are colocated.
             SettingsProviderNamePlate.BuildNamePlateContent(container);
@@ -1565,6 +1580,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.JoinNotifications.ResetToDefault();
             BasisSettingsDefaults.LeaveNotifications.ResetToDefault();
             BasisSettingsDefaults.ChatDisabled.ResetToDefault();
+            BasisSettingsDefaults.PhotoMetadataTagging.ResetToDefault();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 

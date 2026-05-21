@@ -399,11 +399,8 @@ namespace Basis.Scripts.UI.NamePlate
         public void ApplyTalkModeColors()
         {
             BasisTalkMode mode = BasisRemotePlayer != null ? BasisRemotePlayer.TalkMode : BasisTalkMode.Normal;
-            bool muted = BasisRemotePlayer != null && BasisRemotePlayer.IsSelfMuted;
 
-            Color resting = muted
-                ? BasisRemoteNamePlateDriver.StaticMutedColor
-                : BasisRemoteNamePlateDriver.GetModeRestingColor(mode);
+            Color resting = BasisRemoteNamePlateDriver.GetModeRestingColor(mode);
             restingColorFloat4 = new float4(resting.r, resting.g, resting.b, resting.a);
 
             Color talk = BasisRemoteNamePlateDriver.GetModeTalkColor(mode);

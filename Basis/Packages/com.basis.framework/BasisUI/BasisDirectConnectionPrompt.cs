@@ -16,17 +16,19 @@ namespace Basis.BasisUI
     /// </summary>
     public static class BasisDirectConnectionPrompt
     {
-        public static void Show(string displayName, string uuid, Action<bool> respond)
+        public static void Show(string displayName, string uuid, Action<bool> respond, bool forceShow = false)
         {
             string title = BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.title");
             string uuidLabel = string.IsNullOrEmpty(uuid) ? "(unknown)" : uuid;
             string body = BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.body", displayName, uuidLabel);
 
             // Do-not-disturb / admin panel open → straight to the notification list, no menu.
-            if (BasisNotificationCenter.RouteToNotifications)
+            // forceShow is set when re-opened from the notification panel so it bypasses the
+            // divert and actually shows, instead of being captured again and closing.
+            if (!forceShow && BasisNotificationCenter.RouteToNotifications)
             {
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
-                    reopen: () => Show(displayName, uuid, respond),
+                    reopen: () => Show(displayName, uuid, respond, true),
                     onDismiss: () => respond(false));
                 return;
             }
@@ -52,8 +54,14 @@ namespace Basis.BasisUI
 
             // Vertical scrollable content — same pattern as the player panels.
             PanelTabPage tab = PanelTabPage.CreateVertical(panel.Descriptor.ContentParent);
-            tab.Descriptor.SetDescription(body);
             RectTransform root = tab.Descriptor.ContentParent;
+
+            // The warning body (with the colored "Accepting reveals your IP address"
+            // notice) shown in a Group so it actually renders — the tab descriptor's
+            // own description isn't surfaced, so it would only show the panel title.
+            PanelElementDescriptor info = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, root);
+            info.SetDescription(body);
 
             // Per-person policy dropdown — identical control to the individual player panel,
             // so the recipient can change it right here.
@@ -106,7 +114,7 @@ namespace Basis.BasisUI
                 if (answered) return;
                 answered = true;
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
-                    reopen: () => Show(displayName, uuid, respond),
+                    reopen: () => Show(displayName, uuid, respond, true),
                     onDismiss: () => respond(false));
             };
 

@@ -537,6 +537,10 @@
     { "key": "settings.chat.message", "value": "Chat Message" },
     { "key": "settings.chat.disable", "value": "Disable Chat" },
     { "key": "settings.chat.disable.description", "value": "Globally hide incoming chat messages and block local sends." },
+    { "key": "settings.chat.camera.title", "value": "Camera" },
+    { "key": "settings.chat.camera.description", "value": "Options for the handheld photo camera." },
+    { "key": "settings.chat.camera.photoMetadata", "value": "Tag People In Photos" },
+    { "key": "settings.chat.camera.photoMetadata.description", "value": "Choose whose name is saved into a photo's metadata when you take it: no one (default), everyone visible in the shot, or just you." },
 
     { "key": "settings.controls.gameplay.title", "value": "Gameplay & Input" },
     { "key": "settings.controls.gameplay.description", "value": "General controls and comfort settings." },
