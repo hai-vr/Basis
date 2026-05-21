@@ -55,6 +55,12 @@ namespace Basis.Scripts.Networking
             public int PunchAttempts;
             public LiteNatAddressType ConnectionType;
             public bool ConnectIssued;
+            public byte[] LocalEphemeralPrivate;
+            public byte[] LocalEphemeralPublic;
+            public byte[] SendKey;
+            public byte[] RecvKey;
+            public IPEndPoint CryptoEndpoint;
+            public long CryptoCounterBase;
         }
 
         private static readonly ConcurrentDictionary<string, Session> _sessionsByToken = new();
@@ -63,7 +69,13 @@ namespace Basis.Scripts.Networking
         private static LiteNetManager _p2pManager;
         private static EventBasedNetListener _p2pListener;
         private static LiteNatPunchListener _natListener;
+        private static BasisCryptoLayer _p2pCryptoLayer;
         private static readonly object _initLock = new object();
+
+        // Direct connections are always encrypted. When the link re-punches we reuse the
+        // same derived keys, so the nonce counter is advanced by this gap on every
+        // re-install to guarantee a (key, nonce) pair is never reused.
+        private const long P2PReconnectNonceGap = 1L << 40;
 
         public static string ServerHost { get; set; }
         public static int ServerPort { get; set; }
@@ -106,6 +118,7 @@ namespace Basis.Scripts.Networking
                     _p2pManager = null;
                     _p2pListener = null;
                     _natListener = null;
+                    _p2pCryptoLayer = null;
                 }
             }
         }
@@ -136,11 +149,14 @@ namespace Basis.Scripts.Networking
                 LocalIsInitiator = true,
                 State = P2PSessionState.OutgoingRequested,
             };
+            BasisCryptoHandshake.GenerateKeyPair(out byte[] ephemeralPrivate, out byte[] ephemeralPublic);
+            session.LocalEphemeralPrivate = ephemeralPrivate;
+            session.LocalEphemeralPublic = ephemeralPublic;
             _sessionsByToken[token] = session;
             _sessionsByOtherId[targetPlayerId] = session;
 
             BasisDebug.Log($"[P2P] SendRequest → player {targetPlayerId} (token {Preview(token)}).");
-            SendSubToServer(BasisNetworkCommons.P2PSub_Request, targetPlayerId, token);
+            SendSubToServer(BasisNetworkCommons.P2PSub_Request, targetPlayerId, token, session.LocalEphemeralPublic);
             NotifyStateChanged(targetPlayerId, session.State);
             return token;
         }
@@ -173,7 +189,7 @@ namespace Basis.Scripts.Networking
                 return;
             }
             BasisDebug.Log($"[P2P] AcceptIncoming → player {senderPlayerId} (token {Preview(token)}); sending Accept and starting NAT punch.");
-            SendSubToServer(BasisNetworkCommons.P2PSub_Accept, senderPlayerId, token);
+            SendSubToServer(BasisNetworkCommons.P2PSub_Accept, senderPlayerId, token, s.LocalEphemeralPublic);
             StartPunch(s);
         }
 
@@ -405,6 +421,10 @@ namespace Basis.Scripts.Networking
                 LocalIsInitiator = false,
                 State = P2PSessionState.IncomingPending,
             };
+            BasisCryptoHandshake.GenerateKeyPair(out byte[] ephemeralPrivate, out byte[] ephemeralPublic);
+            session.LocalEphemeralPrivate = ephemeralPrivate;
+            session.LocalEphemeralPublic = ephemeralPublic;
+            DeriveSessionKeys(session, msg.ephemeralPublicKey);
             _sessionsByToken[msg.sessionToken] = session;
             _sessionsByOtherId[msg.otherPlayerId] = session;
             NotifyStateChanged(msg.otherPlayerId, session.State);
@@ -425,6 +445,7 @@ namespace Basis.Scripts.Networking
                 return;
             }
             BasisDebug.Log($"[P2P] Player {s.OtherPlayerId} accepted our request (token {Preview(msg.sessionToken)}); starting NAT punch.");
+            DeriveSessionKeys(s, msg.ephemeralPublicKey);
             StartPunch(s);
         }
 
@@ -469,7 +490,8 @@ namespace Basis.Scripts.Networking
                 _natListener = new LiteNatPunchListener();
                 _natListener.NatIntroductionSuccess += OnNatIntroductionSuccess;
 
-                _p2pManager = new LiteNetManager(_p2pListener)
+                _p2pCryptoLayer = new BasisCryptoLayer();
+                _p2pManager = new LiteNetManager(_p2pListener, _p2pCryptoLayer)
                 {
                     NatPunchEnabled = true,
                     UnsyncedEvents = true,
@@ -519,6 +541,14 @@ namespace Basis.Scripts.Networking
             if (s.ConnectIssued) return;
             s.ConnectIssued = true;
 
+            if (!InstallSessionKeys(s, targetEndPoint))
+            {
+                BasisDebug.LogError($"[P2P] Refusing to open an unencrypted direct link to player {s.OtherPlayerId}.");
+                s.ConnectIssued = false;
+                DropSession(s, P2PSessionState.Failed);
+                return;
+            }
+
             try
             {
                 var connectData = new LiteNetDataWriter();
@@ -540,6 +570,12 @@ namespace Basis.Scripts.Networking
                 if (_sessionsByToken.TryGetValue(token, out Session s) &&
                     s.State == P2PSessionState.Punching)
                 {
+                    if (!InstallSessionKeys(s, request.RemoteEndPoint))
+                    {
+                        BasisDebug.LogError($"[P2P] Refusing unencrypted inbound direct link from player {s.OtherPlayerId}.");
+                        request.Reject(new NetDataWriter());
+                        return;
+                    }
                     BasisDebug.Log($"[P2P] Inbound P2P connect for token {Preview(token)} (player {s.OtherPlayerId}) — accepting.");
                     s.P2PPeer = request.Accept();
                 }
@@ -700,8 +736,48 @@ namespace Basis.Scripts.Networking
             StartPunch(s);
         }
 
+        private static void DeriveSessionKeys(Session s, byte[] remotePublicKey)
+        {
+            if (s.LocalEphemeralPrivate == null || s.LocalEphemeralPublic == null ||
+                remotePublicKey == null || remotePublicKey.Length != BasisCryptoHandshake.PublicKeySize)
+            {
+                BasisDebug.LogError($"[P2P] Missing key material for player {s.OtherPlayerId}; direct link cannot be encrypted.");
+                return;
+            }
+            if (BasisCryptoHandshake.DerivePeerKeys(s.LocalEphemeralPrivate, s.LocalEphemeralPublic, remotePublicKey,
+                    out byte[] sendKey, out byte[] recvKey))
+            {
+                s.SendKey = sendKey;
+                s.RecvKey = recvKey;
+            }
+            else
+            {
+                BasisDebug.LogError($"[P2P] Key derivation failed for player {s.OtherPlayerId}.");
+            }
+        }
+
+        private static bool InstallSessionKeys(Session s, IPEndPoint endpoint)
+        {
+            if (_p2pCryptoLayer == null || endpoint == null || s.SendKey == null || s.RecvKey == null) return false;
+            if (s.CryptoEndpoint != null) _p2pCryptoLayer.RemoveEndpoint(s.CryptoEndpoint);
+            _p2pCryptoLayer.SetEndpointKeys(endpoint, s.SendKey, s.RecvKey, s.CryptoCounterBase);
+            s.CryptoEndpoint = endpoint;
+            s.CryptoCounterBase += P2PReconnectNonceGap;
+            return true;
+        }
+
+        private static void RemoveSessionKeys(Session s)
+        {
+            if (_p2pCryptoLayer != null && s.CryptoEndpoint != null)
+            {
+                _p2pCryptoLayer.RemoveEndpoint(s.CryptoEndpoint);
+                s.CryptoEndpoint = null;
+            }
+        }
+
         private static void DropSession(Session s, P2PSessionState finalState)
         {
+            RemoveSessionKeys(s);
             _sessionsByToken.TryRemove(s.Token, out _);
             _sessionsByOtherId.TryRemove(s.OtherPlayerId, out _);
             if (s.P2PPeer != null)
@@ -718,7 +794,7 @@ namespace Basis.Scripts.Networking
             catch (Exception ex) { BasisDebug.LogError($"[P2P] State change handler threw: {ex.Message}"); }
         }
 
-        private static void SendSubToServer(byte sub, ushort otherPlayerId, string token)
+        private static void SendSubToServer(byte sub, ushort otherPlayerId, string token, byte[] ephemeralPublicKey = null)
         {
             var peer = BasisNetworkConnection.LocalPlayerPeer;
             if (peer == null) return;
@@ -729,6 +805,7 @@ namespace Basis.Scripts.Networking
             {
                 otherPlayerId = otherPlayerId,
                 sessionToken = token ?? string.Empty,
+                ephemeralPublicKey = ephemeralPublicKey,
             };
             body.Serialize(writer);
             peer.Send(writer, BasisNetworkCommons.P2PChannel, DeliveryMethod.ReliableOrdered);

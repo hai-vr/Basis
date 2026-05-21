@@ -497,6 +497,22 @@ namespace Basis.BasisUI
             toggleDisableDirectConn.AssignBinding(BasisSettingsDefaults.DisableDirectConnections);
             toggleDisableDirectConn.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.disableDirectConnections"));
             toggleDisableDirectConn.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.disableDirectConnections.description"));
+
+            PanelElementDescriptor encryptionInfo = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
+            encryptionInfo.SetTitle(BasisLocalization.Get("settings.general.networking.encryption.title"));
+            encryptionInfo.SetDescription(BuildEncryptionStatusText());
+        }
+
+        private static string BuildEncryptionStatusText()
+        {
+            string serverStatus = BasisLocalization.Get("settings.general.networking.encryption.serverOff");
+            string p2pStatus = BasisSettingsDefaults.DisableDirectConnections.RawValue
+                ? BasisLocalization.Get("settings.general.networking.encryption.p2pDisabled")
+                : BasisLocalization.Get("settings.general.networking.encryption.p2pOn");
+
+            return BasisLocalization.Get("settings.general.networking.encryption.serverLabel") + ": " + serverStatus + "\n"
+                 + BasisLocalization.Get("settings.general.networking.encryption.p2pLabel") + ": " + p2pStatus;
         }
 
         private static void ResetGeneralDefaults()
