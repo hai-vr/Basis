@@ -43,7 +43,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public override string Title => BasisLocalization.Get(TitleKey(BasisTalkModeManager.CurrentMode));
+        public override string Title => TitleText(BasisTalkModeManager.CurrentMode);
         public override string IconAddress => AddressableAssets.Sprites.People;
         public override int Order => 5; // right after the mute button (Order 0)
         public override bool Hidden => false;
@@ -71,7 +71,7 @@ namespace Basis.BasisUI
         {
             BasisTalkMode mode = BasisTalkModeManager.CurrentMode;
             button.SetIcon(IconAddress);
-            button.Descriptor.SetTitle(BasisLocalization.Get(TitleKey(mode)));
+            button.Descriptor.SetTitle(TitleText(mode));
             Color color = ColorFor(mode);
             button.Descriptor.IconImage.color = color;
             button.Descriptor.TitleLabel.color = color;
@@ -99,6 +99,30 @@ namespace Basis.BasisUI
                 case BasisTalkMode.Shout: return "menu.provider.micmode.shout";
                 default: return "menu.provider.micmode.normal";
             }
+        }
+
+        private const int MaxNameLength = 14;
+
+        // For 1-on-1, label the button with the target's display name (rich text stripped,
+        // truncated) instead of the generic "1-on-1" so it's clear who you're talking to.
+        private static string TitleText(BasisTalkMode mode)
+        {
+            if (mode == BasisTalkMode.ThisPerson
+                && BasisTalkModeManager.TryGetThisPersonTarget(out ushort targetId)
+                && BasisNetworkPlayers.Players.TryGetValue(targetId, out var np)
+                && np != null)
+            {
+                string name = np.SafeDisplayName;
+                if (!string.IsNullOrEmpty(name)) return Truncate(name, MaxNameLength);
+            }
+            return BasisLocalization.Get(TitleKey(mode));
+        }
+
+        private static string Truncate(string value, int max)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length <= max) return value;
+            if (max <= 3) return value.Substring(0, max);
+            return value.Substring(0, max - 3).TrimEnd() + "...";
         }
     }
 }

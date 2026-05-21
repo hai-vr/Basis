@@ -30,22 +30,10 @@ namespace Basis.BasisUI
 
         public override void OnButtonCreated(PanelButton button)
         {
-            // Full-width labelled button (base BindProvidersToButtons already set the
-            // title). Drive the indicator dot from the unseen count so a new action
-            // lights up the button in the main menu.
-            BasisNotificationCenter.Changed += RefreshIndicator;
-            button.OnInstanceReleased += () => BasisNotificationCenter.Changed -= RefreshIndicator;
-            RefreshIndicator();
-
             // Pulse the bell icon while there are unresolved pending notifications.
+            // No selection/indicator dot — the pulse alone signals pending items.
             NotificationBellPulse pulse = button.gameObject.AddComponent<NotificationBellPulse>();
             pulse.Target = button.Descriptor.IconImage;
-        }
-
-        private void RefreshIndicator()
-        {
-            if (BoundButton == null) return;
-            BoundButton.ButtonStyling?.ShowIndicator(BasisNotificationCenter.HasUnseen);
         }
 
         public override void RunAction()
@@ -84,9 +72,6 @@ namespace Basis.BasisUI
             historyToggle.Descriptor.SetTitle(BasisLocalization.Get("notifications.show.history"));
             historyToggle.SetValueWithoutNotify(BasisNotificationCenter.ShowHistory);
             historyToggle.OnValueChanged = value => BasisNotificationCenter.ShowHistory = value;
-
-            // Opening the panel counts as viewing — clear the new-action indicator.
-            BasisNotificationCenter.MarkAllSeen();
 
             _controller = panel.gameObject.AddComponent<NotificationPanelController>();
             _controller.Root = root;

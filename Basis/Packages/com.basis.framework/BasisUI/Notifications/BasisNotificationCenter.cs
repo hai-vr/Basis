@@ -154,22 +154,6 @@ namespace Basis.BasisUI
             if (_forcedScopes > 0) _forcedScopes--;
         }
 
-        // ── New-action indicator ─────────────────────────────────────────────
-        private static int _unseen;
-
-        /// <summary>Number of notifications added since the panel was last viewed.</summary>
-        public static int UnseenCount => _unseen;
-
-        /// <summary>Whether a "new action" visual should be shown in the main menu.</summary>
-        public static bool HasUnseen => _unseen > 0;
-
-        /// <summary>Clear the new-action indicator — called when the panel is opened.</summary>
-        public static void MarkAllSeen()
-        {
-            _unseen = 0;
-            Changed?.Invoke();
-        }
-
         /// <summary>
         /// Trim the oldest entries once the list grows past <see cref="MaxEntries"/>.
         /// A trimmed entry that is still pending has its callback resolved (declined) so
@@ -213,7 +197,6 @@ namespace Basis.BasisUI
             };
 
             _all.Add(notification);
-            _unseen++;
             TrimToCap();
             Changed?.Invoke();
             return notification;
