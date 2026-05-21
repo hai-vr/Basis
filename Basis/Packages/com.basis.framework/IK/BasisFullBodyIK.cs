@@ -2121,7 +2121,7 @@ w20, w54;
         }
         /// <summary>
         /// Computes arm bend direction using the 3D lookup table.
-        /// Converts hand position to chest-relative normalized space, then samples the table.
+        /// Converts hand position to a yaw-stable torso frame, then samples the table.
         /// </summary>
         Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, float armLength, bool isLeft)
         {
@@ -2130,12 +2130,12 @@ w20, w54;
                 return isLeft ? Vector3.left : Vector3.right;
             }
 
-            Quaternion chestRot = HandleChest.GetRotation(stream);
-            Quaternion invChest = Quaternion.Inverse(chestRot);
+            Quaternion frameRot = ArmBendFrame(stream);
+            Quaternion invFrame = Quaternion.Inverse(frameRot);
 
-            // Transform hand position to chest-local, shoulder-centered, arm-length-normalized space
+            // Transform hand position to torso-local, shoulder-centered, arm-length-normalized space
             Vector3 shoulderToHand = handTargetPos - shoulderPos;
-            Vector3 localPos = invChest * shoulderToHand / armLength;
+            Vector3 localPos = invFrame * shoulderToHand / armLength;
 
             // Mirror X for left arm (lookup table is generated for right arm perspective)
             if (isLeft)
@@ -2154,7 +2154,24 @@ w20, w54;
             }
 
             // Transform bend direction back to world space
-            return (chestRot * localBend).normalized;
+            return (frameRot * localBend).normalized;
+        }
+        // Elbow-bend reference frame: chest pitch/roll with hips yaw, so head-gaze chest yaw
+        // doesn't sweep the lookup and flip the elbow pole. Falls back to chest if no hips.
+        Quaternion ArmBendFrame(AnimationStream stream)
+        {
+            Quaternion chestRot = HandleChest.GetRotation(stream);
+            if (!HandleHips.IsValid(stream))
+            {
+                return chestRot;
+            }
+
+            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            Quaternion chestRelative = Quaternion.Inverse(hipsRot) * chestRot;
+            // Drop the chest's yaw (twist around hips-up), keep its swing (pitch/roll).
+            Quaternion chestYaw = ExtractTwist(chestRelative, Vector3.up);
+            Quaternion chestSwing = chestRelative * Quaternion.Inverse(chestYaw);
+            return hipsRot * chestSwing;
         }
         public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
         {
