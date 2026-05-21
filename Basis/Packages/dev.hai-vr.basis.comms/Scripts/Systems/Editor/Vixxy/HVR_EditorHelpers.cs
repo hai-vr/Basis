@@ -66,8 +66,13 @@ namespace HVR.Vixxy.Editor
 
         public static List<Transform> CollectAllNonEditorOnlyTransforms(BasisAvatar avatar)
         {
-            var results = new List<Transform> { avatar.transform };
-            CollectNonEditorOnlyTransformsRecursive(avatar.transform, results);
+            return CollectAllNonEditorOnlyTransforms(avatar.transform);
+        }
+
+        public static List<Transform> CollectAllNonEditorOnlyTransforms(Transform rootTransform)
+        {
+            var results = new List<Transform> { rootTransform };
+            CollectNonEditorOnlyTransformsRecursive(rootTransform, results);
             return results;
         }
 

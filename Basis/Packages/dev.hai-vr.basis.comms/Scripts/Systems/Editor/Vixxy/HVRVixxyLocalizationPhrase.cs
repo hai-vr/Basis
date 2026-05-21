@@ -60,5 +60,6 @@
         public const string AddArbitraryBlendshapeLabel = "Add arbitrary blendshape";
         public const string AddLabel = "Add";
         public const string SampleValueFromSceneLabel = "Sample value from scene";
+        public const string Measurements = "Measurements";
     }
 }

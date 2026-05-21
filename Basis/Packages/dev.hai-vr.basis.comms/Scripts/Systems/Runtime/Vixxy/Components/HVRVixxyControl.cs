@@ -115,7 +115,7 @@ namespace HVR.Vixxy
 
             AlsoExecutesWhenDisabled = !onlyExecuteWhenEnabled;
 
-            Networked = networked && !HVRAddress.IsSystemAddressName(Address);
+            Networked = networked && !HVRAddress.IsSystemAddressName(Address) && !orchestrator.IsMeasurementAddress(AddressId);
             NetworkingType = Networked ? advancedNetworking : HVRVixxyNetworkingType.Automatic;
 
             // Bake the subjects

@@ -37,6 +37,7 @@ namespace HVR.Vixxy
 
         // Basis-specific
         private HVRBasisBuiltInAddresses _builtInAddressesNullable;
+        private HashSet<int> _measurementAddressIds;
 
         /// Contrary to AcquisitionService, which only references data pertaining to the local user, implicit addresses can refer to data
         /// coming from other users to drive that the avatar of that user.
@@ -315,6 +316,15 @@ namespace HVR.Vixxy
         public void StagePropertyBlock(GameObject bakedObject)
         {
             _stagedBlocks.Add(bakedObject);
+        }
+
+        public bool IsMeasurementAddress(int addressId)
+        {
+            _measurementAddressIds ??= HVR_VixxyUtil.FindAllMeasurementAddresses(context.GetComponentsInChildren<HVRMeasure>(true).ToList())
+                .Select(HVRAddress.AddressToId)
+                .ToHashSet();
+
+            return _measurementAddressIds.Contains(addressId);
         }
 
         public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue, float min, float max)

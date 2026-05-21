@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using HVR.Basis.Comms;
 using UnityEngine;
 // ReSharper disable SuggestVarOrType_BuiltInTypes
 
@@ -261,6 +262,40 @@ namespace HVR.Vixxy
             float b = -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s;
 
             return new Color(r, g, b, alpha);
+        }
+
+        public static List<string> FindAllMeasurementAddresses(List<HVRMeasure> allMeasureComponents)
+        {
+            var result = new List<string>();
+            foreach (var measure in allMeasureComponents)
+            {
+                switch (measure.measurementType)
+                {
+                    case HVRMeasureType.Distance:
+                    case HVRMeasureType.Angle:
+                    case HVRMeasureType.RotationDifference:
+                    case HVRMeasureType.Speed:
+                        AddAddressIfNotEmpty(result, measure.valueAddress);
+                        AddAddressIfNotEmpty(result, measure.changeOverTimeAddress);
+                        break;
+                    case HVRMeasureType.Raycast:
+                        AddAddressIfNotEmpty(result, measure.valueAddress);
+                        AddAddressIfNotEmpty(result, measure.changeOverTimeAddress);
+                        AddAddressIfNotEmpty(result, measure.hitAddress);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+            return result;
+        }
+
+        private static void AddAddressIfNotEmpty(List<string> addresses, HVRAddressSelectorToggle addressSelector)
+        {
+            if (addressSelector.isActive && addressSelector.address.TryResolvePath(out var address))
+            {
+                addresses.Add(address);
+            }
         }
     }
 }

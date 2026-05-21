@@ -173,7 +173,7 @@ namespace HVR.Vixxy.Editor
             var buttonRect = layoutOption != null ? EditorGUILayout.GetControlRect(layoutOption) : EditorGUILayout.GetControlRect();
             if (GUI.Button(buttonRect, label))
             {
-                VAddressSelection.Show(buttonRect, selected =>
+                VAddressSelection.Show(buttonRect, HVRCommsUtil.GetAvatar(my), selected =>
                 {
                     if (selected == VAddressSelection.MakeMenu)
                     {
@@ -257,10 +257,12 @@ namespace HVR.Vixxy.Editor
         private static readonly string[] FaceTracking = { "BrowDownLeft", "BrowDownRight", "BrowInnerUp", "BrowInnerUpLeft", "BrowInnerUpRight", "BrowLowererLeft", "BrowLowererRight", "BrowOuterUpLeft", "BrowOuterUpRight", "BrowPinchLeft", "BrowPinchRight", "CheekPuffSuck", "CheekPuffSuckLeft", "CheekPuffSuckRight", "CheekSquintLeft", "CheekSquintRight", "EyeLeftX", "EyeLidLeft", "EyeLidRight", "EyeRightX", "EyeSquintLeft", "EyeSquintRight", "EyeY", "JawClench", "JawMandibleRaise", "JawOpen", "JawX", "JawZ", "LipFunnel", "LipFunnelLowerLeft", "LipFunnelLowerRight", "LipFunnelUpperLeft", "LipFunnelUpperRight", "LipPucker", "LipPuckerLowerLeft", "LipPuckerLowerRight", "LipPuckerUpperLeft", "LipPuckerUpperRight", "LipSuckCornerLeft", "LipSuckCornerRight", "LipSuckLower", "LipSuckLowerLeft", "LipSuckLowerRight", "LipSuckUpper", "LipSuckUpperLeft", "LipSuckUpperRight", "MouthClosed", "MouthCornerPullLeft", "MouthCornerPullRight", "MouthCornerSlantLeft", "MouthCornerSlantRight", "MouthDimpleLeft", "MouthDimpleRight", "MouthFrownLeft", "MouthFrownRight", "MouthLowerDownLeft", "MouthLowerDownRight", "MouthLowerX", "MouthPressLeft", "MouthPressRight", "MouthRaiserLower", "MouthRaiserUpper", "MouthSmileLeft", "MouthSmileRight", "MouthStretchLeft", "MouthStretchRight", "MouthTightenerLeft", "MouthTightenerRight", "MouthUpperDeepenLeft", "MouthUpperDeepenRight", "MouthUpperUpLeft", "MouthUpperUpRight", "MouthUpperX", "NasalConstrictLeft", "NasalConstrictRight", "NasalDilationLeft", "NasalDilationRight", "NeckFlexLeft", "NeckFlexRight", "NoseSneerLeft", "NoseSneerRight", "SoftPalateClose", "ThroatSwallow", "TongueArchY", "TongueOut", "TongueRoll", "TongueShape", "TongueTwistLeft", "TongueTwistRight", "TongueX", "TongueY" };
         private static readonly string[] EyeTracking = { "EyeLeftX", "EyeRightX", "EyeY", "EyeLidLeft", "EyeLidRight", "EyeSquintLeft", "EyeSquintRight" };
 
+        private readonly Component _contextNullable;
         private readonly Action<string> _onSelected;
 
-        public VAddressSelection(AdvancedDropdownState state, Action<string> onSelected) : base(state)
+        public VAddressSelection(AdvancedDropdownState state, Component contextNullable, Action<string> onSelected) : base(state)
         {
+            _contextNullable = contextNullable;
             _onSelected = onSelected;
             minimumSize = new Vector2(200, 300);
         }
@@ -275,6 +277,27 @@ namespace HVR.Vixxy.Editor
             root.AddChild(NewAdvancedDropdownItem(HVRAddress.System.User.VoiceGain.address, HVRVixxyLocalizationPhrase.VoiceGainLabel));
             root.AddChild(CreateFaceTrackingDropdown(HVRVixxyLocalizationPhrase.FaceTrackingLabel, FaceTracking));
             root.AddChild(CreateFaceTrackingDropdown(HVRVixxyLocalizationPhrase.EyeTrackingLabel, EyeTracking));
+            if (_contextNullable != null)
+            {
+                var allApplicableTransforms = HVR_EditorHelpers.CollectAllNonEditorOnlyTransforms(_contextNullable.transform);
+
+                var allMeasurements = allApplicableTransforms
+                    .SelectMany(transform => transform.GetComponents<HVRMeasure>())
+                    .ToList();
+
+                var addresses = HVR_VixxyUtil.FindAllMeasurementAddresses(allMeasurements);
+                if (addresses.Count > 0)
+                {
+                    addresses.Sort();
+
+                    var parent = new AdvancedDropdownItem(HVRVixxyLocalizationPhrase.Measurements);
+                    foreach (var address in addresses)
+                    {
+                        parent.AddChild(NewAdvancedDropdownItem(address, address));
+                    }
+                    root.AddChild(parent);
+                }
+            }
 
             return root;
         }
@@ -316,9 +339,9 @@ namespace HVR.Vixxy.Editor
             _onSelected?.Invoke(item.name);
         }
 
-        public static void Show(Rect buttonRect, Action<string> onSelected)
+        public static void Show(Rect buttonRect, Component contextNullable, Action<string> onSelected)
         {
-            var dropdown = new VAddressSelection(new AdvancedDropdownState(), onSelected);
+            var dropdown = new VAddressSelection(new AdvancedDropdownState(), contextNullable, onSelected);
             dropdown.Show(buttonRect);
         }
     }
