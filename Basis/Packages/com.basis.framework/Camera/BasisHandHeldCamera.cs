@@ -403,7 +403,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         captureCamera.Render();
 
-        List<string> taggedNames = BasisHandHeldCameraPhotoMetadata.CollectTaggedNames(captureCamera);
+        BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata = BasisHandHeldCameraPhotoMetadata.CollectMetadata(captureCamera, transform);
 
         EnsureTexturePool(renderTexture.width, renderTexture.height, TextureFormat);
 
@@ -421,7 +421,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             pooledScreenshot.Apply(false);
 
             SetNormalAfterCapture();
-            SaveScreenshotAsync(pooledScreenshot, taggedNames);
+            SaveScreenshotAsync(pooledScreenshot, photoMetadata);
         });
     }
 
@@ -591,7 +591,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <param name="screenshot">CPU-side texture to encode.</param>
     public void SaveScreenshotAsync(Texture2D screenshot) => SaveScreenshotAsync(screenshot, null);
 
-    public async void SaveScreenshotAsync(Texture2D screenshot, IReadOnlyList<string> taggedNames)
+    public async void SaveScreenshotAsync(Texture2D screenshot, BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata)
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string extension = captureFormat == "EXR" ? "exr" : "png";
@@ -602,7 +602,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             ? screenshot.EncodeToEXR(Texture2D.EXRFlags.CompressZIP)
             : screenshot.EncodeToPNG();
 
-        imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, taggedNames);
+        if (photoMetadata != null)
+            imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
 
         await File.WriteAllBytesAsync(path, imageData);
     }

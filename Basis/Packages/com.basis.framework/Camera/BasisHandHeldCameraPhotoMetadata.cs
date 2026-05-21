@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
@@ -8,104 +9,379 @@ using UnityEngine;
 
 public static class BasisHandHeldCameraPhotoMetadata
 {
-    public static List<string> CollectTaggedNames(Camera captureCamera)
+    public struct TaggedPerson
     {
-        var names = new List<string>();
-        if (captureCamera == null)
-            return names;
+        public string Name;
+        public bool HasBox;
+        public float X;
+        public float Y;
+        public float W;
+        public float H;
 
+        public bool HasDetails;
+        public string Uuid;
+        public string AvatarName;
+        public string Platform;
+        public float Distance;
+        public Vector3 Position;
+    }
+
+    public class PhotoMetadata
+    {
+        public int ImageWidth;
+        public int ImageHeight;
+
+        public List<TaggedPerson> People = new List<TaggedPerson>();
+
+        public bool HasCamera;
+        public float FocalLengthMm;
+        public float FNumber;
+        public float ExposureSeconds;
+        public int Iso;
+        public float SensorWidthMm;
+        public float SensorHeightMm;
+        public float FieldOfView;
+
+        public bool HasCaptureInfo;
+        public string Software;
+        public string AppVersion;
+        public string UnityVersion;
+        public DateTime CaptureTimeLocal;
+
+        public bool HasPhotographer;
+        public string PhotographerName;
+        public string PhotographerUuid;
+
+        public bool HasWorld;
+        public string WorldName;
+        public bool HasViewpoint;
+        public Vector3 CameraPosition;
+        public Quaternion CameraRotation;
+
+        public bool HasAnything()
+        {
+            return People.Count > 0 || HasCamera || HasCaptureInfo || HasPhotographer || HasWorld;
+        }
+    }
+
+    // ---------------- Collection ----------------
+
+    public static PhotoMetadata CollectMetadata(Camera captureCamera, Transform ignoreRoot)
+    {
+        var meta = new PhotoMetadata { CaptureTimeLocal = DateTime.Now };
+        if (captureCamera == null)
+            return meta;
+
+        bool details = BasisSettingsDefaults.PhotoEmbedPersonDetails.RawValue;
+        meta.People = CollectTaggedPeople(captureCamera, ignoreRoot, details);
+
+        if (BasisSettingsDefaults.PhotoEmbedCameraSettings.RawValue)
+        {
+            meta.HasCamera = true;
+            meta.FocalLengthMm = captureCamera.focalLength;
+            meta.FNumber = captureCamera.aperture;
+            meta.ExposureSeconds = captureCamera.shutterSpeed;
+            meta.Iso = captureCamera.iso;
+            meta.SensorWidthMm = captureCamera.sensorSize.x;
+            meta.SensorHeightMm = captureCamera.sensorSize.y;
+            meta.FieldOfView = captureCamera.fieldOfView;
+        }
+
+        if (BasisSettingsDefaults.PhotoEmbedCaptureInfo.RawValue)
+        {
+            meta.HasCaptureInfo = true;
+            meta.Software = "Basis Handheld Camera";
+            meta.AppVersion = Application.version;
+            meta.UnityVersion = Application.unityVersion;
+        }
+
+        if (BasisSettingsDefaults.PhotoEmbedPhotographer.RawValue)
+        {
+            BasisPlayer local = BasisLocalPlayer.Instance;
+            if (local != null)
+            {
+                meta.HasPhotographer = true;
+                meta.PhotographerName = SafeName(local);
+                meta.PhotographerUuid = local.UUID;
+            }
+        }
+
+        if (BasisSettingsDefaults.PhotoEmbedWorld.RawValue)
+        {
+            meta.HasWorld = true;
+            meta.WorldName = SafeWorldName();
+            captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
+            meta.CameraPosition = pos;
+            meta.CameraRotation = rot;
+            meta.HasViewpoint = true;
+        }
+
+        return meta;
+    }
+
+    private static string SafeWorldName()
+    {
+        try
+        {
+            var scene = BasisSceneFactory.BasisScene;
+            if (scene != null && scene.BasisBundleDescription != null)
+                return scene.BasisBundleDescription.AssetBundleName;
+        }
+        catch (Exception)
+        {
+        }
+        return null;
+    }
+
+    private static string SafeName(BasisPlayer player)
+    {
+        string name = player.SafeDisplayName;
+        if (string.IsNullOrEmpty(name))
+            name = player.DisplayName;
+        return name;
+    }
+
+    private static List<TaggedPerson> CollectTaggedPeople(Camera captureCamera, Transform ignoreRoot, bool details)
+    {
+        var people = new List<TaggedPerson>();
         string mode = BasisSettingsDefaults.PhotoMetadataTagging.RawValue;
 
         if (string.IsNullOrEmpty(mode) || mode == BasisSettingsDefaults.PhotoTagging_NoOne)
-            return names;
+            return people;
 
         if (mode == BasisSettingsDefaults.PhotoTagging_JustMe)
         {
-            AddName(names, BasisLocalPlayer.Instance);
-            return names;
+            BasisPlayer local = BasisLocalPlayer.Instance;
+            if (local != null && TryBuildPerson(captureCamera, local, requireBounds: false, details, out TaggedPerson self))
+                people.Add(self);
+            return people;
         }
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(captureCamera);
+
+        // Remote players come from the network registry. The local player is
+        // handled once via BasisLocalPlayer.Instance: its networked entry is a
+        // separate object (would duplicate) and is absent entirely when solo.
         BasisNetworkPlayer[] players = BasisNetworkPlayer.GetAllPlayers();
         for (int i = 0; i < players.Length; i++)
         {
             BasisNetworkPlayer networkPlayer = players[i];
             if (networkPlayer == null || !networkPlayer.TryGetPlayer(out BasisPlayer player) || player == null)
                 continue;
-
-            if (IsInsideFrustum(player, planes))
-                AddName(names, player);
+            if (player.IsLocal)
+                continue;
+            TryAddVisiblePerson(people, captureCamera, planes, player, ignoreRoot, details);
         }
-        return names;
+
+        TryAddVisiblePerson(people, captureCamera, planes, BasisLocalPlayer.Instance, ignoreRoot, details);
+
+        return people;
     }
 
-    private static void AddName(List<string> names, BasisPlayer player)
+    private static void TryAddVisiblePerson(List<TaggedPerson> people, Camera camera, Plane[] planes, BasisPlayer player, Transform ignoreRoot, bool details)
     {
         if (player == null)
             return;
-
-        string name = player.SafeDisplayName;
-        if (string.IsNullOrEmpty(name))
-            name = player.DisplayName;
-
-        if (!string.IsNullOrEmpty(name) && !names.Contains(name))
-            names.Add(name);
+        if (!TryGetWorldBounds(player, out Bounds bounds))
+            return;
+        if (!GeometryUtility.TestPlanesAABB(planes, bounds))
+            return;
+        if (!HasLineOfSight(camera, bounds, ignoreRoot))
+            return;
+        if (TryBuildPerson(camera, player, requireBounds: true, details, out TaggedPerson tagged))
+            people.Add(tagged);
     }
 
-    private static bool IsInsideFrustum(BasisPlayer player, Plane[] planes)
+    private static bool TryBuildPerson(Camera camera, BasisPlayer player, bool requireBounds, bool details, out TaggedPerson person)
     {
-        var avatar = player.BasisAvatar;
-        if (avatar != null && avatar.Renders != null && avatar.Renders.Length > 0)
-        {
-            bool hasBounds = false;
-            Bounds bounds = default;
-            for (int i = 0; i < avatar.Renders.Length; i++)
-            {
-                Renderer renderer = avatar.Renders[i];
-                if (renderer == null)
-                    continue;
+        person = default;
 
-                if (!hasBounds)
-                {
-                    bounds = renderer.bounds;
-                    hasBounds = true;
-                }
-                else
-                {
-                    bounds.Encapsulate(renderer.bounds);
-                }
-            }
-            if (hasBounds)
-                return GeometryUtility.TestPlanesAABB(planes, bounds);
-        }
+        string name = SafeName(player);
+        if (string.IsNullOrEmpty(name))
+            return false;
+        person.Name = name;
 
-        Transform avatarTransform = player.AvatarTransform != null ? player.AvatarTransform : player.transform;
-        if (avatarTransform == null)
+        bool hasBounds = TryGetWorldBounds(player, out Bounds bounds);
+        if (requireBounds && !hasBounds)
             return false;
 
-        Vector3 point = avatarTransform.position;
-        for (int i = 0; i < planes.Length; i++)
+        if (hasBounds && TryComputeBox(camera, bounds, out Rect box))
         {
-            if (planes[i].GetDistanceToPoint(point) < 0f)
-                return false;
+            person.HasBox = true;
+            person.X = box.x;
+            person.Y = box.y;
+            person.W = box.width;
+            person.H = box.height;
+        }
+
+        if (details)
+        {
+            person.HasDetails = true;
+            person.Uuid = player.UUID;
+            person.Platform = player.PlayerPlatform;
+            person.AvatarName = SafeAvatarName(player);
+            if (hasBounds)
+            {
+                person.Position = bounds.center;
+                person.Distance = Vector3.Distance(camera.transform.position, bounds.center);
+            }
         }
         return true;
     }
 
-    public static byte[] Embed(byte[] imageData, string captureFormat, IReadOnlyList<string> names)
+    private static string SafeAvatarName(BasisPlayer player)
     {
-        if (imageData == null || names == null || names.Count == 0)
+        try
+        {
+            var avatar = player.BasisAvatar;
+            if (avatar != null && avatar.BasisBundleDescription != null)
+                return avatar.BasisBundleDescription.AssetBundleName;
+        }
+        catch (Exception)
+        {
+        }
+        return null;
+    }
+
+    private static bool TryGetWorldBounds(BasisPlayer player, out Bounds bounds)
+    {
+        bounds = default;
+        var avatar = player.BasisAvatar;
+        if (avatar == null || avatar.Renders == null)
+            return false;
+
+        bool has = false;
+        for (int i = 0; i < avatar.Renders.Length; i++)
+        {
+            Renderer renderer = avatar.Renders[i];
+            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                continue;
+            if (!(renderer is SkinnedMeshRenderer || renderer is MeshRenderer))
+                continue;
+
+            if (!has)
+            {
+                bounds = renderer.bounds;
+                has = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+        return has;
+    }
+
+    private static bool HasLineOfSight(Camera camera, Bounds bounds, Transform ignoreRoot)
+    {
+        Vector3 center = bounds.center;
+        float ey = bounds.extents.y;
+        Vector3 up = Vector3.up;
+
+        if (SamplePointVisible(camera, bounds, center, ignoreRoot)) return true;
+        if (SamplePointVisible(camera, bounds, center + up * (ey * 0.6f), ignoreRoot)) return true;
+        if (SamplePointVisible(camera, bounds, center - up * (ey * 0.6f), ignoreRoot)) return true;
+        return false;
+    }
+
+    private static bool SamplePointVisible(Camera camera, Bounds selfBounds, Vector3 point, Transform ignoreRoot)
+    {
+        Vector3 origin = camera.transform.position;
+        Vector3 delta = point - origin;
+        float dist = delta.magnitude;
+        if (dist <= 0.01f)
+            return true;
+
+        Vector3 dir = delta / dist;
+
+        // Hits on the player's own avatar are not occluders. Compare by bounds
+        // (slightly expanded) so this works regardless of where the avatar's
+        // colliders sit in the hierarchy.
+        Bounds selfSurface = selfBounds;
+        selfSurface.Expand(0.2f);
+
+        RaycastHit[] hits = Physics.RaycastAll(origin, dir, dist - 0.05f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider col = hits[i].collider;
+            if (col == null)
+                continue;
+            if (ignoreRoot != null && col.transform.IsChildOf(ignoreRoot))
+                continue;
+            if (selfSurface.Contains(hits[i].point))
+                continue;
+
+            return false;
+        }
+        return true;
+    }
+
+    // Projects the 8 corners of the world AABB and returns the screen-space rect,
+    // normalized 0-1 with a top-left origin (image convention).
+    private static bool TryComputeBox(Camera camera, Bounds worldBounds, out Rect normalizedTopLeft)
+    {
+        normalizedTopLeft = default;
+        Vector3 center = worldBounds.center;
+        Vector3 ext = worldBounds.extents;
+
+        float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+        int inFront = 0;
+
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 corner = new Vector3(
+                center.x + (((i & 1) == 0) ? -ext.x : ext.x),
+                center.y + (((i & 2) == 0) ? -ext.y : ext.y),
+                center.z + (((i & 4) == 0) ? -ext.z : ext.z));
+
+            Vector3 vp = camera.WorldToViewportPoint(corner);
+            if (vp.z <= 0f)
+                continue;
+
+            inFront++;
+            if (vp.x < minX) minX = vp.x;
+            if (vp.x > maxX) maxX = vp.x;
+            if (vp.y < minY) minY = vp.y;
+            if (vp.y > maxY) maxY = vp.y;
+        }
+
+        if (inFront == 0)
+            return false;
+
+        minX = Mathf.Clamp01(minX);
+        maxX = Mathf.Clamp01(maxX);
+        minY = Mathf.Clamp01(minY);
+        maxY = Mathf.Clamp01(maxY);
+
+        float w = maxX - minX;
+        float h = maxY - minY;
+        if (w <= 0.0001f || h <= 0.0001f)
+            return false;
+
+        normalizedTopLeft = new Rect(minX, 1f - maxY, w, h);
+        return true;
+    }
+
+    // ---------------- Embedding ----------------
+
+    public static byte[] Embed(byte[] imageData, string captureFormat, PhotoMetadata meta, int width, int height)
+    {
+        if (imageData == null || meta == null || !meta.HasAnything())
             return imageData;
 
-        string people = "People in photo: " + JoinNames(names);
-        string json = BuildPeopleJson(names);
+        meta.ImageWidth = width;
+        meta.ImageHeight = height;
+
+        string summary = BuildHumanSummary(meta);
+        string json = BuildBasisJson(meta);
+        string xmp = BuildXmp(meta, summary);
 
         try
         {
             if (string.Equals(captureFormat, "EXR", StringComparison.OrdinalIgnoreCase))
-                return EmbedExr(imageData, people, json);
+                return EmbedExr(imageData, meta, summary, json);
 
-            return EmbedPng(imageData, people, json);
+            return EmbedPng(imageData, summary, json, xmp);
         }
         catch (Exception ex)
         {
@@ -114,34 +390,119 @@ public static class BasisHandHeldCameraPhotoMetadata
         }
     }
 
-    private static string JoinNames(IReadOnlyList<string> names)
+    private static string BuildHumanSummary(PhotoMetadata meta)
     {
         var sb = new StringBuilder();
-        for (int i = 0; i < names.Count; i++)
+        if (meta.People.Count > 0)
         {
-            if (i > 0)
-                sb.Append(", ");
-            sb.Append(names[i]);
+            sb.Append("People in photo: ");
+            for (int i = 0; i < meta.People.Count; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                sb.Append(meta.People[i].Name);
+            }
+        }
+        if (meta.HasWorld && !string.IsNullOrEmpty(meta.WorldName))
+        {
+            if (sb.Length > 0) sb.Append(" · ");
+            sb.Append("World: ").Append(meta.WorldName);
+        }
+        if (meta.HasCaptureInfo)
+        {
+            if (sb.Length > 0) sb.Append(" · ");
+            sb.Append("Captured with Basis");
+            if (!string.IsNullOrEmpty(meta.AppVersion)) sb.Append(' ').Append(meta.AppVersion);
         }
         return sb.ToString();
     }
 
-    private static string BuildPeopleJson(IReadOnlyList<string> names)
+    // ---------------- JSON ----------------
+
+    private static string BuildBasisJson(PhotoMetadata meta)
     {
         var sb = new StringBuilder();
-        sb.Append("{\"people\":[");
-        for (int i = 0; i < names.Count; i++)
+        sb.Append('{');
+        sb.Append("\"image\":{\"w\":").Append(meta.ImageWidth).Append(",\"h\":").Append(meta.ImageHeight).Append('}');
+
+        if (meta.HasCaptureInfo)
         {
-            if (i > 0)
-                sb.Append(',');
-            sb.Append('"').Append(EscapeJson(names[i])).Append('"');
+            sb.Append(",\"capture\":{");
+            sb.Append("\"software\":\"").Append(EscapeJson(meta.Software)).Append('"');
+            if (!string.IsNullOrEmpty(meta.AppVersion)) sb.Append(",\"appVersion\":\"").Append(EscapeJson(meta.AppVersion)).Append('"');
+            if (!string.IsNullOrEmpty(meta.UnityVersion)) sb.Append(",\"unityVersion\":\"").Append(EscapeJson(meta.UnityVersion)).Append('"');
+            sb.Append(",\"date\":\"").Append(meta.CaptureTimeLocal.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)).Append('"');
+            sb.Append('}');
         }
-        sb.Append("]}");
+
+        if (meta.HasPhotographer)
+        {
+            sb.Append(",\"photographer\":{\"name\":\"").Append(EscapeJson(meta.PhotographerName)).Append('"');
+            if (!string.IsNullOrEmpty(meta.PhotographerUuid)) sb.Append(",\"uuid\":\"").Append(EscapeJson(meta.PhotographerUuid)).Append('"');
+            sb.Append('}');
+        }
+
+        if (meta.HasCamera)
+        {
+            sb.Append(",\"camera\":{");
+            sb.Append("\"focalLengthMm\":").Append(Num(meta.FocalLengthMm));
+            sb.Append(",\"fNumber\":").Append(Num(meta.FNumber));
+            sb.Append(",\"exposureSeconds\":").Append(Num(meta.ExposureSeconds));
+            sb.Append(",\"iso\":").Append(meta.Iso);
+            sb.Append(",\"sensorMm\":[").Append(Num(meta.SensorWidthMm)).Append(',').Append(Num(meta.SensorHeightMm)).Append(']');
+            sb.Append(",\"fieldOfView\":").Append(Num(meta.FieldOfView));
+            sb.Append('}');
+        }
+
+        if (meta.HasWorld)
+        {
+            sb.Append(",\"world\":{");
+            sb.Append("\"name\":\"").Append(EscapeJson(meta.WorldName ?? string.Empty)).Append('"');
+            if (meta.HasViewpoint)
+            {
+                sb.Append(",\"cameraPosition\":").Append(Vec3(meta.CameraPosition));
+                Vector3 e = meta.CameraRotation.eulerAngles;
+                sb.Append(",\"cameraRotationEuler\":").Append(Vec3(e));
+            }
+            sb.Append('}');
+        }
+
+        sb.Append(",\"people\":[");
+        for (int i = 0; i < meta.People.Count; i++)
+        {
+            if (i > 0) sb.Append(',');
+            TaggedPerson p = meta.People[i];
+            sb.Append("{\"name\":\"").Append(EscapeJson(p.Name)).Append('"');
+            if (p.HasBox)
+            {
+                sb.Append(",\"box\":[")
+                  .Append(Num(p.X)).Append(',').Append(Num(p.Y)).Append(',')
+                  .Append(Num(p.W)).Append(',').Append(Num(p.H)).Append(']');
+            }
+            if (p.HasDetails)
+            {
+                if (!string.IsNullOrEmpty(p.Uuid)) sb.Append(",\"uuid\":\"").Append(EscapeJson(p.Uuid)).Append('"');
+                if (!string.IsNullOrEmpty(p.AvatarName)) sb.Append(",\"avatar\":\"").Append(EscapeJson(p.AvatarName)).Append('"');
+                if (!string.IsNullOrEmpty(p.Platform)) sb.Append(",\"platform\":\"").Append(EscapeJson(p.Platform)).Append('"');
+                if (p.HasBox) sb.Append(",\"distanceM\":").Append(Num(p.Distance)).Append(",\"position\":").Append(Vec3(p.Position));
+            }
+            sb.Append('}');
+        }
+        sb.Append(']');
+
+        sb.Append('}');
         return sb.ToString();
     }
+
+    private static string Vec3(Vector3 v)
+    {
+        return "[" + Num(v.x) + "," + Num(v.y) + "," + Num(v.z) + "]";
+    }
+
+    private static string Num(float v) => v.ToString("0.####", CultureInfo.InvariantCulture);
 
     private static string EscapeJson(string value)
     {
+        if (value == null) return string.Empty;
         var sb = new StringBuilder(value.Length + 8);
         foreach (char c in value)
         {
@@ -155,10 +516,157 @@ public static class BasisHandHeldCameraPhotoMetadata
                 case '\r': sb.Append("\\r"); break;
                 case '\t': sb.Append("\\t"); break;
                 default:
-                    if (c < 0x20)
-                        sb.Append("\\u").Append(((int)c).ToString("x4"));
-                    else
-                        sb.Append(c);
+                    if (c < 0x20) sb.Append("\\u").Append(((int)c).ToString("x4"));
+                    else sb.Append(c);
+                    break;
+            }
+        }
+        return sb.ToString();
+    }
+
+    // ---------------- XMP ----------------
+
+    private static string BuildXmp(PhotoMetadata meta, string summary)
+    {
+        var sb = new StringBuilder();
+        sb.Append("<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>");
+        sb.Append("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">");
+        sb.Append("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">");
+        sb.Append("<rdf:Description rdf:about=\"\"");
+        sb.Append(" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"");
+        sb.Append(" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"");
+        sb.Append(" xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\"");
+        sb.Append(" xmlns:exif=\"http://ns.adobe.com/exif/1.0/\"");
+        sb.Append(" xmlns:mwg-rs=\"http://www.metadataworkinggroup.com/schemas/regions/\"");
+        sb.Append(" xmlns:stArea=\"http://ns.adobe.com/xmp/sType/Area#\"");
+        sb.Append(" xmlns:stDim=\"http://ns.adobe.com/xap/1.0/sType/Dimensions#\"");
+        sb.Append(" xmlns:basis=\"https://basisvr.org/ns/photo/1.0/\">");
+
+        sb.Append("<xmp:CreatorTool>Basis Handheld Camera</xmp:CreatorTool>");
+        sb.Append("<xmp:CreateDate>").Append(meta.CaptureTimeLocal.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)).Append("</xmp:CreateDate>");
+        sb.Append("<tiff:Make>BasisVR</tiff:Make>");
+        sb.Append("<tiff:Model>Handheld Camera</tiff:Model>");
+
+        if (!string.IsNullOrEmpty(summary))
+            sb.Append("<dc:description><rdf:Alt><rdf:li xml:lang=\"x-default\">").Append(EscapeXml(summary)).Append("</rdf:li></rdf:Alt></dc:description>");
+
+        if (meta.HasPhotographer && !string.IsNullOrEmpty(meta.PhotographerName))
+            sb.Append("<dc:creator><rdf:Seq><rdf:li>").Append(EscapeXml(meta.PhotographerName)).Append("</rdf:li></rdf:Seq></dc:creator>");
+
+        if (meta.HasCamera)
+        {
+            sb.Append("<exif:FNumber>").Append(Rational(meta.FNumber)).Append("</exif:FNumber>");
+            sb.Append("<exif:ExposureTime>").Append(ExposureRational(meta.ExposureSeconds)).Append("</exif:ExposureTime>");
+            sb.Append("<exif:FocalLength>").Append(Rational(meta.FocalLengthMm)).Append("</exif:FocalLength>");
+            sb.Append("<exif:ISOSpeedRatings><rdf:Seq><rdf:li>").Append(meta.Iso).Append("</rdf:li></rdf:Seq></exif:ISOSpeedRatings>");
+            sb.Append("<exif:PixelXDimension>").Append(meta.ImageWidth).Append("</exif:PixelXDimension>");
+            sb.Append("<exif:PixelYDimension>").Append(meta.ImageHeight).Append("</exif:PixelYDimension>");
+        }
+
+        if (meta.HasWorld)
+        {
+            if (!string.IsNullOrEmpty(meta.WorldName))
+                sb.Append("<basis:World>").Append(EscapeXml(meta.WorldName)).Append("</basis:World>");
+            if (meta.HasViewpoint)
+            {
+                sb.Append("<basis:CameraPosition>").Append(XmlVec3(meta.CameraPosition)).Append("</basis:CameraPosition>");
+                sb.Append("<basis:CameraRotation>").Append(XmlVec3(meta.CameraRotation.eulerAngles)).Append("</basis:CameraRotation>");
+            }
+        }
+
+        AppendRegions(sb, meta);
+
+        sb.Append("</rdf:Description></rdf:RDF></x:xmpmeta>");
+        sb.Append("<?xpacket end=\"w\"?>");
+        return sb.ToString();
+    }
+
+    private static void AppendRegions(StringBuilder sb, PhotoMetadata meta)
+    {
+        bool any = false;
+        for (int i = 0; i < meta.People.Count; i++)
+        {
+            if (meta.People[i].HasBox) { any = true; break; }
+        }
+        if (!any)
+            return;
+
+        sb.Append("<mwg-rs:Regions rdf:parseType=\"Resource\">");
+        sb.Append("<mwg-rs:AppliedToDimensions stDim:w=\"").Append(meta.ImageWidth)
+          .Append("\" stDim:h=\"").Append(meta.ImageHeight).Append("\" stDim:unit=\"pixel\"/>");
+        sb.Append("<mwg-rs:RegionList><rdf:Bag>");
+        for (int i = 0; i < meta.People.Count; i++)
+        {
+            TaggedPerson p = meta.People[i];
+            if (!p.HasBox)
+                continue;
+
+            float cx = p.X + p.W * 0.5f;
+            float cy = p.Y + p.H * 0.5f;
+            sb.Append("<rdf:li rdf:parseType=\"Resource\">");
+            sb.Append("<mwg-rs:Name>").Append(EscapeXml(p.Name)).Append("</mwg-rs:Name>");
+            sb.Append("<mwg-rs:Type>Face</mwg-rs:Type>");
+            sb.Append("<mwg-rs:Area stArea:x=\"").Append(Num(cx))
+              .Append("\" stArea:y=\"").Append(Num(cy))
+              .Append("\" stArea:w=\"").Append(Num(p.W))
+              .Append("\" stArea:h=\"").Append(Num(p.H))
+              .Append("\" stArea:unit=\"normalized\"/>");
+            sb.Append("</rdf:li>");
+        }
+        sb.Append("</rdf:Bag></mwg-rs:RegionList>");
+        sb.Append("</mwg-rs:Regions>");
+    }
+
+    private static string XmlVec3(Vector3 v)
+    {
+        return Num(v.x) + " " + Num(v.y) + " " + Num(v.z);
+    }
+
+    private static string Rational(float value)
+    {
+        if (value <= 0f)
+            return "0/1";
+        long den = 1000;
+        long num = (long)Math.Round(value * den);
+        long g = Gcd(num, den);
+        return (num / g) + "/" + (den / g);
+    }
+
+    private static string ExposureRational(float seconds)
+    {
+        if (seconds <= 0f)
+            return "0/1";
+        if (seconds >= 1f)
+            return Rational(seconds);
+        long den = (long)Math.Round(1f / seconds);
+        if (den <= 0) den = 1;
+        return "1/" + den;
+    }
+
+    private static long Gcd(long a, long b)
+    {
+        a = Math.Abs(a);
+        b = Math.Abs(b);
+        while (b != 0) { long t = b; b = a % b; a = t; }
+        return a == 0 ? 1 : a;
+    }
+
+    private static string EscapeXml(string value)
+    {
+        if (value == null) return string.Empty;
+        var sb = new StringBuilder(value.Length + 8);
+        foreach (char c in value)
+        {
+            switch (c)
+            {
+                case '&': sb.Append("&amp;"); break;
+                case '<': sb.Append("&lt;"); break;
+                case '>': sb.Append("&gt;"); break;
+                case '"': sb.Append("&quot;"); break;
+                case '\'': sb.Append("&apos;"); break;
+                default:
+                    if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') sb.Append(' ');
+                    else sb.Append(c);
                     break;
             }
         }
@@ -169,7 +677,7 @@ public static class BasisHandHeldCameraPhotoMetadata
 
     private static readonly byte[] PngSignature = { 137, 80, 78, 71, 13, 10, 26, 10 };
 
-    private static byte[] EmbedPng(byte[] png, string people, string json)
+    private static byte[] EmbedPng(byte[] png, string summary, string json, string xmp)
     {
         if (png.Length < PngSignature.Length + 12)
             return png;
@@ -197,14 +705,22 @@ public static class BasisHandHeldCameraPhotoMetadata
         if (iendStart < 0)
             return png;
 
-        byte[] descChunk = BuildITxtChunk("Description", people);
-        byte[] jsonChunk = BuildITxtChunk("BasisPeople", json);
+        var chunks = new List<byte[]>();
+        if (!string.IsNullOrEmpty(xmp)) chunks.Add(BuildITxtChunk("XML:com.adobe.xmp", xmp));
+        if (!string.IsNullOrEmpty(summary)) chunks.Add(BuildITxtChunk("Description", summary));
+        chunks.Add(BuildITxtChunk("BasisPeople", json));
 
-        byte[] result = new byte[png.Length + descChunk.Length + jsonChunk.Length];
+        int extra = 0;
+        for (int i = 0; i < chunks.Count; i++) extra += chunks[i].Length;
+
+        byte[] result = new byte[png.Length + extra];
         int o = 0;
         Buffer.BlockCopy(png, 0, result, o, iendStart); o += iendStart;
-        Buffer.BlockCopy(descChunk, 0, result, o, descChunk.Length); o += descChunk.Length;
-        Buffer.BlockCopy(jsonChunk, 0, result, o, jsonChunk.Length); o += jsonChunk.Length;
+        for (int i = 0; i < chunks.Count; i++)
+        {
+            Buffer.BlockCopy(chunks[i], 0, result, o, chunks[i].Length);
+            o += chunks[i].Length;
+        }
         Buffer.BlockCopy(png, iendStart, result, o, png.Length - iendStart);
         return result;
     }
@@ -213,7 +729,7 @@ public static class BasisHandHeldCameraPhotoMetadata
     private static byte[] BuildITxtChunk(string keyword, string text)
     {
         byte[] keywordBytes = Encoding.ASCII.GetBytes(keyword);
-        byte[] textBytes = Encoding.UTF8.GetBytes(text);
+        byte[] textBytes = Encoding.UTF8.GetBytes(text ?? string.Empty);
 
         byte[] data = new byte[keywordBytes.Length + 5 + textBytes.Length];
         int p = 0;
@@ -275,7 +791,7 @@ public static class BasisHandHeldCameraPhotoMetadata
 
     // ---------------- EXR ----------------
 
-    private static byte[] EmbedExr(byte[] exr, string people, string json)
+    private static byte[] EmbedExr(byte[] exr, PhotoMetadata meta, string summary, string json)
     {
         if (exr.Length < 8)
             return exr;
@@ -318,9 +834,7 @@ public static class BasisHandHeldCameraPhotoMetadata
             if (attrSize < 0 || p + attrSize > exr.Length) return exr;
 
             if (attrName == "compression" && attrSize >= 1)
-            {
                 compression = exr[p];
-            }
             else if (attrName == "dataWindow" && attrType == "box2i" && attrSize >= 16)
             {
                 yMin = exr[p + 4] | (exr[p + 5] << 8) | (exr[p + 6] << 16) | (exr[p + 7] << 24);
@@ -356,15 +870,28 @@ public static class BasisHandHeldCameraPhotoMetadata
         if (firstOffset != offsetTableStart + offsetTableBytes)
             return exr;
 
-        byte[] commentsAttr = BuildExrStringAttribute("comments", people);
-        byte[] jsonAttr = BuildExrStringAttribute("BasisPeople", json);
-        int delta = commentsAttr.Length + jsonAttr.Length;
+        var attrs = new List<byte[]>();
+        if (!string.IsNullOrEmpty(summary)) attrs.Add(BuildExrStringAttribute("comments", summary));
+        if (meta.HasCaptureInfo)
+        {
+            attrs.Add(BuildExrStringAttribute("capDate", meta.CaptureTimeLocal.ToString("yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture)));
+            attrs.Add(BuildExrStringAttribute("software", "Basis Handheld Camera" + (string.IsNullOrEmpty(meta.AppVersion) ? "" : " " + meta.AppVersion)));
+        }
+        if (meta.HasPhotographer && !string.IsNullOrEmpty(meta.PhotographerName))
+            attrs.Add(BuildExrStringAttribute("owner", meta.PhotographerName));
+        attrs.Add(BuildExrStringAttribute("BasisPeople", json));
+
+        int delta = 0;
+        for (int i = 0; i < attrs.Count; i++) delta += attrs[i].Length;
 
         byte[] result = new byte[exr.Length + delta];
         int o = 0;
         Buffer.BlockCopy(exr, 0, result, o, headerTerminator); o += headerTerminator;
-        Buffer.BlockCopy(commentsAttr, 0, result, o, commentsAttr.Length); o += commentsAttr.Length;
-        Buffer.BlockCopy(jsonAttr, 0, result, o, jsonAttr.Length); o += jsonAttr.Length;
+        for (int i = 0; i < attrs.Count; i++)
+        {
+            Buffer.BlockCopy(attrs[i], 0, result, o, attrs[i].Length);
+            o += attrs[i].Length;
+        }
         Buffer.BlockCopy(exr, headerTerminator, result, o, exr.Length - headerTerminator);
 
         int newOffsetTableStart = offsetTableStart + delta;
@@ -399,7 +926,7 @@ public static class BasisHandHeldCameraPhotoMetadata
     {
         byte[] nameBytes = Encoding.ASCII.GetBytes(name);
         byte[] typeBytes = Encoding.ASCII.GetBytes("string");
-        byte[] valueBytes = Encoding.UTF8.GetBytes(value);
+        byte[] valueBytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
 
         byte[] attr = new byte[nameBytes.Length + 1 + typeBytes.Length + 1 + 4 + valueBytes.Length];
         int p = 0;

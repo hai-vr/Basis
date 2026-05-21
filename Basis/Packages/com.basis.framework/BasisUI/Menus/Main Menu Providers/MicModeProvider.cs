@@ -45,7 +45,7 @@ namespace Basis.BasisUI
 
         public override string Title => BasisLocalization.Get(TitleKey(BasisTalkModeManager.CurrentMode));
         public override string IconAddress => AddressableAssets.Sprites.People;
-        public override int Order => -1; // left of the mute button (Order 0)
+        public override int Order => 5; // right after the mute button (Order 0)
         public override bool Hidden => false;
 
         public override void RunAction()

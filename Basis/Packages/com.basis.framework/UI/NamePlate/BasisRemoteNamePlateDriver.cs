@@ -75,6 +75,9 @@ namespace Basis.Scripts.UI.NamePlate
         public static bool NamePlateHoverMenuOnly = false;
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
+        public static float ChatSize = 1f;
+        private const float ChatNameClearance = 4.5f;
+        private const float ChatBubbleGap = 1.5f;
         private static bool lastMenuOpenState;
         private static bool _initialized;
 
@@ -114,6 +117,7 @@ namespace Basis.Scripts.UI.NamePlate
             NamePlateHoverMenuOnly = BasisSettingsDefaults.NPHoverMenuOnly.RawValue;
             NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
             NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
+            ChatSize = BasisSettingsDefaults.ChatSize.RawValue;
             lastMenuOpenState = BasisMainMenu.Instance != null;
 
             UpdateCachedColors(NamePlateTransparency);
@@ -422,6 +426,7 @@ namespace Basis.Scripts.UI.NamePlate
             NamePlateHoverMenuOnly = hoverMenuOnly;
             NamePlateSize = newSize;
             NamePlateTransparency = newTransparency;
+            ChatSize = BasisSettingsDefaults.ChatSize.RawValue;
 
             UpdateCachedColors(newTransparency);
 
@@ -439,6 +444,7 @@ namespace Basis.Scripts.UI.NamePlate
                 }
 
                 plate.ApplyTalkModeColors();
+                plate.RefreshChatLayout();
             }
 
             SetAllPlateVisibility();
@@ -616,6 +622,19 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 namePlate.ChatBubbleRenderer.material = SelectedNamePlateMaterial;
             }
+
+            float chatScale = NamePlateSize > 0.0001f ? (ChatSize / NamePlateSize) : ChatSize;
+            float localY = ChatNameClearance + ChatBubbleGap + (halfHeight * chatScale);
+            ApplyChatObjectTransform(namePlate.ChatText.transform, chatScale, localY);
+            ApplyChatObjectTransform(namePlate.ChatBubbleFilter.transform, chatScale, localY);
+        }
+
+        private static void ApplyChatObjectTransform(Transform t, float scale, float localY)
+        {
+            t.localScale = new Vector3(scale, scale, scale);
+            Vector3 p = t.localPosition;
+            p.y = localY;
+            t.localPosition = p;
         }
 
         // =========================================================

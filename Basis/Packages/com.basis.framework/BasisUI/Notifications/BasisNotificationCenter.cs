@@ -15,6 +15,10 @@ namespace Basis.BasisUI
     {
         private static readonly List<BasisNotification> _all = new();
 
+        // Oldest entries are trimmed once the list grows past this, so a long session
+        // doesn't accumulate notifications without bound.
+        private const int MaxEntries = 200;
+
         /// <summary>All notifications in insertion order (oldest first).</summary>
         public static IReadOnlyList<BasisNotification> All => _all;
 
@@ -167,6 +171,26 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Trim the oldest entries once the list grows past <see cref="MaxEntries"/>.
+        /// A trimmed entry that is still pending has its callback resolved (declined) so
+        /// the source isn't left waiting on a request we silently dropped.
+        /// </summary>
+        private static void TrimToCap()
+        {
+            while (_all.Count > MaxEntries)
+            {
+                BasisNotification oldest = _all[0];
+                _all.RemoveAt(0);
+                if (oldest.Status == BasisNotificationStatus.Pending)
+                {
+                    Action onDismiss = oldest.OnDismiss;
+                    oldest.OnDismiss = null;
+                    onDismiss?.Invoke();
+                }
+            }
+        }
+
+        /// <summary>
         /// Capture a popup that was closed before being answered. The entry stays
         /// pending until <see cref="Reopen"/> brings the popup back (and it is then
         /// answered) or <see cref="Dismiss"/> drops it.
@@ -190,6 +214,7 @@ namespace Basis.BasisUI
 
             _all.Add(notification);
             _unseen++;
+            TrimToCap();
             Changed?.Invoke();
             return notification;
         }
@@ -219,6 +244,7 @@ namespace Basis.BasisUI
             };
 
             _all.Add(notification);
+            TrimToCap();
             Changed?.Invoke();
             return notification;
         }

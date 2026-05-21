@@ -468,6 +468,13 @@ namespace Basis.Scripts.UI.NamePlate
             }
         }
 
+        internal void RefreshChatLayout()
+        {
+            if (!hasChatMessage) return;
+            if (ChatText == null || ChatBubbleFilter == null) return;
+            BasisRemoteNamePlateDriver.GenerateChatBubble(this);
+        }
+
         public void DeInitalizeCallToRender()
         {
             if (HasRendererCheckWiredUp && BasisRemotePlayer != null && BasisRemotePlayer.FaceRenderer != null)

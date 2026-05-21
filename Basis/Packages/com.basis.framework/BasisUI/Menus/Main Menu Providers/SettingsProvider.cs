@@ -1534,10 +1534,18 @@ namespace Basis.BasisUI
             chatTextField.SetValueWithoutNotify(string.Empty);
             chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
 
-            chatTextField.Descriptor.SetActive(!BasisSettingsDefaults.ChatDisabled.RawValue);
+            PanelSlider sliderChatSize = PanelSlider.CreateEntryAndBind(
+                chatGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.chat.textSize"), 0.5f, 3f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ChatSize);
+
+            bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue;
+            chatTextField.Descriptor.SetActive(chatEnabled);
+            sliderChatSize.Descriptor.SetActive(chatEnabled);
             toggleChatDisabled.OnValueChanged += (val) =>
             {
                 chatTextField.Descriptor.SetActive(!val);
+                sliderChatSize.Descriptor.SetActive(!val);
                 chatGroup.ForceRebuild();
             };
 
@@ -1565,6 +1573,31 @@ namespace Basis.BasisUI
             });
             dropdownPhotoMetadata.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
 
+            PanelToggle togglePhotoPersonDetails = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.personDetails"));
+            togglePhotoPersonDetails.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.personDetails.description"));
+            togglePhotoPersonDetails.AssignBinding(BasisSettingsDefaults.PhotoEmbedPersonDetails);
+
+            PanelToggle togglePhotoCameraSettings = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoCameraSettings.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.cameraSettings"));
+            togglePhotoCameraSettings.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.cameraSettings.description"));
+            togglePhotoCameraSettings.AssignBinding(BasisSettingsDefaults.PhotoEmbedCameraSettings);
+
+            PanelToggle togglePhotoCaptureInfo = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoCaptureInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.captureInfo"));
+            togglePhotoCaptureInfo.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.captureInfo.description"));
+            togglePhotoCaptureInfo.AssignBinding(BasisSettingsDefaults.PhotoEmbedCaptureInfo);
+
+            PanelToggle togglePhotoPhotographer = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photographer"));
+            togglePhotoPhotographer.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photographer.description"));
+            togglePhotoPhotographer.AssignBinding(BasisSettingsDefaults.PhotoEmbedPhotographer);
+
+            PanelToggle togglePhotoWorld = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.world"));
+            togglePhotoWorld.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.world.description"));
+            togglePhotoWorld.AssignBinding(BasisSettingsDefaults.PhotoEmbedWorld);
+
             // Nameplates live in the same tab — formerly its own page, merged here so
             // chat-adjacent presence settings (notifications, name visibility) are colocated.
             SettingsProviderNamePlate.BuildNamePlateContent(container);
@@ -1580,7 +1613,13 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.JoinNotifications.ResetToDefault();
             BasisSettingsDefaults.LeaveNotifications.ResetToDefault();
             BasisSettingsDefaults.ChatDisabled.ResetToDefault();
+            BasisSettingsDefaults.ChatSize.ResetToDefault();
             BasisSettingsDefaults.PhotoMetadataTagging.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedPersonDetails.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedCameraSettings.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedCaptureInfo.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedPhotographer.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedWorld.ResetToDefault();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 
