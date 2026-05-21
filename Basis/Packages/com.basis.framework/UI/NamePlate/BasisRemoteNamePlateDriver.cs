@@ -26,8 +26,8 @@ namespace Basis.Scripts.UI.NamePlate
         // replaced by NamePlateTransparency in UpdateCachedColors, so RGB is what matters.
         public static Color PrivateColor = new Color(0.6078432f, 0.1882353f, 1f, 1f);
         public static Color PrivateTalkColor = new Color(0.8156863f, 0.627451f, 1f, 1f);
-        public static Color DirectColor = new Color(0f, 0.7176471f, 0.7607843f, 1f);
-        public static Color DirectTalkColor = new Color(0.4980392f, 0.9058824f, 0.9333333f, 1f);
+        public static Color DirectColor = new Color(0.12156863f, 0.7490196f, 0.3529412f, 1f);
+        public static Color DirectTalkColor = new Color(0.49803922f, 0.92156863f, 0.6509804f, 1f);
         public static Color ThisPersonColor = new Color(1f, 0.3098039f, 0.627451f, 1f);
         public static Color ThisPersonTalkColor = new Color(1f, 0.6588235f, 0.8156863f, 1f);
         public static Color ShoutColor = new Color(1f, 0.5490196f, 0f, 1f);
