@@ -715,6 +715,8 @@
     { "key": "settings.bodyTracking.hipHingeStart.description", "value": "Forward lean angle past which the pelvis tilts forward to share the bend. Default: 30" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title", "value": "Hip Hinge Max Add (deg)" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.description", "value": "Maximum additional pelvis pitch contributed by the hinge. Default: 15" },
+    { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title", "value": "Move Body Back When Crouching" },
+    { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.description", "value": "Shifts the hips back as the head drops, so a squat or forward bow sits over the feet instead of folding straight down. Multiplies the head's drop distance; 0 disables. Default: 1" },
     { "key": "settings.bodyTracking.chestSpringHz.title", "value": "Chest Spring Hz" },
     { "key": "settings.bodyTracking.chestSpringHz.description", "value": "Spring frequency for the body's lag behind head motion. 0 disables. Default: 12" },
     { "key": "settings.bodyTracking.chestSpringDamping.title", "value": "Chest Spring Damping" },

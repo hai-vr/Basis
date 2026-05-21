@@ -445,6 +445,13 @@ public static class SettingsProviderIK
             if (hipHingeMax != null)
                 hipHingeMax.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.hipHingeMaxAdd.description"));
 
+            var moveBodyBack = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.title"), 0f, 2f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching);
+            if (moveBodyBack != null)
+                moveBodyBack.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.description"));
+
             var chestSpringHz = PanelSlider.CreateAndBind(
                 dynamicsParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestSpringHz.title"), 0f, 30f, false, 1, ValueDisplayMode.Raw),
@@ -789,6 +796,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKUpperChestBendRoll.ResetToDefault();
         BasisSettingsDefaults.FBIKHipHingeStartDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringDamping.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisPitchGainDeg.ResetToDefault();

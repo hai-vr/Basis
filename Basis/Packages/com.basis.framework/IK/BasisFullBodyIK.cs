@@ -328,6 +328,7 @@ namespace UnityEngine.Animations.Rigging
         // Squish coupling: scales per-axis bend weights by the head-to-hips compression ratio so
         // the spine folds more when crouched and straightens when reaching up. 0 disables.
         [SyncSceneToStream, SerializeField, Range(0f, 2f)] float m_SpineSquishBoost;
+        [SyncSceneToStream, SerializeField, Range(0f, 2f)] float m_MoveBodyBackWhenCrouching;
         // Arm-swing chest follow: when hand targets shift laterally, the chest yaws to follow so
         // gestures and walking arm-swing don't read as a stiff torso. Only used without a chest
         // tracker — when one is present, it owns chest rotation directly.
@@ -508,6 +509,7 @@ namespace UnityEngine.Animations.Rigging
         public float SpineMaxBackwardDeg { get => m_SpineMaxBackwardDeg; set => m_SpineMaxBackwardDeg = value; }
         public float SpineMaxLateralDeg { get => m_SpineMaxLateralDeg; set => m_SpineMaxLateralDeg = value; }
         public float SpineSquishBoost { get => m_SpineSquishBoost; set => m_SpineSquishBoost = value; }
+        public float MoveBodyBackWhenCrouching { get => m_MoveBodyBackWhenCrouching; set => m_MoveBodyBackWhenCrouching = value; }
         public float ChestArmSwingFactor { get => m_ChestArmSwingFactor; set => m_ChestArmSwingFactor = value; }
         public float ChestArmSwingMaxDeg { get => m_ChestArmSwingMaxDeg; set => m_ChestArmSwingMaxDeg = value; }
         public float LowerArmTwistFraction { get => m_LowerArmTwistFraction; set => m_LowerArmTwistFraction = value; }
@@ -530,6 +532,7 @@ namespace UnityEngine.Animations.Rigging
         public string SpineMaxBackwardDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxBackwardDeg));
         public string SpineMaxLateralDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxLateralDeg));
         public string SpineSquishBoostFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineSquishBoost));
+        public string MoveBodyBackWhenCrouchingFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MoveBodyBackWhenCrouching));
         public string ChestArmSwingFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingFactor));
         public string ChestArmSwingMaxDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingMaxDeg));
         public string LowerArmTwistFractionFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LowerArmTwistFraction));
@@ -634,6 +637,7 @@ namespace UnityEngine.Animations.Rigging
             m_SpineMaxBackwardDeg = 25f;
             m_SpineMaxLateralDeg = 25f;
             m_SpineSquishBoost = 0.5f;
+            m_MoveBodyBackWhenCrouching = 1f;
             m_ChestArmSwingFactor = 0.3f;
             m_ChestArmSwingMaxDeg = 15f;
             m_LowerArmTwistFraction = 0.5f;
@@ -940,6 +944,7 @@ w20, w54;
         public FloatProperty chestSpringHz, chestSpringDamping;
         public FloatProperty spineMaxForwardDeg, spineMaxBackwardDeg, spineMaxLateralDeg;
         public FloatProperty spineSquishBoost;
+        public FloatProperty moveBodyBackWhenCrouching;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
@@ -1081,6 +1086,7 @@ w20, w54;
                     break;
             }
 
+            hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up);
             targetPositionHips.Set(stream, hipsTargetPos);
 
             hipDesired = ApplyHipHinge(stream, headTargetPos, hipsTargetPos, hipDesired, up);
@@ -1487,6 +1493,32 @@ w20, w54;
 
             hingeAxis.Normalize();
             return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
+        }
+        Vector3 ApplyCrouchBodyOffset(AnimationStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir)
+        {
+            float factor = moveBodyBackWhenCrouching.Get(stream);
+            if (factor <= 0f || !HandleHead.IsValid(stream))
+            {
+                return hipsPos;
+            }
+
+            Vector3 up = playerUpDir.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUpDir.normalized;
+
+            // Positive when the head target sits below where the animated pose puts the head.
+            float drop = Vector3.Dot(HandleHead.GetPosition(stream) - headTargetPos, up);
+            if (drop <= 0f)
+            {
+                return hipsPos;
+            }
+
+            Vector3 forward = hipsRot * Vector3.forward;
+            forward -= up * Vector3.Dot(forward, up);
+            if (forward.sqrMagnitude < k_SqrEpsilon)
+            {
+                return hipsPos;
+            }
+
+            return hipsPos - forward.normalized * (drop * factor);
         }
         void ApplyCervicalLordosis(AnimationStream stream)
         {
@@ -2748,6 +2780,7 @@ w20, w54;
                 spineMaxBackwardDeg = FloatProperty.Bind(animator, component, data.SpineMaxBackwardDegFloatProperty),
                 spineMaxLateralDeg = FloatProperty.Bind(animator, component, data.SpineMaxLateralDegFloatProperty),
                 spineSquishBoost = FloatProperty.Bind(animator, component, data.SpineSquishBoostFloatProperty),
+                moveBodyBackWhenCrouching = FloatProperty.Bind(animator, component, data.MoveBodyBackWhenCrouchingFloatProperty),
                 chestArmSwingFactor = FloatProperty.Bind(animator, component, data.ChestArmSwingFactorFloatProperty),
                 chestArmSwingMaxDeg = FloatProperty.Bind(animator, component, data.ChestArmSwingMaxDegFloatProperty),
                 lowerArmTwistFraction = FloatProperty.Bind(animator, component, data.LowerArmTwistFractionFloatProperty),
