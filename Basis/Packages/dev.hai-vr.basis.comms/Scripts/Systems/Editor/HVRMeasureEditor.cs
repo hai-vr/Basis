@@ -58,18 +58,8 @@ namespace HVR.Basis.Comms.Editor
             }
             if (my.measurementType == HVRMeasureType.Raycast)
             {
-                if (my.target == null)
-                {
-                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.raycastDirection)));
-                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.raycastMaximumDistance)));
-                }
-                else
-                {
-                    EditorGUI.BeginDisabledGroup(true);
-                    EditorGUILayout.TextField(ObjectNames.NicifyVariableName(nameof(HVRMeasure.raycastDirection)), IrrelevantLabel);
-                    EditorGUILayout.TextField(ObjectNames.NicifyVariableName(nameof(HVRMeasure.raycastMaximumDistance)), IrrelevantLabel);
-                    EditorGUI.EndDisabledGroup();
-                }
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.raycastDirection)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.raycastMaximumDistance)));
 
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.raycastIsSpherecast)), new GUIContent(IsSpherecastLabel));
                 if (my.raycastIsSpherecast)
@@ -87,7 +77,7 @@ namespace HVR.Basis.Comms.Editor
                 }
             }
 
-            if (my.measurementType == HVRMeasureType.Speed)
+            if (my.measurementType == HVRMeasureType.Speed || my.measurementType == HVRMeasureType.Raycast)
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.source)));
             }
@@ -105,10 +95,10 @@ namespace HVR.Basis.Comms.Editor
 
             if (my.measurementType != HVRMeasureType.Angle || my.measurementType != HVRMeasureType.RotationDifference)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.spaceReference)));
-                if (my.spaceReference == null)
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.space)));
+                if (my.space == HVRMeasureSpace.Custom)
                 {
-                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.space)));
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRMeasure.spaceReference)));
                 }
             }
 

@@ -61,6 +61,11 @@ namespace HVR.Basis.Comms
 
         public void PruneUnusedReferences()
         {
+            if (space != HVRMeasureSpace.Custom)
+            {
+                spaceReference = null;
+            }
+
             if (measurementType != HVRMeasureType.Angle && measurementType != HVRMeasureType.RotationDifference)
             {
                 // Angles do not differ based on space.
@@ -156,7 +161,7 @@ namespace HVR.Basis.Comms
         {
             if (_comms == null) return;
 
-            var actualMeasurementSpaceOrNull = spaceReference != null
+            var actualMeasurementSpaceOrNull = space == HVRMeasureSpace.Custom && spaceReference != null
                 ? spaceReference
                 : space == HVRMeasureSpace.ContextSpace
                 ? _contextObject
@@ -377,6 +382,7 @@ namespace HVR.Basis.Comms
     {
         ContextSpace,
         WorldSpace,
+        Custom,
     }
 
     [Serializable]
