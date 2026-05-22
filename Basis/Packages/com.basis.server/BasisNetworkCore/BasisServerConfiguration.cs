@@ -86,6 +86,12 @@ public class Configuration
     /// </summary>
     public bool AdditionalAvatarDataLock = false;
     /// <summary>
+    /// Per-category bitmask of camera photo-metadata embedding categories disallowed for all
+    /// clients. 0 = everything allowed (default). Seeds BasisGlobalLockManager at boot and is
+    /// broadcast to clients in GlobalGetLockState.
+    /// </summary>
+    public byte CameraMetadataDisallowMask = 0;
+    /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath.
     /// Also loads per-transport config sidecars from <c>{configDir}/transports/{stackId}.xml</c>.
     /// </summary>

@@ -183,6 +183,8 @@ public partial class BasisEventDriver : MonoBehaviour
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
             TimeAsDouble = Time.timeAsDouble;
 
+            BasisFrameClock.Tick(unscaledDeltaTime);
+
             if (BasisLocalPlayer.PlayerReady)
             {
                 BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate(DeltaTime);

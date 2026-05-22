@@ -403,6 +403,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         captureCamera.Render();
 
+        BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata = BasisHandHeldCameraPhotoMetadata.CollectMetadata(captureCamera, transform);
+
         EnsureTexturePool(renderTexture.width, renderTexture.height, TextureFormat);
 
         AsyncGPUReadback.Request(renderTexture, 0, request =>
@@ -419,7 +421,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             pooledScreenshot.Apply(false);
 
             SetNormalAfterCapture();
-            SaveScreenshotAsync(pooledScreenshot);
+            SaveScreenshotAsync(pooledScreenshot, photoMetadata);
         });
     }
 
@@ -575,6 +577,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             actualMaterial.mainTexture = renderTexture;
             actualMaterial.SetTexture("_MainTex", renderTexture);
         }
+
+        VisibilityFlag(Renderer != null && Renderer.isVisible);
     }
 
     /// <summary>UI callback to toggle recording view and apply <see cref="OverrideDesktopOutput"/>.</summary>
@@ -587,7 +591,9 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// Encodes and writes the screenshot to disk asynchronously using the selected format.
     /// </summary>
     /// <param name="screenshot">CPU-side texture to encode.</param>
-    public async void SaveScreenshotAsync(Texture2D screenshot)
+    public void SaveScreenshotAsync(Texture2D screenshot) => SaveScreenshotAsync(screenshot, null);
+
+    public async void SaveScreenshotAsync(Texture2D screenshot, BasisHandHeldCameraPhotoMetadata.PhotoMetadata photoMetadata)
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string extension = captureFormat == "EXR" ? "exr" : "png";
@@ -597,6 +603,9 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         byte[] imageData = captureFormat == "EXR"
             ? screenshot.EncodeToEXR(Texture2D.EXRFlags.CompressZIP)
             : screenshot.EncodeToPNG();
+
+        if (photoMetadata != null)
+            imageData = BasisHandHeldCameraPhotoMetadata.Embed(imageData, captureFormat, photoMetadata, screenshot.width, screenshot.height);
 
         await File.WriteAllBytesAsync(path, imageData);
     }
@@ -688,21 +697,14 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void VisibilityFlag(bool isVisible)
     {
-        if (!isVisible)
-        {
-            if (LastVisibilityState && BasisLocalPlayer.Instance != null)
-            {
-                captureCamera.enabled = false;
-                LastVisibilityState = false;
-            }
-        }
-        else
-        {
-            if (!LastVisibilityState && BasisLocalPlayer.Instance != null)
-            {
-                captureCamera.enabled = true;
-                LastVisibilityState = true;
-            }
-        }
+        if (BasisLocalPlayer.Instance == null)
+            return;
+
+        bool shouldRender = isVisible || IsOverridingDesktopView;
+        if (shouldRender == LastVisibilityState)
+            return;
+
+        captureCamera.enabled = shouldRender;
+        LastVisibilityState = shouldRender;
     }
 }

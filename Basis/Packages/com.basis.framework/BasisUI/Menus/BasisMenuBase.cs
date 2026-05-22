@@ -102,37 +102,45 @@ namespace Basis.BasisUI
             string description,
             string accept,
             string deny,
-            Action<bool> callback)
+            Action<bool> callback,
+            bool divertible = false)
         {
-            if (Dialogue)
+            bool route = divertible && BasisNotificationCenter.RouteToNotifications;
+            if (!route && Dialogue)
             {
                 BasisDebug.LogWarning("An existing Dialogue window is already active.");
                 return;
             }
 
-            Dialogue = BasisMenuDialoguePanel.CreateNew(title,
+            BasisMenuDialoguePanel created = BasisMenuDialoguePanel.CreateNew(title,
                 description,
                 accept,
                 deny,
-                callback);
+                callback,
+                divertible);
+            if (!route) Dialogue = created;
         }
 
         public void OpenDialogue(
             string title,
             string description,
             string accept,
-            Action<bool> callback)
+            Action<bool> callback,
+            bool divertible = false)
         {
-            if (Dialogue)
+            bool route = divertible && BasisNotificationCenter.RouteToNotifications;
+            if (!route && Dialogue)
             {
                 BasisDebug.LogWarning("An existing Dialogue window is already active.");
                 return;
             }
 
-            Dialogue = BasisMenuDialoguePanel.CreateNew(title,
+            BasisMenuDialoguePanel created = BasisMenuDialoguePanel.CreateNew(title,
                 description,
                 accept,
-                callback);
+                callback,
+                divertible);
+            if (!route) Dialogue = created;
         }
     }
 }

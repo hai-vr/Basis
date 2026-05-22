@@ -38,6 +38,7 @@ namespace Basis.BasisUI
 
             public static string Microphone = "Packages/com.basis.sdk/Textures/Runtime/microphone-solid.png";
             public static string MicrophoneMute = "Packages/com.basis.sdk/Textures/Runtime/microphone-mute-solid.png";
+            public static string People = "Packages/com.basis.sdk/Textures/Runtime/people-outline.png";
 
             // embedded items
             public static string Embedded = "Packages/com.basis.sdk/Textures/Runtime/embedded.png";

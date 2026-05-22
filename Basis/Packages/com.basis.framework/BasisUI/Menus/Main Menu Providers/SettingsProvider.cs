@@ -1,4 +1,5 @@
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Network.Core;
 using BasisNetworkClient;
@@ -77,7 +78,7 @@ namespace Basis.BasisUI
         public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Settings;
-        public override int Order => 0;
+        public override int Order => 10;
         public override bool Hidden => false;
 
         /// <summary>
@@ -470,20 +471,33 @@ namespace Basis.BasisUI
             networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
             networkingGroup.SetDescription(BasisLocalization.Get("settings.general.networking.description"));
 
-            PanelDropdown dropdownP2PRate = PanelDropdown.CreateNewEntry(networkingGroup.ContentParent);
-            dropdownP2PRate.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.p2pAvatarRate"));
-            dropdownP2PRate.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"));
-            dropdownP2PRate.AssignEntries(new List<string>
+            PanelSlider sliderP2PRate = PanelSlider.CreateEntryAndBind(
+                networkingGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.general.networking.p2pAvatarRate"),
+                    BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"),
+                    BasisP2PManager.MinAvatarSyncHz, BasisP2PManager.MaxAvatarSyncHz, true, 0, ValueDisplayMode.Hz),
+                BasisSettingsDefaults.P2PAvatarSyncRate);
+
+            PanelElementDescriptor p2pRateWarning = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
+            p2pRateWarning.SetTitle(string.Empty);
+            if (p2pRateWarning.HasDescription)
             {
-                BasisP2PManager.P2PRate_144Hz,
-                BasisP2PManager.P2PRate_120Hz,
-                BasisP2PManager.P2PRate_90Hz,
-                BasisP2PManager.P2PRate_72Hz,
-                BasisP2PManager.P2PRate_60Hz,
-                BasisP2PManager.P2PRate_30Hz,
-                BasisP2PManager.P2PRate_20Hz,
-            });
-            dropdownP2PRate.AssignBinding(BasisSettingsDefaults.P2PAvatarSyncRate);
+                p2pRateWarning.DescriptionLabel.color = new Color(1f, 0.78f, 0.28f);
+            }
+            p2pRateWarning.SetActive(false);
+
+            _avatarRateSlider = sliderP2PRate;
+            _avatarRateWarning = p2pRateWarning;
+            _avatarRateLastFps = -1;
+            _avatarRateLastRate = -1;
+            _avatarRateWarnShown = false;
+            if (!_avatarRateTickSubscribed)
+            {
+                BasisFrameClock.OnTick += UpdateAvatarRateWarning;
+                _avatarRateTickSubscribed = true;
+            }
 
             PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
             toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
@@ -509,6 +523,22 @@ namespace Basis.BasisUI
             toggleDisableDirectConn.AssignBinding(BasisSettingsDefaults.DisableDirectConnections);
             toggleDisableDirectConn.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.disableDirectConnections"));
             toggleDisableDirectConn.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.disableDirectConnections.description"));
+
+            PanelElementDescriptor encryptionInfo = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
+            encryptionInfo.SetTitle(BasisLocalization.Get("settings.general.networking.encryption.title"));
+            encryptionInfo.SetDescription(BuildEncryptionStatusText());
+        }
+
+        private static string BuildEncryptionStatusText()
+        {
+            string serverStatus = BasisLocalization.Get("settings.general.networking.encryption.serverOff");
+            string p2pStatus = BasisSettingsDefaults.DisableDirectConnections.RawValue
+                ? BasisLocalization.Get("settings.general.networking.encryption.p2pDisabled")
+                : BasisLocalization.Get("settings.general.networking.encryption.p2pOn");
+
+            return BasisLocalization.Get("settings.general.networking.encryption.serverLabel") + ": " + serverStatus + "\n"
+                 + BasisLocalization.Get("settings.general.networking.encryption.p2pLabel") + ": " + p2pStatus;
         }
 
         private static void ResetGeneralDefaults()
@@ -519,6 +549,52 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
             BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
+        }
+
+        private static PanelSlider _avatarRateSlider;
+        private static PanelElementDescriptor _avatarRateWarning;
+        private static bool _avatarRateTickSubscribed;
+        private static int _avatarRateLastFps = -1;
+        private static int _avatarRateLastRate = -1;
+        private static bool _avatarRateWarnShown;
+
+        private static void UpdateAvatarRateWarning()
+        {
+            PanelElementDescriptor warning = _avatarRateWarning;
+            if (warning == null)
+            {
+                BasisFrameClock.OnTick -= UpdateAvatarRateWarning;
+                _avatarRateTickSubscribed = false;
+                return;
+            }
+            if (_avatarRateSlider == null || !_avatarRateSlider.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            int fps = Mathf.RoundToInt(BasisFrameClock.SmoothedFramesPerSecond);
+            int rate = Mathf.RoundToInt(BasisSettingsDefaults.P2PAvatarSyncRate.RawValue);
+            bool insufficient = fps > 0 && rate > Mathf.RoundToInt(fps * 1.02f);
+
+            if (!insufficient)
+            {
+                if (_avatarRateWarnShown)
+                {
+                    _avatarRateWarnShown = false;
+                    warning.SetActive(false);
+                }
+                return;
+            }
+
+            if (_avatarRateWarnShown && fps == _avatarRateLastFps && rate == _avatarRateLastRate)
+            {
+                return;
+            }
+            _avatarRateWarnShown = true;
+            _avatarRateLastFps = fps;
+            _avatarRateLastRate = rate;
+            warning.SetActive(true);
+            warning.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", fps, rate));
         }
 
         // ------------------
@@ -1505,7 +1581,14 @@ namespace Basis.BasisUI
             chatTextField._inputField.onValueChanged.AddListener(OnChatMessageChanged);
             ApplyPendingChatComposerRequest();
 
-            chatTextField.Descriptor.SetActive(!BasisSettingsDefaults.ChatDisabled.RawValue);
+            PanelSlider sliderChatSize = PanelSlider.CreateEntryAndBind(
+                chatGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.chat.textSize"), 0.5f, 3f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ChatSize);
+
+            bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue;
+            chatTextField.Descriptor.SetActive(chatEnabled);
+            sliderChatSize.Descriptor.SetActive(chatEnabled);
             toggleChatDisabled.OnValueChanged += (val) =>
             {
                 chatTextField.Descriptor.SetActive(!val);
@@ -1513,6 +1596,7 @@ namespace Basis.BasisUI
                 {
                     BasisNetworkHandleChatTyping.SendTypingState(false);
                 }
+                sliderChatSize.Descriptor.SetActive(!val);
                 chatGroup.ForceRebuild();
             };
 
@@ -1541,6 +1625,46 @@ namespace Basis.BasisUI
                 }
             }
 
+            PanelElementDescriptor cameraGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            cameraGroup.SetTitle(BasisLocalization.Get("settings.chat.camera.title"));
+            cameraGroup.SetDescription(BasisLocalization.Get("settings.chat.camera.description"));
+
+            PanelDropdown dropdownPhotoMetadata = PanelDropdown.CreateNewEntry(cameraGroup);
+            dropdownPhotoMetadata.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
+            dropdownPhotoMetadata.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photoMetadata.description"));
+            dropdownPhotoMetadata.AssignEntries(new List<string>
+            {
+                BasisSettingsDefaults.PhotoTagging_NoOne,
+                BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
+                BasisSettingsDefaults.PhotoTagging_JustMe
+            });
+            dropdownPhotoMetadata.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
+
+            PanelToggle togglePhotoPersonDetails = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.personDetails"));
+            togglePhotoPersonDetails.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.personDetails.description"));
+            togglePhotoPersonDetails.AssignBinding(BasisSettingsDefaults.PhotoEmbedPersonDetails);
+
+            PanelToggle togglePhotoCameraSettings = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoCameraSettings.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.cameraSettings"));
+            togglePhotoCameraSettings.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.cameraSettings.description"));
+            togglePhotoCameraSettings.AssignBinding(BasisSettingsDefaults.PhotoEmbedCameraSettings);
+
+            PanelToggle togglePhotoCaptureInfo = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoCaptureInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.captureInfo"));
+            togglePhotoCaptureInfo.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.captureInfo.description"));
+            togglePhotoCaptureInfo.AssignBinding(BasisSettingsDefaults.PhotoEmbedCaptureInfo);
+
+            PanelToggle togglePhotoPhotographer = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photographer"));
+            togglePhotoPhotographer.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photographer.description"));
+            togglePhotoPhotographer.AssignBinding(BasisSettingsDefaults.PhotoEmbedPhotographer);
+
+            PanelToggle togglePhotoWorld = PanelToggle.CreateNewEntry(cameraGroup);
+            togglePhotoWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.world"));
+            togglePhotoWorld.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.world.description"));
+            togglePhotoWorld.AssignBinding(BasisSettingsDefaults.PhotoEmbedWorld);
+
             // Nameplates live in the same tab — formerly its own page, merged here so
             // chat-adjacent presence settings (notifications, name visibility) are colocated.
             SettingsProviderNamePlate.BuildNamePlateContent(container);
@@ -1556,6 +1680,13 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.JoinNotifications.ResetToDefault();
             BasisSettingsDefaults.LeaveNotifications.ResetToDefault();
             BasisSettingsDefaults.ChatDisabled.ResetToDefault();
+            BasisSettingsDefaults.ChatSize.ResetToDefault();
+            BasisSettingsDefaults.PhotoMetadataTagging.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedPersonDetails.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedCameraSettings.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedCaptureInfo.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedPhotographer.ResetToDefault();
+            BasisSettingsDefaults.PhotoEmbedWorld.ResetToDefault();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 

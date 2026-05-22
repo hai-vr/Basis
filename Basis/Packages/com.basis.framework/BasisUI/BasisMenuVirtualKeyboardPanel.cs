@@ -113,6 +113,9 @@ namespace Basis.BasisUI
         public bool IsCapital;
         public LanguageStyle CurrentLanguageStyle;
 
+        private static string _preferredLanguage;
+        private static string _preferredStyle;
+
         public InputField InputField;
         public TMP_InputField TMPInputField;
 
@@ -268,7 +271,7 @@ namespace Basis.BasisUI
             CreateHeaderRow();
             CreateKeyboardArea();
 
-            var (language, style) = DetectLocaleLayout();
+            var (language, style) = ResolveInitialLayout();
             BuildLayoutInternal(language, style);
 
             UpdateDisplay();
@@ -404,6 +407,56 @@ namespace Basis.BasisUI
             return ("English", "QWERTY");
         }
 
+        private (string Language, string Style) ResolveInitialLayout()
+        {
+            if (!string.IsNullOrEmpty(_preferredLanguage) && LayoutExists(_preferredLanguage, _preferredStyle))
+            {
+                return (_preferredLanguage, _preferredStyle);
+            }
+            return DetectLocaleLayout();
+        }
+
+        private bool LayoutExists(string language, string style)
+        {
+            if (!LayoutData || LayoutData.languagesAndStyles == null) return false;
+            List<LanguageStyle> list = LayoutData.languagesAndStyles;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] != null && list[i].language == language && list[i].style == style)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void CycleLanguage()
+        {
+            if (!LayoutData || LayoutData.languagesAndStyles == null) return;
+            List<LanguageStyle> list = LayoutData.languagesAndStyles;
+            if (list.Count == 0) return;
+
+            int current = -1;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] != null && list[i].language == SelectedLanguage && list[i].style == SelectedStyle)
+                {
+                    current = i;
+                    break;
+                }
+            }
+
+            int next = (current + 1) % list.Count;
+            LanguageStyle pick = list[next];
+            if (pick == null) return;
+
+            _preferredLanguage = pick.language;
+            _preferredStyle = pick.style;
+
+            BuildLayoutInternal(pick.language, pick.style);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+        }
+
         private void CreateKeyboardArea()
         {
             KeyboardArea = new GameObject("Keyboard Area");
@@ -478,8 +531,12 @@ namespace Basis.BasisUI
             string enterLabel = BasisLocalization.Get(EnterKey);
             string closeLabel = BasisLocalization.Get(CloseKey);
 
-            // Order: Caps (modifier, leftmost) | Space (dominant) |
+            // Order: Language, Caps (modifiers, leftmost) | Space (dominant) |
             // Delete, Copy, Paste, Enter, Close (action keys, right-aligned)
+            AddKey(_functionRow.transform, SelectedLanguage,
+                BasisVirtualKeyboardSpecialKey.IsLanguageKey,
+                PanelButton.ButtonStyles.StandardButton, ModifierWeight);
+
             AddKey(_functionRow.transform, capsLabel,
                 BasisVirtualKeyboardSpecialKey.IsCaseSwitchKey,
                 PanelButton.ButtonStyles.StandardButton, ModifierWeight);
@@ -633,13 +690,21 @@ namespace Basis.BasisUI
             switch (entry.Special)
             {
                 case BasisVirtualKeyboardSpecialKey.IsCloseKey:
+                    ReleaseInstance();
+                    return;
+
                 case BasisVirtualKeyboardSpecialKey.IsEnterKey:
+                    SubmitTarget();
                     ReleaseInstance();
                     return;
 
                 case BasisVirtualKeyboardSpecialKey.IsCaseSwitchKey:
                     IsCapital = !IsCapital;
                     ApplyCase();
+                    return;
+
+                case BasisVirtualKeyboardSpecialKey.IsLanguageKey:
+                    CycleLanguage();
                     return;
 
                 case BasisVirtualKeyboardSpecialKey.IsDeleteKey:
@@ -694,6 +759,21 @@ namespace Basis.BasisUI
             if (InputField)
             {
                 InputField.text += value;
+            }
+        }
+
+        private void SubmitTarget()
+        {
+            if (TMPInputField)
+            {
+                string text = TMPInputField.text;
+                TMPInputField.onSubmit?.Invoke(text);
+                TMPInputField.onEndEdit?.Invoke(text);
+                return;
+            }
+            if (InputField)
+            {
+                InputField.onEndEdit?.Invoke(InputField.text);
             }
         }
 

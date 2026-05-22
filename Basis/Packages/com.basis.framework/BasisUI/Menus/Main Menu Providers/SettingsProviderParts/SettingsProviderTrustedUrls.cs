@@ -11,6 +11,34 @@ public static class SettingsProviderTrustedUrls
         infoGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.title"));
         infoGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.description"));
 
+        PanelElementDescriptor addGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        addGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.title"));
+        addGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.add.description"));
+
+        PanelTextField addField = PanelTextField.CreateNewEntry(addGroup.ContentParent);
+        addField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.field"));
+
+        PanelButton addButton = PanelButton.CreateNew(addGroup.ContentParent);
+        addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.button"));
+        addButton.OnClicked += () =>
+        {
+            string candidate = addField.Value?.Trim();
+            if (string.IsNullOrEmpty(candidate)) return;
+            if (!candidate.StartsWith("https://"))
+            {
+                BasisMainMenu.Instance.OpenDialogue(
+                    BasisLocalization.Get("settings.trustedUrls.add.invalid.title"),
+                    BasisLocalization.Get("settings.trustedUrls.add.invalid.https"),
+                    BasisLocalization.Get("ui.ok"),
+                    _ => { });
+                return;
+            }
+            BasisTrustedUrls.Add(candidate);
+            BasisMainMenu.Close();
+            SettingsProvider.OpenToTab(ownerTabKey);
+        };
+
         List<string> urls = BasisTrustedUrls.GetAll();
 
         if (urls.Count == 0)

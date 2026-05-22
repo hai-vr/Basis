@@ -2,7 +2,8 @@
     "name": "BasisNetworkCore",
     "rootNamespace": "",
     "references": [
-        "LiteNetLib"
+        "LiteNetLib",
+        "Crypto"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

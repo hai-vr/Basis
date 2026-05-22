@@ -25,7 +25,7 @@ namespace Basis.BasisUI
         public static string TitleStatic => BasisLocalization.Get(TitleKey);
         public override string Title => TitleStatic;
         public override string IconAddress => AddressableAssets.Sprites.Servers;
-        public override int Order => 3;
+        public override int Order => 30;
         public override bool Hidden => false;
 
         public static string UsernameFileName = "CachedUserName.BAS";

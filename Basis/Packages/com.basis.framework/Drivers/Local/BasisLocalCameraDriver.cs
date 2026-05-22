@@ -320,6 +320,7 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio += microphoneIconDriver.MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
                 BasisNetworkModeration.OnShoutModeChanged += OnShoutModeChangedForIcon;
+                Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged += microphoneIconDriver.OnTalkModeChanged;
 #else
                 ParentOfUI.gameObject.SetActive(false);
 #endif
@@ -387,6 +388,7 @@ namespace Basis.Scripts.Drivers
 #if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= microphoneIconDriver.OnPausedEvent;
             BasisNetworkModeration.OnShoutModeChanged -= OnShoutModeChangedForIcon;
+            Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged -= microphoneIconDriver.OnTalkModeChanged;
 #endif
             HasEvents = false;
             HasInstance = false;
@@ -410,6 +412,7 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio -= microphoneIconDriver.MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence -= microphoneIconDriver.MicrophoneNotTransmitting;
                 BasisNetworkModeration.OnShoutModeChanged -= OnShoutModeChangedForIcon;
+                Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged -= microphoneIconDriver.OnTalkModeChanged;
 #endif
                 HasEvents = false;
             }

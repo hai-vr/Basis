@@ -1,6 +1,7 @@
 using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.UI.NamePlate;
 using System;
@@ -70,6 +71,37 @@ namespace Basis.Scripts.BasisSdk.Players
         /// (block, range, visibility settings).
         /// </summary>
         public Action OnNamePlateActiveStateShouldRefresh;
+
+        /// <summary>
+        /// This player's current outgoing talk mode, used to color their nameplate.
+        /// Driven from the network by <see cref="BasisTalkModeManager"/>.
+        /// </summary>
+        public BasisTalkMode TalkMode = BasisTalkMode.Normal;
+
+        /// <summary>
+        /// Fired when <see cref="TalkMode"/> changes so the nameplate can recolor.
+        /// </summary>
+        public Action OnTalkModeChanged;
+
+        public void SetTalkMode(BasisTalkMode mode)
+        {
+            if (TalkMode == mode) return;
+            TalkMode = mode;
+            OnTalkModeChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Whether this player has muted their own microphone. Driven from the network
+        /// by <see cref="BasisTalkModeManager"/> and shown on the nameplate.
+        /// </summary>
+        public bool IsSelfMuted;
+
+        public void SetSelfMuted(bool muted)
+        {
+            if (IsSelfMuted == muted) return;
+            IsSelfMuted = muted;
+            OnTalkModeChanged?.Invoke();
+        }
 
         /// <summary>
         /// Fired during <see cref="OnDestroy"/> so attached subsystems can tear themselves

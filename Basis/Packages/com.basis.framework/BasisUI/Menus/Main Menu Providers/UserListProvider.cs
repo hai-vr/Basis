@@ -26,7 +26,7 @@ namespace Basis.BasisUI
         public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Avatars;
-        public override int Order => 4;
+        public override int Order => 40;
         public override bool Hidden => !BasisNetworkConnection.LocalPlayerIsConnected;
 
         private UserListController _controller;

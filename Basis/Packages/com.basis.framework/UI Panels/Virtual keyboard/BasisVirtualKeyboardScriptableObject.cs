@@ -64,5 +64,6 @@ public enum BasisVirtualKeyboardSpecialKey
     IsCloseKey,
     IsPasteKey,
     IsCopyKey,
+    IsLanguageKey,
 }
 }

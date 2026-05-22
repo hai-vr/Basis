@@ -32,6 +32,13 @@ namespace BasisNetworkServer
                 case BasisNetworkCommons.EventType_PlayerChatTyping:
                     BasisNetworkHandleChatTyping.HandleEvent(reader, peer, eventType);
                     break;
+                case BasisNetworkCommons.EventType_TalkModeChanged:
+                    HandleTalkModeChanged(reader, peer, eventType);
+                    break;
+
+                case BasisNetworkCommons.EventType_MuteStateChanged:
+                    HandleMuteStateChanged(reader, peer, eventType);
+                    break;
 
                 default:
                     BNL.LogError($"Unknown EventsChannel event type: {eventType}");
@@ -70,6 +77,42 @@ namespace BasisNetworkServer
             writer.Put(eventType);
             writer.Put(senderId);
             writer.Put(intervalMs);
+
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        // Wire (in):  [eventType:1][modeByte:1]
+        // Wire (out): [eventType:1][senderId:2][modeByte:1]
+        private static void HandleTalkModeChanged(NetPacketReader reader, NetPeer peer, byte eventType)
+        {
+            byte mode = reader.GetByte();
+            reader.Recycle();
+
+            ushort senderId = (ushort)peer.Id;
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(eventType);
+            writer.Put(senderId);
+            writer.Put(mode);
+
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        // Wire (in):  [eventType:1][muted:1]
+        // Wire (out): [eventType:1][senderId:2][muted:1]
+        private static void HandleMuteStateChanged(NetPacketReader reader, NetPeer peer, byte eventType)
+        {
+            byte muted = reader.GetByte();
+            reader.Recycle();
+
+            ushort senderId = (ushort)peer.Id;
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(eventType);
+            writer.Put(senderId);
+            writer.Put(muted);
 
             NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);

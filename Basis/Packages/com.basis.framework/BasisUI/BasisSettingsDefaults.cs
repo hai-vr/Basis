@@ -485,7 +485,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneMode = new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
-        public static BasisSettingsBinding<string> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<string>("60 Hz"));
+        public static BasisSettingsBinding<float> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<float>(60));
 
         public static BasisSettingsBinding<bool> DisableDirectConnections = new("disabledirectconnections", new BasisPlatformDefault<bool>(false));
 
@@ -544,6 +544,20 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FalseBinding = new("falsebinding", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> TrueBinding = new("truebinding", new BasisPlatformDefault<bool>(false));
+
+        // ---------------- CAMERA / PHOTO ----------------
+        public const string PhotoTagging_NoOne = "No One";
+        public const string PhotoTagging_EveryoneInPhoto = "Everyone In Photo";
+        public const string PhotoTagging_JustMe = "Just Me";
+
+        public static BasisSettingsBinding<string> PhotoMetadataTagging = new("photometadatatagging", new BasisPlatformDefault<string>(PhotoTagging_NoOne));
+
+        // Additional photo metadata, all opt-in (off by default).
+        public static BasisSettingsBinding<bool> PhotoEmbedCameraSettings = new("photoembedcamerasettings", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PhotoEmbedCaptureInfo = new("photoembedcaptureinfo", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PhotoEmbedPhotographer = new("photoembedphotographer", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PhotoEmbedWorld = new("photoembedworld", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PhotoEmbedPersonDetails = new("photoembedpersondetails", new BasisPlatformDefault<bool>(false));
 
         // ---------------- GLOBAL ONE EURO PARAMS ----------------
         public static BasisSettingsBinding<float> FBIKMinCutoff = new("fbikmincutoff", new BasisPlatformDefault<float>(5.5f));
@@ -943,6 +957,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSpineMaxLateralDeg = new("fbikspinemaxlateraldeg", new BasisPlatformDefault<float>(25f));
         // Spine relax: squish-driven bend coupling
         public static BasisSettingsBinding<float> FBIKSpineSquishBoost = new("fbikspinesquishboost", new BasisPlatformDefault<float>(0.5f));
+        // Spine relax: crouch counterweight (hips shift back as the head drops)
+        public static BasisSettingsBinding<float> FBIKMoveBodyBackWhenCrouching = new("fbikmovebodybackwhencrouching", new BasisPlatformDefault<float>(1f));
+        // Swing continuity: max elbow/knee swing speed (deg/s); lower = smoother, 0 = off
+        public static BasisSettingsBinding<float> FBIKSwingSmoothRate = new("fbikswingsmoothrate", new BasisPlatformDefault<float>(720f));
+        // Spine relax: CCD solve smoothing + neck overbend cone limit
+        public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax", new BasisPlatformDefault<float>(0.8f));
+        public static BasisSettingsBinding<float> FBIKNeckMaxConeDeg = new("fbikneckmaxconedeg", new BasisPlatformDefault<float>(45f));
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
@@ -1028,6 +1049,8 @@ namespace Basis.BasisUI
         // midpoint snaps. Higher = more reactive (catches glitches faster but
         // jitters more); lower = smoother (longer to recover from a glitch).
         public static BasisSettingsBinding<float> PairingWeightSmoothing = new("pairing_weightsmoothing", new BasisPlatformDefault<float>(0.25f));
+        // Half-life (seconds) of the low-pass on the fused midpoint rotation; 0 = raw.
+        public static BasisSettingsBinding<float> PairingRotationHalfLife = new("pairing_rothalflife", new BasisPlatformDefault<float>(0.08f));
 
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled = new("np_enabled", new BasisPlatformDefault<bool>(true));
@@ -1042,6 +1065,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> NPHoverMenuOnly = new("np_hovermenuonly", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> NPSize = new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency = new("np_transparency", new BasisPlatformDefault<float>(0.45f));
+        public static BasisSettingsBinding<float> ChatSize = new("chat_size", new BasisPlatformDefault<float>(1.5f));
 
         // ---------------- ADMIN ----------------
         public static BasisSettingsBinding<bool> AdminAutoRefreshPlayerList = new("admin_autorefresh_playerlist", new BasisPlatformDefault<bool>(true));
@@ -1487,6 +1511,10 @@ namespace Basis.BasisUI
             FBIKSpineMaxBackwardDeg.LoadBindingValue();
             FBIKSpineMaxLateralDeg.LoadBindingValue();
             FBIKSpineSquishBoost.LoadBindingValue();
+            FBIKMoveBodyBackWhenCrouching.LoadBindingValue();
+            FBIKSwingSmoothRate.LoadBindingValue();
+            FBIKSpineCCDRelax.LoadBindingValue();
+            FBIKNeckMaxConeDeg.LoadBindingValue();
             FBIKChestArmSwingFactor.LoadBindingValue();
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
             FBIKLowerArmTwistFraction.LoadBindingValue();
@@ -1525,6 +1553,7 @@ namespace Basis.BasisUI
             NPHoverMenuOnly.LoadBindingValue();
             NPSize.LoadBindingValue();
             NPTransparency.LoadBindingValue();
+            ChatSize.LoadBindingValue();
 
             // Admin
             AdminAutoRefreshPlayerList.LoadBindingValue();

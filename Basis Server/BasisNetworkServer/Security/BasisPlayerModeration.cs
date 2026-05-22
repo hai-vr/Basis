@@ -349,6 +349,11 @@ namespace BasisNetworkServer.Security
                         HandleGlobalToggle(peer, "Additional avatar data lock", BasisGlobalLockManager.ToggleAdditionalAvatarDataLock()));
                     break;
 
+                case AdminRequestMode.SetGlobalCameraPolicy:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleCameraPolicySet(peer, reader));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessAudio:
                     Require(peer, PermNodes.ModerationHeadlessAudio, () =>
                         HandleHeadlessAudioSet(peer, reader));
@@ -748,6 +753,21 @@ namespace BasisNetworkServer.Security
             BNL.Log(notification);
             SendBackMessage(peer, notification);
             BasisOpusPacketLossStateManager.BroadcastState();
+        }
+
+        private static void HandleCameraPolicySet(NetPeer peer, NetPacketReader reader)
+        {
+            if (reader.AvailableBytes < 1)
+            {
+                SendBackMessage(peer, "Failed to set camera metadata policy: missing mask byte.");
+                return;
+            }
+
+            byte mask = reader.GetByte();
+            BasisGlobalLockManager.SetCameraMetadataDisallowMask(mask);
+            BNL.Log($"Camera photo-metadata disallow mask set to {mask}.");
+            SendBackMessage(peer, $"Camera metadata policy updated (mask {mask}).");
+            BasisGlobalLockManager.BroadcastLockState();
         }
 
         private static void HandleUserOpusBitrateSet(NetPeer peer, NetPacketReader reader)

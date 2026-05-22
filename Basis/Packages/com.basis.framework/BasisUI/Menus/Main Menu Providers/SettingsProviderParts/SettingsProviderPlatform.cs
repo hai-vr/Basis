@@ -61,7 +61,7 @@ public static class SettingsProviderPlatform
                 string capturedMode = mode;
                 string displayName = GetModeDisplayName(capturedMode);
                 bool isActive = string.Equals(currentMode, capturedMode, System.StringComparison.Ordinal);
-                string suffix = isActive ? " [ACTIVE]" : "";
+                string suffix = isActive ? " <color=green>[ACTIVE]</color>" : "";
 
                 PanelButton modeButton = PanelButton.CreateNew(infoGroup.ContentParent);
                 modeButton.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.switchTo", displayName) + suffix);

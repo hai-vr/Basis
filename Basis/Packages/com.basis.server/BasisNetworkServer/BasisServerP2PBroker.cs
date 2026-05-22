@@ -151,7 +151,7 @@ namespace BasisNetworkServer
             TrackPeerSession(msg.otherPlayerId, msg.sessionToken);
 
             BNL.Log($"[P2P] Forwarding Request from peer {sender.Id} to peer {msg.otherPlayerId} (token {msg.sessionToken}).");
-            SendSub(target, BasisNetworkCommons.P2PSub_Request, msg.sessionToken, (ushort)sender.Id);
+            SendSub(target, BasisNetworkCommons.P2PSub_Request, msg.sessionToken, (ushort)sender.Id, msg.ephemeralPublicKey);
 
             // ServerArmed confirms registration before either side starts punching, avoiding a race.
             SendSub(sender, BasisNetworkCommons.P2PSub_ServerArmed, msg.sessionToken, msg.otherPlayerId);
@@ -175,7 +175,7 @@ namespace BasisNetworkServer
             if (NetworkServer.AuthenticatedPeers.TryGetValue(s.InitiatorPeerId, out NetPeer initiator))
             {
                 BNL.Log($"[P2P] Accept from peer {sender.Id} (token {Preview(s.Token)}); session armed, forwarding to initiator {s.InitiatorPeerId}.");
-                SendSub(initiator, BasisNetworkCommons.P2PSub_Accept, s.Token, (ushort)sender.Id);
+                SendSub(initiator, BasisNetworkCommons.P2PSub_Accept, s.Token, (ushort)sender.Id, msg.ephemeralPublicKey);
             }
             else
             {
@@ -310,7 +310,7 @@ namespace BasisNetworkServer
             }
         }
 
-        private static void SendSub(NetPeer to, byte sub, string token, ushort otherPlayerId)
+        private static void SendSub(NetPeer to, byte sub, string token, ushort otherPlayerId, byte[] ephemeralPublicKey = null)
         {
             NetDataWriter writer = NetworkServer.RentWriter();
             writer.Put(sub);
@@ -318,6 +318,7 @@ namespace BasisNetworkServer
             {
                 otherPlayerId = otherPlayerId,
                 sessionToken = token ?? string.Empty,
+                ephemeralPublicKey = ephemeralPublicKey,
             };
             body.Serialize(writer);
             NetworkServer.TrySend(to, writer, BasisNetworkCommons.P2PChannel, DeliveryMethod.ReliableOrdered);

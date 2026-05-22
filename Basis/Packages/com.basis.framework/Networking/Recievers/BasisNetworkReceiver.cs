@@ -115,12 +115,6 @@ namespace Basis.Scripts.Networking.Receivers
         /// the second packet (first streaming update with real sequence) does.
         /// </summary>
         private int _seenPackets;
-        /// <summary>
-        /// Sequence of the most recently staged packet. Used to detect drops/reorders and
-        /// advance the receive-side clock by the correct number of packet intervals. -1
-        /// before any packet is staged.
-        /// </summary>
-        private int _lastEnqueuedSequence = -1;
         private readonly List<BasisAvatarBuffer> _pendingSort = new List<BasisAvatarBuffer>(16);
 
         // ---------------- staging (ring buffer) ----------------
@@ -138,16 +132,16 @@ namespace Basis.Scripts.Networking.Receivers
         private const float MinPlaybackRate = 0.85f;
         private const float MaxPlaybackRate = 1.35f;
 
-        // Adaptive jitter buffer depth. Floors at MinJitterDepth — needs to be a real
-        // cushion so network jitter doesn't push StagedCount to 0 every packet cycle
-        // (which would land us in the slowdown branch and produce visible micro-stutters).
-        // Grows toward MaxJitterDepth on underruns, decays slowly when stable. Cold start
-        // warms at InitialJitterDepth so a fresh remote join has a settled cushion before
-        // the adaptive logic kicks in. Driven by BasisSettingsDefaults.NetworkJitterBufferDepth
-        // via SettingsProviderNetworkTab — set ApplyTargetJitterDepth to retune all three.
-        public static int MinJitterDepth = 2;
+        // Adaptive jitter buffer depth. Floors at MinJitterDepth = 1 (one packet of
+        // baseline cushion so the slowdown branch only fires on actual starvation, not
+        // routine jitter). Grows toward MaxJitterDepth on underruns, decays slowly when
+        // stable. Cold start begins at MinJitterDepth so a fresh remote join lerps at
+        // rate 1.0 immediately — the adaptive logic only adds headroom after observing
+        // real underruns. Driven by BasisSettingsDefaults.NetworkJitterBufferDepth via
+        // SettingsProviderNetworkTab — set ApplyTargetJitterDepth to retune all three.
+        public static int MinJitterDepth = 1;
         public static int MaxJitterDepth = 4;
-        public static float InitialJitterDepth = 3f;
+        public static float InitialJitterDepth = 1f;
         private const float DepthBumpOnUnderrun = 1.0f;
         private const float DepthDecayPerSecond = 0.05f;
         // Backlog within this many packets of the target is treated as noise —
@@ -162,15 +156,15 @@ namespace Basis.Scripts.Networking.Receivers
 
         /// <summary>
         /// Sets the adaptive jitter depth parameters from a single user-facing "target depth"
-        /// value. Initial warms one packet higher than target so cold starts have headroom;
-        /// Max caps the underrun growth at target+2 but never below 4 so we still have room
-        /// to react to unstable networks. Leaves the lock off, so depth still adapts.
+        /// value. Initial matches target so cold starts don't overshoot into the slowdown
+        /// branch; Max caps the underrun growth at target+2 but never below 4 so we still
+        /// have room to react to unstable networks. Leaves the lock off, so depth still adapts.
         /// </summary>
         public static void ApplyTargetJitterDepth(int target)
         {
             target = math.clamp(target, 0, 6);
             MinJitterDepth = target;
-            InitialJitterDepth = target + 1f;
+            InitialJitterDepth = target;
             MaxJitterDepth = math.max(target + 2, 4);
             JitterDepthLocked = false;
         }
@@ -287,13 +281,31 @@ namespace Basis.Scripts.Networking.Receivers
                             _highestSequence = buffer.Sequence;
                         }
                     }
+                    else if (_seenPackets == 1)
+                    {
+                        // First real streaming packet — seq is the sender's true streaming index.
+                        _highestSequence = buffer.Sequence;
+                        _seenPackets++;
+                    }
                     else
                     {
-                        if (_seenPackets == 1)
-                        {
-                            _highestSequence = buffer.Sequence;
-                        }
+                        // _seenPackets == 0: initial join data. Sequence is left at the pool's
+                        // default 0 (BasisNetworkAvatarDecompressor's LocalAvatarSyncMessage path
+                        // never assigns it) and SecondsInterval is a 10 ms placeholder, not a
+                        // real streaming cadence. If init lands in the same drain as the first
+                        // streaming packets, the signed-byte sort puts init last and the lerp
+                        // ends up interpolating BACKWARD to the init pose with a tiny 10 ms
+                        // window. Stage it directly at the seeded clock so it becomes Current
+                        // and never enters the sort.
                         _seenPackets++;
+                        if (!_serverClockSeeded)
+                        {
+                            _serverClockSeconds = 0.0;
+                            _serverClockSeeded = true;
+                        }
+                        buffer.ServerTimeSeconds = _serverClockSeconds;
+                        _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
+                        continue;
                     }
 
                     _pendingSort.Add(buffer);
@@ -314,24 +326,13 @@ namespace Basis.Scripts.Networking.Receivers
                         _serverClockSeeded = true;
                     }
 
-                    // Advance by the number of packet intervals this sequence step
-                    // represents, not by 1. A dropped packet means wall time advanced
-                    // by 2 × SecondsInterval but we only see one buffer — without this,
-                    // windowDuration would compress 2 packets of motion into 1 packet
-                    // of playback time and the avatar would fast-forward visibly.
-                    int gap;
-                    if (_lastEnqueuedSequence < 0)
-                    {
-                        gap = 1;
-                    }
-                    else
-                    {
-                        int seqDelta = unchecked((byte)(buffer.Sequence - (byte)_lastEnqueuedSequence));
-                        gap = math.clamp(seqDelta, 1, 16);
-                    }
-                    _serverClockSeconds += gap * buffer.SecondsInterval;
+                    // One interval per enqueued packet. Dropped packets aren't enqueued,
+                    // so windowDuration always equals SecondsInterval and a single drop
+                    // shows up as the avatar fast-forwarding briefly through one packet
+                    // of motion — preferable to the gap-aware variant where any
+                    // anomalous seqDelta clamps to 16 and stretches the window 16×.
+                    _serverClockSeconds += buffer.SecondsInterval;
                     buffer.ServerTimeSeconds = _serverClockSeconds;
-                    _lastEnqueuedSequence = buffer.Sequence;
 
                     _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
                 }
@@ -521,7 +522,6 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
-            _lastEnqueuedSequence = -1;
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initialize(this);
 
@@ -606,7 +606,6 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
-            _lastEnqueuedSequence = -1;
             if (_stagedRing != null)
             {
                 while (_stagedRing.TryDequeueOldest(out var buf))

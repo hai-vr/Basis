@@ -27,43 +27,45 @@ namespace Basis.Scripts.Networking
 
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                // Open() must come before the Instance null-check — Instance is null
-                // on a target that hasn't opened the menu yet.
-                BasisMainMenu.Open();
-                if (BasisMainMenu.Instance == null)
-                {
-                    BasisDebug.LogWarning("[P2P] BasisMainMenu.Instance unavailable; auto-declining incoming request.");
-                    BasisP2PManager.DeclineIncoming(senderPlayerId, token);
-                    return;
-                }
-
                 string displayName = senderPlayerId.ToString();
-                string uuid = "(unknown)";
+                string uuid = null;
                 if (BasisNetworkPlayers.Players.TryGetValue(senderPlayerId, out var netPlayer) &&
                     netPlayer != null && netPlayer.Player != null)
                 {
                     displayName = netPlayer.Player.DisplayName ?? displayName;
-                    if (!string.IsNullOrEmpty(netPlayer.Player.UUID)) uuid = netPlayer.Player.UUID;
+                    uuid = netPlayer.Player.UUID;
                 }
 
-                BasisDebug.Log($"[P2P] Opening accept dialog for direct connection from {displayName} (UUID {uuid}).");
-                BasisMainMenu.Instance.OpenDialogue(
-                    BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.title"),
-                    BasisLocalization.Get("menu.individualPlayer.directConnection.incomingDialog.body", displayName, uuid),
-                    BasisLocalization.Get("menu.individualPlayer.directConnection.accept"),
-                    BasisLocalization.Get("menu.individualPlayer.directConnection.decline"),
-                    accepted =>
+                // A saved per-person policy bypasses the prompt entirely.
+                BasisDirectConnectionPolicy policy = BasisTrustedConnections.GetPolicy(uuid);
+                if (policy == BasisDirectConnectionPolicy.AlwaysAccept)
+                {
+                    BasisDebug.Log($"[P2P] Always-trust policy for {displayName}; auto-accepting.");
+                    BasisP2PManager.AcceptIncoming(senderPlayerId, token);
+                    return;
+                }
+                if (policy == BasisDirectConnectionPolicy.AlwaysDecline)
+                {
+                    BasisDebug.Log($"[P2P] Always-decline policy for {displayName}; auto-declining.");
+                    BasisP2PManager.DeclineIncoming(senderPlayerId, token);
+                    return;
+                }
+
+                // Show the prompt (with the per-person policy dropdown). The prompt itself
+                // handles do-not-disturb routing, opening the menu, and recovery if closed.
+                BasisDebug.Log($"[P2P] Prompting for direct connection from {displayName}.");
+                BasisDirectConnectionPrompt.Show(displayName, uuid, accepted =>
+                {
+                    BasisDebug.Log($"[P2P] User {(accepted ? "accepted" : "declined")} direct-connection request from {displayName}.");
+                    if (accepted)
                     {
-                        BasisDebug.Log($"[P2P] User {(accepted ? "accepted" : "declined")} direct-connection request from {displayName}.");
-                        if (accepted)
-                        {
-                            BasisP2PManager.AcceptIncoming(senderPlayerId, token);
-                        }
-                        else
-                        {
-                            BasisP2PManager.DeclineIncoming(senderPlayerId, token);
-                        }
-                    });
+                        BasisP2PManager.AcceptIncoming(senderPlayerId, token);
+                    }
+                    else
+                    {
+                        BasisP2PManager.DeclineIncoming(senderPlayerId, token);
+                    }
+                });
             });
         }
     }

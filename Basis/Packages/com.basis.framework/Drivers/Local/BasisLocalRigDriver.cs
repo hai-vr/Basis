@@ -510,6 +510,7 @@ namespace Basis.Scripts.Drivers
                 hipsPos.y -= localPlayer.LocalCharacterDriver.landingCrouchEffect;
                 data.PositionHips = hipsPos;
                 data.RotationHips = hipsRot;
+                data.HasHipsTracker = hipsHaveTracker;
 
                 data.PositionHead = pOut[S_Head];
                 data.RotationHead = rOut[S_Head];
@@ -941,6 +942,10 @@ namespace Basis.Scripts.Drivers
             data.SpineMaxBackwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.RawValue;
             data.SpineMaxLateralDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxLateralDeg.RawValue;
             data.SpineSquishBoost = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineSquishBoost.RawValue;
+            data.MoveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
+            data.SwingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue;
+            data.SpineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
+            data.NeckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             data.ChestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
             data.ChestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;
             data.LowerArmTwistFraction = Basis.BasisUI.BasisSettingsDefaults.FBIKLowerArmTwistFraction.RawValue;
@@ -985,6 +990,7 @@ namespace Basis.Scripts.Drivers
                 data.HintWeightLeftHand = false;
                 data.HintWeightRightHand = false;
                 data.WeightChest = false;
+                data.HasHipsTracker = false;
                 data.EnabledLeftShoulder = false;
                 data.EnabledRightShoulder = false;
                 BasisFullIKConstraint.data = data;

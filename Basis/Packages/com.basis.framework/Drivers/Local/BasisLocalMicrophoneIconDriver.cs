@@ -1,4 +1,5 @@
 #if !BASIS_DISABLE_MICROPHONE
+using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
 using UnityEngine;
 using Vector3 = UnityEngine.Vector3;
@@ -42,8 +43,14 @@ namespace Basis.Scripts.Drivers
         public Color UnMutedMutedIconColorActive = Color.white;
         public Color UnMutedMutedIconColorInactive = Color.grey;
         public Color MutedColor = Color.grey;
-        public Color ShoutColorActive = Color.yellow;
-        public Color ShoutColorInactive = new Color(0.6f, 0.6f, 0f, 1f);
+        public Color ShoutColorActive = new Color(1f, 0.5490196f, 0f, 1f);
+        public Color ShoutColorInactive = new Color(0.6f, 0.3294118f, 0f, 1f);
+        public Color PrivateColorActive = new Color(0.6078432f, 0.1882353f, 1f, 1f);
+        public Color PrivateColorInactive = new Color(0.3647059f, 0.1129412f, 0.6f, 1f);
+        public Color DirectColorActive = new Color(0.12156863f, 0.7490196f, 0.3529412f, 1f);
+        public Color DirectColorInactive = new Color(0.07294118f, 0.44941176f, 0.21176471f, 1f);
+        public Color ThisPersonColorActive = new Color(1f, 0.3098039f, 0.627451f, 1f);
+        public Color ThisPersonColorInactive = new Color(0.6f, 0.1858823f, 0.3764706f, 1f);
 
         // Scale / FX
         public Vector3 StartingScale = Vector3.zero;
@@ -264,23 +271,39 @@ namespace Basis.Scripts.Drivers
             RecomputeColorIntent();
         }
 
+        public void OnTalkModeChanged()
+        {
+            RecomputeColorIntent();
+        }
+
         private void RecomputeColorIntent()
         {
             if (IsCurrentlyMuted)
             {
                 targetColor = MutedColor;
+                return;
             }
-            else if (BasisAudioTransmission.IsInShoutMode)
+
+            if (BasisAudioTransmission.IsInShoutMode)
             {
-                targetColor = LocalIsTransmitting
-                    ? ShoutColorActive
-                    : ShoutColorInactive;
+                targetColor = LocalIsTransmitting ? ShoutColorActive : ShoutColorInactive;
+                return;
             }
-            else
+
+            switch (BasisTalkModeManager.CurrentMode)
             {
-                targetColor = LocalIsTransmitting
-                    ? UnMutedMutedIconColorActive
-                    : UnMutedMutedIconColorInactive;
+                case BasisTalkMode.Private:
+                    targetColor = LocalIsTransmitting ? PrivateColorActive : PrivateColorInactive;
+                    break;
+                case BasisTalkMode.Direct:
+                    targetColor = LocalIsTransmitting ? DirectColorActive : DirectColorInactive;
+                    break;
+                case BasisTalkMode.ThisPerson:
+                    targetColor = LocalIsTransmitting ? ThisPersonColorActive : ThisPersonColorInactive;
+                    break;
+                default:
+                    targetColor = LocalIsTransmitting ? UnMutedMutedIconColorActive : UnMutedMutedIconColorInactive;
+                    break;
             }
         }
 

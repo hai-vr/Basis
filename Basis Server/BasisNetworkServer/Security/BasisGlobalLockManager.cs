@@ -18,6 +18,7 @@ namespace BasisNetworkServer.Security
         private static int _serversLocked;
         private static int _thirdPersonDisabled;
         private static int _additionalAvatarDataLock;
+        private static int _cameraMetadataDisallowMask;
 
         public static bool AvatarsLocked => Interlocked.CompareExchange(ref _avatarsLocked, 0, 0) == 1;
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
@@ -25,6 +26,7 @@ namespace BasisNetworkServer.Security
         public static bool ServersLocked => Interlocked.CompareExchange(ref _serversLocked, 0, 0) == 1;
         public static bool ThirdPersonDisabled => Interlocked.CompareExchange(ref _thirdPersonDisabled, 0, 0) == 1;
         public static bool AdditionalAvatarDataLock => Interlocked.CompareExchange(ref _additionalAvatarDataLock, 0, 0) == 1;
+        public static byte CameraMetadataDisallowMask => (byte)Interlocked.CompareExchange(ref _cameraMetadataDisallowMask, 0, 0);
 
         /// <summary>
         /// Seed the initial lock state from the server configuration.
@@ -38,6 +40,7 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _serversLocked, config.ServersLocked ? 1 : 0);
             Interlocked.Exchange(ref _thirdPersonDisabled, config.ThirdPersonDisabled ? 1 : 0);
             Interlocked.Exchange(ref _additionalAvatarDataLock, config.AdditionalAvatarDataLock ? 1 : 0);
+            Interlocked.Exchange(ref _cameraMetadataDisallowMask, config.CameraMetadataDisallowMask);
         }
 
         /// <summary>
@@ -71,6 +74,11 @@ namespace BasisNetworkServer.Security
         /// </summary>
         public static bool ToggleAdditionalAvatarDataLock() => Toggle(ref _additionalAvatarDataLock);
 
+        /// <summary>
+        /// Set the per-category camera photo-metadata disallow mask (set bit = disallowed).
+        /// </summary>
+        public static void SetCameraMetadataDisallowMask(byte mask) => Interlocked.Exchange(ref _cameraMetadataDisallowMask, mask);
+
         private static bool Toggle(ref int field)
         {
             int prev, next;
@@ -99,6 +107,8 @@ namespace BasisNetworkServer.Security
             writer.Put(ThirdPersonDisabled);
             // Appended after ThirdPersonDisabled — older clients parsing 5 bools still work.
             writer.Put(AdditionalAvatarDataLock);
+            // Appended after AdditionalAvatarDataLock (1 byte) — older clients parsing 6 bools still work.
+            writer.Put(CameraMetadataDisallowMask);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -118,6 +128,8 @@ namespace BasisNetworkServer.Security
             writer.Put(ThirdPersonDisabled);
             // Appended after ThirdPersonDisabled — older clients parsing 5 bools still work.
             writer.Put(AdditionalAvatarDataLock);
+            // Appended after AdditionalAvatarDataLock (1 byte) — older clients parsing 6 bools still work.
+            writer.Put(CameraMetadataDisallowMask);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

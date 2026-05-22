@@ -265,6 +265,7 @@ namespace UnityEngine.Animations.Rigging
 
         [SyncSceneToStream, SerializeField] bool m_HintHeadEnabled;
         [SyncSceneToStream, SerializeField] bool m_SpineIKEnabled;
+        [SyncSceneToStream, SerializeField] bool m_HasHipsTracker;
 
         // IK Lock Mode: 0 = LockHips, 1 = LockHead, 2 = LockBoth (see BasisIKLockMode enum)
         [SyncSceneToStream, SerializeField] float m_IKLockMode;
@@ -328,6 +329,10 @@ namespace UnityEngine.Animations.Rigging
         // Squish coupling: scales per-axis bend weights by the head-to-hips compression ratio so
         // the spine folds more when crouched and straightens when reaching up. 0 disables.
         [SyncSceneToStream, SerializeField, Range(0f, 2f)] float m_SpineSquishBoost;
+        [SyncSceneToStream, SerializeField, Range(0f, 2f)] float m_MoveBodyBackWhenCrouching;
+        // Elbow/knee swing smoothing: max swing speed (deg/s) around the root→tip axis. Lower =
+        // smoother (more lag) so collision/pole flips ease in; 0 disables. See ApplySwingContinuity.
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_SwingSmoothRateDeg;
         // Arm-swing chest follow: when hand targets shift laterally, the chest yaws to follow so
         // gestures and walking arm-swing don't read as a stiff torso. Only used without a chest
         // tracker — when one is present, it owns chest rotation directly.
@@ -349,6 +354,11 @@ namespace UnityEngine.Animations.Rigging
         // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
         // AnatCervicalLordosis is on.
         [SyncSceneToStream, SerializeField, Min(0f)] float m_LordosisPitchGainDeg;
+
+        // Spine CCD solve: per-iteration under-relaxation (1 = full step) and the neck's max bend
+        // cone vs the chest→neck direction, which stops the short neck bone overbending.
+        [SyncSceneToStream, SerializeField, Range(0.1f, 1f)] float m_SpineCCDRelax;
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_NeckMaxConeDeg;
 
         public float minHeadSpineHeight
         {
@@ -385,6 +395,7 @@ namespace UnityEngine.Animations.Rigging
         public Transform RightLowerArmTwist { get => m_RightLowerArmTwist; set => m_RightLowerArmTwist = value; }
         public string EnabledPropertySpineIK => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineIKEnabled));
         public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintHeadEnabled));
+        public string HasHipsTrackerBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HasHipsTracker));
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
         public string PropertyChestPosition => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
@@ -453,6 +464,7 @@ namespace UnityEngine.Animations.Rigging
         public string MaxChestDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
         public bool WeightChest { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
+        public bool HasHipsTracker { get => m_HasHipsTracker; set => m_HasHipsTracker = value; }
         public float IKLockMode { get => m_IKLockMode; set => m_IKLockMode = value; }
         public string IKLockModeFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_IKLockMode));
         public float EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
@@ -503,6 +515,8 @@ namespace UnityEngine.Animations.Rigging
         public float SpineMaxBackwardDeg { get => m_SpineMaxBackwardDeg; set => m_SpineMaxBackwardDeg = value; }
         public float SpineMaxLateralDeg { get => m_SpineMaxLateralDeg; set => m_SpineMaxLateralDeg = value; }
         public float SpineSquishBoost { get => m_SpineSquishBoost; set => m_SpineSquishBoost = value; }
+        public float MoveBodyBackWhenCrouching { get => m_MoveBodyBackWhenCrouching; set => m_MoveBodyBackWhenCrouching = value; }
+        public float SwingSmoothRateDeg { get => m_SwingSmoothRateDeg; set => m_SwingSmoothRateDeg = value; }
         public float ChestArmSwingFactor { get => m_ChestArmSwingFactor; set => m_ChestArmSwingFactor = value; }
         public float ChestArmSwingMaxDeg { get => m_ChestArmSwingMaxDeg; set => m_ChestArmSwingMaxDeg = value; }
         public float LowerArmTwistFraction { get => m_LowerArmTwistFraction; set => m_LowerArmTwistFraction = value; }
@@ -525,6 +539,8 @@ namespace UnityEngine.Animations.Rigging
         public string SpineMaxBackwardDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxBackwardDeg));
         public string SpineMaxLateralDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxLateralDeg));
         public string SpineSquishBoostFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineSquishBoost));
+        public string MoveBodyBackWhenCrouchingFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MoveBodyBackWhenCrouching));
+        public string SwingSmoothRateDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SwingSmoothRateDeg));
         public string ChestArmSwingFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingFactor));
         public string ChestArmSwingMaxDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingMaxDeg));
         public string LowerArmTwistFractionFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LowerArmTwistFraction));
@@ -535,6 +551,10 @@ namespace UnityEngine.Animations.Rigging
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
         public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
         public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
+        public float SpineCCDRelax { get => m_SpineCCDRelax; set => m_SpineCCDRelax = value; }
+        public string SpineCCDRelaxFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineCCDRelax));
+        public float NeckMaxConeDeg { get => m_NeckMaxConeDeg; set => m_NeckMaxConeDeg = value; }
+        public string NeckMaxConeDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_NeckMaxConeDeg));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -573,6 +593,7 @@ namespace UnityEngine.Animations.Rigging
             m_HintHeadEnabled = true;
             m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
             m_SpineIKEnabled = true;
+            m_HasHipsTracker = false;
             m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
             m_IKLockMode = (float)BasisIKLockMode.LockHips;
 
@@ -625,6 +646,8 @@ namespace UnityEngine.Animations.Rigging
             m_SpineMaxBackwardDeg = 25f;
             m_SpineMaxLateralDeg = 25f;
             m_SpineSquishBoost = 0.5f;
+            m_MoveBodyBackWhenCrouching = 1f;
+            m_SwingSmoothRateDeg = 720f;
             m_ChestArmSwingFactor = 0.3f;
             m_ChestArmSwingMaxDeg = 15f;
             m_LowerArmTwistFraction = 0.5f;
@@ -635,6 +658,8 @@ namespace UnityEngine.Animations.Rigging
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
             m_LordosisPitchGainDeg = 8f;
+            m_SpineCCDRelax = 0.8f;
+            m_NeckMaxConeDeg = 45f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -896,7 +921,7 @@ enabledLeftLowerLeg, enabledRightLowerLeg,
 hintWeightLeftLowerLeg, hintWeightRightLowerLeg;
 
         public BoolProperty
-HasChestTracker, enabledSpineIK,
+HasChestTracker, hasHipsTracker, enabledSpineIK,
             enabledLeftShoulder, enabledRightShoulder,
 
 leftToeEnabled, RightToeEnabled,
@@ -929,14 +954,25 @@ w20, w54;
         public FloatProperty chestSpringHz, chestSpringDamping;
         public FloatProperty spineMaxForwardDeg, spineMaxBackwardDeg, spineMaxLateralDeg;
         public FloatProperty spineSquishBoost;
+        public FloatProperty moveBodyBackWhenCrouching;
+        public FloatProperty swingSmoothRateDeg;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
         public FloatProperty lordosisPitchGainDeg;
+        public FloatProperty spineCCDRelax, neckMaxConeDeg;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
         public NativeArray<int> chestSpringInit;
+        // Swing continuity: persistent per-DOF state to rate-limit the mid-joint (elbow/knee) swing
+        // around the root→tip axis, so a collision snap or pole flip eases in instead of popping.
+        // Slots: 0/1 = left/right elbow; 2/3 reserved for left/right knee.
+        public const int k_SwingLeftElbow = 0, k_SwingRightElbow = 1, k_SwingLeftKnee = 2, k_SwingRightKnee = 3, k_SwingCount = 4;
+        public NativeArray<Vector3> swingLastDir;
+        public NativeArray<Vector3> swingLastAxis;
+        public NativeArray<Vector3> swingLastTarget;
+        public NativeArray<int> swingContinuityInit;
         public FloatProperty ikLockMode;
         public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
@@ -981,6 +1017,15 @@ w20, w54;
             // 4) Hands: two-bone IK with collision + elbow protection
             SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
             SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+
+            // Arm pop continuity: rate-limit the elbow swing so collision snaps / pole flips ease in
+            // instead of popping in one frame. Runs before arm twist (which reads the arm pose).
+            float swingRate = swingSmoothRateDeg.Get(stream);
+            float swingDt = stream.deltaTime;
+            if (enabledLeftHand.Get(stream))
+                ApplySwingContinuity(stream, k_SwingLeftElbow, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand.Get(stream), swingRate, swingDt);
+            if (enabledRightHand.Get(stream))
+                ApplySwingContinuity(stream, k_SwingRightElbow, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand.Get(stream), swingRate, swingDt);
 
             // 4b) Arm twist distribution: spread wrist/elbow roll along the optional twist bones
             // so the mesh doesn't pinch at the wrist when the hand rotates.
@@ -1069,6 +1114,7 @@ w20, w54;
                     break;
             }
 
+            hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up);
             targetPositionHips.Set(stream, hipsTargetPos);
 
             hipDesired = ApplyHipHinge(stream, headTargetPos, hipsTargetPos, hipDesired, up);
@@ -1078,16 +1124,6 @@ w20, w54;
             {
                 HandleHips.SetPosition(stream, hipsTargetPos);
                 HandleHips.SetRotation(stream, hipDesired);
-            }
-            if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
-            {
-                Vector3 headPos = targetPositionHead.Get(stream);
-                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
-
-                DistributeSpineBend(stream, headPos);
-                if (!HasChestTracker.Get(stream))
-                    ApplyArmSwingChestFollow(stream);
-                SolveSequentialSpineIK(stream, headPos, headRot);
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
@@ -1108,6 +1144,16 @@ w20, w54;
                 Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
 
                 DistributeSpineBend(stream, headPos);
+                BiasSpineTowardChest(stream);
+                SolveSequentialSpineIK(stream, headPos, headRot);
+            }
+            else if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+            {
+                Vector3 headPos = targetPositionHead.Get(stream);
+                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
+
+                DistributeSpineBend(stream, headPos);
+                ApplyArmSwingChestFollow(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
         }
@@ -1136,6 +1182,9 @@ w20, w54;
             float tolerance = Mathf.Max(0f, spineCache.GetRaw(spineToleranceIdx));
             float tolSqr = tolerance * tolerance;
 
+            float ccdRelax = spineCCDRelax.Get(stream);
+            float neckCone = neckMaxConeDeg.Get(stream);
+            float chestCone = MaxChestDeltaProperty.Get(stream);
             Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
 
             for (int iter = 0; iter < maxIters; iter++)
@@ -1158,11 +1207,88 @@ w20, w54;
                         continue;
 
                     Quaternion delta = QuaternionExt.FromToRotation(cur, tgt);
+                    delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
                     ChainHeadToSpine[i].SetRotation(stream, delta * ChainHeadToSpine[i].GetRotation(stream));
+
+                    if (i == firstJoint)
+                        ClampNeckCone(stream, i, neckCone);
+                    else if (chainLen >= 5 && i == chainLen - 3)
+                        ClampChestCone(stream, i, chestCone);
                 }
             }
 
             ChainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
+        }
+        // Constrains the neck (chain index neckIdx) to within maxConeDeg of the chest→neck
+        // direction. Enforced in-loop so chest/spine take the slack on the next CCD sweep.
+        void ClampNeckCone(AnimationStream stream, int neckIdx, float maxConeDeg)
+        {
+            Vector3 chestPos = ChainHeadToSpine[neckIdx + 1].GetPosition(stream);
+            Vector3 neckPos = ChainHeadToSpine[neckIdx].GetPosition(stream);
+            Vector3 headPos = ChainHeadToSpine[0].GetPosition(stream);
+
+            Vector3 parentDir = neckPos - chestPos;
+            Vector3 boneDir = headPos - neckPos;
+            if (parentDir.sqrMagnitude < k_SqrEpsilon || boneDir.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            float ang = Vector3.Angle(parentDir, boneDir);
+            if (ang <= maxConeDeg)
+                return;
+
+            Vector3 axis = Vector3.Cross(boneDir, parentDir);
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            axis.Normalize();
+            Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
+            ChainHeadToSpine[neckIdx].SetRotation(stream, correction * ChainHeadToSpine[neckIdx].GetRotation(stream));
+        }
+        const float k_ChestPosPullMaxDeg = 20f;
+        const float k_ChestPullMaxDistSqr = 0.25f;
+        const float k_ChestFollowChestShare = 0.6f;
+        void ClampChestCone(AnimationStream stream, int chestIdx, float maxConeDeg)
+        {
+            Vector3 spinePos = ChainHeadToSpine[chestIdx + 1].GetPosition(stream);
+            Vector3 chestPos = ChainHeadToSpine[chestIdx].GetPosition(stream);
+            Vector3 childPos = ChainHeadToSpine[chestIdx - 1].GetPosition(stream);
+
+            Vector3 parentDir = chestPos - spinePos;
+            Vector3 boneDir = childPos - chestPos;
+            if (parentDir.sqrMagnitude < k_SqrEpsilon || boneDir.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            float ang = Vector3.Angle(parentDir, boneDir);
+            if (ang <= maxConeDeg)
+                return;
+
+            Vector3 axis = Vector3.Cross(boneDir, parentDir);
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            axis.Normalize();
+            Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
+            ChainHeadToSpine[chestIdx].SetRotation(stream, correction * ChainHeadToSpine[chestIdx].GetRotation(stream));
+        }
+        void BiasSpineTowardChest(AnimationStream stream)
+        {
+            if (!HandleSpine.IsValid(stream) || !HandleChest.IsValid(stream))
+                return;
+
+            Vector3 chestTargetPos = TargetChestPosition.Get(stream);
+            Vector3 spinePos = HandleSpine.GetPosition(stream);
+            Vector3 chestPos = HandleChest.GetPosition(stream);
+
+            if ((chestTargetPos - chestPos).sqrMagnitude > k_ChestPullMaxDistSqr)
+                return;
+
+            Vector3 cur = chestPos - spinePos;
+            Vector3 tgt = chestTargetPos - spinePos;
+            if (cur.sqrMagnitude < k_SqrEpsilon || tgt.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            Quaternion pull = ClampRotation(QuaternionExt.FromToRotation(cur, tgt), Quaternion.identity, k_ChestPosPullMaxDeg);
+            HandleSpine.SetRotation(stream, pull * HandleSpine.GetRotation(stream));
         }
         // Pre-distributes the hips→head bend onto spine and upperChest in hips-local space, split
         // into independent pitch / yaw / roll contributions so anisotropic human ranges of motion
@@ -1396,6 +1522,33 @@ w20, w54;
             hingeAxis.Normalize();
             return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
         }
+        Vector3 ApplyCrouchBodyOffset(AnimationStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir)
+        {
+            float factor = moveBodyBackWhenCrouching.Get(stream);
+            if (factor <= 0f || HasChestTracker.Get(stream) || hasHipsTracker.Get(stream))
+            {
+                return hipsPos;
+            }
+
+            Vector3 up = playerUpDir.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUpDir.normalized;
+
+            float restDist = MinHeadSpineHeight.Get(stream);
+            float crouch = restDist - (Vector3.Dot(headTargetPos, up) - Vector3.Dot(hipsPos, up));
+            crouch = Mathf.Clamp(crouch, 0f, restDist);
+            if (crouch <= 0f)
+            {
+                return hipsPos;
+            }
+
+            Vector3 forward = hipsRot * Vector3.forward;
+            forward -= up * Vector3.Dot(forward, up);
+            if (forward.sqrMagnitude < k_SqrEpsilon)
+            {
+                return hipsPos;
+            }
+
+            return hipsPos - forward.normalized * (crouch * factor);
+        }
         void ApplyCervicalLordosis(AnimationStream stream)
         {
             if (!HandleNeck.IsValid(stream))
@@ -1585,12 +1738,30 @@ w20, w54;
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
 
+            Vector3 localMidChest = invHips * (handMid - HandleChest.GetPosition(stream));
+            float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
+
             float maxDeg = chestArmSwingMaxDeg.Get(stream);
             if (maxDeg > 0f)
+            {
                 yawDeg = Mathf.Clamp(yawDeg, -maxDeg, maxDeg);
+                pitchDeg = Mathf.Clamp(pitchDeg, -maxDeg, maxDeg);
+            }
 
-            Quaternion deltaWorld = hipsRot * Quaternion.AngleAxis(yawDeg, Vector3.up) * invHips;
-            HandleChest.SetRotation(stream, deltaWorld * HandleChest.GetRotation(stream));
+            Quaternion local = Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.AngleAxis(pitchDeg, Vector3.right);
+            Quaternion deltaWorld = hipsRot * local * invHips;
+
+            if (HandleUpperChest.IsValid(stream))
+            {
+                Quaternion chestPart = Quaternion.Slerp(Quaternion.identity, deltaWorld, k_ChestFollowChestShare);
+                Quaternion upperPart = Quaternion.Slerp(Quaternion.identity, deltaWorld, 1f - k_ChestFollowChestShare);
+                HandleChest.SetRotation(stream, chestPart * HandleChest.GetRotation(stream));
+                HandleUpperChest.SetRotation(stream, upperPart * HandleUpperChest.GetRotation(stream));
+            }
+            else
+            {
+                HandleChest.SetRotation(stream, deltaWorld * HandleChest.GetRotation(stream));
+            }
         }
         // Distributes a fraction of the child bone's roll (around the parent bone's longitudinal
         // axis) onto a twist bone that sits as a child of the parent. Uses swing-twist quaternion
@@ -1979,7 +2150,7 @@ w20, w54;
         }
         /// <summary>
         /// Computes arm bend direction using the 3D lookup table.
-        /// Converts hand position to chest-relative normalized space, then samples the table.
+        /// Converts hand position to a yaw-stable torso frame, then samples the table.
         /// </summary>
         Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, float armLength, bool isLeft)
         {
@@ -1988,12 +2159,12 @@ w20, w54;
                 return isLeft ? Vector3.left : Vector3.right;
             }
 
-            Quaternion chestRot = HandleChest.GetRotation(stream);
-            Quaternion invChest = Quaternion.Inverse(chestRot);
+            Quaternion frameRot = ArmBendFrame(stream);
+            Quaternion invFrame = Quaternion.Inverse(frameRot);
 
-            // Transform hand position to chest-local, shoulder-centered, arm-length-normalized space
+            // Transform hand position to torso-local, shoulder-centered, arm-length-normalized space
             Vector3 shoulderToHand = handTargetPos - shoulderPos;
-            Vector3 localPos = invChest * shoulderToHand / armLength;
+            Vector3 localPos = invFrame * shoulderToHand / armLength;
 
             // Mirror X for left arm (lookup table is generated for right arm perspective)
             if (isLeft)
@@ -2012,7 +2183,24 @@ w20, w54;
             }
 
             // Transform bend direction back to world space
-            return (chestRot * localBend).normalized;
+            return (frameRot * localBend).normalized;
+        }
+        // Elbow-bend reference frame: chest pitch/roll with hips yaw, so head-gaze chest yaw
+        // doesn't sweep the lookup and flip the elbow pole. Falls back to chest if no hips.
+        Quaternion ArmBendFrame(AnimationStream stream)
+        {
+            Quaternion chestRot = HandleChest.GetRotation(stream);
+            if (!HandleHips.IsValid(stream))
+            {
+                return chestRot;
+            }
+
+            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            Quaternion chestRelative = Quaternion.Inverse(hipsRot) * chestRot;
+            // Drop the chest's yaw (twist around hips-up), keep its swing (pitch/roll).
+            Quaternion chestYaw = ExtractTwist(chestRelative, Vector3.up);
+            Quaternion chestSwing = chestRelative * Quaternion.Inverse(chestYaw);
+            return hipsRot * chestSwing;
         }
         public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
         {
@@ -2125,6 +2313,77 @@ w20, w54;
             Quaternion swing = Quaternion.AngleAxis(ang * dir * Mathf.Rad2Deg, n);
 
             root.SetRotation(stream, swing * root.GetRotation(stream));
+        }
+        // Temporal continuity for a 3-bone chain's mid-joint swing around the root→tip axis.
+        // Rate-limits how fast the elbow/knee can swing per frame so a collision snap or pole flip
+        // eases in instead of popping. Carries the stored swing with root→tip motion (so normal
+        // reaching isn't slowed) and re-seeds when the tip target teleports. Keys off persistent
+        // state + the target — never the bone it overwrites, which would oscillate.
+        void ApplySwingContinuity(AnimationStream stream, int slot, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3 targetPos, float rateDegPerSec, float dt)
+        {
+            if (!swingContinuityInit.IsCreated || !root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            {
+                return;
+            }
+
+            Vector3 a = root.GetPosition(stream);
+            Vector3 c = tip.GetPosition(stream);
+            Vector3 b = mid.GetPosition(stream);
+
+            Vector3 ac = c - a;
+            float acSqr = ac.sqrMagnitude;
+            if (acSqr < k_SqrEpsilon)
+            {
+                return;
+            }
+            Vector3 axis = ac / Mathf.Sqrt(acSqr);
+
+            Vector3 perp = b - a;
+            perp -= axis * Vector3.Dot(perp, axis);
+            float perpSqr = perp.sqrMagnitude;
+            if (perpSqr < k_SqrEpsilon)
+            {
+                return; // chain near-straight: swing direction undefined this frame
+            }
+            Vector3 currentDir = perp / Mathf.Sqrt(perpSqr);
+
+            // Re-seed (accept instantly) on first use, when disabled, or when the target teleports.
+            bool seeded = swingContinuityInit[slot] != 0;
+            float chainLen = (b - a).magnitude + (c - b).magnitude;
+            float teleThresh = 0.6f * chainLen;
+            bool teleport = seeded && (targetPos - swingLastTarget[slot]).sqrMagnitude > teleThresh * teleThresh;
+            if (rateDegPerSec <= 0f || !seeded || teleport)
+            {
+                swingLastDir[slot] = currentDir;
+                swingLastAxis[slot] = axis;
+                swingLastTarget[slot] = targetPos;
+                swingContinuityInit[slot] = 1;
+                return;
+            }
+
+            // Carry the stored swing with the axis change so only the *extra* swing is limited.
+            Vector3 carried = QuaternionExt.FromToRotation(swingLastAxis[slot], axis) * swingLastDir[slot];
+            carried -= axis * Vector3.Dot(carried, axis);
+            float carriedSqr = carried.sqrMagnitude;
+            if (carriedSqr >= k_SqrEpsilon)
+            {
+                carried /= Mathf.Sqrt(carriedSqr);
+                float angleDeg = Vector3.Angle(carried, currentDir);
+                float maxStep = rateDegPerSec * dt;
+                if (angleDeg > maxStep && angleDeg > k_Epsilon)
+                {
+                    Vector3 newDir = Vector3.Slerp(carried, currentDir, maxStep / angleDeg);
+                    Quaternion preservedHandRot = tip.GetRotation(stream);
+                    SwingElbowAroundAC(stream, root, mid, tip, a + newDir);
+                    tip.SetPosition(stream, c);
+                    tip.SetRotation(stream, preservedHandRot);
+                    currentDir = newDir;
+                }
+            }
+
+            swingLastDir[slot] = currentDir;
+            swingLastAxis[slot] = axis;
+            swingLastTarget[slot] = targetPos;
         }
         public static Vector3 PushOutFromCapsule(Vector3 p, Vector3 a, Vector3 b, float radiusWithSkin, Vector3 playerUp)
         {
@@ -2579,6 +2838,7 @@ w20, w54;
                 hintRotationRightHand = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightHand),
                 enabledSpineIK = BoolProperty.Bind(animator, component, data.EnabledPropertySpineIK),
                 HasChestTracker = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
+                hasHipsTracker = BoolProperty.Bind(animator, component, data.HasHipsTrackerBoolProperty),
                 enabledLeftLowerLeg = FloatProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
                 hintWeightLeftLowerLeg = FloatProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
                 enabledRightLowerLeg = FloatProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
@@ -2638,6 +2898,8 @@ w20, w54;
                 spineMaxBackwardDeg = FloatProperty.Bind(animator, component, data.SpineMaxBackwardDegFloatProperty),
                 spineMaxLateralDeg = FloatProperty.Bind(animator, component, data.SpineMaxLateralDegFloatProperty),
                 spineSquishBoost = FloatProperty.Bind(animator, component, data.SpineSquishBoostFloatProperty),
+                moveBodyBackWhenCrouching = FloatProperty.Bind(animator, component, data.MoveBodyBackWhenCrouchingFloatProperty),
+                swingSmoothRateDeg = FloatProperty.Bind(animator, component, data.SwingSmoothRateDegFloatProperty),
                 chestArmSwingFactor = FloatProperty.Bind(animator, component, data.ChestArmSwingFactorFloatProperty),
                 chestArmSwingMaxDeg = FloatProperty.Bind(animator, component, data.ChestArmSwingMaxDegFloatProperty),
                 lowerArmTwistFraction = FloatProperty.Bind(animator, component, data.LowerArmTwistFractionFloatProperty),
@@ -2648,6 +2910,8 @@ w20, w54;
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
                 lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
+                spineCCDRelax = FloatProperty.Bind(animator, component, data.SpineCCDRelaxFloatProperty),
+                neckMaxConeDeg = FloatProperty.Bind(animator, component, data.NeckMaxConeDegFloatProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),
@@ -2778,13 +3042,20 @@ w20, w54;
             job.chestSpringState = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.chestSpringInit = new NativeArray<int>(1, Allocator.Persistent);
 
+            job.swingLastDir = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingLastAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingLastTarget = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+
 
 
             return job;
         }
         public void GenerateHeadToSpine(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
         {
-            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
+            var HeadToSpine = data.upperChest != null
+                ? new Transform[] { data.head, data.neck, data.upperChest, data.chest, data.spine, data.hips }
+                : new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
             int SpineToHeadLength = HeadToSpine.Length;
             job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
             job.ChainHeadToSpineLengths = new NativeArray<float>(SpineToHeadLength, Allocator.Persistent);
@@ -2853,6 +3124,11 @@ w20, w54;
 
             if (job.chestSpringState.IsCreated) job.chestSpringState.Dispose();
             if (job.chestSpringInit.IsCreated) job.chestSpringInit.Dispose();
+
+            if (job.swingLastDir.IsCreated) job.swingLastDir.Dispose();
+            if (job.swingLastAxis.IsCreated) job.swingLastAxis.Dispose();
+            if (job.swingLastTarget.IsCreated) job.swingLastTarget.Dispose();
+            if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
 
             job.spineCache.Dispose();
         }

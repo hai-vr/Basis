@@ -22,7 +22,8 @@ namespace Basis.BasisUI
         /// clean. Intended for large integer sliders like triangle / bone counts
         /// where "2000000" is unreadable but "2M" is obvious at a glance.
         /// </summary>
-        Compact
+        Compact,
+        Hz
     }
 
     public class PanelSlider : PanelDataComponent<float>, IPointerDownHandler, IPointerUpHandler
@@ -364,6 +365,9 @@ namespace Basis.BasisUI
                     break;
                 case ValueDisplayMode.Compact:
                     next = FormatCompact(Value);
+                    break;
+                case ValueDisplayMode.Hz:
+                    next = Value.ToString(_cachedDecimalFormat) + " Hz";
                     break;
                 default:
                     return;

@@ -98,6 +98,11 @@ namespace BasisNetworkCore.Serializable
             // rotation still propagate normally. State is appended as the 6th bool in
             // GlobalGetLockState.
             GlobalToggleAdditionalAvatarDataLock,
+
+            // admin: set the per-category camera photo-metadata disallow mask (1 byte).
+            // Each set bit disallows one embedding category for all clients; 0 = all allowed.
+            // The current mask is appended as a trailing byte in GlobalGetLockState.
+            SetGlobalCameraPolicy,
         }
     }
 }

@@ -18,7 +18,7 @@ namespace Basis.BasisUI
 
         public override string Title => BasisLocalization.Get("menu.provider.exit");
         public override string IconAddress => AddressableAssets.Sprites.Exit;
-        public override int Order => 9999;
+        public override int Order => 9999; // always last
 
         public override bool Hidden => false;
 
@@ -26,6 +26,10 @@ namespace Basis.BasisUI
         {
             base.OnButtonCreated(button);
             button.ButtonStyling.SetStyle("Hotbar Button Danger");
+
+            // Half the normal hotbar button width — a compact exit button.
+            Vector2 size = button.rectTransform.sizeDelta;
+            if (size.x > 0f) button.SetSize(new Vector2(size.x * 0.5f, size.y));
         }
 
         public override void RunAction()
