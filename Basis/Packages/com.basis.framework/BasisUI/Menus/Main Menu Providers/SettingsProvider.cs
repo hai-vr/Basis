@@ -1840,6 +1840,11 @@ namespace Basis.BasisUI
             toggleNetStats.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.netStats.description"));
             toggleNetStats.AssignBinding(BasisSettingsDefaults.DevShowNetStats);
 
+            PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
+            toggleFaceTrackLipSync.Descriptor.SetTitle("Disable Lip Sync for Face-Tracked Players");
+            toggleFaceTrackLipSync.Descriptor.SetDescription("On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined.");
+            toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
+
             // ---- Remote Audio Debug ----
             PanelElementDescriptor audioDebugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2111,6 +2116,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.NetEuroBeta.ResetToDefault();
             BasisSettingsDefaults.NetEuroDerivativeCutoff.ResetToDefault();
             BasisSettingsDefaults.AudioDebugEnabled.ResetToDefault();
+            BasisSettingsDefaults.DisableLipSyncForFaceTracking.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowSource.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowVolume.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowRingBuffer.ResetToDefault();

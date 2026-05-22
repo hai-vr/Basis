@@ -13,7 +13,6 @@ namespace Basis.MediaPipe
         public int TargetFps;
         public int CameraWidth;
         public int CameraHeight;
-        public bool UseGpu;
 
         public static BasisMediaPipeConfig Default => new BasisMediaPipeConfig
         {
@@ -27,7 +26,6 @@ namespace Basis.MediaPipe
             TargetFps = 30,
             CameraWidth = 640,
             CameraHeight = 480,
-            UseGpu = false,
         };
     }
 }

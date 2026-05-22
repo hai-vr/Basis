@@ -4,6 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
+using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 using UnityEngine;
 
 namespace Basis.Editor.Localization
@@ -21,7 +22,7 @@ namespace Basis.Editor.Localization
     public static class BasisLocalizationAddressableSetup
     {
         private const string LanguagesFolder = "Packages/com.basis.framework/BasisUI/Localization/Languages";
-        private const string TargetGroupName = "Basis UI Assets";
+        private const string TargetGroupName = "Basis Localization";
         private const string LanguageLabel = "language"; // Must match BasisLocalization.LanguageLabel.
         private const string AddressPrefix = "Languages/";
 
@@ -51,10 +52,11 @@ namespace Basis.Editor.Localization
                 settings.AddLabel(LanguageLabel, postEvent: false);
             }
 
-            AddressableAssetGroup group = settings.FindGroup(TargetGroupName) ?? settings.DefaultGroup;
+            AddressableAssetGroup group = BasisAddressableGroups.GetOrCreate(
+                settings, TargetGroupName, BundledAssetGroupSchema.BundlePackingMode.PackTogether);
             if (group == null)
             {
-                Debug.LogError($"[BasisLocalization] No Addressable group available (looked for \"{TargetGroupName}\" and DefaultGroup).");
+                Debug.LogError($"[BasisLocalization] Could not create Addressable group \"{TargetGroupName}\".");
                 return 0;
             }
 

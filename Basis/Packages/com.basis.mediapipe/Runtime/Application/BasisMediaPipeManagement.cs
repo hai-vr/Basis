@@ -59,7 +59,6 @@ namespace Basis.MediaPipe
             Config.CameraHeight = BasisMediaPipeSettings.ResolutionHeight.RawValue;
             Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
             Config.EnablePose = BasisMediaPipeSettings.EnableBody.RawValue;
-            Config.UseGpu = BasisMediaPipeSettings.UseGpu.RawValue;
             ApplyTuning();
         }
 

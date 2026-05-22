@@ -52,8 +52,12 @@ These steps are **done** in this repo — listed so it's reproducible:
    Unity auto-defines `BASIS_MEDIAPIPE` (via `versionDefines` on `BasisMediaPipe.Homuler.asmdef`),
    activating the homuler backend assembly. If it ever doesn't, add `BASIS_MEDIAPIPE` to
    **Project Settings → Player → Scripting Define Symbols**.
-2. **Models** are in `Assets/StreamingAssets/MediaPipe/`: `face_landmarker.task`,
-   `hand_landmarker.task` (the loader reads them from there via `Application.streamingAssetsPath`).
+2. **Models** ship as Addressable `TextAsset`s (`.bytes`) in `Packages/com.basis.mediapipe/Models/`:
+   `face_landmarker.task.bytes`, `hand_landmarker.task.bytes`, `pose_landmarker_lite.task.bytes`,
+   organized into the dedicated **Basis MediaPipe Models** group (PackSeparately) by
+   *Basis ▸ Addressables ▸ Organize Model Groups* and an importer on that folder. The loader reads
+   them via `Addressables.LoadAssetAsync<TextAsset>(...).WaitForCompletion()` and hands the raw bytes
+   to MediaPipe's `modelAssetBuffer`.
 3. **Manager**: `BasisMediaPipeManagement` lives on the `BasisDeviceManagement` object and is in
    its `BaseTypes` list. The Settings tab also self-wires it if missing.
 4. **For face/eyes to drive your avatar** the avatar needs HVR Basis Comms `AutomaticFaceTracking`

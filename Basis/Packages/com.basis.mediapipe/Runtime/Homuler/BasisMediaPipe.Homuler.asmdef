@@ -9,7 +9,9 @@
         "BasisDebug",
         "Unity.Mathematics",
         "Unity.Collections",
-        "Mediapipe.Runtime"
+        "Mediapipe.Runtime",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

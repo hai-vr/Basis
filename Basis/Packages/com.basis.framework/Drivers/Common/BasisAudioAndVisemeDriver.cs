@@ -241,10 +241,11 @@ namespace Basis.Scripts.Drivers
 
         public void Apply()
         {
-            if (Player is BasisRemotePlayer remote && remote.RemoteFaceDriver != null && remote.RemoteFaceDriver.OverrideViseme)
+            if (Basis.BasisUI.BasisSettingsDefaults.DisableLipSyncForFaceTracking.RawValue
+                && Player is BasisRemotePlayer remote && remote.RemoteFaceDriver != null && remote.RemoteFaceDriver.OverrideViseme)
             {
-                // Face tracking (webcam/VRCFT) is driving the mouth via comms; suppress the
-                // audio-reconstructed visemes so they don't fight the networked mouth.
+                // Developer option (default off): a face-tracked remote drives the mouth via comms,
+                // so suppress the audio-reconstructed visemes. Off = both run combined.
                 if (!_overrideZeroed)
                 {
                     openLipSyncContext?.ZeroVisemes();

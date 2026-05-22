@@ -124,7 +124,6 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Hand Position (experimental)", "Move your avatar's hands to match your real hands (in addition to finger curl).", BasisMediaPipeSettings.EnableHandTracking);
             AddTuningToggle("Hand Rotation", "Off keeps a neutral wrist (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
             AddFeatureToggle("Body Lean/Twist (experimental)", "Lean and twist your torso. Uses the pose model (extra CPU); monocular, so approximate.", BasisMediaPipeSettings.EnableBody);
-            AddFeatureToggle("Use GPU (experimental)", "Run inference on the GPU instead of CPU. Faster on mobile/Quest; on desktop it may not be supported and fall back to CPU.", BasisMediaPipeSettings.UseGpu);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);
 
             AddFeatureToggle("Swap Hands", "Fix left/right hands if they are reversed.", BasisMediaPipeSettings.SwapHands);

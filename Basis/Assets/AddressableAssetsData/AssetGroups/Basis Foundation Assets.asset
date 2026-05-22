@@ -46,11 +46,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 1a1985444f17e3a4f92b42d2e211f4a2
-    m_Address: Packages/com.basisvr.openlipsync/OpenLipSync/model.onnx.bytes
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 1a876a9e9a22e4643b0d03f0eb3d0c30
     m_Address: Locomotion
     m_ReadOnly: 0
@@ -314,18 +309,13 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: e6ba79fcf10841e0b84a6eab1d7c0d8f
-    m_Address: Packages/com.basis.sdk/Textures/Runtime/people-outline.png
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: e5115724bef668e428481e9fee6ee7b1
     m_Address: Packages/com.basis.sdk/Fonts/Poppins-Regular SDF NamePlate.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: eafa514b4dc421d4c8b01e7c6e3a627a
-    m_Address: Packages/com.basisvr.openlipsync/OpenLipSync/config.json
+  - m_GUID: e6ba79fcf10841e0b84a6eab1d7c0d8f
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/people-outline.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

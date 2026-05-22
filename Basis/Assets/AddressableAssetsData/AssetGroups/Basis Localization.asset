@@ -1,0 +1,131 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Basis Localization
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Basis Localization
+  m_GUID: d3a950af01a93ac4d93fd6252eb2f009
+  m_SerializeEntries:
+  - m_GUID: 006d697b9e884a9092e71e7c104d6d50
+    m_Address: Languages/pt
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 06d43e66a99d9c742851f25200052b1a
+    m_Address: Languages/zh-Hans
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0ee5d8da0b90a674f96aa6af63e9c215
+    m_Address: Languages/en
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1ff4547646d661344928f3b538b06b99
+    m_Address: Languages/ja
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 42d44c8967cd407a9753764b87693f4f
+    m_Address: Languages/ru
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5f2a8c6b1e4d397048bd65a3c9e70f24
+    m_Address: Languages/ar
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 63960d848fbc43a498989e5c850219e1
+    m_Address: Languages/zh-Hant
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6b4127a251744a46a41ef7ea6ee60f03
+    m_Address: Languages/bn
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6ba29ee3047704e4385a873b69e987a8
+    m_Address: Languages/hi
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7b3a9f1c2d4e5867a8b9c0d1e2f30491
+    m_Address: Languages/es
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 81d9c2f72abdfbb4f9a543c2cef54b76
+    m_Address: Languages/it
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a7da87ae0c6c4b09a40cb342e7c37f5c
+    m_Address: Languages/ur
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bd2f4a8c6e1d9b7a3c5f8e2d4a6b9c1e
+    m_Address: Languages/de
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c4d8e2a16b7f3958bc09d4e1f2a36870
+    m_Address: Languages/zh
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c7a3f9b2e8d54a16b9c8d7e6f5a4b3c2
+    m_Address: Languages/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d7fbf52ab1293c84d939efb93ed4d654
+    m_Address: Languages/es-MX
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e589c5bb9ebe74344a73c3662ae989ab
+    m_Address: Languages/nl
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fa1b3c7d9e2054886b4ca5e712f08d46
+    m_Address: Languages/fr
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - language
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 8959b13be1add604380750c0f2e2f9f5, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: d8902339bcc95ad43a6b70e1d538d2d1, type: 2}
+    - {fileID: 11400000, guid: 91d4d092192cedb48b1a215ae39469de, type: 2}

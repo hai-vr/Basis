@@ -1,6 +1,5 @@
 #if BASIS_MEDIAPIPE
 using System;
-using System.IO;
 using System.Threading;
 using Mediapipe;
 using Mediapipe.Tasks.Core;
@@ -10,6 +9,7 @@ using Mediapipe.Tasks.Vision.HandLandmarker;
 using Mediapipe.Tasks.Vision.PoseLandmarker;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 
 namespace Basis.MediaPipe.Homuler
@@ -22,10 +22,9 @@ namespace Basis.MediaPipe.Homuler
     /// </summary>
     public sealed class HomulerMediaPipeBackend : IBasisMediaPipeBackend
     {
-        private const string ModelSubdir = "MediaPipe";
-        private const string FaceModel = "face_landmarker.task";
-        private const string HandModel = "hand_landmarker.task";
-        private const string PoseModel = "pose_landmarker_lite.task";
+        private const string FaceModelAddress = "Packages/com.basis.mediapipe/Models/face_landmarker.task.bytes";
+        private const string HandModelAddress = "Packages/com.basis.mediapipe/Models/hand_landmarker.task.bytes";
+        private const string PoseModelAddress = "Packages/com.basis.mediapipe/Models/pose_landmarker_lite.task.bytes";
 
         public bool IsAvailable { get; private set; }
         public string BackendName => "homuler MediaPipe Unity Plugin";
@@ -58,6 +57,7 @@ namespace Basis.MediaPipe.Homuler
         private int _pendingW;
         private int _pendingH;
         private long _pendingTs;
+        private RenderTexture _readbackRT;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Register() =>
@@ -68,19 +68,8 @@ namespace Basis.MediaPipe.Homuler
             _mirror = config.MirrorHorizontally;
             _swapHands = config.SwapHands;
             _useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
-            BaseOptions.Delegate delegateCase = config.UseGpu ? BaseOptions.Delegate.GPU : BaseOptions.Delegate.CPU;
-            try
-            {
-                if (config.EnableFace) _face = CreateFaceLandmarker(ResolveModelPath(FaceModel), delegateCase);
-                if (config.EnableHands) _hand = CreateHandLandmarker(ResolveModelPath(HandModel), delegateCase);
-                if (config.EnablePose) _pose = CreatePoseLandmarker(ResolveModelPath(PoseModel), delegateCase);
-                IsAvailable = _face != null || _hand != null || _pose != null;
-            }
-            catch (Exception e)
-            {
-                BasisDebug.LogError($"BasisMediaPipe(homuler): init failed: {e}");
-                IsAvailable = false;
-            }
+            TryCreateLandmarkers(config);
+            IsAvailable = _face != null || _hand != null || _pose != null;
 
             if (IsAvailable)
             {
@@ -91,9 +80,31 @@ namespace Basis.MediaPipe.Homuler
             }
         }
 
-        private static FaceLandmarker CreateFaceLandmarker(string modelPath, BaseOptions.Delegate delegateCase)
+        private bool TryCreateLandmarkers(BasisMediaPipeConfig config)
         {
-            BaseOptions baseOptions = new BaseOptions(delegateCase, modelAssetBuffer: File.ReadAllBytes(modelPath));
+            try
+            {
+                if (config.EnableFace) _face = CreateFaceLandmarker(LoadModelBuffer(FaceModelAddress));
+                if (config.EnableHands) _hand = CreateHandLandmarker(LoadModelBuffer(HandModelAddress));
+                if (config.EnablePose) _pose = CreatePoseLandmarker(LoadModelBuffer(PoseModelAddress));
+                return _face != null || _hand != null || _pose != null;
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"BasisMediaPipe(homuler): landmarker init failed: {e.Message}");
+                _face?.Close();
+                _hand?.Close();
+                _pose?.Close();
+                _face = null;
+                _hand = null;
+                _pose = null;
+                return false;
+            }
+        }
+
+        private static FaceLandmarker CreateFaceLandmarker(byte[] modelBuffer)
+        {
+            BaseOptions baseOptions = new BaseOptions(modelAssetBuffer: modelBuffer);
             FaceLandmarkerOptions options = new FaceLandmarkerOptions(
                 baseOptions,
                 runningMode: RunningMode.VIDEO,
@@ -106,9 +117,9 @@ namespace Basis.MediaPipe.Homuler
             return FaceLandmarker.CreateFromOptions(options);
         }
 
-        private static HandLandmarker CreateHandLandmarker(string modelPath, BaseOptions.Delegate delegateCase)
+        private static HandLandmarker CreateHandLandmarker(byte[] modelBuffer)
         {
-            BaseOptions baseOptions = new BaseOptions(delegateCase, modelAssetBuffer: File.ReadAllBytes(modelPath));
+            BaseOptions baseOptions = new BaseOptions(modelAssetBuffer: modelBuffer);
             HandLandmarkerOptions options = new HandLandmarkerOptions(
                 baseOptions,
                 runningMode: RunningMode.VIDEO,
@@ -119,9 +130,9 @@ namespace Basis.MediaPipe.Homuler
             return HandLandmarker.CreateFromOptions(options);
         }
 
-        private static PoseLandmarker CreatePoseLandmarker(string modelPath, BaseOptions.Delegate delegateCase)
+        private static PoseLandmarker CreatePoseLandmarker(byte[] modelBuffer)
         {
-            BaseOptions baseOptions = new BaseOptions(delegateCase, modelAssetBuffer: File.ReadAllBytes(modelPath));
+            BaseOptions baseOptions = new BaseOptions(modelAssetBuffer: modelBuffer);
             PoseLandmarkerOptions options = new PoseLandmarkerOptions(
                 baseOptions,
                 runningMode: RunningMode.VIDEO,
@@ -148,13 +159,14 @@ namespace Basis.MediaPipe.Homuler
 
             if (_useAsyncReadback)
             {
-                // Async GPU readback: no main-thread GPU stall. The callback (main thread) copies
-                // the pixels out and wakes the worker. Costs ~1 extra frame of latency.
+                // WebCamTexture's GPU format usually can't be read back directly, so blit it into a
+                // plain RGBA RenderTexture and async-read that instead (no main-thread GPU stall).
+                Graphics.Blit(frame, _readbackRT);
                 _pendingW = w;
                 _pendingH = h;
                 _pendingTs = ts;
                 _readbackPending = true;
-                AsyncGPUReadback.Request(frame, 0, TextureFormat.RGBA32, OnReadback);
+                AsyncGPUReadback.Request(_readbackRT, 0, TextureFormat.RGBA32, OnReadback);
             }
             else
             {
@@ -176,12 +188,23 @@ namespace Basis.MediaPipe.Homuler
             _rgba = new byte[len * 4];
             if (_native.IsCreated) _native.Dispose();
             _native = new NativeArray<byte>(len * 4, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            if (_useAsyncReadback)
+            {
+                if (_readbackRT != null) _readbackRT.Release();
+                _readbackRT = new RenderTexture(w, h, 0, RenderTextureFormat.ARGB32);
+            }
         }
 
         private void OnReadback(AsyncGPUReadbackRequest req)
         {
             _readbackPending = false;
-            if (!_running || req.hasError) return;
+            if (!_running) return;
+            if (req.hasError)
+            {
+                // GPU readback not supported for this texture/platform; fall back to the CPU path.
+                _useAsyncReadback = false;
+                return;
+            }
 
             NativeArray<byte> data = req.GetData<byte>();
             if (_srcRgba == null || data.Length != _srcRgba.Length) return;
@@ -449,8 +472,19 @@ namespace Basis.MediaPipe.Homuler
             lock (_resultLock) { _hasLatest = false; }
         }
 
-        private static string ResolveModelPath(string fileName) =>
-            Path.Combine(Application.streamingAssetsPath, ModelSubdir, fileName);
+        private static byte[] LoadModelBuffer(string address)
+        {
+            var handle = Addressables.LoadAssetAsync<TextAsset>(address);
+            TextAsset asset = handle.WaitForCompletion();
+            if (asset == null)
+            {
+                Addressables.Release(handle);
+                throw new InvalidOperationException($"BasisMediaPipe(homuler): model addressable '{address}' could not be loaded.");
+            }
+            byte[] buffer = asset.bytes;
+            Addressables.Release(handle);
+            return buffer;
+        }
     }
 }
 #endif

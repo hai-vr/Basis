@@ -285,6 +285,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> DebugLogLevelFilter = new("debugloglevelfilter", new BasisPlatformDefault<string>(DebugLogFilterAll));
 
         public static BasisSettingsBinding<bool> AudioDebugEnabled = new("audiodebugenabled", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DisableLipSyncForFaceTracking = new("disablelipsyncforfacetracking", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> AudioDebugShowSource = new("audiodebugshowsource", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> AudioDebugShowVolume = new("audiodebugshowvolume", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> AudioDebugShowRingBuffer = new("audiodebugshowringbuffer", new BasisPlatformDefault<bool>(true));
@@ -1166,6 +1167,7 @@ namespace Basis.BasisUI
 
             // Audio Debug
             AudioDebugEnabled.LoadBindingValue();
+            DisableLipSyncForFaceTracking.LoadBindingValue();
             AudioDebugShowSource.LoadBindingValue();
             AudioDebugShowVolume.LoadBindingValue();
             AudioDebugShowRingBuffer.LoadBindingValue();
