@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Simulation;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
@@ -19,9 +20,6 @@ namespace Basis.MediaPipe
     public class BasisMediaPipeManagement : BasisBaseTypeManagement
     {
         public const string SubSystem = "BasisMediaPipe";
-
-        public static BasisMediaPipeManagement Instance { get; private set; }
-
         public string CameraDeviceName = string.Empty;
         public BasisMediaPipeConfig Config = BasisMediaPipeConfig.Default;
 
@@ -35,23 +33,6 @@ namespace Basis.MediaPipe
         private BasisMediaPipeResult _latest;
         private bool _hasLatest;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
-
-        /// <summary>Finds or creates the manager on the BasisDeviceManagement object and registers it for ticking.</summary>
-        public static BasisMediaPipeManagement GetOrCreate()
-        {
-            if (Instance != null) return Instance;
-
-            BasisDeviceManagement dm = BasisDeviceManagement.Instance;
-            if (dm == null) return null;
-
-            BasisMediaPipeManagement mgr = dm.GetComponent<BasisMediaPipeManagement>();
-            if (mgr == null) mgr = dm.gameObject.AddComponent<BasisMediaPipeManagement>();
-            if (dm.BaseTypes != null && !dm.BaseTypes.Contains(mgr)) dm.BaseTypes.Add(mgr);
-
-            Instance = mgr;
-            mgr.ApplySettings();
-            return mgr;
-        }
 
         /// <summary>Pulls persisted settings into Config and restarts the backend if it is already running.</summary>
         public void ApplySettings()
@@ -131,9 +112,10 @@ namespace Basis.MediaPipe
                 _camera.Start(CameraDeviceName, Config.CameraWidth, Config.CameraHeight, Config.TargetFps);
             }
         }
-
+        public static BasisMediaPipeManagement Instance;
         public override void StartSDK()
         {
+            Instance = this;
             LoadSettingsIntoConfig();
 
             _backend = BasisMediaPipeBackendRegistry.Create();
@@ -206,12 +188,10 @@ namespace Basis.MediaPipe
 
             if (Config.EnableHead)
             {
-                if (result.HasFace && BasisLocalBoneDriver.EyeControl != null
-                    && _headConverter.TryGetHeadOffset(in result, out Quaternion headOffset, out Vector3 headPositionOffset))
+                if (result.HasFace && BasisLocalBoneDriver.EyeControl != null && _headConverter.TryGetHeadOffset(in result, out Quaternion headOffset, out Vector3 headPositionOffset))
                 {
                     BasisLocalBoneControl eye = BasisLocalBoneDriver.EyeControl;
-                    EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(
-                        eye.OutGoingData.position + headPositionOffset, eye.OutGoingData.rotation * headOffset);
+                    EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(eye.OutGoingData.position + headPositionOffset, eye.OutGoingData.rotation * headOffset);
                 }
             }
             else
@@ -232,11 +212,9 @@ namespace Basis.MediaPipe
 
             if (Config.EnablePose)
             {
-                if (result.HasPose && BasisLocalBoneDriver.ChestControl != null
-                    && _bodyConverter.TryGetChestRotation(in result, out Quaternion chestRotation))
+                if (result.HasPose && BasisLocalBoneDriver.ChestControl != null && _bodyConverter.TryGetChestRotation(in result, out Quaternion chestRotation))
                 {
-                    EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(
-                        BasisLocalBoneDriver.ChestControl.TposeLocal.position, chestRotation);
+                    EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(BasisLocalBoneDriver.ChestControl.TposeLocal.position, chestRotation);
                 }
             }
             else
@@ -257,20 +235,28 @@ namespace Basis.MediaPipe
                 return;
             }
 
-            BasisLocalBoneControl handControl = left ? BasisLocalBoneDriver.LeftHandControl : BasisLocalBoneDriver.RightHandControl;
-            if (BasisLocalBoneDriver.EyeControl == null || handControl == null) return;
+            // Hands offset from the hips (the rig-simulated hips when there's no hip tracker),
+            // falling back to the eye/head if hips aren't available.
+            BasisLocalBoneControl baseControl = BasisLocalBoneDriver.HipsControl != null  ? BasisLocalBoneDriver.HipsControl : BasisLocalBoneDriver.EyeControl;
+            if (baseControl == null)
+            {
+                return;
+            }
 
             if (_handConverter.TryGetHandTarget(landmarks, left, out Vector3 positionOffset, out Quaternion rotationOffset))
             {
-                EnsureTracker(role).FollowMovement.SetLocalPositionAndRotation(
-                    BasisLocalBoneDriver.EyeControl.OutGoingData.position + positionOffset,
-                    handControl.TposeLocal.rotation * rotationOffset);
+                var basePose = baseControl.OutGoingData;
+                EnsureTracker(role).FollowMovement.SetLocalPositionAndRotation(basePose.position + basePose.rotation * positionOffset,basePose.rotation * rotationOffset);
             }
         }
 
         public void CalibrateHead()
         {
-            if (!_hasLatest) return;
+            if (!_hasLatest)
+            {
+                return;
+            }
+
             _headConverter.Calibrate(_latest);
             _bodyConverter.Calibrate(_latest);
             _handConverter.Calibrate(_latest);
@@ -278,11 +264,20 @@ namespace Basis.MediaPipe
 
         public string DiagnosticsText()
         {
-            if (_backend == null) return "Not running.";
+            if (_backend == null)
+            {
+                return "Not running.";
+            }
+
             string status = $"Backend: {_backend.BackendName}\nAvailable: {_backend.IsAvailable}\nCamera: {(_camera.IsReady ? "ready" : "not ready")}";
-            status += _hasLatest
-                ? $"\nFace: {_latest.HasFace}   L-Hand: {_latest.HasLeftHand}   R-Hand: {_latest.HasRightHand}   Pose: {_latest.HasPose}"
-                : "\n(no result yet)";
+            if (_hasLatest)
+            {
+                status += $"\nFace: {_latest.HasFace}   L-Hand: {_latest.HasLeftHand}   R-Hand: {_latest.HasRightHand}   Pose: {_latest.HasPose}";
+            }
+            else
+            {
+                status += "\n(no result yet)";
+            }
             return status;
         }
 
@@ -302,18 +297,58 @@ namespace Basis.MediaPipe
                 return existing;
             }
 
+            RegisterDeviceMatch();
+
             string id = $"{SubSystem}:{role}";
-            GameObject go = new GameObject(id) { transform = { parent = BasisLocalPlayer.Instance.transform } };
-            Transform move = new GameObject(id + " move").transform;
+            GameObject go = new GameObject(id)
+            {
+                transform =
+                {
+                    parent = BasisLocalPlayer.Instance.transform
+                }
+            };
+            Transform move = new GameObject($"{id} move").transform;
             move.parent = BasisLocalPlayer.Instance.transform;
 
             BasisInputXRSimulate input = go.AddComponent<BasisInputXRSimulate>();
             input.FollowMovement = move;
             input.InitalizeTracking(id, SubSystem, SubSystem, true, role);
+
+            if (role == BasisBoneTrackedRole.Head && BasisDesktopEye.Instance != null)
+            {
+                BasisDesktopEye.Instance.Reticle?.SetEnabled(true);
+            }
+
             BasisDeviceManagement.Instance.TryAdd(input);
 
             _trackers[role] = input;
             return input;
+        }
+
+        // Declare our virtual devices to the matcher with raycast OFF, so InitalizeTracking
+        // resolves these settings instead of generating a raycast-enabled fallback (the default
+        // for a forced non-CenterEye role). These are pose trackers, not UI pointers.
+        private static bool _deviceMatchRegistered;
+
+        private static void RegisterDeviceMatch()
+        {
+            if (_deviceMatchRegistered) return;
+
+            BasisDeviceManagement dm = BasisDeviceManagement.Instance;
+            if (dm == null || dm.BasisDeviceNameMatcher == null)
+            {
+                return;
+            }
+
+            dm.BasisDeviceNameMatcher.BasisDevice.Add(new DeviceSupportInformation
+            {
+                DeviceID = SubSystem,
+                matchableDeviceIds = new[] { SubSystem },
+                HasRayCastSupport = false,
+                HasRayCastVisual = false,
+                HasRayCastRadical = false,
+            });
+            _deviceMatchRegistered = true;
         }
 
         private void DestroyAllTrackers()

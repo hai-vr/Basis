@@ -206,6 +206,7 @@ namespace Basis.MediaPipe.Homuler
             if (_face != null) ParseFace(_face.DetectForVideo(NewImage(w, h), _ts), ref result);
             if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
             if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), _ts), ref result);
+            if (result.HasFace) result.TongueOut = ComputeTongueOut(result.FaceLandmarks, w, h);
 
             lock (_resultLock)
             {
@@ -301,6 +302,50 @@ namespace Basis.MediaPipe.Homuler
             {
                 output.PoseWorldLandmarks[i] = new Vector3(landmarks[i].x, landmarks[i].y, landmarks[i].z);
             }
+        }
+
+        // Tongue isn't a landmark; estimate it from pink/red pixels filling the lower mouth
+        // interior (a tongue protruding past the lower lip), gated on the mouth being open.
+        private float ComputeTongueOut(Vector3[] lm, int w, int h)
+        {
+            if (lm == null || lm.Length < 468 || _rgba == null) return 0f;
+
+            float openAmount = Mathf.Abs(lm[14].y - lm[13].y);
+            if (openAmount < 0.02f) return 0f;
+
+            float x0 = Mathf.Min(lm[78].x, lm[308].x);
+            float x1 = Mathf.Max(lm[78].x, lm[308].x);
+            float y0 = (lm[13].y + lm[14].y) * 0.5f;
+            float y1 = lm[14].y + openAmount * 0.5f;
+
+            int px0 = Mathf.Clamp((int)(x0 * w), 0, w - 1);
+            int px1 = Mathf.Clamp((int)(x1 * w), 0, w - 1);
+            int py0 = Mathf.Clamp((int)(y0 * h), 0, h - 1);
+            int py1 = Mathf.Clamp((int)(y1 * h), 0, h - 1);
+            if (px1 <= px0 || py1 <= py0) return 0f;
+
+            int total = 0;
+            int tongue = 0;
+            int stepX = Mathf.Max(1, (px1 - px0) / 16);
+            int stepY = Mathf.Max(1, (py1 - py0) / 16);
+            for (int y = py0; y <= py1; y += stepY)
+            {
+                int row = y * w;
+                for (int x = px0; x <= px1; x += stepX)
+                {
+                    int idx = (row + x) * 4;
+                    byte r = _rgba[idx];
+                    byte g = _rgba[idx + 1];
+                    byte b = _rgba[idx + 2];
+                    total++;
+                    // pink/red, not too dark, not white (teeth)
+                    if (r > 60 && r > g + 12 && r > b + 12 && r + g + b < 600)
+                    {
+                        tongue++;
+                    }
+                }
+            }
+            return total == 0 ? 0f : Mathf.Clamp01((float)tongue / total);
         }
 
         private Image NewImage(int w, int h) =>

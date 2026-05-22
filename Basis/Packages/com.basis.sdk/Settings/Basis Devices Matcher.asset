@@ -305,3 +305,14 @@ MonoBehaviour:
     HasTrackedRole: 0
     TrackedRole: 18
     HasInteractVisual: 1
+  - DeviceID: BasisMediaPipe
+    VersionNumber: 1
+    matchableDeviceIds:
+    - BasisMediaPipe
+    HasRayCastSupport: 0
+    CanDisplayPhysicalTracker: 0
+    HasRayCastVisual: 0
+    HasRayCastRadical: 0
+    HasTrackedRole: 1
+    TrackedRole: 19
+    HasInteractVisual: 1

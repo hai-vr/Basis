@@ -12,6 +12,7 @@ namespace Basis.MediaPipe
 
         public Matrix4x4 FaceTransform;
         public float[] FaceBlendshapes;
+        public float TongueOut;
 
         public Vector2 LeftEyeGaze;
         public Vector2 RightEyeGaze;

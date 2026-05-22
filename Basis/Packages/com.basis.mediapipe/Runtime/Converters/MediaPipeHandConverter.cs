@@ -21,7 +21,7 @@ namespace Basis.MediaPipe
         public float PlaneWidth = 0.7f;
         public float PlaneHeight = 0.7f;
         public float ForwardDepth = 0.35f;
-        public float HandDrop = 0.45f;
+        public float HandDrop = 0f;
         public float FingerSmoothing = 0.5f;
         public float PoseSmoothing = 0.5f;
         public bool UseRotation = true;

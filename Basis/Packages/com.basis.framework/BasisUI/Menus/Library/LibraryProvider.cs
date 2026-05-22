@@ -1545,6 +1545,8 @@ namespace Basis.BasisUI
         /// <returns></returns>
         public static async Task LoadSelectedItem(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local, bool persistence = false, bool modifyScale = false)
         {
+            await PersistServerProvidedItemOnLoad(item);
+
             // At this point the item should be fully loaded and ready to use. What happens next is up to you and your application needs.
             // For example, you could raise an event that other parts of your app listen for, or directly instantiate the loaded content if it's a prefab.
             //BasisDebug.Log($"Attempting to load selected item: {item.Url} item type {item.Mode} with network type {networkType} persistent = {persistence} modifyScale = {modifyScale}");
@@ -1567,6 +1569,32 @@ namespace Basis.BasisUI
                         BasisDebug.LogError($"LoadSelectedItem was given an item with an unknown mode of {item.Mode}, cannot determine how to load!");
                         break;
                 }
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError(ex);
+            }
+        }
+
+        /// <summary>
+        /// Copies a server-provided default-library item into the local key store the first time it is loaded.
+        /// </summary>
+        private static async Task PersistServerProvidedItemOnLoad(BasisDataStoreItemKeys.ItemKey item)
+        {
+            if (item == null || item.EmbeddedSettings.IsEmbedded) return;
+            if (!BasisServerProvidedItems.IsServerProvided(item)) return;
+
+            try
+            {
+                await BasisDataStoreItemKeys.AddNewKey(new BasisDataStoreItemKeys.ItemKey
+                {
+                    Mode = item.Mode,
+                    PlacementType = item.PlacementType,
+                    Url = item.Url,
+                    Pass = item.Pass,
+                    EmbeddedSettings = item.EmbeddedSettings,
+                    PinnedSettings = item.PinnedSettings,
+                });
             }
             catch (Exception ex)
             {

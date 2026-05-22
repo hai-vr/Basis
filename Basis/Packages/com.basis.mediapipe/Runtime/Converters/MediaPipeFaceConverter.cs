@@ -16,8 +16,10 @@ namespace Basis.MediaPipe
         public float EyeGainY = 1f;
         public bool EyeLidIsOpenness = true;
         public float Smoothing = 0.5f;
+        public float TongueGain = 1f;
 
         private float[] _smoothed;
+        private float _tongueSmoothed;
 
         private static readonly (string addr, MediaPipeArkitBlendshape src)[] Direct =
         {
@@ -60,6 +62,7 @@ namespace Basis.MediaPipe
         private readonly int _idEyeLeftX, _idEyeRightX, _idEyeY;
         private readonly int _idEyeLidLeft, _idEyeLidRight;
         private readonly int _idJawX, _idJawZ, _idCheekPuffSuck;
+        private readonly int _idTongueOut;
 
         private BasisAvatar _relayAvatar;
         private FaceTrackingActivityRelay _relay;
@@ -80,6 +83,7 @@ namespace Basis.MediaPipe
             _idJawX = HVRAddress.AddressToId("FT/v2/JawX");
             _idJawZ = HVRAddress.AddressToId("FT/v2/JawZ");
             _idCheekPuffSuck = HVRAddress.AddressToId("FT/v2/CheekPuffSuck");
+            _idTongueOut = HVRAddress.AddressToId("FT/v2/TongueOut");
         }
 
         public void Apply(in BasisMediaPipeResult result, BasisAvatar avatar)
@@ -123,6 +127,10 @@ namespace Basis.MediaPipe
 
             acquisition.Submit(_idEyeLidLeft, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkLeft)));
             acquisition.Submit(_idEyeLidRight, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkRight)));
+
+            float tongue = Mathf.Clamp01(result.TongueOut * TongueGain);
+            _tongueSmoothed = Mathf.Lerp(_tongueSmoothed, tongue, st);
+            acquisition.Submit(_idTongueOut, _tongueSmoothed);
         }
 
         private float EyeLid(float blink) => EyeLidIsOpenness ? Mathf.Clamp01(1f - blink) : Mathf.Clamp01(blink);

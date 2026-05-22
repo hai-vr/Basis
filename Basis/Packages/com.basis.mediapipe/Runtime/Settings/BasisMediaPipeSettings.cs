@@ -45,16 +45,16 @@ namespace Basis.MediaPipe
             new BasisSettingsBinding<bool>("mediapipe_invertheadroll", new BasisPlatformDefault<bool>(false));
 
         public static readonly BasisSettingsBinding<float> HeadSmoothing =
-            new BasisSettingsBinding<float>("mediapipe_headsmoothing", new BasisPlatformDefault<float>(0.5f));
+            new BasisSettingsBinding<float>("mediapipe_headsmoothing_v2", new BasisPlatformDefault<float>(0.8f));
 
         public static readonly BasisSettingsBinding<float> FaceSmoothing =
-            new BasisSettingsBinding<float>("mediapipe_facesmoothing", new BasisPlatformDefault<float>(0.5f));
+            new BasisSettingsBinding<float>("mediapipe_facesmoothing_v2", new BasisPlatformDefault<float>(0.8f));
 
         public static readonly BasisSettingsBinding<float> HandSmoothing =
-            new BasisSettingsBinding<float>("mediapipe_handsmoothing", new BasisPlatformDefault<float>(0.5f));
+            new BasisSettingsBinding<float>("mediapipe_handsmoothing_v2", new BasisPlatformDefault<float>(0.8f));
 
         public static readonly BasisSettingsBinding<float> FingerSmoothing =
-            new BasisSettingsBinding<float>("mediapipe_fingersmoothing", new BasisPlatformDefault<float>(0.5f));
+            new BasisSettingsBinding<float>("mediapipe_fingersmoothing_v2", new BasisPlatformDefault<float>(0.8f));
 
         public static readonly BasisSettingsBinding<bool> HandRotation =
             new BasisSettingsBinding<bool>("mediapipe_handrotation", new BasisPlatformDefault<bool>(true));

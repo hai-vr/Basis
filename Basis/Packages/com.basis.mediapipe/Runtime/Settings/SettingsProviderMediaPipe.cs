@@ -33,7 +33,8 @@ namespace Basis.MediaPipe
             enableToggle.OnValueChanged += value =>
             {
                 BasisMediaPipeSettings.Enable.SetValue(value);
-                BasisMediaPipeManagement.GetOrCreate()?.SetEnabled(value);
+                BasisMediaPipeManagement.Instance.SetEnabled(value);
+                BasisMediaPipeManagement.Instance.ApplySettings();
             };
 
             PanelDropdown cameraDropdown = PanelDropdown.CreateNewEntry(content);
@@ -50,7 +51,8 @@ namespace Basis.MediaPipe
             cameraDropdown.OnValueChanged += choice =>
             {
                 BasisMediaPipeSettings.Camera.SetValue(choice);
-                BasisMediaPipeManagement.GetOrCreate()?.SetCamera(choice);
+                BasisMediaPipeManagement.Instance.SetCamera(choice);
+                BasisMediaPipeManagement.Instance.ApplySettings();
             };
 
             List<string> resolutions = new List<string> { "320 x 240", "640 x 480", "960 x 540", "1280 x 720" };
@@ -67,7 +69,8 @@ namespace Basis.MediaPipe
                 {
                     BasisMediaPipeSettings.ResolutionWidth.SetValue(rw);
                     BasisMediaPipeSettings.ResolutionHeight.SetValue(rh);
-                    BasisMediaPipeManagement.GetOrCreate()?.ReloadCamera();
+                    BasisMediaPipeManagement.Instance.ReloadCamera();
+                    BasisMediaPipeManagement.Instance.ApplySettings();
                 }
             };
 
@@ -83,7 +86,8 @@ namespace Basis.MediaPipe
                 if (int.TryParse(choice, out int fps))
                 {
                     BasisMediaPipeSettings.CameraFps.SetValue(fps);
-                    BasisMediaPipeManagement.GetOrCreate()?.ReloadCamera();
+                    BasisMediaPipeManagement.Instance.ReloadCamera();
+                    BasisMediaPipeManagement.Instance.ApplySettings();
                 }
             };
 
@@ -96,7 +100,7 @@ namespace Basis.MediaPipe
                 toggle.OnValueChanged += value =>
                 {
                     binding.SetValue(value);
-                    BasisMediaPipeManagement.GetOrCreate()?.ApplySettings();
+                    BasisMediaPipeManagement.Instance.ApplySettings();
                 };
             }
 
@@ -109,7 +113,8 @@ namespace Basis.MediaPipe
                 toggle.OnValueChanged += value =>
                 {
                     binding.SetValue(value);
-                    BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
+                    BasisMediaPipeManagement.Instance.ApplyTuning();
+                    BasisMediaPipeManagement.Instance.ApplySettings();
                 };
             }
 
@@ -137,7 +142,8 @@ namespace Basis.MediaPipe
                 slider.OnValueChanged += value =>
                 {
                     binding.SetValue(value);
-                    BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
+                    BasisMediaPipeManagement.Instance.ApplyTuning();
+                    BasisMediaPipeManagement.Instance.ApplySettings();
                 };
             }
 
@@ -154,7 +160,8 @@ namespace Basis.MediaPipe
             headPosition.OnValueChanged += value =>
             {
                 BasisMediaPipeSettings.HeadPositionStrength.SetValue(value);
-                BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
+                BasisMediaPipeManagement.Instance.ApplyTuning();
+                BasisMediaPipeManagement.Instance.ApplySettings();
             };
 
             PanelSlider headRotation = PanelSlider.CreateNew(content);
@@ -165,13 +172,17 @@ namespace Basis.MediaPipe
             headRotation.OnValueChanged += value =>
             {
                 BasisMediaPipeSettings.HeadRotationStrength.SetValue(value);
-                BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
+                BasisMediaPipeManagement.Instance.ApplyTuning();
             };
 
             PanelButton calibrate = PanelButton.CreateNew(content);
             calibrate.Descriptor.SetTitle("Calibrate Head (look forward)");
             calibrate.Descriptor.SetDescription("Face the screen straight on, then click to set your neutral head pose.");
-            calibrate.OnClicked += () => BasisMediaPipeManagement.GetOrCreate()?.CalibrateHead();
+            calibrate.OnClicked += () =>
+            {
+                BasisMediaPipeManagement.Instance.CalibrateHead();
+                BasisMediaPipeManagement.Instance.ApplySettings();
+            };
 
             PanelElementDescriptor diagnostics = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
