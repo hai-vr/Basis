@@ -1916,16 +1916,17 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
-            PanelButton selectItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
-            selectItem.Descriptor.SetTitle(hasSelected ? BasisLocalization.Get("library.deselect") : BasisLocalization.Get("library.select"));
-            selectItem.SetSize(new Vector2(200, 60));
-
-            // determine if we can select this item
-            if (selectItem.Descriptor.gameObject.TryGetComponent<Button>(out Button selectButtonComponent))
+            // Skip the row-action buttons for scene-mode and embedded rows — not user-owned spawns.
+            if (itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene
+                || itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded)
             {
-                // for the moment disable selecting embedded items
-                selectButtonComponent.interactable = (itemKey.SpawnMode != BasisRuntimeSpawnRegistry.SpawnMode.Scene) && !(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded);
+                return;
             }
+
+            PanelButton selectItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
+            selectItem.Descriptor.SetTitle(string.Empty);
+            selectItem.SetIcon(AddressableAssets.Sprites.Select);
+            selectItem.SetSize(new Vector2(80, 80));
 
             selectItem.OnClicked += async () =>
             {
@@ -1947,14 +1948,9 @@ namespace Basis.BasisUI
             };
 
             PanelButton TeleportToItem = PanelButton.CreateNew(ButtonStyles.StandardButton, itemListPanel.TabButtonParent);
-            TeleportToItem.Descriptor.SetTitle(BasisLocalization.Get("library.teleportTo"));
-            TeleportToItem.SetSize(new Vector2(200, 60));
-            // dont let the teleport button work for scenes yet
-            if (TeleportToItem.Descriptor.gameObject.TryGetComponent<Button>(out Button teleportButtonComponent))
-            {
-                // if the item is embedded only allow an admin to interact
-                teleportButtonComponent.interactable = !(itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene);
-            }
+            TeleportToItem.Descriptor.SetTitle(string.Empty);
+            TeleportToItem.SetIcon(AddressableAssets.Sprites.TeleportTo);
+            TeleportToItem.SetSize(new Vector2(80, 80));
 
             TeleportToItem.OnClicked += () =>
             {
@@ -1985,8 +1981,9 @@ namespace Basis.BasisUI
             };
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
-            removeItem.Descriptor.SetTitle(BasisLocalization.Get("library.remove"));
-            removeItem.SetSize(new Vector2(200, 60));
+            removeItem.Descriptor.SetTitle(string.Empty);
+            removeItem.SetIcon(AddressableAssets.Sprites.Trash);
+            removeItem.SetSize(new Vector2(80, 80));
 
             // only apply this to items that are spawned on the network
             if(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network)

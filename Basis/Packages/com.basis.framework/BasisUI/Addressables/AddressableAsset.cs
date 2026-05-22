@@ -40,6 +40,13 @@ namespace Basis.BasisUI
             public static string MicrophoneMute = "Packages/com.basis.sdk/Textures/Runtime/microphone-mute-solid.png";
             public static string People = "Packages/com.basis.sdk/Textures/Runtime/people-outline.png";
 
+            // row-action icons (Library Instantiated tab)
+            public static string Select = "Packages/com.basis.sdk/Textures/Runtime/scan-outline.png";
+            public static string TeleportTo = "Packages/com.basis.sdk/Textures/Runtime/Teleport.png";
+            public static string Trash = "Packages/com.basis.sdk/Textures/Runtime/trash-bin-outline.png";
+            public static string Link = "Packages/com.basis.sdk/Textures/Runtime/link-outline.png";
+            public static string Unlink = "Packages/com.basis.sdk/Textures/Runtime/unlink-outline.png";
+
             // embedded items
             public static string Embedded = "Packages/com.basis.sdk/Textures/Runtime/embedded.png";
 

@@ -140,6 +140,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2b9d4f1a7e8c3b6d5a2f9e1c4b7a8d3f
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/unlink-outline.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 2f02813bc29de864cb7a5a27364ee32a
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Image Simple Square.prefab
     m_ReadOnly: 0
@@ -206,6 +211,11 @@ MonoBehaviour:
   - m_GUID: 4e22788fc91f8b84ba0cc17c89394cab
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical
       - Grid Variant For Library.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4e8a2c9b1d3f6e7a8b9c0d1e2f3a4b5c
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/scan-outline.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -302,6 +312,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 75dcae065f0db18479883c0f554885bf
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/trash-bin-outline.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 7789be676b03fdd4f8d2e4b183e25858
     m_Address: Packages/com.basis.sdk/Textures/Runtime/clock.png
     m_ReadOnly: 0
@@ -320,6 +335,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 7e571c64d9cdd834a90133d8db72c649
     m_Address: Packages/com.basis.sdk/Textures/Runtime/search.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7f3a1d8b4c6e9f2a5b8c3d1e6f4a9b2c
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/link-outline.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
