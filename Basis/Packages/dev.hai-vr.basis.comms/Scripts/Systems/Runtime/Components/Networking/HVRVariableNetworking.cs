@@ -156,13 +156,14 @@ namespace HVR.Basis.Comms
                 _acquisitionService.RegisterAddresses(new []{ variable.addressId }, OnAddressUpdated);
 
                 _lastAddedNetworkId++;
+                var currentValue = _state.comms.VariableStore.GetValue(variable.addressId);
                 _addressIdToHolder.Add(variable.addressId, new HVRVariableHolder
                 {
                     variable = variable,
                     networkId = _lastAddedNetworkId,
-                    currentValue = variable.initialValue,
-                    lastTransmittedValue = variable.initialValue,
-                    valueWithGreatestDeltaSinceLastTransmittedValue = variable.initialValue
+                    currentValue = currentValue,
+                    lastTransmittedValue = currentValue,
+                    valueWithGreatestDeltaSinceLastTransmittedValue = currentValue
                 });
 
                 _newVariablesAddressIds.Add(variable.addressId);
