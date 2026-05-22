@@ -18,6 +18,7 @@ namespace HVR.Basis.Comms
 
         private float _currentAdjustedDeltaTime;
         private bool _doCatchUp = false;
+        private float _totalQueueSeconds;
 
         public HVRInterpolator(bool doCatchUp)
         {
@@ -26,6 +27,7 @@ namespace HVR.Basis.Comms
 
         public void Add(HVRInterpolationSnapshot snapshot)
         {
+            _totalQueueSeconds += snapshot.deltaTime;
             _snapshots.Enqueue(snapshot);
         }
 
@@ -38,18 +40,23 @@ namespace HVR.Basis.Comms
         {
             if (_snapshots.Count > 0)
             {
-                var totalQueueSeconds = 0f;
-                foreach (var snapshot in _snapshots)
-                {
-                    totalQueueSeconds += snapshot.deltaTime;
-                }
+                var currentQueueSeconds = _totalQueueSeconds;
 
                 _currentSnapshot = _snapshots.Dequeue();
+                if (_snapshots.Count == 0)
+                {
+                    _totalQueueSeconds = 0f;
+                }
+                else
+                {
+                    _totalQueueSeconds -= _currentSnapshot.deltaTime;
+                    if (Mathf.Approximately(_totalQueueSeconds, 0f) && _totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
+                }
 
-                var needToCatchUp = _doCatchUp && totalQueueSeconds >= MinimumDurationInQueueToCatchUp;
+                var needToCatchUp = _doCatchUp && currentQueueSeconds >= MinimumDurationInQueueToCatchUp;
                 if (needToCatchUp)
                 {
-                    var howFastToRecover01 = Mathf.InverseLerp(MinimumDurationInQueueToCatchUp, MaximumDurationInQueueToCatchUp, totalQueueSeconds);
+                    var howFastToRecover01 = Mathf.InverseLerp(MinimumDurationInQueueToCatchUp, MaximumDurationInQueueToCatchUp, currentQueueSeconds);
                     var multiplierToCatchUp = Mathf.Lerp(SlowCatchUpMultiplier, FastCatchUpMultiplier, howFastToRecover01);
                     _currentAdjustedDeltaTime = _currentSnapshot.deltaTime * multiplierToCatchUp;
                 }
