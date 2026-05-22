@@ -74,6 +74,8 @@ namespace HVR.Basis.Comms
                 return false;
             }
 
+            // Support both string-first positional flags and any-order OSC input:
+            // inputText comes from the string, then bools map to shouldOpenKeyboard and playNotificationSound.
             if (arguments[0]?.Kind == OscDataKind.String)
             {
                 inputText = arguments[0].StringValue;

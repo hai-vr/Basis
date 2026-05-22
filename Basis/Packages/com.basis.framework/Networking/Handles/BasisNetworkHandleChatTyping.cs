@@ -9,7 +9,7 @@ using System.Threading;
 /// </summary>
 public static class BasisNetworkHandleChatTyping
 {
-    private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
+    private static ThreadLocal<NetDataWriter> threadLocalWriter;
     private static bool initialized;
     private static bool hasLastSentTypingState;
     private static bool lastSentTypingState;
@@ -21,11 +21,12 @@ public static class BasisNetworkHandleChatTyping
             return;
         }
 
+        threadLocalWriter ??= new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
         initialized = true;
         ClearState();
     }
 
-    public static void Shutdown()
+public static void Shutdown()
     {
         if (!initialized)
         {
@@ -34,6 +35,8 @@ public static class BasisNetworkHandleChatTyping
 
         initialized = false;
         ClearState();
+        threadLocalWriter?.Dispose();
+        threadLocalWriter = null;
     }
 
     public static void ClearState()
@@ -44,6 +47,11 @@ public static class BasisNetworkHandleChatTyping
 
     public static void SendTypingState(bool isTyping)
     {
+        if (!initialized)
+        {
+            return;
+        }
+
         if (BasisNetworkConnection.LocalPlayerIsConnected == false || BasisNetworkConnection.LocalPlayerPeer == null)
         {
             return;

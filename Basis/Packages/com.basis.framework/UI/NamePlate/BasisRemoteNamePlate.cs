@@ -507,7 +507,7 @@ namespace Basis.Scripts.UI.NamePlate
                 return false;
             }
 
-            int frame = (int)((Time.timeAsDouble - typingAnimationStartTime) / 0.4d) % 3;
+            int frame = (int)((Time.timeAsDouble - typingAnimationStartTime) / 0.4d) % TypingIndicatorFrames.Length;
             if (frame == typingAnimationFrame)
             {
                 return false;
@@ -733,7 +733,7 @@ namespace Basis.Scripts.UI.NamePlate
                 }
                 else
                 {
-                    BasisDebug.LogWarning(nameof(BasisRemoteNamePlate) + " input source interacted without highlighting first.");
+                    BasisDebug.LogWarning(nameof(BasisRemoteNamePlate) + " input source interacted without highlighting first.", BasisDebug.LogTag.Input);
                 }
             }
             else
