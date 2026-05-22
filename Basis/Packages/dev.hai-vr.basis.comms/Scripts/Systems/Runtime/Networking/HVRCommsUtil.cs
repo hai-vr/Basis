@@ -80,6 +80,7 @@ namespace HVR.Basis.Comms
         private float _lastActivityTime = float.NegativeInfinity;
         private HVRAvatarComms comms;
         private readonly Dictionary<int, bool> _isFaceTrackingAddress = new();
+        private bool _isInitialized;
 
         // Fired when tracking activity state changes. Scoped per-avatar (this relay
         // is created per BasisAvatar), so local and remote subscribers never collide.
@@ -128,10 +129,14 @@ namespace HVR.Basis.Comms
 
         public void OnHVRAvatarReady(bool isWearer)
         {
+            _isInitialized = true;
             _isWearer = isWearer;
 
             comms.VariableStore.RegisterAddresses(new[] { ActivityAddressId }, OnAddressUpdated);
-            comms.VariableStore.SubmitOrDefineDefaultValue(ActivityAddressId, 0f);
+            if (isWearer)
+            {
+                comms.VariableStore.SubmitOrDefineDefaultValue(ActivityAddressId, 0f);
+            }
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
@@ -150,7 +155,7 @@ namespace HVR.Basis.Comms
 
         private void Update()
         {
-            if (!_isWearer || !_isTrackingActive)
+            if (!_isInitialized || !_isWearer || !_isTrackingActive)
             {
                 return;
             }
