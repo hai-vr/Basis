@@ -451,12 +451,12 @@ namespace HVR.Vixxy
             var foundComponents = new List<Component>();
             foreach (var bakedObject in subject.BakedObjects)
             {
-                var component = bakedObject.GetComponent(foundType);
-                if (component == null && useSkinnedMeshRendererLeniency)
+                var foundComponent = bakedObject.TryGetComponent(foundType, out var component);
+                if (!foundComponent && useSkinnedMeshRendererLeniency)
                 {
-                    bakedObject.GetComponent(skinnedMeshRendererLeniencyOtherType);
+                    foundComponent = bakedObject.TryGetComponent(skinnedMeshRendererLeniencyOtherType, out component);
                 }
-                if (component != null) // This is *NOT* UGC Rule. Some of the targets just may not have that component, especially the non-first objects, and recursive searches.
+                if (foundComponent) // This is *NOT* UGC Rule. Some of the targets just may not have that component, especially the non-first objects, and recursive searches.
                 {
                     foundComponents.Add(component);
                 }

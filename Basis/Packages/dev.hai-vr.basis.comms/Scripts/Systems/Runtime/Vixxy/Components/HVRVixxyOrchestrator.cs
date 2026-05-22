@@ -289,7 +289,7 @@ namespace HVR.Vixxy
             if (!_objectToMaterialPropertyBlock.ContainsKey(bakedObject))
             {
                 _objectToMaterialPropertyBlock.Add(bakedObject, new MaterialPropertyBlock());
-                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.GetComponent<Renderer>());
+                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.TryGetComponent<Renderer>(out var result) ? result : null);
             }
         }
 
@@ -306,7 +306,7 @@ namespace HVR.Vixxy
                                        " and MaterialPropertyBlock are not normally cached if the control did not previously make use of materials. We will create one," +
                                        " however, if this wasn't a live edit, then it needs fixing.");
                 _objectToMaterialPropertyBlock.Add(bakedObject, new MaterialPropertyBlock());
-                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.GetComponent<Renderer>());
+                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.TryGetComponent<Renderer>(out var result) ? result : null);
             }
 
             return _objectToMaterialPropertyBlock[bakedObject];

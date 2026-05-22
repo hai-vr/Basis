@@ -113,8 +113,7 @@ namespace HVR.Vixxy.Editor
             var fullClassName = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.fullClassName)).stringValue;
             if (!HVR_ComponentDictionary.TryGetComponentType(fullClassName, out var componentType)) return false;
 
-            var component = targetObject.GetComponent(componentType);
-            if (component == null) return false;
+            if (!targetObject.TryGetComponent(componentType, out var component)) return false;
 
             var variant = (HVRVixxyPropertyVariant)propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.variant)).intValue;
             var propertyName = propertySp.FindPropertyRelative(nameof(HVRVixxyPropertyBase.propertyName)).stringValue;

@@ -138,8 +138,8 @@ namespace HVR.Vixxy.Editor
                         }
 
                         // Note to self: the "<SkinnedMeshRenderer>() is { } smr" syntax can return true even if there is no SkinnedMeshRenderer, so don't use that.
-                        var smr = targetObject.GetComponent<SkinnedMeshRenderer>();
-                        if (targetObject.GetComponent<SkinnedMeshRenderer>())
+                        var foundSmr = targetObject.TryGetComponent<SkinnedMeshRenderer>(out var smr);
+                        if (foundSmr)
                         {
                             _blendshapes = HVR_EditorHelpers.ListAllBlendshapes(smr);
                         }
@@ -148,8 +148,8 @@ namespace HVR.Vixxy.Editor
                             _blendshapes = null;
                         }
 
-                        var renderer = targetObject.GetComponent<Renderer>();
-                        if (renderer != null)
+                        var foundRenderer = targetObject.TryGetComponent<Renderer>(out var renderer);
+                        if (foundRenderer)
                         {
                             _materialProperties = HVR_EditorHelpers.ListMostMaterialProperties(renderer);
                         }
@@ -798,8 +798,8 @@ namespace HVR.Vixxy.Editor
             Component componentNullable = null;
             if (typeof(Component).IsAssignableFrom(targetedType))
             {
-                var foundComp = targetObject.GetComponent(targetedType);
-                componentNullable = foundComp;
+                var didFindComp = targetObject.TryGetComponent(targetedType, out var foundComp);
+                componentNullable = didFindComp ? foundComp : null;
                 EditorGUILayout.ObjectField(foundComp, targetedType);
             }
             else if (targetedType == typeof(GameObject))

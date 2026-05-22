@@ -25,7 +25,8 @@ namespace HVR.Vixxy.Editor
             my = (HVRVixxyControl)editor.target;
             serializedObject = editor.serializedObject;
 
-            if (my.GetComponent<HVRVixxyMenuItem>() == null)
+            var foundMenuItem = my.TryGetComponent<HVRVixxyMenuItem>(out _);
+            if (!foundMenuItem)
             {
                 var avatar = HVRCommsUtil.GetAvatar(my);
                 if (avatar != null)
@@ -48,8 +49,8 @@ namespace HVR.Vixxy.Editor
 
             if (!_editor.IsSystemAddress())
             {
-                var menuNullable = my.GetComponent<HVRVixxyMenuItem>();
-                var isMenuDriven = menuNullable != null || _outsideMenus.Count != 0;
+                var foundMenu = my.TryGetComponent<HVRVixxyMenuItem>(out var menu);
+                var isMenuDriven = foundMenu || _outsideMenus.Count != 0;
                 if (isMenuDriven)
                 {
                     EditorGUILayout.LabelField("This control is activated by a menu.", EditorStyles.boldLabel);
@@ -60,13 +61,13 @@ namespace HVR.Vixxy.Editor
                     EditorGUILayout.ObjectField(outsideMenu, typeof(HVRVixxyMenuItem), true);
                 }
 
-                if (menuNullable != null)
+                if (foundMenu)
                 {
-                    EditorGUILayout.ObjectField(menuNullable, typeof(HVRVixxyMenuItem), true);
+                    EditorGUILayout.ObjectField(menu, typeof(HVRVixxyMenuItem), true);
                 }
                 EditorGUI.EndDisabledGroup();
 
-                var isControlNotDrivenByAnything = _outsideMenus.Count == 0 && menuNullable == null && (!my.address.TryResolvePath(out var actualAddress) || HVRAddress.IsSystemAddressName(actualAddress));
+                var isControlNotDrivenByAnything = _outsideMenus.Count == 0 && !foundMenu && (!my.address.TryResolvePath(out var actualAddress) || HVRAddress.IsSystemAddressName(actualAddress));
                 if (isControlNotDrivenByAnything)
                 {
                     EditorGUILayout.LabelField("What activates this control?", EditorStyles.boldLabel);
