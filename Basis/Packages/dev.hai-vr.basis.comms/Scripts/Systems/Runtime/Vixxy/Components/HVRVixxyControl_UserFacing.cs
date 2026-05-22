@@ -28,24 +28,32 @@ namespace HVR.Vixxy
                                        && Mathf.Approximately(choices[HVRVixxyPropertyBase.InactiveIndex].value, 0f);
 
         [SerializeField] public HVRVixxyChoiceControl[] choices = {
-            new() { title = "", icon = null, value = 0f },
-            new() { title = "", icon = null, value = 1f }
+            new() { title = "OFF", icon = null, value = 0f },
+            new() { title = "ON", icon = null, value = 1f }
         };
         [SerializeField] public float defaultValue = 0f;
 
         [SerializeField] internal HVRVixxyActivation[] activations = Array.Empty<HVRVixxyActivation>();
         [SerializeField] internal HVRVixxySubject[] subjects = Array.Empty<HVRVixxySubject>();
-
-        // The number of seconds it takes to go from 0.0 to 1.0. If there are more than two choices: The number of seconds it takes to go from one state to another.
-        // [SerializeField] internal float interpolationDurationSeconds = 0f;
-        // [SerializeField] internal AnimationCurve interpolationCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        [SerializeReference] internal List<HVRVixxyFilterBase> filters = new();
 
         [SerializeField] internal bool networked = true;
         [SerializeField] internal HVRVixxyNetworkingType advancedNetworking = HVRVixxyNetworkingType.Automatic;
 
+        [SerializeField] internal HVRVixxyTransitionMode transition;
+        [SerializeField] internal float transitionDuration = 0.5f;
+
         /// If true, we only run the logic of this control if it's enabled. By default, this is false, so that users can put a toggle control
         /// directly inside the component hierarchy that is being toggled OFF.
         [SerializeField] internal bool onlyExecuteWhenEnabled = false;
+    }
+
+    [Serializable]
+    public enum HVRVixxyTransitionMode
+    {
+        None,
+        Simplified,
+        Advanced,
     }
 
     [Serializable]
@@ -181,12 +189,28 @@ namespace HVR.Vixxy
             choices = choices.Where((_, i) => i != choiceIndex).ToArray();
         }
 
+        public override void SwapChoiceIndices(int indexA, int indexB)
+        {
+            if (indexA < 0 || indexA >= choices.Length || indexB < 0 || indexB >= choices.Length)
+            {
+                return;
+            }
+
+            (choices[indexA], choices[indexB]) = (choices[indexB], choices[indexA]);
+        }
+
+        public override object GetValueForChoice(int choice)
+        {
+            return choices[choice];
+        }
+
         public override List<Object> ListAssets()
         {
             if (typeof(Object).IsAssignableFrom(typeof(T)) && typeof(T) != typeof(GameObject) && typeof(T) != typeof(Component))
             {
                 return choices
-                    .Select(choice => choice as Object)
+                    .Select(choice => choice)
+                    .Cast<Object>()
                     .Where(choice => choice != null)
                     .Distinct()
                     .ToList();
@@ -227,7 +251,9 @@ namespace HVR.Vixxy
         public virtual bool ValidateBasedOnNumberOfChoices(int actualNumberOfChoices) => true;
         public virtual void PruneArrays(int actualNumberOfChoices) {}
         public virtual void RemoveChoiceAtIndex(int choiceIndex) {}
+        public virtual void SwapChoiceIndices(int indexA, int indexB) {}
         public virtual object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue) { throw new NotImplementedException(); }
+        public virtual object GetValueForChoice(int choice) { throw new NotImplementedException(); }
         public virtual void ApplyMaterialProperty(MaterialPropertyBlock materialPropertyBlock, object resolvedValue)
         {
             switch (resolvedValue)
@@ -364,17 +390,20 @@ namespace HVR.Vixxy
         }
     }
 
+    /// LEGACY TYPE. This is to fix a serialization issue. Automatically converted to HVRVixxyPropertyColorHDR.
+    [Serializable] public class HVRVixxyPropertyColor32 : HVRVixxyProperty<Color32> { public HVRVixxyPropertyColorHDRInterpolation interpolation; }
+
     [Serializable]
-    public class HVRVixxyPropertyColor32 : HVRVixxyProperty<Color32>
+    public class HVRVixxyPropertyColorHDR : HVRVixxyProperty<Color>
     {
-        public HVRVixxyPropertyColor32Interpolation interpolation;
+        public HVRVixxyPropertyColorHDRInterpolation interpolation;
 
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             var fromHDR = choices[inactiveIndex];
             var toHDR = choices[activeIndex];
 
-            if (interpolation == HVRVixxyPropertyColor32Interpolation.OklabWhenPossible)
+            if (interpolation == HVRVixxyPropertyColorHDRInterpolation.OklabWhenPossible)
             {
                 if (HVR_VixxyUtil.IsBelowHDR(fromHDR) && HVR_VixxyUtil.IsBelowHDR(toHDR))
                 {
@@ -390,7 +419,7 @@ namespace HVR.Vixxy
                 }
             }
 
-            return Color32.Lerp(fromHDR, toHDR, active01);
+            return Color.Lerp(fromHDR, toHDR, active01);
         }
     }
 
@@ -406,13 +435,35 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
-    public class HVRVixxyPropertyQuaternion : HVRVixxyProperty<Quaternion>
+    public class HVRVixxyPropertyQuaternion : HVRVixxyProperty<Vector3>
     {
         public HVRVixxyPropertyQuaternionInterpolation interpolation;
 
+        [NonSerialized] private bool _initialized;
+        [NonSerialized] private Quaternion _a = Quaternion.identity;
+        [NonSerialized] private Quaternion _b = Quaternion.identity;
+
+        public override object GetValueForChoice(int choice)
+        {
+            return Quaternion.Euler(choices[choice]);
+        }
+
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
-            return Quaternion.Slerp(choices[inactiveIndex], choices[activeIndex], active01);
+            if (interpolation == HVRVixxyPropertyQuaternionInterpolation.Spherical)
+            {
+                if (!_initialized)
+                {
+                    _a = Quaternion.Euler(choices[inactiveIndex]);
+                    _b = Quaternion.Euler(choices[activeIndex]);
+                }
+                return Quaternion.Slerp(_a, _b, active01);
+            }
+            else // Euler
+            {
+                // https://docs.unity3d.com/6000.4/Documentation/Manual/AnimationRotate.html#:~:text=if%20the%20rotation%20is%20greater%20than%20360%20degrees%2C%20the%20GameObject%20rotates%20fully
+                return Quaternion.Euler(Vector3.Lerp(choices[inactiveIndex], choices[activeIndex], active01));
+            }
         }
     }
 
@@ -437,7 +488,7 @@ namespace HVR.Vixxy
     }
 
     [Serializable]
-    public enum HVRVixxyPropertyColor32Interpolation
+    public enum HVRVixxyPropertyColorHDRInterpolation
     {
         /// Use Oklab when the two colors are both below HDR.
         OklabWhenPossible,
@@ -448,6 +499,7 @@ namespace HVR.Vixxy
     public enum HVRVixxyPropertyQuaternionInterpolation
     {
         Spherical,
+        Euler,
     }
 
     [Serializable]

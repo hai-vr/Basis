@@ -14,17 +14,17 @@ namespace HVR.Vixxy.Editor
         internal static readonly Color RuntimeColorKO = new Color(1f, 0.72f, 0f);
         internal static readonly Color FilledColor = new Color(0.76f, 0.97f, 0.74f);
 
-        internal const float DeleteButtonWidth = 40;
-
-        public static bool _settingsFoldout;
+        public static bool _advancedSettingsFoldout;
         public static bool _toggleObjectsFoldout;
         public static bool _changePropertiesFoldout;
+        public static bool _filtersFoldout;
         public static bool _developerViewFoldout;
 
         private VMenuItem _menuItem;
         private VLayoutSettings _settings;
         private VLayoutChangeProperties _changeProperties;
         private VLayoutToggleObjects _toggleObjects;
+        private VLayoutFilters _filters;
         private VLayoutDeveloperView _developerView;
 
         private void OnEnable()
@@ -32,6 +32,7 @@ namespace HVR.Vixxy.Editor
             _settings = new VLayoutSettings(this);
             _changeProperties = new VLayoutChangeProperties(this);
             _toggleObjects = new VLayoutToggleObjects(this);
+            _filters = new VLayoutFilters(this);
             _developerView = new VLayoutDeveloperView(this);
         }
 
@@ -47,11 +48,9 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
-            _settingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.SettingsLabel, "", _settingsFoldout, ref anyChanged);
-            if (_settingsFoldout)
-            {
-                if (_settings.LayoutSettings()) return;
-            }
+            if (_settings.LayoutChoices()) return;
+            if (_settings.LayoutSettings()) return;
+
             _toggleObjectsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.ToggleObjectsViewLabel, "", _toggleObjectsFoldout, ref anyChanged, my.activations.Length > 0, FilledColor);
             if (_toggleObjectsFoldout)
             {
@@ -65,6 +64,23 @@ namespace HVR.Vixxy.Editor
             EditorGUILayout.Separator();
 
             EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.AdvancedLabel, EditorStyles.boldLabel);
+            _advancedSettingsFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.AddressAndNetworking, "", _advancedSettingsFoldout, ref anyChanged);
+            if (_advancedSettingsFoldout)
+            {
+                if (_settings.LayoutAdvancedSettings()) return;
+            }
+
+            if (my.transition == HVRVixxyTransitionMode.Advanced)
+            {
+                _filtersFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.AdvancedTransitionLabel, "", _filtersFoldout, ref anyChanged, my.filters.Count > 0, FilledColor);
+                if (_filtersFoldout)
+                {
+                    if (_filters.Layout()) return;
+                }
+            }
+
+            EditorGUILayout.Separator();
+            EditorGUILayout.LabelField(HVRVixxyLocalizationPhrase.DebugLabel, EditorStyles.boldLabel);
             _developerViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.DeveloperViewLabel, "", _developerViewFoldout, ref anyChanged);
             if (_developerViewFoldout)
             {
@@ -81,6 +97,10 @@ namespace HVR.Vixxy.Editor
             if (_developerViewFoldout)
             {
                 DrawDefaultInspector();
+                if (Application.isPlaying)
+                {
+                    Repaint();
+                }
             }
         }
 
@@ -108,7 +128,7 @@ namespace HVR.Vixxy.Editor
             EditorGUI.EndDisabledGroup();
 
             EditorGUI.BeginDisabledGroup(string.IsNullOrWhiteSpace(pathSp.stringValue) && assetSp.objectReferenceValue == null);
-            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(20)))
+            if (GUILayout.Button(HVR_EditorHelpers.CrossSymbol, GUILayout.Width(HVR_EditorHelpers.DeleteButtonWidth)))
             {
                 assetSp.objectReferenceValue = null;
                 pathSp.stringValue = "";
@@ -154,6 +174,7 @@ namespace HVR.Vixxy.Editor
             {
                 foreach (var property in subject.properties)
                 {
+                    if (property == null) continue; // SerializeReference
                     property.RemoveChoiceAtIndex(choiceIndex);
                 }
             }
@@ -161,11 +182,53 @@ namespace HVR.Vixxy.Editor
             Undo.RecordObject(my, HVRVixxyLocalizationPhrase.RemoveChoiceLabel);
         }
 
+        public void MoveChoiceUp(int choiceIndex)
+        {
+            MoveChoice(choiceIndex, choiceIndex - 1);
+        }
+
+        public void MoveChoiceDown(int choiceIndex)
+        {
+            var my = (HVRVixxyControl)target;
+            if (choiceIndex >= my.choices.Length - 1) return;
+
+            MoveChoice(choiceIndex, choiceIndex + 1);
+        }
+
+        private void MoveChoice(int fromIndex, int toIndex)
+        {
+            if (fromIndex < 0 || toIndex < 0) return;
+
+            var my = (HVRVixxyControl)target;
+            if (fromIndex >= my.choices.Length || toIndex >= my.choices.Length) return;
+
+            foreach (var activation in my.activations)
+            {
+                (activation.choices[fromIndex], activation.choices[toIndex]) = (activation.choices[toIndex], activation.choices[fromIndex]);
+            }
+            foreach (var subject in my.subjects)
+            {
+                foreach (var property in subject.properties)
+                {
+                    property.SwapChoiceIndices(fromIndex, toIndex);
+                }
+            }
+            (my.choices[fromIndex], my.choices[toIndex]) = (my.choices[toIndex], my.choices[fromIndex]);
+
+            Undo.RecordObject(my, "Swap choices");
+        }
+
         internal static string EditorChoiceDescription(int choiceIndex, HVRVixxyChoiceControl[] choices)
         {
             var descriptionTemp = choiceIndex >= 0 && choiceIndex < choices.Length ? choices[choiceIndex].title : "";
-            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"{descriptionTemp} (#{choiceIndex + 1})" : $"Value for #{choiceIndex + 1}";
+            var description = !string.IsNullOrWhiteSpace(descriptionTemp) ? $"#{choiceIndex + 1} {descriptionTemp}" : $"#{choiceIndex + 1}";
             return $"{description} (={choices[choiceIndex].value:0})";
+        }
+
+        public bool IsSystemAddress()
+        {
+            var my = (HVRVixxyControl)target;
+            return my.address.TryResolvePath(out var actualAddress) && HVRAddress.IsSystemAddressName(actualAddress);
         }
     }
 }

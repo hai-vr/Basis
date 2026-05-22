@@ -158,8 +158,8 @@ namespace HVR.Basis.Comms
 
             foreach (var menuItem in menuItems)
             {
-                var hasControl = menuItem.TryResolveActualControl(out var control);
-                if (!hasControl) continue;
+                var control = menuItem.control;
+                if (control == null) continue;
 
                 if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
                 {
@@ -230,14 +230,12 @@ namespace HVR.Basis.Comms
             dropdown.OnValueChanged += choice =>
             {
                 var valueForThatChoice = control.choices[choiceStrings.IndexOf(choice)].value;
-                BasisDebug.Log($"Selected {choice}, value is {valueForThatChoice}");
                 menuItem.ApplyValue(valueForThatChoice);
                 dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
             };
             var currentValue = (int)menuItem.GetValue();
             var matchingChoice = control.choices.FirstOrDefault(choice => Mathf.Approximately(choice.value, currentValue));
             var currentChoice = matchingChoice != null ? control.choices.ToList().IndexOf(matchingChoice) : -1;
-            BasisDebug.Log($"Current choice is {currentChoice}, choicestring count is {choiceStrings.Count}");
             if (currentChoice >= 0 && currentChoice < choiceStrings.Count)
             {
                 dropdown.SetValueWithoutNotify(choiceStrings[currentChoice]);

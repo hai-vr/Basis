@@ -11,15 +11,23 @@ namespace HVR.Basis.Comms
     // - Remotes cannot send messages to each other.
     public class AvatarMessageProcessing
     {
+        internal const bool Irrelevant_NoAddressesAreInThePacket = false;
+
         public const byte NewNet_WearerData = 0;
         public const byte NewNet_WearerReady = 1;
         public const byte NewNet_RemoteRequestsInitialization = 2;
 
+        public const byte NewNet_WearerNeedsUshortForAddresses = 7;
         public const byte NewNet_WearerSubmitsNewVariables = 8;
         public const byte NewNet_WearerSubmitsUpdatedVariables_Zeroes = 10;
         public const byte NewNet_WearerSubmitsUpdatedVariables_Ones = 11;
         public const byte NewNet_WearerSubmitsUpdatedVariables_ZeroesAndOnes = 12;
         public const byte NewNet_WearerSubmitsUpdatedVariables_Mixed = 13;
+
+        public const byte NewNet_WearerUpgradesFloatToHighFrequency = 14;
+        public const byte NewNet_WearerDowngradesFloatToLowFrequency = 15;
+
+        public const byte NewNet_WearerSubmitsUpdatedHighFrequencyVariables = 16;
 
         private readonly IHVRTransmitter _transmitter;
         private readonly bool _isWearer;

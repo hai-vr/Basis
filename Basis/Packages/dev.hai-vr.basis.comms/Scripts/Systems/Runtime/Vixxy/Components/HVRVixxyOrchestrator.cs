@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using HVR.Basis.Comms;
+using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
 namespace HVR.Vixxy
@@ -19,6 +20,7 @@ namespace HVR.Vixxy
         public HVRVariableStore VariableStore;
 
         private readonly HashSet<IHVRVixxyAggregator> _aggregatorsToUpdateThisTick = new();
+        private readonly HashSet<IHVRVixxyActuator> _actuatorsWithFiltersToCheckThisTick = new();
         private readonly HashSet<IHVRVixxyActuator> _actuatorsToUpdateThisTick = new();
         private bool _anythingNeedsUpdating;
 
@@ -31,7 +33,11 @@ namespace HVR.Vixxy
         private readonly HashSet<IHVRVixxyAggregator> _workAggregators = new();
 
         private readonly List<HVRVixxyToBeNetworked> _toBeNetworked = new();
-        private bool _alreadyCalledReadyBothAvatarAndNetwork;
+        private bool _needsReevaluateSystemAddresses;
+
+        // Basis-specific
+        private HVRBasisBuiltInAddresses _builtInAddressesNullable;
+        private HashSet<int> _measurementAddressIds;
 
         /// Contrary to AcquisitionService, which only references data pertaining to the local user, implicit addresses can refer to data
         /// coming from other users to drive that the avatar of that user.
@@ -50,7 +56,7 @@ namespace HVR.Vixxy
             // (consider switching to an int lookup).
 
             var aggregators = AggregatorsOf(addressId);
-            var actuators = ActuatorsOf(addressId);
+            var (filters, actuators) = ActuatorsOf(addressId).Partition(actuator => actuator.HasFilters());
 
             // In AcquisitionService, acquisition events are raised as soon as the data arrives.
             // We don't want to process that new data when it arrives, instead we want to process
@@ -61,6 +67,7 @@ namespace HVR.Vixxy
             // like that of face tracking.
             // OR, modify AcquisitionService to have OnAddressValueChanged.
             _aggregatorsToUpdateThisTick.UnionWith(aggregators);
+            _actuatorsWithFiltersToCheckThisTick.UnionWith(filters);
             _actuatorsToUpdateThisTick.UnionWith(actuators);
             _anythingNeedsUpdating = true;
         }
@@ -78,6 +85,32 @@ namespace HVR.Vixxy
         }
 
         private void Update()
+        {
+            if (_needsReevaluateSystemAddresses)
+            {
+                var systemAddresses = _addressIdToActuators.Keys
+                    .Concat(_addressIdToAggregators.Keys)
+                    .Distinct()
+                    .Where(HVRAddress.IsSystemAddressId)
+                    .ToHashSet();
+
+                if (systemAddresses.Count > 0 && _builtInAddressesNullable == null)
+                {
+                    _builtInAddressesNullable = new HVRBasisBuiltInAddresses(HVRCommsUtil.GetComms(this), HVRCommsUtil.GetAvatar(this).IsOwnedLocally);
+                }
+                if (systemAddresses.Count > 0)
+                {
+                    _builtInAddressesNullable.DeclareAllRequired(systemAddresses);
+                }
+                _needsReevaluateSystemAddresses = false;
+            }
+            Simulate();
+            Apply();
+        }
+
+        private readonly HashSet<IHVRVixxyActuator> L_actuatorsWithFiltersToCheckNextTick = new(); // is field due to PR guidelines
+        /// Calculate aggregators and filters. This may be jobified in the future.
+        public void Simulate()
         {
             if (!_anythingNeedsUpdating) return;
 
@@ -102,9 +135,36 @@ namespace HVR.Vixxy
                 }
             }
 
-            // Deck remaining aggregations for next frame. We already gave it a bunch of chances.
-            _anythingNeedsUpdating = _aggregatorsToUpdateThisTick.Count > 0;
+            if (_actuatorsWithFiltersToCheckThisTick.Count > 0)
+            {
+                L_actuatorsWithFiltersToCheckNextTick.Clear();
 
+                foreach (var actuator in _actuatorsWithFiltersToCheckThisTick)
+                {
+                    var filterResult = actuator.ApplyFilters();
+                    if (filterResult.filterNeedsCheckNextTick)
+                    {
+                        L_actuatorsWithFiltersToCheckNextTick.Add(actuator);
+                    }
+                    if (filterResult.actuatorNeedsUpdate)
+                    {
+                        _actuatorsToUpdateThisTick.Add(actuator);
+                    }
+                }
+
+                _actuatorsWithFiltersToCheckThisTick.Clear();
+                _actuatorsWithFiltersToCheckThisTick.UnionWith(L_actuatorsWithFiltersToCheckNextTick);
+            }
+
+            // Deck remaining aggregations for next frame. We already gave it a bunch of chances.
+            _anythingNeedsUpdating = _aggregatorsToUpdateThisTick.Count > 0 || _actuatorsWithFiltersToCheckThisTick.Count > 0;
+
+            // TODO: Calculating the effective lerp value of an Actuator should probably be done in this step.
+        }
+
+        /// Applies effects to GameObject and Components and sets MaterialPropertyBlock to renderers.
+        public void Apply()
+        {
             // TODO: It may be possible to do a reverse graph traversal, where we deny listening to addresses
             // or processing aggregators if there are no actuators that listen to that data in the first place.
             if (_actuatorsToUpdateThisTick.Count > 0)
@@ -151,6 +211,11 @@ namespace HVR.Vixxy
             HVRVariableStore.AddressUpdated addressUpdatedFn = (_, value) => implicitAddressUpdatedFn.Invoke(value);
             VariableStore.RegisterAddresses(new [] { addressId }, addressUpdatedFn);
 
+            if (HVRAddress.IsSystemAddressId(addressId))
+            {
+                _needsReevaluateSystemAddresses = true;
+            }
+
             return new HVRActuatorRegistrationToken
             {
                 registeredAddressId = addressId,
@@ -165,9 +230,18 @@ namespace HVR.Vixxy
             if (_addressIdToActuators.TryGetValue(actuatorRegistrationToken.registeredAddressId, out var existingActuator))
             {
                 existingActuator.Remove(actuatorRegistrationToken.registeredActuator);
+                if (existingActuator.Count == 0)
+                {
+                    _addressIdToActuators.Remove(actuatorRegistrationToken.registeredAddressId);
+                }
             }
 
             VariableStore.UnregisterAddresses(new []{ actuatorRegistrationToken.registeredAddressId }, actuatorRegistrationToken.registeredCallback);
+
+            if (HVRAddress.IsSystemAddressId(actuatorRegistrationToken.registeredAddressId))
+            {
+                _needsReevaluateSystemAddresses = true;
+            }
         }
 
         public void RegisterAggregator(string address, IHVRVixxyAggregator actuator)
@@ -199,7 +273,14 @@ namespace HVR.Vixxy
 
         public void UnregisterAggregator(int addressId, IHVRVixxyAggregator aggregator)
         {
-            if (_addressIdToAggregators.TryGetValue(addressId, out var existingActuator)) existingActuator.Remove(aggregator);
+            if (_addressIdToAggregators.TryGetValue(addressId, out var existingActuator))
+            {
+                existingActuator.Remove(aggregator);
+                if (existingActuator.Count == 0)
+                {
+                    _addressIdToAggregators.Remove(addressId);
+                }
+            }
         }
 
         /// Inform the orchestrator that the object will need a material property block assigned to it.
@@ -209,7 +290,7 @@ namespace HVR.Vixxy
             if (!_objectToMaterialPropertyBlock.ContainsKey(bakedObject))
             {
                 _objectToMaterialPropertyBlock.Add(bakedObject, new MaterialPropertyBlock());
-                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.GetComponent<Renderer>());
+                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.TryGetComponent<Renderer>(out var result) ? result : null);
             }
         }
 
@@ -226,7 +307,7 @@ namespace HVR.Vixxy
                                        " and MaterialPropertyBlock are not normally cached if the control did not previously make use of materials. We will create one," +
                                        " however, if this wasn't a live edit, then it needs fixing.");
                 _objectToMaterialPropertyBlock.Add(bakedObject, new MaterialPropertyBlock());
-                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.GetComponent<Renderer>());
+                _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.TryGetComponent<Renderer>(out var result) ? result : null);
             }
 
             return _objectToMaterialPropertyBlock[bakedObject];
@@ -238,8 +319,37 @@ namespace HVR.Vixxy
             _stagedBlocks.Add(bakedObject);
         }
 
+        public bool IsMeasurementAddress(int addressId)
+        {
+            _measurementAddressIds ??= HVR_VixxyUtil.FindAllMeasurementAddresses(context.GetComponentsInChildren<HVRMeasure>(true).ToList())
+                .Select(HVRAddress.AddressToId)
+                .ToHashSet();
+
+            return _measurementAddressIds.Contains(addressId);
+        }
+
         public void RequireNetworked(int addressId, HVRVixxyNetworkingType networkingType, float defaultValue, float min, float max)
         {
+            foreach (var existing in _toBeNetworked)
+            {
+                if (existing.addressId == addressId)
+                {
+                    if (networkingType == HVRVixxyNetworkingType.UpdatedExtremelyFrequently)
+                    {
+                        existing.networkingType = networkingType;
+                    }
+                    if (min < existing.min)
+                    {
+                        existing.min = min;
+                    }
+                    if (max > existing.max)
+                    {
+                        existing.max = max;
+                    }
+                    return;
+                }
+            }
+
             _toBeNetworked.Add(new HVRVixxyToBeNetworked
             {
                 addressId = addressId,
@@ -252,9 +362,6 @@ namespace HVR.Vixxy
 
         public void SignalHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
-            if (_alreadyCalledReadyBothAvatarAndNetwork) return;
-            _alreadyCalledReadyBothAvatarAndNetwork = true;
-
             var comms = HVRCommsUtil.GetComms(this);
             foreach (var toBeNetworked in _toBeNetworked)
             {
@@ -263,9 +370,18 @@ namespace HVR.Vixxy
                     addressId = toBeNetworked.addressId,
                     initialValue = VariableStore.GetValue(toBeNetworked.addressId),
                     variableTypeCode = HVRVariableTypeCode.Float,
+                    needsInterpolation = false,
                     min = toBeNetworked.min,
                     max = toBeNetworked.max
                 });
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_builtInAddressesNullable != null)
+            {
+                _builtInAddressesNullable.Destroy();
             }
         }
     }

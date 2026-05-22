@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using HVR.Basis.Comms;
 using UnityEngine;
 // ReSharper disable SuggestVarOrType_BuiltInTypes
 
@@ -9,6 +10,8 @@ namespace HVR.Vixxy
 {
     public static class HVR_VixxyUtil
     {
+        public const float BogusInitializationNumber = float.MinValue + 1.23456789f;
+
         [HideInCallstack]
         public static void Log(object caller, string str)
         {
@@ -56,6 +59,16 @@ namespace HVR.Vixxy
         /// Given a list of GameObjects that is known to have destroyed GameObjects in it, clean it.
         public static void RemoveDestroyedFromList(List<GameObject> listToClean)
         {
+            for (var i = listToClean.Count - 1; i >= 0; i--)
+                if (null == listToClean[i])
+                    listToClean.RemoveAt(i);
+        }
+
+        /// Sanitize managed references. Even though this could clean any list, only use this on fields that use SerializeReference for semantic purposes and to track issues.
+        public static void SanitizeFieldOfTypeSerializeReference<T>(List<T> listToClean)
+        {
+            // SerializeReference can sometimes contain null if the component was created in a newer version, and then run in a lower version
+            // (failed to deserialize property type? e.g. Vixxy JiggleRigProperty).
             for (var i = listToClean.Count - 1; i >= 0; i--)
                 if (null == listToClean[i])
                     listToClean.RemoveAt(i);
@@ -123,6 +136,42 @@ namespace HVR.Vixxy
             return child.name;
         }
 
+
+        /// Generates a path-like string, which is like a relative path, but adds a "//N" suffix whenever a member of the path has a
+        /// sibling of the same name. The first gets no suffix, the second gets "//1", the third gets "//2", etc.<br/>
+        /// This path-like string is not meant to be used to resolve the transform back, it is used to generate addresses.
+        public static string GenerateRelativeLikePath(Transform root, Transform child)
+        {
+            if (root == null) throw new ArgumentNullException(nameof(root)); // Explicitly disallow null for this public method.
+
+            return GenerateMashPathInternal(root, child);
+        }
+
+        private static string GenerateMashPathInternal(Transform rootNullable, Transform child)
+        {
+            if (rootNullable == child) return "";
+
+            var currentChildName = child.name;
+            var increment = 0;
+            foreach (Transform o in child.parent)
+            {
+                if (o == child)
+                {
+                    break;
+                }
+                if (o.name == currentChildName)
+                {
+                    increment++;
+                }
+            }
+
+            var thisLevel = increment == 0 ? currentChildName : $"{currentChildName}//{increment}";
+
+            if (child.parent != rootNullable && child.parent != null) return $"{GenerateMashPathInternal(rootNullable, child.parent)}/{thisLevel}";
+
+            return thisLevel;
+        }
+
         // Calculates a SHA1 hash of a string, to mimic hashes of commits. The default length is 7, to mimic the default length of
         // short hashes on git. Do not use this for cryptographic purposes, this is meant for use in the creation of unique names for
         // parameters.
@@ -135,9 +184,23 @@ namespace HVR.Vixxy
                 .Substring(0, length);
         }
 
+        // Calculates a SHA1 hash of a string, which is 20 bytes.
+        public static byte[] FullSha1(string str)
+        {
+            using var sha = SHA1.Create();
+            return sha.ComputeHash(new UTF8Encoding().GetBytes(str));
+        }
+
+        public static string FromSha1ToString(byte[] fullShaBytes)
+        {
+            return BitConverter.ToString(fullShaBytes)
+                .Replace("-", "")
+                .ToLowerInvariant();
+        }
+
         /// Returns false if any of the RGB components of this color is above 1.
         /// This is used to determine if we should be using Oklab to interpolate between two HDR colors.
-        public static bool IsBelowHDR(Color32 color)
+        public static bool IsBelowHDR(Color color)
         {
             return color.r <= 1f && color.g <= 1f && color.b <= 1f;
         }
@@ -199,6 +262,40 @@ namespace HVR.Vixxy
             float b = -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s;
 
             return new Color(r, g, b, alpha);
+        }
+
+        public static List<string> FindAllMeasurementAddresses(List<HVRMeasure> allMeasureComponents)
+        {
+            var result = new List<string>();
+            foreach (var measure in allMeasureComponents)
+            {
+                switch (measure.measurementType)
+                {
+                    case HVRMeasureType.Distance:
+                    case HVRMeasureType.Angle:
+                    case HVRMeasureType.RotationDifference:
+                    case HVRMeasureType.Speed:
+                        AddAddressIfNotEmpty(result, measure.valueAddress);
+                        AddAddressIfNotEmpty(result, measure.changeOverTimeAddress);
+                        break;
+                    case HVRMeasureType.Raycast:
+                        AddAddressIfNotEmpty(result, measure.valueAddress);
+                        AddAddressIfNotEmpty(result, measure.changeOverTimeAddress);
+                        AddAddressIfNotEmpty(result, measure.hitAddress);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+            return result;
+        }
+
+        private static void AddAddressIfNotEmpty(List<string> addresses, HVRAddressSelectorToggle addressSelector)
+        {
+            if (addressSelector.isActive && addressSelector.address.TryResolvePath(out var address))
+            {
+                addresses.Add(address);
+            }
         }
     }
 }

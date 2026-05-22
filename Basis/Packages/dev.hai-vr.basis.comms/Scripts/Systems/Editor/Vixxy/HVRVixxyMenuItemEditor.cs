@@ -9,7 +9,6 @@ namespace HVR.Vixxy.Editor
     {
         private VMenuItem _menuItem;
 
-        public static bool _userViewFoldout = true;
         public static bool _creatorViewFoldout;
 
         internal const string CreatorView = "Creator View";
@@ -31,11 +30,8 @@ namespace HVR.Vixxy.Editor
             }
 
             var anyChanged = false;
-            _userViewFoldout = HaiEFCommon.LilFoldout(HVRVixxyLocalizationPhrase.UserViewLabel, "", _userViewFoldout, ref anyChanged);
-            if (_userViewFoldout)
-            {
-                if (_menuItem.LayoutMenu()) return;
-            }
+            if (_menuItem.LayoutMenu()) return;
+
             _creatorViewFoldout = HaiEFCommon.LilFoldout(CreatorView, "", _creatorViewFoldout, ref anyChanged);
             if (_creatorViewFoldout)
             {

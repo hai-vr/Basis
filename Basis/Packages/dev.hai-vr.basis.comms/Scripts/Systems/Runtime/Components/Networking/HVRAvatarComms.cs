@@ -26,15 +26,10 @@ namespace HVR.Basis.Comms
 
         private bool _isWearer;
 
-        internal readonly List<MutualizedInterpolationRangeStorage> _ranges = new();
-        private readonly List<HVRNeedsInterpolationCallback> _needsInterpolation = new();
-        private readonly List<HVRToSubmitLater> _toStoreLater = new();
-
-        private AvatarMessageProcessing avatarMessageProcessing;
-        internal StreamedAvatarFeature _streamedLateInit;
-
-        private AvatarMessageProcessing variableNetworkingProcessing;
+        private AvatarMessageProcessing _variableNetworkingProcessing;
         private HVRVariableNetworking _variableNetworking;
+
+        private List<GameObject> _netObjects;
 
         public HVRAvatarComms()
         {
@@ -101,10 +96,20 @@ namespace HVR.Basis.Comms
                 carrier.index = index;
             }
 
-            var holder = new GameObject("Generated__VariableNetworking")
+            if (_netObjects != null)
+            {
+                foreach (var netObject in _netObjects)
+                {
+                    if (null != netObject) Destroy(netObject);
+                }
+            }
+            _netObjects = new List<GameObject>();
+
+            var holder = new GameObject("GeneratedNetworking__VariableNetworking")
             {
                 transform = { parent = avatar.transform }
             };
+            _netObjects.Add(holder);
             holder.SetActive(false);
             _variableNetworking = holder.AddComponent<HVRVariableNetworking>();
             _variableNetworking.isWearer = isWearer;
@@ -118,9 +123,10 @@ namespace HVR.Basis.Comms
                 initializable.OnHVRReadyBothAvatarAndNetwork(isWearer);
             }
 
-            DeclareMutualizedInterpolator(isWearer, carriers[AvatarMessageProcessingCarrier0]);
 
-            variableNetworkingProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableNetworkingCarrier], isWearer, avatar.LinkedPlayerID, _variableNetworking, true);
+            _variableNetworkingProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableNetworkingCarrier], isWearer, avatar.LinkedPlayerID, _variableNetworking, true);
+
+            StartCoroutine(SendInitialPacketNextFrame());
         }
 
         public void RequireVariable(HVRVariable variable)
@@ -130,117 +136,11 @@ namespace HVR.Basis.Comms
             _variableNetworking.RequireVariable(variable);
         }
 
-        private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)
-        {
-            var holder = new GameObject("Streamed-Mutualized")
-            {
-                transform = { parent = avatar.transform }
-            };
-            holder.SetActive(false);
-            _streamedLateInit = holder.AddComponent<StreamedAvatarFeature>();
-            _streamedLateInit.valueArraySize = (byte)_ranges.Count; // TODO: Sanitize count to be within bounds
-            _streamedLateInit.transmitter = carrier;
-            _streamedLateInit.isWearer = isWearer;
-            _streamedLateInit.localIdentifier = 0;
-            var pendingStores = _toStoreLater.ToArray();
-            holder.SetActive(true);
-            _streamedLateInit.InitializeNormalizedValues(BuildNeutralNormalizedValues());
-            // StreamedAvatarFeature only gets the ability to store data AFTER Awake() runs, so order matters here.
-            foreach (var toStoreLater in pendingStores)
-            {
-                var mutualizedIndex = toStoreLater.mutualizedIndex;
-                _streamedLateInit.Store(mutualizedIndex, _ranges[mutualizedIndex].AbsoluteToRange(toStoreLater.absolute));
-            }
-            _toStoreLater.Clear();
-
-            _streamedLateInit.OnInterpolatedDataChanged += mutualizedData =>
-            {
-                foreach (var callback in _needsInterpolation)
-                {
-                    for (var ours = 0; ours < callback.floats.Length; ours++)
-                    {
-                        var mutualizedIndex = callback.oursToMutualizedIndex[ours];
-                        var streamed01 = mutualizedData[mutualizedIndex];
-                        var absolute = _ranges[mutualizedIndex].RangeToAbsolute(streamed01);
-                        callback.floats[ours] = absolute;
-                    }
-
-                    callback.callback(callback.floats);
-                }
-            };
-
-            avatarMessageProcessing = AvatarMessageProcessing.ForFeature(carrier, isWearer, avatar.LinkedPlayerID, new HVRRedirectToStreamed(_streamedLateInit));
-
-            StartCoroutine(SendInitialPacketNextFrame());
-        }
-
         IEnumerator SendInitialPacketNextFrame()
         {
             // We want to send the initial packet when all BasisAvatarMonoBehaviours have been initialized.
             yield return null;
-            avatarMessageProcessing.SendInitialPacket();
-            variableNetworkingProcessing.SendInitialPacket();
-        }
-
-        public MutualizedFeatureInterpolator NeedsMutualizedInterpolator(List<MutualizedInterpolationRange> inputRanges, CommsNetworking.InterpolatedDataChanged interpolatedDataChanged)
-        {
-            List<int> oursToMutualizedIndex = new();
-            foreach (var inputRange in inputRanges)
-            {
-                var address = inputRange.addressId;
-                var mutualizedIndex = _ranges.FindIndex(range => range.addressId == address);
-                if (mutualizedIndex == -1)
-                {
-                    mutualizedIndex = _ranges.Count;
-                    _ranges.Add(new MutualizedInterpolationRangeStorage
-                    {
-                        index = mutualizedIndex,
-                        addressId = address,
-                        lower = inputRange.lower,
-                        upper = inputRange.upper,
-                    });
-                }
-                else
-                {
-                    var storedRange = _ranges[mutualizedIndex];
-                    if (inputRange.lower < storedRange.lower)
-                    {
-                        storedRange.lower = inputRange.lower;
-                    }
-
-                    if (inputRange.upper > storedRange.upper)
-                    {
-                        storedRange.upper = inputRange.upper;
-                    }
-                }
-
-                oursToMutualizedIndex.Add(mutualizedIndex);
-            }
-
-            _needsInterpolation.Add(new HVRNeedsInterpolationCallback
-            {
-                oursToMutualizedIndex = oursToMutualizedIndex,
-                floats = new float[oursToMutualizedIndex.Count],
-                callback = interpolatedDataChanged
-            });
-
-            return new MutualizedFeatureInterpolator(oursToMutualizedIndex, this);
-        }
-
-        public void SubmitAbsolute(int mutualizedIndex, float absolute)
-        {
-            if (_streamedLateInit != null)
-            {
-                _streamedLateInit.Store(mutualizedIndex, _ranges[mutualizedIndex].AbsoluteToRange(absolute));
-            }
-            else
-            {
-                _toStoreLater.Add(new HVRToSubmitLater
-                {
-                    mutualizedIndex = mutualizedIndex,
-                    absolute = absolute
-                });
-            }
+            _variableNetworkingProcessing.SendInitialPacket();
         }
 
         public void WhenNetworkMessageReceived(int carrierIndex, ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod)
@@ -249,12 +149,12 @@ namespace HVR.Basis.Comms
             {
                 case AvatarMessageProcessingCarrier0:
                 {
-                    avatarMessageProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
+                    // Old system, no longer used.
                     break;
                 }
                 case VariableNetworkingCarrier:
                 {
-                    variableNetworkingProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
+                    _variableNetworkingProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
                     break;
                 }
             }
@@ -266,67 +166,15 @@ namespace HVR.Basis.Comms
             {
                 case AvatarMessageProcessingCarrier0:
                 {
-                    avatarMessageProcessing.OnNetworkMessageServerReductionSystem(buffer);
+                    // Old system, no longer used.
                     break;
                 }
                 case VariableNetworkingCarrier:
                 {
-                    variableNetworkingProcessing.OnNetworkMessageServerReductionSystem(buffer);
+                    _variableNetworkingProcessing.OnNetworkMessageServerReductionSystem(buffer);
                     break;
                 }
             }
-        }
-
-        private float[] BuildNeutralNormalizedValues()
-        {
-            var normalized = new float[_ranges.Count];
-            for (int index = 0; index < _ranges.Count; index++)
-            {
-                var range = _ranges[index];
-                normalized[index] = range.lower <= 0f && range.upper >= 0f
-                    ? Mathf.Clamp01(range.AbsoluteToRange(0f))
-                    : 0f;
-            }
-
-            return normalized;
-        }
-
-        private class HVRRedirectToStreamed : IFeatureReceiver
-        {
-            private readonly StreamedAvatarFeature streamed;
-
-            public HVRRedirectToStreamed(StreamedAvatarFeature streamed)
-            {
-                this.streamed = streamed;
-            }
-
-            public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
-            {
-                streamed.OnPacketReceived(data);
-            }
-
-            public void OnResyncEveryoneRequested()
-            {
-                streamed.OnResyncEveryoneRequested();
-            }
-
-            public void OnResyncRequested(ushort[] whoAsked)
-            {
-                streamed.OnResyncRequested(whoAsked);
-            }
-        }
-
-        private class HVRNeedsInterpolationCallback
-        {
-            public List<int> oursToMutualizedIndex;
-            public float[] floats;
-            public CommsNetworking.InterpolatedDataChanged callback;
-        }
-
-        private class HVRToSubmitLater
-        {
-            public int mutualizedIndex;
-            public float absolute;
         }
     }
 }

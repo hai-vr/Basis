@@ -75,6 +75,10 @@ namespace HVR.Vixxy
             (
                 new List<string> { typeof(Text).FullName, "TMPro.TextMeshPro", "TMPro.TextMeshProUGUI" },
                 new List<string> { "text" }
+            ),
+            (
+                new List<string> { typeof(Transform).FullName },
+                new List<string> { "rotation", "localRotation", "position", "localPosition", "localScale" }
             )
         };
 
@@ -97,7 +101,7 @@ namespace HVR.Vixxy
                 or HVRVixxyPropertyQuaternion
                 or HVRVixxyPropertyBool
                 or HVRVixxyPropertyColor
-                or HVRVixxyPropertyColor32
+                or HVRVixxyPropertyColorHDR
                 or HVRVixxyPropertyTexture
                 or HVRVixxyPropertyMesh
                 or HVRVixxyPropertyString;

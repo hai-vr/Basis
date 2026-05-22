@@ -1,4 +1,5 @@
-﻿using HVR.Basis.Comms;
+﻿using System.Linq;
+using HVR.Basis.Comms;
 using UnityEditor;
 using UnityEngine;
 
@@ -22,7 +23,9 @@ namespace HVR.Vixxy.Editor
         internal static void DisplayVariableStore(HVRVariableStore variableStore)
         {
             EditorGUILayout.LabelField("Registered addresses / listeners", EditorStyles.boldLabel);
-            foreach (var pair in variableStore._addressIdToListenerState)
+            foreach (var pair in variableStore._addressIdToListenerState
+                         // We're not supposed to use ResolveKnownAddressFromId too often but this is a debug inspector so this is fine
+                         .OrderBy(pair => HVRAddress.ResolveKnownAddressFromId(pair.Key)))
             {
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.TextField(HVRAddress.ResolveKnownAddressFromId(pair.Key));

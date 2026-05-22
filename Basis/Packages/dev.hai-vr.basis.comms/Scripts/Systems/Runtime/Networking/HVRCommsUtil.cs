@@ -75,11 +75,12 @@ namespace HVR.Basis.Comms
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
 
-        [NonSerialized] internal MutualizedFeatureInterpolator featureInterpolator;
-
         private bool _isWearer;
         private bool _isTrackingActive;
         private float _lastActivityTime = float.NegativeInfinity;
+        private HVRAvatarComms comms;
+        private readonly Dictionary<int, bool> _isFaceTrackingAddress = new();
+        private bool _isInitialized;
 
         // Fired when tracking activity state changes. Scoped per-avatar (this relay
         // is created per BasisAvatar), so local and remote subscribers never collide.
@@ -118,6 +119,7 @@ namespace HVR.Basis.Comms
             {
                 avatar = HVRCommsUtil.GetAvatar(this);
             }
+            comms = HVRCommsUtil.GetComms(this);
 
             if (acquisition == null)
             {
@@ -127,79 +129,81 @@ namespace HVR.Basis.Comms
 
         public void OnHVRAvatarReady(bool isWearer)
         {
+            _isInitialized = true;
             _isWearer = isWearer;
-            ApplyTrackingState(false, submitToNetwork: false);
+
+            comms.VariableStore.RegisterAddresses(new[] { ActivityAddressId }, OnAddressUpdated);
+            if (isWearer)
+            {
+                comms.VariableStore.SubmitOrDefineDefaultValue(ActivityAddressId, 0f);
+            }
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
             _isWearer = isWearer;
-            featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(avatar, new List<MutualizedInterpolationRange>
+            comms.RequireVariable(new HVRVariable
             {
-                new MutualizedInterpolationRange
-                {
-                    addressId = ActivityAddressId,
-                    lower = 0f,
-                    upper = 1f,
-                }
-            }, OnInterpolatedDataChanged);
-
-            if (_isWearer && featureInterpolator != null)
-            {
-                featureInterpolator.SubmitAbsolute(0, _isTrackingActive ? 1f : 0f);
-            }
+                addressId = ActivityAddressId,
+                initialValue = 0f,
+                variableTypeCode = HVRVariableTypeCode.Float,
+                needsInterpolation = false,
+                min = 0f,
+                max = 1f,
+            });
         }
 
         private void Update()
         {
-            if (!_isWearer || !_isTrackingActive)
+            if (!_isInitialized || !_isWearer || !_isTrackingActive)
             {
                 return;
             }
 
             if (Time.unscaledTime - _lastActivityTime > InactivityTimeoutSeconds)
             {
-                ApplyTrackingState(false, submitToNetwork: true);
+                comms.VariableStore.Submit(ActivityAddressId, 0f);
             }
         }
 
-        public void NotifySourceSample()
+        public void NotifySourceSample(int addressId)
         {
             if (!_isWearer)
             {
                 return;
             }
 
+            if (_isFaceTrackingAddress.TryGetValue(addressId, out var isFaceTrackingAddress))
+            {
+                if (!isFaceTrackingAddress) return;
+            }
+            else
+            {
+                var stringAddress = HVRAddress.ResolveKnownAddressFromId(addressId);
+                var startsWithFaceTracking = stringAddress.StartsWith("FT/");
+
+                _isFaceTrackingAddress[addressId] = startsWithFaceTracking;
+                if (!startsWithFaceTracking) return;
+            }
+
             _lastActivityTime = Time.unscaledTime;
             if (!_isTrackingActive)
             {
-                ApplyTrackingState(true, submitToNetwork: true);
+                comms.VariableStore.Submit(ActivityAddressId, 1f);
             }
         }
 
-        private void OnInterpolatedDataChanged(float[] current)
+        private void OnAddressUpdated(int addressId, float value)
         {
-            if (_isWearer || current == null || current.Length == 0)
-            {
-                return;
-            }
+            if (addressId != ActivityAddressId) return;
 
-            ApplyTrackingState(current[0] >= 0.5f, submitToNetwork: false);
-        }
-
-        private void ApplyTrackingState(bool isTrackingActive, bool submitToNetwork)
-        {
+            bool isTrackingActive = value > 0.5f;
             bool stateChanged = _isTrackingActive != isTrackingActive;
             _isTrackingActive = isTrackingActive;
 
             if (stateChanged)
             {
                 OnTrackingActivityChanged?.Invoke(isTrackingActive);
-            }
-
-            if (submitToNetwork && _isWearer && featureInterpolator != null)
-            {
-                featureInterpolator.SubmitAbsolute(0, isTrackingActive ? 1f : 0f);
             }
         }
     }
