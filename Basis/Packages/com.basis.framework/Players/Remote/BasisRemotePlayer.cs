@@ -62,6 +62,11 @@ namespace Basis.Scripts.BasisSdk.Players
         public Action<string> OnChatMessageReceived;
 
         /// <summary>
+        /// Fired when this player's transient chat typing state changes.
+        /// </summary>
+        public Action<bool> OnChatTypingStateChanged;
+
+        /// <summary>
         /// Fired when something that affects nameplate active-state has changed
         /// (block, range, visibility settings).
         /// </summary>
@@ -209,6 +214,11 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Refreshed during avatar load and toggled by the user settings UI.
         /// </summary>
         public bool IsBlocked;
+
+        /// <summary>
+        /// Transient networked chat typing state for this remote player.
+        /// </summary>
+        public bool IsChatTyping;
 
         /// <summary>
         /// Session-scoped "temp block" set when the remote side (this player) has blocked

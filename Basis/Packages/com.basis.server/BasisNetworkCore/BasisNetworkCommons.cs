@@ -156,6 +156,8 @@ namespace Basis.Network.Core
         // Wire (client→server): [eventType:1][muted:1]
         // Wire (server→client): [eventType:1][senderId:2][muted:1]
         public const byte EventType_MuteStateChanged = 5;
+        /// <summary>Transient chat typing state for a remote player.</summary>
+        public const byte EventType_PlayerChatTyping = 6;
 
         // ── Per-quality avatar channels (ushort playerID, for IDs >255) ──
         // Same layout as byte-ID channels: base + quality * 2 + hasAdditional

@@ -465,6 +465,15 @@ public static class BasisNetworkEvents
                             Reader.Recycle();
                             Basis.Scripts.Networking.BasisAvatarRateRegistry.UpdateRemoteRate(rateSenderId, rateIntervalMs);
                             break;
+                        case BasisNetworkCommons.EventType_PlayerChatTyping:
+                            ushort typingSenderId = Reader.GetUShort();
+                            bool isTyping = Reader.GetBool();
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkHandleChatTyping.OnRemoteTypingStateReceived(typingSenderId, isTyping);
+                            });
+                            break;
                         case BasisNetworkCommons.EventType_TalkModeChanged:
                             ushort talkModeSenderId = Reader.GetUShort();
                             byte talkModeValue = Reader.GetByte();

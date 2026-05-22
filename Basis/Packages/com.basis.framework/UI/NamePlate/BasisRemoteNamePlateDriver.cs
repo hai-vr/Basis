@@ -607,10 +607,13 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void GenerateChatBubble(BasisRemoteNamePlate namePlate)
         {
-            if (namePlate.ChatText == null || namePlate.ChatBubbleFilter == null) return;
+            if (namePlate.ChatBubbleFilter == null) return;
 
-            namePlate.ChatText.ForceMeshUpdate();
-            Vector2 textSize = namePlate.ChatText.GetRenderedValues(true);
+            TextMeshPro bubbleText = namePlate.GetBubbleSourceText();
+            if (bubbleText == null) return;
+
+            bubbleText.ForceMeshUpdate();
+            Vector2 textSize = bubbleText.GetRenderedValues(true);
 
             float padding = 2f;
             float halfWidth = Mathf.Max((textSize.x / 2f) + padding, 6f);
@@ -860,6 +863,7 @@ namespace Basis.Scripts.UI.NamePlate
                     }
 
                     p.UpdateChatTimeout();
+                    p.RefreshTypingIndicatorAnimation();
                 }
             }
         }

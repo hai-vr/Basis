@@ -38,6 +38,7 @@ public static class BasisNetworkLifeCycle
 
         BasisJoinLeaveNotification.Create();
         BasisNetworkHandleTempBlock.Initialize();
+        BasisNetworkHandleChatTyping.Initialize();
 #if !UNITY_SERVER
         BasisNetworkPIPCameraDriver.Create();
 #endif
@@ -89,6 +90,7 @@ public static class BasisNetworkLifeCycle
                 BasisDebug.Log($"Client disconnected from server [{peer?.RemoteId}] [{disconnectInfo.Reason}]");
                 BasisNetworkEvents.HandleDisconnectionReason(disconnectInfo);
             }
+            BasisNetworkHandleChatTyping.ClearState();
             System.Threading.Interlocked.Exchange(ref _rebootGuard, 0);
         }
     }
@@ -140,6 +142,7 @@ public static class BasisNetworkLifeCycle
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         BasisJoinLeaveNotification.Shutdown();
         BasisNetworkHandleTempBlock.Shutdown();
+        BasisNetworkHandleChatTyping.Shutdown();
 #if !UNITY_SERVER
         BasisNetworkPIPCameraDriver.Shutdown();
 #endif

@@ -40,7 +40,7 @@ public static class BasisNetworkHandleChat
     /// The message is sent to the server which applies word filtering before broadcasting.
     /// </summary>
     /// <param name="message">The text message to send.</param>
-    public static void SendChatMessage(string message)
+    public static void SendChatMessage(string message, bool playNotificationSound = true)
     {
         if (BasisNetworkConnection.LocalPlayerIsConnected == false)
         {
@@ -50,19 +50,22 @@ public static class BasisNetworkHandleChat
         {
             return;
         }
+        if (BasisNetworkConnection.LocalPlayerPeer == null)
+        {
+            return;
+        }
+        message = BasisChatSanitizer.Sanitize(message);
         if (string.IsNullOrEmpty(message)) return;
 
-        if (message.Length > MaxMessageLength)
-        {
-            message = message.Substring(0, MaxMessageLength);
-        }
+        BasisNetworkHandleChatTyping.SendTypingState(false);
 
         byte[] payload = Encoding.UTF8.GetBytes(message);
 
         ChatMessage chatMessage = new ChatMessage
         {
             payload = payload,
-            payloadSize = (ushort)payload.Length
+            payloadSize = (ushort)payload.Length,
+            playNotificationSound = playNotificationSound
         };
 
         NetDataWriter writer = threadLocalWriter.Value;
@@ -77,6 +80,11 @@ public static class BasisNetworkHandleChat
     /// </summary>
     public static void ClearChatMessage()
     {
+        if (BasisNetworkConnection.LocalPlayerPeer == null)
+        {
+            return;
+        }
+
         ChatMessage chatMessage = new ChatMessage
         {
             payload = Array.Empty<byte>(),
@@ -95,13 +103,15 @@ public static class BasisNetworkHandleChat
     /// </summary>
     public static void HandleServerChatMessage(NetPacketReader reader)
     {
+        if (Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.RawValue)
+        {
+            reader.Recycle();
+            return;
+        }
         ServerChatMessage serverChatMessage = new ServerChatMessage();
         serverChatMessage.Deserialize(reader);
 
-        if (Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.RawValue)
-        {
-            return;
-        }
+        
 
         ushort senderPlayerId = serverChatMessage.playerIdMessage.playerID;
         string message = string.Empty;
@@ -112,19 +122,14 @@ public static class BasisNetworkHandleChat
         }
 
         OnChatMessageReceived?.Invoke(senderPlayerId, message);
-        ApplyChatToNamePlate(senderPlayerId, message);
-
-        if (!string.IsNullOrEmpty(message))
-        {
-            PlayChatNotification();
-        }
+        ApplyRemoteChat(senderPlayerId, message, serverChatMessage.chatMessage.playNotificationSound);
     }
 
     /// <summary>
     /// Plays the chat notification audio clip through BasisDeviceManagement,
     /// matching the pattern used by other UI sounds (hover, press).
     /// </summary>
-    private static void PlayChatNotification()
+    public static void PlayChatNotification()
     {
         if (BasisDeviceManagement.Instance == null || BasisDeviceManagement.Instance.ChatNotificationUI == null)
         {
@@ -134,21 +139,81 @@ public static class BasisNetworkHandleChat
         AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, BasisDeviceManagement.Instance.transform.position, SMModuleAudio.ActiveMenusVolume);
     }
 
-    private static async Task ApplyChatToNamePlate(ushort senderPlayerId, string message)
+    private static Vector3 GetRemoteChatNotificationPosition(BasisRemotePlayer remotePlayer, Vector3 fallbackPosition)
     {
-        if (BasisNetworkPlayers.Players.TryGetValue(senderPlayerId, out BasisNetworkPlayer networkPlayer))
+        if (remotePlayer.MouthTransform != null)
         {
-            if (networkPlayer.Player is BasisRemotePlayer remotePlayer)
-            {
-                // Check per-player chat visibility setting
-                var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
-                if (!settings.ChatVisible)
-                {
-                    return;
-                }
+            return remotePlayer.MouthTransform.position;
+        }
 
-                remotePlayer.OnChatMessageReceived?.Invoke(message);
+        if (remotePlayer.BasisAvatar != null)
+        {
+            return remotePlayer.BasisAvatar.transform.position;
+        }
+
+        Transform namePlate = remotePlayer.NamePlateTransformProvider?.Invoke();
+        if (namePlate != null)
+        {
+            return namePlate.position;
+        }
+
+        if (remotePlayer.RemoteAvatarDriver?.References?.head != null)
+        {
+            return remotePlayer.RemoteAvatarDriver.References.head.position;
+        }
+
+        if (remotePlayer.RemoteAvatarDriver?.References?.Hips != null)
+        {
+            return remotePlayer.RemoteAvatarDriver.References.Hips.position;
+        }
+
+        if (remotePlayer.transform.position != Vector3.zero)
+        {
+            return remotePlayer.transform.position;
+        }
+
+        return fallbackPosition;
+    }
+
+    private static async Task ApplyRemoteChat(ushort senderPlayerId, string message, bool playNotificationSound)
+    {
+        if (TryGetRemotePlayer(senderPlayerId, out BasisRemotePlayer remotePlayer))
+        {
+            var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+            if (!settings.ChatVisible)
+            {
+                return;
+            }
+
+            remotePlayer.OnChatMessageReceived?.Invoke(message);
+
+            if (!string.IsNullOrEmpty(message) && playNotificationSound)
+            {
+                PlayChatNotification(remotePlayer);
             }
         }
+    }
+
+    private static void PlayChatNotification(BasisRemotePlayer remotePlayer)
+    {
+        if (BasisDeviceManagement.Instance == null || BasisDeviceManagement.Instance.ChatNotificationUI == null)
+        {
+            return;
+        }
+
+        Vector3 position = GetRemoteChatNotificationPosition(remotePlayer, BasisDeviceManagement.Instance.transform.position);
+        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, position, SMModuleAudio.ActiveMenusVolume);
+    }
+
+    private static bool TryGetRemotePlayer(ushort playerId, out BasisRemotePlayer remotePlayer)
+    {
+        remotePlayer = null;
+        if (!BasisNetworkPlayers.Players.TryGetValue(playerId, out BasisNetworkPlayer networkPlayer))
+        {
+            return false;
+        }
+
+        remotePlayer = networkPlayer.Player as BasisRemotePlayer;
+        return remotePlayer != null;
     }
 }

@@ -29,6 +29,9 @@ namespace BasisNetworkServer
                     HandleAvatarRateChange(reader, peer, eventType);
                     break;
 
+                case BasisNetworkCommons.EventType_PlayerChatTyping:
+                    BasisNetworkHandleChatTyping.HandleEvent(reader, peer, eventType);
+                    break;
                 case BasisNetworkCommons.EventType_TalkModeChanged:
                     HandleTalkModeChanged(reader, peer, eventType);
                     break;
