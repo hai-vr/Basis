@@ -80,7 +80,7 @@ namespace Basis.BasisUI
             }
             else
             {
-                BasisLocalPlayer.OnLocalPlayerInitalized += OnLocalPlayerCreated;
+                BasisLocalPlayer.OnLocalPlayerInitialized += OnLocalPlayerCreated;
                 HasCallbackForLocalCreate = true;
             }
             BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
@@ -97,14 +97,14 @@ namespace Basis.BasisUI
 
             if (HasCallbackForLocalCreate)
             {
-                BasisLocalPlayer.OnLocalPlayerInitalized -= OnLocalPlayerCreated;
+                BasisLocalPlayer.OnLocalPlayerInitialized -= OnLocalPlayerCreated;
                 HasCallbackForLocalCreate = false;
             }
 
             BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
             if (HasCallbackForLocalCreate)
             {
-                BasisLocalPlayer.OnLocalPlayerInitalized -= OnLocalPlayerCreated;
+                BasisLocalPlayer.OnLocalPlayerInitialized -= OnLocalPlayerCreated;
             }
 
             if (_hasLocalMoveEvent)

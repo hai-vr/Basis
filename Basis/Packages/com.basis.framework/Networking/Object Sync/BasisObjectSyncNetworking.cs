@@ -71,7 +71,7 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
     }
     private bool CanInteract(BasisInput input)
     {
-        // Allow interact if we arent connected or if we own it locally
+        // Allow interact if we aren't connected or if we own it locally
         if (IsOwnedLocallyOnClient)
         {
             return true;

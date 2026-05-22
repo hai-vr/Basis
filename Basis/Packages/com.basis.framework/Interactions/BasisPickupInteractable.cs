@@ -581,7 +581,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     RequiresUpdateLoop = false;
                     _pickupUseLastEffectiveState = false;
                     _pickupUsePendingReleaseAfterUI = false;
-                    // cleanup Desktop Manipulation since InputUpdate isnt run again till next pickup
+                    // cleanup Desktop Manipulation since InputUpdate isn't run again till next pickup
                     targetOffset = Vector3.zero;
                     if (pauseHead)
                     {

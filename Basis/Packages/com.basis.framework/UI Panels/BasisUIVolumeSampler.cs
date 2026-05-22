@@ -60,7 +60,7 @@ public class BasisUIVolumeSampler : MonoBehaviour
     public float recommendedMin = 1f;
     [Tooltip("Default/standard reference, typically 1.0 (100%).")]
     public float defaultValue = 1.0f;
-    public void Initalize(BasisRemotePlayer remotePlayer)
+    public void Initialize(BasisRemotePlayer remotePlayer)
     {
         RemotePlayer = remotePlayer;
 

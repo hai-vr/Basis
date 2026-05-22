@@ -73,7 +73,7 @@ public static class BasisSettingsSystem
     /// </summary>
     public static event Action<string, string> OnSettingChanged;
     public static event Action OnSettingsFinishedChanges;
-    public static void Initalize()
+    public static void Initialize()
     {
         BasisSettingsSystem.LoadAllSettings();
         SceneManager.sceneLoaded += OnSceneLoaded;
@@ -146,7 +146,7 @@ public static class BasisSettingsSystem
         // Saving before LoadAllSettings has read the file would clobber user-saved
         // values with the static-init binding defaults sitting in the dict. Update
         // the in-memory dict so reads stay consistent, but defer disk + events
-        // until Initalize has run; LoadAllSettings will repopulate the dict from
+        // until Initialize has run; LoadAllSettings will repopulate the dict from
         // disk anyway. This also means a premature change is dropped on the floor,
         // which is the right thing — callers (e.g. BasisLocalization auto-detect)
         // must not race the load.

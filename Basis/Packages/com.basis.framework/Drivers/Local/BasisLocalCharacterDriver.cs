@@ -158,7 +158,7 @@ namespace Basis.Scripts.BasisCharacterController
         public Transform BasisLocalPlayerTransform;
         private bool isEnabled = true;
         public float CurrentSpeed;
-        public void DeInitalize()
+        public void DeInitialize()
         {
             CurrentMode?.Exit(this);
             CurrentMode = null;

@@ -222,7 +222,7 @@ namespace Basis.Scripts.Device_Management
 
             StaticCurrentMode = BasisConstants.None;
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            BasisSettingsSystem.Initalize();
+            BasisSettingsSystem.Initialize();
             // Localization must initialize before BasisSettingsDefaults so that
             // auto-detection can see an empty settings dict on first run — any
             // earlier binding constructor would write "en" as a default and
@@ -245,8 +245,8 @@ namespace Basis.Scripts.Device_Management
         private async void OnDestroy()
         {
             CleanupAutoSwap();
-            BasisXRManagement.DeInitalize();
-            BasisPlayerFactory.DeInitalize();
+            BasisXRManagement.DeInitialize();
+            BasisPlayerFactory.DeInitialize();
             StopAllDevices();
             UnsubscribeEvents();
 
@@ -281,9 +281,9 @@ namespace Basis.Scripts.Device_Management
         public async Task Initialize()
         {
 
-            BasisAvatarFactory.Initalize();
-            BasisPlayerFactory.Initalize();
-            BasisXRManagement.Initalize();
+            BasisAvatarFactory.Initialize();
+            BasisPlayerFactory.Initialize();
+            BasisXRManagement.Initialize();
             BasisCommandLineArgs.Initialize(BakedInCommandLineArgs, out ForcedDefault);
 
             //legacy!!! delete in a few months!
@@ -791,7 +791,7 @@ namespace Basis.Scripts.Device_Management
             if (FireOffNetwork)
             {
                 BasisRemoteNamePlateDriver.Initialize();
-                BasisNetworkLifeCycle.Initalize();
+                BasisNetworkLifeCycle.Initialize();
             }
         }
 

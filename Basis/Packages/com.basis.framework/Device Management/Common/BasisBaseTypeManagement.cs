@@ -91,7 +91,7 @@ public abstract class BasisBaseTypeManagement : MonoBehaviour
     {
         if (string.IsNullOrEmpty(BootRequest))
         {
-            BasisDebug.LogError("Empty or null boot request recieved", BasisDebug.LogTag.Device);
+            BasisDebug.LogError("Empty or null boot request received", BasisDebug.LogTag.Device);
             return false;
         }
 

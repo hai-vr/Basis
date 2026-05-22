@@ -13,17 +13,17 @@ namespace Basis.Scripts.Networking.Behaviour
         {
             MessageIndex = messageIndex;
             NetworkedPlayer = Player;
-            IsInitalized = true;
+            IsInitialized = true;
             OnNetworkReady(Player.IsLocal);
         }
 
         public void OnNetworkUnassign()
         {
-            if (!IsInitalized)
+            if (!IsInitialized)
             {
                 return;
             }
-            IsInitalized = false;
+            IsInitialized = false;
             bool wasLocallyOwned = NetworkedPlayer != null && NetworkedPlayer.Player != null && NetworkedPlayer.Player.IsLocal;
             OnNetworkTerminated(wasLocallyOwned);
         }
@@ -46,7 +46,7 @@ namespace Basis.Scripts.Networking.Behaviour
         /// <param name="Recipients">if null everyone but self, you can include yourself to make it loop back over the network</param>
         public void NetworkMessageSend(byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable, ushort[] Recipients = null)
         {
-            if (IsInitalized)
+            if (IsInitialized)
             {
                 NetworkedPlayer.OnAvatarNetworkMessageSend(MessageIndex, buffer, DeliveryMethod, Recipients);
             }
@@ -62,7 +62,7 @@ namespace Basis.Scripts.Networking.Behaviour
         /// <param name="DeliveryMethod"></param>
         public void NetworkMessageSend(DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable)
         {
-            if (IsInitalized)
+            if (IsInitialized)
             {
                 NetworkedPlayer.OnAvatarNetworkMessageSend(MessageIndex, null, DeliveryMethod);
             }
@@ -74,7 +74,7 @@ namespace Basis.Scripts.Networking.Behaviour
 
         public void ServerReductionSystemMessageSend(byte[] buffer = null)
         {
-            if (IsInitalized)
+            if (IsInitialized)
             {
                 NetworkedPlayer.OnAvatarServerReductionSystemMessageSend(MessageIndex, buffer);
             }

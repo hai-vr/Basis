@@ -22,7 +22,7 @@ public static class BasisBundleBuild
         BasisContentBase BasisContentBase,
         List<BuildTarget> Targets,
         bool useProvidedPassword = false,
-        string OverridenPassword = "")
+        string OverriddenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -45,7 +45,7 @@ public static class BasisBundleBuild
             Images: Image,
             targets: Targets,
             useProvidedPassword: useProvidedPassword,
-            OverridenPassword: OverridenPassword,
+            OverriddenPassword: OverriddenPassword,
             buildFunction: (content, obj, hex, target, buildId) =>
                 BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, FolderPath));
     }
@@ -143,7 +143,7 @@ public static class BasisBundleBuild
      BasisContentBase BasisContentBase,
      List<BuildTarget> Targets,
      bool useProvidedPassword = false,
-     string OverridenPassword = "")
+     string OverriddenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -168,7 +168,7 @@ public static class BasisBundleBuild
             Images: Image,
             targets: Targets,
             useProvidedPassword: useProvidedPassword,
-            OverridenPassword: OverridenPassword,
+            OverriddenPassword: OverriddenPassword,
             buildFunction: (content, obj, hex, target, buildId) => BasisAssetBundlePipeline.BuildAssetBundle(scene, obj, hex, target, FolderName));
     }
     // Windows reserved device names (case-insensitive)
@@ -458,7 +458,7 @@ public static class BasisBundleBuild
       string Images,
       List<BuildTarget> targets,
       bool useProvidedPassword,
-      string OverridenPassword,
+      string OverriddenPassword,
       Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, string,
            Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
     {
@@ -509,7 +509,7 @@ public static class BasisBundleBuild
             stagingRoot = Path.Combine(uncombinedRoot, FolderName);
             Directory.CreateDirectory(stagingRoot);
 
-            string Password = useProvidedPassword ? OverridenPassword : GenerateHexString(32);
+            string Password = useProvidedPassword ? OverriddenPassword : GenerateHexString(32);
 
             int targetsLength = targets.Count;
             BasisBundleGenerated[] bundles = new BasisBundleGenerated[targetsLength];

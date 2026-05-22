@@ -17,7 +17,7 @@ namespace Basis.Scripts.UI
         public List<BasisInput> Inputs;
         public bool HasEvent = false;
 
-        public void Initalize()
+        public void Initialize()
         {
             BasisDeviceManagement = BasisDeviceManagement.Instance;
             if (!HasEvent)
@@ -28,7 +28,7 @@ namespace Basis.Scripts.UI
             AllInputDevices();
         }
 
-        public void OnDeInitalize()
+        public void OnDeInitialize()
         {
             if (HasEvent && BasisDeviceManagement != null)
             {

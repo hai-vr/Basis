@@ -525,7 +525,7 @@ namespace Basis.BasisUI
                 }
             };
 
-            sampler.Initalize(remotePlayer);
+            sampler.Initialize(remotePlayer);
 
             // Wire slider -> save -> apply to receiver
             volumeSlider.OnValueChanged += async raw =>

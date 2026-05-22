@@ -128,7 +128,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             // Attach simulated input component
             BasisTouchInputDevice BasisInput = gameObject.AddComponent<BasisTouchInputDevice>();
-            BasisInput.Initalize(UniqueID, UnUniqueID, subSystems, hasrole, Role, true);
+            BasisInput.Initialize(UniqueID, UnUniqueID, subSystems, hasrole, Role, true);
 
             // Track in local list and global device management
             Inputs.Add(BasisInput);

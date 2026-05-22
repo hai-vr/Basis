@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using Basis.BasisUI;
 
-namespace BattlePhaze.SettingsManager.Intergrations
+namespace BattlePhaze.SettingsManager.Integrations
 {
     public class SMModuleQualityAndQualitySetURP : BasisSettingsBase
     {

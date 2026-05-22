@@ -303,7 +303,7 @@ namespace BasisServerHandle
                 BNL.Log($"Peer connected: {newPeer.Id}");
                 //never ever assume the UUID provided by the user is good always recalc on the server.
                 //this means that as long as they pass auth but locally have a bad UUID that only they locally are effected.
-                //there is no way to force a user locally to be a certain UUID, thats not how the internet works.
+                //there is no way to force a user locally to be a certain UUID, that's not how the internet works.
                 //instead we can make sure all additional clients have them correct.
                 //this only occurs if the server is doing Auth checks.
                 ReadyMessage.playerMetaDataMessage.playerUUID = UUID;
@@ -896,7 +896,7 @@ namespace BasisServerHandle
                     BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(LocalLoadResource);
                     break;
                 default:
-                    BNL.LogError("Falling Back to Resource Load, Unsupport Load Strategy");
+                    BNL.LogError("Falling Back to Resource Load, Unsupported Load Strategy");
                     BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
                     break;
             }

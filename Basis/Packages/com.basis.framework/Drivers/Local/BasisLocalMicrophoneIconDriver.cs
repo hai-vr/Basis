@@ -81,7 +81,7 @@ namespace Basis.Scripts.Drivers
         private bool bounceRequested = false;
 
         // ---------------- Initialization ----------------
-        public void Initalize(BasisLocalCameraDriver CameraDriver)
+        public void Initialize(BasisLocalCameraDriver CameraDriver)
         {
             this.CameraDriver = CameraDriver;
 

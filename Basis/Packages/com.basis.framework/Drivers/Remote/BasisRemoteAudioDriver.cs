@@ -31,9 +31,9 @@ namespace Basis.Scripts.Drivers
         public Action<float[], int> AudioData;
 
         /// <summary>
-        /// True once <see cref="Initalize(BasisAudioAndVisemeDriver)"/> has been called.
+        /// True once <see cref="Initialize(BasisAudioAndVisemeDriver)"/> has been called.
         /// </summary>
-        public bool Initalized = false;
+        public bool Initialized = false;
 
         /// <summary>
         /// Unity audio callback. Mixes network voice, runs viseme processing,
@@ -43,7 +43,7 @@ namespace Basis.Scripts.Drivers
         /// <param name="channels">Number of channels in <paramref name="data"/>.</param>
         private void OnAudioFilterRead(float[] data, int channels)
         {
-            if (Initalized)
+            if (Initialized)
             {
                 int length = data.Length;
                 BasisAudioReceiver.OnAudioFilterRead(data, channels, length);
@@ -65,7 +65,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void ResetForPool()
         {
-            Initalized = false;
+            Initialized = false;
             if (BasisAudioAndVisemeDriver != null)
             {
                 BasisAudioAndVisemeDriver.OnDestroy();
@@ -79,11 +79,11 @@ namespace Basis.Scripts.Drivers
         /// Initializes the driver with a viseme processor and marks it ready.
         /// </summary>
         /// <param name="basisVisemeDriver">The viseme (lip-sync) driver to use.</param>
-        public void Initalize(BasisAudioAndVisemeDriver basisVisemeDriver)
+        public void Initialize(BasisAudioAndVisemeDriver basisVisemeDriver)
         {
             BasisAudioAndVisemeDriver = basisVisemeDriver;
             RegisterDriver(BasisAudioAndVisemeDriver);
-            Initalized = true;
+            Initialized = true;
         }
         public static void Simulate(float DeltaTime)
         {

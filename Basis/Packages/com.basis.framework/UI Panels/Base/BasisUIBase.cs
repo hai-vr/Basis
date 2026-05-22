@@ -7,7 +7,7 @@ namespace Basis.Scripts.UI.UI_Panels
 {
     public abstract class BasisUIBase : MonoBehaviour
     {
-        public abstract void InitalizeEvent();
+        public abstract void InitializeEvent();
         public abstract void DestroyEvent();
         public void CloseThisMenu()
         {
@@ -23,7 +23,7 @@ namespace Basis.Scripts.UI.UI_Panels
             GameObject RAC = op.WaitForCompletion();
             BasisUIBase BasisUIBase = BasisHelpers.GetOrAddComponent<BasisUIBase>(RAC);
             BasisUIManagement.AddUI(BasisUIBase);
-            BasisUIBase.InitalizeEvent();
+            BasisUIBase.InitializeEvent();
             return BasisUIBase;
         }
     }

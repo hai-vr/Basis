@@ -163,7 +163,7 @@ namespace Basis.Scripts.Device_Management.Devices
         public float HandBiasSplay = 0;
 
         /// <summary>
-        /// this is used for example when we have multi touch support and need a way to get a bunch of differnt fingers coming from the same "head role"
+        /// this is used for example when we have multi touch support and need a way to get a bunch of different fingers coming from the same "head role"
         /// </summary>
         public bool HasRayCastOverrideSupport;
         /// <summary>
@@ -174,7 +174,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="subSystems">Subsystem/provider ID (OpenXR, SimulateXR, etc.).</param>
         /// <param name="ForceAssignTrackedRole">If true, forces the provided role even if a matcher suggests otherwise.</param>
         /// <param name="basisBoneTrackedRole">Desired tracked role for this device.</param>
-        public void InitalizeTracking(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
+        public void InitializeTracking(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
         {
             //unassign the old tracker
             UnAssignTracker();
@@ -636,7 +636,7 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 GameObject LineRenderer = new GameObject($"{input.name} Line Renderer", new System.Type[] { typeof(LineRenderer) });
                 LineRenderer.TryGetComponent<LineRenderer>(out InteractionLineRenderer);
-                // deskies cant hover grab :)
+                // deskies can't hover grab :)
                 hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, BasisPlayerInteract.hoverRadius, BasisPlayerInteract.k_MaxPhysicHitCount, BasisPlayerInteract.Mask, !BasisPlayerInteract.IsDesktopCenterEye(input), BasisPlayerInteract.OnlySortClosest);
                 LineRenderer.transform.SetParent(BasisLocalPlayer.Instance.transform);
                 LineRenderer.layer = BasisPlayerInteract.IgnoreRaycasting;

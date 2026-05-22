@@ -17,7 +17,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
 
         private InputAction _gazePoseAction;
 
-        public override void Initalize()
+        public override void Initialize()
         {
             RefreshNodeStates();
 

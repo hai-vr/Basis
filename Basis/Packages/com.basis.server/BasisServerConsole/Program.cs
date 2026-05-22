@@ -1,7 +1,7 @@
 using Basis.Network;
 using Basis.Network.Server;
 using BasisNetworkConsole;
-using BasisNetworking.InitalData;
+using BasisNetworking.InitialData;
 using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 namespace Basis

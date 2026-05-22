@@ -266,7 +266,7 @@ namespace Basis.Scripts.Drivers
         public void TryShutdown()
         {
             WasSuccessful = false;
-            OnDeInitalize();
+            OnDeInitialize();
         }
 
         /// <summary>
@@ -301,7 +301,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Unbinds face renderer callbacks if the same renderer instance is still present.
         /// </summary>
-        public void OnDeInitalize()
+        public void OnDeInitialize()
         {
             if (Player != null)
             {

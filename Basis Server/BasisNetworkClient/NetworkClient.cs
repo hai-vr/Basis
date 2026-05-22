@@ -9,7 +9,7 @@ public class NetworkClient
     private NetPeer peer;
     private bool IsInUse;
     /// <summary>
-    /// inital data is typically the 
+    /// initial data is typically the 
     /// </summary> 
     /// <param name="IP"></param>
     /// <param name="port"></param>

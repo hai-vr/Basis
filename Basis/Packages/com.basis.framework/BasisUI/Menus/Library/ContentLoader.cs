@@ -301,7 +301,7 @@ namespace Basis.BasisUI
                                         BasisDebug.Log($"{item.Url} already exists in the scene!");
 
                                         // lets delete it
-                                        // if the gameobject is not null then lets remove its registery
+                                        // if the gameobject is not null then lets remove its registry
                                         bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(singleInstance.LoadedNetID);
                                         if (success)
                                         {

@@ -41,7 +41,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Call during calibration: captures baseline avatar root scale and resets override.
         /// </summary>
-        public void ReInitalize(Animator animator)
+        public void ReInitialize(Animator animator)
         {
             if (animator == null)
             {

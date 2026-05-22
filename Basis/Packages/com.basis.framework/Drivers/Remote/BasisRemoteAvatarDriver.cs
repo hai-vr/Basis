@@ -53,7 +53,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Initial avatar local scale captured during calibration.
         /// </summary>
-        public Vector3 AvatarInitalScale = Vector3.one;
+        public Vector3 AvatarInitialScale = Vector3.one;
 
         /// <summary>
         /// Tracks whether this avatar has been registered with the remote bone job system.
@@ -88,7 +88,7 @@ namespace Basis.Scripts.Drivers
             RemotePlayer.BasisAvatar.Animator.updateMode = AnimatorUpdateMode.Normal;
             RemotePlayer.BasisAvatar.Animator.speed = 0;
             RemotePlayer.BasisAvatar.Animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
-            AvatarInitalScale = Player.BasisAvatar.transform.localScale;
+            AvatarInitialScale = Player.BasisAvatar.transform.localScale;
 
             // Auto-detect bone refs and record TPose. Pass Animator.transform so
             // References.AnimatorRoot caches the actual animator root — downstream
@@ -197,7 +197,7 @@ namespace Basis.Scripts.Drivers
                 NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
                 AvatarScale: animatorRoot,
                 MouthTransform: RemotePlayer.MouthTransform,
-                TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitalScale,
+                TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitialScale,
                 boneTPoseLocal: receiver.TposeLocalRotations,
                 boneTransforms: receiver.BoneTransforms
             );

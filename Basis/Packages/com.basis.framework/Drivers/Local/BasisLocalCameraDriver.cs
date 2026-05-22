@@ -447,7 +447,7 @@ namespace Basis.Scripts.Drivers
         {
             if (initialized)
             {
-                microphoneIconDriver.Initalize(this);
+                microphoneIconDriver.Initialize(this);
             }
             microphoneIconDriver.HardEnableVisuals(initialized);
         }

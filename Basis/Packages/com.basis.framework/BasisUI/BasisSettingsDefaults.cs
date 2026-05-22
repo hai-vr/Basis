@@ -1620,7 +1620,7 @@ namespace Basis.BasisUI
             UIPaletteScrollbar.LoadBindingValue();
 
             // Subscribers that read RawValue (Apply* in OnSettingsFinishedChanges)
-            // ran during Initalize before bindings were refreshed from the file —
+            // ran during Initialize before bindings were refreshed from the file —
             // re-notify so they pick up the loaded values.
             BasisSettingsSystem.NotifyFinishedChanges();
         }

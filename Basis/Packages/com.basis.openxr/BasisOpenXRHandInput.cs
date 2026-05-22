@@ -66,7 +66,7 @@ public class BasisOpenXRHandInput : BasisInputController
         leftHandToIKPositionOffset = new Vector3(0, 0, -0.05f);
         rightHandToIKPositionOffset = new Vector3(0, 0, -0.05f);
 
-        InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole, true);
+        InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole, true);
         string devicePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<XRController>{LeftHand}" : "<XRController>{RightHand}";
         string devicePosePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<PalmPose>{LeftHand}" : "<PalmPose>{RightHand}";
 
@@ -219,7 +219,7 @@ public class BasisOpenXRHandInput : BasisInputController
     public BasisCalibratedCoords PointerPositionYScaled;
     /// <summary>
     /// meta/ unity need to pull something out of there ass here,
-    /// currently on quest the below system swaps between controllers and hand tracking but you cant have controller & hand.
+    /// currently on quest the below system swaps between controllers and hand tracking but you can't have controller & hand.
     /// steamvr did this correctly.
     /// </summary>
     /// <param name="subsystem"></param>

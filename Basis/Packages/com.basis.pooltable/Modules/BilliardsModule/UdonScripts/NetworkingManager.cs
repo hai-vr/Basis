@@ -1071,7 +1071,7 @@ public class NetworkingManager : BasisNetworkBehaviour
         // The quickest test. If the value is null or is equal to 0 it is not base64
         // Base64 string's length is always divisible by four, i.e. 8, 16, 20 etc. 
         // If it is not you can return false. Quite effective
-        // Further, if it meets the above criterias, then test for spaces.
+        // Further, if it meets the above criteria, then test for spaces.
         // If it contains spaces, it is not base64
         if (value == null || value.Length == 0 || value.Length % 4 != 0
             || value.Contains(" ") || value.Contains("\t") || value.Contains("\r") || value.Contains("\n"))
@@ -1134,7 +1134,7 @@ public class NetworkingManager : BasisNetworkBehaviour
                 // The person who took ownership had the table LoD'd
                 table._LogInfo("Simulation changed ownership: New owner is in LoD mode, simulation end may be delayed");
                 table.CheckDistanceLoD(); // Disables the LoD if owner & game is on
-                OnDeserialization(); // this will run the last recieved simulation
+                OnDeserialization(); // this will run the last received simulation
             }
             if (!BasisUtilities.IsValid(simOwner) || simOwner.playerId == table.simulationOwnerID)
             {

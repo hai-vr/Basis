@@ -32,7 +32,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                 }
                 else
                 {
-                    BasisDebug.LogError("Cant parse value!", BasisDebug.LogTag.Device);
+                    BasisDebug.LogError("Can't parse value!", BasisDebug.LogTag.Device);
                 }
                 break;
 
@@ -43,7 +43,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                 }
                 else
                 {
-                    BasisDebug.LogError("Cant parse value!", BasisDebug.LogTag.Device);
+                    BasisDebug.LogError("Can't parse value!", BasisDebug.LogTag.Device);
                 }
                 break;
         }

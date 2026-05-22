@@ -5,7 +5,7 @@ namespace Basis.Scripts.Behaviour
     public abstract class BasisAvatarMonoBehaviour : MonoBehaviour
     {
         // [HideInInspector]
-        public bool IsInitalized = false;
+        public bool IsInitialized = false;
         // [HideInInspector]
         public byte MessageIndex;
         public virtual void OnNetworkReady(bool IsLocallyOwned)

@@ -106,7 +106,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
         /// <summary>
         /// Provider for the nameplate's world transform. The nameplate registers itself
-        /// here in its Initalize and clears it in DeInitalize. Callers must null-check.
+        /// here in its Initialize and clears it in DeInitialize. Callers must null-check.
         /// </summary>
         public Func<Transform> NamePlateTransformProvider;
 
@@ -322,7 +322,7 @@ namespace Basis.Scripts.BasisSdk.Players
                     AddressableResourceProcess.ReleaseGameobject(data);
                     return;
                 }
-                plate.Initalize(this);
+                plate.Initialize(this);
             }
         }
 
@@ -357,7 +357,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 else
                 {
                     AvatarLoadErrorMessage = "Invalid initial avatar data: failed to convert network bytes to loadable bundle";
-                    BasisDebug.LogError("Invalid Inital Data");
+                    BasisDebug.LogError("Invalid Initial Data");
                 }
             }
         }

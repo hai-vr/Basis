@@ -971,7 +971,7 @@ namespace Basis.BasisUI
                     Task rebootWait = BasisNetworkConnection.WaitForRebootCompleteAsync(cts.Token);
                     await BasisNetworkLifeCycle.Destroy();
                     await rebootWait;
-                    BasisNetworkLifeCycle.Initalize();
+                    BasisNetworkLifeCycle.Initialize();
                 }
 
                 if (!BasisNetworkManagement.IsInitialized)

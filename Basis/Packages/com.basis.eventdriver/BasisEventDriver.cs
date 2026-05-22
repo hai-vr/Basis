@@ -143,8 +143,8 @@ public partial class BasisEventDriver : MonoBehaviour
         }
 
         BasisOpenLipSyncDriver.Initialize();
-        BasisSceneFactory.Initalize();
-        BasisObjectSyncDriver.Initalization();
+        BasisSceneFactory.Initialize();
+        BasisObjectSyncDriver.Initialization();
         RemoteBoneJobSystem.Initialize();
     }
 

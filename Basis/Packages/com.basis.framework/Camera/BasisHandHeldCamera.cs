@@ -133,7 +133,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         await InitializeUI();
         InitializeTonemapping();
         InitializeDepthOfField();
-        InitalizeVolumetrics();
+        InitializeVolumetrics();
         InitializeFolders();
         await HandHeld.SaveSettings();
         SetupUILayerMask();
@@ -154,7 +154,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             BasisNetworkPIPCameraDriver.SendPIPState(true, pipPos, pipRot);
         }
     }
-    public void InitalizeVolumetrics()
+    public void InitializeVolumetrics()
     {
 #if Basis_VOLUMETRIC_SUPPORTED
         if (MetaData.Profile.TryGet(out MetaData.VolumetricFogVolume))

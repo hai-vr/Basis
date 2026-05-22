@@ -29,10 +29,10 @@ public class BasisAvatarMonoBehaviourEditor : Editor
 
     private static void Layout(VisualElement root, BasisAvatarMonoBehaviour behaviour)
     {
-        // Create a toggle for IsInitalized (read-only for display)
+        // Create a toggle for IsInitialized (read-only for display)
         var isInitializedToggle = new Toggle("Is Initialized")
         {
-            value = behaviour.IsInitalized,
+            value = behaviour.IsInitialized,
             tooltip = "Indicates whether this behaviour has been initialized.",
             pickingMode = PickingMode.Ignore
         };

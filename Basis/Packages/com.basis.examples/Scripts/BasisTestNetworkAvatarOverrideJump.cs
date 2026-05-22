@@ -11,7 +11,7 @@ public class BasisTestNetworkAvatarOverrideJump : BasisNetworkAvatarBehaviour
     public DeliveryMethod Method = DeliveryMethod.Unreliable;
     public void Update()
     {
-        if (IsInitalized && NetworkedPlayer.IsLocal)
+        if (IsInitialized && NetworkedPlayer.IsLocal)
         {
             if (Keyboard.current[Key.Space].wasPressedThisFrame)
             {

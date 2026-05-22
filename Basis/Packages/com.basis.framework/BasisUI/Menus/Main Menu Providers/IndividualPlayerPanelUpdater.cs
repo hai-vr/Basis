@@ -387,7 +387,7 @@ namespace Basis.BasisUI
             if (VisemeField != null && BasisSettingsDefaults.AudioDebugShowViseme.RawValue)
             {
                 bool hasDriver = audio.BasisRemoteVisemeAudioDriver != null;
-                bool init = hasDriver && audio.BasisRemoteVisemeAudioDriver.Initalized;
+                bool init = hasDriver && audio.BasisRemoteVisemeAudioDriver.Initialized;
 
                 VisemeField.SetDescription(
                     $"Driver: {(hasDriver ? "Active" : "None")} | Initialized: {(init ? "Yes" : "No")}");

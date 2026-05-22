@@ -144,7 +144,7 @@ namespace Basis.Network
             Configuration Configuration = new Configuration();
             Basis.Network.Core.BasisTransportConfigStore.Get<Basis.Network.Core.LNLTransportConfig>(
                 Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId).UseNativeSockets = true;
-            ///we dont use auth identiy as we are fake client system
+            ///we dont use auth identity as we are fake client system
             Configuration.UseAuthIdentity = false;
 
             return Configuration;

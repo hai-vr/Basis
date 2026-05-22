@@ -121,7 +121,7 @@ namespace Basis.Scripts.Drivers
             player.LocalRigDriver.CleanupBeforeContinue();
             player.LocalRigDriver.AdditionalTransforms.Clear();
             GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
-            ScaleAvatarModification.ReInitalize(player.BasisAvatar.Animator);
+            ScaleAvatarModification.ReInitialize(player.BasisAvatar.Animator);
 
             player.BasisAvatar.Animator.updateMode = AnimatorUpdateMode.Normal;
             player.BasisAvatar.Animator.logWarnings = false;
@@ -162,7 +162,7 @@ namespace Basis.Scripts.Drivers
             BasisLocalEyeDriverData.Attentiveness = player.BasisAvatar.EyeAttentiveness;
             BasisLocalEyeDriverData.PersonalityDirty = true;
             BasisDebug.Log($"Eye Personality - Liveliness: {BasisLocalEyeDriverData.Liveliness:F1} | Attentiveness: {BasisLocalEyeDriverData.Attentiveness:F1}", BasisDebug.LogTag.Avatar);
-            BasisLocalEyeDriver.Initalize();
+            BasisLocalEyeDriver.Initialize();
             LocalRenderMeshSettings(BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, player.BasisAvatar.FaceVisemeMesh);
 
             if (Mapping.Hashead)
@@ -505,12 +505,12 @@ namespace Basis.Scripts.Drivers
                                 }
                                 else
                                 {
-                                    BasisDebug.LogError("cant Convert to humanbodybone " + role);
+                                    BasisDebug.LogError("can't Convert to humanbodybone " + role);
                                 }
                             }
                             else
                             {
-                                BasisDebug.LogError("cant find Fallback Bone for " + role);
+                                BasisDebug.LogError("can't find Fallback Bone for " + role);
                             }
                             break;
                         }
@@ -652,11 +652,11 @@ namespace Basis.Scripts.Drivers
         {
             if (BaseBoneDriver.FindBone(out BasisLocalBoneControl AssignedToAddToBone, AssignedTo) == false)
             {
-                BasisDebug.LogError("Cant Find Bone " + AssignedTo);
+                BasisDebug.LogError("Can't Find Bone " + AssignedTo);
             }
             if (BaseBoneDriver.FindBone(out BasisLocalBoneControl LockToBone, LockToBoneRole) == false)
             {
-                BasisDebug.LogError("Cant Find Bone " + LockToBoneRole);
+                BasisDebug.LogError("Can't Find Bone " + LockToBoneRole);
             }
             BaseBoneDriver.CreateRotationalLock(AssignedToAddToBone, LockToBone);
         }

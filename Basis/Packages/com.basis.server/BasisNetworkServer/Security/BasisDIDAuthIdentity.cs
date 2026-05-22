@@ -260,7 +260,7 @@ namespace BasisDidLink
         {
             if (string.IsNullOrEmpty(UUID))
             {
-                BNL.Log($"cant add was empty or null! {UUID}");
+                BNL.Log($"can't add was empty or null! {UUID}");
                 return false;
             }
             else

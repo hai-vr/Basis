@@ -53,15 +53,15 @@ public class ModelData : MonoBehaviour
 
 
         [Tooltip("When the ball is spinning i.e has English effects applied, you can see this state as an intersection between sliding and rolling states, " +
-                "\n\nthis is the friction that governs how FAST or SLOW the sidespin applied will reach 0. (Usually measured in Radians over Second Squared, see bellow!). " +
-                "\n\nhowever if you have an actual data for this value in MU you can plug it here and disable the bool bellow. " +
+                "\n\nthis is the friction that governs how FAST or SLOW the sidespin applied will reach 0. (Usually measured in Radians over Second Squared, see below!). " +
+                "\n\nhowever if you have an actual data for this value in MU you can plug it here and disable the bool below. " +
                 "\n\n<b>[DEFAULT: 0.022 - Joris van Balen / 0.044 Marlow Data]</b>" +
                 "\n, <i>their data often returns a rate higher than spec, feel free to try!.</i> " +
                 "\n\n<i>insert only numerical values in MU.</i>")]
         [SerializeField] public float bt_CoefSpin = 0.022f; // k_F_SPIN
 
 
-        [Tooltip("Valid only when using Spin is Decleration Rate = TRUE) - " +
+        [Tooltip("Valid only when using Spin is Deceleration Rate = TRUE) - " +
                 "\n\nIf you dont have the friction value in MU but have it in (rad/sec²), you can use this instead " +
                 "\n\nthe code will calculate the exact amount of friction in MU needed to achieve its deceleration rate for you no matter your ball Mass and Radius. " +
                 "\n\n<b>[DEFAULT 5.0122876] [Valid Range 5 - 15]</b>")]
@@ -111,11 +111,11 @@ public class ModelData : MonoBehaviour
         [SerializeField] public bool bc_DynRestitution = false; // isDynamicRestitution
 
 
-        [Tooltip("Replaces Cushion Friction model to a constant value set bellow")]
+        [Tooltip("Replaces Cushion Friction model to a constant value set below")]
         [SerializeField] public bool bc_UseConstFriction = false; // isCushionFrictionConstant
 
 
-        [Tooltip("This parameter seems to work best at Dynamic Ranges and by default it is emperically determined and HardCoded." +
+        [Tooltip("This parameter seems to work best at Dynamic Ranges and by default it is empirically determined and HardCoded." +
                 "\n\n if you wish to use a constant, you can do it here by checking the above bool! " +
                 "\n\n<b>[Valid Ranges are 0.2 - 0.4]</b>")]
         [SerializeField, Range(0.1f, 0.4f)] public float bc_ConstFriction = 0.2f; // k_Cushion_MU
@@ -141,7 +141,7 @@ public class ModelData : MonoBehaviour
         [SerializeField, Range(0f, 1.5f)] public float bs_Friction = 1f; // muFactor
 
 
-        [Tooltip("Ball diameter in milimeters")]
+        [Tooltip("Ball diameter in millimeters")]
         [SerializeField] public float bs_BallDiameter = 60f;
         [SerializeField] public float bs_BallMass = 0.16f;
 

@@ -853,7 +853,7 @@ public partial class BasisTransmissionResults
         return true;
     }
 
-    public void Initalize()
+    public void Initialize()
     {
         // Track join/leave to force resync against index order changes
         BasisNetworkPlayer.OnRemotePlayerJoined += OnPlayerIndexChanged;
@@ -862,7 +862,7 @@ public partial class BasisTransmissionResults
         LengthOfArrays = -1;
     }
 
-    public void DeInitalize()
+    public void DeInitialize()
     {
         BasisNetworkPlayer.OnRemotePlayerJoined -= OnPlayerIndexChanged;
         BasisNetworkPlayer.OnRemotePlayerLeft -= OnPlayerIndexChanged;
@@ -914,7 +914,7 @@ public partial class BasisTransmissionResults
         if (hasActiveAudioSource.IsCreated) hasActiveAudioSource.Dispose();
         if (audioCapEntries.IsCreated) audioCapEntries.Dispose();
 
-        // Note: smallestD2/changeMask are 1-length arrays kept across reallocs; disposed in DeInitalize.
+        // Note: smallestD2/changeMask are 1-length arrays kept across reallocs; disposed in DeInitialize.
         capacity = 0;
         LengthOfArrays = -1;
     }

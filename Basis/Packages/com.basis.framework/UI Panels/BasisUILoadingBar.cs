@@ -43,13 +43,13 @@ namespace Basis.Scripts.UI.UI_Panels
         private Coroutine autoDestroyCoroutine;
         private const float AutoDestroyTimeout = 1.5f;
 
-        public static void Initalize()
+        public static void Initialize()
         {
             BasisSceneLoad.progressCallback.OnProgressReport += ProgressReport;
             BasisLocalPlayer.Instance.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
         }
 
-        public static void DeInitalize()
+        public static void DeInitialize()
         {
             BasisSceneLoad.progressCallback.OnProgressReport -= ProgressReport;
             BasisLocalPlayer.Instance.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
@@ -159,7 +159,7 @@ namespace Basis.Scripts.UI.UI_Panels
             Renderer.size = new Vector2(value, 2);
         }
 
-        public override void InitalizeEvent()
+        public override void InitializeEvent()
         {
             Instance = this;
             if (BasisLocalCameraDriver.HasInstance)

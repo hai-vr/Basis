@@ -80,7 +80,7 @@ namespace Basis.Scripts.UI
             keypadEnterAction.performed += OnEnterPerformed;
             keypadEnterAction.Enable();
 
-            basisUIRaycastProcess.Initalize();
+            basisUIRaycastProcess.Initialize();
         }
 
         /// <summary>
@@ -97,7 +97,7 @@ namespace Basis.Scripts.UI
             tabAction.performed -= OnTabPerformed;
             enterAction.performed -= OnEnterPerformed;
             keypadEnterAction.performed -= OnEnterPerformed;
-            basisUIRaycastProcess.OnDeInitalize();
+            basisUIRaycastProcess.OnDeInitialize();
         }
 
         // Note: keyboard character input handlers kept for completeness; currently unused.

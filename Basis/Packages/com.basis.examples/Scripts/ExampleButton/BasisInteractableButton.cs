@@ -31,7 +31,7 @@ public class BasisInteractableButton : BasisInteractableObject
     public MeshRenderer RendererRef;
 
     private BasisInputWrapper _inputSource;
-    // Ignore provided list localy, but keep it updated for other scripts 
+    // Ignore provided list locally, but keep it updated for other scripts 
     private BasisInputWrapper _InputSource
     {
         get => _inputSource;
@@ -97,7 +97,7 @@ public class BasisInteractableButton : BasisInteractableObject
     {
         if (_InputSource.IsInput(input))
         {
-            // leaving hover and wont interact this frame, 
+            // leaving hover and won't interact this frame, 
             if (!willInteract)
             {
                 bool added = BasisInputWrapper.TryNewTracking(null, BasisInteractInputState.NotAdded, out BasisInputWrapper wrapper);
@@ -190,7 +190,7 @@ public class BasisInteractableButton : BasisInteractableObject
                         OnInteractEnd(_InputSource.Source);
                     }
                 }
-                // setting same color every frame isnt optimal but fine for example
+                // setting same color every frame isn't optimal but fine for example
                 SetColor(DisabledColor);
             }
         }

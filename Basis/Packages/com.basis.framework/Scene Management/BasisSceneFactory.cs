@@ -25,9 +25,9 @@ public static class BasisSceneFactory
     private static bool _isLoadingLoadingScene = false;
     private static AsyncOperationHandle<SceneInstance>? _loadingSceneHandle = null;
 
-    public static void Initalize()
+    public static void Initialize()
     {
-        BasisScene.Ready += Initalize;
+        BasisScene.Ready += Initialize;
         BasisScene.Destroyed += BasisSceneDestroyed;
         SceneManager.sceneUnloaded -= OnSceneUnloaded;
         SceneManager.sceneUnloaded += OnSceneUnloaded;
@@ -57,7 +57,7 @@ public static class BasisSceneFactory
                 continue;
             }
 
-            Initalize(potentialMainScene);
+            Initialize(potentialMainScene);
             return;
         }
     }
@@ -110,7 +110,7 @@ public static class BasisSceneFactory
             BasisDebug.LogError($"Error unloading BasisLoadingScene: {ex}", BasisDebug.LogTag.Scene);
         }
     }
-    public static void Initalize(BasisScene scene)
+    public static void Initialize(BasisScene scene)
     {
         // If a loading scene is active and a different BasisScene is now ready, unload the loading scene
         if (_loadingSceneHandle != null && _loadingSceneHandle.Value.IsValid())
@@ -199,7 +199,7 @@ public static class BasisSceneFactory
     }
     public static void LoadCameraProperties(Camera Camera)
     {
-        BNL.Log("Loading Camera Propertys From Camera "+ Camera.gameObject.name);
+        BNL.Log("Loading Camera Properties From Camera "+ Camera.gameObject.name);
         // Configure the local player's camera mostly based on the scene's placeholder camera.
         Camera RealCamera = BasisLocalCameraDriver.Instance.Camera;
         RealCamera.useOcclusionCulling = Camera.useOcclusionCulling;

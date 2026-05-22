@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-namespace BattlePhaze.SettingsManager.Intergrations
+namespace BattlePhaze.SettingsManager.Integrations
 {
     public class SMDResolution : MonoBehaviour
     {

@@ -56,7 +56,7 @@ public static class BasisBundleLoadAsset
             }
             else
             {
-                BasisDebug.LogError("Missing Platform Bundle! cant find : " + Application.platform);
+                BasisDebug.LogError("Missing Platform Bundle! can't find : " + Application.platform);
             }
         }
         else

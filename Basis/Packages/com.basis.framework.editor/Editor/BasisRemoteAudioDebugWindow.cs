@@ -336,7 +336,7 @@ public class BasisRemoteAudioDebugWindow : EditorWindow
 
         if (audio.BasisRemoteVisemeAudioDriver != null)
         {
-            StatusLabel("Initialized", audio.BasisRemoteVisemeAudioDriver.Initalized);
+            StatusLabel("Initialized", audio.BasisRemoteVisemeAudioDriver.Initialized);
         }
     }
 

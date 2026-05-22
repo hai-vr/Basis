@@ -55,7 +55,7 @@ public class UIButton : MonoBehaviour
 
     public void _ResetPosition()
     {
-        // can't use button here beacuse it might not have been set yet
+        // can't use button here because it might not have been set yet
         float depth = this.transform.Find("Visual/Button").GetComponent<MeshFilter>().sharedMesh.bounds.size.y * 0.9f;
         float scale = this.transform.localScale.y;
 

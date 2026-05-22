@@ -629,7 +629,7 @@ public class LegacyPhysicsManager : MonoBehaviour
 
         // Reject bounce if velocity is going the same way as normal
         // this state means we tunneled, but it happens only on the corner
-        // vertexes
+        // vertices
         Vector3 source_v = balls_V[id];
         if (Vector3.Dot(source_v, N) > 0.0f)
         {

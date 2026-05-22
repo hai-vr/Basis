@@ -75,7 +75,7 @@ public class StandardPhysicsManager : MonoBehaviour
     bool furthest_vF;
     bool closest_vE;
     bool closest_vF;
-    [Tooltip("Clamp the cue-ball collision point to center + Radius*this (Limits max applyable spin, as miss-cue isn't possible)")]
+    [Tooltip("Clamp the cue-ball collision point to center + Radius*this (Limits max applicable spin, as miss-cue isn't possible)")]
     public float CueMaxHitRadius = 0.9f;
 
     private bool jumpShotFlewOver, cueBallHasCollided;
@@ -829,7 +829,7 @@ public class StandardPhysicsManager : MonoBehaviour
 
         // Reject bounce if velocity is going the same way as normal
         // this state means we tunneled, but it happens only on the corner
-        // vertexes
+        // vertices
         Vector3 source_v = balls_V[id];
         if (Vector3.Dot(source_v, N) > 0.0f)
         {

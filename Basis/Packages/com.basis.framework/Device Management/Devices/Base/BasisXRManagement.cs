@@ -108,7 +108,7 @@ namespace Basis.Scripts.Device_Management.Devices
             }
         }
         public List<XRLoader> AvaliableLoaders;
-        public void Initalize()
+        public void Initialize()
         {
             if (XRGeneralSettings.Instance != null)
             {
@@ -120,7 +120,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 }
             }
         }
-        public void DeInitalize()
+        public void DeInitialize()
         {
 #if UNITY_EDITOR
             xRManagerSettings.TrySetLoaders(AvaliableLoaders);

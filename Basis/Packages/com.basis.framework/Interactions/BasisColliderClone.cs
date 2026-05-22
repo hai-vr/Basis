@@ -38,7 +38,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     primitive.AddComponent<MeshRenderer>();
                     primitive.transform.parent = collider.transform;
 
-                    // generate mesh since we cant just scale the capsule primitve (sadly)
+                    // generate mesh since we can't just scale the capsule primitive (sadly)
                     Mesh newMesh = CreateCapsuleMesh(capsule.radius, capsule.height, 8);
                     mFilter.mesh = newMesh;
 
@@ -68,7 +68,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                     else
                     {
-                        BasisDebug.LogError("Cube Primitve did not have a box collider?!");
+                        BasisDebug.LogError("Cube Primitive did not have a box collider?!");
                     }
                     primitive.name = cloneName;
                     primitive.transform.parent = collider.transform;
@@ -94,7 +94,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                     else
                     {
-                        BasisDebug.LogError("Cube Primitve did not have a box collider?!");
+                        BasisDebug.LogError("Cube Primitive did not have a box collider?!");
                     }
                     primitive.name = cloneName;
                     primitive.transform.parent = collider.transform;
@@ -102,7 +102,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     primitive.transform.localScale = objectBounds.size;
                     break;
 
-                // dont know how to handle remaning types 
+                // dont know how to handle remaining types 
                 case GeometryType.Terrain:
                 case GeometryType.Invalid:
                 default:

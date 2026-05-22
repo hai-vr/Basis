@@ -1,5 +1,5 @@
 using Basis.Network.Core;
-using BasisNetworking.InitalData;
+using BasisNetworking.InitialData;
 using K4os.Compression.LZ4;
 using System;
 using System.Buffers;

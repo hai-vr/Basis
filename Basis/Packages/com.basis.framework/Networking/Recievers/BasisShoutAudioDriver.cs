@@ -106,11 +106,11 @@ namespace Basis.Scripts.Networking.Receivers
             // Wire up the player's existing viseme driver so lip-sync works during shout mode
             if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
             {
-                entry.Driver.Initalize(receiver.AudioReceiverModule.visemeDriver);
+                entry.Driver.Initialize(receiver.AudioReceiverModule.visemeDriver);
             }
             else
             {
-                entry.Driver.Initalized = true;
+                entry.Driver.Initialized = true;
             }
 
             entry.AudioSource.Play();
@@ -155,7 +155,7 @@ namespace Basis.Scripts.Networking.Receivers
                 // Detach the shared viseme driver before destroying so OnDestroy
                 // doesn't clean up the player's viseme driver
                 entry.Driver.BasisAudioAndVisemeDriver = null;
-                entry.Driver.Initalized = false;
+                entry.Driver.Initialized = false;
                 Object.Destroy(entry.Driver);
             }
 

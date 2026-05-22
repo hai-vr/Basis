@@ -21,7 +21,7 @@ public static partial class SerializableBasis
         //if off when player count on server is zero it will be removed.
         public string UUIDOfCreator;
         /// <summary>
-        /// normal users cant remove these items
+        /// normal users can't remove these items
         /// never net written just handled by server
         /// </summary>
         public bool IsAdminLocked;

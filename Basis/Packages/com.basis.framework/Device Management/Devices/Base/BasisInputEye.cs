@@ -21,7 +21,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Initializes the eye input system (device setup, calibration, etc.).
         /// </summary>
-        public abstract void Initalize();
+        public abstract void Initialize();
 
         /// <summary>
         /// Updates eye-tracking values in a simulated mode (e.g., when no hardware is available).

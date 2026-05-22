@@ -12,7 +12,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         private TrackedDevicePose_t _hmdPose;
         private TrackedDevicePose_t _hmdGamePose;
 
-        public override void Initalize()
+        public override void Initialize()
         {
             _gazeAction = SteamVR_Input.GetAction<SteamVR_Action_Pose>("EyeGaze");
         }

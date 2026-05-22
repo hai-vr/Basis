@@ -38,12 +38,12 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
             Device = device;
             InitialRole = basisBoneTrackedRole;
 
-            InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
+            InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
 
             if (basisBoneTrackedRole == BasisBoneTrackedRole.CenterEye)
             {
                 BasisOpenVRInputEye = gameObject.AddComponent<BasisOpenVRInputEye>();
-                BasisOpenVRInputEye.Initalize();
+                BasisOpenVRInputEye.Initialize();
                 BasisVirtualSpine.Initialize();
             }
         }
@@ -67,7 +67,7 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
         {
             if (!SteamVR.active || SteamVR.instance == null || SteamVR.instance.compositor == null)
             {
-                BasisDebug.LogError("Cant Poll SteamVR was not active");
+                BasisDebug.LogError("Can't Poll SteamVR was not active");
                 return;
             }
             // Pull latest pose directly from compositor (SteamVR way)

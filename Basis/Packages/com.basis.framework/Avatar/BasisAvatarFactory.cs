@@ -27,7 +27,7 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         private static GameObject CachedLoadingAvatarPrefab;
 
-        public static void Initalize()
+        public static void Initialize()
         {
             var op = Addressables.LoadAssetAsync<GameObject>(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation);
             CachedLoadingAvatarPrefab = op.WaitForCompletion();

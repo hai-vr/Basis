@@ -288,7 +288,7 @@ public class BilliardsModule : MonoBehaviour
     // use this to make sure max simulation is always visible
     [System.NonSerializedAttribute] public bool noLOD;
     // Add 1 to noLOD_ using SetProgramVariable() to prevent LoD check, subtract to undo
-    // this allows more than one other script to disable LoD simultaniously
+    // this allows more than one other script to disable LoD simultaneously
     [System.NonSerializedAttribute, FieldChangeCallback(nameof(noLOD__))] public int noLOD_ = 0;
     public int noLOD__
     {
@@ -1154,7 +1154,7 @@ public class BilliardsModule : MonoBehaviour
         if (foulStateLocal != foulStateSynced)
         {
             _LogInfo($"onRemoteFoulStateChanged foulState={foulStateSynced}");
-            // should not escape here because it can stay the same turn to turn while whos turn it is changes (especially with Undo/SnookerUndo)
+            // should not escape here because it can stay the same turn to turn while whose turn it is changes (especially with Undo/SnookerUndo)
         }
 
         foulStateLocal = foulStateSynced;
@@ -1276,7 +1276,7 @@ public class BilliardsModule : MonoBehaviour
     {
         if (!gameLive) return;
 
-        // should not escape because it can stay the same turn to turn while whos turn it is changes (especially with Undo/SnookerUndo)
+        // should not escape because it can stay the same turn to turn while whose turn it is changes (especially with Undo/SnookerUndo)
         bool stateChanged = false;
         if (turnStateSynced != turnStateLocal)
         {
@@ -1508,7 +1508,7 @@ public class BilliardsModule : MonoBehaviour
         {
             isLocalSimulationOurs = false;
 
-            // Common informations
+            // Common information
             bool isScratch = (ballsPocketedLocal & 0x1U) == 0x1U || forceScratch;
             bool nextTurnBlocked = false;
 

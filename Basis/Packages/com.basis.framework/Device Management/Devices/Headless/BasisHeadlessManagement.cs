@@ -512,12 +512,12 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 
         if (BasisLocalPlayer.PlayerReady && BasisLocalPlayer.Instance != null)
         {
-            InitalizeLocalPlayerReadyNess();
+            InitializeLocalPlayerReadyNess();
         }
         else
         {
-            BasisLocalPlayer.OnLocalPlayerInitalized -= OnLocalPlayerReadyForHeadless;
-            BasisLocalPlayer.OnLocalPlayerInitalized += OnLocalPlayerReadyForHeadless;
+            BasisLocalPlayer.OnLocalPlayerInitialized -= OnLocalPlayerReadyForHeadless;
+            BasisLocalPlayer.OnLocalPlayerInitialized += OnLocalPlayerReadyForHeadless;
         }
         BasisDebug.Log(nameof(StartSDK), BasisDebug.LogTag.Device);
 
@@ -554,15 +554,15 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         ResetServerHeadlessAudioPolicy();
         BasisAudioClipPlayer.DeInitialize();
         BasisHeadlessRuntimeStatus.MarkStopping();
-        BasisLocalPlayer.OnLocalPlayerInitalized -= OnLocalPlayerReadyForHeadless;
+        BasisLocalPlayer.OnLocalPlayerInitialized -= OnLocalPlayerReadyForHeadless;
     }
 
     private void OnLocalPlayerReadyForHeadless()
     {
-        BasisLocalPlayer.OnLocalPlayerInitalized -= OnLocalPlayerReadyForHeadless;
-        InitalizeLocalPlayerReadyNess();
+        BasisLocalPlayer.OnLocalPlayerInitialized -= OnLocalPlayerReadyForHeadless;
+        InitializeLocalPlayerReadyNess();
     }
-    private void InitalizeLocalPlayerReadyNess()
+    private void InitializeLocalPlayerReadyNess()
     {
         EnsureHeadlessInput();
         headlessAudioControlReady = true;

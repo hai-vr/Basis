@@ -12,7 +12,7 @@ public class BasisNetworkServerRunner
     [SerializeField]
     public Configuration Configuration;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    public void Initalize(Configuration configuration, string LogPath,string UUIDTomarkAsAdmin)
+    public void Initialize(Configuration configuration, string LogPath,string UUIDTomarkAsAdmin)
     {
         Configuration = configuration;
         BasisServerSideLogging.Initialize(Configuration, LogPath);

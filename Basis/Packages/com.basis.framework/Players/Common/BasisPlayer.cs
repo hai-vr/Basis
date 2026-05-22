@@ -17,7 +17,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public bool IsLocal { get; set; }
 
         /// <summary>
-        /// Platform this player is assoicated with.
+        /// Platform this player is associated with.
         /// </summary>
         public string PlayerPlatform;
 

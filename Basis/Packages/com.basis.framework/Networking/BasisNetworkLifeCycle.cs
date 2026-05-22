@@ -15,12 +15,12 @@ public static class BasisNetworkLifeCycle
     /// <summary>
     /// boots up the network management
     /// </summary>
-    public static void Initalize()
+    public static void Initialize()
     {
-        BasisDebug.Log($"Initalizing Network Connection", BasisDebug.LogTag.Networking);
+        BasisDebug.Log($"Initializing Network Connection", BasisDebug.LogTag.Networking);
         BasisNetworkManagement.mainThreadId = Thread.CurrentThread.ManagedThreadId;
         BasisRemoteNetworkDriver.Initialize(Unity.Collections.Allocator.Persistent);
-        BasisAudioRemoteSource.Initalize();
+        BasisAudioRemoteSource.Initialize();
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisNetworkManagement.instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
@@ -122,7 +122,7 @@ public static class BasisNetworkLifeCycle
         BasisContentShareManager.Reset();//remove content spheres
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
-        BasisAudioRemoteSource.DeInitalize();//release memory for audio gameobject
+        BasisAudioRemoteSource.DeInitialize();//release memory for audio gameobject
         BasisNetworkManagement.Transmitter = null;
         // Clear delegates / events
         BasisNetworkPlayer.OnOwnershipTransfer = null;

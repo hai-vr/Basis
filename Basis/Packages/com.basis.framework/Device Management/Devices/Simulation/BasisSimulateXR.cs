@@ -43,7 +43,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
             // Attach simulated input component
             BasisInputXRSimulate BasisInput = gameObject.AddComponent<BasisInputXRSimulate>();
             BasisInput.FollowMovement = Moveable.transform;
-            BasisInput.InitalizeTracking(UniqueID, UnUniqueID, subSystems, hasrole, Role);
+            BasisInput.InitializeTracking(UniqueID, UnUniqueID, subSystems, hasrole, Role);
 
             // Track in local list and global device management
             if (!Inputs.Contains(BasisInput))

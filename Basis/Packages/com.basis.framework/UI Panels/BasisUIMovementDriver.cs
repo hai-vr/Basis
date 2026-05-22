@@ -11,7 +11,7 @@ namespace Basis.Scripts.UI.UI_Panels
         public bool hasLocalCreationEvent = false;
         public Vector3 Position;
         public Quaternion Rotation;
-        private Vector3 InitalScale;
+        private Vector3 InitialScale;
         public bool SnapToPlayOnDistance = false;
         public float MaxDistanceInVRBeforeSnap = 4;
         public float CurrentMaxDistanceInVRBeforeSnap;
@@ -20,7 +20,7 @@ namespace Basis.Scripts.UI.UI_Panels
 
         public void Start()
         {
-            InitalScale = transform.localScale;
+            InitialScale = transform.localScale;
             if (BasisLocalPlayer.Instance != null)
             {
                 LocalPlayerGenerated();
@@ -29,7 +29,7 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 if (!hasLocalCreationEvent)
                 {
-                    BasisLocalPlayer.OnLocalPlayerInitalized += LocalPlayerGenerated;
+                    BasisLocalPlayer.OnLocalPlayerInitialized += LocalPlayerGenerated;
                     hasLocalCreationEvent = true;
                 }
             }
@@ -37,10 +37,10 @@ namespace Basis.Scripts.UI.UI_Panels
         }
         public void OnDestroy()
         {
-            DeInitalize();
+            DeInitialize();
         }
 
-        public void DeInitalize()
+        public void DeInitialize()
         {
             if (SnapToPlayOnDistance)
             {
@@ -51,7 +51,7 @@ namespace Basis.Scripts.UI.UI_Panels
 
             if (hasLocalCreationEvent)
             {
-                BasisLocalPlayer.OnLocalPlayerInitalized -= LocalPlayerGenerated;
+                BasisLocalPlayer.OnLocalPlayerInitialized -= LocalPlayerGenerated;
                 hasLocalCreationEvent = false;
             }
         }
@@ -103,7 +103,7 @@ namespace Basis.Scripts.UI.UI_Panels
             targetPosition = Position + (horizontalRotation * adjustedOffset);
 
             transform.SetPositionAndRotation(targetPosition, horizontalRotation);
-            transform.localScale = InitalScale * Scale;
+            transform.localScale = InitialScale * Scale;
 
             CurrentMaxDistanceInVRBeforeSnap = MaxDistanceInVRBeforeSnap * Scale;
         }

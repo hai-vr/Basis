@@ -16,7 +16,7 @@ public class BasisOpenXRHeadInput : BasisInput
 
     public void Initialize(string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole)
     {
-        InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, BasisBoneTrackedRole.CenterEye);
+        InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, BasisBoneTrackedRole.CenterEye);
 
         Position = new InputActionProperty(new InputAction("<XRHMD>/centerEyePosition", InputActionType.Value, "<XRHMD>/centerEyePosition", expectedControlType: "Vector3"));
         Rotation = new InputActionProperty(new InputAction("<XRHMD>/centerEyeRotation", InputActionType.Value, "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion"));
@@ -28,7 +28,7 @@ public class BasisOpenXRHeadInput : BasisInput
         _rotationAction = Rotation.action;
 
         BasisOpenXRInputEye = gameObject.AddComponent<BasisOpenXRInputEye>();
-        BasisOpenXRInputEye.Initalize();
+        BasisOpenXRInputEye.Initialize();
         BasisVirtualSpine.Initialize();
     }
 

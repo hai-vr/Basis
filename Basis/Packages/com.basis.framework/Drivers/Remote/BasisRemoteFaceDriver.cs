@@ -7,7 +7,7 @@ namespace Basis.Scripts.Drivers
 {
     /// <summary>
     /// Drives automatic facial blinking using skinned mesh blendshapes.
-    /// handles eye movement override aswell
+    /// handles eye movement override as well
     /// </summary>
     /// <remarks>
     /// This driver schedules pseudo-random blink events and animates eye-closure/opening

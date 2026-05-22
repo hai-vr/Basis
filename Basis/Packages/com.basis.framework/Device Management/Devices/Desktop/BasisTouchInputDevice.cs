@@ -9,9 +9,9 @@ public class BasisTouchInputDevice : BasisInput
     public BasisDesktopEye Input;
     public Finger Finger;
     public int Index;
-    public void Initalize(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
+    public void Initialize(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
     {
-        InitalizeTracking( uniqueID,  unUniqueDeviceID,  subSystems,  ForceAssignTrackedRole,  basisBoneTrackedRole, hasRayCastOverrideSupport);
+        InitializeTracking( uniqueID,  unUniqueDeviceID,  subSystems,  ForceAssignTrackedRole,  basisBoneTrackedRole, hasRayCastOverrideSupport);
         BasisPointRaycaster.UseWorldPosition = false;
     }
     public override void LateDoPollData()

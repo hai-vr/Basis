@@ -73,7 +73,7 @@ namespace Basis.Scripts.Networking
                     WorldsLocked = BasisNetworkManagement.HostWorldsLocked,
                     ThirdPersonDisabled = BasisNetworkManagement.HostThirdPersonDisabled,
                 };
-                BasisNetworkServerRunner.Initalize(serverConfig, string.Empty, uuid);
+                BasisNetworkServerRunner.Initialize(serverConfig, string.Empty, uuid);
             }
 
             BasisDebug.Log($"Connecting with Port {port} IpString {ipString}");
@@ -100,7 +100,7 @@ namespace Basis.Scripts.Networking
                 }
             };
 
-            BasisNetworkAvatarCompressor.InitalAvatarData(basisLocalPlayer.BasisAvatar.Animator, out var dataSet);
+            BasisNetworkAvatarCompressor.InitialAvatarData(basisLocalPlayer.BasisAvatar.Animator, out var dataSet);
             readyMessage.localAvatarSyncMessage = dataSet.LASM;
 
             BasisDebug.Log("Network Starting Client");

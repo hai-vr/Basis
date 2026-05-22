@@ -663,14 +663,14 @@ public partial class BasisAvatarSDKInspector : Editor
         {
             ScheduledTestInEditorAvatar = avatar;
             BasisDebug.Log("Scheduling Load Avatar", BasisDebug.LogTag.Editor);
-            BasisLocalPlayerData.OnLocalPlayerInitalized -= LoadScheduledAvatar;
-            BasisLocalPlayerData.OnLocalPlayerInitalized += LoadScheduledAvatar;
+            BasisLocalPlayerData.OnLocalPlayerInitialized -= LoadScheduledAvatar;
+            BasisLocalPlayerData.OnLocalPlayerInitialized += LoadScheduledAvatar;
         }
     }
 
     private static void LoadScheduledAvatar()
     {
-        BasisLocalPlayerData.OnLocalPlayerInitalized -= LoadScheduledAvatar;
+        BasisLocalPlayerData.OnLocalPlayerInitialized -= LoadScheduledAvatar;
         if (ScheduledTestInEditorAvatar == null)
         {
             return;

@@ -74,7 +74,7 @@ public class BasisAvatarPedestal : BasisInteractableObject
     public void Start()
     {
         BasisProgressReport = new BasisProgressReport();
-        Initalize();
+        Initialize();
     }
     /// <summary>
     /// if we successfully load a image of the avatar it will be referencable here.
@@ -96,7 +96,7 @@ public class BasisAvatarPedestal : BasisInteractableObject
     /// Initializes the pedestal by loading or showing the avatar, 
     /// and creating its collider for interaction.
     /// </summary>
-    public async void Initalize()
+    public async void Initialize()
     {
         switch (LoadMode)
         {

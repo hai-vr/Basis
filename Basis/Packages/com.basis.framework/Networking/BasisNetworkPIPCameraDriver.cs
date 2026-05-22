@@ -76,7 +76,7 @@ public static class BasisNetworkPIPCameraDriver
 
     /// <summary>
     /// Initialize native arrays and subscribe to the simulation loop.
-    /// Called from BasisNetworkLifeCycle.Initalize().
+    /// Called from BasisNetworkLifeCycle.Initialize().
     /// </summary>
     public static void Create()
     {

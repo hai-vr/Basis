@@ -72,7 +72,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 // set world position and rotation of the joint
                 JointRef.connectedAnchor = anchor.position + anchor.forward * offsetDistance;
                 JointRef.targetRotation = Quaternion.Inverse(anchor.rotation) * offsetRot;
-                // TODO: send postition to network while held
+                // TODO: send position to network while held
             }
         }
 

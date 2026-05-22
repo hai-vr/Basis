@@ -9,7 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Serialization;
-using BasisNetworking.InitalData;
+using BasisNetworking.InitialData;
 using BasisNetworking.InitialData;
 using BasisServerHandle;
 using static BasisNetworkCore.Serializable.SerializableBasis;

@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using static SerializableBasis;
 
-namespace BasisNetworking.InitalData
+namespace BasisNetworking.InitialData
 {
     public static class BasisLoadableLoader
     {

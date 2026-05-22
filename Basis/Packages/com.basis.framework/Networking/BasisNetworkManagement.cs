@@ -73,7 +73,7 @@ namespace Basis.Scripts.Networking
         public static bool HostThirdPersonDisabled = false;
 
         /// <summary>
-        /// True once <see cref="BasisNetworkLifeCycle.Initalize"/> has completed.
+        /// True once <see cref="BasisNetworkLifeCycle.Initialize"/> has completed.
         /// Replaces the old <c>Instance != null</c> singleton-presence check.
         /// </summary>
         public static bool IsInitialized;
@@ -329,9 +329,9 @@ namespace Basis.Scripts.Networking
 #endif
                     continue;
                 }
-                if (receiver.HasOverridenDestination)
+                if (receiver.HasOverriddenDestination)
                 {
-                    BasisRemoteNetworkDriver.SetFilteredHipsOverride(receiver.playerId, receiver.OverridenPosition, (quaternion)receiver.OverridenRotation);
+                    BasisRemoteNetworkDriver.SetFilteredHipsOverride(receiver.playerId, receiver.OverriddenPosition, (quaternion)receiver.OverriddenRotation);
                 }
 #if UNITY_EDITOR
                 _applied++;

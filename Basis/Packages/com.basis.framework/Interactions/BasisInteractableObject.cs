@@ -200,7 +200,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
             else
             {
-                BasisLocalPlayer.OnLocalPlayerInitalized += SetupInputs;
+                BasisLocalPlayer.OnLocalPlayerInitialized += SetupInputs;
             }
         }
 

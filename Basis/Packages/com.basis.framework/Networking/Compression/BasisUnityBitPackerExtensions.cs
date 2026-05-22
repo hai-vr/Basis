@@ -168,7 +168,7 @@ namespace Basis.Scripts.Networking.Compression
             WriteUShort(compressed, ref message.array, ref offset);
         }
         /// <summary>
-        /// cant generate a nan unless min,max or floatrangedifference go bad (const cant)
+        /// can't generate a nan unless min,max or floatrangedifference go bad (const can't)
         /// </summary>
         /// <param name="value"></param>
         /// <param name="minValue"></param>

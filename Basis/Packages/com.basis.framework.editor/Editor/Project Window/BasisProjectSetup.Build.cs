@@ -79,7 +79,7 @@ public partial class BasisProjectSetup : EditorWindow
                     Tr("projectSetup.platformQuality.il2cppNotAvailableTitle", "IL2CPP Not Available"),
                     string.Format(Tr("projectSetup.platformQuality.il2cppNotAvailableBody",
                         "IL2CPP scripting backend is not available for {0}. " +
-                        "Install the appropriate *Build Support (IL2CPP)* module via Unity Hub, some platforms wont have Il2cpp support."), group),
+                        "Install the appropriate *Build Support (IL2CPP)* module via Unity Hub, some platforms won't have Il2cpp support."), group),
                     Tr("projectSetup.dialog.ok", "OK"));
                 return;
             }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Xml.Serialization;
 
-namespace BasisNetworking.InitalData
+namespace BasisNetworking.InitialData
 {
     public static class BasisDefaultLibraryLoader
     {

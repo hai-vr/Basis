@@ -56,7 +56,7 @@ namespace Basis.Scripts.UI
         public List<Canvas> Results = new List<Canvas>();
         private readonly List<int> _uiHitOrder = new List<int>(16);
         public bool IgnoreReversedGraphics = true;
-        public Vector3 highlightQuadInitalSize;
+        public Vector3 highlightQuadInitialSize;
         public bool HasOnPlayersHeightChanged = false;
         public BasisCursorType ActiveCursorType = BasisCursorType.Default;
         public Renderer ReticleRenderer;
@@ -130,7 +130,7 @@ namespace Basis.Scripts.UI
                 GameObject gameObject = GameObject.Instantiate(InMemory);
                 gameObject.name = $"{DeviceName}_Redical";
                 gameObject.transform.SetParent(BasisLocalPlayer.Instance.transform);
-                highlightQuadInitalSize = gameObject.transform.localScale;
+                highlightQuadInitialSize = gameObject.transform.localScale;
                 highlightQuadInstance = gameObject;
                 if (highlightQuadInstance.TryGetComponent(out Canvas Canvas))
                 {
@@ -169,7 +169,7 @@ namespace Basis.Scripts.UI
             }
             if (highlightQuadInstance != null)
             {
-                highlightQuadInstance.transform.localScale = highlightQuadInitalSize * uiScale;
+                highlightQuadInstance.transform.localScale = highlightQuadInitialSize * uiScale;
             }
         }
 

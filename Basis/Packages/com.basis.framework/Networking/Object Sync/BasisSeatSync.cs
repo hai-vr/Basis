@@ -150,7 +150,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
 
         // Now drive the current remote receiver.
         Seat.CalculateSeatPositionRotation(rec.RemotePlayer, out Quaternion seatQuat, out Vector3 hips);
-        rec.OverridenDestinationOfRoot(true);
+        rec.OverriddenDestinationOfRoot(true);
         rec.ProvidedDestinationOfRoot(hips, seatQuat);
     }
 
@@ -159,7 +159,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
         if (_currentRemoteRec != null)
         {
             // Assuming false turns off the override.
-            _currentRemoteRec.OverridenDestinationOfRoot(false);
+            _currentRemoteRec.OverriddenDestinationOfRoot(false);
             if (_currentRemoteRec.Player != null)
             {
                 OnNetworkPlayerExitSeat?.Invoke(_currentRemoteRec.Player);

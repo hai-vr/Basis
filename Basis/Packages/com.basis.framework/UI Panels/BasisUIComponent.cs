@@ -30,8 +30,8 @@ namespace Basis.Scripts.UI.UI_Panels
         /// </summary>
         public void OnEnable()
         {
-            Initalize();
-            BasisLocalCameraDriver.InstanceExists += Initalize;
+            Initialize();
+            BasisLocalCameraDriver.InstanceExists += Initialize;
         }
 
         /// <summary>
@@ -39,14 +39,14 @@ namespace Basis.Scripts.UI.UI_Panels
         /// </summary>
         public void OnDisable()
         {
-            BasisLocalCameraDriver.InstanceExists -= Initalize;
+            BasisLocalCameraDriver.InstanceExists -= Initialize;
         }
 
         /// <summary>
         /// Initializes the UI component by assigning the camera from the local camera driver
         /// to the Canvas world camera.
         /// </summary>
-        public void Initalize()
+        public void Initialize()
         {
             if (BasisLocalCameraDriver.Instance != null)
             {

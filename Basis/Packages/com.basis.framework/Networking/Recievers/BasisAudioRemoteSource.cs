@@ -16,12 +16,12 @@ namespace Basis.Scripts.Networking.Receivers
 
         public static int PoolCount => pool.Count;
 
-        public static void Initalize()
+        public static void Initialize()
         {
             Loadable = Addressables.LoadAssetAsync<GameObject>(AudioSourcePath);
             if (Loadable.IsValid() == false)
             {
-                BasisDebug.LogError("Cant Find Audio Source!");
+                BasisDebug.LogError("Can't Find Audio Source!");
                 return;
             }
             LoadableAudioSource = Loadable.WaitForCompletion();
@@ -41,7 +41,7 @@ namespace Basis.Scripts.Networking.Receivers
                 poolRoot = rootGo.transform;
             }
         }
-        public static void DeInitalize()
+        public static void DeInitialize()
         {
             Clear();
 

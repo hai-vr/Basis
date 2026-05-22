@@ -751,7 +751,7 @@ namespace Basis.Scripts.Avatar
         private const float ConstellationDefaultArmReachRatio = 0.55f;
         private const float ConstellationToeForwardEpsilon = 0.02f;
         /// <summary>
-        /// gets a roles dictonary with the roles and transforms
+        /// gets a roles dictionary with the roles and transforms
         /// </summary>
         /// <returns></returns>
         public static Dictionary<BasisBoneTrackedRole, Transform> GetAllRolesAsTransform()

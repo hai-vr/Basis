@@ -131,7 +131,7 @@ namespace Basis.Scripts.Drivers
                     // Avatar height changes and playspace movement seem to interact in negative ways that will require further investigation
                     var spineHeight = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position.y;
                     //    BasisInput.OffsetCoords.position.y = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - input.UnscaledDeviceCoord.position.y + spineHeight;
-                    BasisInput.OffsetCoords.position.y = 0;//revist later
+                    BasisInput.OffsetCoords.position.y = 0;//revisit later
                 }
                 else
                 {

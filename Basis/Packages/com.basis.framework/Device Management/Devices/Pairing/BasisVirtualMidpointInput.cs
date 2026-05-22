@@ -90,7 +90,7 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
             }
 
             string id = "midpoint:" + (a?.UniqueDeviceIdentifier ?? "?") + "|" + (b?.UniqueDeviceIdentifier ?? "?");
-            InitalizeTracking(id, "VirtualMidpoint", "BasisTrackerPairing", false, BasisBoneTrackedRole.CenterEye);
+            InitializeTracking(id, "VirtualMidpoint", "BasisTrackerPairing", false, BasisBoneTrackedRole.CenterEye);
 
             // Prime the pose so calibration (and any same-frame consumer) sees a
             // sensible position before the next AfterSimulateOnRender runs and

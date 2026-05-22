@@ -44,7 +44,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             inputSource = SteamVR_Input_Sources;
             Device = device;
 
-            InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
+            InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
 
             if (DeviceposeAction != null && HasOnUpdate == false)
             {
@@ -85,7 +85,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         {
             if (!SteamVR.active)
             {
-                BasisDebug.LogError("Cant Poll SteamVR was not active");
+                BasisDebug.LogError("Can't Poll SteamVR was not active");
                 return;
             }
 

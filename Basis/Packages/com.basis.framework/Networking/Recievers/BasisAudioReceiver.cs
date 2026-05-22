@@ -497,7 +497,7 @@ namespace Basis.Scripts.Networking.Receivers
             if (BasisRemoteVisemeAudioDriver == null)
                 BasisRemoteVisemeAudioDriver = BasisHelpers.GetOrAddComponent<BasisRemoteAudioDriver>(audioSource.gameObject);
             BasisRemoteVisemeAudioDriver.BasisAudioReceiver = this;
-            BasisRemoteVisemeAudioDriver.Initalize(visemeDriver);
+            BasisRemoteVisemeAudioDriver.Initialize(visemeDriver);
         }
 
         public void StopAudio()

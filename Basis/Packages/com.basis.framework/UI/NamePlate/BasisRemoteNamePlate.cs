@@ -77,7 +77,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
-        public void Initalize(BasisRemotePlayer RemotePlayer)
+        public void Initialize(BasisRemotePlayer RemotePlayer)
         {
             BasisRemotePlayer = RemotePlayer;
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
@@ -115,7 +115,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         private void HandlePlayerDestroying()
         {
-            DeInitalize();
+            DeInitialize();
             AddressableResourceProcess.ReleaseGameobject(gameObject);
         }
 
@@ -130,7 +130,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         /// <summary>
         /// Reads the persisted block state for this player and refreshes the
-        /// nameplate's active state. Fire-and-forget from <see cref="Initalize"/>.
+        /// nameplate's active state. Fire-and-forget from <see cref="Initialize"/>.
         /// </summary>
         private async Task LoadBlockStateAsync()
         {
@@ -232,7 +232,7 @@ namespace Basis.Scripts.UI.NamePlate
             chatTextObj.SetActive(false);
         }
 
-        public void DeInitalize()
+        public void DeInitialize()
         {
             BasisRemoteNamePlateDriver.Unregister(this);
             if (BasisRemotePlayer != null)
@@ -259,7 +259,7 @@ namespace Basis.Scripts.UI.NamePlate
             hasChatMessage = false;
 
             // Clean up rendering resources
-            DeInitalizeCallToRender();
+            DeInitializeCallToRender();
 
             // Stop any active pulse
             isPulsingTalk = false;
@@ -269,7 +269,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (HasRendererCheckWiredUp)
             {
-                DeInitalizeCallToRender();
+                DeInitializeCallToRender();
             }
 
             HasRendererCheckWiredUp = false;
@@ -475,7 +475,7 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemoteNamePlateDriver.GenerateChatBubble(this);
         }
 
-        public void DeInitalizeCallToRender()
+        public void DeInitializeCallToRender()
         {
             if (HasRendererCheckWiredUp && BasisRemotePlayer != null && BasisRemotePlayer.FaceRenderer != null)
             {

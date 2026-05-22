@@ -12,18 +12,18 @@ namespace Basis.Scripts.Player
     /// Wraps Addressables loading, prefab instantiation, and component initialization.
     /// </summary>
     /// <remarks>
-    /// Call <see cref="Initalize"/> once at startup to load the local/remote player prefabs.
-    /// When shutting down or changing scenes, call <see cref="DeInitalize"/> to release Addressables handles.
+    /// Call <see cref="Initialize"/> once at startup to load the local/remote player prefabs.
+    /// When shutting down or changing scenes, call <see cref="DeInitialize"/> to release Addressables handles.
     /// </remarks>
     public static class BasisPlayerFactory
     {
         /// <summary>
-        /// Prefab asset for the local player, loaded via Addressables by <see cref="Initalize"/>.
+        /// Prefab asset for the local player, loaded via Addressables by <see cref="Initialize"/>.
         /// </summary>
         public static GameObject LocalPlayerReadyToSpawn;
 
         /// <summary>
-        /// Prefab asset for the remote player, loaded via Addressables by <see cref="Initalize"/>.
+        /// Prefab asset for the remote player, loaded via Addressables by <see cref="Initialize"/>.
         /// </summary>
         public static GameObject RemotePlayerReadyToSpawn;
 
@@ -63,7 +63,7 @@ namespace Basis.Scripts.Player
         /// This method blocks using <c>WaitForCompletion()</c>. If you need a non-blocking flow,
         /// adapt this to await the async operations and expose a Task-returning version.
         /// </remarks>
-        public static void Initalize()
+        public static void Initialize()
         {
             LocalHandle = Addressables.LoadAssetAsync<GameObject>(LocalPlayerId);
             LocalPlayerReadyToSpawn = LocalHandle.WaitForCompletion();
@@ -76,13 +76,13 @@ namespace Basis.Scripts.Player
         }
 
         /// <summary>
-        /// Releases Addressables handles acquired by <see cref="Initalize"/>.
+        /// Releases Addressables handles acquired by <see cref="Initialize"/>.
         /// </summary>
         /// <remarks>
         /// After calling this, <see cref="LocalPlayerReadyToSpawn"/> and <see cref="RemotePlayerReadyToSpawn"/>
-        /// should no longer be used. Re-run <see cref="Initalize"/> to load them again.
+        /// should no longer be used. Re-run <see cref="Initialize"/> to load them again.
         /// </remarks>
-        public static void DeInitalize()
+        public static void DeInitialize()
         {
             Addressables.Release(LocalHandle);
             Addressables.Release(RemoteHandle);

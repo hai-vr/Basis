@@ -15,12 +15,12 @@ namespace Basis.Scripts.BasisSdk.Players
     {
         public static IBasisLocalPlayer Instance;
         public static bool PlayerReady;
-        public static event Action OnLocalPlayerInitalized;
+        public static event Action OnLocalPlayerInitialized;
 
         public static void RaiseLocalPlayerInitialized()
         {
             PlayerReady = true;
-            OnLocalPlayerInitalized?.Invoke();
+            OnLocalPlayerInitialized?.Invoke();
         }
     }
 }

@@ -119,7 +119,7 @@ public class BasisLocalEyeDriver
     }
 
     #region Init
-    public static void Initalize()
+    public static void Initialize()
     {
         Dispose();
 

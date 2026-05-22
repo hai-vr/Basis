@@ -1,9 +1,9 @@
 using Basis.Scripts.Networking.NetworkedAvatar;
 using UnityEngine;
 
-public class BasisUnInitalizedPlayer : BasisNetworkPlayer
+public class BasisUnInitializedPlayer : BasisNetworkPlayer
 {
-    public BasisUnInitalizedPlayer(ushort PlayerID)
+    public BasisUnInitializedPlayer(ushort PlayerID)
     {
         playerId = PlayerID;
         hasID = true;

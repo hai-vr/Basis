@@ -212,7 +212,7 @@ public class Configuration
             }
             else
             {
-                BNL.LogWarning($"Environmental varible type could not be processed for Config Field:{field.Name} Value:{value}");
+                BNL.LogWarning($"Environmental variable type could not be processed for Config Field:{field.Name} Value:{value}");
             }
         }
     }

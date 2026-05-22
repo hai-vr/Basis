@@ -343,7 +343,7 @@ namespace Basis.MediaPipe
 
             BasisInputXRSimulate input = go.AddComponent<BasisInputXRSimulate>();
             input.FollowMovement = move;
-            input.InitalizeTracking(id, SubSystem, SubSystem, true, role);
+            input.InitializeTracking(id, SubSystem, SubSystem, true, role);
 
             if (role == BasisBoneTrackedRole.Head && BasisDesktopEye.Instance != null)
             {
@@ -356,7 +356,7 @@ namespace Basis.MediaPipe
             return input;
         }
 
-        // Declare our virtual devices to the matcher with raycast OFF, so InitalizeTracking
+        // Declare our virtual devices to the matcher with raycast OFF, so InitializeTracking
         // resolves these settings instead of generating a raycast-enabled fallback (the default
         // for a forced non-CenterEye role). These are pose trackers, not UI pointers.
         private static bool _deviceMatchRegistered;

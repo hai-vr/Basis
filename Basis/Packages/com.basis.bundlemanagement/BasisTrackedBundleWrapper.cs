@@ -43,7 +43,7 @@ public class BasisTrackedBundleWrapper
 
 
     // TODO: Bug in here
-    // when loading in mutliple same scenes and unloading one of them
+    // when loading in multiple same scenes and unloading one of them
     // it will remove other duplicate scenes?
     public async Task<bool> UnloadIfReady()
     {
@@ -69,7 +69,7 @@ public class BasisTrackedBundleWrapper
 
                     BasisDebug.LogError("Asset Bundle was null this should never occur");
                     #else
-                    BasisDebug.LogError("Already Unloaded this bundle, check logic could be ok if you loaded this a few times and unloaded it quickly aswell.");
+                    BasisDebug.LogError("Already Unloaded this bundle, check logic could be ok if you loaded this a few times and unloaded it quickly as well.");
                     #endif
                     return false;
                 }

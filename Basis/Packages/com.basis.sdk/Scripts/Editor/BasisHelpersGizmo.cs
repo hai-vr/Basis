@@ -56,12 +56,12 @@ namespace Basis.Scripts.BasisSdk.Helpers.Editor
                 Field.value = Value;
             }
         }
-        public static EventCallback<ChangeEvent<Vector3>> CallBackVector3Field(VisualElement visualElement, string fieldNameIdentifier, Vector3 InitalValue)
+        public static EventCallback<ChangeEvent<Vector3>> CallBackVector3Field(VisualElement visualElement, string fieldNameIdentifier, Vector3 InitialValue)
         {
             Vector3Field Field = visualElement.Q<Vector3Field>(fieldNameIdentifier);
             if (Field != null)
             {
-                Field.value = InitalValue;
+                Field.value = InitialValue;
                 var changeEvent = new EventCallback<ChangeEvent<Vector3>>(evt => OnVector3FieldValueChanged(evt));
                 Field.RegisterCallback(changeEvent);
                 return changeEvent;

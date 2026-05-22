@@ -29,10 +29,10 @@ public class AdvancedPhysicsManager : MonoBehaviour
     private float k_BALL_RSQR = 0.0009f;                                    // ball radius squared
     //const float k_BALL_BALL_F = 0.03f;                                    // Friction coefficient between balls       (ball-ball) 0.03f  
     private float k_BALL_E = 0.98f;   // Coefficient of Restitution between balls (Data suggests 0.94 to 0.96, but it seems there is an issue during calculation, Happens rarely now after some fixes.)
-    [Tooltip("Clamp the cue-ball collision point to center + Radius*this (Limits max applyable spin, as miss-cue isn't possible)")]
+    [Tooltip("Clamp the cue-ball collision point to center + Radius*this (Limits max applicable spin, as miss-cue isn't possible)")]
     public float CueMaxHitRadius = 0.6f;
     public bool isHandleCollison5_2 = false;
-    [Tooltip("Friction between balls, altering it will adjust how much throw balls recieve in collisions. (Ball dirtiness)\nRecommended range 0.5 - 1.5")]
+    [Tooltip("Friction between balls, altering it will adjust how much throw balls receive in collisions. (Ball dirtiness)\nRecommended range 0.5 - 1.5")]
     public float muFactor_for_5_2 = 0.7f;
 
     // Ball <-> Table Variables 
@@ -392,7 +392,7 @@ if (Test_Mode)
                     // Here we create an array containing balls to check against for collision in stepOneBall()
                     // Balls used to only check balls with higher id than them for collisions
                     // but now we're running calculateDeltaPosition() on every ball, which moves balls to the surface of other balls (as opposed to being inside)
-                    // a ball wont collide with a ball that it hits from behind when both are traveling in the same direction if its ID is lower.
+                    // a ball won't collide with a ball that it hits from behind when both are traveling in the same direction if its ID is lower.
                     // because it moves to it's surface, doesn't run collision detection, and then the lower ID ball is calculated next frame,
                     // where it moves forward, moving it away from the ball the was moved to it's surface, causing there to be no collision.
                     // so we need to always run a collision check with the ball who's surface the current ball was moved to, straight after moving it.
@@ -586,7 +586,7 @@ if (Test_Mode)
 
             nmag = lf - Mathf.Sqrt(s);
 
-            // the old method was to check (lf < minlf) but this was incorrect because it's possible to hit a ball whos center is further away first
+            // the old method was to check (lf < minlf) but this was incorrect because it's possible to hit a ball whose center is further away first
             // if the closer ball would be a very glancing hit
             if (nmag < minnmag)
             {
@@ -672,7 +672,7 @@ if (Test_Mode)
                 }
                 // ball cast to the bounds of the cushions in order to prevent clipping through them
                 // balls are essentially cubes for the purpose of collision with cushions
-                // so this wont fail to cause collisions when near the top of cushions
+                // so this won't fail to cause collisions when near the top of cushions
                 // these checks only run while in table rectangle, so that it detects a hit once at the edge, allowing it to go into pockets
                 // and not get stuck at the edge due to it running every substep
                 if (originalDelta.x > 0)
@@ -753,7 +753,7 @@ if (Test_Mode)
               // raycast against the 4+1 collision vertices on the table
 
                 // match height of ball and vertices within the raycasts to make it more cylinder-like
-                // this isn't quite correct because it's casting against a spehre and the ray direction can have a y componant.
+                // this isn't quite correct because it's casting against a spehre and the ray direction can have a y component.
                 // most of the velocity will almost certainly be lateral though, so this shouldn't be much of an issue.
                 Vector3 absFlatPos = pos;
                 absFlatPos.y = 0;
@@ -896,7 +896,7 @@ if (Test_Mode)
                     /// - - - Breakshots recently fixed.
                     /// as such i am pushing this as a public (W.I.P) and also as a means of Fallback in bool presented in AdvancedPhysicsManager GameObject in case anyone wants to use it and have fun with it.
                     HandleCollision5_2(checkBall, id, normal);
-                    //HandleCollision5_4(checkBall, id, normal);  // Interesting solution from 1997, Method available down bellow with Articles, comments and exerts, check it out in their respective functions()!
+                    //HandleCollision5_4(checkBall, id, normal);  // Interesting solution from 1997, Method available down below with Articles, comments and exerts, check it out in their respective functions()!
 
                 }
                 else
@@ -952,7 +952,7 @@ if (Test_Mode)
     }
 
 
-    private float muFactor = 1f; // Default should be 1 but results fail to reach and match some of the plot data, as such a value of 1.9942 has been emperically set after multiple tests.  
+    private float muFactor = 1f; // Default should be 1 but results fail to reach and match some of the plot data, as such a value of 1.9942 has been empirically set after multiple tests.  
 
     /// W.I.P -
     void HandleCollision5_2(int i, int id, Vector3 normal)
@@ -1005,7 +1005,7 @@ if (Test_Mode)
         // Calculate tangential force (component perpendicular to normal) [a.k.a, Tangent Impulse)
         Vector3 tangentialForce = relativeVelocity - Vector3.Dot(relativeVelocity, normal) * normal;
 
-        /// usually, we want to normalize this vector to ensure our numerical values wont exceed or break.
+        /// usually, we want to normalize this vector to ensure our numerical values won't exceed or break.
         /// but what if the tangent value is 0 or close to 0? in this case we skip any calculation for normalizaiton.
         if (Vector3.Equals(tangentialForce, Vector3.zero))
         {
@@ -1059,7 +1059,7 @@ if (Test_Mode)
             // draw a line distance relative from the point of impact to the center of the ball. [For Torque]
             Debug.DrawLine(balls[0].transform.position, balls[0].transform.position - leverArm_id, Color.red, 2f);
 
-            // Draws and Check for the Tangential Direction Force, applied from the Collision Normal, [to not make it a mess, we are constraining this only to the cue ball, feel free to replace the array [0] with [id], BE ADVISED: UNITY MAY STALL UPPON MULTIPLE COLLISION DETECTION WHEN DOING SO AS IT WILL NEED TO DRAW A LINE FOR EVERY BALL CONTACT IN THE SCENE]
+            // Draws and Check for the Tangential Direction Force, applied from the Collision Normal, [to not make it a mess, we are constraining this only to the cue ball, feel free to replace the array [0] with [id], BE ADVISED: UNITY MAY STALL UPON MULTIPLE COLLISION DETECTION WHEN DOING SO AS IT WILL NEED TO DRAW A LINE FOR EVERY BALL CONTACT IN THE SCENE]
             //Debug.DrawRay(balls[0].transform.position, balls_V[0] + tangentialForce, Color.yellow, 5f);
 
             Debug.DrawRay(balls[9].transform.position, (normal * R) + Ft, new Color(1f, 0.4f, 0f), 2f); // Draws the Tangential Vector in orange.
@@ -1096,7 +1096,7 @@ if (Test_Mode)
 
             Debug.Log("<size=16><b><i><color=white>Spin Transfer Rate</color></i></b></size>: " + DeltaW.ToString("<size=16><i><color=white>00.00</color></i></size>" + "<color=white><i>STP</i></color>"));
 
-            /// Some Legacy stuff bellow, will keep it here in case it prove usefull later down the road.
+            /// Some Legacy stuff below, will keep it here in case it prove useful later down the road.
 
             /*
             /// Should return the direction of the spin using a Cross Product.
@@ -1119,7 +1119,7 @@ if (Test_Mode)
 
 
             float angleOfImpact = Vector3.SignedAngle(relativeVelocity, normal, Vector3.up);
-            //float signOfAngle = Mathf.Sign(angleOfImpact);  // Because Unity wont be able to tell when the cut happened from the left or right, we can calculate the cut angle and assig a value for it.
+            //float signOfAngle = Mathf.Sign(angleOfImpact);  // Because Unity won't be able to tell when the cut happened from the left or right, we can calculate the cut angle and assig a value for it.
             Debug.Log("Angle of Impact" + angleOfImpact.ToString("00.0"));
             */
         }
@@ -1133,7 +1133,7 @@ if (Test_Mode)
 
         /// Equations and Model derived from: https://www.chrishecker.com/Rigid_Body_Dynamics in
         /// Under Physics, Part 2: Angular Effects - Dec/Jan 1996
-        /// Physics, Part 4: The Third Dimension - June 1997 - we will be writting this in Handlecollision6, so check it out later!
+        /// Physics, Part 4: The Third Dimension - June 1997 - we will be writing this in Handlecollision6, so check it out later!
 
         /// There is a really interesting series on youtube from Two-Bit Coding where he uses the same principle but for 2-Dimensional collisions
         /// you can watch it here https://www.youtube.com/watch?v=VbvdoLQQUPs Episode 23, Episode 24 covers about friction, but we are going to use Dr.Dave Friction model which is based on Marlow Data: [Table 10 on p. 245 in "The Physics of Pocket Billiards," 1995)
@@ -1236,7 +1236,7 @@ if (Test_Mode)
         // because the Dynamic friction is the friction which occurs once the static friction is overcome,
 
 
-        /// normalize this vector to ensure our numerical values wont exceed or break once it is not longer 0.
+        /// normalize this vector to ensure our numerical values won't exceed or break once it is not longer 0.
         if (Vector3.Equals(tangentialForce, Vector3.zero))
         {
             return;
@@ -1247,7 +1247,7 @@ if (Test_Mode)
         }
 
 
-        /// we now supposedly start caculating the same way as before but for our tangent impulse.
+        /// we now supposedly start calculating the same way as before but for our tangent impulse.
         /// same initial solutions, but we replace `Normal` for `tangentialForce` (because that is our tangent impulse) [calculated above]
 
         Vector3 rAPCrossT = Vector3.Cross(ra, tangentialForce);
@@ -1286,7 +1286,7 @@ if (Test_Mode)
         balls_W[id] += -Vector3.Cross(ra, Ft) * Inv_I;
         balls_W[i] += Vector3.Cross(rb, Ft) * Inv_I;
 
-        /// Now check out HandleCollision6 function() bellow, it unify and simplify the terms and expressions found here provided with Dr.Dave billiards Technical Prof documents.
+        /// Now check out HandleCollision6 function() below, it unify and simplify the terms and expressions found here provided with Dr.Dave billiards Technical Prof documents.
         /// HC6 is essentially a much better, shorter, simple and elegant way of 5_2 and 5_4 combined.
     }
 
@@ -1471,7 +1471,7 @@ if (Test_Mode)
 
             if (VXZ.sqrMagnitude < 0.0001f && Mathf.Abs(W.y) > 50f) // Check if the linear velocity magnitude of a ball have come to a value closer to a rest position and if the same ball is still spinning above 50 Rad/sec
             {
-                Rate = 300f; // if true, there is a chance no futher collision will occur and players are still waiting for the turn to finish. Because time is a valuable thing, we temporally increase the rate of decelration to help the current turn end sooner for the next player or current player.
+                Rate = 300f; // if true, there is a chance no further collision will occur and players are still waiting for the turn to finish. Because time is a valuable thing, we temporally increase the rate of decelration to help the current turn end sooner for the next player or current player.
 
                 //Debug.Log("some Balls have come at a rest, however they are still spinning, Friction Rate is INCREASED to help this turn end sooner");
             }
@@ -1495,7 +1495,7 @@ if (Test_Mode)
             else
             {
                 mu_spf = k_F_SPIN;
-                // Debug.Log("<size=24>Friction Rate Reseted</size>");
+                // Debug.Log("<size=24>Friction Rate Reset</size>");
             }
             mu_sp = mu_spf;
         }
@@ -1543,7 +1543,7 @@ if (Test_Mode)
             */
 
             ///  Equation 11
-            ///  |𝑢0| is bellow Time = Rolling
+            ///  |𝑢0| is below Time = Rolling
             if (absolute_u0 <= 0.1f)
             {
                 ///  Equation 13
@@ -1581,7 +1581,7 @@ if (Test_Mode)
                     ballMoving = true;
                 }
             }
-            else /// |𝑢0 | is bellow DeltaTime = Rolling
+            else /// |𝑢0 | is below DeltaTime = Rolling
             {
                 Vector3 nv = u0 / absolute_u0; /// Ensure the value returns 0 or 1 or -1 By dividing each initial Vector, with the Sum of all of them combined.      
                                                ///Debug.Log("|nv| is: " + nv);               
@@ -1649,7 +1649,7 @@ if (Test_Mode)
 
         // From simple calculations and measures taken from other simulations we are clamping the Magnitude of each rotation axis by 250 Rad.
         // this comes from an observation that when a ball is hit with maximum side spin using a phenolic tip,
-        // it would take around 40~ seconds for the same ball to come at rest while spining perpendicular to the table at a complete rest (meaning whitout linear Velocity)
+        // it would take around 40~ seconds for the same ball to come at rest while spinning perpendicular to the table at a complete rest (meaning without linear Velocity)
 
         // Therefore when Wf = Wi + at 
         // where (Wf) is the final angular velocity in rad/s
@@ -1658,14 +1658,14 @@ if (Test_Mode)
         // t is the time in seconds.
 
         // if a ball of 57.15mm Diameter were to receive a spin magnitude of 700 RAD perpendicular to the table at rest.
-        // it would take 140 seconds for the next player to take their turn [assuming its decelaration rate is a constant of 5 rad/sec²],      
+        // it would take 140 seconds for the next player to take their turn [assuming its deceleration rate is a constant of 5 rad/sec²],      
         // thus solving for time becomes: 700/5 = 140 seconds.
 
         // Our simulation currently does not handle calculations for miss-cue, but now it constrains to the maximum allowed offset that it is just a little bit past 1/2 Diameter of the ball.
         // Without this, Players are not willing to accept the consequences this will have on the numerical calculations, and this is normal because most of players are there just to hit balls in the first place. :)
-        // so until then, we will clamp the perpendicular velocity based on what VISUALY and TIME MEASURED seems to be correct from factors presented above.
+        // so until then, we will clamp the perpendicular velocity based on what VISUALLY and TIME MEASURED seems to be correct from factors presented above.
 
-        // we need to clamp the square magnitude lenght just at the right amount. We are now using 430MAG which is 250² as it is providing *good pace*
+        // we need to clamp the square magnitude length just at the right amount. We are now using 430MAG which is 250² as it is providing *good pace*
         // [Keep in mind this is a Heuristic Solution along actual numerical data values equations, so we may call this *Semi-Heuristic*,
         // if a player were to perform the same exact shot again, it would provide the same exact outcome, meaning its deterministic as well]
 
@@ -1864,7 +1864,7 @@ if (Test_Mode)
 
             // Reject bounce if velocity is going the same way as normal
             // this state means we tunneled, but it happens only on the corner
-            // vertexes
+            // vertices
             Vector3 source_v = vel;
             if (Vector3.Dot(source_v, N) > 0.0f)
             {
@@ -1920,7 +1920,7 @@ if (Test_Mode)
         // Mathematical expressions derived from Professor INHWAN HAN in "Dynamics in carom and three cushion billiards" https://link.springer.com/article/10.1007/BF02919180
         // This model accounts for friction and impulses equations 12 through 22
         // Worksheet and revisions found at https://ekiefl.github.io/2020/04/24/pooltool-theory/#3-han-2005 in [Section III: ball-cushion interactions] by EKIEFL.
-        // Written and Second Revision done by MABEL, Trough out the notes you will find [is correct] which means the values here have been revised to match with its necessary Rotation Axis needed for Unity Coordinate System [treats Y as the UP axis].
+        // Written and Second Revision done by MABEL, Throughout the notes you will find [is correct] which means the values here have been revised to match with its necessary Rotation Axis needed for Unity Coordinate System [treats Y as the UP axis].
 
         /*
         * SOME IMPORTANT TECHNICAL INFORMATION ABOUT GAME TYPES i.e THE TABLE CUSHION HEIGHTS AND CHARACTERISTISCS *
@@ -1945,7 +1945,7 @@ if (Test_Mode)
 
         data provided by Joris van Balen, Inhwan Han, Dr.Dave and S Mathavan.
 
-        INFORMATIONS ABOUT:
+        INFORMATION ABOUT:
 
         ----CAROM----
         Joris van Balen and Inhwan Han focus on Carom billiards.
@@ -1975,7 +1975,7 @@ if (Test_Mode)
 
 
         ----Snooker----
-        S Mathavan and their collegues exert uses a Snooker table and a Snooker ball.
+        S Mathavan and their colleagues exert uses a Snooker table and a Snooker ball.
 
         Mathavan inform us about the height of the cushion for their game being h = (7 * R / 5) = 36.75mm
         which is 0.7 % of a snooker ball 52.5mm
@@ -2045,7 +2045,7 @@ if (Test_Mode)
         float P = (h - (balls_P[id].y + R));                                                    // Gives us P [Point of contact on ball surface from cushion]
 
         // Now in Trignonometric Functions, the K_BALL_RADIUS [R] is our [Base(Adjacent)] and P is [opposite] to the angle THETA.
-        // if we play around we can find the Tangent using Tan(opposite/Adjancent) and the Hypotenuse using our famous Pythagorean Theorem https://www.google.com/search?q=Pythagorean+theorem;
+        // if we play around we can find the Tangent using Tan(opposite/Adjacent) and the Hypotenuse using our famous Pythagorean Theorem https://www.google.com/search?q=Pythagorean+theorem;
         // since we need the angle THETA we can do it either within the Unit Circle of the ball using Arcsin.
 
         // Solution
@@ -2111,7 +2111,7 @@ if (Test_Mode)
             PY = mu * (1f + e) * c / k_B * cosΦ * cosθ - (1f + e) * c / k_B * sinθ;                 // PY is Correct    
         }
 
-        // Update Velocity                                                                          // Update Velocity is Corret
+        // Update Velocity                                                                          // Update Velocity is Correct
         V1.x = V.x + (PX / M);
         V1.z = V.z + (PZ / M);
         V1.y = V.y + (PY / M) * 0.4f; // attenuate to closer match reality
@@ -2129,7 +2129,7 @@ if (Test_Mode)
         // Compute angular momentum changes
         if (balls_P[id].y > 0.01f)
         {
-            // Angular momentum wont update
+            // Angular momentum won't update
             W1.x += W.x + 0f;
             W1.z += W.z + 0f;
             W1.y += W.y + 0f;
@@ -2164,7 +2164,7 @@ if (Test_Mode)
 
             Debug.DrawRay(balls[0].transform.parent.TransformPoint(balls_P[id]) - N * R, new Vector3(0, 0, V1.z), Color.cyan, 3f);   // But we are not doing for Y, so we invert the value at the calculation for now
 
-            Debug.DrawRay(balls[0].transform.parent.TransformPoint(balls_P[id]) - N * R, new Vector3(-V1.x, V1.y, V.z), Color.white, 3f); // returns the total/ Actual Directon direction 
+            Debug.DrawRay(balls[0].transform.parent.TransformPoint(balls_P[id]) - N * R, new Vector3(-V1.x, V1.y, V.z), Color.white, 3f); // returns the total/ Actual Direction direction 
 
 
             Debug.Log("Force N: " + F);

@@ -119,7 +119,7 @@ public class BasisEyeDriverDebugWindow : EditorWindow
                 "Eye driver is DISABLED. Possible causes:\n" +
                 "- Avatar has no Humanoid LeftEye/RightEye bone mapping\n" +
                 "- BasisTransformMapping.HasLeftEye or HasRightEye is false\n" +
-                "- Initalize() was never called (check BasisLocalAvatarDriver calibration)",
+                "- Initialize() was never called (check BasisLocalAvatarDriver calibration)",
                 MessageType.Warning);
         }
 

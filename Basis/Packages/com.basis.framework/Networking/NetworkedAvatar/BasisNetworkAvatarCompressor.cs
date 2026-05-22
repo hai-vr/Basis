@@ -179,7 +179,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         private static double sNextServerSendTime;
 
-        public static void InitalAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
+        public static void InitialAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
         {
             EnsureInitialized();
 

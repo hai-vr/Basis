@@ -35,7 +35,7 @@ public static class BasisObjectSyncDriver
 
     public static int TargetCount = -1;
 
-    public static void Initalization()
+    public static void Initialization()
     {
         _remoteTransforms = new TransformAccessArray(0);
         _updates = new NativeArray<BasisTranslationUpdate>(128, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
