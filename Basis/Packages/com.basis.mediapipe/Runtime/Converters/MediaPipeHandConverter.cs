@@ -4,9 +4,10 @@ using UnityEngine;
 namespace Basis.MediaPipe
 {
     /// <summary>
-    /// Turns MediaPipe 21-point hand landmarks into Basis finger curl/splay and writes them
-    /// to BasisLocalHandDriver. Channel x = curl (-1 open .. +1 curled), y = splay, matching
-    /// the convention BasisOpenXRHandInput produces. Finger curls network via the muscle bitstream.
+    /// MediaPipe 21-point hand landmarks → finger curl/splay (BasisLocalHandDriver) plus a
+    /// wrist pose OFFSET for the hand trackers. Like the head, the offset is applied on top of a
+    /// base tracker space (the manager adds it to the head/eye position and the hand bone's rest
+    /// rotation), and rotation is relative to a calibrated neutral.
     /// </summary>
     public sealed class MediaPipeHandConverter
     {
@@ -16,10 +17,11 @@ namespace Basis.MediaPipe
         public float MaxSplayDegrees = 20f;
         public float SplayGain = 1f;
 
-        // Hand-position projection (normalized landmark space -> player-local, in front of the chest).
+        // Wrist-position offset from the head, derived from the wrist's position in the frame.
         public float PlaneWidth = 0.7f;
         public float PlaneHeight = 0.7f;
         public float ForwardDepth = 0.35f;
+        public float HandDrop = 0.45f;
         public float FingerSmoothing = 0.5f;
         public float PoseSmoothing = 0.5f;
         public bool UseRotation = true;
@@ -30,25 +32,43 @@ namespace Basis.MediaPipe
         private Quaternion _rightRot = Quaternion.identity;
         private bool _leftInit;
         private bool _rightInit;
+        private Quaternion _leftNeutralInverse = Quaternion.identity;
+        private Quaternion _rightNeutralInverse = Quaternion.identity;
+        private bool _leftCalibrated;
+        private bool _rightCalibrated;
 
-        /// <summary>Maps a hand's normalized wrist/palm landmarks to a player-local pose for a wrist tracker.</summary>
-        public bool TryGetHandTarget(Vector3[] lm, float chestHeight, bool left, out Vector3 localPosition, out Quaternion localRotation)
+        public void Calibrate(in BasisMediaPipeResult result)
         {
-            localPosition = Vector3.zero;
-            localRotation = Quaternion.identity;
+            if (result.HasLeftHand && TryRawRotation(result.LeftHandLandmarks, out Quaternion lr))
+            {
+                _leftNeutralInverse = Quaternion.Inverse(lr);
+                _leftCalibrated = true;
+            }
+            if (result.HasRightHand && TryRawRotation(result.RightHandLandmarks, out Quaternion rr))
+            {
+                _rightNeutralInverse = Quaternion.Inverse(rr);
+                _rightCalibrated = true;
+            }
+        }
+
+        /// <summary>Wrist pose as an offset: position relative to the head, rotation relative to the calibrated neutral.</summary>
+        public bool TryGetHandTarget(Vector3[] lm, bool left, out Vector3 positionOffset, out Quaternion rotationOffset)
+        {
+            positionOffset = Vector3.zero;
+            rotationOffset = Quaternion.identity;
             if (lm == null || lm.Length < 21) return false;
 
             Vector3 wrist = lm[0];
-            Vector3 rawPos = new Vector3((0.5f - wrist.x) * PlaneWidth, chestHeight + (0.5f - wrist.y) * PlaneHeight, ForwardDepth);
+            Vector3 rawPos = new Vector3(
+                (0.5f - wrist.x) * PlaneWidth,
+                (0.5f - wrist.y) * PlaneHeight - HandDrop,
+                ForwardDepth);
 
             Quaternion rawRot = Quaternion.identity;
-            Vector3 forward = lm[9] - lm[0];
-            Vector3 normal = Vector3.Cross(lm[5] - lm[0], lm[17] - lm[0]);
-            if (UseRotation && forward.sqrMagnitude > 1e-6f && normal.sqrMagnitude > 1e-6f)
+            if (UseRotation && TryRawRotation(lm, out Quaternion r))
             {
-                rawRot = Quaternion.LookRotation(
-                    new Vector3(-forward.x, -forward.y, -forward.z),
-                    new Vector3(-normal.x, -normal.y, -normal.z));
+                if (left) rawRot = _leftCalibrated ? _leftNeutralInverse * r : r;
+                else rawRot = _rightCalibrated ? _rightNeutralInverse * r : r;
             }
 
             float t = 1f - Mathf.Clamp01(PoseSmoothing);
@@ -57,17 +77,32 @@ namespace Basis.MediaPipe
                 _leftPos = _leftInit ? Vector3.Lerp(_leftPos, rawPos, t) : rawPos;
                 _leftRot = _leftInit ? Quaternion.Slerp(_leftRot, rawRot, t) : rawRot;
                 _leftInit = true;
-                localPosition = _leftPos;
-                localRotation = _leftRot;
+                positionOffset = _leftPos;
+                rotationOffset = _leftRot;
             }
             else
             {
                 _rightPos = _rightInit ? Vector3.Lerp(_rightPos, rawPos, t) : rawPos;
                 _rightRot = _rightInit ? Quaternion.Slerp(_rightRot, rawRot, t) : rawRot;
                 _rightInit = true;
-                localPosition = _rightPos;
-                localRotation = _rightRot;
+                positionOffset = _rightPos;
+                rotationOffset = _rightRot;
             }
+            return true;
+        }
+
+        private static bool TryRawRotation(Vector3[] lm, out Quaternion rot)
+        {
+            rot = Quaternion.identity;
+            if (lm == null || lm.Length < 21) return false;
+
+            Vector3 forward = lm[9] - lm[0];
+            Vector3 normal = Vector3.Cross(lm[5] - lm[0], lm[17] - lm[0]);
+            if (forward.sqrMagnitude < 1e-6f || normal.sqrMagnitude < 1e-6f) return false;
+
+            rot = Quaternion.LookRotation(
+                new Vector3(-forward.x, -forward.y, -forward.z),
+                new Vector3(-normal.x, -normal.y, -normal.z)) * Quaternion.Euler(0f, 180f, 0f);
             return true;
         }
 

@@ -26,6 +26,9 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<bool> EnableHandTracking =
             new BasisSettingsBinding<bool>("mediapipe_handtracking", new BasisPlatformDefault<bool>(false));
 
+        public static readonly BasisSettingsBinding<bool> EnableBody =
+            new BasisSettingsBinding<bool>("mediapipe_body", new BasisPlatformDefault<bool>(false));
+
         public static readonly BasisSettingsBinding<bool> SwapHands =
             new BasisSettingsBinding<bool>("mediapipe_swaphands", new BasisPlatformDefault<bool>(false));
 
@@ -37,6 +40,9 @@ namespace Basis.MediaPipe
 
         public static readonly BasisSettingsBinding<bool> InvertHeadPitch =
             new BasisSettingsBinding<bool>("mediapipe_invertheadpitch", new BasisPlatformDefault<bool>(true));
+
+        public static readonly BasisSettingsBinding<bool> InvertHeadRoll =
+            new BasisSettingsBinding<bool>("mediapipe_invertheadroll", new BasisPlatformDefault<bool>(false));
 
         public static readonly BasisSettingsBinding<float> HeadSmoothing =
             new BasisSettingsBinding<float>("mediapipe_headsmoothing", new BasisPlatformDefault<float>(0.5f));
@@ -54,7 +60,19 @@ namespace Basis.MediaPipe
             new BasisSettingsBinding<bool>("mediapipe_handrotation", new BasisPlatformDefault<bool>(true));
 
         public static readonly BasisSettingsBinding<float> HeadPositionStrength =
-            new BasisSettingsBinding<float>("mediapipe_headpositionstrength", new BasisPlatformDefault<float>(1f));
+            new BasisSettingsBinding<float>("mediapipe_headpositionstrength_v2", new BasisPlatformDefault<float>(0.6f));
+
+        public static readonly BasisSettingsBinding<float> HeadRotationStrength =
+            new BasisSettingsBinding<float>("mediapipe_headrotationstrength_v2", new BasisPlatformDefault<float>(0.6f));
+
+        public static readonly BasisSettingsBinding<int> ResolutionWidth =
+            new BasisSettingsBinding<int>("mediapipe_reswidth", new BasisPlatformDefault<int>(640));
+
+        public static readonly BasisSettingsBinding<int> ResolutionHeight =
+            new BasisSettingsBinding<int>("mediapipe_resheight", new BasisPlatformDefault<int>(480));
+
+        public static readonly BasisSettingsBinding<int> CameraFps =
+            new BasisSettingsBinding<int>("mediapipe_camerafps", new BasisPlatformDefault<int>(30));
 
         /// <summary>
         /// Re-reads every binding from the loaded settings dictionary. Must run after
@@ -69,17 +87,23 @@ namespace Basis.MediaPipe
             EnableHands.LoadBindingValue();
             EnableHead.LoadBindingValue();
             EnableHandTracking.LoadBindingValue();
+            EnableBody.LoadBindingValue();
             SwapHands.LoadBindingValue();
             Mirror.LoadBindingValue();
             InvertBlink.LoadBindingValue();
             InvertHeadYaw.LoadBindingValue();
             InvertHeadPitch.LoadBindingValue();
+            InvertHeadRoll.LoadBindingValue();
             HeadSmoothing.LoadBindingValue();
             FaceSmoothing.LoadBindingValue();
             HandSmoothing.LoadBindingValue();
             FingerSmoothing.LoadBindingValue();
             HandRotation.LoadBindingValue();
             HeadPositionStrength.LoadBindingValue();
+            HeadRotationStrength.LoadBindingValue();
+            ResolutionWidth.LoadBindingValue();
+            ResolutionHeight.LoadBindingValue();
+            CameraFps.LoadBindingValue();
         }
     }
 }

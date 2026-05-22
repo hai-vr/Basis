@@ -53,6 +53,40 @@ namespace Basis.MediaPipe
                 BasisMediaPipeManagement.GetOrCreate()?.SetCamera(choice);
             };
 
+            List<string> resolutions = new List<string> { "320 x 240", "640 x 480", "960 x 540", "1280 x 720" };
+            PanelDropdown resolutionDropdown = PanelDropdown.CreateNewEntry(content);
+            resolutionDropdown.Descriptor.SetTitle("Camera Resolution");
+            resolutionDropdown.Descriptor.SetDescription("Higher = sharper tracking but more CPU.");
+            resolutionDropdown.AssignEntries(resolutions);
+            string currentResolution = $"{BasisMediaPipeSettings.ResolutionWidth.RawValue} x {BasisMediaPipeSettings.ResolutionHeight.RawValue}";
+            if (resolutions.Contains(currentResolution)) resolutionDropdown.SetValueWithoutNotify(currentResolution);
+            resolutionDropdown.OnValueChanged += choice =>
+            {
+                string[] parts = choice.Split('x');
+                if (parts.Length == 2 && int.TryParse(parts[0].Trim(), out int rw) && int.TryParse(parts[1].Trim(), out int rh))
+                {
+                    BasisMediaPipeSettings.ResolutionWidth.SetValue(rw);
+                    BasisMediaPipeSettings.ResolutionHeight.SetValue(rh);
+                    BasisMediaPipeManagement.GetOrCreate()?.ReloadCamera();
+                }
+            };
+
+            List<string> frameRates = new List<string> { "15", "30", "60" };
+            PanelDropdown fpsDropdown = PanelDropdown.CreateNewEntry(content);
+            fpsDropdown.Descriptor.SetTitle("Camera Frame Rate");
+            fpsDropdown.Descriptor.SetDescription("Requested webcam frames per second.");
+            fpsDropdown.AssignEntries(frameRates);
+            string currentFrameRate = BasisMediaPipeSettings.CameraFps.RawValue.ToString();
+            if (frameRates.Contains(currentFrameRate)) fpsDropdown.SetValueWithoutNotify(currentFrameRate);
+            fpsDropdown.OnValueChanged += choice =>
+            {
+                if (int.TryParse(choice, out int fps))
+                {
+                    BasisMediaPipeSettings.CameraFps.SetValue(fps);
+                    BasisMediaPipeManagement.GetOrCreate()?.ReloadCamera();
+                }
+            };
+
             void AddFeatureToggle(string title, string description, BasisSettingsBinding<bool> binding)
             {
                 PanelToggle toggle = PanelToggle.CreateNewEntry(content);
@@ -84,12 +118,14 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Head Tracking", "Your avatar's head follows your real head. The camera stays on the mouse.", BasisMediaPipeSettings.EnableHead);
             AddFeatureToggle("Hand Position (experimental)", "Move your avatar's hands to match your real hands (in addition to finger curl).", BasisMediaPipeSettings.EnableHandTracking);
             AddTuningToggle("Hand Rotation", "Off keeps a neutral wrist (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
+            AddFeatureToggle("Body Lean/Twist (experimental)", "Lean and twist your torso. Uses the pose model (extra CPU); monocular, so approximate.", BasisMediaPipeSettings.EnableBody);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);
 
             AddFeatureToggle("Swap Hands", "Fix left/right hands if they are reversed.", BasisMediaPipeSettings.SwapHands);
             AddTuningToggle("Invert Blink", "Fix blink if the eyes close when you open them.", BasisMediaPipeSettings.InvertBlink);
             AddTuningToggle("Invert Head Yaw", "Fix the head turn (left/right) direction.", BasisMediaPipeSettings.InvertHeadYaw);
             AddTuningToggle("Invert Head Pitch", "Fix the head nod (up/down) direction.", BasisMediaPipeSettings.InvertHeadPitch);
+            AddTuningToggle("Invert Head Roll", "Fix the head tilt (ear-to-shoulder) direction.", BasisMediaPipeSettings.InvertHeadRoll);
 
             void AddSmoothingSlider(string title, BasisSettingsBinding<float> binding)
             {
@@ -121,10 +157,44 @@ namespace Basis.MediaPipe
                 BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
             };
 
+            PanelSlider headRotation = PanelSlider.CreateNew(content);
+            headRotation.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 3f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
+            headRotation.Descriptor.SetTitle("Head Rotation Strength");
+            headRotation.Descriptor.SetDescription("Amplifies how far the avatar's head turns/nods relative to your real head.");
+            headRotation.SetValueWithoutNotify(BasisMediaPipeSettings.HeadRotationStrength.RawValue);
+            headRotation.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.HeadRotationStrength.SetValue(value);
+                BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
+            };
+
             PanelButton calibrate = PanelButton.CreateNew(content);
             calibrate.Descriptor.SetTitle("Calibrate Head (look forward)");
             calibrate.Descriptor.SetDescription("Face the screen straight on, then click to set your neutral head pose.");
             calibrate.OnClicked += () => BasisMediaPipeManagement.GetOrCreate()?.CalibrateHead();
+
+            PanelElementDescriptor diagnostics = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, parent);
+            diagnostics.SetTitle("Diagnostics");
+            diagnostics.SetDescription("Live webcam tracking state.");
+
+            PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, diagnostics.ContentParent);
+            statusField.SetTitle("Status");
+            statusField.SetDescription("(press Refresh)");
+
+            PanelButton refresh = PanelButton.CreateNew(diagnostics.ContentParent);
+            refresh.Descriptor.SetTitle("Refresh");
+            refresh.Descriptor.SetDescription("Poll the current tracking state.");
+
+            void RefreshStatus()
+            {
+                BasisMediaPipeManagement manager = BasisMediaPipeManagement.Instance;
+                statusField.SetDescription(manager != null ? manager.DiagnosticsText() : "Not started.");
+            }
+
+            refresh.OnClicked += RefreshStatus;
+            RefreshStatus();
         }
     }
 }

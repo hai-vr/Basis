@@ -1,6 +1,7 @@
 #if BASIS_MEDIAPIPE
 using System;
 using System.IO;
+using System.Threading;
 using Mediapipe;
 using Mediapipe.Tasks.Core;
 using Mediapipe.Tasks.Vision.Core;
@@ -14,9 +15,9 @@ namespace Basis.MediaPipe.Homuler
 {
     /// <summary>
     /// MediaPipe Unity Plugin (homuler) backend. Compiled only when the plugin is present
-    /// (BASIS_MEDIAPIPE). Runs FaceLandmarker + HandLandmarker in VIDEO mode (synchronous),
-    /// which keeps the zero-copy input buffer's lifetime safe. M4 can move to LIVE_STREAM +
-    /// TextureFrame to push inference off the main thread.
+    /// (BASIS_MEDIAPIPE). Runs FaceLandmarker + HandLandmarker + PoseLandmarker in VIDEO mode
+    /// on a background worker thread; the main thread only does GetPixels32 (Unity API) and
+    /// signals the worker. A busy flag drops frames instead of racing the shared buffer.
     /// </summary>
     public sealed class HomulerMediaPipeBackend : IBasisMediaPipeBackend
     {
@@ -33,13 +34,22 @@ namespace Basis.MediaPipe.Homuler
         private HandLandmarker _hand;
         private PoseLandmarker _pose;
 
+        private readonly object _resultLock = new object();
         private BasisMediaPipeResult _latest;
         private bool _hasLatest;
         private long _lastTimestamp;
 
+        private Thread _worker;
+        private AutoResetEvent _signal;
+        private volatile bool _running;
+        private volatile bool _busy;
+
         private Color32[] _pixels;
         private byte[] _rgba;
         private NativeArray<byte> _native;
+        private int _w;
+        private int _h;
+        private long _ts;
         private bool _mirror;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -61,6 +71,14 @@ namespace Basis.MediaPipe.Homuler
             {
                 BasisDebug.LogError($"BasisMediaPipe(homuler): init failed: {e}");
                 IsAvailable = false;
+            }
+
+            if (IsAvailable)
+            {
+                _signal = new AutoResetEvent(false);
+                _running = true;
+                _worker = new Thread(WorkerLoop) { IsBackground = true, Name = "BasisMediaPipe" };
+                _worker.Start();
             }
         }
 
@@ -106,27 +124,94 @@ namespace Basis.MediaPipe.Homuler
             return PoseLandmarker.CreateFromOptions(options);
         }
 
+        // Main thread: copy pixels (Unity API) and hand the frame to the worker.
         public void SubmitFrame(WebCamTexture frame, double timestampMs)
         {
-            if (frame == null || frame.width <= 16) return;
-            if (_face == null && _hand == null && _pose == null) return;
+            if (!IsAvailable || _busy || frame == null || frame.width <= 16) return;
+
+            int w = frame.width;
+            int h = frame.height;
+            int len = w * h;
+
+            if (_pixels == null || _pixels.Length != len)
+            {
+                _pixels = new Color32[len];
+                _rgba = new byte[len * 4];
+                if (_native.IsCreated) _native.Dispose();
+                _native = new NativeArray<byte>(len * 4, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            }
+
+            frame.GetPixels32(_pixels);
 
             long ts = (long)timestampMs;
             if (ts <= _lastTimestamp) ts = _lastTimestamp + 1;
             _lastTimestamp = ts;
 
-            int w = frame.width;
-            int h = frame.height;
-            FillBuffer(frame, w, h);
+            _w = w;
+            _h = h;
+            _ts = ts;
+            _busy = true;
+            _signal.Set();
+        }
 
-            BasisMediaPipeResult result = new BasisMediaPipeResult { TimestampMs = timestampMs };
+        private void WorkerLoop()
+        {
+            while (_running)
+            {
+                _signal.WaitOne();
+                if (!_running) break;
+
+                try
+                {
+                    ProcessFrame();
+                }
+                catch (Exception e)
+                {
+                    BasisDebug.LogError($"BasisMediaPipe(homuler): inference failed: {e}");
+                }
+                finally
+                {
+                    _busy = false;
+                }
+            }
+        }
+
+        private void ProcessFrame()
+        {
+            int w = _w;
+            int h = _h;
+
+            // WebCamTexture origin is bottom-left; MediaPipe expects top-left. Flip rows,
+            // and mirror columns for a selfie-style camera.
+            for (int y = 0; y < h; y++)
+            {
+                int srcRow = (h - 1 - y) * w;
+                int dstRow = y * w;
+                for (int x = 0; x < w; x++)
+                {
+                    int src = srcRow + (_mirror ? (w - 1 - x) : x);
+                    int dst = (dstRow + x) * 4;
+                    Color32 c = _pixels[src];
+                    _rgba[dst + 0] = c.r;
+                    _rgba[dst + 1] = c.g;
+                    _rgba[dst + 2] = c.b;
+                    _rgba[dst + 3] = c.a;
+                }
+            }
+
+            _native.CopyFrom(_rgba);
+
+            BasisMediaPipeResult result = new BasisMediaPipeResult { TimestampMs = _ts };
             // DetectForVideo consumes (disposes) the Image it is given, so build a fresh one per call.
-            if (_face != null) ParseFace(_face.DetectForVideo(NewImage(w, h), ts), ref result);
-            if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), ts), ref result);
-            if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), ts), ref result);
+            if (_face != null) ParseFace(_face.DetectForVideo(NewImage(w, h), _ts), ref result);
+            if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
+            if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), _ts), ref result);
 
-            _latest = result;
-            _hasLatest = true;
+            lock (_resultLock)
+            {
+                _latest = result;
+                _hasLatest = true;
+            }
         }
 
         private static void ParseFace(FaceLandmarkerResult result, ref BasisMediaPipeResult output)
@@ -218,51 +303,19 @@ namespace Basis.MediaPipe.Homuler
             }
         }
 
-        private void FillBuffer(WebCamTexture frame, int w, int h)
-        {
-            int len = w * h;
-
-            if (_pixels == null || _pixels.Length != len)
-            {
-                _pixels = new Color32[len];
-                _rgba = new byte[len * 4];
-                if (_native.IsCreated) _native.Dispose();
-                _native = new NativeArray<byte>(len * 4, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            }
-
-            frame.GetPixels32(_pixels);
-
-            // WebCamTexture origin is bottom-left; MediaPipe expects top-left. Flip rows,
-            // and mirror columns for a selfie-style camera.
-            for (int y = 0; y < h; y++)
-            {
-                int srcRow = (h - 1 - y) * w;
-                int dstRow = y * w;
-                for (int x = 0; x < w; x++)
-                {
-                    int src = srcRow + (_mirror ? (w - 1 - x) : x);
-                    int dst = (dstRow + x) * 4;
-                    Color32 c = _pixels[src];
-                    _rgba[dst + 0] = c.r;
-                    _rgba[dst + 1] = c.g;
-                    _rgba[dst + 2] = c.b;
-                    _rgba[dst + 3] = c.a;
-                }
-            }
-
-            _native.CopyFrom(_rgba);
-        }
-
         private Image NewImage(int w, int h) =>
             new Image(ImageFormat.Types.Format.Srgba, w, h, w * 4, _native);
 
         public bool TryGetLatestResult(out BasisMediaPipeResult result)
         {
-            if (_hasLatest)
+            lock (_resultLock)
             {
-                result = _latest;
-                _hasLatest = false;
-                return true;
+                if (_hasLatest)
+                {
+                    result = _latest;
+                    _hasLatest = false;
+                    return true;
+                }
             }
             result = default;
             return false;
@@ -270,6 +323,16 @@ namespace Basis.MediaPipe.Homuler
 
         public void Shutdown()
         {
+            _running = false;
+            _signal?.Set();
+            if (_worker != null && _worker.IsAlive)
+            {
+                _worker.Join(500);
+            }
+            _worker = null;
+            _signal?.Dispose();
+            _signal = null;
+
             _face?.Close();
             _hand?.Close();
             _pose?.Close();
@@ -278,7 +341,8 @@ namespace Basis.MediaPipe.Homuler
             _pose = null;
             if (_native.IsCreated) _native.Dispose();
             IsAvailable = false;
-            _hasLatest = false;
+            _busy = false;
+            lock (_resultLock) { _hasLatest = false; }
         }
 
         private static string ResolveModelPath(string fileName) =>

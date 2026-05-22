@@ -30,6 +30,7 @@ namespace Basis.MediaPipe
         private readonly MediaPipeFaceConverter _faceConverter = new MediaPipeFaceConverter();
         private readonly MediaPipeHandConverter _handConverter = new MediaPipeHandConverter();
         private readonly MediaPipeHeadConverter _headConverter = new MediaPipeHeadConverter();
+        private readonly MediaPipeBodyConverter _bodyConverter = new MediaPipeBodyConverter();
         private IBasisMediaPipeBackend _backend;
         private BasisMediaPipeResult _latest;
         private bool _hasLatest;
@@ -73,6 +74,10 @@ namespace Basis.MediaPipe
             Config.EnableHandTracking = BasisMediaPipeSettings.EnableHandTracking.RawValue;
             Config.SwapHands = BasisMediaPipeSettings.SwapHands.RawValue;
             Config.MirrorHorizontally = BasisMediaPipeSettings.Mirror.RawValue;
+            Config.CameraWidth = BasisMediaPipeSettings.ResolutionWidth.RawValue;
+            Config.CameraHeight = BasisMediaPipeSettings.ResolutionHeight.RawValue;
+            Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
+            Config.EnablePose = BasisMediaPipeSettings.EnableBody.RawValue;
             ApplyTuning();
         }
 
@@ -88,6 +93,10 @@ namespace Basis.MediaPipe
             _handConverter.FingerSmoothing = BasisMediaPipeSettings.FingerSmoothing.RawValue;
             _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
             _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
+            _headConverter.YawGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
+            _headConverter.PitchGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
+            _headConverter.RollGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
+            _headConverter.InvertRoll = BasisMediaPipeSettings.InvertHeadRoll.RawValue;
         }
 
         public void SetEnabled(bool value)
@@ -107,7 +116,19 @@ namespace Basis.MediaPipe
             CameraDeviceName = deviceName;
             if (_backend != null)
             {
-                _camera.Start(deviceName, 640, 480, Config.TargetFps);
+                _camera.Start(deviceName, Config.CameraWidth, Config.CameraHeight, Config.TargetFps);
+            }
+        }
+
+        /// <summary>Applies persisted resolution/FPS and restarts only the webcam (no model reload).</summary>
+        public void ReloadCamera()
+        {
+            Config.CameraWidth = BasisMediaPipeSettings.ResolutionWidth.RawValue;
+            Config.CameraHeight = BasisMediaPipeSettings.ResolutionHeight.RawValue;
+            Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
+            if (_backend != null)
+            {
+                _camera.Start(CameraDeviceName, Config.CameraWidth, Config.CameraHeight, Config.TargetFps);
             }
         }
 
@@ -125,14 +146,20 @@ namespace Basis.MediaPipe
                 return;
             }
 
-            if (!_camera.Start(CameraDeviceName, 640, 480, Config.TargetFps))
+            if (!_camera.Start(CameraDeviceName, Config.CameraWidth, Config.CameraHeight, Config.TargetFps))
             {
                 BasisDebug.LogError("BasisMediaPipe: failed to start webcam.");
             }
+
+            BasisLocalPlayer.OnLocalAvatarChanged -= HandleAvatarChanged;
+            BasisLocalPlayer.OnLocalAvatarChanged += HandleAvatarChanged;
         }
+
+        private void HandleAvatarChanged() => CalibrateHead();
 
         public override void StopSDK()
         {
+            BasisLocalPlayer.OnLocalAvatarChanged -= HandleAvatarChanged;
             _camera.Stop();
             DestroyAllTrackers();
             _backend?.Shutdown();
@@ -202,6 +229,20 @@ namespace Basis.MediaPipe
                 RemoveTracker(BasisBoneTrackedRole.LeftHand);
                 RemoveTracker(BasisBoneTrackedRole.RightHand);
             }
+
+            if (Config.EnablePose)
+            {
+                if (result.HasPose && BasisLocalBoneDriver.ChestControl != null
+                    && _bodyConverter.TryGetChestRotation(in result, out Quaternion chestRotation))
+                {
+                    EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(
+                        BasisLocalBoneDriver.ChestControl.TposeLocal.position, chestRotation);
+                }
+            }
+            else
+            {
+                RemoveTracker(BasisBoneTrackedRole.Chest);
+            }
         }
 
         private void ApplyHandTracker(in BasisMediaPipeResult result, bool left)
@@ -216,17 +257,33 @@ namespace Basis.MediaPipe
                 return;
             }
 
-            float chestHeight = BasisLocalBoneDriver.ChestControl != null
-                ? BasisLocalBoneDriver.ChestControl.TposeLocal.position.y : 1.2f;
-            if (_handConverter.TryGetHandTarget(landmarks, chestHeight, left, out Vector3 position, out Quaternion rotation))
+            BasisLocalBoneControl handControl = left ? BasisLocalBoneDriver.LeftHandControl : BasisLocalBoneDriver.RightHandControl;
+            if (BasisLocalBoneDriver.EyeControl == null || handControl == null) return;
+
+            if (_handConverter.TryGetHandTarget(landmarks, left, out Vector3 positionOffset, out Quaternion rotationOffset))
             {
-                EnsureTracker(role).FollowMovement.SetLocalPositionAndRotation(position, rotation);
+                EnsureTracker(role).FollowMovement.SetLocalPositionAndRotation(
+                    BasisLocalBoneDriver.EyeControl.OutGoingData.position + positionOffset,
+                    handControl.TposeLocal.rotation * rotationOffset);
             }
         }
 
         public void CalibrateHead()
         {
-            if (_hasLatest) _headConverter.Calibrate(_latest);
+            if (!_hasLatest) return;
+            _headConverter.Calibrate(_latest);
+            _bodyConverter.Calibrate(_latest);
+            _handConverter.Calibrate(_latest);
+        }
+
+        public string DiagnosticsText()
+        {
+            if (_backend == null) return "Not running.";
+            string status = $"Backend: {_backend.BackendName}\nAvailable: {_backend.IsAvailable}\nCamera: {(_camera.IsReady ? "ready" : "not ready")}";
+            status += _hasLatest
+                ? $"\nFace: {_latest.HasFace}   L-Hand: {_latest.HasLeftHand}   R-Hand: {_latest.HasRightHand}   Pose: {_latest.HasPose}"
+                : "\n(no result yet)";
+            return status;
         }
 
         private void RemoveTracker(BasisBoneTrackedRole role)

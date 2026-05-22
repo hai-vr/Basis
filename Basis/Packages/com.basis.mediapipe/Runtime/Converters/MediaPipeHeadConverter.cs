@@ -13,7 +13,9 @@ namespace Basis.MediaPipe
         public float PitchGain = 1f;
         public bool InvertYaw = false;
         public bool InvertPitch = true;
+        public bool InvertRoll = false;
         public float PositionGain = 1f;
+        public float RollGain = 1f;
         public float Smoothing = 0.5f;
 
         private Quaternion _neutralInverse = Quaternion.identity;
@@ -22,6 +24,7 @@ namespace Basis.MediaPipe
         private bool _calibrated;
         private float _yaw;
         private float _pitch;
+        private float _roll;
 
         public void Calibrate(in BasisMediaPipeResult result)
         {
@@ -43,17 +46,20 @@ namespace Basis.MediaPipe
 
             float pitch = NormalizeAngle(euler.x) * (InvertPitch ? -1f : 1f) * PitchGain;
             float yaw = NormalizeAngle(euler.y) * (InvertYaw ? -1f : 1f) * YawGain;
+            float roll = NormalizeAngle(euler.z) * (InvertRoll ? -1f : 1f) * RollGain;
 
             float t = 1f - Mathf.Clamp01(Smoothing);
             _pitch = Mathf.Lerp(_pitch, pitch, t);
             _yaw = Mathf.Lerp(_yaw, yaw, t);
-            rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            _roll = Mathf.Lerp(_roll, roll, t);
+            rotation = Quaternion.Euler(_pitch, _yaw, _roll);
 
             Vector3 translation = result.FaceTransform.GetColumn(3);
             Vector3 delta = _calibrated ? translation - _neutralPosition : Vector3.zero;
             // MediaPipe head transform translation is camera-space (cm); map to player-local
             // (mirror x, y up, z forward) and scale cm->m.
-            Vector3 targetPos = new Vector3(-delta.x, delta.y, -delta.z) * (PositionGain * 0.01f);
+            // Y intentionally dropped: vertical head bob fights eye-height and looks bad.
+            Vector3 targetPos = new Vector3(-delta.x, 0f, -delta.z) * (PositionGain * 0.01f);
             _smoothedPosition = Vector3.Lerp(_smoothedPosition, targetPos, t);
             positionOffset = _smoothedPosition;
             return true;
