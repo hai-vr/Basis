@@ -1,3 +1,4 @@
+using Basis.BasisUI.Styling;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
@@ -439,12 +440,19 @@ namespace Basis.BasisUI
             if (BasisTrackerIdentifyGizmos.TryGetColor(input, out Color color))
             {
                 string hex = ColorUtility.ToHtmlStringRGB(color);
-                descriptor.SetTitle($"<color=#{hex}>{BasisLocalization.Get("trackerLinking.identifyShowing")}</color>");
+                descriptor.SetTitle($"<b><color=#{hex}>{BasisLocalization.Get("trackerLinking.identifyShowing")}</color></b>");
             }
             else
             {
-                descriptor.SetTitle(BasisLocalization.Get("trackerLinking.identifyLabel"));
+                string accentHex = ColorUtility.ToHtmlStringRGB(ResolveAccentColor());
+                descriptor.SetTitle($"<b><color=#{accentHex}>{BasisLocalization.Get("trackerLinking.identifyLabel")}</color></b>");
             }
+        }
+
+        private static Color ResolveAccentColor()
+        {
+            UiStylePalette palette = UiStyleSettings.GetActivePalette();
+            return palette != null ? palette.AccentColor : new Color(0.14f, 0.46f, 0.93f);
         }
 
         private static string BuildEntryDescription(BasisInput input)

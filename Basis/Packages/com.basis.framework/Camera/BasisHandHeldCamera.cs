@@ -577,6 +577,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             actualMaterial.mainTexture = renderTexture;
             actualMaterial.SetTexture("_MainTex", renderTexture);
         }
+
+        VisibilityFlag(Renderer != null && Renderer.isVisible);
     }
 
     /// <summary>UI callback to toggle recording view and apply <see cref="OverrideDesktopOutput"/>.</summary>
@@ -695,21 +697,14 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void VisibilityFlag(bool isVisible)
     {
-        if (!isVisible)
-        {
-            if (LastVisibilityState && BasisLocalPlayer.Instance != null)
-            {
-                captureCamera.enabled = false;
-                LastVisibilityState = false;
-            }
-        }
-        else
-        {
-            if (!LastVisibilityState && BasisLocalPlayer.Instance != null)
-            {
-                captureCamera.enabled = true;
-                LastVisibilityState = true;
-            }
-        }
+        if (BasisLocalPlayer.Instance == null)
+            return;
+
+        bool shouldRender = isVisible || IsOverridingDesktopView;
+        if (shouldRender == LastVisibilityState)
+            return;
+
+        captureCamera.enabled = shouldRender;
+        LastVisibilityState = shouldRender;
     }
 }
