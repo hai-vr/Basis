@@ -423,6 +423,8 @@
     { "key": "settings.general.desktopReticle.description", "value": "Show a small aim reticle at screen center while in desktop mode." },
     { "key": "settings.general.avatarPreview", "value": "Avatar Preview" },
     { "key": "settings.general.avatarPreview.description", "value": "Show a small preview of your avatar near the microphone icon." },
+    { "key": "settings.general.avatarPreviewMirror", "value": "Mirror Avatar Preview" },
+    { "key": "settings.general.avatarPreviewMirror.description", "value": "Flip the avatar preview horizontally so it reads like a mirror." },
     { "key": "settings.general.camera.title", "value": "Camera" },
     { "key": "settings.general.thirdPerson", "value": "Third-Person Camera" },
     { "key": "settings.general.thirdPerson.description", "value": "Allow the desktop camera to switch to a third-person view." },

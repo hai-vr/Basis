@@ -391,6 +391,11 @@ namespace Basis.BasisUI
             toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
             toggleAvatarPreview.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreview.description"));
 
+            PanelToggle toggleAvatarPreviewMirror = PanelToggle.CreateNewEntry(hudGroup);
+            toggleAvatarPreviewMirror.AssignBinding(BasisSettingsDefaults.AvatarPreviewMirror);
+            toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
+            toggleAvatarPreviewMirror.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreviewMirror.description"));
+
             // Third-person camera is desktop-only; hide the entire group in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
             {
@@ -551,6 +556,7 @@ namespace Basis.BasisUI
         private static void ResetGeneralDefaults()
         {
             BasisSettingsDefaults.AvatarPreview.ResetToDefault();
+            BasisSettingsDefaults.AvatarPreviewMirror.ResetToDefault();
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();

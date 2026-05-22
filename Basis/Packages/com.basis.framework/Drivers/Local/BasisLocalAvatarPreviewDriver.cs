@@ -78,6 +78,14 @@ namespace Basis.Scripts.Drivers
             }
         }
 
+        public void SetMirror(bool mirrored)
+        {
+            if (displaySpriteRenderer != null)
+            {
+                displaySpriteRenderer.flipX = mirrored;
+            }
+        }
+
         private void CreateObjects()
         {
             if (initialized) return;
@@ -126,6 +134,7 @@ namespace Basis.Scripts.Drivers
 
             displaySpriteRenderer = displayGO.AddComponent<SpriteRenderer>();
             displaySpriteRenderer.sharedMaterial = new Material(Shader.Find("Basis/UI/Main"));
+            displaySpriteRenderer.flipX = BasisSettingsDefaults.AvatarPreviewMirror.RawValue;
 
             // Create a dummy sprite for mesh/UV generation (full 0-1 UVs)
             dummyTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);

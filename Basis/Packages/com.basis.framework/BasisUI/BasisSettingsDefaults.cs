@@ -303,6 +303,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> AvatarPreview = new("avatarpreview", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> AvatarPreviewMirror = new("avatarpreviewmirror", new BasisPlatformDefault<bool>(true));
+
         public static BasisSettingsBinding<bool> DesktopReticle = new("desktopreticle", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> EnableThirdPersonCamera = new("enablethirdpersoncamera", new BasisPlatformDefault<bool>(true));
@@ -1335,6 +1337,7 @@ namespace Basis.BasisUI
 
             // UI
             AvatarPreview.LoadBindingValue();
+            AvatarPreviewMirror.LoadBindingValue();
             DesktopReticle.LoadBindingValue();
             EnableThirdPersonCamera.LoadBindingValue();
             AudioListenerFollowsHead.LoadBindingValue();
