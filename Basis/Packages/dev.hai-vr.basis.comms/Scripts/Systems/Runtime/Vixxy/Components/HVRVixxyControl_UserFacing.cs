@@ -443,6 +443,11 @@ namespace HVR.Vixxy
         [NonSerialized] private Quaternion _a = Quaternion.identity;
         [NonSerialized] private Quaternion _b = Quaternion.identity;
 
+        public override object GetValueForChoice(int choice)
+        {
+            return Quaternion.Euler(choices[choice]);
+        }
+
         public override object CalculateLerpValue(float active01, int inactiveIndex, int activeIndex, float absoluteValue)
         {
             if (interpolation == HVRVixxyPropertyQuaternionInterpolation.Spherical)
