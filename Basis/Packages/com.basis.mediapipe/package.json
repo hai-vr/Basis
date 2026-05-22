@@ -1,0 +1,11 @@
+{
+  "name": "com.basis.mediapipe",
+  "displayName": "Basis MediaPipe Tracking",
+  "version": "0.0.1",
+  "description": "Webcam-driven head/neck/hand/finger/body, eye and face tracking that feeds the avatar as fake VR trackers, finger data, gaze and blendshapes. Backed by the MediaPipe Unity Plugin (homuler). Inert until that plugin is installed.",
+  "author": {
+    "name": "BasisVR",
+    "url": "https://github.com/BasisVR"
+  },
+  "license": "MIT"
+}

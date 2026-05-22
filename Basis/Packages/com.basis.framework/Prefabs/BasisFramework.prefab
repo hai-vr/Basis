@@ -517,6 +517,7 @@ GameObject:
   - component: {fileID: 6223159200201450764}
   - component: {fileID: 8988764245560573337}
   - component: {fileID: 6910429841152494025}
+  - component: {fileID: 7476858832598181404}
   m_Layer: 0
   m_Name: BasisFramework
   m_TagString: Untagged
@@ -578,6 +579,7 @@ MonoBehaviour:
   - {fileID: -3484738083713026149}
   - {fileID: 6223159200201450764}
   - {fileID: -3061024371983229343}
+  - {fileID: 7476858832598181404}
   BasisLockToInputs: []
   PreviouslyConnectedDevices: []
   InputActions: {fileID: -944628639613478452, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
@@ -783,3 +785,19 @@ MonoBehaviour:
   proceduralMaterial: {fileID: 2100000, guid: ce26966915c63cb4fbadbc98e10e00af, type: 2}
   sphereMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
   capsuleMesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &7476858832598181404
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9135220577826176361}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d401a672a8d14045bc2d97b33774005, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPipe::Basis.MediaPipe.BasisMediaPipeManagement
+  IsDeviceBooted: 0
+  DeviceMode: 1
+  Enabled: 0
+  CameraDeviceName: 

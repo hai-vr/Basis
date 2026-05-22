@@ -200,6 +200,7 @@ namespace Basis.BasisUI
             };
 
             handleChange();
+            SettingsProvider.TrackerSettingsExtraBuilder?.Invoke(tabRoot);
             tabDesc.ForceRebuild();
             return tabPage;
         }

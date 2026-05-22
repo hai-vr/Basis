@@ -47,6 +47,13 @@ namespace Basis.BasisUI
 
         public static Action<RectTransform> AvatarCustomizationBuilder;
 
+        /// <summary>
+        /// External hook to append extra sections to the Tracker Settings tab. Packages
+        /// (e.g. com.basis.mediapipe) register a builder here that populates the passed-in
+        /// tab content with their own controls.
+        /// </summary>
+        public static Action<RectTransform> TrackerSettingsExtraBuilder;
+
         public static Action<RectTransform> LicensesBuilder;
 
         [RuntimeInitializeOnLoadMethod]

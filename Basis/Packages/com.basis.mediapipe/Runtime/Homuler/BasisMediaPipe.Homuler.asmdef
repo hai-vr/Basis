@@ -1,0 +1,31 @@
+{
+    "name": "BasisMediaPipe.Homuler",
+    "rootNamespace": "Basis.MediaPipe.Homuler",
+    "references": [
+        "BasisMediaPipe",
+        "Basis Framework",
+        "BasisCommon",
+        "BasisSDK",
+        "BasisDebug",
+        "Unity.Mathematics",
+        "Unity.Collections",
+        "Mediapipe.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BASIS_MEDIAPIPE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.github.homuler.mediapipe",
+            "expression": "",
+            "define": "BASIS_MEDIAPIPE"
+        }
+    ],
+    "noEngineReferences": false
+}

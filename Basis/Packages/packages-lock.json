@@ -84,6 +84,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.mediapipe": {
+      "version": "file:com.basis.mediapipe",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.basis.openlipsync": {
       "version": "file:com.basis.openlipsync",
       "depth": 0,
@@ -192,6 +198,15 @@
       "dependencies": {
         "com.unity.mathematics": "1.0.0",
         "com.unity.collections": "2.0.0"
+      }
+    },
+    "com.github.homuler.mediapipe": {
+      "version": "file:com.github.homuler.mediapipe-0.16.3.tgz",
+      "depth": 0,
+      "source": "local-tarball",
+      "dependencies": {
+        "com.unity.ugui": "1.0.0",
+        "com.unity.test-framework": "1.0.0"
       }
     },
     "com.llealloo.audiolink": {
