@@ -132,6 +132,11 @@ namespace Basis.MediaPipe
 
             LoadSettingsIntoConfig();
 
+            if (!BasisMediaPipeSettings.Enable.RawValue)
+            {
+                return;
+            }
+
             _backend = BasisMediaPipeBackendRegistry.Create();
             _backend.Initialize(Config);
             BasisDebug.Log($"BasisMediaPipe: backend = {_backend.BackendName}.");

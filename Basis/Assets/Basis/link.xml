@@ -14,6 +14,8 @@
     <assembly fullname="BasisEventDriver" preserve="all" />
     <assembly fullname="BasisExamples" preserve="all" />
     <assembly fullname="BasisGizmos" preserve="all" />
+    <assembly fullname="BasisMediaPipe" preserve="all" />
+    <assembly fullname="BasisMediaPipe.Homuler" preserve="all" />
     <assembly fullname="BasisNetworkClient" preserve="all" />
     <assembly fullname="BasisNetworkCore" preserve="all" />
     <assembly fullname="BasisNetworkServer" preserve="all" />
@@ -36,12 +38,14 @@
     <assembly fullname="GPUUtilities" preserve="all" />
     <assembly fullname="Generator.Equals" preserve="all" />
     <assembly fullname="Generator.Equals.Runtime" preserve="all" />
+    <assembly fullname="Google.Protobuf" preserve="all" />
     <assembly fullname="HVR.Basis.Comms" preserve="all" />
     <assembly fullname="HVR.Basis.Comms.HVRUtility" preserve="all" />
     <assembly fullname="HVR.LicenseReview" preserve="all" />
     <assembly fullname="K4os.Compression.LZ4" preserve="all" />
     <assembly fullname="LiteNetLib" preserve="all" />
     <assembly fullname="MeaMod.DNS" preserve="all" />
+    <assembly fullname="Mediapipe.Runtime" preserve="all" />
     <assembly fullname="Microsoft.ML.OnnxRuntime" preserve="all" />
     <assembly fullname="Newtonsoft.Json" preserve="all" />
     <assembly fullname="OpusSharp" preserve="all" />
@@ -51,6 +55,9 @@
     <assembly fullname="SteamAudioUnity" preserve="all" />
     <assembly fullname="SteamVR" preserve="all" />
     <assembly fullname="SteamVR_Actions" preserve="all" />
+    <assembly fullname="System.Buffers" preserve="all" />
+    <assembly fullname="System.Memory" preserve="all" />
+    <assembly fullname="System.Runtime.CompilerServices.Unsafe" preserve="all" />
     <assembly fullname="TrueAudioNext" preserve="all" />
     <assembly fullname="UdonSharp.Lib" preserve="all" />
     <assembly fullname="UdonSharp.Runtime" preserve="all" />
