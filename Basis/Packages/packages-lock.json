@@ -201,9 +201,9 @@
       }
     },
     "com.github.homuler.mediapipe": {
-      "version": "file:com.github.homuler.mediapipe-0.16.3.tgz",
+      "version": "file:com.github.homuler.mediapipe",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {
         "com.unity.ugui": "1.0.0",
         "com.unity.test-framework": "1.0.0"

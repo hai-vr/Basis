@@ -24,7 +24,7 @@ namespace Basis.MediaPipe
             new BasisSettingsBinding<bool>("mediapipe_head", new BasisPlatformDefault<bool>(false));
 
         public static readonly BasisSettingsBinding<bool> EnableHandTracking =
-            new BasisSettingsBinding<bool>("mediapipe_handtracking", new BasisPlatformDefault<bool>(false));
+            new BasisSettingsBinding<bool>("mediapipe_handtracking_v2", new BasisPlatformDefault<bool>(false));
 
         public static readonly BasisSettingsBinding<bool> EnableBody =
             new BasisSettingsBinding<bool>("mediapipe_body", new BasisPlatformDefault<bool>(false));
@@ -74,6 +74,12 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<int> CameraFps =
             new BasisSettingsBinding<int>("mediapipe_camerafps", new BasisPlatformDefault<int>(30));
 
+        public static readonly BasisSettingsBinding<bool> EnableTongue =
+            new BasisSettingsBinding<bool>("mediapipe_tongue", new BasisPlatformDefault<bool>(true));
+
+        public static readonly BasisSettingsBinding<float> TongueStrength =
+            new BasisSettingsBinding<float>("mediapipe_tonguestrength", new BasisPlatformDefault<float>(1f));
+
         /// <summary>
         /// Re-reads every binding from the loaded settings dictionary. Must run after
         /// BasisSettingsSystem has loaded from disk (it replaces the dictionary), mirroring
@@ -104,6 +110,8 @@ namespace Basis.MediaPipe
             ResolutionWidth.LoadBindingValue();
             ResolutionHeight.LoadBindingValue();
             CameraFps.LoadBindingValue();
+            EnableTongue.LoadBindingValue();
+            TongueStrength.LoadBindingValue();
         }
     }
 }

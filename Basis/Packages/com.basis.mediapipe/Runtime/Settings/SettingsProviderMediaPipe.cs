@@ -175,6 +175,19 @@ namespace Basis.MediaPipe
                 BasisMediaPipeManagement.Instance.ApplyTuning();
             };
 
+            AddTuningToggle("Tongue (experimental)", "Estimate tongue-out from the mouth interior (webcam heuristic).", BasisMediaPipeSettings.EnableTongue);
+
+            PanelSlider tongueStrength = PanelSlider.CreateNew(content);
+            tongueStrength.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 3f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
+            tongueStrength.Descriptor.SetTitle("Tongue Strength");
+            tongueStrength.Descriptor.SetDescription("How strongly tongue-out is detected.");
+            tongueStrength.SetValueWithoutNotify(BasisMediaPipeSettings.TongueStrength.RawValue);
+            tongueStrength.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.TongueStrength.SetValue(value);
+                BasisMediaPipeManagement.Instance.ApplyTuning();
+            };
+
             PanelButton calibrate = PanelButton.CreateNew(content);
             calibrate.Descriptor.SetTitle("Calibrate Head (look forward)");
             calibrate.Descriptor.SetDescription("Face the screen straight on, then click to set your neutral head pose.");

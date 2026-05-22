@@ -345,7 +345,9 @@ namespace Basis.MediaPipe.Homuler
                     }
                 }
             }
-            return total == 0 ? 0f : Mathf.Clamp01((float)tongue / total);
+            float fraction = total == 0 ? 0f : (float)tongue / total;
+            // Subtract a baseline so lip/gum edges inside the ROI don't read as tongue.
+            return Mathf.Clamp01((fraction - 0.25f) / 0.75f);
         }
 
         private Image NewImage(int w, int h) =>

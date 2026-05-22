@@ -70,6 +70,9 @@ namespace Basis.MediaPipe
             _headConverter.InvertPitch = BasisMediaPipeSettings.InvertHeadPitch.RawValue;
             _headConverter.Smoothing = BasisMediaPipeSettings.HeadSmoothing.RawValue;
             _faceConverter.Smoothing = BasisMediaPipeSettings.FaceSmoothing.RawValue;
+            _faceConverter.TongueGain = BasisMediaPipeSettings.EnableTongue.RawValue
+                ? BasisMediaPipeSettings.TongueStrength.RawValue
+                : 0f;
             _handConverter.PoseSmoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
             _handConverter.FingerSmoothing = BasisMediaPipeSettings.FingerSmoothing.RawValue;
             _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
