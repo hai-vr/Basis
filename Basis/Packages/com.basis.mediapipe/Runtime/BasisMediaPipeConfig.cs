@@ -6,7 +6,8 @@ namespace Basis.MediaPipe
         public bool EnableFace;
         public bool EnableHands;
         public bool EnablePose;
-        public bool EnableHead;
+        public bool EnableHeadPosition;
+        public bool EnableHeadRotation;
         public bool EnableHandTracking;
         public bool SwapHands;
         public bool MirrorHorizontally;
@@ -19,7 +20,8 @@ namespace Basis.MediaPipe
             EnableFace = true,
             EnableHands = true,
             EnablePose = false,
-            EnableHead = false,
+            EnableHeadPosition = true,
+            EnableHeadRotation = true,
             EnableHandTracking = false,
             SwapHands = false,
             MirrorHorizontally = true,

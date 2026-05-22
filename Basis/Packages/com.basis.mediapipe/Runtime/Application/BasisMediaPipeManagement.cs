@@ -51,7 +51,8 @@ namespace Basis.MediaPipe
             CameraDeviceName = BasisMediaPipeSettings.Camera.RawValue;
             Config.EnableFace = BasisMediaPipeSettings.EnableFace.RawValue;
             Config.EnableHands = BasisMediaPipeSettings.EnableHands.RawValue;
-            Config.EnableHead = BasisMediaPipeSettings.EnableHead.RawValue;
+            Config.EnableHeadPosition = BasisMediaPipeSettings.EnableHeadPosition.RawValue;
+            Config.EnableHeadRotation = BasisMediaPipeSettings.EnableHeadRotation.RawValue;
             Config.EnableHandTracking = BasisMediaPipeSettings.EnableHandTracking.RawValue;
             Config.SwapHands = BasisMediaPipeSettings.SwapHands.RawValue;
             Config.MirrorHorizontally = BasisMediaPipeSettings.Mirror.RawValue;
@@ -219,12 +220,14 @@ namespace Basis.MediaPipe
                 _handConverter.Apply(in result);
             }
 
-            if (Config.EnableHead)
+            if (Config.EnableHeadPosition || Config.EnableHeadRotation)
             {
                 if (result.HasFace && BasisLocalBoneDriver.EyeControl != null && _headConverter.TryGetHeadOffset(in result, out Quaternion headOffset, out Vector3 headPositionOffset))
                 {
                     BasisLocalBoneControl eye = BasisLocalBoneDriver.EyeControl;
-                    EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(eye.OutGoingData.position + headPositionOffset, eye.OutGoingData.rotation * headOffset);
+                    Vector3 headPosition = Config.EnableHeadPosition ? eye.OutGoingData.position + headPositionOffset : eye.OutGoingData.position;
+                    Quaternion headRotation = Config.EnableHeadRotation ? eye.OutGoingData.rotation * headOffset : eye.OutGoingData.rotation;
+                    EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(headPosition, headRotation);
                 }
             }
             else

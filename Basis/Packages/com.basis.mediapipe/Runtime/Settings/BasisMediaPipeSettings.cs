@@ -20,8 +20,11 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<bool> Mirror =
             new BasisSettingsBinding<bool>("mediapipe_mirror", new BasisPlatformDefault<bool>(true));
 
-        public static readonly BasisSettingsBinding<bool> EnableHead =
-            new BasisSettingsBinding<bool>("mediapipe_head", new BasisPlatformDefault<bool>(false));
+        public static readonly BasisSettingsBinding<bool> EnableHeadPosition =
+            new BasisSettingsBinding<bool>("mediapipe_headposition", new BasisPlatformDefault<bool>(true));
+
+        public static readonly BasisSettingsBinding<bool> EnableHeadRotation =
+            new BasisSettingsBinding<bool>("mediapipe_headrotation", new BasisPlatformDefault<bool>(true));
 
         public static readonly BasisSettingsBinding<bool> EnableHandTracking =
             new BasisSettingsBinding<bool>("mediapipe_handtracking_v2", new BasisPlatformDefault<bool>(false));
@@ -91,7 +94,8 @@ namespace Basis.MediaPipe
             Camera.LoadBindingValue();
             EnableFace.LoadBindingValue();
             EnableHands.LoadBindingValue();
-            EnableHead.LoadBindingValue();
+            EnableHeadPosition.LoadBindingValue();
+            EnableHeadRotation.LoadBindingValue();
             EnableHandTracking.LoadBindingValue();
             EnableBody.LoadBindingValue();
             SwapHands.LoadBindingValue();
