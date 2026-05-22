@@ -126,7 +126,7 @@ namespace HVR.Basis.Comms
             {
                 if (_addressIdToHolder.TryGetValue(variable.addressId, out var existing))
                 {
-                    HVRLogging.Debug($"Variable {HVRAddress.ResolveKnownAddressFromId(variable.addressId)} was already created, so we're extending it. This can happen if Vixxy and Face Tracking are sharing variables.");
+                    if (PrintDebug) HVRLogging.Debug($"Variable {HVRAddress.ResolveKnownAddressFromId(variable.addressId)} was already created, so we're extending it. This can happen if Vixxy and Face Tracking are sharing variables.");
 
                     // This happens when FaceTracking and Vixxy are listening to the same address (called once by Orchestrator, and once again by BlendshapeActuation/misc).
                     var holder = existing.variable;
