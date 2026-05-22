@@ -1955,6 +1955,8 @@ namespace Basis.BasisUI
             selectItem.Descriptor.SetTitle(string.Empty);
             selectItem.SetIcon(AddressableAssets.Sprites.Select);
             selectItem.SetSize(new Vector2(80, 80));
+            // Inset the icon so its strokes stay clear of the bevel — matches PE Image Simple Square's pattern.
+            selectItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
             selectItem.OnClicked += async () =>
             {
@@ -1979,6 +1981,7 @@ namespace Basis.BasisUI
             TeleportToItem.Descriptor.SetTitle(string.Empty);
             TeleportToItem.SetIcon(AddressableAssets.Sprites.TeleportTo);
             TeleportToItem.SetSize(new Vector2(80, 80));
+            TeleportToItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
             TeleportToItem.OnClicked += () =>
             {
@@ -2012,6 +2015,7 @@ namespace Basis.BasisUI
             removeItem.Descriptor.SetTitle(string.Empty);
             removeItem.SetIcon(AddressableAssets.Sprites.Trash);
             removeItem.SetSize(new Vector2(80, 80));
+            removeItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
             // only apply this to items that are spawned on the network
             if(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network)
