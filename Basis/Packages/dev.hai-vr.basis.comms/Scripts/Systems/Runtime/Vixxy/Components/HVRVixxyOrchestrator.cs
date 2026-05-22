@@ -108,6 +108,7 @@ namespace HVR.Vixxy
             Apply();
         }
 
+        private readonly HashSet<IHVRVixxyActuator> L_actuatorsWithFiltersToCheckNextTick = new(); // is field due to PR guidelines
         /// Calculate aggregators and filters. This may be jobified in the future.
         public void Simulate()
         {
@@ -136,14 +137,14 @@ namespace HVR.Vixxy
 
             if (_actuatorsWithFiltersToCheckThisTick.Count > 0)
             {
-                var actuatorsWithFiltersToCheckNextTick = new HashSet<IHVRVixxyActuator>();
+                L_actuatorsWithFiltersToCheckNextTick.Clear();
 
                 foreach (var actuator in _actuatorsWithFiltersToCheckThisTick)
                 {
                     var filterResult = actuator.ApplyFilters();
                     if (filterResult.filterNeedsCheckNextTick)
                     {
-                        actuatorsWithFiltersToCheckNextTick.Add(actuator);
+                        L_actuatorsWithFiltersToCheckNextTick.Add(actuator);
                     }
                     if (filterResult.actuatorNeedsUpdate)
                     {
@@ -152,7 +153,7 @@ namespace HVR.Vixxy
                 }
 
                 _actuatorsWithFiltersToCheckThisTick.Clear();
-                _actuatorsWithFiltersToCheckThisTick.UnionWith(actuatorsWithFiltersToCheckNextTick);
+                _actuatorsWithFiltersToCheckThisTick.UnionWith(L_actuatorsWithFiltersToCheckNextTick);
             }
 
             // Deck remaining aggregations for next frame. We already gave it a bunch of chances.

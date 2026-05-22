@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -71,9 +70,10 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public Dictionary<int, float> Advance(float deltaTime)
+        public Dictionary<int, float> Advance(float deltaTime, Dictionary<int, float> results)
         {
-            var result = new Dictionary<int, float>();
+            results.Clear();
+
             _advanced += deltaTime;
 
             if (_currentSnapshot == null)
@@ -85,7 +85,7 @@ namespace HVR.Basis.Comms
             {
                 foreach (var (addressId, value) in _currentSnapshot.addressIdsToValues)
                 {
-                    result[addressId] = value;
+                    results[addressId] = value;
                     _memoryOfPreviousSnapshotValue[addressId] = value;
                 }
                 _advanced -= _currentAdjustedDeltaTime;
@@ -99,21 +99,21 @@ namespace HVR.Basis.Comms
                 {
                     if (_memoryOfPreviousSnapshotValue.TryGetValue(addressId, out var previousValue))
                     {
-                        result[addressId] = Lerp(previousValue, currentValue, _advanced / _currentAdjustedDeltaTime);
+                        results[addressId] = Lerp(previousValue, currentValue, _advanced / _currentAdjustedDeltaTime);
                     }
                     else
                     {
-                        result[addressId] = currentValue;
+                        results[addressId] = currentValue;
                     }
                 }
             }
 
-            if (result.Count == 0)
+            if (results.Count == 0)
             {
                 _advanced = 0f;
             }
 
-            return result;
+            return results;
         }
 
         private float Lerp(float from, float to, float amount01)

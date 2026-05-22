@@ -257,13 +257,15 @@ namespace HVR.Basis.Comms
                 }
             }
 
+            private readonly HashSet<int> L_addressIdsThatNeedToBeResentLater = new(); // is field due to PR guidelines
+            private readonly Dictionary<int, object> L_addressIdsToValueToTransmit = new(); // is field due to PR guidelines
             private void DoTick(float deltaTimeSinceLastTick)
             {
                 if (_addressIdsWithNewValue.Count == 0) return;
 
-                var addressIdsThatNeedToBeResentLater = new HashSet<int>();
+                L_addressIdsThatNeedToBeResentLater.Clear();
+                L_addressIdsToValueToTransmit.Clear();
 
-                var addressIdsToValueToTransmit = new Dictionary<int, object>();
                 foreach (var addressId in _addressIdsWithNewValue)
                 {
                     var holder = _addressIdToHolder[addressId];
@@ -272,7 +274,7 @@ namespace HVR.Basis.Comms
                     // Reminder: We network the value with the greatest delta, which is not necessarily the current value.
                     // Networking the value with the greatest delta helps networking short-lived events such as the eyes blinking.
                     var valueToBeTransmitted = holder.valueWithGreatestDeltaSinceLastTransmittedValue;
-                    addressIdsToValueToTransmit.Add(addressId, valueToBeTransmitted);
+                    L_addressIdsToValueToTransmit.Add(addressId, valueToBeTransmitted);
 
                     holder.lastTransmittedValue = valueToBeTransmitted;
                     holder.valueWithGreatestDeltaSinceLastTransmittedValue = currentValue;
@@ -281,20 +283,20 @@ namespace HVR.Basis.Comms
                     {
                         // If the value with the greatest delta is not the current value, then we need to transmit the current value
                         // (which is now stored inside valueWithGreatestDeltaSinceLastTransmittedValue) next frame.
-                        addressIdsThatNeedToBeResentLater.Add(addressId);
+                        L_addressIdsThatNeedToBeResentLater.Add(addressId);
                     }
                 }
 
-                if (addressIdsToValueToTransmit.Count > 0)
+                if (L_addressIdsToValueToTransmit.Count > 0)
                 {
-                    var packet = BuildUpdatedVariablesPacketOrNull(addressIdsToValueToTransmit, deltaTimeSinceLastTick);
+                    var packet = BuildUpdatedVariablesPacketOrNull(L_addressIdsToValueToTransmit, deltaTimeSinceLastTick);
                     if (packet != null)
                     {
                         _state.transmitter.NetworkMessageSend(packet, MainDeliveryMethod);
                         if (PrintDebug) HVRLogging.ProtocolDebug($"(Update) Sending UpdatedVariablesPacket (at T={Time.time:0.00}).");
                     }
 
-                    if (_highFrequencyAddressIdsHashSet.Count > 0 && _highFrequencyAddressIdsHashSet.Overlaps(addressIdsToValueToTransmit.Keys))
+                    if (_highFrequencyAddressIdsHashSet.Count > 0 && _highFrequencyAddressIdsHashSet.Overlaps(L_addressIdsToValueToTransmit.Keys))
                     {
                         _highFrequencyBytes[1] = (byte)(deltaTimeSinceLastTick / DeltaLocalIntToSeconds);
 
@@ -304,7 +306,7 @@ namespace HVR.Basis.Comms
                             var holder = _addressIdToHolder[addressId];
                             if (holder.variable.variableTypeCode != HVRVariableTypeCode.Float) continue;
 
-                            if (addressIdsToValueToTransmit.TryGetValue(addressId, out var value))
+                            if (L_addressIdsToValueToTransmit.TryGetValue(addressId, out var value))
                             {
                                 _highFrequencyBytes[index + 2] = EncodeFloat((float)value, holder.variable);
                             }
@@ -319,31 +321,32 @@ namespace HVR.Basis.Comms
                 }
 
                 _addressIdsWithNewValue.Clear();
-                _addressIdsWithNewValue.UnionWith(addressIdsThatNeedToBeResentLater);
+                _addressIdsWithNewValue.UnionWith(L_addressIdsThatNeedToBeResentLater);
             }
 
+            private readonly List<int> L_addressIdsToUpgradeInOrder = new(); // is field due to PR guidelines
             private void UpgradeOrDowngradeAddressesIfNecessary()
             {
-                var addressIdsToUpgradeInOrder = new List<int>();
+                L_addressIdsToUpgradeInOrder.Clear();
 
                 foreach (var addressId in _temp_addressIdsThatNeedUpgrade)
                 {
                     if (!_highFrequencyAddressIdsHashSet.Contains(addressId))
                     {
                         HVRLogging.Debug($"Upgrading address {HVRAddress.ResolveKnownAddressFromId(addressId)} to high frequency.");
-                        addressIdsToUpgradeInOrder.Add(addressId);
+                        L_addressIdsToUpgradeInOrder.Add(addressId);
                     }
                 }
                 _temp_addressIdsThatNeedUpgrade.Clear();
 
-                if (addressIdsToUpgradeInOrder.Count > 0)
+                if (L_addressIdsToUpgradeInOrder.Count > 0)
                 {
-                    _highFrequencyAddressIds.AddRange(addressIdsToUpgradeInOrder);
-                    _highFrequencyAddressIdsHashSet.UnionWith(addressIdsToUpgradeInOrder);
+                    _highFrequencyAddressIds.AddRange(L_addressIdsToUpgradeInOrder);
+                    _highFrequencyAddressIdsHashSet.UnionWith(L_addressIdsToUpgradeInOrder);
                     _highFrequencyBytes = new byte[2 + _highFrequencyAddressIds.Count];
                     _highFrequencyBytes[0] = AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedHighFrequencyVariables;
 
-                    var upgradePacket = BuildUpgradePacket(addressIdsToUpgradeInOrder);
+                    var upgradePacket = BuildUpgradePacket(L_addressIdsToUpgradeInOrder);
                     _state.transmitter.NetworkMessageSend(upgradePacket, MainDeliveryMethod);
                     if (PrintDebug) HVRLogging.ProtocolDebug($"(Update) Sending UpgradeFloatToHighFrequencyPacket (at T={Time.time:0.00}).");
                 }
@@ -368,6 +371,10 @@ namespace HVR.Basis.Comms
                 }.Serialize(_needsUshortAddresses);
             }
 
+            private readonly List<ushort> L_zeroesNetworkIds = new(); // is field due to PR guidelines
+            private readonly List<ushort> L_onesNetworkIds = new(); // is field due to PR guidelines
+            private readonly List<int> L_otherAddressIds = new(); // is field due to PR guidelines
+            private readonly List<ushort> L_tempListSerializedImmediately = new List<ushort>(); // is field due to PR guidelines
             private byte[] BuildUpdatedVariablesPacketOrNull(Dictionary<int, object> addressIdsToValueToTransmit, float deltaTimeSinceLastTick)
             {
                 var deltaLocalIntToSeconds = (int)(deltaTimeSinceLastTick / DeltaLocalIntToSeconds);
@@ -380,9 +387,9 @@ namespace HVR.Basis.Comms
                 // The float values of 0.0 and 1.0 are considered to be special. Instead of networking the value of 0.0 and 1.0,
                 // we transmit a list of networkIds for those zeroes and ones and using four different packet types.
                 // Only values that change are transmitted, so we do not deal with bitfields or anything like that.
-                var zeroesNetworkIds = new List<ushort>();
-                var onesNetworkIds = new List<ushort>();
-                var otherAddressIds = new List<int>();
+                L_zeroesNetworkIds.Clear();
+                L_onesNetworkIds.Clear();
+                L_otherAddressIds.Clear();
 
                 foreach (var (addressId, value) in addressIdsToValueToTransmit)
                 {
@@ -393,37 +400,41 @@ namespace HVR.Basis.Comms
                     {
                         if (Mathf.Approximately(f, 0f))
                         {
-                            zeroesNetworkIds.Add(networkId);
+                            L_zeroesNetworkIds.Add(networkId);
                         }
                         else if (Mathf.Approximately(f, 1f))
                         {
-                            onesNetworkIds.Add(networkId);
+                            L_onesNetworkIds.Add(networkId);
                         }
                         else
                         {
-                            otherAddressIds.Add(addressId);
+                            L_otherAddressIds.Add(addressId);
                         }
                     }
                     else
                     {
-                        otherAddressIds.Add(addressId);
+                        L_otherAddressIds.Add(addressId);
                     }
                 }
 
-                if (zeroesNetworkIds.Count == 0 && onesNetworkIds.Count == 0 && otherAddressIds.Count == 0)
+                if (L_zeroesNetworkIds.Count == 0 && L_onesNetworkIds.Count == 0 && L_otherAddressIds.Count == 0)
                 {
                     return null;
                 }
 
-                if (otherAddressIds.Count > 0)
+                if (L_otherAddressIds.Count > 0)
                 {
                     if (PrintDebug) HVRLogging.ProtocolDebug("(BuildUpdatedVariablesPacket) Building a UpdatedVariables_Mixed packet.");
+
+                    L_tempListSerializedImmediately.Clear();
+                    L_tempListSerializedImmediately.AddRange(L_zeroesNetworkIds);
+                    L_tempListSerializedImmediately.AddRange(L_onesNetworkIds);
                     return new HVRPacket_UpdatedVariables_Mixed
                     {
                         timingSteps = timingSteps,
-                        numberOfZeroes = (ushort)zeroesNetworkIds.Count,
-                        networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList(),
-                        other = otherAddressIds.Select(addressId => new HVRPacket_UpdatedVariables_Mixed.Inner_UpdatedValue
+                        numberOfZeroes = (ushort)L_zeroesNetworkIds.Count,
+                        networkIds = L_tempListSerializedImmediately,
+                        other = L_otherAddressIds.Select(addressId => new HVRPacket_UpdatedVariables_Mixed.Inner_UpdatedValue
                         {
                             networkId = _addressIdToHolder[addressId].networkId,
                             value = addressIdsToValueToTransmit[addressId]
@@ -431,23 +442,29 @@ namespace HVR.Basis.Comms
                     }.Serialize(_needsUshortAddresses);
                 }
 
-                if (zeroesNetworkIds.Count > 0 && onesNetworkIds.Count > 0)
+                if (L_zeroesNetworkIds.Count > 0 && L_onesNetworkIds.Count > 0)
                 {
+                    L_tempListSerializedImmediately.Clear();
+                    L_tempListSerializedImmediately.AddRange(L_zeroesNetworkIds);
+                    L_tempListSerializedImmediately.AddRange(L_onesNetworkIds);
+
                     if (PrintDebug) HVRLogging.ProtocolDebug("(BuildUpdatedVariablesPacket) Building a UpdatedVariables_ZeroesAndOnes packet.");
                     return new HVRPacket_UpdatedVariables_ZeroesAndOnes
                     {
                         timingSteps = timingSteps,
-                        numberOfZeroes = (ushort)zeroesNetworkIds.Count,
-                        networkIds = zeroesNetworkIds.Concat(onesNetworkIds).ToList()
+                        numberOfZeroes = (ushort)L_zeroesNetworkIds.Count,
+                        networkIds = L_tempListSerializedImmediately
                     }.Serialize(_needsUshortAddresses);
                 }
 
-                if (PrintDebug) HVRLogging.ProtocolDebug($"(BuildUpdatedVariablesPacket) Building a {(zeroesNetworkIds.Count > 0 ? "UpdatedVariables_Zeroes" : "UpdatedVariables_Ones")} packet.");
+                if (PrintDebug) HVRLogging.ProtocolDebug($"(BuildUpdatedVariablesPacket) Building a {(L_zeroesNetworkIds.Count > 0 ? "UpdatedVariables_Zeroes" : "UpdatedVariables_Ones")} packet.");
+                L_tempListSerializedImmediately.Clear();
+                L_tempListSerializedImmediately.AddRange(L_zeroesNetworkIds.Count > 0 ? L_zeroesNetworkIds : L_onesNetworkIds);
                 return new HVRPacket_UpdatedVariables_ZeroesOrOnes
                 {
                     timingSteps = timingSteps,
-                    packetType = zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
-                    networkIds = zeroesNetworkIds.Count > 0 ? zeroesNetworkIds : onesNetworkIds
+                    packetType = L_zeroesNetworkIds.Count > 0 ? AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Zeroes : AvatarMessageProcessing.NewNet_WearerSubmitsUpdatedVariables_Ones,
+                    networkIds = L_tempListSerializedImmediately
                 }.Serialize(_needsUshortAddresses);
             }
 
@@ -565,8 +582,10 @@ namespace HVR.Basis.Comms
 
                 if (UseInterpolationTape)
                 {
-                    // We need a new instance each time because this instance gets stored inside the snapshot class,
+                    // We need a new instance each time PER PACKET because this instance gets stored inside the snapshot class,
                     // and each snapshot needs a different dictionary.
+                    //
+                    // Notice how AfterDataReceived resets this to null at the end.
                     _lowFrequencyInterpolatorDict ??= new Dictionary<int, float>();
                     if (_addressIdToHolder[addressId].variable.needsInterpolation)
                     {
@@ -588,12 +607,13 @@ namespace HVR.Basis.Comms
                 _state.comms.VariableStore.Submit(addressId, currentValue);
             }
 
+            private readonly Dictionary<int, float> L_result = new(); // is field due to PR guidelines
             public void Update()
             {
                 if (UseInterpolationTape)
                 {
-                    SubmitToVariableStore(_lowFrequencyInterpolator.Advance(Time.deltaTime));
-                    SubmitToVariableStore(_highFrequencyInterpolator.Advance(Time.deltaTime));
+                    SubmitToVariableStore(_lowFrequencyInterpolator.Advance(Time.deltaTime, L_result));
+                    SubmitToVariableStore(_highFrequencyInterpolator.Advance(Time.deltaTime, L_result));
                 }
             }
 
