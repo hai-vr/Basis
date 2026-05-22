@@ -49,5 +49,37 @@ namespace Basis.MediaPipe
 
         public static readonly BasisSettingsBinding<float> FingerSmoothing =
             new BasisSettingsBinding<float>("mediapipe_fingersmoothing", new BasisPlatformDefault<float>(0.5f));
+
+        public static readonly BasisSettingsBinding<bool> HandRotation =
+            new BasisSettingsBinding<bool>("mediapipe_handrotation", new BasisPlatformDefault<bool>(true));
+
+        public static readonly BasisSettingsBinding<float> HeadPositionStrength =
+            new BasisSettingsBinding<float>("mediapipe_headpositionstrength", new BasisPlatformDefault<float>(1f));
+
+        /// <summary>
+        /// Re-reads every binding from the loaded settings dictionary. Must run after
+        /// BasisSettingsSystem has loaded from disk (it replaces the dictionary), mirroring
+        /// BasisSettingsDefaults.LoadAll. Otherwise bindings keep their construction-time defaults.
+        /// </summary>
+        public static void LoadAll()
+        {
+            Enable.LoadBindingValue();
+            Camera.LoadBindingValue();
+            EnableFace.LoadBindingValue();
+            EnableHands.LoadBindingValue();
+            EnableHead.LoadBindingValue();
+            EnableHandTracking.LoadBindingValue();
+            SwapHands.LoadBindingValue();
+            Mirror.LoadBindingValue();
+            InvertBlink.LoadBindingValue();
+            InvertHeadYaw.LoadBindingValue();
+            InvertHeadPitch.LoadBindingValue();
+            HeadSmoothing.LoadBindingValue();
+            FaceSmoothing.LoadBindingValue();
+            HandSmoothing.LoadBindingValue();
+            FingerSmoothing.LoadBindingValue();
+            HandRotation.LoadBindingValue();
+            HeadPositionStrength.LoadBindingValue();
+        }
     }
 }

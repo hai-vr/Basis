@@ -55,6 +55,17 @@ namespace Basis.MediaPipe
         /// <summary>Pulls persisted settings into Config and restarts the backend if it is already running.</summary>
         public void ApplySettings()
         {
+            LoadSettingsIntoConfig();
+            if (_backend != null)
+            {
+                StopSDK();
+                StartSDK();
+            }
+        }
+
+        private void LoadSettingsIntoConfig()
+        {
+            BasisMediaPipeSettings.LoadAll();
             CameraDeviceName = BasisMediaPipeSettings.Camera.RawValue;
             Config.EnableFace = BasisMediaPipeSettings.EnableFace.RawValue;
             Config.EnableHands = BasisMediaPipeSettings.EnableHands.RawValue;
@@ -63,12 +74,6 @@ namespace Basis.MediaPipe
             Config.SwapHands = BasisMediaPipeSettings.SwapHands.RawValue;
             Config.MirrorHorizontally = BasisMediaPipeSettings.Mirror.RawValue;
             ApplyTuning();
-
-            if (_backend != null)
-            {
-                StopSDK();
-                StartSDK();
-            }
         }
 
         /// <summary>Applies converter sign/gain tuning without restarting the backend.</summary>
@@ -81,6 +86,8 @@ namespace Basis.MediaPipe
             _faceConverter.Smoothing = BasisMediaPipeSettings.FaceSmoothing.RawValue;
             _handConverter.PoseSmoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
             _handConverter.FingerSmoothing = BasisMediaPipeSettings.FingerSmoothing.RawValue;
+            _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
+            _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
         }
 
         public void SetEnabled(bool value)
@@ -106,6 +113,7 @@ namespace Basis.MediaPipe
 
         public override void StartSDK()
         {
+            LoadSettingsIntoConfig();
 
             _backend = BasisMediaPipeBackendRegistry.Create();
             _backend.Initialize(Config);
@@ -172,11 +180,11 @@ namespace Basis.MediaPipe
             if (Config.EnableHead)
             {
                 if (result.HasFace && BasisLocalBoneDriver.EyeControl != null
-                    && _headConverter.TryGetHeadLocalRotation(in result, out Quaternion headOffset))
+                    && _headConverter.TryGetHeadOffset(in result, out Quaternion headOffset, out Vector3 headPositionOffset))
                 {
                     BasisLocalBoneControl eye = BasisLocalBoneDriver.EyeControl;
                     EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(
-                        eye.OutGoingData.position, eye.OutGoingData.rotation * headOffset);
+                        eye.OutGoingData.position + headPositionOffset, eye.OutGoingData.rotation * headOffset);
                 }
             }
             else

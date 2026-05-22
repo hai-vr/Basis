@@ -22,6 +22,7 @@ namespace Basis.MediaPipe
         public float ForwardDepth = 0.35f;
         public float FingerSmoothing = 0.5f;
         public float PoseSmoothing = 0.5f;
+        public bool UseRotation = true;
 
         private Vector3 _leftPos;
         private Vector3 _rightPos;
@@ -43,11 +44,11 @@ namespace Basis.MediaPipe
             Quaternion rawRot = Quaternion.identity;
             Vector3 forward = lm[9] - lm[0];
             Vector3 normal = Vector3.Cross(lm[5] - lm[0], lm[17] - lm[0]);
-            if (forward.sqrMagnitude > 1e-6f && normal.sqrMagnitude > 1e-6f)
+            if (UseRotation && forward.sqrMagnitude > 1e-6f && normal.sqrMagnitude > 1e-6f)
             {
                 rawRot = Quaternion.LookRotation(
-                    new Vector3(-forward.x, -forward.y, forward.z),
-                    new Vector3(-normal.x, -normal.y, normal.z));
+                    new Vector3(-forward.x, -forward.y, -forward.z),
+                    new Vector3(-normal.x, -normal.y, -normal.z));
             }
 
             float t = 1f - Mathf.Clamp01(PoseSmoothing);

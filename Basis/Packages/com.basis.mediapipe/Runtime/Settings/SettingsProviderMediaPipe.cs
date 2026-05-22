@@ -83,6 +83,7 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Hands & Fingers", "Track finger curl and splay.", BasisMediaPipeSettings.EnableHands);
             AddFeatureToggle("Head Tracking", "Your avatar's head follows your real head. The camera stays on the mouse.", BasisMediaPipeSettings.EnableHead);
             AddFeatureToggle("Hand Position (experimental)", "Move your avatar's hands to match your real hands (in addition to finger curl).", BasisMediaPipeSettings.EnableHandTracking);
+            AddTuningToggle("Hand Rotation", "Off keeps a neutral wrist (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);
 
             AddFeatureToggle("Swap Hands", "Fix left/right hands if they are reversed.", BasisMediaPipeSettings.SwapHands);
@@ -108,6 +109,17 @@ namespace Basis.MediaPipe
             AddSmoothingSlider("Face Smoothing", BasisMediaPipeSettings.FaceSmoothing);
             AddSmoothingSlider("Hand Smoothing", BasisMediaPipeSettings.HandSmoothing);
             AddSmoothingSlider("Finger Smoothing", BasisMediaPipeSettings.FingerSmoothing);
+
+            PanelSlider headPosition = PanelSlider.CreateNew(content);
+            headPosition.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 3f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
+            headPosition.Descriptor.SetTitle("Head Position Strength");
+            headPosition.Descriptor.SetDescription("How much your head movement shifts the avatar's head position.");
+            headPosition.SetValueWithoutNotify(BasisMediaPipeSettings.HeadPositionStrength.RawValue);
+            headPosition.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.HeadPositionStrength.SetValue(value);
+                BasisMediaPipeManagement.GetOrCreate()?.ApplyTuning();
+            };
 
             PanelButton calibrate = PanelButton.CreateNew(content);
             calibrate.Descriptor.SetTitle("Calibrate Head (look forward)");

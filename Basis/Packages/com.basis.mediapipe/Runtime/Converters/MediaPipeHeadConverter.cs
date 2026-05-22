@@ -13,9 +13,12 @@ namespace Basis.MediaPipe
         public float PitchGain = 1f;
         public bool InvertYaw = false;
         public bool InvertPitch = true;
+        public float PositionGain = 1f;
         public float Smoothing = 0.5f;
 
         private Quaternion _neutralInverse = Quaternion.identity;
+        private Vector3 _neutralPosition;
+        private Vector3 _smoothedPosition;
         private bool _calibrated;
         private float _yaw;
         private float _pitch;
@@ -24,12 +27,14 @@ namespace Basis.MediaPipe
         {
             if (!result.HasFace) return;
             _neutralInverse = Quaternion.Inverse(result.FaceTransform.rotation);
+            _neutralPosition = result.FaceTransform.GetColumn(3);
             _calibrated = true;
         }
 
-        public bool TryGetHeadLocalRotation(in BasisMediaPipeResult result, out Quaternion rotation)
+        public bool TryGetHeadOffset(in BasisMediaPipeResult result, out Quaternion rotation, out Vector3 positionOffset)
         {
             rotation = Quaternion.identity;
+            positionOffset = Vector3.zero;
             if (!result.HasFace) return false;
 
             Quaternion headRot = result.FaceTransform.rotation;
@@ -42,8 +47,15 @@ namespace Basis.MediaPipe
             float t = 1f - Mathf.Clamp01(Smoothing);
             _pitch = Mathf.Lerp(_pitch, pitch, t);
             _yaw = Mathf.Lerp(_yaw, yaw, t);
-
             rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+
+            Vector3 translation = result.FaceTransform.GetColumn(3);
+            Vector3 delta = _calibrated ? translation - _neutralPosition : Vector3.zero;
+            // MediaPipe head transform translation is camera-space (cm); map to player-local
+            // (mirror x, y up, z forward) and scale cm->m.
+            Vector3 targetPos = new Vector3(-delta.x, delta.y, -delta.z) * (PositionGain * 0.01f);
+            _smoothedPosition = Vector3.Lerp(_smoothedPosition, targetPos, t);
+            positionOffset = _smoothedPosition;
             return true;
         }
 
