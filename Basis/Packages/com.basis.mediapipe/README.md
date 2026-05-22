@@ -57,7 +57,8 @@ These steps are **done** in this repo — listed so it's reproducible:
    organized into the dedicated **Basis MediaPipe Models** group (PackSeparately) by
    *Basis ▸ Addressables ▸ Organize Model Groups* and an importer on that folder. The loader reads
    them via `Addressables.LoadAssetAsync<TextAsset>(...).WaitForCompletion()` and hands the raw bytes
-   to MediaPipe's `modelAssetBuffer`.
+   to MediaPipe's `modelAssetBuffer`. See
+   `com.basis.framework.editor/Editor/ADDRESSABLES.md` for the full group layout and tooling.
 3. **Manager**: `BasisMediaPipeManagement` lives on the `BasisDeviceManagement` object and is in
    its `BaseTypes` list. The Settings tab also self-wires it if missing.
 4. **For face/eyes to drive your avatar** the avatar needs HVR Basis Comms `AutomaticFaceTracking`
