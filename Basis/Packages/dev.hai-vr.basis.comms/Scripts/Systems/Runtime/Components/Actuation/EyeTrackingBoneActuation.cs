@@ -313,6 +313,7 @@ namespace HVR.Basis.Comms
                 {
                     our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideEye = shouldOverride;
                     our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideBlinking = shouldOverride;
+                    our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideViseme = shouldOverride;
                 }
             }
 

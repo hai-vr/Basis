@@ -74,6 +74,9 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<int> CameraFps =
             new BasisSettingsBinding<int>("mediapipe_camerafps", new BasisPlatformDefault<int>(30));
 
+        public static readonly BasisSettingsBinding<bool> UseGpu =
+            new BasisSettingsBinding<bool>("mediapipe_usegpu", new BasisPlatformDefault<bool>(false));
+
         public static readonly BasisSettingsBinding<bool> EnableTongue =
             new BasisSettingsBinding<bool>("mediapipe_tongue", new BasisPlatformDefault<bool>(true));
 
@@ -112,6 +115,7 @@ namespace Basis.MediaPipe
             CameraFps.LoadBindingValue();
             EnableTongue.LoadBindingValue();
             TongueStrength.LoadBindingValue();
+            UseGpu.LoadBindingValue();
         }
     }
 }

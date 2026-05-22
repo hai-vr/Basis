@@ -237,8 +237,23 @@ namespace Basis.Scripts.Drivers
                 openLipSyncContext.Simulate(DeltaTime);
             }
         }
+        private bool _overrideZeroed;
+
         public void Apply()
         {
+            if (Player is BasisRemotePlayer remote && remote.RemoteFaceDriver != null && remote.RemoteFaceDriver.OverrideViseme)
+            {
+                // Face tracking (webcam/VRCFT) is driving the mouth via comms; suppress the
+                // audio-reconstructed visemes so they don't fight the networked mouth.
+                if (!_overrideZeroed)
+                {
+                    openLipSyncContext?.ZeroVisemes();
+                    _overrideZeroed = true;
+                }
+                return;
+            }
+            _overrideZeroed = false;
+
             if (UseOpenLipSync && openLipSyncContext != null)
             {
                 openLipSyncContext.Apply();

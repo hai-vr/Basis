@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
 using HVR.Basis.Comms;
 using UnityEngine;
@@ -20,6 +21,8 @@ namespace Basis.MediaPipe
 
         private float[] _smoothed;
         private float _tongueSmoothed;
+        private readonly Dictionary<int, float> _lastSubmitted = new Dictionary<int, float>();
+        private const float SubmitEpsilon = 1f / 255f;
 
         private static readonly (string addr, MediaPipeArkitBlendshape src)[] Direct =
         {
@@ -109,28 +112,37 @@ namespace Basis.MediaPipe
 
             for (int i = 0; i < Direct.Length; i++)
             {
-                acquisition.Submit(_directIds[i], Mathf.Clamp01(bs[(int)Direct[i].src]));
+                SubmitIfChanged(acquisition,_directIds[i], Mathf.Clamp01(bs[(int)Direct[i].src]));
             }
 
-            acquisition.Submit(_idJawX, Get(bs, MediaPipeArkitBlendshape.JawRight) - Get(bs, MediaPipeArkitBlendshape.JawLeft));
-            acquisition.Submit(_idJawZ, Mathf.Clamp01(Get(bs, MediaPipeArkitBlendshape.JawForward)));
-            acquisition.Submit(_idCheekPuffSuck, Mathf.Clamp01(Get(bs, MediaPipeArkitBlendshape.CheekPuff)));
+            SubmitIfChanged(acquisition,_idJawX, Get(bs, MediaPipeArkitBlendshape.JawRight) - Get(bs, MediaPipeArkitBlendshape.JawLeft));
+            SubmitIfChanged(acquisition,_idJawZ, Mathf.Clamp01(Get(bs, MediaPipeArkitBlendshape.JawForward)));
+            SubmitIfChanged(acquisition,_idCheekPuffSuck, Mathf.Clamp01(Get(bs, MediaPipeArkitBlendshape.CheekPuff)));
 
             float eyeLeftX = Get(bs, MediaPipeArkitBlendshape.EyeLookOutLeft) - Get(bs, MediaPipeArkitBlendshape.EyeLookInLeft);
             float eyeRightX = Get(bs, MediaPipeArkitBlendshape.EyeLookInRight) - Get(bs, MediaPipeArkitBlendshape.EyeLookOutRight);
             float eyeY = 0.5f * (Get(bs, MediaPipeArkitBlendshape.EyeLookUpLeft) + Get(bs, MediaPipeArkitBlendshape.EyeLookUpRight))
                        - 0.5f * (Get(bs, MediaPipeArkitBlendshape.EyeLookDownLeft) + Get(bs, MediaPipeArkitBlendshape.EyeLookDownRight));
 
-            acquisition.Submit(_idEyeLeftX, Mathf.Clamp(eyeLeftX * EyeGainX, -1f, 1f));
-            acquisition.Submit(_idEyeRightX, Mathf.Clamp(eyeRightX * EyeGainX, -1f, 1f));
-            acquisition.Submit(_idEyeY, Mathf.Clamp(eyeY * EyeGainY, -1f, 1f));
+            SubmitIfChanged(acquisition,_idEyeLeftX, Mathf.Clamp(eyeLeftX * EyeGainX, -1f, 1f));
+            SubmitIfChanged(acquisition,_idEyeRightX, Mathf.Clamp(eyeRightX * EyeGainX, -1f, 1f));
+            SubmitIfChanged(acquisition,_idEyeY, Mathf.Clamp(eyeY * EyeGainY, -1f, 1f));
 
-            acquisition.Submit(_idEyeLidLeft, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkLeft)));
-            acquisition.Submit(_idEyeLidRight, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkRight)));
+            SubmitIfChanged(acquisition,_idEyeLidLeft, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkLeft)));
+            SubmitIfChanged(acquisition,_idEyeLidRight, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkRight)));
 
             float tongue = Mathf.Clamp01(result.TongueOut * TongueGain);
             _tongueSmoothed = Mathf.Lerp(_tongueSmoothed, tongue, st);
-            acquisition.Submit(_idTongueOut, _tongueSmoothed);
+            SubmitIfChanged(acquisition,_idTongueOut, _tongueSmoothed);
+        }
+
+        // Skip submitting near-unchanged values: avoids redundant local SetBlendShapeWeight
+        // P/Invokes and network churn for a mostly-neutral face.
+        private void SubmitIfChanged(AcquisitionService acquisition, int id, float value)
+        {
+            if (_lastSubmitted.TryGetValue(id, out float last) && Mathf.Abs(value - last) < SubmitEpsilon) return;
+            _lastSubmitted[id] = value;
+            acquisition.Submit(id, value);
         }
 
         private float EyeLid(float blink) => EyeLidIsOpenness ? Mathf.Clamp01(1f - blink) : Mathf.Clamp01(blink);

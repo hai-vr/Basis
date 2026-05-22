@@ -59,6 +59,7 @@ namespace Basis.MediaPipe
             Config.CameraHeight = BasisMediaPipeSettings.ResolutionHeight.RawValue;
             Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
             Config.EnablePose = BasisMediaPipeSettings.EnableBody.RawValue;
+            Config.UseGpu = BasisMediaPipeSettings.UseGpu.RawValue;
             ApplyTuning();
         }
 
@@ -119,6 +120,17 @@ namespace Basis.MediaPipe
         public override void StartSDK()
         {
             Instance = this;
+
+            BasisDeviceManagement.OnBootModeChanged -= HandleBootModeChanged;
+            BasisDeviceManagement.OnBootModeChanged += HandleBootModeChanged;
+
+            // Webcam tracking is desktop-only; in VR the real HMD/controllers drive the trackers.
+            if (BasisDeviceManagement.StaticCurrentMode != BasisConstants.Desktop)
+            {
+                BasisDebug.Log("BasisMediaPipe: not in Desktop mode; webcam tracking disabled.");
+                return;
+            }
+
             LoadSettingsIntoConfig();
 
             _backend = BasisMediaPipeBackendRegistry.Create();
@@ -141,6 +153,18 @@ namespace Basis.MediaPipe
         }
 
         private void HandleAvatarChanged() => CalibrateHead();
+
+        private void HandleBootModeChanged(string mode)
+        {
+            if (mode != BasisConstants.Desktop)
+            {
+                if (_backend != null) StopSDK();
+            }
+            else if (_backend == null && BasisMediaPipeSettings.Enable.RawValue)
+            {
+                StartSDK();
+            }
+        }
 
         public override void StopSDK()
         {

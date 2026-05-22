@@ -17,7 +17,6 @@ namespace Basis.MediaPipe
         public Vector2 LeftEyeGaze;
         public Vector2 RightEyeGaze;
 
-        public Vector3[] FaceLandmarks;
         public Vector3[] LeftHandLandmarks;
         public Vector3[] RightHandLandmarks;
         public Vector3[] PoseLandmarks;

@@ -27,6 +27,11 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public bool OverrideEye = false;
         /// <summary>
+        /// If set to <c>true</c>, suppresses audio-reconstructed visemes (mouth) so externally
+        /// networked face tracking (e.g. webcam/VRCFT via comms) can drive the mouth instead.
+        /// </summary>
+        public bool OverrideViseme = false;
+        /// <summary>
         /// Renderer containing blink blendshapes referenced by <see cref="blendShapeIndices"/>.
         /// </summary>
         public SkinnedMeshRenderer meshRenderer;

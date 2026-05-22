@@ -10,6 +10,7 @@ using Mediapipe.Tasks.Vision.HandLandmarker;
 using Mediapipe.Tasks.Vision.PoseLandmarker;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Basis.MediaPipe.Homuler
 {
@@ -45,12 +46,18 @@ namespace Basis.MediaPipe.Homuler
         private volatile bool _busy;
 
         private Color32[] _pixels;
+        private byte[] _srcRgba;
         private byte[] _rgba;
         private NativeArray<byte> _native;
         private int _w;
         private int _h;
         private long _ts;
         private bool _mirror;
+        private bool _useAsyncReadback;
+        private volatile bool _readbackPending;
+        private int _pendingW;
+        private int _pendingH;
+        private long _pendingTs;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Register() =>
@@ -60,11 +67,13 @@ namespace Basis.MediaPipe.Homuler
         {
             _mirror = config.MirrorHorizontally;
             _swapHands = config.SwapHands;
+            _useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
+            BaseOptions.Delegate delegateCase = config.UseGpu ? BaseOptions.Delegate.GPU : BaseOptions.Delegate.CPU;
             try
             {
-                if (config.EnableFace) _face = CreateFaceLandmarker(ResolveModelPath(FaceModel));
-                if (config.EnableHands) _hand = CreateHandLandmarker(ResolveModelPath(HandModel));
-                if (config.EnablePose) _pose = CreatePoseLandmarker(ResolveModelPath(PoseModel));
+                if (config.EnableFace) _face = CreateFaceLandmarker(ResolveModelPath(FaceModel), delegateCase);
+                if (config.EnableHands) _hand = CreateHandLandmarker(ResolveModelPath(HandModel), delegateCase);
+                if (config.EnablePose) _pose = CreatePoseLandmarker(ResolveModelPath(PoseModel), delegateCase);
                 IsAvailable = _face != null || _hand != null || _pose != null;
             }
             catch (Exception e)
@@ -82,9 +91,9 @@ namespace Basis.MediaPipe.Homuler
             }
         }
 
-        private static FaceLandmarker CreateFaceLandmarker(string modelPath)
+        private static FaceLandmarker CreateFaceLandmarker(string modelPath, BaseOptions.Delegate delegateCase)
         {
-            BaseOptions baseOptions = new BaseOptions(modelAssetBuffer: File.ReadAllBytes(modelPath));
+            BaseOptions baseOptions = new BaseOptions(delegateCase, modelAssetBuffer: File.ReadAllBytes(modelPath));
             FaceLandmarkerOptions options = new FaceLandmarkerOptions(
                 baseOptions,
                 runningMode: RunningMode.VIDEO,
@@ -97,9 +106,9 @@ namespace Basis.MediaPipe.Homuler
             return FaceLandmarker.CreateFromOptions(options);
         }
 
-        private static HandLandmarker CreateHandLandmarker(string modelPath)
+        private static HandLandmarker CreateHandLandmarker(string modelPath, BaseOptions.Delegate delegateCase)
         {
-            BaseOptions baseOptions = new BaseOptions(modelAssetBuffer: File.ReadAllBytes(modelPath));
+            BaseOptions baseOptions = new BaseOptions(delegateCase, modelAssetBuffer: File.ReadAllBytes(modelPath));
             HandLandmarkerOptions options = new HandLandmarkerOptions(
                 baseOptions,
                 runningMode: RunningMode.VIDEO,
@@ -110,9 +119,9 @@ namespace Basis.MediaPipe.Homuler
             return HandLandmarker.CreateFromOptions(options);
         }
 
-        private static PoseLandmarker CreatePoseLandmarker(string modelPath)
+        private static PoseLandmarker CreatePoseLandmarker(string modelPath, BaseOptions.Delegate delegateCase)
         {
-            BaseOptions baseOptions = new BaseOptions(modelAssetBuffer: File.ReadAllBytes(modelPath));
+            BaseOptions baseOptions = new BaseOptions(delegateCase, modelAssetBuffer: File.ReadAllBytes(modelPath));
             PoseLandmarkerOptions options = new PoseLandmarkerOptions(
                 baseOptions,
                 runningMode: RunningMode.VIDEO,
@@ -127,29 +136,60 @@ namespace Basis.MediaPipe.Homuler
         // Main thread: copy pixels (Unity API) and hand the frame to the worker.
         public void SubmitFrame(WebCamTexture frame, double timestampMs)
         {
-            if (!IsAvailable || _busy || frame == null || frame.width <= 16) return;
+            if (!IsAvailable || _busy || _readbackPending || frame == null || frame.width <= 16) return;
 
             int w = frame.width;
             int h = frame.height;
-            int len = w * h;
-
-            if (_pixels == null || _pixels.Length != len)
-            {
-                _pixels = new Color32[len];
-                _rgba = new byte[len * 4];
-                if (_native.IsCreated) _native.Dispose();
-                _native = new NativeArray<byte>(len * 4, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            }
-
-            frame.GetPixels32(_pixels);
+            EnsureBuffers(w, h);
 
             long ts = (long)timestampMs;
             if (ts <= _lastTimestamp) ts = _lastTimestamp + 1;
             _lastTimestamp = ts;
 
-            _w = w;
-            _h = h;
-            _ts = ts;
+            if (_useAsyncReadback)
+            {
+                // Async GPU readback: no main-thread GPU stall. The callback (main thread) copies
+                // the pixels out and wakes the worker. Costs ~1 extra frame of latency.
+                _pendingW = w;
+                _pendingH = h;
+                _pendingTs = ts;
+                _readbackPending = true;
+                AsyncGPUReadback.Request(frame, 0, TextureFormat.RGBA32, OnReadback);
+            }
+            else
+            {
+                frame.GetPixels32(_pixels);
+                _w = w;
+                _h = h;
+                _ts = ts;
+                _busy = true;
+                _signal.Set();
+            }
+        }
+
+        private void EnsureBuffers(int w, int h)
+        {
+            int len = w * h;
+            if (_rgba != null && _rgba.Length == len * 4) return;
+            _pixels = new Color32[len];
+            _srcRgba = new byte[len * 4];
+            _rgba = new byte[len * 4];
+            if (_native.IsCreated) _native.Dispose();
+            _native = new NativeArray<byte>(len * 4, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        }
+
+        private void OnReadback(AsyncGPUReadbackRequest req)
+        {
+            _readbackPending = false;
+            if (!_running || req.hasError) return;
+
+            NativeArray<byte> data = req.GetData<byte>();
+            if (_srcRgba == null || data.Length != _srcRgba.Length) return;
+            data.CopyTo(_srcRgba);
+
+            _w = _pendingW;
+            _h = _pendingH;
+            _ts = _pendingTs;
             _busy = true;
             _signal.Set();
         }
@@ -183,19 +223,39 @@ namespace Basis.MediaPipe.Homuler
 
             // WebCamTexture origin is bottom-left; MediaPipe expects top-left. Flip rows,
             // and mirror columns for a selfie-style camera.
-            for (int y = 0; y < h; y++)
+            if (_useAsyncReadback)
             {
-                int srcRow = (h - 1 - y) * w;
-                int dstRow = y * w;
-                for (int x = 0; x < w; x++)
+                for (int y = 0; y < h; y++)
                 {
-                    int src = srcRow + (_mirror ? (w - 1 - x) : x);
-                    int dst = (dstRow + x) * 4;
-                    Color32 c = _pixels[src];
-                    _rgba[dst + 0] = c.r;
-                    _rgba[dst + 1] = c.g;
-                    _rgba[dst + 2] = c.b;
-                    _rgba[dst + 3] = c.a;
+                    int srcRow = (h - 1 - y) * w;
+                    int dstRow = y * w;
+                    for (int x = 0; x < w; x++)
+                    {
+                        int src = (srcRow + (_mirror ? (w - 1 - x) : x)) * 4;
+                        int dst = (dstRow + x) * 4;
+                        _rgba[dst + 0] = _srcRgba[src + 0];
+                        _rgba[dst + 1] = _srcRgba[src + 1];
+                        _rgba[dst + 2] = _srcRgba[src + 2];
+                        _rgba[dst + 3] = _srcRgba[src + 3];
+                    }
+                }
+            }
+            else
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    int srcRow = (h - 1 - y) * w;
+                    int dstRow = y * w;
+                    for (int x = 0; x < w; x++)
+                    {
+                        int src = srcRow + (_mirror ? (w - 1 - x) : x);
+                        int dst = (dstRow + x) * 4;
+                        Color32 c = _pixels[src];
+                        _rgba[dst + 0] = c.r;
+                        _rgba[dst + 1] = c.g;
+                        _rgba[dst + 2] = c.b;
+                        _rgba[dst + 3] = c.a;
+                    }
                 }
             }
 
@@ -203,10 +263,14 @@ namespace Basis.MediaPipe.Homuler
 
             BasisMediaPipeResult result = new BasisMediaPipeResult { TimestampMs = _ts };
             // DetectForVideo consumes (disposes) the Image it is given, so build a fresh one per call.
-            if (_face != null) ParseFace(_face.DetectForVideo(NewImage(w, h), _ts), ref result);
+            if (_face != null)
+            {
+                FaceLandmarkerResult faceResult = _face.DetectForVideo(NewImage(w, h), _ts);
+                ParseFace(faceResult, ref result);
+                if (result.HasFace) result.TongueOut = ComputeTongueOut(faceResult, w, h);
+            }
             if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
             if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), _ts), ref result);
-            if (result.HasFace) result.TongueOut = ComputeTongueOut(result.FaceLandmarks, w, h);
 
             lock (_resultLock)
             {
@@ -220,15 +284,6 @@ namespace Basis.MediaPipe.Homuler
             if (result.faceLandmarks != null && result.faceLandmarks.Count > 0)
             {
                 output.HasFace = true;
-                var landmarks = result.faceLandmarks[0].landmarks;
-                if (landmarks != null)
-                {
-                    output.FaceLandmarks = new Vector3[landmarks.Count];
-                    for (int i = 0; i < landmarks.Count; i++)
-                    {
-                        output.FaceLandmarks[i] = new Vector3(landmarks[i].x, landmarks[i].y, landmarks[i].z);
-                    }
-                }
             }
 
             if (result.faceBlendshapes != null && result.faceBlendshapes.Count > 0)
@@ -306,9 +361,11 @@ namespace Basis.MediaPipe.Homuler
 
         // Tongue isn't a landmark; estimate it from pink/red pixels filling the lower mouth
         // interior (a tongue protruding past the lower lip), gated on the mouth being open.
-        private float ComputeTongueOut(Vector3[] lm, int w, int h)
+        private float ComputeTongueOut(FaceLandmarkerResult faceResult, int w, int h)
         {
-            if (lm == null || lm.Length < 468 || _rgba == null) return 0f;
+            if (_rgba == null || faceResult.faceLandmarks == null || faceResult.faceLandmarks.Count == 0) return 0f;
+            var lm = faceResult.faceLandmarks[0].landmarks;
+            if (lm == null || lm.Count < 468) return 0f;
 
             float openAmount = Mathf.Abs(lm[14].y - lm[13].y);
             if (openAmount < 0.02f) return 0f;
