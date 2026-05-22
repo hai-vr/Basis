@@ -15,6 +15,8 @@ namespace Basis.MediaPipe
     {
         public float EyeGainX = 1f;
         public float EyeGainY = 1f;
+        public bool InvertEyeX = false;
+        public bool InvertEyeY = false;
         public bool EyeLidIsOpenness = true;
         public float Smoothing = 0.5f;
         public float TongueGain = 1f;
@@ -124,9 +126,11 @@ namespace Basis.MediaPipe
             float eyeY = 0.5f * (Get(bs, MediaPipeArkitBlendshape.EyeLookUpLeft) + Get(bs, MediaPipeArkitBlendshape.EyeLookUpRight))
                        - 0.5f * (Get(bs, MediaPipeArkitBlendshape.EyeLookDownLeft) + Get(bs, MediaPipeArkitBlendshape.EyeLookDownRight));
 
-            SubmitIfChanged(acquisition,_idEyeLeftX, Mathf.Clamp(eyeLeftX * EyeGainX, -1f, 1f));
-            SubmitIfChanged(acquisition,_idEyeRightX, Mathf.Clamp(eyeRightX * EyeGainX, -1f, 1f));
-            SubmitIfChanged(acquisition,_idEyeY, Mathf.Clamp(eyeY * EyeGainY, -1f, 1f));
+            float eyeGainX = InvertEyeX ? -EyeGainX : EyeGainX;
+            float eyeGainY = InvertEyeY ? -EyeGainY : EyeGainY;
+            SubmitIfChanged(acquisition,_idEyeLeftX, Mathf.Clamp(eyeLeftX * eyeGainX, -1f, 1f));
+            SubmitIfChanged(acquisition,_idEyeRightX, Mathf.Clamp(eyeRightX * eyeGainX, -1f, 1f));
+            SubmitIfChanged(acquisition,_idEyeY, Mathf.Clamp(eyeY * eyeGainY, -1f, 1f));
 
             SubmitIfChanged(acquisition,_idEyeLidLeft, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkLeft)));
             SubmitIfChanged(acquisition,_idEyeLidRight, EyeLid(Get(bs, MediaPipeArkitBlendshape.EyeBlinkRight)));

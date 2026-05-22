@@ -68,6 +68,8 @@ namespace Basis.MediaPipe
             _faceConverter.EyeLidIsOpenness = !BasisMediaPipeSettings.InvertBlink.RawValue;
             _headConverter.InvertYaw = BasisMediaPipeSettings.InvertHeadYaw.RawValue;
             _headConverter.InvertPitch = BasisMediaPipeSettings.InvertHeadPitch.RawValue;
+            _faceConverter.InvertEyeX = BasisMediaPipeSettings.InvertHeadYaw.RawValue;
+            _faceConverter.InvertEyeY = BasisMediaPipeSettings.InvertHeadPitch.RawValue;
             _headConverter.Smoothing = BasisMediaPipeSettings.HeadSmoothing.RawValue;
             _faceConverter.Smoothing = BasisMediaPipeSettings.FaceSmoothing.RawValue;
             _faceConverter.TongueGain = BasisMediaPipeSettings.EnableTongue.RawValue
