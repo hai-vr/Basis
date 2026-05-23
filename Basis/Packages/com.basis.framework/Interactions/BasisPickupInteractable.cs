@@ -377,6 +377,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (colliders != null && colliders.Length > 0 && HighlightClone)
             {
                 HighlightClone.SetActive(highlight);
+                if (highlight && HighlightClone.TryGetComponent(out MeshRenderer meshRenderer))
+                {
+                    BasisPickupHighlightColor.ApplyTo(meshRenderer);
+                }
             }
         }
 

@@ -789,6 +789,10 @@
     { "key": "settings.bodyTracking.vspineHipsRotationSpeed.description", "value": "Slew rate for the synthesized hips yaw. Lower values reduce hips snap on quick head turns. Default: 20" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.title", "value": "Hips Forward Bias (m)" },
     { "key": "settings.bodyTracking.vspineHipsForwardBias.description", "value": "Small forward offset (in meters at default avatar scale) so hips don't sit perfectly under the neck — gives a subtle pelvic tilt. Default: 0.02" },
+    { "key": "settings.bodyTracking.vspineTorsoYawDeadzone.title", "value": "Torso Yaw Play (°)" },
+    { "key": "settings.bodyTracking.vspineTorsoYawDeadzone.description", "value": "Degrees the head can turn before the chest/spine/hips start following. The torso holds inside this cone, then catches up to the head; the cone re-centers when the head stops, so reversing must re-cross it. 0 = follow immediately. Default: 45" },
+    { "key": "settings.bodyTracking.vspineTorsoYawBlend.title", "value": "Torso Yaw Blend Speed" },
+    { "key": "settings.bodyTracking.vspineTorsoYawBlend.description", "value": "How quickly the torso eases into and out of following once the head crosses the play cone. Lower = softer, slower blend (removes the click at the edge); higher = snappier. Default: 8" },
 
     { "key": "settings.bodyTracking.smoothingStrength.title", "value": "Smoothing Strength" },
     { "key": "settings.bodyTracking.smoothingStrength.description", "value": "Global multiplier for all smoothing filters. 1x = default. Higher values greatly increase smoothing but add latency. WARNING: Values above 10x may cause noticeable input delay." },

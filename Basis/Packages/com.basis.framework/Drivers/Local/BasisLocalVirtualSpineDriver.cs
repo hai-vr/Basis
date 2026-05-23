@@ -85,8 +85,20 @@ public class BasisLocalVirtualSpineDriver
     /// even under significant torso lean.</summary>
     private const float FootPendulumLeanFrac = 0.20f;
 
+    /// <summary>Head yaw speed (deg/s) at or below which the torso yaw deadzone re-centers on the
+    /// current heading. Above this the head counts as "still turning" so the cone stays open and the
+    /// torso keeps catching up; at/below it the head is treated as stopped.</summary>
+    private const float TorsoYawRelockSpeedDeg = 6f;
+
     private float3 _headBaselineXZ;
     private bool _headBaselineInitialized;
+
+    // Torso yaw "play" deadzone state — see ComputeTorsoYawTarget.
+    private bool _torsoYawInitialized;
+    private float _torsoYawAnchorDeg;
+    private float _prevHeadYawDeg;
+    private bool _torsoYawBroken;
+    private float _torsoFollow;
 
     /// <summary>
     /// Enables the virtual overrides on all torso controls and hooks simulation callback.
@@ -107,6 +119,7 @@ public class BasisLocalVirtualSpineDriver
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         _lengthsDirty = true;
         _headBaselineInitialized = false;
+        _torsoYawInitialized = false;
         _initialized = true;
     }
 
@@ -174,6 +187,8 @@ public class BasisLocalVirtualSpineDriver
         float spineRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineRotationSpeed.RawValue;
         float hipsRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsRotationSpeed.RawValue;
         float hipsForwardBiasSetting = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsForwardBias.RawValue;
+        float torsoYawDeadzoneDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
+        float torsoYawBlendSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.RawValue;
         float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
         // =========================
@@ -199,6 +214,9 @@ public class BasisLocalVirtualSpineDriver
 
         ExtractYawBurst(in eyeRot, out quaternion headYawFromEye);
 
+        bool isLocomoting = BasisLocalPlayer.Instance.LocalCharacterDriver.MovementVector.sqrMagnitude > 0.001f;
+        quaternion torsoYawTarget = ComputeTorsoYawTarget(in headYawFromEye, torsoYawDeadzoneDeg, torsoYawBlendSpeed, isLocomoting, dt);
+
         float3 tposeHips = hips.TposeLocalScaled.position;
         float biasScale = hipsForwardBiasSetting * scale;
 
@@ -211,14 +229,14 @@ public class BasisLocalVirtualSpineDriver
             in neckPosWorld,
             in worldUp,
             _lenTotal,
-            in headYawFromEye,
+            in torsoYawTarget,
             biasScale,
             in desiredHipsXZ,
             HipsFreezeToTpose,
             in tposeHips,
             out float3 hipsPos);
 
-        quaternion hipsRotTarget = HipsFreezeToTpose ? quaternion.identity : headYawFromEye;
+        quaternion hipsRotTarget = HipsFreezeToTpose ? quaternion.identity : torsoYawTarget;
         quaternion hipsCurrent = hips.OutGoingData.rotation;
         SmoothSlerpBurst(in hipsCurrent, in hipsRotTarget, hipsRotationSpeed, dt, out quaternion hipsSmoothed);
         ExtractYawBurst(in hipsSmoothed, out quaternion hipsYaw);
@@ -244,10 +262,11 @@ public class BasisLocalVirtualSpineDriver
         }
         else
         {
+            quaternion chainTopYaw = HipsFreezeToTpose ? neckYaw : torsoYawTarget;
             ComputeChainPlacement(
                 in neckPos, in hipsPosReadback,
                 _tChest, _tSpine,
-                in neckYaw, in hipsYaw,
+                in chainTopYaw, in hipsYaw,
                 out float3 chestPos, out float3 spinePos,
                 out quaternion chestYawTarget, out quaternion spineYawTarget);
 
@@ -272,6 +291,63 @@ public class BasisLocalVirtualSpineDriver
         // Finalize head/neck
         head.ApplyWorldAndLast(parentMatrix);
         neck.ApplyWorldAndLast(parentMatrix);
+    }
+
+    /// <summary>
+    /// Yaw deadzone for the torso: holds the chest/spine/hips heading at an anchor until the head
+    /// leaves the cone, then eases a 0..1 follow weight in so the chain blends into the catch-up
+    /// (and back out) instead of snapping at the edge. Re-centers the anchor once fully engaged and
+    /// the head stops, so reversing has to re-cross the cone. While locomoting the cone is bypassed
+    /// so the torso re-aligns to the head. Head and neck are unaffected.
+    /// </summary>
+    private quaternion ComputeTorsoYawTarget(in quaternion headYawOnly, float deadzoneDeg, float blendSpeed, bool moving, float dt)
+    {
+        YawDegrees(in headYawOnly, out float headYawDeg);
+
+        if (!_torsoYawInitialized)
+        {
+            _torsoYawAnchorDeg = headYawDeg;
+            _prevHeadYawDeg = headYawDeg;
+            _torsoYawBroken = false;
+            _torsoFollow = 0f;
+            _torsoYawInitialized = true;
+        }
+
+        float headSpeedDeg = math.abs(Mathf.DeltaAngle(_prevHeadYawDeg, headYawDeg)) / math.max(dt, 1e-5f);
+        _prevHeadYawDeg = headYawDeg;
+
+        // Locomotion (keyboard / VR stick) re-aligns the torso to the head: engage follow so the body
+        // eases to the move/look direction, then the normal relock re-centers the cone there on stop.
+        if (moving)
+        {
+            _torsoYawBroken = true;
+        }
+
+        if (!_torsoYawBroken && math.abs(Mathf.DeltaAngle(_torsoYawAnchorDeg, headYawDeg)) > math.max(0f, deadzoneDeg))
+        {
+            _torsoYawBroken = true;
+        }
+
+        float targetFollow = _torsoYawBroken ? 1f : 0f;
+        _torsoFollow = math.lerp(_torsoFollow, targetFollow, math.saturate(dt * math.max(0f, blendSpeed)));
+
+        // Re-center only once the blend has fully engaged, so swapping the anchor can't jump the
+        // blended target and bring back the click this easing removes.
+        if (_torsoYawBroken && _torsoFollow >= 0.999f && headSpeedDeg <= TorsoYawRelockSpeedDeg)
+        {
+            _torsoYawBroken = false;
+            _torsoYawAnchorDeg = headYawDeg;
+        }
+
+        quaternion anchorYaw = quaternion.AxisAngle(new float3(0f, 1f, 0f), math.radians(_torsoYawAnchorDeg));
+        return math.slerp(anchorYaw, headYawOnly, _torsoFollow);
+    }
+
+    [BurstCompile]
+    private static void YawDegrees(in quaternion yawOnly, out float result)
+    {
+        float3 f = math.mul(yawOnly, new float3(0f, 0f, 1f));
+        result = math.degrees(math.atan2(f.x, f.z));
     }
 
     // Adds a configurable fraction of head pitch and roll on top of a yaw-only base rotation.

@@ -31,6 +31,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
             Renderers.Add(renderer);
+            ApplyTo(renderer);
+        }
+
+        public static void ApplyTo(MeshRenderer renderer)
+        {
             Apply(renderer, ParseColor(BasisSettingsDefaults.PickupHighlightColor.RawValue));
         }
 
@@ -82,17 +87,25 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return;
             }
-            if (!color.HasValue)
-            {
-                renderer.SetPropertyBlock(null);
-                return;
-            }
             if (_block == null)
             {
                 _block = new MaterialPropertyBlock();
             }
             renderer.GetPropertyBlock(_block);
-            _block.SetColor(ColorID, color.Value);
+            if (color.HasValue)
+            {
+                _block.SetColor(ColorID, color.Value);
+            }
+            else
+            {
+                Material material = renderer.sharedMaterial;
+                if (material == null || !material.HasProperty(ColorID))
+                {
+                    renderer.SetPropertyBlock(null);
+                    return;
+                }
+                _block.SetColor(ColorID, material.GetColor(ColorID));
+            }
             renderer.SetPropertyBlock(_block);
         }
     }

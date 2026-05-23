@@ -1022,6 +1022,15 @@ namespace Basis.BasisUI
         // BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
         public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias", new BasisPlatformDefault<float>(0.02f));
 
+        // Torso yaw "play": degrees the head can turn before the synthesized chest/spine/hips begin
+        // following. The torso holds inside this cone, catches up once the head leaves it, then the
+        // cone re-centers when the head stops. 0 = follow immediately (legacy behavior).
+        public static BasisSettingsBinding<float> VSpineTorsoYawDeadzoneDeg = new("vspinetorsoyawdeadzonedeg", new BasisPlatformDefault<float>(45f));
+
+        // How quickly the torso eases into/out of following once it leaves the deadzone cone (slerp
+        // dt scaling, like the rotation speeds). Lower = softer blend, higher = snappier.
+        public static BasisSettingsBinding<float> VSpineTorsoYawBlendSpeed = new("vspinetorsoyawblendspeed", new BasisPlatformDefault<float>(8f));
+
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
         // Hides the pairing tuning sliders behind an advanced toggle so the
@@ -1548,6 +1557,8 @@ namespace Basis.BasisUI
             VSpineSpineRotationSpeed.LoadBindingValue();
             VSpineHipsRotationSpeed.LoadBindingValue();
             VSpineHipsForwardBias.LoadBindingValue();
+            VSpineTorsoYawDeadzoneDeg.LoadBindingValue();
+            VSpineTorsoYawBlendSpeed.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();

@@ -1748,6 +1748,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RaycastLineColor.ResetToDefault();
             BasisSettingsDefaults.PickupHighlightColor.ResetToDefault();
             BasisSettingsDefaults.PickupLineColor.ResetToDefault();
+            SettingsProviderUIStyle.ResetUIStyleDefaults();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 

@@ -569,6 +569,20 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.VSpineHipsForwardBias);
             if (vspineHipsFwd != null)
                 vspineHipsFwd.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineHipsForwardBias.description"));
+
+            var vspineTorsoYawDeadzone = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzone.title"), 0f, 90f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg);
+            if (vspineTorsoYawDeadzone != null)
+                vspineTorsoYawDeadzone.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawDeadzone.description"));
+
+            var vspineTorsoYawBlend = PanelSlider.CreateAndBind(
+                vspineParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawBlend.title"), 1f, 60f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineTorsoYawBlendSpeed);
+            if (vspineTorsoYawBlend != null)
+                vspineTorsoYawBlend.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawBlend.description"));
         });
 
         // ============== Smoothing (One Euro) ==============
@@ -817,6 +831,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.VSpineSpineRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsRotationSpeed.ResetToDefault();
         BasisSettingsDefaults.VSpineHipsForwardBias.ResetToDefault();
+        BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.ResetToDefault();
+        BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxForwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxLateralDeg.ResetToDefault();

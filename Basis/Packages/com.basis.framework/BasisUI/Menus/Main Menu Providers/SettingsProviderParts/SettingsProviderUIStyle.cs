@@ -241,7 +241,7 @@ public static class SettingsProviderUIStyle
         }
     }
 
-    private static void ResetUIStyleDefaults()
+    public static void ResetUIStyleDefaults()
     {
         foreach (var kvp in OriginalPaletteColors)
         {
