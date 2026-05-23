@@ -106,6 +106,14 @@ namespace Basis.BasisUI
             crashBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openCrashReport"));
             crashBtn.OnClicked += OpenLatestCrashReportFolder;
 
+            PanelButton logsFolderBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
+            logsFolderBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openLogsFolder"));
+            logsFolderBtn.OnClicked += OpenLogsFolder;
+
+            PanelButton crashFolderBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
+            crashFolderBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openCrashFolder"));
+            crashFolderBtn.OnClicked += OpenCrashReportsFolder;
+
             // -----------------------
             // Output group
             // -----------------------
@@ -222,13 +230,45 @@ namespace Basis.BasisUI
         }
 
         public static float LastSize = 0;
+
+        private static string GetCrashDir()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Temp", Application.companyName, Application.productName, "Crashes");
+        }
+
+        private static void OpenLogsFolder()
+        {
+            try
+            {
+                OpenInFileBrowser(Application.persistentDataPath, false);
+            }
+            catch (Exception ex)
+            {
+                BasisLogManager.HandleLog($"Failed to open logs folder: {ex.Message}", ex.StackTrace, LogType.Error);
+            }
+        }
+
+        private static void OpenCrashReportsFolder()
+        {
+            try
+            {
+                var crashDir = GetCrashDir();
+                Directory.CreateDirectory(crashDir);
+                OpenInFileBrowser(crashDir, false);
+            }
+            catch (Exception ex)
+            {
+                BasisLogManager.HandleLog($"Failed to open crash folder: {ex.Message}", ex.StackTrace, LogType.Error);
+            }
+        }
+
         private static void OpenLatestCrashReportFolder()
         {
             try
             {
-                var crashDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Temp", "Unity", "Crashes");
+                var crashDir = GetCrashDir();
 
                 if (!Directory.Exists(crashDir))
                 {
@@ -247,25 +287,43 @@ namespace Basis.BasisUI
                 }
 
                 var target = Path.Combine(latest.FullName, "error.log");
-                if (!File.Exists(target)) target = latest.FullName;
-
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-                Process.Start(new ProcessStartInfo
+                bool select = true;
+                if (!File.Exists(target))
                 {
-                    FileName = "explorer.exe",
-                    Arguments = $"/select,\"{target}\"",
-                    UseShellExecute = true
-                });
-#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
-                Process.Start("open", $"-R \"{target}\"");
-#else
-                Application.OpenURL(latest.FullName);
-#endif
+                    var dump = latest.GetFiles("*.dmp").FirstOrDefault();
+                    if (dump != null)
+                    {
+                        target = dump.FullName;
+                    }
+                    else
+                    {
+                        target = latest.FullName;
+                        select = false;
+                    }
+                }
+
+                OpenInFileBrowser(target, select);
             }
             catch (Exception ex)
             {
                 BasisLogManager.HandleLog($"Failed to open crash folder: {ex.Message}", ex.StackTrace, LogType.Error);
             }
+        }
+
+        private static void OpenInFileBrowser(string path, bool selectFile)
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = selectFile ? $"/select,\"{path}\"" : $"\"{path}\"",
+                UseShellExecute = true
+            });
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+            Process.Start("open", selectFile ? $"-R \"{path}\"" : $"\"{path}\"");
+#else
+            Application.OpenURL(selectFile ? Path.GetDirectoryName(path) : path);
+#endif
         }
     }
 }

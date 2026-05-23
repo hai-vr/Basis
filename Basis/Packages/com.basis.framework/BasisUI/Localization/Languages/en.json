@@ -1062,6 +1062,8 @@
     { "key": "settings.console.filter", "value": "Filter" },
     { "key": "settings.console.clearLogs", "value": "Clear Logs" },
     { "key": "settings.console.openCrashReport", "value": "Open Latest Crash Report" },
+    { "key": "settings.console.openLogsFolder", "value": "Open Logs Folder" },
+    { "key": "settings.console.openCrashFolder", "value": "Open Crash Reports Folder" },
     { "key": "settings.console.output", "value": "Output" },
 
     { "key": "settings.thirdpartylicenses.openlicenseurl", "value": "Open license URL" },

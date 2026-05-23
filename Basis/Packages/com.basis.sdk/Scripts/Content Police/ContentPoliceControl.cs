@@ -426,33 +426,133 @@ public static class ContentPoliceControl
             {
                 FieldInfo f = fields[i];
                 Type ft = f.FieldType;
-                if (ft.IsPrimitive || ft == typeof(string) || ft.IsEnum) continue;
+
+                if (ft.IsPrimitive || ft.IsPointer || ft.IsEnum) continue;
+                if (ft == typeof(string) || ft == typeof(IntPtr) || ft == typeof(UIntPtr)) continue;
+
+                if (typeof(UnityEventBase).IsAssignableFrom(ft))
+                {
+                    object direct;
+                    try { direct = f.GetValue(obj); }
+                    catch { continue; }
+                    if (direct is UnityEventBase ue) ScrubEvent(ue, approved);
+                    continue;
+                }
+
+                if (typeof(UnityEngine.Object).IsAssignableFrom(ft)) continue;
+
+                if (ft.IsArray)
+                {
+                    if (ft.GetArrayRank() != 1) continue;
+                    Type et = ft.GetElementType();
+                    bool elementsAreEvents = et != null && typeof(UnityEventBase).IsAssignableFrom(et);
+                    if (!elementsAreEvents && !ShouldRecurseInto(et)) continue;
+                    object arrValue;
+                    try { arrValue = f.GetValue(obj); }
+                    catch { continue; }
+                    if (arrValue is IList arr) WalkList(arr, elementsAreEvents, visited, approved, depth);
+                    continue;
+                }
+
+                if (ft.IsGenericType && typeof(IList).IsAssignableFrom(ft))
+                {
+                    Type[] args = ft.GetGenericArguments();
+                    Type et = args.Length == 1 ? args[0] : null;
+                    bool elementsAreEvents = et != null && typeof(UnityEventBase).IsAssignableFrom(et);
+                    if (!elementsAreEvents && !ShouldRecurseInto(et)) continue;
+                    object listValue;
+                    try { listValue = f.GetValue(obj); }
+                    catch { continue; }
+                    if (listValue is IList list) WalkList(list, elementsAreEvents, visited, approved, depth);
+                    continue;
+                }
+
+                if (!ShouldRecurseInto(ft)) continue;
 
                 object value;
                 try { value = f.GetValue(obj); }
                 catch { continue; }
                 if (value == null) continue;
-
-                if (value is UnityEventBase ue)
-                {
-                    ScrubEvent(ue, approved);
-                    continue;
-                }
-
-                if (value is IList list)
-                {
-                    for (int j = 0; j < list.Count; j++)
-                        WalkForUnityEvents(list[j], visited, approved, depth + 1);
-                    continue;
-                }
-
-                if (ft.IsClass || (ft.IsValueType && !ft.IsPrimitive && !ft.IsEnum))
-                {
-                    WalkForUnityEvents(value, visited, approved, depth + 1);
-                }
+                WalkForUnityEvents(value, visited, approved, depth + 1);
             }
             cursor = cursor.BaseType;
         }
+    }
+
+    private static void WalkList(IList list, bool elementsAreEvents, HashSet<object> visited, HashSet<string> approved, int depth)
+    {
+        int count;
+        try { count = list.Count; }
+        catch { return; }
+        for (int j = 0; j < count; j++)
+        {
+            object element;
+            try { element = list[j]; }
+            catch { continue; }
+            if (element == null) continue;
+            if (elementsAreEvents)
+            {
+                if (element is UnityEventBase ue) ScrubEvent(ue, approved);
+            }
+            else
+            {
+                WalkForUnityEvents(element, visited, approved, depth + 1);
+            }
+        }
+    }
+
+    private static bool ShouldRecurseInto(Type t)
+    {
+        if (t == null) return false;
+        if (t.IsPointer || t.IsPrimitive || t.IsEnum) return false;
+        if (t == typeof(string) || t == typeof(IntPtr) || t == typeof(UIntPtr)) return false;
+        if (typeof(UnityEngine.Object).IsAssignableFrom(t)) return false;
+        if (typeof(Delegate).IsAssignableFrom(t)) return false;
+        if (IsBclNamespace(t)) return false;
+        if (!ContainsManagedReferences(t)) return false;
+        return true;
+    }
+
+    private static bool IsBclNamespace(Type t)
+    {
+        string ns = t.Namespace;
+        if (ns == null) return false;
+        return ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal)
+            || ns == "Microsoft" || ns.StartsWith("Microsoft.", StringComparison.Ordinal);
+    }
+
+    private static readonly Dictionary<Type, bool> ManagedReferenceCache = new Dictionary<Type, bool>();
+
+    private static bool ContainsManagedReferences(Type t)
+    {
+        if (t == null) return false;
+        if (!t.IsValueType) return true;
+        if (t.IsPrimitive || t.IsEnum || t.IsPointer) return false;
+        if (t == typeof(IntPtr) || t == typeof(UIntPtr)) return false;
+
+        if (ManagedReferenceCache.TryGetValue(t, out bool cached)) return cached;
+        ManagedReferenceCache[t] = false;
+
+        bool result = false;
+        FieldInfo[] fields = t.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        for (int i = 0; i < fields.Length; i++)
+        {
+            Type ft = fields[i].FieldType;
+            if (ft.IsPointer || ft.IsPrimitive || ft.IsEnum) continue;
+            if (ft == typeof(IntPtr) || ft == typeof(UIntPtr)) continue;
+            if (ft.IsValueType)
+            {
+                if (ContainsManagedReferences(ft)) { result = true; break; }
+            }
+            else
+            {
+                result = true;
+                break;
+            }
+        }
+
+        ManagedReferenceCache[t] = result;
+        return result;
     }
 
     private static void ScrubEvent(UnityEventBase evt, HashSet<string> approved)
