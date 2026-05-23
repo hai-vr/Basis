@@ -42,7 +42,6 @@ namespace BasisNetworkServer
             {
                 NetworkServer.ReturnWriter(writer);
             }
-
         }
     }
 }

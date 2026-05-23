@@ -112,7 +112,7 @@ public class Configuration
             BNL.Log($"{filePath} not found, creating with default values");
             result = new Configuration();
             using var writer = new StreamWriter(filePath);
-            serializer.Serialize(writer, result);
+            BasisConfigXmlDocs.Serialize(serializer, typeof(Configuration), result, writer);
             writer.Close();
         }
 
@@ -136,7 +136,7 @@ public class Configuration
         string tempPath = filePath + ".tmp";
         using (var writer = new StreamWriter(tempPath))
         {
-            serializer.Serialize(writer, this);
+            BasisConfigXmlDocs.Serialize(serializer, typeof(Configuration), this, writer);
         }
         if (File.Exists(filePath)) File.Replace(tempPath, filePath, null);
         else File.Move(tempPath, filePath);

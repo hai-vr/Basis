@@ -52,6 +52,10 @@ public static class BasisRemoteFaceManagement
     public static BasisRemoteFaceDriver[] faceCache = Array.Empty<BasisRemoteFaceDriver>();
     public static float[][] eyesCache = Array.Empty<float[]>();
 
+    // Per-slot last-seen BasisRemoteFaceDriver.FaceGeneration; a mismatch means the slot
+    // was (re)calibrated and its eye bones / calibration must be re-read.
+    public static uint[] lastFaceGen = Array.Empty<uint>();
+
     // ── IJobParallelForTransform state for eye-bone writes ─────────────────
     // The TransformAccessArray contains 2 transforms per included slot
     // (left, right), and the per-pair pairToSlot map points each pair back to
@@ -120,11 +124,6 @@ public static class BasisRemoteFaceManagement
         EnsureArrays(count, t, snapshot);
         EnsureManagedCaches(count);
 
-        // Build per-slot face/eye cache, per-slot calibration / active flag, and
-        // simultaneously detect whether the TransformAccessArray membership needs
-        // a rebuild. Rebuild is required when count changes, when a slot's face
-        // driver reference changes (player swap or avatar reload), or when a
-        // slot's "has valid eye bones" presence flips.
         bool needRebuild = !eyeTransforms.isCreated || lastBuiltCount != count;
         unsafe
         {
@@ -136,55 +135,44 @@ public static class BasisRemoteFaceManagement
             for (int i = 0; i < count; i++)
             {
                 BasisNetworkReceiver receiver = snapshot[i];
-                BasisRemotePlayer remote = receiver.RemotePlayer;
-                BasisRemoteFaceDriver Face = remote.RemoteFaceDriver;
+                BasisRemoteFaceDriver Face = receiver.RemotePlayer.RemoteFaceDriver;
 
-                // "Slot has valid eye bones we can drive from a job":
-                // requires both calibrated bones AND non-null transforms.
-                bool hasValidEyeBones = Face.HasEyeBones
-                    && Face.LeftEyeTransform != null
-                    && Face.RightEyeTransform != null;
-                byte hasValidByte = hasValidEyeBones ? (byte)1 : (byte)0;
+                bool slotChanged = i >= lastBuiltCount
+                    || !ReferenceEquals(faceCache[i], Face)
+                    || lastFaceGen[i] != Face.FaceGeneration;
 
-                // Detect change against last-built snapshot before overwriting caches.
-                if (!needRebuild)
+                if (slotChanged)
                 {
-                    if (i >= lastBuiltCount
-                        || !ReferenceEquals(faceCache[i], Face)
-                        || pLastHas[i] != hasValidByte)
+                    bool hasValidEyeBones = Face.HasEyeBones
+                        && Face.LeftEyeTransform != null
+                        && Face.RightEyeTransform != null;
+
+                    faceCache[i] = Face;
+                    eyesCache[i] = receiver.EyesAndMouth;
+                    lastFaceGen[i] = Face.FaceGeneration;
+                    pLastHas[i] = hasValidEyeBones ? (byte)1 : (byte)0;
+
+                    // Blit on eye-bone presence, not useJob, so calibration is ready when OverrideEye later clears.
+                    if (hasValidEyeBones)
                     {
-                        needRebuild = true;
+                        pCalL[i] = new EyeCalibrationBlit
+                        {
+                            basis = Face.calLeft.basis,
+                            invBasis = Face.calLeft.invBasis,
+                            initialRotation = Face.calLeft.initialRotation,
+                        };
+                        pCalR[i] = new EyeCalibrationBlit
+                        {
+                            basis = Face.calRight.basis,
+                            invBasis = Face.calRight.invBasis,
+                            initialRotation = Face.calRight.initialRotation,
+                        };
                     }
+
+                    needRebuild = true;
                 }
 
-                faceCache[i] = Face;
-                eyesCache[i] = receiver.EyesAndMouth;
-                pLastHas[i] = hasValidByte;
-
-                // The job's pre-computed quaternions are only valid for slots where
-                // eye floats came from our eyeOut state. When OverrideEye is set
-                // (face-tracking is driving EyesAndMouth), Apply takes the legacy
-                // main-thread path so face-tracking values flow through asin/calib.
-                // OverrideEye flipping is checked dynamically by the transform-write
-                // job via useJobEye — it does NOT force a TransformAccessArray rebuild.
-                bool useJob = hasValidEyeBones && !Face.OverrideEye;
-                pUse[i] = useJob ? (byte)1 : (byte)0;
-
-                if (useJob)
-                {
-                    pCalL[i] = new EyeCalibrationBlit
-                    {
-                        basis = Face.calLeft.basis,
-                        invBasis = Face.calLeft.invBasis,
-                        initialRotation = Face.calLeft.initialRotation,
-                    };
-                    pCalR[i] = new EyeCalibrationBlit
-                    {
-                        basis = Face.calRight.basis,
-                        invBasis = Face.calRight.invBasis,
-                        initialRotation = Face.calRight.initialRotation,
-                    };
-                }
+                pUse[i] = (pLastHas[i] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
             }
         }
 
@@ -424,6 +412,7 @@ public static class BasisRemoteFaceManagement
             int newSize = math.max(16, math.ceilpow2(requiredCount));
             Array.Resize(ref faceCache, newSize);
             Array.Resize(ref eyesCache, newSize);
+            Array.Resize(ref lastFaceGen, newSize);
         }
     }
 
@@ -600,6 +589,7 @@ public static class BasisRemoteFaceManagement
 
         faceCache = Array.Empty<BasisRemoteFaceDriver>();
         eyesCache = Array.Empty<float[]>();
+        lastFaceGen = Array.Empty<uint>();
     }
 
     [BurstCompile]

@@ -14,13 +14,16 @@ public class NetworkClient
     /// <param name="IP"></param>
     /// <param name="port"></param>
     /// <param name="ReadyMessage"></param>
-    public NetPeer StartClient(string IP, int port, ReadyMessage ReadyMessage, byte[] AuthenticationMessage, Configuration Configuration)
+    public NetPeer StartClient(string IP, int port, ReadyMessage ReadyMessage, byte[] AuthenticationMessage, Configuration Configuration, bool manualMode = false)
     {
         if (IsInUse == false)
         {
             listener = new EventBasedNetListener();
             client = BasisNetworkStackRegistry.Create(Configuration.NetworkStackId, listener, Configuration);
-            client.Start();
+            if (manualMode)
+                client.StartManual();
+            else
+                client.Start();
             NetDataWriter Writer = new NetDataWriter(true,12);
             //this is the only time we dont put key!
             Writer.Put(BasisNetworkVersion.ServerVersion);
@@ -36,6 +39,14 @@ public class NetworkClient
             BNL.LogError("Call Shutdown First!");
             return null;
         }
+    }
+    public void Poll()
+    {
+        client?.PollEvents();
+    }
+    public void Update(float elapsedMilliseconds)
+    {
+        client?.ManualUpdate(elapsedMilliseconds);
     }
     public void Disconnect()
     {

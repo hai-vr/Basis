@@ -165,15 +165,21 @@ public static class BasisAssetBundlePipeline
         if (prefab.TryGetComponent<BasisAvatar>(out BasisAvatar avatar))
         {
             var processing = avatar.ProcessingAvatarOptions;
-            if (processing == null) return;
-
-            if (!processing.doNotAutoRenameBones)
+            if (processing != null)
             {
-                ProcessAutoRenameBones(prefab);
+                if (!processing.doNotAutoRenameBones)
+                {
+                    ProcessAutoRenameBones(prefab);
+                }
+
+                // We do not want to keep this data at runtime.
+                avatar.ProcessingAvatarOptions = null;
             }
 
-            // We do not want to keep this data at runtime.
-            avatar.ProcessingAvatarOptions = null;
+            if (prefab.TryGetComponent<Animator>(out Animator animator))
+            {
+                avatar.TransformStorage = BasisAvatarTransformStorage.CaptureFrom(animator);
+            }
         }
     }
 

@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Basis.Editor.Localization;
+using Basis.Scripts.BasisSdk;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -17,12 +18,7 @@ public static class BasisBundleBuild
 {
     public static event Func<BasisContentBase, List<BuildTarget>, Task> PreBuildBundleEvents;
 
-    public static async Task<(bool, string)> GameObjectBundleBuild(
-        string Image,
-        BasisContentBase BasisContentBase,
-        List<BuildTarget> Targets,
-        bool useProvidedPassword = false,
-        string OverriddenPassword = "")
+    public static async Task<(bool, string)> GameObjectBundleBuild(string Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets, bool useProvidedPassword = false, string OverriddenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -252,35 +248,21 @@ public static class BasisBundleBuild
     }
     public static BasisBundleConnector.BasisMetaData GenerateMetaData(GameObject root)
     {
-        // Perf-bound counts (triangles, bones, SMR/MF/animator/etc. component counts)
-        // enumerate with includeInactive=false so hidden variant / toggle / backup
-        // GameObjects don't inflate the numbers the performance filter uses to
-        // decide whether an avatar is "too heavy". Memory-bound counts (material,
-        // texture memory) still enumerate with includeInactive=true because
-        // materials and textures stay loaded in memory regardless of whether the
-        // renderer that references them is enabled.
-
         BasisBundleConnector.BasisMetaData meta = new BasisBundleConnector.BasisMetaData();
         long triangleCount = 0;
         long materialCount = 0;
         long bonesCount = 0;
         Dictionary<string, int> componentCounts = new Dictionary<string, int>();
 
-        var meshFilters = root.GetComponentsInChildren<MeshFilter>(false);
-        foreach (var mf in meshFilters)
-        {
-            if (mf.sharedMesh != null)
-            {
-                EnsureReadWriteEnabled(mf.sharedMesh);
-                triangleCount += mf.sharedMesh.triangles.Length / 3;
-            }
-        }
+        BasisContentHarvest harvest = BasisContentHarvest.BuildFrom(root, true);
+        Component[] components = harvest.Components;
+        BasisComponentKind[] kinds = harvest.Kinds;
 
         // Dedupe skinned bones across all SMRs. Every SMR's bones[] array points at
         // the same skeleton Transforms, so summing smr.bones.Length multiplied the
         // real skeleton size by SMR count — an avatar with one 100-bone skeleton
         // and five SMRs used to report 500 bones. HashSet lookup is O(n) total.
-        var skinnedMeshes = root.GetComponentsInChildren<SkinnedMeshRenderer>(false);
+        List<SkinnedMeshRenderer> skinnedMeshes = harvest.SkinnedMeshRenderers;
         HashSet<Transform> uniqueBones = new HashSet<Transform>();
         foreach (var smr in skinnedMeshes)
         {
@@ -306,7 +288,7 @@ public static class BasisBundleBuild
 
         // Materials + textures: memory-bound, so include inactive renderers. A
         // hidden outfit variant's textures still sit in GPU/CPU memory.
-        var allRenderers = root.GetComponentsInChildren<Renderer>(true);
+        List<Renderer> allRenderers = harvest.Renderers;
         HashSet<Material> uniqueMaterials = new HashSet<Material>();
         foreach (var r in allRenderers)
         {
@@ -335,15 +317,22 @@ public static class BasisBundleBuild
             }
         }
 
-        // Component counts: perf-bound. An inactive Animator doesn't tick, an
-        // inactive Light doesn't render, an inactive ParticleSystem doesn't
-        // simulate — none of them should push the avatar past a perf limit.
-        var components = root.GetComponentsInChildren<Component>(false);
-        foreach (var comp in components)
+        for (int i = 0; i < components.Length; i++)
         {
+            Component comp = components[i];
             if (comp == null)
             {
                 continue;
+            }
+
+            if (kinds[i] == BasisComponentKind.MeshFilter)
+            {
+                MeshFilter mf = harvest.UnsafeAs<MeshFilter>(i);
+                if (mf.sharedMesh != null)
+                {
+                    EnsureReadWriteEnabled(mf.sharedMesh);
+                    triangleCount += mf.sharedMesh.triangles.Length / 3;
+                }
             }
 
             string typeName = comp.GetType().Name;

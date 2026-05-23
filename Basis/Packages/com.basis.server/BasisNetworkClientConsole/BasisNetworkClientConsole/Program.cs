@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Basis.Logging;
 using Basis.Network;
 using Basis.Config;
@@ -8,6 +9,10 @@ namespace Basis
 {
     partial class Program
     {
+        private const double DriverTickMs = 15.0;
+        private const double MovementIntervalMs = 90.0;
+        private static volatile bool _running = true;
+
         public static async Task Main(string[] args)
         {
             ErrorHandlers.AttachGlobalHandlers();
@@ -20,13 +25,14 @@ namespace Basis
             AppDomain.CurrentDomain.ProcessExit += (_, __) =>
             {
                 Console.WriteLine("Shutting down...");
+                _running = false;
                 clientManager.StopClientsAsync().GetAwaiter().GetResult();
             };
 
             MovementSender.Initialize(clientManager.ClientCount);
 
-            // Start batched movement loops (one per CPU core instead of one per peer)
-            StartSmoothMovementLoops(clientManager.FinalPeers);
+            // Drive all clients from one worker per CPU core
+            StartClientDriverLoops(clientManager.FinalClients, clientManager.FinalPeers);
 
             // Start random reconnects
             _ = StartRandomReconnectLoop(clientManager);
@@ -43,39 +49,67 @@ namespace Basis
             }
         }
 
-        /// <summary>
-        /// Batched movement loops — one worker per CPU core instead of one per peer.
-        /// Each worker processes a slice of the peer array using PeriodicTimer
-        /// to avoid 250+ concurrent async state machines and timer allocations.
-        /// </summary>
-        private static void StartSmoothMovementLoops(NetPeer[] peers)
+        private static void StartClientDriverLoops(NetworkClient[] clients, NetPeer[] peers)
         {
-            int workerCount = Math.Min(Environment.ProcessorCount, peers.Length);
-            int chunkSize = (peers.Length + workerCount - 1) / workerCount;
+            int count = peers.Length;
+            int workerCount = Math.Min(Environment.ProcessorCount, count);
+            if (workerCount <= 0) return;
+
+            int chunkSize = (count + workerCount - 1) / workerCount;
 
             for (int w = 0; w < workerCount; w++)
             {
                 int start = w * chunkSize;
-                int end = Math.Min(start + chunkSize, peers.Length);
+                int end = Math.Min(start + chunkSize, count);
+                if (start >= end) break;
 
-                _ = Task.Run(async () =>
+                double phaseOffsetMs = MovementIntervalMs * w / workerCount;
+
+                var thread = new Thread(() => DriveSlice(clients, peers, start, end, phaseOffsetMs))
                 {
-                    // Stagger worker startup to spread initial traffic
-                    await Task.Delay(start * 2);
+                    Name = $"ClientDriver({start}-{end})",
+                    IsBackground = true
+                };
+                thread.Start();
+            }
+        }
 
-                    using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(90));
-                    while (await timer.WaitForNextTickAsync())
+        private static void DriveSlice(NetworkClient[] clients, NetPeer[] peers, int start, int end, double phaseOffsetMs)
+        {
+            var sw = Stopwatch.StartNew();
+            double lastTickMs = 0;
+            double lastMovementMs = phaseOffsetMs - MovementIntervalMs;
+
+            while (_running)
+            {
+                double nowMs = sw.Elapsed.TotalMilliseconds;
+                float dt = (float)(nowMs - lastTickMs);
+                lastTickMs = nowMs;
+
+                for (int i = start; i < end; i++)
+                {
+                    var client = Volatile.Read(ref clients[i]);
+                    if (client != null)
                     {
-                        for (int i = start; i < end; i++)
-                        {
-                            var peer = Volatile.Read(ref peers[i]);
-                            if (peer != null)
-                            {
-                                MovementSender.ProcessSingle(peer, i);
-                            }
-                        }
+                        client.Poll();
+                        client.Update(dt);
                     }
-                });
+                }
+
+                if (nowMs - lastMovementMs >= MovementIntervalMs)
+                {
+                    lastMovementMs = nowMs;
+                    for (int i = start; i < end; i++)
+                    {
+                        var peer = Volatile.Read(ref peers[i]);
+                        if (peer != null)
+                            MovementSender.ProcessSingle(peer, i);
+                    }
+                }
+
+                int sleepMs = (int)(DriverTickMs - (sw.Elapsed.TotalMilliseconds - nowMs));
+                if (sleepMs > 0)
+                    Thread.Sleep(sleepMs);
             }
         }
 

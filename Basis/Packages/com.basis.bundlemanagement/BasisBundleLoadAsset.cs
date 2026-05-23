@@ -43,7 +43,12 @@ public static class BasisBundleLoadAsset
                             ChecksRequired.RemoveColliders = DestroyColliders;
                             ChecksRequired.ChangeCollidersToCorrectLayer = ChangeColidersToCorrectLayer;
                             ChecksRequired.ScrubPersistentUnityEvents = true;
-                            GameObject CreatedCopy = ContentPoliceControl.ContentControl(DisabledGameobject,loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop);
+                            BasisContentHarvest harvest = BasisAvatar != null ? new BasisContentHarvest() : null;
+                            GameObject CreatedCopy = ContentPoliceControl.ContentControl(DisabledGameobject,loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop, harvest);
+                            if (harvest != null && CreatedCopy != null && CreatedCopy.TryGetComponent(out Basis.Scripts.BasisSdk.BasisAvatar createdAvatar))
+                            {
+                                createdAvatar.Harvest = harvest;
+                            }
                             Incremented = BasisLoadableBundle.Increment();
                             string InstanceID = BasisGenerateUniqueID.GenerateUniqueID();
                             CreatedCopy.name = InstanceID + Incremented;

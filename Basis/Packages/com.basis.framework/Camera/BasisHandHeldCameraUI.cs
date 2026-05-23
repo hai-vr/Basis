@@ -62,6 +62,8 @@ public partial class BasisHandHeldCameraUI
     public GameObject DoFAutoSprite;
     public GameObject DoFManualSprite;
 
+    public Toggle Capture360Toggle;
+
     [Space(10)]
     public Slider ExposureSlider;
 
@@ -128,6 +130,7 @@ public partial class BasisHandHeldCameraUI
         InitializeFormatUI();
         SeedInitialSliderValues();
         UpdateResolutionSprites();
+        SetCapture360State(HHC != null && HHC.capture360Enabled);
     }
 
     private void CachePostProcessingReferences()
@@ -273,6 +276,12 @@ public partial class BasisHandHeldCameraUI
         {
             Format.onValueChanged.RemoveAllListeners();
             Format.onValueChanged.AddListener(OnFormatToggleChanged);
+        }
+
+        if (Capture360Toggle != null)
+        {
+            Capture360Toggle.onValueChanged.RemoveAllListeners();
+            Capture360Toggle.onValueChanged.AddListener(SetCapture360State);
         }
 
         HookSlider(FOVSlider, ChangeFOV);
@@ -452,6 +461,17 @@ public partial class BasisHandHeldCameraUI
 
         HHC.useVRHandheldSmoothing = !HHC.useVRHandheldSmoothing;
         BasisDebug.Log($"[VRStabilization] VR handheld smoothing is now {(HHC.useVRHandheldSmoothing ? "ON" : "OFF")}");
+    }
+
+    public void SetCapture360State(bool enabled)
+    {
+        if (HHC != null)
+            HHC.capture360Enabled = enabled;
+
+        if (Capture360Toggle != null)
+            Capture360Toggle.SetIsOnWithoutNotify(enabled);
+
+        BasisDebug.Log($"[360] Capture mode is now {(enabled ? "ON" : "OFF")}");
     }
 
     public void SetDepthMode(DepthMode mode)

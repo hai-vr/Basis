@@ -19,7 +19,7 @@ using UnityEngine.Rendering.Universal;
 /// post-processing integration (Tonemapping/DoF/Bloom/Color), and UI plumbing.
 /// Extends <see cref="BasisHandHeldCameraInteractable"/> for pin/fly modes.
 /// </summary>
-public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
+public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 {
     [Header("Camera Components")]
     /// <summary>URP camera data (AA, stack, etc.).</summary>
@@ -482,7 +482,10 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
         }
 
-        StartCoroutine(TakeScreenshot(format, renderFormat));
+        if (capture360Enabled)
+            StartCoroutine(TakeScreenshot360(captureFormat == "EXR"));
+        else
+            StartCoroutine(TakeScreenshot(format, renderFormat));
         countdownText.text = ((int)delaySeconds).ToString();
     }
 
@@ -530,6 +533,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
             BasisNetworkPIPCameraDriver.SendShutterSound();
+        }
+
+        if (capture360Enabled)
+        {
+            StartCoroutine(TakeScreenshot360(captureFormat == "EXR"));
+            return;
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));

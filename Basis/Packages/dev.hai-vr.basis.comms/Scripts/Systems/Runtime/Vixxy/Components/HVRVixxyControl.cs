@@ -157,7 +157,7 @@ namespace HVR.Vixxy
 
             if (Networked)
             {
-                orchestrator.RequireNetworked(AddressId, NetworkingType, defaultValue, Min(), Max());
+                orchestrator.RequireNetworked(AddressId, NetworkingType, defaultValue, MinimumValue, MaximumValue);
             }
 
             _variableStore = _avatarComms != null ? _avatarComms.VariableStore : AcquisitionService.SceneInstance.VariableStore;
@@ -915,32 +915,47 @@ namespace HVR.Vixxy
             }
         }
 
+        private static readonly Dictionary<(Type, string), FieldInfo> FieldInfoCache = new();
+        private static readonly Dictionary<(Type, string), PropertyInfo> PropertyInfoCache = new();
+
         public static FieldInfo GetFieldInfoOrNull(Type foundType, string propertyName)
         {
+            var key = (foundType, propertyName);
+            if (FieldInfoCache.TryGetValue(key, out var cached)) return cached;
+
+            FieldInfo result = null;
             var fields = foundType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             foreach (var fieldInfo in fields)
             {
                 if (fieldInfo.Name == propertyName)
                 {
-                    return fieldInfo;
+                    result = fieldInfo;
+                    break;
                 }
             }
 
-            return null;
+            FieldInfoCache[key] = result;
+            return result;
         }
 
         public static PropertyInfo GetPropertyInfoOrNull(Type foundType, string propertyName)
         {
+            var key = (foundType, propertyName);
+            if (PropertyInfoCache.TryGetValue(key, out var cached)) return cached;
+
+            PropertyInfo result = null;
             var typeProperties = foundType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             foreach (var propertyInfo in typeProperties)
             {
                 if (propertyInfo.Name == propertyName)
                 {
-                    return propertyInfo;
+                    result = propertyInfo;
+                    break;
                 }
             }
 
-            return null;
+            PropertyInfoCache[key] = result;
+            return result;
         }
 
         public float Min() => IsInitialized ? MinimumValue : choices.Select(control => control.value).Min();

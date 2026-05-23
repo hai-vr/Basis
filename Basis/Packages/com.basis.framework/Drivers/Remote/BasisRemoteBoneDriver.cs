@@ -535,6 +535,40 @@ public static class RemoteBoneJobSystem
     static JobHandle sPending;
     /// <summary>Initialization flag.</summary>
     static bool sInitialized;
+
+    /// <summary>
+    /// A registration captured at calibration time (while the avatar is held in TPose),
+    /// committed to the SoA/TAA later at a point where no bone job is reading the containers.
+    /// </summary>
+    struct PendingAdd
+    {
+        public int Key;
+        public TposeAndOffsetDataJob Authoring;
+        public quaternion TposeHeadRot;
+        public quaternion TposeHipsRot;
+        public float3 TposeHipsLocalPos;
+        public quaternion TposeHipsLocalRot;
+        public Transform Root;
+        public Transform Head;
+        public Transform Hips;
+        public Transform NamePlate;
+        public Transform AvatarScale;
+        public Transform Mouth;
+        public quaternion[] BoneTpose;
+        public Transform[] BoneTransforms;
+    }
+
+    /// <summary>
+    /// Registrations deferred out of the avatar-load path and committed at the top of
+    /// <see cref="Schedule"/>. Adding to the SoA/TAA mid-frame forces a job sync; folding the
+    /// commits into the sync the frame already does removes that per-add stall, which is what
+    /// hits when many avatars calibrate in the same window (e.g. a large simultaneous join).
+    /// Removal stays synchronous in <see cref="RemoveRemotePlayer"/>: teardown must drop the TAA
+    /// entry while the transform is still alive (Unity auto-removes destroyed transforms from a
+    /// TransformAccessArray, which would desync the parallel SoA), so it can't be deferred.
+    /// </summary>
+    static readonly List<PendingAdd> sPendingAdds = new List<PendingAdd>();
+
     public static int AuthoringLength;
     /// <summary>
     /// Allocates persistent containers and sets initial capacities for all arrays.
@@ -576,6 +610,7 @@ public static class RemoteBoneJobSystem
         Array.Fill(sKeyToIndex, -1);
         EnsureKeyArrayCapacity(math.max(initialCapacity, 16));
 
+        sPendingAdds.Clear();
         sInitialized = true;
     }
 
@@ -616,6 +651,7 @@ public static class RemoteBoneJobSystem
         if (sKeyArray.IsCreated) sKeyArray.Dispose();
 
         if (sKeyToIndex != null) Array.Fill(sKeyToIndex, -1);
+        sPendingAdds.Clear();
         sInitialized = false;
     }
 
@@ -648,7 +684,6 @@ public static class RemoteBoneJobSystem
         NativeArray<quaternion> boneTPoseLocal = default, Transform[] boneTransforms = null)
     {
         if (!sInitialized) Initialize();
-        CompletePending();
 
         float3 rootWorld = remotePlayerRoot.position;
         float3 ToAvatarLocal(float3 world) => world - rootWorld;
@@ -686,39 +721,85 @@ public static class RemoteBoneJobSystem
              TposeScale = TposedScale
         };
 
+        // Snapshot the bone TPose rotations: the source NativeArray is owned by the
+        // receiver and may be disposed/recreated on a recalibration before this op is
+        // committed, so the reference can't be held across the defer.
+        quaternion[] boneTpose = (boneTransforms != null && boneTPoseLocal.IsCreated)
+            ? boneTPoseLocal.ToArray()
+            : null;
+
+        sPendingAdds.Add(new PendingAdd
+        {
+            Key = key,
+            Authoring = a,
+            TposeHeadRot = (quaternion)tposeHead.rotation,
+            TposeHipsRot = (quaternion)tposeHips.rotation,
+            TposeHipsLocalPos = tposeHipsLocalPos,
+            TposeHipsLocalRot = tposeHipsLocalRot,
+            Root = remotePlayerRoot,
+            Head = head,
+            Hips = hips,
+            NamePlate = NamePlate,
+            AvatarScale = AvatarScale,
+            Mouth = MouthTransform,
+            BoneTpose = boneTpose,
+            BoneTransforms = boneTransforms,
+        });
+        return key;
+    }
+
+    /// <summary>
+    /// Commits a queued <see cref="PendingAdd"/> into the SoA/TAA containers. Must run only at a
+    /// point where no bone job is reading the containers (see <see cref="DrainPendingAdds"/>).
+    /// Skips silently if the avatar's transforms were destroyed before the commit.
+    /// </summary>
+    static void CommitAddInternal(in PendingAdd p)
+    {
+        if (p.Root == null || p.Head == null || p.Hips == null)
+        {
+            return;
+        }
+
+        // Already registered (e.g. a duplicate calibration queued the same frame) — the
+        // synchronous remove path keeps the live entry; don't append a second copy.
+        if ((uint)p.Key < (uint)sKeyToIndex.Length && sKeyToIndex[p.Key] >= 0)
+        {
+            return;
+        }
+
         int idx = sAuthoring.Length;
         EnsureTaaCapacity(idx + 1);
 
-        sAuthoring.Add(a);
+        sAuthoring.Add(p.Authoring);
         sScale.Add(new RemoteScaleCache());
         sOut.Add(default);
         sMouthPositions.Add(default);
 
-        sTPoseHeadRot.Add((quaternion)tposeHead.rotation);
-        sTPoseHipsRot.Add((quaternion)tposeHips.rotation);
-        sTPoseHipsLocalPos.Add(tposeHipsLocalPos);
-        sTPoseHipsLocalRot.Add(tposeHipsLocalRot);
+        sTPoseHeadRot.Add(p.TposeHeadRot);
+        sTPoseHipsRot.Add(p.TposeHipsRot);
+        sTPoseHipsLocalPos.Add(p.TposeHipsLocalPos);
+        sTPoseHipsLocalRot.Add(p.TposeHipsLocalRot);
 
-        sRoots.Add(remotePlayerRoot);
+        sRoots.Add(p.Root);
 
-        sNamePlate.Add(NamePlate);
-        sAvatarScale.Add(AvatarScale);
-        sMouth.Add(MouthTransform);
+        sNamePlate.Add(p.NamePlate);
+        sAvatarScale.Add(p.AvatarScale);
+        sMouth.Add(p.Mouth);
 
-        sHeads.Add(head);
-        sHips.Add(hips);
+        sHeads.Add(p.Head);
+        sHips.Add(p.Hips);
 
         // Register skeleton bones for the parallel apply job
         int boneCount = BasisBoneRotationCompression.SyncBoneCount;
-        if (boneTransforms != null && boneTPoseLocal.IsCreated)
+        if (p.BoneTransforms != null && p.BoneTpose != null)
         {
             for (int b = 0; b < boneCount; b++)
             {
-                Transform bone = boneTransforms[b];
+                Transform bone = p.BoneTransforms[b];
                 if (bone != null)
                 {
                     sSkeletonBones.Add(bone);
-                    sSkeletonTpose.Add(boneTPoseLocal[b]);
+                    sSkeletonTpose.Add(p.BoneTpose[b]);
                     sSkeletonValid.Add(1);
                 }
                 else
@@ -740,16 +821,17 @@ public static class RemoteBoneJobSystem
             }
         }
 
-        sKeyToIndex[key] = idx;
+        sKeyToIndex[p.Key] = idx;
         EnsureKeyArrayCapacity(idx + 1);
-        sKeyArray[idx] = key;
+        sKeyArray[idx] = p.Key;
         AuthoringLength = sAuthoring.Length;
-        return key;
     }
 
     /// <summary>
-    /// Unregisters a remote avatar by key, removing it from all SoA containers and TAA sets.
-    /// Uses swap-back removal to keep arrays dense.
+    /// Unregisters a remote avatar by key. Runs synchronously (completing in-flight bone jobs
+    /// first) because the TAA entry must be dropped while the transform is still alive — Unity
+    /// auto-removes destroyed transforms from a TransformAccessArray, which would otherwise
+    /// desync the parallel SoA lists if removal were deferred past destruction.
     /// </summary>
     /// <param name="key">The external key previously used to add the avatar.</param>
     /// <returns><c>true</c> if found and removed; otherwise <c>false</c>.</returns>
@@ -757,7 +839,17 @@ public static class RemoteBoneJobSystem
     {
         if (!sInitialized) return false;
         CompletePending();
+        return RemoveRemotePlayerInternal(key);
+    }
 
+    /// <summary>
+    /// Unregisters a remote avatar by key, removing it from all SoA containers and TAA sets.
+    /// Uses swap-back removal to keep arrays dense. Caller must have completed in-flight bone jobs.
+    /// </summary>
+    /// <param name="key">The external key previously used to add the avatar.</param>
+    /// <returns><c>true</c> if found and removed; otherwise <c>false</c>.</returns>
+    static bool RemoveRemotePlayerInternal(int key)
+    {
         if ((uint)key >= (uint)sKeyToIndex.Length) return false;
         int idx = sKeyToIndex[key];
         if (idx < 0) return false;
@@ -839,6 +931,21 @@ public static class RemoteBoneJobSystem
         // (count), so the unused tail slot is harmless. No truncation needed.
         AuthoringLength = sAuthoring.Length;
         return true;
+    }
+
+    /// <summary>
+    /// Commits all queued registrations. Caller must have completed any in-flight bone jobs first
+    /// so the SoA/TAA mutations are safe.
+    /// </summary>
+    static void DrainPendingAdds()
+    {
+        int n = sPendingAdds.Count;
+        if (n == 0) return;
+        for (int i = 0; i < n; i++)
+        {
+            CommitAddInternal(sPendingAdds[i]);
+        }
+        sPendingAdds.Clear();
     }
 
     /// <summary>
@@ -954,21 +1061,24 @@ public static class RemoteBoneJobSystem
         {
             return default;
         }
+
+        // Complete the previous frame's jobs before mutating containers or rescheduling: the
+        // safety system would otherwise see the old ApplyMouthJob (reader of sOut) conflict
+        // with the new BasisRemoteBoneJob (writer of sOut).
+        CompletePending();
+
+        // Safe point for queued registrations — the sync above means no job is reading the
+        // containers, so committing avatar-load adds here costs no extra stall.
+        DrainPendingAdds();
+
         if (AuthoringLength == 0)
         {
             return default;
         }
 
-        // Complete any still-pending jobs from the previous frame so the safety
-        // system doesn't complain about the old ApplyMouthJob (reader of sOut)
-        // conflicting with the new BasisRemoteBoneJob (writer of sOut).
-        CompletePending();
-
-        // sKeyArray is maintained directly by AddRemotePlayer / RemoveRemotePlayer,
-        // so no per-frame snapshot is needed. The previous code copied each entry
-        // out of a managed List<int> via List<T>.get_Item, which was the dominant
-        // cost of Schedule() — the indexer's bounds check showed up by name in the
-        // profiler.
+        // sKeyArray is maintained directly by Add/RemoveRemotePlayer, so no per-frame snapshot
+        // is needed. The previous code copied each entry out of a managed List<int> via
+        // List<T>.get_Item, which was the dominant cost of Schedule().
 
         EnsureTempBuffers(AuthoringLength);
 

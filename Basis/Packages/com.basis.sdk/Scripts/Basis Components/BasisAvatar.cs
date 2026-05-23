@@ -118,6 +118,17 @@ namespace Basis.Scripts.BasisSdk
         [SerializeField]
         public Renderer[] Renders;
 
+        [System.NonSerialized]
+        public SkinnedMeshRenderer[] SkinnedMeshRenderers;
+
+        /// <summary>
+        /// Humanoid bone transforms captured at build time, indexed by HumanBodyBones, so
+        /// runtime calibration can skip the per-bone Animator.GetBoneTransform lookups.
+        /// Null/empty on avatars built before this existed — callers fall back to detection.
+        /// </summary>
+        [SerializeField]
+        public BasisAvatarTransformStorage TransformStorage;
+
         /// <summary>
         /// Delegate fired when the owner of this avatar is ready for data requests.
         /// </summary>
@@ -188,5 +199,47 @@ namespace Basis.Scripts.BasisSdk
         /// </summary>
 
         public float HumanScale = 1;
+    }
+
+    /// <summary>
+    /// Build-time snapshot of an avatar's humanoid bone transforms, indexed by HumanBodyBones.
+    /// Lets runtime detection bypass Animator.GetBoneTransform. <see cref="HasData"/> is false
+    /// for avatars built before this was captured, signalling callers to fall back to the Animator.
+    /// </summary>
+    [System.Serializable]
+    public class BasisAvatarTransformStorage
+    {
+        public Transform[] HumanoidBones;
+
+        public bool HasData => HumanoidBones != null && HumanoidBones.Length == (int)HumanBodyBones.LastBone;
+
+        public Transform Get(HumanBodyBones bone)
+        {
+            int index = (int)bone;
+            if (HumanoidBones == null || index < 0 || index >= HumanoidBones.Length)
+            {
+                return null;
+            }
+            return HumanoidBones[index];
+        }
+
+        public static BasisAvatarTransformStorage CaptureFrom(Animator animator)
+        {
+            if (animator == null || !animator.isHuman)
+            {
+                return null;
+            }
+
+            int count = (int)HumanBodyBones.LastBone;
+            BasisAvatarTransformStorage storage = new BasisAvatarTransformStorage
+            {
+                HumanoidBones = new Transform[count]
+            };
+            for (int index = 0; index < count; index++)
+            {
+                storage.HumanoidBones[index] = animator.GetBoneTransform((HumanBodyBones)index);
+            }
+            return storage;
+        }
     }
 }

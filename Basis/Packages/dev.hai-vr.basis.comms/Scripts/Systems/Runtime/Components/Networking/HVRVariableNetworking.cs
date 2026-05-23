@@ -612,8 +612,15 @@ namespace HVR.Basis.Comms
             {
                 if (UseInterpolationTape)
                 {
-                    SubmitToVariableStore(_lowFrequencyInterpolator.Advance(Time.deltaTime, L_result));
-                    SubmitToVariableStore(_highFrequencyInterpolator.Advance(Time.deltaTime, L_result));
+                    var deltaTime = Time.deltaTime;
+                    if (_lowFrequencyInterpolator.HasPendingWork)
+                    {
+                        SubmitToVariableStore(_lowFrequencyInterpolator.Advance(deltaTime, L_result));
+                    }
+                    if (_highFrequencyInterpolator.HasPendingWork)
+                    {
+                        SubmitToVariableStore(_highFrequencyInterpolator.Advance(deltaTime, L_result));
+                    }
                 }
             }
 

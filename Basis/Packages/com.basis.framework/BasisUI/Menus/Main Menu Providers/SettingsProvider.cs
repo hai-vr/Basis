@@ -2023,6 +2023,21 @@ namespace Basis.BasisUI
             });
             dropdownLogLevelFilter.AssignBinding(BasisSettingsDefaults.DebugLogLevelFilter);
 
+            PanelElementDescriptor shaderGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            shaderGroup.SetTitle(BasisLocalization.Get("settings.developer.shaders.title"));
+            shaderGroup.SetDescription(BasisLocalization.Get("settings.developer.shaders.description"));
+
+            PanelToggle togglePrewarm = PanelToggle.CreateNewEntry(shaderGroup.ContentParent);
+            togglePrewarm.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.shaderPrewarm"));
+            togglePrewarm.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.shaderPrewarm.description"));
+            togglePrewarm.AssignBinding(BasisSettingsDefaults.EnableShaderPrewarm);
+
+            PanelToggle toggleMaterialCorrection = PanelToggle.CreateNewEntry(shaderGroup.ContentParent);
+            toggleMaterialCorrection.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.materialCorrection"));
+            toggleMaterialCorrection.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.materialCorrection.description"));
+            toggleMaterialCorrection.AssignBinding(BasisSettingsDefaults.EnableMaterialCorrection);
+
             // ---- Section Visibility Toggles ----
             PanelElementDescriptor sectionTogglesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2321,6 +2336,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DevShowConsole.ResetToDefault();
             BasisSettingsDefaults.DevShowEuroFilter.ResetToDefault();
             BasisSettingsDefaults.DevShowNetStats.ResetToDefault();
+            BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
+            BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
             BasisSettingsDefaults.NetEuroMinCutoff.ResetToDefault();
             BasisSettingsDefaults.NetEuroBeta.ResetToDefault();
             BasisSettingsDefaults.NetEuroDerivativeCutoff.ResetToDefault();

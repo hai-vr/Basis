@@ -24,10 +24,55 @@ namespace BasisNetworkClientConsole
         // These are T-pose-relative delta quaternions — identity means T-pose, non-identity means deviation.
         private static readonly float[] BasePose;
 
+        // Slots GetIdleDelta animates; every other slot encodes to a constant per quality.
+        private static readonly bool[] IsAnimated;
+        private static readonly ulong[][] BasePackedByQuality;
+
         static FakePoseGenerator()
         {
             BasePose = new float[BoneCount * 4];
             BuildNaturalStandingPose();
+
+            IsAnimated = new bool[BoneCount];
+            MarkAnimatedSlots();
+
+            BasePackedByQuality = new ulong[4][];
+            PrecomputeBasePacked();
+        }
+
+        private static void MarkAnimatedSlots()
+        {
+            IsAnimated[0] = true; // Spine
+            IsAnimated[1] = true; // Chest
+            IsAnimated[3] = true; // Neck
+            IsAnimated[4] = true; // Head
+            IsAnimated[5] = true; // Left upper arm
+            IsAnimated[6] = true; // Right upper arm
+            IsAnimated[7] = true; // Left upper leg
+            IsAnimated[8] = true; // Right upper leg
+            for (int slot = 21; slot <= 30; slot++)
+                IsAnimated[slot] = true; // Finger proximal
+        }
+
+        private static void PrecomputeBasePacked()
+        {
+            float[] ranges = BasisBoneRotationCompression.MAX_COMPONENT;
+
+            for (int q = 0; q < BasePackedByQuality.Length; q++)
+            {
+                byte[] bpc = BasisBoneRotationCompression.GetBpcTable((BitQuality)q);
+                ulong[] packed = new ulong[BoneCount];
+
+                for (int slot = 0; slot < BoneCount; slot++)
+                {
+                    int idx = slot * 4;
+                    float bx = BasePose[idx], by = BasePose[idx + 1], bz = BasePose[idx + 2], bw = BasePose[idx + 3];
+                    Normalize(ref bx, ref by, ref bz, ref bw);
+                    packed[slot] = BasisBoneRotationCompression.EncodeSmallestThree(bx, by, bz, bw, bpc[slot], ranges[slot]);
+                }
+
+                BasePackedByQuality[q] = packed;
+            }
         }
 
         // ────────────────────────────────────────────────────────────
@@ -121,6 +166,7 @@ namespace BasisNetworkClientConsole
         {
             byte[] bpc = BasisBoneRotationCompression.GetBpcTable(quality);
             float[] ranges = BasisBoneRotationCompression.MAX_COMPONENT;
+            ulong[] basePacked = BasePackedByQuality[(int)quality];
 
             // Clear the rotation region (WriteBits ORs into bytes, so must start clean)
             int rotBytes = BasisBoneRotationCompression.RotationBytes(quality);
@@ -133,18 +179,27 @@ namespace BasisNetworkClientConsole
                 int bitsPerComp = bpc[slot];
                 int totalBits = 2 + 3 * bitsPerComp;
 
-                // Base pose quaternion
-                int idx = slot * 4;
-                float bx = BasePose[idx], by = BasePose[idx + 1], bz = BasePose[idx + 2], bw = BasePose[idx + 3];
+                ulong packed;
+                if (IsAnimated[slot])
+                {
+                    // Base pose quaternion
+                    int idx = slot * 4;
+                    float bx = BasePose[idx], by = BasePose[idx + 1], bz = BasePose[idx + 2], bw = BasePose[idx + 3];
 
-                // Idle animation delta
-                GetIdleDelta(slot, timeSec, phase, out float dx, out float dy, out float dz, out float dw);
+                    // Idle animation delta
+                    GetIdleDelta(slot, timeSec, phase, out float dx, out float dy, out float dz, out float dw);
 
-                // Combined = base * delta
-                QuatMul(bx, by, bz, bw, dx, dy, dz, dw, out float rx, out float ry, out float rz, out float rw);
-                Normalize(ref rx, ref ry, ref rz, ref rw);
+                    // Combined = base * delta
+                    QuatMul(bx, by, bz, bw, dx, dy, dz, dw, out float rx, out float ry, out float rz, out float rw);
+                    Normalize(ref rx, ref ry, ref rz, ref rw);
 
-                ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(rx, ry, rz, rw, bitsPerComp, ranges[slot]);
+                    packed = BasisBoneRotationCompression.EncodeSmallestThree(rx, ry, rz, rw, bitsPerComp, ranges[slot]);
+                }
+                else
+                {
+                    packed = basePacked[slot];
+                }
+
                 BasisBoneRotationCompression.WriteBits(dst, bitPos, packed, totalBits);
                 bitPos += totalBits;
             }

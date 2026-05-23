@@ -24,11 +24,9 @@ namespace Basis.Utilities
             ("Emerald", "#50C878"),
             ("Amber", "#FFBF00")
         };
-        private static readonly Random rng = new();
-
         public static string GenerateRandomPlayerName()
         {
-            Random random = new Random();
+            Random random = Random.Shared;
 
             // Randomly select one element from each array
             string adjective = adjectives[random.Next(adjectives.Length)];

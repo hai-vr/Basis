@@ -394,7 +394,7 @@ namespace Basis.Scripts.Drivers
         {
             var Avatar = LocalPlayer.BasisAvatar;
             FindSkinnedMeshRenders(LocalPlayer);
-            BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref Mapping);
+            BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref Mapping, humanoidBones: Avatar.TransformStorage?.HumanoidBones);
             BasisAvatarModelCache.RecordPosesCached(Mapping, LocalPlayer.BasisAvatar.Animator);
             LocalPlayer.FaceIsVisible = false;
 
@@ -667,7 +667,8 @@ namespace Basis.Scripts.Drivers
         /// <param name="LocalPlayer">The local player whose avatar meshes are scanned.</param>
         public void FindSkinnedMeshRenders(BasisLocalPlayer LocalPlayer)
         {
-            SkinnedMeshRenderer = LocalPlayer.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            SkinnedMeshRenderer = LocalPlayer.BasisAvatar.SkinnedMeshRenderers
+                ?? LocalPlayer.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
         }
     }

@@ -54,13 +54,12 @@ namespace Basis.BasisUI
             private void OnEnable()
             {
                 _timer = 0f;
-                LastSize = -1;
             }
         }
 
         public static void BuildConsoleUI(RectTransform container)
         {
-            BasisLogManager.LoadLogsFromDisk();
+            _outputText = null;
 
             // -----------------------
             // Controls group
@@ -101,6 +100,10 @@ namespace Basis.BasisUI
                 RebuildOutput();
                 RequestUpdate = true;
             };
+
+            PanelButton copyBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
+            copyBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.copyLogs"));
+            copyBtn.OnClicked += () => GUIUtility.systemCopyBuffer = BasisLogManager.GetAllLogsPlainText();
 
             PanelButton crashBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             crashBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openCrashReport"));
@@ -229,8 +232,6 @@ namespace Basis.BasisUI
             }
         }
 
-        public static float LastSize = 0;
-
         private static string GetCrashDir()
         {
             return Path.Combine(
@@ -276,9 +277,12 @@ namespace Basis.BasisUI
                     return;
                 }
 
-                var latest = new DirectoryInfo(crashDir).GetDirectories()
+                var dirs = new DirectoryInfo(crashDir).GetDirectories();
+                var latest = dirs
+                    .Where(d => d.EnumerateFileSystemInfos().Any())
                     .OrderByDescending(d => d.LastWriteTimeUtc)
-                    .FirstOrDefault();
+                    .FirstOrDefault()
+                    ?? dirs.OrderByDescending(d => d.LastWriteTimeUtc).FirstOrDefault();
 
                 if (latest == null)
                 {

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk;
@@ -71,13 +73,14 @@ public static class BasisLoadHandler
     public static async Task RequestDeIncrementOfBundle(BasisLoadableBundle loadableBundle)
     {
         string CombinedURL = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-        if (LoadedBundles.TryGetValue(CombinedURL, out BasisTrackedBundleWrapper Wrapper))
+        string Key = GetBundleKey(loadableBundle);
+        if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper Wrapper))
         {
             Wrapper.DeIncrement();
             bool State = await Wrapper.UnloadIfReady();
             if (State)
             {
-                LoadedBundles.Remove(CombinedURL, out var data);
+                LoadedBundles.Remove(Key, out var data);
                 return;
             }
         }
@@ -93,7 +96,8 @@ public static class BasisLoadHandler
     {
         await EnsureInitializationComplete();
 
-        if (LoadedBundles.TryGetValue(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisTrackedBundleWrapper wrapper))
+        string Key = GetBundleKey(loadableBundle);
+        if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper wrapper))
         {
             try
             {
@@ -107,7 +111,7 @@ public static class BasisLoadHandler
             catch (Exception ex)
             {
                 BasisDebug.LogError($"Failed to load content: {ex}");
-                LoadedBundles.Remove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out var data);
+                LoadedBundles.Remove(Key, out var data);
                 return null;
             }
         }
@@ -118,7 +122,8 @@ public static class BasisLoadHandler
     {
         await EnsureInitializationComplete();
 
-        if (LoadedBundles.TryGetValue(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisTrackedBundleWrapper wrapper))
+        string Key = GetBundleKey(loadableBundle);
+        if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper wrapper))
         {
             BasisDebug.Log($"Bundle On Disc Loading", BasisDebug.LogTag.Networking);
             if (wrapper.AssetBundle == null)
@@ -144,27 +149,38 @@ public static class BasisLoadHandler
 
     private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
+        string Key = GetBundleKey(loadableBundle);
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { AssetBundle = null, LoadableBundle = loadableBundle };
 
-        if (!LoadedBundles.TryAdd(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, wrapper))
+        if (!LoadedBundles.TryAdd(Key, wrapper))
         {
             BasisDebug.LogError("Unable to add bundle wrapper.");
             return new Scene();
         }
 
-        await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
-        return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
+        try
+        {
+            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
+            return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
+        }
+        catch
+        {
+            wrapper.DidErrorOccur = true;
+            LoadedBundles.Remove(Key, out var data);
+            throw;
+        }
     }
 
     private static async Task<GameObject> HandleFirstBundleLoad(GameObject DisabledGameobject,BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale, Selector Selector, Transform Parent = null, bool DestroyColliders = false, bool ChangeColidersToCorrectLayer = false, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024, List<BasisHeadChop.HeadChopTarget> HarvestedHeadChop = null)
     {
+        string Key = GetBundleKey(loadableBundle);
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper
         {
             AssetBundle = null,
             LoadableBundle = loadableBundle
         };
 
-        if (!LoadedBundles.TryAdd(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, wrapper))
+        if (!LoadedBundles.TryAdd(Key, wrapper))
         {
             BasisDebug.LogError("Unable to add bundle wrapper.");
             return null;
@@ -178,9 +194,70 @@ public static class BasisLoadHandler
         catch (Exception ex)
         {
             BasisDebug.LogError($"{ex.Message} {ex.StackTrace}");
-            LoadedBundles.Remove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out var data);
+            wrapper.DidErrorOccur = true;
+            LoadedBundles.Remove(Key, out var data);
             CleanupFiles(loadableBundle.BasisLocalEncryptedBundle);
             return null;
+        }
+    }
+
+    private static string GetBundleKey(BasisLoadableBundle loadableBundle)
+    {
+        string url = loadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
+        return $"{url}|{HashUnlockPassword(loadableBundle?.UnlockPassword)}";
+    }
+
+    private static string HashUnlockPassword(string unlockPassword)
+    {
+        using SHA256 sha = SHA256.Create();
+        byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(unlockPassword ?? string.Empty));
+        return BitConverter.ToString(hash).Replace("-", string.Empty);
+    }
+
+    public static bool IsUrlLoadedInMemory(string remoteUrl)
+    {
+        if (string.IsNullOrEmpty(remoteUrl))
+        {
+            return false;
+        }
+        foreach (BasisTrackedBundleWrapper wrapper in LoadedBundles.Values)
+        {
+            if (wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation == remoteUrl)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static void UnloadAllForUrl(string remoteUrl)
+    {
+        if (string.IsNullOrEmpty(remoteUrl))
+        {
+            return;
+        }
+        List<string> keysToRemove = new List<string>();
+        foreach (KeyValuePair<string, BasisTrackedBundleWrapper> kvp in LoadedBundles)
+        {
+            if (kvp.Value?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation == remoteUrl)
+            {
+                keysToRemove.Add(kvp.Key);
+            }
+        }
+        foreach (string key in keysToRemove)
+        {
+            if (LoadedBundles.TryRemove(key, out BasisTrackedBundleWrapper removed) && removed?.AssetBundle != null)
+            {
+                try
+                {
+                    BasisDebug.Log($"Unloading in-memory AssetBundle for: {remoteUrl}", BasisDebug.LogTag.Event);
+                    removed.AssetBundle.Unload(true);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError($"Error unloading AssetBundle: {ex.Message}");
+                }
+            }
         }
     }
 

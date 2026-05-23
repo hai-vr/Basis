@@ -104,7 +104,7 @@ public static class BasisStorageManagement
                 }
             }
 
-            bool isLoaded = BasisLoadHandler.LoadedBundles.ContainsKey(remoteUrl);
+            bool isLoaded = BasisLoadHandler.IsUrlLoadedInMemory(remoteUrl);
 
             result.Add(new StoredBeeFileInfo
             {
@@ -156,21 +156,7 @@ public static class BasisStorageManagement
         }
 
         // Unload from memory if loaded
-        if (BasisLoadHandler.LoadedBundles.TryRemove(remoteUrl, out BasisTrackedBundleWrapper wrapper))
-        {
-            if (wrapper.AssetBundle != null)
-            {
-                try
-                {
-                    BasisDebug.Log($"Unloading in-memory AssetBundle for: {remoteUrl}", BasisDebug.LogTag.Event);
-                    wrapper.AssetBundle.Unload(true);
-                }
-                catch (Exception ex)
-                {
-                    BasisDebug.LogError($"Error unloading AssetBundle: {ex.Message}");
-                }
-            }
-        }
+        BasisLoadHandler.UnloadAllForUrl(remoteUrl);
 
         return true;
     }

@@ -150,14 +150,12 @@ namespace Basis.Scripts.UI.NamePlate
 
                 Text = bakingGO.AddComponent<TextMeshPro>();
                 Text.font = font;
-                Text.fontSize = 71.4f;
-                Text.enableAutoSizing = true;
-                Text.fontSizeMin = 1;
-                Text.fontSizeMax = 72;
+                Text.fontSize = BakeFontSize;
+                Text.enableAutoSizing = false;
                 Text.alignment = TextAlignmentOptions.Center;
                 Text.color = Color.white;
                 Text.enableVertexGradient = false;
-                Text.textWrappingMode = TextWrappingModes.Normal;
+                Text.textWrappingMode = TextWrappingModes.NoWrap;
                 Text.overflowMode = TextOverflowModes.Overflow;
             }
         }
@@ -454,24 +452,61 @@ namespace Basis.Scripts.UI.NamePlate
         // Text bake path
         // ===========================
 
+        private struct BakeRequest
+        {
+            public BasisRemotePlayer player;
+            public BasisRemoteNamePlate plate;
+        }
+
+        private static readonly Queue<BakeRequest> bakeQueue = new(64);
+        public static int MaxBakesPerFrame = 2;
+        public static float MaxPlateHalfWidth = 40f;
+        private const float BakeFontSize = 72f;
+
+        private static readonly Matrix4x4 FlipX = Matrix4x4.Scale(new Vector3(-1f, 1f, 1f));
+
+        public static void QueueTextBake(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
+        {
+            if (remotePlayer == null || namePlate == null) return;
+            bakeQueue.Enqueue(new BakeRequest { player = remotePlayer, plate = namePlate });
+        }
+
+        private static void ProcessBakeQueue()
+        {
+            if (Text == null) return;
+
+            int budget = MaxBakesPerFrame;
+            while (budget > 0 && bakeQueue.Count > 0)
+            {
+                BakeRequest req = bakeQueue.Dequeue();
+                if (req.plate == null || req.player == null) continue;
+                GenerateTextFactory(req.player, req.plate);
+                budget--;
+            }
+        }
+
         public static void GenerateTextFactory(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
         {
             Text.gameObject.SetActive(true);
+            Text.fontSize = BakeFontSize;
             Text.text = remotePlayer.DisplayName;
             Text.ForceMeshUpdate();
 
-            // Measure the baked text so the background fits its actual content.
-            Vector2 textSize = Text.GetRenderedValues(true);
             const float horizontalPadding = 2f;
+            Vector2 textSize = Text.GetRenderedValues(true);
             float halfWidth = (textSize.x * 0.5f) + horizontalPadding;
+
+            if (halfWidth > MaxPlateHalfWidth && textSize.x > 0.001f)
+            {
+                float maxTextWidth = (MaxPlateHalfWidth - horizontalPadding) * 2f;
+                Text.fontSize = BakeFontSize * (maxTextWidth / textSize.x);
+                Text.ForceMeshUpdate();
+                textSize = Text.GetRenderedValues(true);
+                halfWidth = (textSize.x * 0.5f) + horizontalPadding;
+            }
 
             Mesh plateMesh = GenerateRoundedQuad(halfWidth, 4.5f, "Rounded NamePlate Quad");
 
-            // Walk textInfo.meshInfo for every populated sub-mesh — index 0 is the
-            // primary font, indices 1+ are fallback font atlases used when characters
-            // (e.g., kanji) aren't present in the primary font. Cloning only Text.mesh
-            // would silently drop those fallback glyphs because TMP places them on
-            // auto-generated TMP_SubMesh children, not on the main Text mesh.
             var textInfo = Text.textInfo;
             int subMeshLimit = 0;
             int textPartCount = 0;
@@ -492,51 +527,25 @@ namespace Basis.Scripts.UI.NamePlate
             combine[0] = new CombineInstance { mesh = plateMesh, transform = Matrix4x4.identity };
             materials[0] = SelectedNamePlateMaterial;
 
-            Mesh primaryFlipped = null;
             int writeIdx = 1;
             for (int i = 0; i < subMeshLimit; i++)
             {
                 var info = textInfo.meshInfo[i];
                 if (info.vertexCount == 0 || info.mesh == null) continue;
 
-                Mesh subClone = Object.Instantiate(info.mesh);
-                FlipMesh(subClone);
-
-                combine[writeIdx] = new CombineInstance { mesh = subClone, transform = Matrix4x4.identity };
+                combine[writeIdx] = new CombineInstance { mesh = info.mesh, transform = FlipX };
                 materials[writeIdx] = info.material;
-                if (primaryFlipped == null) primaryFlipped = subClone;
                 writeIdx++;
             }
 
             Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
             combinedMesh.CombineMeshes(combine, false);
 
-            namePlate.bakedMesh = primaryFlipped;
             namePlate.Filter.sharedMesh = combinedMesh;
             namePlate.Renderer.materials = materials;
 
+            Object.Destroy(plateMesh);
             Text.gameObject.SetActive(false);
-        }
-
-        private static void FlipMesh(Mesh mesh)
-        {
-            // Mirror vertices along X axis so text reads correctly from the opposite side.
-            // Negating X implicitly reverses triangle winding, which makes the mesh
-            // face the opposite direction - no explicit winding reversal needed.
-            Vector3[] vertices = mesh.vertices;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                vertices[i].x = -vertices[i].x;
-            }
-            mesh.vertices = vertices;
-
-            // Flip normals to match the new facing direction
-            Vector3[] normals = mesh.normals;
-            for (int i = 0; i < normals.Length; i++)
-            {
-                normals[i] = -normals[i];
-            }
-            mesh.normals = normals;
         }
 
         /// <summary>
@@ -697,6 +706,7 @@ namespace Basis.Scripts.UI.NamePlate
             indexOf.Clear();
             pendingAdd.Clear();
             pendingRemove.Clear();
+            bakeQueue.Clear();
 
             allocated = false;
             capacity = 0;
@@ -719,6 +729,8 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void ScheduleSimulate(double now)
         {
+            ProcessBakeQueue();
+
             if (!ShouldRunJobs())
                 return;
 

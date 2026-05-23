@@ -111,11 +111,11 @@ namespace Basis.Scripts.Drivers
 
             // Cache entity ID on the main thread — needed later for lazy slot
             // acquisition which can be triggered from the audio thread.
+            BasisOpenLipSyncDriver.UnregisterSlotRevokedCallback(_cachedEntityId);
             _cachedEntityId = BasisPlayer.GetEntityId();
 
             // Listen for slot evictions (e.g. MaxSlots lowered at runtime)
-            BasisOpenLipSyncDriver.OnSlotRevoked -= OnOpenLipSyncSlotRevoked;
-            BasisOpenLipSyncDriver.OnSlotRevoked += OnOpenLipSyncSlotRevoked;
+            BasisOpenLipSyncDriver.RegisterSlotRevokedCallback(_cachedEntityId, OnOpenLipSyncSlotRevoked);
 
             // Release any previous context.
             ReleaseOpenLipSyncContext();
@@ -189,9 +189,9 @@ namespace Basis.Scripts.Drivers
         /// Called by BasisOpenLipSyncDriver when this player's slot is forcefully revoked.
         /// The backend context is already destroyed — just clean up the local state.
         /// </summary>
-        private void OnOpenLipSyncSlotRevoked(EntityId entityId)
+        private void OnOpenLipSyncSlotRevoked()
         {
-            if (!entityId.Equals(_cachedEntityId) || openLipSyncContext == null) return;
+            if (openLipSyncContext == null) return;
 
             openLipSyncContext.ZeroVisemes();
             openLipSyncContext.Dispose();
@@ -201,7 +201,7 @@ namespace Basis.Scripts.Drivers
 
         public void OnDestroy()
         {
-            BasisOpenLipSyncDriver.OnSlotRevoked -= OnOpenLipSyncSlotRevoked;
+            BasisOpenLipSyncDriver.UnregisterSlotRevokedCallback(_cachedEntityId);
             ReleaseOpenLipSyncContext();
         }
         public void Simulate(float DeltaTime)

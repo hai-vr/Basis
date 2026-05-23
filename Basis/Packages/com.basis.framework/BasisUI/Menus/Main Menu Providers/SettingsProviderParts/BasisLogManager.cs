@@ -1,19 +1,17 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using UnityEngine;
 public static class BasisLogManager
 {
-    private static readonly ConcurrentQueue<(string logString, string stackTrace, LogType type)> logQueue = new ConcurrentQueue<(string, string, LogType)>();
-    private static readonly List<string> logEntries = new List<string>();
-    private static readonly List<string> errorEntries = new List<string>();
-    private static readonly List<string> warningEntries = new List<string>();
-    private static readonly List<string> normalEntries = new List<string>();
+    private static readonly BlockingCollection<(string logString, string stackTrace, LogType type)> logQueue = new BlockingCollection<(string, string, LogType)>();
+    private static readonly Queue<string> logEntries = new Queue<string>();
+    private static readonly Queue<string> errorEntries = new Queue<string>();
+    private static readonly Queue<string> warningEntries = new Queue<string>();
+    private static readonly Queue<string> normalEntries = new Queue<string>();
     private static readonly object logLock = new object();
-    public static int PollingInMs = 40;
     public static bool LogChanged { get; set; }
 
     static BasisLogManager()
@@ -57,38 +55,10 @@ public static class BasisLogManager
     {
         lock (logLock)
         {
-            // Combine all log entries
-            List<string> allLogs = new List<string>(logEntries);
-
-            // Extract and preserve the color codes
-            var colorMap = new Dictionary<string, string>
-        {
-            { "#FF0000", "<color=#FF0000>" },
-            { "#FFA500", "<color=#FFA500>" },
-            { "#FFFFFF", "<color=#FFFFFF>" }
-        };
-
-            // Helper to extract color from a log entry
-            string ExtractColor(string log)
-            {
-                foreach (var entry in colorMap)
-                {
-                    if (log.Contains(entry.Value))
-                        return entry.Key;
-                }
-                return "#FFFFFF"; // Default color
-            }
-
-            var groupedLogs = allLogs
-                .GroupBy(log => log)
-                .Select(group =>
-                {
-                    string color = ExtractColor(group.Key);
-                    return $"{group.Count()}x {colorMap[color]}{group.Key}</color>";
-                })
+            return logEntries
+                .GroupBy(CollapseKey)
+                .Select(g => $"{g.Count()}x {g.First()}")
                 .ToList();
-
-            return groupedLogs;
         }
     }
     private static string StripColorTags(string s)
@@ -118,20 +88,15 @@ public static class BasisLogManager
     }
     public static void HandleLog(string logString, string stackTrace, LogType type)
     {
-        logQueue.Enqueue((logString, stackTrace, type));
+        logQueue.Add((logString, stackTrace, type));
     }
 
     private static void LogProcessingLoop()
     {
-        while (true)
+        foreach (var logEntry in logQueue.GetConsumingEnumerable())
         {
-            if (logQueue.TryDequeue(out var logEntry))
-            {
-               // logEntry.stackTrace
-                AddLog(logEntry.logString,logEntry.stackTrace, logEntry.type);
-                LogChanged = true;
-            }
-            Thread.Sleep(PollingInMs); // Prevents CPU overutilization
+            AddLog(logEntry.logString, logEntry.stackTrace, logEntry.type);
+            LogChanged = true;
         }
     }
 
@@ -174,11 +139,11 @@ public static class BasisLogManager
         return $"<color={color}>[{timestamp}] {log}</color>";
     }
 
-    private static void AddLogEntry(List<string> logList, string log)
+    private static void AddLogEntry(Queue<string> logList, string log)
     {
-        logList.Add(log);
-        if (logList.Count > MaximumLogs) // Hardcoded max log entries
-            logList.RemoveAt(0);
+        logList.Enqueue(log);
+        if (logList.Count > MaximumLogs)
+            logList.Dequeue();
     }
     public const int MaximumLogs = 300;
     public static List<string> GetLogs(LogType type)
@@ -214,17 +179,11 @@ public static class BasisLogManager
         LogChanged = true;
     }
 
-    public static void LoadLogsFromDisk()
+    public static string GetAllLogsPlainText()
     {
-        string logFilePath = Path.Combine(Application.persistentDataPath, "log.txt");
-
-        if (File.Exists(logFilePath))
+        lock (logLock)
         {
-            string[] lines = File.ReadAllLines(logFilePath);
-            foreach (string line in lines)
-            {
-                AddLog(line,string.Empty, LogType.Log);
-            }
+            return string.Join("\n", logEntries.Select(StripColorTags));
         }
     }
 }

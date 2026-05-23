@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using static SerializableBasis;
@@ -173,6 +174,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static readonly ConcurrentQueue<int> playersToRemove = new();
 
+        // Lets the tick loop park (~0% CPU) when the server is empty instead of
+        // polling at 250Hz. Set() the moment the first packet arrives so there is
+        // no join latency. Same approach LiteNetLib's logic thread already uses.
+        private static readonly AutoResetEvent _tickWake = new(false);
+        private static int _activePlayerCount;
+
         // Reusable snapshot list for draining currentMessages each tick  avoids allocation per tick.
         private static readonly List<QueuedMessage> _messagesSnapshot = new(1024);
 
@@ -195,6 +202,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static float LowDistanceSq = 2500f;      // 50m
 
         public static long intervalMs = 4;
+        // Fallback wake while the server is empty; _tickWake.Set() does the real wake.
+        private const int IdleWaitMs = 250;
+        // Load-adaptive inter-tick wait: if the tick left more than this much of its budget
+        // unused (light load), block on WaitOne (~0% CPU); if less (heavy load, near the
+        // budget), busy-spin the small remainder to hit the rate precisely. Doubles as the
+        // spin cap — the loop never spins more than this per tick. Set to 0 for pure WaitOne
+        // (lowest CPU, looser rate under load); raise toward intervalMs to favor a tight
+        // rate at higher load. Saturated ticks (no slack) never wait or spin regardless.
+        public static double MaxSpinMs = 2.5;
         // Tick slicing: only process a subset of receivers each tick to spread the O(NÂ²) work.
         // Adaptive: increases when ticks take too long, decreases when under budget.
         private static int _sliceCount = 1;
@@ -223,8 +239,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
 
 
+        [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+        private static extern uint timeBeginPeriod(uint uMilliseconds);
+
         static BasisServerReductionSystemEvents()
         {
+            // Raise the OS timer to 1ms so WaitOne keeps ~4ms accuracy on Windows (default
+            // ~15ms). Windows-only: the winmm P/Invoke is never resolved on Linux/macOS
+            // because the call is skipped there (those already resolve to ~1ms). try/catch so
+            // a missing winmm (minimal Windows containers) degrades instead of faulting the
+            // static ctor and taking the whole reduction system down with it.
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                try { timeBeginPeriod(1); }
+                catch (Exception ex) { BNL.LogError($"[BSR] timeBeginPeriod unavailable, tick timing falls back to OS default: {ex.Message}"); }
+            }
+
             var thread = new Thread(BackgroundTickLoop)
             {
                 IsBackground = true,
@@ -267,6 +297,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // The orphaned prev (if any) is collected by the GC; this only occurs when two
             // messages for the same peer arrive within the same tick — negligible cost.
             currentMessages[fromPeer.Id] = message;
+
+            // Wake the loop only while it is parked (empty server). Once a player is
+            // registered the loop is running, so this read short-circuits with no syscall.
+            if (Volatile.Read(ref _activePlayerCount) == 0) _tickWake.Set();
         }
 
         public static void AddMessage(NetPeer fromPeer, LocalAvatarSyncMessage localMessage, byte sequence)
@@ -278,13 +312,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             // Same as HandleAvatarMovement — indexer avoids closure allocation.
             currentMessages[fromPeer.Id] = message;
+
+            if (Volatile.Read(ref _activePlayerCount) == 0) _tickWake.Set();
         }
 
         /// <summary>
-        /// Dedicated tick loop running on its own thread with sub-millisecond precision.
-        /// Replaces the async Task.Delay approach which had ~15ms resolution on Windows,
-        /// limiting tick rate to ~70Hz. This achieves the target tick rate of ~250Hz (4ms).
-        /// Uses coarse Thread.Sleep for long waits + SpinWait for precise final timing.
+        /// Dedicated tick loop on its own thread. Targets ~250Hz (4ms) while players are
+        /// connected and parks (~0% CPU) when the server is empty. The inter-tick wait uses
+        /// AutoResetEvent.WaitOne so an idle or under-budget loop never burns a core; the OS
+        /// timer is raised to 1ms (Windows) so the wait keeps ~4ms accuracy.
         /// </summary>
         private static void BackgroundTickLoop()
         {
@@ -304,21 +340,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     BNL.LogError($"[BSR Tick] Unhandled exception: {ex}");
                 }
 
-                // Precise timing: coarse sleep for bulk wait, then spin to exact target.
-                // Thread.Sleep(1) has ~1-2ms resolution vs Task.Delay's ~15ms on Windows.
-                long targetTick = startTick + (long)(intervalMs * MsToTick);
-                long nowTick = Stopwatch.GetTimestamp();
-                double remainMs = (targetTick - nowTick) / MsToTick;
-
-                if (remainMs > 2.0)
+                // Empty server: park until work arrives instead of spinning at 250Hz.
+                // _tickWake is signaled by the first inbound packet (and by Shutdown),
+                // so this costs ~0% CPU when idle with no added connect latency.
+                if (Volatile.Read(ref _activePlayerCount) == 0)
                 {
-                    Thread.Sleep(Math.Max(1, (int)(remainMs - 1)));
+                    _tickWake.WaitOne(IdleWaitMs);
+                    continue;
                 }
 
-                // Spin-wait for sub-millisecond precision to hit the exact target
-                while (Stopwatch.GetTimestamp() < targetTick)
+                // Load-adaptive wait. remainMs is the unused budget = a direct load signal:
+                // large (light load) -> block on WaitOne (~0% CPU); small (heavy load, near
+                // budget) -> spin the remainder to hit the rate precisely, since the scheduler
+                // wakes a yielded thread late under load and the core is busy anyway. remainMs
+                // <= 0 (saturated) falls through both branches: no wait, no spin.
+                long targetTick = startTick + (long)(intervalMs * MsToTick);
+                double remainMs = (targetTick - Stopwatch.GetTimestamp()) / MsToTick;
+                if (remainMs > MaxSpinMs)
                 {
-                    Thread.SpinWait(20);
+                    _tickWake.WaitOne((int)Math.Round(remainMs));
+                }
+                else
+                {
+                    while (Stopwatch.GetTimestamp() < targetTick)
+                    {
+                        Thread.SpinWait(20);
+                    }
                 }
             }
         }
@@ -416,6 +463,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                             {
                                 _activePlayers.RemoveAt(i);
                                 _activePlayersDirty = true;
+                                Interlocked.Decrement(ref _activePlayerCount);
                                 break;
                             }
                         }
@@ -991,7 +1039,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             actualInterval = offsetByte + BSRSMillisecondDefaultInterval;
         }
 
-        public static void Shutdown() => cts.Cancel();
+        public static void Shutdown()
+        {
+            cts.Cancel();
+            _tickWake.Set();
+        }
 
         public static void RemovePlayer(int id)
         {
@@ -1165,6 +1217,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     _activePlayers.Add((id, state));
                     _activePlayersDirty = true;
+                    Interlocked.Increment(ref _activePlayerCount);
                 }
             }
             else

@@ -106,6 +106,13 @@ public class JiggleMemoryBus {
 
     private List<JiggleColliderSerializable> pendingSceneColliderAdd;
     private List<JiggleColliderSerializable> pendingSceneColliderRemove;
+    // Membership mirror of pendingSceneColliderAdd's transforms, kept in sync at
+    // every add/remove/clear site so dedup is O(1). Avoids rebuilding a HashSet
+    // from the whole pending list on each ScheduleAdd(Batch) — that was O(n) per
+    // call and O(n^2) across a join storm (many avatars queue colliders before
+    // CommitColliders' multi-frame state machine drains the list), plus a fresh
+    // per-call allocation that churned GC.
+    private HashSet<Transform> pendingSceneColliderAddSet;
 
     private bool hasWrittenData = false;
 
@@ -335,6 +342,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingProcessingAdds = new();
         pendingSceneColliderAdd = new();
         pendingSceneColliderRemove = new();
+        pendingSceneColliderAddSet = new();
         pendingAddTrees = new();
         pendingRemoveTrees = new();
         pendingTeleports = new();
@@ -670,6 +678,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             }
 
             pendingSceneColliderAdd.Clear();
+            pendingSceneColliderAddSet.Clear();
             currentSceneColliderTransformAccessIndex = 0;
             commitSceneColliderState = CommitState.ProcessingTransformAccess;
         } else if (commitSceneColliderState == CommitState.ProcessingTransformAccess) {
@@ -864,33 +873,24 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
     }
 
     public void ScheduleAdd(JiggleColliderSerializable jiggleCollider) {
-        var count = pendingSceneColliderAdd.Count;
-        for (int i = 0; i < count; i++) {
-            if (pendingSceneColliderAdd[i].transform == jiggleCollider.transform) {
-                return;
-            }
+        // O(1) dedup via the membership set instead of a linear scan of the pending list.
+        if (pendingSceneColliderAddSet.Add(jiggleCollider.transform)) {
+            pendingSceneColliderAdd.Add(jiggleCollider);
         }
-        pendingSceneColliderAdd.Add(jiggleCollider);
     }
 
     /// <summary>
-    /// Batch-add colliders with O(n+m) dedup instead of O(n*m).
-    /// Builds a HashSet of existing pending transforms once, then checks each
-    /// new collider against the set instead of scanning the list per collider.
+    /// Batch-add colliders with O(m) dedup and zero per-call allocation.
+    /// Dedup (against both the existing pending list and within the batch) rides on
+    /// the persistent <see cref="pendingSceneColliderAddSet"/>, so this no longer
+    /// rebuilds a HashSet over the whole pending list each call — that rebuild was
+    /// O(n) per call and O(n^2) across a join storm, and churned GC with a fresh set.
     /// </summary>
     public void ScheduleAddBatch(List<JiggleColliderSerializable> colliders) {
-        int pendingCount = pendingSceneColliderAdd.Count;
         int addCount = colliders.Count;
-
-        // Always create the set — covers dedup against existing AND within the batch itself
-        var existing = new HashSet<Transform>(pendingCount + addCount);
-        for (int i = 0; i < pendingCount; i++) {
-            existing.Add(pendingSceneColliderAdd[i].transform);
-        }
-
         for (int i = 0; i < addCount; i++) {
             var c = colliders[i];
-            if (existing.Add(c.transform)) {
+            if (pendingSceneColliderAddSet.Add(c.transform)) {
                 pendingSceneColliderAdd.Add(c);
             }
         }
@@ -901,6 +901,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         for (int i = 0; i < count; i++) {
             if (pendingSceneColliderAdd[i].transform == jiggleCollider.transform) {
                 pendingSceneColliderAdd.RemoveAt(i);
+                pendingSceneColliderAddSet.Remove(jiggleCollider.transform);
                 return;
             }
         }
@@ -925,8 +926,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
         // Single pass over pendingSceneColliderAdd: cancel any pending adds that match
         for (int i = pendingSceneColliderAdd.Count - 1; i >= 0; i--) {
-            if (toRemove.Remove(pendingSceneColliderAdd[i].transform)) {
+            var t = pendingSceneColliderAdd[i].transform;
+            if (toRemove.Remove(t)) {
                 pendingSceneColliderAdd.RemoveAt(i);
+                pendingSceneColliderAddSet.Remove(t);
             }
         }
 

@@ -178,6 +178,10 @@ public partial class BasisEventDriver : MonoBehaviour
         public void Update()
         {
 
+            // Join the network compute kicked off at the tail of the previous LateUpdate, before
+            // the main-thread action drain and join/leave lifecycle below mutate any receiver.
+            BasisNetworkManagement.CompleteNetworkCompute();
+
             DeltaTime = Time.deltaTime;
             unscaledDeltaTime = Time.unscaledDeltaTime;
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
@@ -205,7 +209,6 @@ public partial class BasisEventDriver : MonoBehaviour
             // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
             // calls in a single frame and stall the renderer.
             BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
-            BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
             BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
             if (!IsHeadlessClient)
             {
@@ -373,6 +376,10 @@ public partial class BasisEventDriver : MonoBehaviour
         {
             JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh, capsuleMesh);
         }
+
+        // ── Kick off pipelined network compute: runs on worker threads through the jiggle pose
+        //    completion and the render gap, joined at the top of the next Update. ──
+        BasisNetworkManagement.BeginNetworkCompute(unscaledDeltaTime);
 
         // ── JigglePhysics complete pose ──
         ProfileBegin(PROF_JIGGLE_COMPLETE_POSE);

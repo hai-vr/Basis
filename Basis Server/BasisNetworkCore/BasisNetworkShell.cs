@@ -113,6 +113,20 @@ namespace Basis.Network.Core
             Start(IPAddress.Any, IPAddress.IPv6Any, SetPort);
         }
         public void Start(IPAddress IPv4Address, IPAddress IPv6Address, int SetPort);
+        public void StartManual()
+        {
+            StartManual(0);
+        }
+        public void StartManual(int SetPort)
+        {
+            StartManual(IPAddress.Any, IPAddress.IPv6Any, SetPort);
+        }
+        public void StartManual(IPAddress IPv4Address, IPAddress IPv6Address, int SetPort)
+            => throw new NotSupportedException("This transport does not support manual mode.");
+        public void PollEvents()
+            => throw new NotSupportedException("This transport does not support manual mode.");
+        public void ManualUpdate(float elapsedMilliseconds)
+            => throw new NotSupportedException("This transport does not support manual mode.");
         public void Stop();
         public Basis.Network.Core.NetPeer Connect(string sIP, int port, NetDataWriter Writer);
         public bool SendUnconnectedMessage(NetDataWriter writer, IPEndPoint remoteEndPoint);

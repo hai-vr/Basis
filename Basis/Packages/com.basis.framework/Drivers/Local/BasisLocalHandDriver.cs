@@ -145,7 +145,7 @@ public class BasisLocalHandDriver
             GameObject.Destroy(CopyOfOrigionally);
             return;
         }
-        if (BasisTransformMapping.AutoDetectReferences(Animator, Animator.transform, ref Mapping) == false)
+        if (BasisTransformMapping.AutoDetectReferences(Animator, Animator.transform, ref Mapping, detectArmTwist: false) == false)
         {
             GameObject.Destroy(CopyOfOrigionally);
             return;

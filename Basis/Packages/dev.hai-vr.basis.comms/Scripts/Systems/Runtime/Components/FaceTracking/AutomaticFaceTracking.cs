@@ -27,6 +27,10 @@ namespace HVR.Basis.Comms
         private static BlendshapeActuationDefinitionFile _ueHandle = null;
         private static BlendshapeActuationDefinitionFile _arKitHandle = null;
 
+        private static readonly HashSet<string> UnifiedExpressionsProbe = new HashSet<string> { "MouthRaiserLower", "MouthRaiserLowerLeft" };
+        private static readonly HashSet<string> ArKitProbe = new HashSet<string> { "mouthShrugLower" };
+        private static readonly ConditionalWeakTable<BlendshapeActuationDefinitionFile, HashSet<string>> PossibleBlendshapesCache = new ConditionalWeakTable<BlendshapeActuationDefinitionFile, HashSet<string>>();
+
         private BasisAvatar _avatar;
 
         // Exposed to the Unity editor for this component
@@ -227,15 +231,18 @@ namespace HVR.Basis.Comms
 
         private NamingConvention GuessNamingConvention(SkinnedMeshRenderer[] smrs)
         {
-            var unifiedExpressions = new HashSet<string> { "MouthRaiserLower", "MouthRaiserLowerLeft" };
-            var arKit = new HashSet<string> { "mouthShrugLower" };
             foreach (var smr in smrs)
             {
-                if (HasAnyBlendshape(smr, unifiedExpressions))
+                var sharedMesh = smr.sharedMesh;
+                if (sharedMesh == null)
+                {
+                    continue;
+                }
+                if (ContainsAnyBlendshape(sharedMesh, UnifiedExpressionsProbe))
                 {
                     return NamingConvention.UnifiedExpressions;
                 }
-                if (HasAnyBlendshape(smr, arKit))
+                if (ContainsAnyBlendshape(sharedMesh, ArKitProbe))
                 {
                     return NamingConvention.ARKit;
                 }
@@ -244,35 +251,55 @@ namespace HVR.Basis.Comms
             return NamingConvention.Unknown;
         }
 
-        public List<SkinnedMeshRenderer> FindSkinnedMeshes(BlendshapeActuationDefinitionFile[] definitionFiles, SkinnedMeshRenderer[] smrs)
+        private static bool ContainsAnyBlendshape(Mesh sharedMesh, HashSet<string> probe)
         {
-            var foundSmrs = new HashSet<SkinnedMeshRenderer>();
-            foreach (var definitionFile in definitionFiles)
+            foreach (var blendShapeName in probe)
             {
-                foundSmrs.UnionWith(FindSkinnedMeshes(definitionFile, smrs));
+                if (sharedMesh.GetBlendShapeIndex(blendShapeName) != -1)
+                {
+                    return true;
+                }
             }
-            var foundSmrsAsList = foundSmrs.ToList();
-            return foundSmrsAsList;
+
+            return false;
         }
 
-        private List<SkinnedMeshRenderer> FindSkinnedMeshes(BlendshapeActuationDefinitionFile definitionFile, SkinnedMeshRenderer[] smrs)
+        public List<SkinnedMeshRenderer> FindSkinnedMeshes(BlendshapeActuationDefinitionFile[] definitionFiles, SkinnedMeshRenderer[] smrs)
         {
-            var possibleBlendshapes = definitionFile.definitions
-                .SelectMany(definition => definition.blendshapes)
-                .Distinct()
-                .ToHashSet();
-
             var validSmrs = new List<SkinnedMeshRenderer>();
-
             foreach (var smr in smrs)
             {
-                if (HasAnyBlendshape(smr, possibleBlendshapes))
+                for (var i = 0; i < definitionFiles.Length; i++)
                 {
-                    validSmrs.Add(smr);
+                    if (HasAnyBlendshape(smr, GetPossibleBlendshapes(definitionFiles[i])))
+                    {
+                        validSmrs.Add(smr);
+                        break;
+                    }
                 }
             }
 
             return validSmrs;
+        }
+
+        private static HashSet<string> GetPossibleBlendshapes(BlendshapeActuationDefinitionFile definitionFile)
+        {
+            if (PossibleBlendshapesCache.TryGetValue(definitionFile, out var cached)) return cached;
+
+            var possibleBlendshapes = new HashSet<string>();
+            var definitions = definitionFile.definitions;
+            for (var i = 0; i < definitions.Length; i++)
+            {
+                var blendshapes = definitions[i].blendshapes;
+                if (blendshapes == null) continue;
+                for (var j = 0; j < blendshapes.Length; j++)
+                {
+                    possibleBlendshapes.Add(blendshapes[j]);
+                }
+            }
+
+            PossibleBlendshapesCache.Add(definitionFile, possibleBlendshapes);
+            return possibleBlendshapes;
         }
 
         private static bool HasAnyBlendshape(SkinnedMeshRenderer smr, HashSet<string> possibleBlendshapes)

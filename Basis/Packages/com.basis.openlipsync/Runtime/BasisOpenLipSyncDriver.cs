@@ -25,6 +25,7 @@ public static class BasisOpenLipSyncDriver
 
     private static OpenLipSyncBackend _backend;
     private static readonly Dictionary<EntityId, uint> _playerToContext = new Dictionary<EntityId, uint>();
+    private static readonly Dictionary<EntityId, Action> _slotRevokedCallbacks = new Dictionary<EntityId, Action>();
     private static readonly Stack<uint> _contextPool = new Stack<uint>();
     private static bool _initialized;
 
@@ -157,11 +158,20 @@ public static class BasisOpenLipSyncDriver
     }
 
     /// <summary>
-    /// Fired when a slot is forcefully revoked (e.g. MaxSlots was lowered).
-    /// The listener should dispose its BasisOpenLipSyncContext and stop producing visemes.
-    /// The backend context is already destroyed before this fires — do NOT call ReleaseSlot.
+    /// Registers a per-entity callback fired when that entity's slot is forcefully revoked
+    /// (e.g. MaxSlots was lowered). The callback should dispose its BasisOpenLipSyncContext and
+    /// stop producing visemes. The backend context is already destroyed before this fires — do
+    /// NOT call ReleaseSlot. Re-registering the same entity overwrites the previous callback.
     /// </summary>
-    public static event Action<EntityId> OnSlotRevoked;
+    public static void RegisterSlotRevokedCallback(EntityId entityId, Action onRevoked)
+    {
+        _slotRevokedCallbacks[entityId] = onRevoked;
+    }
+
+    public static void UnregisterSlotRevokedCallback(EntityId entityId)
+    {
+        _slotRevokedCallbacks.Remove(entityId);
+    }
 
     /// <summary>
     /// Evicts excess contexts when UseSlotLimit is enabled and the active count exceeds MaxSlots.
@@ -180,7 +190,10 @@ public static class BasisOpenLipSyncDriver
             var ctx = enumerator.Current.Value;
             _playerToContext.Remove(entityId);
             _contextPool.Push(ctx);
-            OnSlotRevoked?.Invoke(entityId);
+            if (_slotRevokedCallbacks.TryGetValue(entityId, out var onRevoked))
+            {
+                onRevoked?.Invoke();
+            }
         }
 
         // Trim pooled contexts so total (active + pooled) doesn't exceed MaxSlots

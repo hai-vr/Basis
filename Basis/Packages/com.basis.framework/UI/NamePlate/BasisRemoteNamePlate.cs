@@ -33,7 +33,6 @@ namespace Basis.Scripts.UI.NamePlate
         internal int IsVisibleRaw => Volatile.Read(ref _isVisible);
 
         public bool HasProgressBarVisible = false;
-        public Mesh bakedMesh;
         public MeshRenderer Renderer;
         public Color CurrentColor;
         public Transform Self;
@@ -108,7 +107,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             Self = this.transform;
             Self.localScale = new Vector3(0.02f, 0.02f, 0.02f) * BasisRemoteNamePlateDriver.NamePlateSize;
-            BasisRemoteNamePlateDriver.GenerateTextFactory(BasisRemotePlayer, this);
+            BasisRemoteNamePlateDriver.QueueTextBake(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(mpb, 0);

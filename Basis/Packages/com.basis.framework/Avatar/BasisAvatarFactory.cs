@@ -362,7 +362,7 @@ namespace Basis.Scripts.Avatar
                     // the UI show a clean "no filter applied" state for this player.
                     var trimInfo = remote.BypassPerformanceLimits
                         ? default(BasisAvatarPerformanceLimits.PerformanceInfo)
-                        : BasisAvatarPerformanceLimits.TrimExcessComponents(Output);
+                        : BasisAvatarPerformanceLimits.TrimExcessComponents(Output, avatar.EnsureHarvest().Components);
 
                     // Only the success path (non-blocked, non-fallback) reaches here,
                     // so CreateAvatar's freshly-reset LastPerformanceInfo has Blocked
@@ -396,7 +396,12 @@ namespace Basis.Scripts.Avatar
             Player.BasisAvatar = avatar;
             Player.AvatarTransform = avatar.transform;
             Player.AvatarAnimatorTransform = avatar.Animator.transform;
-            Player.BasisAvatar.Renders = avatar.GetComponentsInChildren<Renderer>(true);
+            var loadHarvest = avatar.EnsureHarvest();
+            Player.BasisAvatar.Renders = loadHarvest.Renderers != null
+                ? loadHarvest.Renderers.ToArray()
+                : avatar.GetComponentsInChildren<Renderer>(true);
+            Player.BasisAvatar.SkinnedMeshRenderers = loadHarvest.SkinnedMeshRenderers?.ToArray();
+            avatar.Harvest = null;
             Player.BasisAvatar.IsOwnedLocally = Player.IsLocal;
 
             switch (Player)

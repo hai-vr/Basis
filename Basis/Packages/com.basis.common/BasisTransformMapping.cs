@@ -109,17 +109,17 @@ namespace Basis.Scripts.Common
         public Vector3 Forwards;
         public Vector3 Upwards;
 
-        public static bool AutoDetectReferences(Animator anim, Transform AnimatorRoot, ref BasisTransformMapping references)
+        public static bool AutoDetectReferences(Animator anim, Transform AnimatorRoot, ref BasisTransformMapping references, bool detectArmTwist = true, Transform[] humanoidBones = null)
         {
             if (references == null)
             {
                 references = new BasisTransformMapping();
             }
-            if (anim.isHuman)
-            {
 
-            }
-            else
+            bool useStorage = humanoidBones != null && humanoidBones.Length == (int)HumanBodyBones.LastBone;
+            Transform Fetch(HumanBodyBones bone) => useStorage ? humanoidBones[(int)bone] : anim.GetBoneTransform(bone);
+
+            if (!useStorage && !anim.isHuman)
             {
                 BasisDebug.LogError("We need a Humanoid Animator");
                 return false;
@@ -130,143 +130,143 @@ namespace Basis.Scripts.Common
             references.AnimatorRoot = AnimatorRoot;
             references.HasAnimatorRoot = BoolState(references.AnimatorRoot);
 
-            references.Hips = anim.GetBoneTransform(HumanBodyBones.Hips);
+            references.Hips = Fetch(HumanBodyBones.Hips);
             references.HasHips = BoolState(references.Hips);
 
-            references.spine = anim.GetBoneTransform(HumanBodyBones.Spine);
+            references.spine = Fetch(HumanBodyBones.Spine);
             references.Hasspine = BoolState(references.spine);
 
-            references.chest = anim.GetBoneTransform(HumanBodyBones.Chest);
+            references.chest = Fetch(HumanBodyBones.Chest);
             references.Haschest = BoolState(references.chest);
 
-            references.Upperchest = anim.GetBoneTransform(HumanBodyBones.UpperChest);
+            references.Upperchest = Fetch(HumanBodyBones.UpperChest);
             references.HasUpperchest = BoolState(references.Upperchest);
 
-            references.neck = anim.GetBoneTransform(HumanBodyBones.Neck);
+            references.neck = Fetch(HumanBodyBones.Neck);
             references.Hasneck = BoolState(references.neck);
-            references.head = anim.GetBoneTransform(HumanBodyBones.Head);
+            references.head = Fetch(HumanBodyBones.Head);
             references.Hashead = BoolState(references.head);
 
-            references.LeftEye = anim.GetBoneTransform(HumanBodyBones.LeftEye);
+            references.LeftEye = Fetch(HumanBodyBones.LeftEye);
             references.HasLeftEye = BoolState(references.LeftEye);
-            references.RightEye = anim.GetBoneTransform(HumanBodyBones.RightEye);
+            references.RightEye = Fetch(HumanBodyBones.RightEye);
             references.HasRightEye = BoolState(references.RightEye);
 
-            references.leftShoulder = anim.GetBoneTransform(HumanBodyBones.LeftShoulder);
+            references.leftShoulder = Fetch(HumanBodyBones.LeftShoulder);
             references.HasleftShoulder = BoolState(references.leftShoulder);
-            references.leftUpperArm = anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            references.leftUpperArm = Fetch(HumanBodyBones.LeftUpperArm);
             references.HasleftUpperArm = BoolState(references.leftUpperArm);
-            references.leftLowerArm = anim.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+            references.leftLowerArm = Fetch(HumanBodyBones.LeftLowerArm);
             references.HasleftLowerArm = BoolState(references.leftLowerArm);
-            references.leftHand = anim.GetBoneTransform(HumanBodyBones.LeftHand);
+            references.leftHand = Fetch(HumanBodyBones.LeftHand);
             references.HasleftHand = BoolState(references.leftHand);
 
-            references.RightShoulder = anim.GetBoneTransform(HumanBodyBones.RightShoulder);
+            references.RightShoulder = Fetch(HumanBodyBones.RightShoulder);
             references.HasRightShoulder = BoolState(references.RightShoulder);
-            references.RightUpperArm = anim.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            references.RightUpperArm = Fetch(HumanBodyBones.RightUpperArm);
             references.HasRightUpperArm = BoolState(references.RightUpperArm);
-            references.RightLowerArm = anim.GetBoneTransform(HumanBodyBones.RightLowerArm);
+            references.RightLowerArm = Fetch(HumanBodyBones.RightLowerArm);
             references.HasRightLowerArm = BoolState(references.RightLowerArm);
-            references.rightHand = anim.GetBoneTransform(HumanBodyBones.RightHand);
+            references.rightHand = Fetch(HumanBodyBones.RightHand);
             references.HasrightHand = BoolState(references.rightHand);
 
             // Twist bones: not in HumanBodyBones, search children of upper/lower arm by name.
-            references.leftUpperArmTwist = FindTwistBone(references.leftUpperArm);
+            references.leftUpperArmTwist = detectArmTwist ? FindTwistBone(references.leftUpperArm) : null;
             references.HasleftUpperArmTwist = BoolState(references.leftUpperArmTwist);
-            references.leftLowerArmTwist = FindTwistBone(references.leftLowerArm);
+            references.leftLowerArmTwist = detectArmTwist ? FindTwistBone(references.leftLowerArm) : null;
             references.HasleftLowerArmTwist = BoolState(references.leftLowerArmTwist);
-            references.RightUpperArmTwist = FindTwistBone(references.RightUpperArm);
+            references.RightUpperArmTwist = detectArmTwist ? FindTwistBone(references.RightUpperArm) : null;
             references.HasRightUpperArmTwist = BoolState(references.RightUpperArmTwist);
-            references.RightLowerArmTwist = FindTwistBone(references.RightLowerArm);
+            references.RightLowerArmTwist = detectArmTwist ? FindTwistBone(references.RightLowerArm) : null;
             references.HasRightLowerArmTwist = BoolState(references.RightLowerArmTwist);
 
-            references.LeftUpperLeg = anim.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+            references.LeftUpperLeg = Fetch(HumanBodyBones.LeftUpperLeg);
             references.HasLeftUpperLeg = BoolState(references.LeftUpperLeg);
-            references.LeftLowerLeg = anim.GetBoneTransform(HumanBodyBones.LeftLowerLeg);
+            references.LeftLowerLeg = Fetch(HumanBodyBones.LeftLowerLeg);
             references.HasLeftLowerLeg = BoolState(references.LeftLowerLeg);
-            references.leftFoot = anim.GetBoneTransform(HumanBodyBones.LeftFoot);
+            references.leftFoot = Fetch(HumanBodyBones.LeftFoot);
             references.HasleftFoot = BoolState(references.leftFoot);
-            references.leftToe = anim.GetBoneTransform(HumanBodyBones.LeftToes);
+            references.leftToe = Fetch(HumanBodyBones.LeftToes);
             references.HasleftToes = BoolState(references.leftToe);
 
-            references.RightUpperLeg = anim.GetBoneTransform(HumanBodyBones.RightUpperLeg);
+            references.RightUpperLeg = Fetch(HumanBodyBones.RightUpperLeg);
             references.HasRightUpperLeg = BoolState(references.RightUpperLeg);
-            references.RightLowerLeg = anim.GetBoneTransform(HumanBodyBones.RightLowerLeg);
+            references.RightLowerLeg = Fetch(HumanBodyBones.RightLowerLeg);
             references.HasRightLowerLeg = BoolState(references.RightLowerLeg);
-            references.rightFoot = anim.GetBoneTransform(HumanBodyBones.RightFoot);
+            references.rightFoot = Fetch(HumanBodyBones.RightFoot);
             references.HasrightFoot = BoolState(references.rightFoot);
-            references.rightToe = anim.GetBoneTransform(HumanBodyBones.RightToes);
+            references.rightToe = Fetch(HumanBodyBones.RightToes);
             references.HasrightToes = BoolState(references.rightToe);
 
-            references.LeftThumb[0] = anim.GetBoneTransform(HumanBodyBones.LeftThumbProximal);
+            references.LeftThumb[0] = Fetch(HumanBodyBones.LeftThumbProximal);
             references.HasLeftThumb[0] = BoolState(references.LeftThumb[0]);
-            references.LeftThumb[1] = anim.GetBoneTransform(HumanBodyBones.LeftThumbIntermediate);
+            references.LeftThumb[1] = Fetch(HumanBodyBones.LeftThumbIntermediate);
             references.HasLeftThumb[1] = BoolState(references.LeftThumb[1]);
-            references.LeftThumb[2] = anim.GetBoneTransform(HumanBodyBones.LeftThumbDistal);
+            references.LeftThumb[2] = Fetch(HumanBodyBones.LeftThumbDistal);
             references.HasLeftThumb[2] = BoolState(references.LeftThumb[2]);
 
-            references.LeftIndex[0] = anim.GetBoneTransform(HumanBodyBones.LeftIndexProximal);
+            references.LeftIndex[0] = Fetch(HumanBodyBones.LeftIndexProximal);
             references.HasLeftIndex[0] = BoolState(references.LeftIndex[0]);
-            references.LeftIndex[1] = anim.GetBoneTransform(HumanBodyBones.LeftIndexIntermediate);
+            references.LeftIndex[1] = Fetch(HumanBodyBones.LeftIndexIntermediate);
             references.HasLeftIndex[1] = BoolState(references.LeftIndex[1]);
-            references.LeftIndex[2] = anim.GetBoneTransform(HumanBodyBones.LeftIndexDistal);
+            references.LeftIndex[2] = Fetch(HumanBodyBones.LeftIndexDistal);
             references.HasLeftIndex[2] = BoolState(references.LeftIndex[2]);
 
-            references.LeftMiddle[0] = anim.GetBoneTransform(HumanBodyBones.LeftMiddleProximal);
+            references.LeftMiddle[0] = Fetch(HumanBodyBones.LeftMiddleProximal);
             references.HasLeftMiddle[0] = BoolState(references.LeftMiddle[0]);
-            references.LeftMiddle[1] = anim.GetBoneTransform(HumanBodyBones.LeftMiddleIntermediate);
+            references.LeftMiddle[1] = Fetch(HumanBodyBones.LeftMiddleIntermediate);
             references.HasLeftMiddle[1] = BoolState(references.LeftMiddle[1]);
-            references.LeftMiddle[2] = anim.GetBoneTransform(HumanBodyBones.LeftMiddleDistal);
+            references.LeftMiddle[2] = Fetch(HumanBodyBones.LeftMiddleDistal);
             references.HasLeftMiddle[2] = BoolState(references.LeftMiddle[2]);
 
-            references.LeftRing[0] = anim.GetBoneTransform(HumanBodyBones.LeftRingProximal);
+            references.LeftRing[0] = Fetch(HumanBodyBones.LeftRingProximal);
             references.HasLeftRing[0] = BoolState(references.LeftRing[0]);
-            references.LeftRing[1] = anim.GetBoneTransform(HumanBodyBones.LeftRingIntermediate);
+            references.LeftRing[1] = Fetch(HumanBodyBones.LeftRingIntermediate);
             references.HasLeftRing[1] = BoolState(references.LeftRing[1]);
-            references.LeftRing[2] = anim.GetBoneTransform(HumanBodyBones.LeftRingDistal);
+            references.LeftRing[2] = Fetch(HumanBodyBones.LeftRingDistal);
             references.HasLeftRing[2] = BoolState(references.LeftRing[2]);
 
-            references.LeftLittle[0] = anim.GetBoneTransform(HumanBodyBones.LeftLittleProximal);
+            references.LeftLittle[0] = Fetch(HumanBodyBones.LeftLittleProximal);
             references.HasLeftLittle[0] = BoolState(references.LeftLittle[0]);
-            references.LeftLittle[1] = anim.GetBoneTransform(HumanBodyBones.LeftLittleIntermediate);
+            references.LeftLittle[1] = Fetch(HumanBodyBones.LeftLittleIntermediate);
             references.HasLeftLittle[1] = BoolState(references.LeftLittle[1]);
-            references.LeftLittle[2] = anim.GetBoneTransform(HumanBodyBones.LeftLittleDistal);
+            references.LeftLittle[2] = Fetch(HumanBodyBones.LeftLittleDistal);
             references.HasLeftLittle[2] = BoolState(references.LeftLittle[2]);
 
             // Right Hand
-            references.RightThumb[0] = anim.GetBoneTransform(HumanBodyBones.RightThumbProximal);
+            references.RightThumb[0] = Fetch(HumanBodyBones.RightThumbProximal);
             references.HasRightThumb[0] = BoolState(references.RightThumb[0]);
-            references.RightThumb[1] = anim.GetBoneTransform(HumanBodyBones.RightThumbIntermediate);
+            references.RightThumb[1] = Fetch(HumanBodyBones.RightThumbIntermediate);
             references.HasRightThumb[1] = BoolState(references.RightThumb[1]);
-            references.RightThumb[2] = anim.GetBoneTransform(HumanBodyBones.RightThumbDistal);
+            references.RightThumb[2] = Fetch(HumanBodyBones.RightThumbDistal);
             references.HasRightThumb[2] = BoolState(references.RightThumb[2]);
 
-            references.RightIndex[0] = anim.GetBoneTransform(HumanBodyBones.RightIndexProximal);
+            references.RightIndex[0] = Fetch(HumanBodyBones.RightIndexProximal);
             references.HasRightIndex[0] = BoolState(references.RightIndex[0]);
-            references.RightIndex[1] = anim.GetBoneTransform(HumanBodyBones.RightIndexIntermediate);
+            references.RightIndex[1] = Fetch(HumanBodyBones.RightIndexIntermediate);
             references.HasRightIndex[1] = BoolState(references.RightIndex[1]);
-            references.RightIndex[2] = anim.GetBoneTransform(HumanBodyBones.RightIndexDistal);
+            references.RightIndex[2] = Fetch(HumanBodyBones.RightIndexDistal);
             references.HasRightIndex[2] = BoolState(references.RightIndex[2]);
 
-            references.RightMiddle[0] = anim.GetBoneTransform(HumanBodyBones.RightMiddleProximal);
+            references.RightMiddle[0] = Fetch(HumanBodyBones.RightMiddleProximal);
             references.HasRightMiddle[0] = BoolState(references.RightMiddle[0]);
-            references.RightMiddle[1] = anim.GetBoneTransform(HumanBodyBones.RightMiddleIntermediate);
+            references.RightMiddle[1] = Fetch(HumanBodyBones.RightMiddleIntermediate);
             references.HasRightMiddle[1] = BoolState(references.RightMiddle[1]);
-            references.RightMiddle[2] = anim.GetBoneTransform(HumanBodyBones.RightMiddleDistal);
+            references.RightMiddle[2] = Fetch(HumanBodyBones.RightMiddleDistal);
             references.HasRightMiddle[2] = BoolState(references.RightMiddle[2]);
 
-            references.RightRing[0] = anim.GetBoneTransform(HumanBodyBones.RightRingProximal);
+            references.RightRing[0] = Fetch(HumanBodyBones.RightRingProximal);
             references.HasRightRing[0] = BoolState(references.RightRing[0]);
-            references.RightRing[1] = anim.GetBoneTransform(HumanBodyBones.RightRingIntermediate);
+            references.RightRing[1] = Fetch(HumanBodyBones.RightRingIntermediate);
             references.HasRightRing[1] = BoolState(references.RightRing[1]);
-            references.RightRing[2] = anim.GetBoneTransform(HumanBodyBones.RightRingDistal);
+            references.RightRing[2] = Fetch(HumanBodyBones.RightRingDistal);
             references.HasRightRing[2] = BoolState(references.RightRing[2]);
 
-            references.RightLittle[0] = anim.GetBoneTransform(HumanBodyBones.RightLittleProximal);
+            references.RightLittle[0] = Fetch(HumanBodyBones.RightLittleProximal);
             references.HasRightLittle[0] = BoolState(references.RightLittle[0]);
-            references.RightLittle[1] = anim.GetBoneTransform(HumanBodyBones.RightLittleIntermediate);
+            references.RightLittle[1] = Fetch(HumanBodyBones.RightLittleIntermediate);
             references.HasRightLittle[1] = BoolState(references.RightLittle[1]);
-            references.RightLittle[2] = anim.GetBoneTransform(HumanBodyBones.RightLittleDistal);
+            references.RightLittle[2] = Fetch(HumanBodyBones.RightLittleDistal);
             references.HasRightLittle[2] = BoolState(references.RightLittle[2]);
 
             return true;
@@ -576,62 +576,31 @@ namespace Basis.Scripts.Common
         public Vector3 AvatarRightwards;
         public void RecordPoses(Animator animator)
         {
-            // Capture animator transform in world space
-            RootRotation = animator.transform.rotation;
-            RootPosition = animator.transform.position;
+            Transform root = animator.transform;
+            root.GetPositionAndRotation(out RootPosition, out RootRotation);
+            Matrix4x4 worldToLocal = root.worldToLocalMatrix;
 
-            TposeFromRoot.Clear();
-            TposeWorld.Clear();
+            const int firstBone = (int)HumanBodyBones.Hips;
+            const int boneCount = (int)HumanBodyBones.LastBone - firstBone;
 
-            Quaternion invRootRot = Quaternion.Inverse(RootRotation);
-
-            // Iterate all humanoid enum values except the sentinel LastBone
-            for (int i = (int)HumanBodyBones.Hips; i < (int)HumanBodyBones.LastBone; i++)
+            BonePoseSample[] samples = new BonePoseSample[boneCount];
+            for (int i = 0; i < boneCount; i++)
             {
-                var bone = (HumanBodyBones)i;
-                var t = animator.GetBoneTransform(bone);
-                if (t == null)
+                var bone = (HumanBodyBones)(firstBone + i);
+                if (!GetTransform(bone, out Transform t) || t == null)
                 {
-                    BasisCalibratedCoords zero = new BasisCalibratedCoords
-                    {
-                        position = Vector3.zero,
-                        rotation = Quaternion.identity,
-                    };
-                    TposeFromRoot[bone] = zero;
-                    TposeLocal[bone] = zero;
-                    TposeWorld[bone] = zero;
-                    continue;
+                    t = animator.GetBoneTransform(bone);
                 }
-
-                t.GetPositionAndRotation(out var wPos, out var wRot);
-                t.GetLocalPositionAndRotation(out var LPos, out var LRot);
-
-                // Position in animator-local space (handles parent translation & scaling)
-                Vector3 localPos = animator.transform.InverseTransformPoint(wPos);
-
-                // Rotation relative to animator root rotation
-                Quaternion localRot = invRootRot * wRot;
-
-                // World-scale root-relative position (root-aligned but NOT divided by localScale)
-                Vector3 worldScalePos = invRootRot * (wPos - RootPosition);
-
-                TposeFromRoot[bone] = new BasisCalibratedCoords
-                {
-                    position = localPos,
-                    rotation = localRot
-                };
-                TposeLocal[bone] = new BasisCalibratedCoords
-                {
-                    position = LPos,
-                    rotation = LRot
-                };
-                TposeWorld[bone] = new BasisCalibratedCoords
-                {
-                    position = worldScalePos,
-                    rotation = localRot
-                };
+                if (t == null) continue;
+                samples[i].Present = true;
+                t.GetPositionAndRotation(out samples[i].WorldPosition, out samples[i].WorldRotation);
+                t.GetLocalPositionAndRotation(out samples[i].LocalPosition, out samples[i].LocalRotation);
             }
-            if (TryComputeForwardUpFromTpose(this, out var fwd, out var up,out var right))
+
+            ComputePoses(worldToLocal, RootPosition, RootRotation, samples, firstBone,
+                TposeFromRoot, TposeLocal, TposeWorld);
+
+            if (TryComputeForwardUpFromTpose(this, out var fwd, out var up, out var right))
             {
                 AvatarForwards = fwd;
                 AvatarUpwards = up;
@@ -639,10 +608,70 @@ namespace Basis.Scripts.Common
             }
             else
             {
-                // fallback: at least keep a consistent local up
                 AvatarForwards = Vector3.forward;
                 AvatarUpwards = Vector3.up;
                 AvatarRightwards = Vector3.down;
+            }
+        }
+
+        private struct BonePoseSample
+        {
+            public bool Present;
+            public Vector3 WorldPosition;
+            public Quaternion WorldRotation;
+            public Vector3 LocalPosition;
+            public Quaternion LocalRotation;
+        }
+
+        private static void ComputePoses(
+            Matrix4x4 worldToLocal,
+            Vector3 rootPosition,
+            Quaternion rootRotation,
+            BonePoseSample[] samples,
+            int firstBone,
+            Dictionary<HumanBodyBones, BasisCalibratedCoords> tposeFromRoot,
+            Dictionary<HumanBodyBones, BasisCalibratedCoords> tposeLocal,
+            Dictionary<HumanBodyBones, BasisCalibratedCoords> tposeWorld)
+        {
+            Quaternion invRootRot = Quaternion.Inverse(rootRotation);
+
+            tposeFromRoot.Clear();
+            tposeWorld.Clear();
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                var bone = (HumanBodyBones)(firstBone + i);
+                if (!samples[i].Present)
+                {
+                    BasisCalibratedCoords zero = new BasisCalibratedCoords
+                    {
+                        position = Vector3.zero,
+                        rotation = Quaternion.identity,
+                    };
+                    tposeFromRoot[bone] = zero;
+                    tposeLocal[bone] = zero;
+                    tposeWorld[bone] = zero;
+                    continue;
+                }
+
+                Vector3 worldPosition = samples[i].WorldPosition;
+                Quaternion rootRelativeRotation = invRootRot * samples[i].WorldRotation;
+
+                tposeFromRoot[bone] = new BasisCalibratedCoords
+                {
+                    position = worldToLocal.MultiplyPoint3x4(worldPosition),
+                    rotation = rootRelativeRotation
+                };
+                tposeLocal[bone] = new BasisCalibratedCoords
+                {
+                    position = samples[i].LocalPosition,
+                    rotation = samples[i].LocalRotation
+                };
+                tposeWorld[bone] = new BasisCalibratedCoords
+                {
+                    position = invRootRot * (worldPosition - rootPosition),
+                    rotation = rootRelativeRotation
+                };
             }
         }
         private static bool TryComputeForwardUpFromTpose(

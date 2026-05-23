@@ -250,14 +250,22 @@ namespace BasisNetworkServer
                                    s.EndpointB_External != null &&
                                    s.EndpointA_External.Address.Equals(s.EndpointB_External.Address);
                     string lanTag = sameNat ? " [SAME-NETWORK]" : "";
-                    BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {s.EndpointA_Internal}), B={s.EndpointB_External} (int {s.EndpointB_Internal}). Firing NatIntroduce.{lanTag}");
+
+                    // Spray predicted ports on both sides (A/B are arrival-ordered, not
+                    // mapped to a specific peer), except on a same-network pair where the
+                    // internal punch already handles it.
+                    int spray = (!sameNat) ? GetPredictionRange() : 0;
+
+                    BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {s.EndpointA_Internal}), B={s.EndpointB_External} (int {s.EndpointB_Internal}). Firing NatIntroduce (spray={spray}).{lanTag}");
                     LiteNetLib.NetManager lnlManager = (NetworkServer.Server as LNLNetManager)?.manager;
                     if (lnlManager == null) return;
                     lnlManager.NatPunchModule.NatIntroduce(
                         s.EndpointA_Internal,
                         s.EndpointA_External,
+                        spray,
                         s.EndpointB_Internal,
                         s.EndpointB_External,
+                        spray,
                         token);
                     s.State = SessionState.Punched;
                 }
@@ -268,6 +276,19 @@ namespace BasisNetworkServer
         {
             if (string.IsNullOrEmpty(token)) return "(empty)";
             return token.Length <= 8 ? token : token.Substring(0, 8);
+        }
+
+        private static int GetPredictionRange()
+        {
+            try
+            {
+                var cfg = BasisTransportConfigStore.Get<LNLTransportConfig>(BasisNetworkStackRegistry.LiteNetLibId);
+                return cfg != null ? cfg.NatPortPredictionRange : 0;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         public static void RemovePeer(int peerId)

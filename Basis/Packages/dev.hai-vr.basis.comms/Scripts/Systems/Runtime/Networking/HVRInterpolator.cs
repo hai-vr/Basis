@@ -30,6 +30,8 @@ namespace HVR.Basis.Comms
             _snapshots.Enqueue(snapshot);
         }
 
+        public bool HasPendingWork => _currentSnapshot != null || _snapshots.Count > 0;
+
         public void SetCatchUp(bool doCatchUp)
         {
             _doCatchUp = doCatchUp;
@@ -67,6 +69,7 @@ namespace HVR.Basis.Comms
             else
             {
                 _currentSnapshot = null;
+                _advanced = 0f;
             }
         }
 

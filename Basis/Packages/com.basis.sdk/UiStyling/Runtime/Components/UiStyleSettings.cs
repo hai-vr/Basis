@@ -7,6 +7,16 @@ namespace Basis.BasisUI.Styling
     {
         public static UiStyleLibrary Library;
         public static UiStylePalette Palette;
+
+        // Runtime clone the palette is applied to, so the StylePalette asset is never mutated at runtime.
+        private static UiStylePalette _runtimePalette;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetRuntimeClone()
+        {
+            _runtimePalette = null;
+        }
+
         public static UiStyleLibrary GetActiveStyles()
         {
             #if UNITY_EDITOR
@@ -49,7 +59,6 @@ namespace Basis.BasisUI.Styling
                 {
                     BasisDebug.LogError("Missing Palette! Asset not found at expected path.");
                 }
-                return Palette;
             #else
                 if (Palette == null)
                 {
@@ -60,8 +69,17 @@ namespace Basis.BasisUI.Styling
                 {
                     BasisDebug.LogError("Missing Palette!");
                 }
-                return Palette;
             #endif
+
+            if (Application.isPlaying)
+            {
+                if (_runtimePalette == null && Palette != null)
+                {
+                    _runtimePalette = Object.Instantiate(Palette);
+                }
+                return _runtimePalette;
+            }
+            return Palette;
         }
 
         public static void SetActiveStyles(UiStyleLibrary library)

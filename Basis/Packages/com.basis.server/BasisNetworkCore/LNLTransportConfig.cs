@@ -7,6 +7,7 @@ namespace Basis.Network.Core
     {
         public bool UseNativeSockets = true;
         public bool NatPunchEnabled = true;
+        public int NatPortPredictionRange = 32;
         public int PingInterval = 1500;
         public int DisconnectTimeout = 30000;
         public bool SimulatePacketLoss = false;

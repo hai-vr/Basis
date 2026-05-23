@@ -84,16 +84,21 @@ namespace HVR.Basis.Comms
 
         private void OnReadyBothAvatarAndNetwork(bool isWearer)
         {
-            var carriers = avatar.GetComponentsInChildren<HVRNetworkingCarrier>(true);
-            if (carriers.Length < 5)
+            var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
+
+            var carriers = new List<HVRNetworkingCarrier>();
+            foreach (var initializable in allInitializables)
+            {
+                if (initializable is HVRNetworkingCarrier carrier) carriers.Add(carrier);
+            }
+            int carrierscount = carriers.Count;
+            if (carrierscount < 5)
             {
                 throw new InvalidOperationException("Broke assumption: At least 5 Networking Carriers are required.");
             }
-
-            for (var index = 0; index < carriers.Length; index++)
+            for (var index = 0; index < carrierscount; index++)
             {
-                var carrier = carriers[index];
-                carrier.index = index;
+                carriers[index].index = index;
             }
 
             if (_netObjects != null)
@@ -117,7 +122,6 @@ namespace HVR.Basis.Comms
             _variableNetworking.transmitter = carriers[VariableNetworkingCarrier];
             holder.SetActive(true);
 
-            var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
             foreach (var initializable in allInitializables)
             {
                 initializable.OnHVRReadyBothAvatarAndNetwork(isWearer);

@@ -2,7 +2,6 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.Receivers;
 using HVR.Basis.Comms.HVRUtility;
-using System;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
 using Unity.Mathematics;
@@ -56,13 +55,18 @@ namespace HVR.Basis.Comms
         private void Awake()
         {
             if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this);
-            comms = HVRCommsUtil.GetComms(this);
-            _activityRelay = FaceTrackingActivityRelay.GetOrCreate(avatar);
         }
 
 
         public void OnHVRAvatarReady(bool isWearer)
         {
+            comms = HVRCommsUtil.GetComms(avatar);
+            _activityRelay = FaceTrackingActivityRelay.GetOrCreate(avatar, out var relayCreated);
+            if (relayCreated)
+            {
+                _activityRelay.OnHVRAvatarReady(isWearer);
+            }
+
             _eyeTracking = isWearer ? new EyeTracking_Wearer(this) : new EyeTracking_Remote(this);
 
             if (_activityRelay != null)
@@ -132,7 +136,10 @@ namespace HVR.Basis.Comms
                 _activityRelay.OnTrackingActivityChanged -= OnTrackingActivityUpdated;
             }
 
-            comms.VariableStore.UnregisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
+            if (comms != null)
+            {
+                comms.VariableStore.UnregisterAddresses(_sourceEyeAddresses, OnAddressUpdated);
+            }
             _eyeTracking?.OnDestroy();
         }
 
@@ -184,6 +191,10 @@ namespace HVR.Basis.Comms
                 _xLeft = xLeft;
                 _xRight = xRight;
                 _y = y;
+
+                BasisLocalEyeDriver.SetOverrideEyeOffsets(
+                    ComputeRigOffset(_xLeft, _y, BasisLocalEyeDriver.calLeft),
+                    ComputeRigOffset(_xRight, _y, BasisLocalEyeDriver.calRight));
             }
 
             public void OnDestroy()
@@ -210,15 +221,10 @@ namespace HVR.Basis.Comms
 
             public void UpdateAfterAvatarChangesApplied()
             {
-                ApplyEye(_xLeft, _y, EyeSide.Left);
-                ApplyEye(_xRight, _y, EyeSide.Right);
             }
 
-            private void ApplyEye(float x, float y, EyeSide side)
+            private quaternion ComputeRigOffset(float x, float y, BasisEyeCalibration cal)
             {
-                // Uses EyeCalibration from BasisLocalEyeDriver to handle arbitrary eye bone orientations for local player.
-                // Retaining Hai's original FIXME: This could/should be replaced by a WIP normalized muscle system
-
                 var xRad = ClampToEyeAngleLimits(Mathf.Asin(x) * our.multiplyX);
                 var yRad = ClampToEyeAngleLimits(Mathf.Asin(-y) * our.multiplyY);
 
@@ -226,27 +232,7 @@ namespace HVR.Basis.Comms
                 quaternion pitch = quaternion.AxisAngle(new float3(1, 0, 0), yRad);
                 quaternion canonical = math.mul(yaw, pitch);
 
-                switch (side)
-                {
-                    case EyeSide.Left:
-                    {
-                        var cal = BasisLocalEyeDriver.calLeft;
-                        quaternion rigOffset = math.mul(math.mul(cal.basis, canonical), cal.invBasis);
-                        BasisLocalEyeDriver.leftEyeTransform.localRotation =
-                            math.mul(cal.initialRotation, rigOffset);
-                        break;
-                    }
-                    case EyeSide.Right:
-                    {
-                        var cal = BasisLocalEyeDriver.calRight;
-                        quaternion rigOffset = math.mul(math.mul(cal.basis, canonical), cal.invBasis);
-                        BasisLocalEyeDriver.rightEyeTransform.localRotation =
-                            math.mul(cal.initialRotation, rigOffset);
-                        break;
-                    }
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(side), side, null);
-                }
+                return math.mul(math.mul(cal.basis, canonical), cal.invBasis);
             }
 
             private void TurnOffEyeTracking()
@@ -392,11 +378,6 @@ namespace HVR.Basis.Comms
             }
 
             return Mathf.Clamp(value, -1f, 1f);
-        }
-
-        private enum EyeSide
-        {
-            Left, Right
         }
     }
 }

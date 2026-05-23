@@ -4,6 +4,7 @@ using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Threading;
 using static SerializableBasis;
 using LiteNetManager = LiteNetLib.NetManager;
 using LiteNetDataWriter = LiteNetLib.Utils.NetDataWriter;
@@ -27,6 +28,8 @@ namespace Basis.Scripts.Networking
         }
 
         private const int MaxPunchAttempts = 5;
+        private const int PunchRequestSends = 4;
+        private const int PunchRequestIntervalMs = 300;
 
         public const float MinAvatarSyncHz = 20f;
         public const float MaxAvatarSyncHz = 250f;
@@ -65,6 +68,7 @@ namespace Basis.Scripts.Networking
 
         private static readonly ConcurrentDictionary<string, Session> _sessionsByToken = new();
         private static readonly ConcurrentDictionary<ushort, Session> _sessionsByOtherId = new();
+        private static int _connectedSessionCount;
 
         private static LiteNetManager _p2pManager;
         private static EventBasedNetListener _p2pListener;
@@ -92,19 +96,15 @@ namespace Basis.Scripts.Networking
 
         public static int GetConnectedSessionCount()
         {
-            int count = 0;
-            foreach (var s in _sessionsByOtherId.Values)
-            {
-                if (s.State == P2PSessionState.Connected) count++;
-            }
-            return count;
+            return Volatile.Read(ref _connectedSessionCount);
         }
 
         public static void Shutdown()
         {
-            foreach (var s in _sessionsByOtherId.Values)
+            foreach (var kvp in _sessionsByOtherId)
             {
-                NotifyStateChanged(s.OtherPlayerId, P2PSessionState.Idle);
+                ApplyState(kvp.Value, P2PSessionState.Idle);
+                NotifyStateChanged(kvp.Value.OtherPlayerId, P2PSessionState.Idle);
             }
             _sessionsByOtherId.Clear();
             _sessionsByToken.Clear();
@@ -239,11 +239,7 @@ namespace Basis.Scripts.Networking
 
         public static bool HasAnyConnectedSession()
         {
-            foreach (var s in _sessionsByOtherId.Values)
-            {
-                if (s.State == P2PSessionState.Connected) return true;
-            }
-            return false;
+            return Volatile.Read(ref _connectedSessionCount) > 0;
         }
 
         [ThreadStatic] private static NetDataWriter _p2pVoiceWriter;
@@ -253,8 +249,9 @@ namespace Basis.Scripts.Networking
         {
             if (writer == null || writer.Length == 0) return 0;
             int sent = 0;
-            foreach (var s in _sessionsByOtherId.Values)
+            foreach (var kvp in _sessionsByOtherId)
             {
+                var s = kvp.Value;
                 if (s.State != P2PSessionState.Connected) continue;
                 var peer = s.P2PPeer;
                 if (peer == null) continue;
@@ -291,8 +288,9 @@ namespace Basis.Scripts.Networking
             bool restricted = BasisTalkModeManager.CurrentMode == BasisTalkMode.Private
                            || BasisTalkModeManager.CurrentMode == BasisTalkMode.ThisPerson;
 
-            foreach (var s in _sessionsByOtherId.Values)
+            foreach (var kvp in _sessionsByOtherId)
             {
+                var s = kvp.Value;
                 if (s.State != P2PSessionState.Connected) continue;
                 if (restricted && !BasisTalkModeManager.IsRecipient(s.OtherPlayerId)) continue;
                 var peer = s.P2PPeer;
@@ -352,8 +350,9 @@ namespace Basis.Scripts.Networking
         {
             if (excluded == null) return;
             if (!HasAnyConnectedSession()) return;
-            foreach (var s in _sessionsByOtherId.Values)
+            foreach (var kvp in _sessionsByOtherId)
             {
+                var s = kvp.Value;
                 if (s.State != P2PSessionState.Connected) continue;
                 if (!excluded.Contains(s.OtherPlayerId))
                 {
@@ -463,16 +462,45 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
-            BasisDebug.Log($"[P2P] StartPunch token={Preview(s.Token)} player={s.OtherPlayerId} attempt={s.PunchAttempts}/{MaxPunchAttempts} initiator={s.LocalIsInitiator} → sending NatIntroduceRequest to {ServerHost}:{ServerPort} from P2P port {_p2pManager.LocalPort}.");
+            BasisDebug.Log($"[P2P] StartPunch token={Preview(s.Token)} player={s.OtherPlayerId} attempt={s.PunchAttempts}/{MaxPunchAttempts} initiator={s.LocalIsInitiator} → sending {PunchRequestSends} NatIntroduceRequest(s) to {ServerHost}:{ServerPort} from P2P port {_p2pManager.LocalPort}.");
+            SendIntroduceBurst(s.Token);
+        }
+
+        // Re-send the introduce request a few times across the punch window: a dropped
+        // request or a slightly-late peer shouldn't abort the punch, and repeating widens
+        // the interval where both NATs have an open mapping.
+        private static void SendIntroduceBurst(string token)
+        {
+            if (!SendOneIntroduce(token) || PunchRequestSends <= 1) return;
+
+            int remaining = PunchRequestSends - 1;
+            Timer timer = null;
+            timer = new Timer(_ =>
+            {
+                if (!SendOneIntroduce(token) || Interlocked.Decrement(ref remaining) <= 0)
+                {
+                    timer?.Dispose();
+                }
+            }, null, PunchRequestIntervalMs, PunchRequestIntervalMs);
+        }
+
+        // Returns false once the session is gone or has left the Punching state, so the
+        // burst timer stops resending.
+        private static bool SendOneIntroduce(string token)
+        {
+            if (!_sessionsByToken.TryGetValue(token, out Session s) || s.State != P2PSessionState.Punching)
+                return false;
+            var mgr = _p2pManager;
+            if (mgr == null) return false;
             try
             {
-                _p2pManager.NatPunchModule.SendNatIntroduceRequest(ServerHost, ServerPort, s.Token);
+                mgr.NatPunchModule.SendNatIntroduceRequest(ServerHost, ServerPort, token);
             }
             catch (Exception ex)
             {
                 BasisDebug.LogError($"[P2P] SendNatIntroduceRequest failed: {ex.Message}");
-                DropSession(s, P2PSessionState.Failed);
             }
+            return true;
         }
 
         private static void EnsureP2PNetManager()
@@ -533,11 +561,12 @@ namespace Basis.Scripts.Networking
             {
                 s.ExpectedRemoteAddress = targetEndPoint.Address;
                 s.ConnectionType = type;
-                BasisDebug.Log($"[P2P] NatIntroductionSuccess: player {s.OtherPlayerId} reachable at {targetEndPoint} ({type}{(type == LiteNatAddressType.Internal ? " — same LAN" : "")}). Local role: {(s.LocalIsInitiator ? "initiator (will Connect)" : "target (will accept inbound)")}.");
+                BasisDebug.Log($"[P2P] NatIntroductionSuccess: player {s.OtherPlayerId} reachable at {targetEndPoint} ({type}{(type == LiteNatAddressType.Internal ? " — same LAN" : "")}).");
             }
 
-            // Only initiator connects, only once — target waits for inbound to avoid simultaneous-open races.
-            if (!s.LocalIsInitiator) return;
+            // Both sides connect to the discovered endpoint; LiteNetLib's simultaneous-open
+            // tiebreak (P2PLose) collapses the two attempts into one link. A symmetric-NAT
+            // peer's real port is only knowable here, so it must connect too — not just wait.
             if (s.ConnectIssued) return;
             s.ConnectIssued = true;
 
@@ -597,8 +626,9 @@ namespace Basis.Scripts.Networking
             // Inbound match: P2PPeer already set in OnP2PConnectionRequest, fresh wrapper here equals
             // by underlying LiteNetLib peer. Outbound match: compare against ExpectedRemoteAddress.
             Session matched = null;
-            foreach (var s in _sessionsByToken.Values)
+            foreach (var kvp in _sessionsByToken)
             {
+                var s = kvp.Value;
                 if (s.P2PPeer != null && s.P2PPeer.Equals(peer))
                 {
                     s.P2PPeer = peer;
@@ -623,7 +653,7 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
-            matched.State = P2PSessionState.Connected;
+            ApplyState(matched, P2PSessionState.Connected);
             matched.PunchAttempts = 0;
             NotifyStateChanged(matched.OtherPlayerId, matched.State);
             BasisDebug.Log($"[P2P] CONNECTED to player {matched.OtherPlayerId} at {peer.Address} via {(matched.ConnectionType == LiteNatAddressType.Internal ? "LAN" : "Internet")} (token {Preview(matched.Token)}); sending LinkUp to server.");
@@ -634,8 +664,9 @@ namespace Basis.Scripts.Networking
 
         private static void OnP2PPeerDisconnected(NetPeer peer, DisconnectInfo info)
         {
-            foreach (var s in _sessionsByToken.Values)
+            foreach (var kvp in _sessionsByToken)
             {
+                var s = kvp.Value;
                 if (s.P2PPeer == null || !s.P2PPeer.Equals(peer)) continue;
                 BasisDebug.Log($"[P2P] P2P peer for player {s.OtherPlayerId} disconnected: {info.Reason}");
                 SendSubToServer(BasisNetworkCommons.P2PSub_LinkLost, s.OtherPlayerId, s.Token);
@@ -707,8 +738,9 @@ namespace Basis.Scripts.Networking
 
         private static bool TryFindSessionByPeer(NetPeer peer, out ushort otherPlayerId)
         {
-            foreach (var s in _sessionsByToken.Values)
+            foreach (var kvp in _sessionsByToken)
             {
+                var s = kvp.Value;
                 if (s.P2PPeer != null && s.P2PPeer.Equals(peer))
                 {
                     otherPlayerId = s.OtherPlayerId;
@@ -721,7 +753,7 @@ namespace Basis.Scripts.Networking
 
         private static void ScheduleReconnect(Session s)
         {
-            s.State = P2PSessionState.Reconnecting;
+            ApplyState(s, P2PSessionState.Reconnecting);
             s.P2PPeer = null;
             s.ExpectedRemoteAddress = null;
             s.ConnectIssued = false;
@@ -777,6 +809,7 @@ namespace Basis.Scripts.Networking
 
         private static void DropSession(Session s, P2PSessionState finalState)
         {
+            ApplyState(s, finalState);
             RemoveSessionKeys(s);
             _sessionsByToken.TryRemove(s.Token, out _);
             _sessionsByOtherId.TryRemove(s.OtherPlayerId, out _);
@@ -786,6 +819,17 @@ namespace Basis.Scripts.Networking
                 s.P2PPeer = null;
             }
             NotifyStateChanged(s.OtherPlayerId, finalState);
+        }
+
+        private static void ApplyState(Session s, P2PSessionState newState)
+        {
+            P2PSessionState previous = s.State;
+            if (previous == newState) return;
+            s.State = newState;
+            if (previous == P2PSessionState.Connected)
+                Interlocked.Decrement(ref _connectedSessionCount);
+            else if (newState == P2PSessionState.Connected)
+                Interlocked.Increment(ref _connectedSessionCount);
         }
 
         private static void NotifyStateChanged(ushort otherPlayerId, P2PSessionState state)

@@ -231,6 +231,21 @@ namespace Basis.Network.Core
             manager.Start(IPv4Address, IPv6Address, SetPort);
         }
 
+        public void StartManual(IPAddress IPv4Address, IPAddress IPv6Address, int SetPort)
+        {
+            manager.StartInManualMode(IPv4Address, IPv6Address, SetPort);
+        }
+
+        public void PollEvents()
+        {
+            manager.PollEvents();
+        }
+
+        public void ManualUpdate(float elapsedMilliseconds)
+        {
+            manager.ManualUpdate(elapsedMilliseconds);
+        }
+
         public void Stop()
         {
             manager.Stop();

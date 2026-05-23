@@ -68,13 +68,21 @@ namespace Basis.Config
                         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
                         var doc = new XDocument(
+                            new XComment(" BasisNetworkClientConsole load-tester configuration. Spawns ClientCount fake clients that connect to a server for stress testing. "),
                             new XElement("Configuration",
+                                new XComment(" Server connection password; must match the server's <Password>. string. "),
                                 new XElement("Password", Password),
+                                new XComment(" Server host to connect to: hostname or IP (e.g. localhost / 127.0.0.1). string. "),
                                 new XElement("Ip", Ip),
+                                new XComment(" Server UDP port; must match the server's <SetPort>. int, range 1-65535. "),
                                 new XElement("Port", Port),
+                                new XComment(" Number of simulated clients to spawn for load testing. int (>= 1); higher counts need more CPU, memory and sockets. "),
                                 new XElement("ClientCount", ClientCount),
+                                new XComment(" Avatar unlock password/key sent with the avatar; used to decrypt the (encrypted .BEE) bundle at <AvatarUrl>. string. "),
                                 new XElement("AvatarPassword", AvatarPassword),
+                                new XComment(" Avatar source each fake client advertises. For AvatarLoadMode 0 this is the (encrypted .BEE) bundle download URL. string. "),
                                 new XElement("AvatarUrl", AvatarUrl),
+                                new XComment(" How receiving clients load the avatar: 0 = AssetBundle (download from AvatarUrl), 1 = Addressables, 2 = In-scene. Allowed: 0, 1 or 2. "),
                                 new XElement("AvatarLoadMode", AvatarLoadMode)
                             )
                         );

@@ -116,6 +116,7 @@ public static class BasisNetworkLifeCycle
             BasisNetworkConnection.BasisNetworkServerRunner.Stop();
             BasisNetworkConnection.BasisNetworkServerRunner = null;
         }
+        BasisNetworkManagement.JoinPendingCompute();//join the pipelined compute task before buffers are freed
         BasisRemoteNetworkDriver.Shutdown();//complete in-flight jobs before disposing anything
         BasisNetworkPlayers.ClearAllRegistries();//remove players
         Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources

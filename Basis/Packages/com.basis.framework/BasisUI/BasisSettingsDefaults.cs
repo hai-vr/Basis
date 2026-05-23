@@ -271,6 +271,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> EnableShaderPrewarm = new("enableshaderprewarm", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> EnableMaterialCorrection = new("enablematerialcorrection", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<string> RecorderCountdownSeconds = new("recordercountdownseconds", new BasisPlatformDefault<string>("3"));
         public static BasisSettingsBinding<bool> RecorderAutoStop = new("recorderautostop", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<string> RecorderMaxDurationSeconds = new("recordermaxdurationseconds", new BasisPlatformDefault<string>("30"));
@@ -1266,6 +1269,12 @@ namespace Basis.BasisUI
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
+            EnableShaderPrewarm.LoadBindingValue();
+            ContentPoliceControl.ShaderPrewarmEnabled = EnableShaderPrewarm.RawValue;
+            EnableShaderPrewarm.OnChanged += value => ContentPoliceControl.ShaderPrewarmEnabled = value;
+            EnableMaterialCorrection.LoadBindingValue();
+            ContentPoliceControl.MaterialCorrectionEnabled = EnableMaterialCorrection.RawValue;
+            EnableMaterialCorrection.OnChanged += value => ContentPoliceControl.MaterialCorrectionEnabled = value;
             DebugLogTagFilter.LoadBindingValue();
             ApplyDebugLogTagFilter(DebugLogTagFilter.RawValue);
             DebugLogTagFilter.OnChanged += ApplyDebugLogTagFilter;

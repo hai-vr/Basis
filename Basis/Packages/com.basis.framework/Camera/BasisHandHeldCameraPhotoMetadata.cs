@@ -58,15 +58,22 @@ public static class BasisHandHeldCameraPhotoMetadata
         public Vector3 CameraPosition;
         public Quaternion CameraRotation;
 
+        public bool HasPano;
+        public bool PanoStereoTopBottom;
+        public int PanoFullWidth;
+        public int PanoFullHeight;
+        public int PanoPerEyeHeight;
+        public float PanoHeadingDegrees;
+
         public bool HasAnything()
         {
-            return People.Count > 0 || HasCamera || HasCaptureInfo || HasPhotographer || HasWorld;
+            return People.Count > 0 || HasCamera || HasCaptureInfo || HasPhotographer || HasWorld || HasPano;
         }
     }
 
     // ---------------- Collection ----------------
 
-    public static PhotoMetadata CollectMetadata(Camera captureCamera, Transform ignoreRoot)
+    public static PhotoMetadata CollectMetadata(Camera captureCamera, Transform ignoreRoot, bool panoramic = false)
     {
         var meta = new PhotoMetadata { CaptureTimeLocal = DateTime.Now };
         if (captureCamera == null)
@@ -75,7 +82,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         bool tagPeopleAllowed = !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_TagPeople);
         bool details = BasisSettingsDefaults.PhotoEmbedPersonDetails.RawValue
             && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_PersonDetails);
-        meta.People = tagPeopleAllowed ? CollectTaggedPeople(captureCamera, ignoreRoot, details) : new List<TaggedPerson>();
+        meta.People = tagPeopleAllowed ? CollectTaggedPeople(captureCamera, ignoreRoot, details, panoramic) : new List<TaggedPerson>();
 
         if (BasisSettingsDefaults.PhotoEmbedCameraSettings.RawValue
             && !BasisNetworkModeration.IsCameraCategoryDisallowed(BasisNetworkModeration.CameraPolicy_CameraExif))
@@ -147,7 +154,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         return name;
     }
 
-    private static List<TaggedPerson> CollectTaggedPeople(Camera captureCamera, Transform ignoreRoot, bool details)
+    private static List<TaggedPerson> CollectTaggedPeople(Camera captureCamera, Transform ignoreRoot, bool details, bool panoramic)
     {
         var people = new List<TaggedPerson>();
         string mode = BasisSettingsDefaults.PhotoMetadataTagging.RawValue;
@@ -158,12 +165,12 @@ public static class BasisHandHeldCameraPhotoMetadata
         if (mode == BasisSettingsDefaults.PhotoTagging_JustMe)
         {
             BasisPlayer local = BasisLocalPlayer.Instance;
-            if (local != null && TryBuildPerson(captureCamera, local, requireBounds: false, details, out TaggedPerson self))
+            if (local != null && TryBuildPerson(captureCamera, local, requireBounds: false, details, computeBox: !panoramic, out TaggedPerson self))
                 people.Add(self);
             return people;
         }
 
-        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(captureCamera);
+        Plane[] planes = panoramic ? null : GeometryUtility.CalculateFrustumPlanes(captureCamera);
 
         // Remote players come from the network registry. The local player is
         // handled once via BasisLocalPlayer.Instance: its networked entry is a
@@ -176,29 +183,29 @@ public static class BasisHandHeldCameraPhotoMetadata
                 continue;
             if (player.IsLocal)
                 continue;
-            TryAddVisiblePerson(people, captureCamera, planes, player, ignoreRoot, details);
+            TryAddVisiblePerson(people, captureCamera, planes, player, ignoreRoot, details, panoramic);
         }
 
-        TryAddVisiblePerson(people, captureCamera, planes, BasisLocalPlayer.Instance, ignoreRoot, details);
+        TryAddVisiblePerson(people, captureCamera, planes, BasisLocalPlayer.Instance, ignoreRoot, details, panoramic);
 
         return people;
     }
 
-    private static void TryAddVisiblePerson(List<TaggedPerson> people, Camera camera, Plane[] planes, BasisPlayer player, Transform ignoreRoot, bool details)
+    private static void TryAddVisiblePerson(List<TaggedPerson> people, Camera camera, Plane[] planes, BasisPlayer player, Transform ignoreRoot, bool details, bool panoramic)
     {
         if (player == null)
             return;
         if (!TryGetWorldBounds(player, out Bounds bounds))
             return;
-        if (!GeometryUtility.TestPlanesAABB(planes, bounds))
+        if (!panoramic && !GeometryUtility.TestPlanesAABB(planes, bounds))
             return;
         if (!HasLineOfSight(camera, bounds, ignoreRoot))
             return;
-        if (TryBuildPerson(camera, player, requireBounds: true, details, out TaggedPerson tagged))
+        if (TryBuildPerson(camera, player, requireBounds: true, details, computeBox: !panoramic, out TaggedPerson tagged))
             people.Add(tagged);
     }
 
-    private static bool TryBuildPerson(Camera camera, BasisPlayer player, bool requireBounds, bool details, out TaggedPerson person)
+    private static bool TryBuildPerson(Camera camera, BasisPlayer player, bool requireBounds, bool details, bool computeBox, out TaggedPerson person)
     {
         person = default;
 
@@ -211,7 +218,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         if (requireBounds && !hasBounds)
             return false;
 
-        if (hasBounds && TryComputeBox(camera, bounds, out Rect box))
+        if (computeBox && hasBounds && TryComputeBox(camera, bounds, out Rect box))
         {
             person.HasBox = true;
             person.X = box.x;
@@ -546,6 +553,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         sb.Append(" xmlns:mwg-rs=\"http://www.metadataworkinggroup.com/schemas/regions/\"");
         sb.Append(" xmlns:stArea=\"http://ns.adobe.com/xmp/sType/Area#\"");
         sb.Append(" xmlns:stDim=\"http://ns.adobe.com/xap/1.0/sType/Dimensions#\"");
+        sb.Append(" xmlns:GPano=\"http://ns.google.com/photos/1.0/panorama/\"");
         sb.Append(" xmlns:basis=\"https://basisvr.org/ns/photo/1.0/\">");
 
         sb.Append("<xmp:CreatorTool>Basis Handheld Camera</xmp:CreatorTool>");
@@ -580,11 +588,37 @@ public static class BasisHandHeldCameraPhotoMetadata
             }
         }
 
+        AppendPano(sb, meta);
         AppendRegions(sb, meta);
 
         sb.Append("</rdf:Description></rdf:RDF></x:xmpmeta>");
         sb.Append("<?xpacket end=\"w\"?>");
         return sb.ToString();
+    }
+
+    private static void AppendPano(StringBuilder sb, PhotoMetadata meta)
+    {
+        if (!meta.HasPano)
+            return;
+
+        int panoWidth = meta.PanoFullWidth > 0 ? meta.PanoFullWidth : meta.ImageWidth;
+        int eyeHeight = meta.PanoPerEyeHeight > 0 ? meta.PanoPerEyeHeight : meta.ImageHeight;
+
+        sb.Append("<GPano:UsePanoramaViewer>True</GPano:UsePanoramaViewer>");
+        sb.Append("<GPano:ProjectionType>equirectangular</GPano:ProjectionType>");
+        sb.Append("<GPano:FullPanoWidthPixels>").Append(panoWidth).Append("</GPano:FullPanoWidthPixels>");
+        sb.Append("<GPano:FullPanoHeightPixels>").Append(eyeHeight).Append("</GPano:FullPanoHeightPixels>");
+        sb.Append("<GPano:CroppedAreaImageWidthPixels>").Append(panoWidth).Append("</GPano:CroppedAreaImageWidthPixels>");
+        sb.Append("<GPano:CroppedAreaImageHeightPixels>").Append(eyeHeight).Append("</GPano:CroppedAreaImageHeightPixels>");
+        sb.Append("<GPano:CroppedAreaLeftPixels>0</GPano:CroppedAreaLeftPixels>");
+        sb.Append("<GPano:CroppedAreaTopPixels>0</GPano:CroppedAreaTopPixels>");
+        sb.Append("<GPano:InitialViewHeadingDegrees>").Append(Mathf.RoundToInt(meta.PanoHeadingDegrees)).Append("</GPano:InitialViewHeadingDegrees>");
+
+        if (meta.PanoStereoTopBottom)
+        {
+            sb.Append("<basis:StereoMode>top-bottom</basis:StereoMode>");
+            sb.Append("<basis:StereoEyeOrder>left-top</basis:StereoEyeOrder>");
+        }
     }
 
     private static void AppendRegions(StringBuilder sb, PhotoMetadata meta)
@@ -885,6 +919,8 @@ public static class BasisHandHeldCameraPhotoMetadata
         }
         if (meta.HasPhotographer && !string.IsNullOrEmpty(meta.PhotographerName))
             attrs.Add(BuildExrStringAttribute("owner", meta.PhotographerName));
+        if (meta.HasPano)
+            attrs.Add(BuildExrStringAttribute("basisPano", "projection=equirectangular;stereo=" + (meta.PanoStereoTopBottom ? "top-bottom" : "none") + ";heading=" + Num(meta.PanoHeadingDegrees)));
         attrs.Add(BuildExrStringAttribute("BasisPeople", json));
 
         int delta = 0;

@@ -27,7 +27,11 @@ namespace HVR.Basis.Comms
 
         public static HVRAvatarComms GetComms(Component anyComponentInsideAvatar)
         {
-            var avatar = GetAvatar(anyComponentInsideAvatar);
+            return GetComms(GetAvatar(anyComponentInsideAvatar));
+        }
+
+        public static HVRAvatarComms GetComms(BasisAvatar avatar)
+        {
             if (avatar == null) return null;
 
             return avatar.GetComponentInChildren<HVRAvatarComms>(true);
@@ -92,6 +96,12 @@ namespace HVR.Basis.Comms
 
         public static FaceTrackingActivityRelay GetOrCreate(BasisAvatar avatar)
         {
+            return GetOrCreate(avatar, out _);
+        }
+
+        public static FaceTrackingActivityRelay GetOrCreate(BasisAvatar avatar, out bool created)
+        {
+            created = false;
             if (avatar == null)
             {
                 return null;
@@ -103,6 +113,7 @@ namespace HVR.Basis.Comms
                 return relay;
             }
 
+            created = true;
             var relayRoot = new GameObject("Generated__FaceTrackingActivityRelay")
             {
                 transform =

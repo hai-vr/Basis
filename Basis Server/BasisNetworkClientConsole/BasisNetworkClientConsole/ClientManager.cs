@@ -16,6 +16,7 @@ namespace Basis.Network
         private readonly List<NetworkClient> clients = new();
         private readonly CancellationTokenSource cts = new();
         public NetPeer[] FinalPeers;
+        public NetworkClient[] FinalClients;
         public static int Size;
 
         // Cached once — config doesn't change at runtime
@@ -32,7 +33,7 @@ namespace Basis.Network
             var avatarInfo = new BasisAvatarNetworkLoad
             {
                 URL = ConfigManager.AvatarUrl,
-                UnlockPassword = ConfigManager.Password
+                UnlockPassword = ConfigManager.AvatarPassword
             };
             _cachedAvatarBytes = avatarInfo.EncodeToBytes();
 
@@ -66,7 +67,7 @@ namespace Basis.Network
                     }
                 };
                 var netClient = new NetworkClient();
-                var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, CreateConfig());
+                var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, CreateConfig(), manualMode: true);
 
                 if (peer != null)
                 {
@@ -82,6 +83,7 @@ namespace Basis.Network
                 await Task.Delay(1, cts.Token);
             }
             FinalPeers = [.. peers];
+            FinalClients = [.. clients];
         }
         public async Task ReconnectClientAsync(int index)
         {
@@ -121,7 +123,7 @@ namespace Basis.Network
             };
 
             var netClient = new NetworkClient();
-            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, CreateConfig());
+            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, _cachedPasswordBytes, CreateConfig(), manualMode: true);
 
             if (peer != null)
             {
@@ -129,6 +131,7 @@ namespace Basis.Network
                 netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
                 lock (clients) clients[index] = netClient;
+                Interlocked.Exchange(ref FinalClients[index], netClient);
                 Interlocked.Exchange(ref FinalPeers[index], peer);
 
                 BNL.Log($"Reconnected: {name} ({uuid}) at index {index}");

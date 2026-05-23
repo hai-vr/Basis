@@ -515,7 +515,7 @@ namespace Basis.Scripts.Avatar
         /// the caller can surface it in per-player UI.
         /// </summary>
         /// <param name="root">The instantiated avatar root GameObject.</param>
-        public static PerformanceInfo TrimExcessComponents(GameObject root)
+        public static PerformanceInfo TrimExcessComponents(GameObject root, Component[] preWalked = null)
         {
             PerformanceInfo info = default;
 
@@ -533,44 +533,46 @@ namespace Basis.Scripts.Avatar
                 protectedAnimator = avatarRef.Animator;
             }
 
+            Component[] components = preWalked ?? root.GetComponentsInChildren<Component>(true);
+
             // Animators: the canonical BasisAvatar.Animator is protected. Without it the
             // remote humanoid driver can't run at all (AvatarAnimatorTransform is set
             // from avatar.Animator.transform during SetupPlayerAvatar).
             if (UseLimitAnimators)
             {
-                info.AnimatorsTrimmed = TrimAnimators(root, LimitAnimators, protectedAnimator);
+                info.AnimatorsTrimmed = TrimAnimators(components, LimitAnimators, protectedAnimator);
             }
 
             if (UseLimitLights)
             {
-                info.LightsTrimmed = TrimComponents<Light>(root, LimitLights);
+                info.LightsTrimmed = TrimComponents<Light>(components, LimitLights);
             }
 
             if (UseLimitParticleSystems)
             {
-                info.ParticleSystemsTrimmed = TrimComponents<ParticleSystem>(root, LimitParticleSystems);
+                info.ParticleSystemsTrimmed = TrimComponents<ParticleSystem>(components, LimitParticleSystems);
             }
 
             if (UseLimitTrailRenderers)
             {
-                info.TrailRenderersTrimmed = TrimComponents<TrailRenderer>(root, LimitTrailRenderers);
+                info.TrailRenderersTrimmed = TrimComponents<TrailRenderer>(components, LimitTrailRenderers);
             }
 
             if (UseLimitLineRenderers)
             {
-                info.LineRenderersTrimmed = TrimComponents<LineRenderer>(root, LimitLineRenderers);
+                info.LineRenderersTrimmed = TrimComponents<LineRenderer>(components, LimitLineRenderers);
             }
 
             if (UseLimitCloth)
             {
-                info.ClothTrimmed = TrimComponents<Cloth>(root, LimitCloth);
+                info.ClothTrimmed = TrimComponents<Cloth>(components, LimitCloth);
             }
 
             // Unity physics colliders only — JiggleColliderExample is a plain
             // MonoBehaviour and is not a Collider subclass, so it's not picked up here.
             if (UseLimitColliders)
             {
-                info.CollidersTrimmed = TrimComponents<Collider>(root, LimitColliders);
+                info.CollidersTrimmed = TrimComponents<Collider>(components, LimitColliders);
             }
 
             // Jiggle rigs. Previously enforced at driver ingestion time, but moved
@@ -581,14 +583,14 @@ namespace Basis.Scripts.Avatar
             // which cleanly un-registers the segment from the JigglePhysics tree.
             if (UseLimitJiggleBones)
             {
-                info.JiggleRigsTrimmed = TrimComponents<JiggleRig>(root, LimitJiggleBones);
+                info.JiggleRigsTrimmed = TrimComponents<JiggleRig>(components, LimitJiggleBones);
             }
 
             // CilboxProxy is in the com.cnlohr.cilbox package which this assembly does
             // not reference, so trim by short type name instead of generic component type.
             if (UseLimitCilboxBehaviours)
             {
-                info.CilboxBehavioursTrimmed = TrimComponentsByName(root, CompCilboxProxy, LimitCilboxBehaviours);
+                info.CilboxBehavioursTrimmed = TrimComponentsByName(components, CompCilboxProxy, LimitCilboxBehaviours);
             }
 
             return info;
@@ -600,14 +602,13 @@ namespace Basis.Scripts.Avatar
         /// keep limit. Used for components living in packages this assembly cannot
         /// reference at compile time (e.g. <c>CilboxProxy</c>).
         /// </summary>
-        private static int TrimComponentsByName(GameObject root, string typeName, int limit)
+        private static int TrimComponentsByName(Component[] components, string typeName, int limit)
         {
-            MonoBehaviour[] all = root.GetComponentsInChildren<MonoBehaviour>(false);
             int kept = 0;
             int destroyed = 0;
-            for (int i = 0; i < all.Length; i++)
+            for (int i = 0; i < components.Length; i++)
             {
-                MonoBehaviour mb = all[i];
+                if (!(components[i] is MonoBehaviour mb)) continue;
                 if (mb == null) continue;
                 if (mb.GetType().Name != typeName) continue;
                 if (kept < limit)
@@ -621,20 +622,20 @@ namespace Basis.Scripts.Avatar
             return destroyed;
         }
 
-        private static int TrimComponents<T>(GameObject root, int limit) where T : Component
+        private static int TrimComponents<T>(Component[] components, int limit) where T : Component
         {
-            // includeInactive=false matches the metadata enumeration in
-            // BasisBundleBuild.GenerateMetaData, so the runtime trim sees exactly
-            // the same set the metadata counted. Inactive variant components stay
-            // in place — they don't tick or render, so they don't consume budget.
-            T[] all = root.GetComponentsInChildren<T>(false);
-            if (all.Length <= limit) return 0;
-
+            int kept = 0;
             int destroyed = 0;
-            for (int i = limit; i < all.Length; i++)
+            for (int i = 0; i < components.Length; i++)
             {
-                if (all[i] == null) continue;
-                UnityEngine.Object.DestroyImmediate(all[i]);
+                if (!(components[i] is T typed)) continue;
+                if (typed == null) continue;
+                if (kept < limit)
+                {
+                    kept++;
+                    continue;
+                }
+                UnityEngine.Object.DestroyImmediate(typed);
                 destroyed++;
             }
             return destroyed;
@@ -648,16 +649,14 @@ namespace Basis.Scripts.Avatar
         /// The user's "Max Animators" is therefore a cap on *ticking* animators,
         /// and the protected one gets a free pass.
         /// </summary>
-        private static int TrimAnimators(GameObject root, int limit, Animator protectedAnimator)
+        private static int TrimAnimators(Component[] components, int limit, Animator protectedAnimator)
         {
-            Animator[] all = root.GetComponentsInChildren<Animator>(false);
-
             // Count non-protected animators — those are the ones the limit applies
             // to. The protected one is always kept and accounts for 0 slots.
             int nonProtectedCount = 0;
-            for (int i = 0; i < all.Length; i++)
+            for (int i = 0; i < components.Length; i++)
             {
-                if (all[i] != null && all[i] != protectedAnimator)
+                if (components[i] is Animator a && a != null && a != protectedAnimator)
                 {
                     nonProtectedCount++;
                 }
@@ -670,9 +669,9 @@ namespace Basis.Scripts.Avatar
             // without consuming a keep slot.
             int keptNonProtected = 0;
             int destroyed = 0;
-            for (int i = 0; i < all.Length; i++)
+            for (int i = 0; i < components.Length; i++)
             {
-                Animator animator = all[i];
+                if (!(components[i] is Animator animator)) continue;
                 if (animator == null) continue;
                 if (animator == protectedAnimator) continue;
 

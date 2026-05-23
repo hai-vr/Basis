@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk;
 using UnityEngine;
 
 /// <summary>
@@ -13,4 +14,26 @@ public abstract class BasisContentBase : BasisNetworkContentBase
     /// </summary>
     [SerializeField]
     public BasisBundleDescription BasisBundleDescription;
+
+    /// <summary>
+    /// Transient component snapshot captured during the load-time content walk
+    /// (<see cref="BasisContentHarvest"/>). Null outside loading; the load path
+    /// clears it once consumed.
+    /// </summary>
+    [System.NonSerialized]
+    public BasisContentHarvest Harvest;
+
+    /// <summary>
+    /// Returns this content's <see cref="BasisContentHarvest"/>, building one from a live walk if it
+    /// was never captured (old content, or a spawn that bypassed the content police). Cached on
+    /// <see cref="Harvest"/>.
+    /// </summary>
+    public BasisContentHarvest EnsureHarvest(bool includeInactive = true)
+    {
+        if (Harvest == null || Harvest.Components == null)
+        {
+            Harvest = BasisContentHarvest.BuildFrom(gameObject, includeInactive);
+        }
+        return Harvest;
+    }
 }

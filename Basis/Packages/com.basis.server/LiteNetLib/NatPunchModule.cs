@@ -69,6 +69,7 @@ namespace LiteNetLib
             public IPEndPoint Internal { [Preserve] get; [Preserve] set; }
             public IPEndPoint External { [Preserve] get; [Preserve] set; }
             public string Token { [Preserve] get; [Preserve] set; }
+            public byte PredictionCount { [Preserve] get; [Preserve] set; }
         }
 
         class NatPunchPacket
@@ -119,10 +120,16 @@ namespace LiteNetLib
 #endif
         T>(T packet, IPEndPoint target) where T : class, new()
         {
-            _cacheWriter.Reset();
-            _cacheWriter.Put((byte)PacketProperty.NatMessage);
-            _netPacketProcessor.Write(_cacheWriter, packet);
-            _socket.SendRaw(_cacheWriter.Data, 0, _cacheWriter.Length, target);
+            // Serialize writes (and against reads, which also use _netPacketProcessor) — the
+            // introduce retransmit fires Send from timer threads. Re-entrant for the
+            // ProcessMessage→OnNatIntroductionResponse→Send path on the receive thread.
+            lock (_cacheReader)
+            {
+                _cacheWriter.Reset();
+                _cacheWriter.Put((byte)PacketProperty.NatMessage);
+                _netPacketProcessor.Write(_cacheWriter, packet);
+                _socket.SendRaw(_cacheWriter.Data, 0, _cacheWriter.Length, target);
+            }
         }
 
         public void NatIntroduce(
@@ -132,19 +139,33 @@ namespace LiteNetLib
             IPEndPoint clientExternal,
             string additionalInfo)
         {
+            NatIntroduce(hostInternal, hostExternal, 0, clientInternal, clientExternal, 0, additionalInfo);
+        }
+
+        public void NatIntroduce(
+            IPEndPoint hostInternal,
+            IPEndPoint hostExternal,
+            int hostPredict,
+            IPEndPoint clientInternal,
+            IPEndPoint clientExternal,
+            int clientPredict,
+            string additionalInfo)
+        {
             var req = new NatIntroduceResponsePacket
             {
                 Token = additionalInfo
             };
 
-            //First packet (server) send to client
+            //First packet (server) send to client — client sprays the host's ports.
             req.Internal = hostInternal;
             req.External = hostExternal;
+            req.PredictionCount = (byte)(hostPredict < 0 ? 0 : (hostPredict > 255 ? 255 : hostPredict));
             Send(req, clientExternal);
 
-            //Second packet (client) send to server
+            //Second packet (client) send to server — host sprays the client's ports.
             req.Internal = clientInternal;
             req.External = clientExternal;
+            req.PredictionCount = (byte)(clientPredict < 0 ? 0 : (clientPredict > 255 ? 255 : clientPredict));
             Send(req, hostExternal);
         }
 
@@ -233,6 +254,26 @@ namespace LiteNetLib
             punchPacket.IsExternal = true;
             Send(punchPacket, req.External);
             //NetDebug.Write(NetLogLevel.Trace, $"[NAT] external punch sent to {req.External}");
+
+            // port-prediction spray for sequential symmetric NATs
+            int predict = req.PredictionCount;
+            if (predict > 0 && req.External != null)
+            {
+                int basePort = req.External.Port;
+                for (int i = 1; i <= predict; i++)
+                {
+                    int port = basePort + i;
+                    if (port > ushort.MaxValue)
+                        break;
+                    var sprayEp = new IPEndPoint(req.External.Address, port);
+
+                    _socket.Ttl = 2;
+                    _socket.SendRaw(new[] { (byte)PacketProperty.Empty }, 0, 1, sprayEp);
+                    _socket.Ttl = NetConstants.SocketTTL;
+
+                    Send(punchPacket, sprayEp);
+                }
+            }
         }
 
         //We got punch and can connect

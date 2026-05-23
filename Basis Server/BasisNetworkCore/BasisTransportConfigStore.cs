@@ -125,7 +125,7 @@ namespace Basis.Network.Core
             try
             {
                 using StreamWriter writer = new StreamWriter(path);
-                serializer.Serialize(writer, created);
+                BasisConfigXmlDocs.Serialize(serializer, type, created, writer);
             }
             catch (Exception ex)
             {
@@ -142,7 +142,7 @@ namespace Basis.Network.Core
                 string tempPath = path + ".tmp";
                 using (StreamWriter writer = new StreamWriter(tempPath))
                 {
-                    serializer.Serialize(writer, config);
+                    BasisConfigXmlDocs.Serialize(serializer, type, config, writer);
                 }
                 if (File.Exists(path)) File.Replace(tempPath, path, null);
                 else File.Move(tempPath, path);

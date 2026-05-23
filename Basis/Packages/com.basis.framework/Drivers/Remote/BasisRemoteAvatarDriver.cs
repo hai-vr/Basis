@@ -2,12 +2,13 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Player;
 using GatorDragonGames.JigglePhysics;
 using System;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 
 namespace Basis.Scripts.Drivers
 {
@@ -79,7 +80,28 @@ namespace Basis.Scripts.Drivers
             Player = RemotePlayer;
 
             // Cache renderers and prep avatar layer/tpose
-            SkinnedMeshRenderer = Player.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            SkinnedMeshRenderer = Player.BasisAvatar.SkinnedMeshRenderers;
+            if (SkinnedMeshRenderer == null)
+            {
+                var renders = Player.BasisAvatar.Renders;
+                var skinnedCount = 0;
+                for (var i = 0; i < renders.Length; i++)
+                {
+                    if (renders[i] is SkinnedMeshRenderer)
+                    {
+                        skinnedCount++;
+                    }
+                }
+                SkinnedMeshRenderer = new SkinnedMeshRenderer[skinnedCount];
+                var skinnedWriteIndex = 0;
+                for (var i = 0; i < renders.Length; i++)
+                {
+                    if (renders[i] is SkinnedMeshRenderer skinnedMeshRenderer)
+                    {
+                        SkinnedMeshRenderer[skinnedWriteIndex++] = skinnedMeshRenderer;
+                    }
+                }
+            }
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
             PutAvatarIntoTPose();
 
@@ -94,7 +116,7 @@ namespace Basis.Scripts.Drivers
             // References.AnimatorRoot caches the actual animator root — downstream
             // calibration steps then read References.AnimatorRoot instead of going
             // through the Animator.transform property each time.
-            BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References);
+            BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References, detectArmTwist: false, humanoidBones: Player.BasisAvatar.TransformStorage?.HumanoidBones);
             BasisAvatarModelCache.RecordPosesCached(References, Player.BasisAvatar.Animator);
 
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
@@ -243,7 +265,7 @@ namespace Basis.Scripts.Drivers
         /// Apply() can write bone transforms directly without SetHumanPose.
         /// Must be called while the avatar is in T-pose (before ResetAvatarAnimator).
         /// </summary>
-        private void CaptureReceiverBoneData(BasisRemotePlayer remotePlayer)
+        private unsafe void CaptureReceiverBoneData(BasisRemotePlayer remotePlayer)
         {
             var receiver = remotePlayer.NetworkReceiver;
             var animator = remotePlayer.BasisAvatar.Animator;
@@ -257,6 +279,9 @@ namespace Basis.Scripts.Drivers
 
             receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
             receiver.BoneTransforms = new Transform[boneCount];
+            quaternion* tposeOut = (quaternion*)receiver.TposeLocalRotations.GetUnsafePtr();
+            Transform[] boneTransforms = receiver.BoneTransforms;
+            int[] writeOrder = BasisBoneRotationCompression.BONE_WRITE_ORDER;
 
             // Check if T-pose local rotations are already cached for this avatar model.
             // The rotations are deterministic per Avatar asset — only bone transforms are per-instance.
@@ -270,19 +295,9 @@ namespace Basis.Scripts.Drivers
                 var cachedRotations = cacheEntry.TposeLocal.Rotations;
                 for (int slot = 0; slot < boneCount; slot++)
                 {
-                    int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
-                    var humanbone = (HumanBodyBones)boneEnum;
-
-                    receiver.TposeLocalRotations[slot] = cachedRotations[boneEnum];
-
-                    if (References.GetTransform(humanbone, out var transform))
-                    {
-                        receiver.BoneTransforms[slot] = transform;
-                    }
-                    else
-                    {
-                        receiver.BoneTransforms[slot] = null;
-                    }
+                    int boneEnum = writeOrder[slot];
+                    tposeOut[slot] = cachedRotations[boneEnum];
+                    boneTransforms[slot] = References.GetTransform((HumanBodyBones)boneEnum, out var transform) ? transform : null;
                 }
             }
             else
@@ -290,19 +305,19 @@ namespace Basis.Scripts.Drivers
                 // Slow path: read from TposeLocal dictionary, then cache for next time
                 for (int slot = 0; slot < boneCount; slot++)
                 {
-                    int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
+                    int boneEnum = writeOrder[slot];
                     var humanbone = (HumanBodyBones)boneEnum;
                     if (References.GetTransform(humanbone, out var transform))
                     {
                         if (References.TposeLocal.TryGetValue(humanbone, out var value))
                         {
-                            receiver.TposeLocalRotations[slot] = value.rotation;
-                            receiver.BoneTransforms[slot] = transform;
+                            tposeOut[slot] = value.rotation;
+                            boneTransforms[slot] = transform;
                         }
                         else
                         {
-                            receiver.TposeLocalRotations[slot] = quaternion.identity;
-                            receiver.BoneTransforms[slot] = null;
+                            tposeOut[slot] = quaternion.identity;
+                            boneTransforms[slot] = null;
                         }
                     }
                 }
@@ -359,17 +374,9 @@ namespace Basis.Scripts.Drivers
                 SavedruntimeAnimatorController = Player.BasisAvatar.Animator.runtimeAnimatorController;
             }
 
-            UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<RuntimeAnimatorController> op =
-                Addressables.LoadAssetAsync<RuntimeAnimatorController>(TPose);
-            RuntimeAnimatorController RAC = op.WaitForCompletion();
-            Player.BasisAvatar.Animator.runtimeAnimatorController = RAC;
+            Player.BasisAvatar.Animator.runtimeAnimatorController = BasisPlayerFactory.TposeController;
             ForceUpdateAnimator(Player.BasisAvatar.Animator);
         }
-
-        /// <summary>
-        /// Addressable path for the TPose controller asset.
-        /// </summary>
-        public const string TPose = "Assets/Animator/Animated TPose.controller";
 
         /// <summary>
         /// Forces the animator to advance by <see cref="Time.deltaTime"/> to apply state changes immediately.

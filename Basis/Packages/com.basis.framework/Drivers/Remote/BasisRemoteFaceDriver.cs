@@ -42,6 +42,8 @@ namespace Basis.Scripts.Drivers
         public Transform RightEyeTransform;
         /// <summary>True when both eye bones were resolved from the rig and calibration succeeded.</summary>
         public bool HasEyeBones;
+        /// <summary>Bumped every time the eye bones / calibration are (re)resolved (avatar setup or reload). Consumers cache eye state keyed on this and skip per-frame revalidation while it is unchanged.</summary>
+        public uint FaceGeneration;
         /// <summary>Per-eye calibration computed once at avatar setup; converts canonical yaw/pitch to rig-local rotation.</summary>
         public BasisEyeCalibration calLeft;
         public BasisEyeCalibration calRight;
@@ -190,6 +192,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         private void InitializeEyes(BasisPlayer player, BasisAvatar avatar)
         {
+            FaceGeneration++;
             HasEyeBones = false;
             LeftEyeTransform = null;
             RightEyeTransform = null;
