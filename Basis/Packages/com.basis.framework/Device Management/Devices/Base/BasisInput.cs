@@ -655,6 +655,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 InteractionLineRenderer.useWorldSpace = true;
                 InteractionLineRenderer.textureMode = LineTextureMode.Tile;
                 InteractionLineRenderer.applyActiveColorSpace = false;
+                Basis.Scripts.UI.BasisRaycastLineCustomization.StyleInteractionLine(InteractionLineRenderer);
             }
             HasRaycaster = true;
         }

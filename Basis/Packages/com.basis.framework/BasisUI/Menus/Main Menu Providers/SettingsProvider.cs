@@ -1682,10 +1682,54 @@ namespace Basis.BasisUI
             // chat-adjacent presence settings (notifications, name visibility) are colocated.
             SettingsProviderNamePlate.BuildNamePlateContent(container);
 
+            BuildAppearanceContent(container);
+
             AddResetPageButton(container, "settings.tab.chat", ResetChatDefaults);
 
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        private static void BuildAppearanceContent(RectTransform container)
+        {
+            PanelElementDescriptor raycastGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, container);
+            raycastGroup.SetTitle(BasisLocalization.Get("settings.chat.raycast.title"));
+            raycastGroup.SetDescription(BasisLocalization.Get("settings.chat.raycast.description"));
+
+            PanelSlider sliderRaycastSize = PanelSlider.CreateEntryAndBind(
+                raycastGroup,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.chat.raycast.size"), 0.25f, 4f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RaycastLineWidth);
+            sliderRaycastSize.SliderComponent.onValueChanged.AddListener(Basis.Scripts.UI.BasisRaycastLineCustomization.PreviewWidth);
+
+            Color raycastColorInit = Basis.Scripts.UI.BasisRaycastLineCustomization.ParseColor(BasisSettingsDefaults.RaycastLineColor.RawValue)
+                ?? new Color(0.3019608f, 0.09411766f, 0.2980392f);
+            SettingsProviderUIStyle.AddBindingColorPicker(container,
+                BasisLocalization.Get("settings.chat.raycast.color"),
+                BasisSettingsDefaults.RaycastLineColor, raycastColorInit,
+                c => Basis.Scripts.UI.BasisRaycastLineCustomization.PreviewUiLineColor(c));
+
+            Color highlightColorInit = Basis.Scripts.BasisSdk.Interactions.BasisPickupHighlightColor.ParseColor(BasisSettingsDefaults.PickupHighlightColor.RawValue)
+                ?? new Color(0.050980344f, 0.737255f, 0.92156863f, 0.4745098f);
+            SettingsProviderUIStyle.AddBindingColorPicker(container,
+                BasisLocalization.Get("settings.chat.pickup.highlightColor"),
+                BasisSettingsDefaults.PickupHighlightColor, highlightColorInit,
+                c => Basis.Scripts.BasisSdk.Interactions.BasisPickupHighlightColor.PreviewColor(c));
+
+            Color pickupLineColorInit = Basis.Scripts.UI.BasisRaycastLineCustomization.ParseColor(BasisSettingsDefaults.PickupLineColor.RawValue)
+                ?? new Color(0.48365337f, 0.33490568f, 1f, 1f);
+            SettingsProviderUIStyle.AddBindingColorPicker(container,
+                BasisLocalization.Get("settings.chat.pickup.lineColor"),
+                BasisSettingsDefaults.PickupLineColor, pickupLineColorInit,
+                c => Basis.Scripts.UI.BasisRaycastLineCustomization.PreviewInteractionLineColor(c));
+
+            PanelElementDescriptor uiColorsHeader = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, container);
+            uiColorsHeader.SetTitle(BasisLocalization.Get("settings.chat.uicolors.title"));
+            uiColorsHeader.SetDescription(BasisLocalization.Get("settings.chat.uicolors.description"));
+
+            SettingsProviderUIStyle.BuildColorPickers(container);
         }
 
         private static void ResetChatDefaults()
@@ -1700,6 +1744,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PhotoEmbedCaptureInfo.ResetToDefault();
             BasisSettingsDefaults.PhotoEmbedPhotographer.ResetToDefault();
             BasisSettingsDefaults.PhotoEmbedWorld.ResetToDefault();
+            BasisSettingsDefaults.RaycastLineWidth.ResetToDefault();
+            BasisSettingsDefaults.RaycastLineColor.ResetToDefault();
+            BasisSettingsDefaults.PickupHighlightColor.ResetToDefault();
+            BasisSettingsDefaults.PickupLineColor.ResetToDefault();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }
 
@@ -1813,6 +1861,72 @@ namespace Basis.BasisUI
             }
             RefreshGizmoSubVisibility(toggleShowGizmos.Value);
             toggleShowGizmos.OnValueChanged += RefreshGizmoSubVisibility;
+
+            // ---- Avatar Recorder ----
+            PanelElementDescriptor recorderGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            recorderGroup.SetTitle(BasisLocalization.Get("settings.developer.recorder.title"));
+            recorderGroup.SetDescription(BasisLocalization.Get("settings.developer.recorder.description"));
+
+            PanelTextField recorderCountdownField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
+            recorderCountdownField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.countdown"));
+            recorderCountdownField.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.recorder.countdown.description"));
+            recorderCountdownField.AssignBinding(BasisSettingsDefaults.RecorderCountdownSeconds);
+            if (recorderCountdownField._inputField != null)
+            {
+                recorderCountdownField._inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
+                recorderCountdownField._inputField.lineType = TMP_InputField.LineType.SingleLine;
+                recorderCountdownField._inputField.characterLimit = 4;
+            }
+
+            PanelToggle recorderAutoStopToggle = PanelToggle.CreateNewEntry(recorderGroup.ContentParent);
+            recorderAutoStopToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.autoStop"));
+            recorderAutoStopToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.recorder.autoStop.description"));
+            recorderAutoStopToggle.AssignBinding(BasisSettingsDefaults.RecorderAutoStop);
+
+            PanelTextField recorderDurationField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
+            recorderDurationField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.maxDuration"));
+            recorderDurationField.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.recorder.maxDuration.description"));
+            recorderDurationField.AssignBinding(BasisSettingsDefaults.RecorderMaxDurationSeconds);
+            if (recorderDurationField._inputField != null)
+            {
+                recorderDurationField._inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
+                recorderDurationField._inputField.lineType = TMP_InputField.LineType.SingleLine;
+                recorderDurationField._inputField.characterLimit = 5;
+            }
+            recorderDurationField.Descriptor.SetActive(recorderAutoStopToggle.Value);
+            recorderAutoStopToggle.OnValueChanged += enabled =>
+            {
+                recorderDurationField.Descriptor.SetActive(enabled);
+                recorderGroup.ForceRebuild();
+            };
+
+            PanelElementDescriptor recorderStatusField =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, recorderGroup.ContentParent);
+            recorderStatusField.SetTitle(BasisLocalization.Get("settings.developer.recorder.status.title"));
+            recorderStatusField.SetDescription(BasisLocalization.Get("settings.developer.recorder.status.idle"));
+
+            PanelButton recorderButton = PanelButton.CreateNew(recorderGroup.ContentParent);
+            recorderButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.start"));
+            recorderButton.OnClicked += () =>
+            {
+                if (BasisAvatarRecorderDriver.IsBusy)
+                {
+                    BasisAvatarRecorderDriver.RequestStop();
+                }
+                else
+                {
+                    float countdown = ParseSeconds(BasisSettingsDefaults.RecorderCountdownSeconds.RawValue);
+                    bool autoStop = BasisSettingsDefaults.RecorderAutoStop.RawValue;
+                    float maxDuration = ParseSeconds(BasisSettingsDefaults.RecorderMaxDurationSeconds.RawValue);
+                    BasisAvatarRecorderDriver.RequestStart(countdown, autoStop, maxDuration);
+                }
+            };
+
+            GameObject recorderUpdaterGO = new GameObject("RecorderPanelUpdater");
+            recorderUpdaterGO.transform.SetParent(recorderGroup.transform, false);
+            recorderUpdaterGO.AddComponent<BasisRecorderPanelUpdater>()
+                .Initialize(recorderStatusField, recorderButton);
 
             // ---- Identity (DID) ----
             // The user's DID/UUID is the long-lived id the server keys ban,
@@ -2222,6 +2336,16 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AvatarShowTextureStats.ResetToDefault();
             BasisSettingsDefaults.AvatarShowTrackerRoles.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
+            BasisSettingsDefaults.RecorderCountdownSeconds.ResetToDefault();
+            BasisSettingsDefaults.RecorderAutoStop.ResetToDefault();
+            BasisSettingsDefaults.RecorderMaxDurationSeconds.ResetToDefault();
+        }
+
+        private static float ParseSeconds(string raw)
+        {
+            if (float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) && value > 0f)
+                return value;
+            return 0f;
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)

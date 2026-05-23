@@ -526,18 +526,6 @@ public partial class BasisTransmissionResults
 
         UpdateSendInterval(SquaredSmallestDistance);
 
-        // Recording hook
-        if (BasisAvatarRecorder.IsRecording)
-        {
-            var anim = avatar.Animator;
-            BasisAvatarRecorder.StoreData(
-                intervalSeconds,
-                anim.bodyRotation,
-                anim.bodyPosition,
-             null, //  BasisNetworkTransmitter.HumanPose.muscles,
-                anim.transform.localScale.y);
-        }
-
         // Swap buffers instead of CopyTo() each tick (avoid full-array memcopy on main thread)
         Swap(ref MicrophoneRange, ref PrevInMicrophoneRange);
         Swap(ref hearingRange, ref PrevInHearingRange);

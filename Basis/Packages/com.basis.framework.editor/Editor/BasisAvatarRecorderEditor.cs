@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -73,24 +74,23 @@ public class BasisAvatarRecorderWindow : EditorWindow
     {
         GUILayout.Label("Avatar Recorder", EditorStyles.boldLabel);
 
-        EditorGUILayout.LabelField("Status:",
-            BasisAvatarRecorder.IsRecording ? "Recording" : "Idle");
+        EditorGUILayout.LabelField("Status:", BasisAvatarRecorderDriver.State.ToString());
 
         EditorGUILayout.Space(4);
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            GUI.enabled = !BasisAvatarRecorder.IsRecording;
+            GUI.enabled = !BasisAvatarRecorderDriver.IsBusy;
             if (GUILayout.Button("Start Recording", GUILayout.Height(28)))
             {
-                BasisAvatarRecorder.StartRecording();
+                BasisAvatarRecorderDriver.RequestStart(0f, false, 0f);
                 RefreshFileList();
             }
 
-            GUI.enabled = BasisAvatarRecorder.IsRecording;
+            GUI.enabled = BasisAvatarRecorderDriver.IsBusy;
             if (GUILayout.Button("Stop Recording", GUILayout.Height(28)))
             {
-                BasisAvatarRecorder.StopRecording();
+                BasisAvatarRecorderDriver.RequestStop();
                 RefreshFileList();
             }
 
@@ -106,6 +106,10 @@ public class BasisAvatarRecorderWindow : EditorWindow
         using (new EditorGUILayout.HorizontalScope())
         {
             GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Load & Convert .dat…", GUILayout.Width(180)))
+            {
+                LoadAndConvert();
+            }
             if (GUILayout.Button("Open Recordings Folder", GUILayout.Width(180)))
             {
                 EnsureDirectoryExists(dir);
@@ -201,6 +205,11 @@ public class BasisAvatarRecorderWindow : EditorWindow
             if (GUILayout.Button("Open Containing Folder", GUILayout.Width(170)))
             {
                 EditorUtility.RevealInFinder(fi.FullName);
+            }
+
+            if (GUILayout.Button("Convert to AnimationClip", GUILayout.Width(200)))
+            {
+                ConvertSelectedToAnimationClip();
             }
 
             if (GUILayout.Button("Delete File", GUILayout.Width(100)))
@@ -519,6 +528,193 @@ public class BasisAvatarRecorderWindow : EditorWindow
         }
 
         Repaint();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Conversion to a humanoid AnimationClip
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    private void ConvertSelectedToAnimationClip()
+    {
+        if (!HasValidSelection())
+            return;
+        ConvertFileToAnimationClip(_recordingFiles[_selectedIndex].FullName);
+    }
+
+    private void LoadAndConvert()
+    {
+        string startDir = GetRecordingsDirectory();
+        EnsureDirectoryExists(startDir);
+
+        string path = EditorUtility.OpenFilePanel("Select Avatar Recording (.dat)", startDir, "dat");
+        if (!string.IsNullOrEmpty(path))
+            ConvertFileToAnimationClip(path);
+    }
+
+    private void ConvertFileToAnimationClip(string path)
+    {
+        if (BasisAvatarRecorder.BytesPerFrame <= 0)
+            return;
+
+        if (!File.Exists(path))
+        {
+            EditorUtility.DisplayDialog("Convert to AnimationClip", $"File not found:\n{path}", "OK");
+            return;
+        }
+
+        long bytes;
+        try { bytes = new FileInfo(path).Length; }
+        catch (Exception e) { Debug.LogError($"Failed to read recording size: {e}"); return; }
+
+        int frameCount = (int)(bytes / BasisAvatarRecorder.BytesPerFrame);
+        if (frameCount <= 0)
+        {
+            EditorUtility.DisplayDialog("Convert to AnimationClip", "No frames found in this recording.", "OK");
+            return;
+        }
+
+        int muscleCount = MuscleCount;
+
+        float[] times = new float[frameCount];
+        float[] rootTx = new float[frameCount];
+        float[] rootTy = new float[frameCount];
+        float[] rootTz = new float[frameCount];
+        float[] rootQx = new float[frameCount];
+        float[] rootQy = new float[frameCount];
+        float[] rootQz = new float[frameCount];
+        float[] rootQw = new float[frameCount];
+        float[][] muscles = new float[muscleCount][];
+        for (int m = 0; m < muscleCount; m++)
+            muscles[m] = new float[frameCount];
+
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var br = new BinaryReader(fs);
+
+            float t = 0f;
+            for (int i = 0; i < frameCount; i++)
+            {
+                float interval = br.ReadSingle();
+                if (i > 0) t += interval;
+                times[i] = t;
+
+                rootQx[i] = br.ReadSingle();
+                rootQy[i] = br.ReadSingle();
+                rootQz[i] = br.ReadSingle();
+                rootQw[i] = br.ReadSingle();
+
+                rootTx[i] = br.ReadSingle();
+                rootTy[i] = br.ReadSingle();
+                rootTz[i] = br.ReadSingle();
+
+                for (int m = 0; m < muscleCount; m++)
+                    muscles[m][i] = br.ReadSingle();
+
+                br.ReadSingle();
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Failed to read recording for conversion: {e}");
+            return;
+        }
+
+        string defaultName = Path.GetFileNameWithoutExtension(path);
+        string savePath = EditorUtility.SaveFilePanelInProject(
+            "Save Humanoid AnimationClip",
+            defaultName,
+            "anim",
+            "Choose where to save the converted humanoid AnimationClip.");
+
+        if (string.IsNullOrEmpty(savePath))
+            return;
+
+        AnimationClip clip = new AnimationClip();
+
+        string[] muscleNames = BuildMuscleCurveNames();
+        for (int m = 0; m < muscleCount && m < muscleNames.Length; m++)
+            clip.SetCurve("", typeof(Animator), muscleNames[m], BuildCurve(times, muscles[m]));
+
+        clip.SetCurve("", typeof(Animator), "RootT.x", BuildCurve(times, rootTx));
+        clip.SetCurve("", typeof(Animator), "RootT.y", BuildCurve(times, rootTy));
+        clip.SetCurve("", typeof(Animator), "RootT.z", BuildCurve(times, rootTz));
+        clip.SetCurve("", typeof(Animator), "RootQ.x", BuildCurve(times, rootQx));
+        clip.SetCurve("", typeof(Animator), "RootQ.y", BuildCurve(times, rootQy));
+        clip.SetCurve("", typeof(Animator), "RootQ.z", BuildCurve(times, rootQz));
+        clip.SetCurve("", typeof(Animator), "RootQ.w", BuildCurve(times, rootQw));
+
+        float duration = times[frameCount - 1];
+        clip.frameRate = duration > 0f ? Mathf.Clamp(Mathf.Round((frameCount - 1) / duration), 1f, 240f) : 60f;
+        clip.EnsureQuaternionContinuity();
+
+        var existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(savePath);
+        if (existing != null)
+        {
+            EditorUtility.CopySerialized(clip, existing);
+            AssetDatabase.SaveAssets();
+        }
+        else
+        {
+            AssetDatabase.CreateAsset(clip, savePath);
+            AssetDatabase.SaveAssets();
+        }
+        AssetDatabase.Refresh();
+
+        var saved = AssetDatabase.LoadAssetAtPath<AnimationClip>(savePath);
+        EditorGUIUtility.PingObject(saved);
+        Debug.Log($"Converted {frameCount} frames to humanoid AnimationClip: {savePath}");
+    }
+
+    private static AnimationCurve BuildCurve(float[] times, float[] values)
+    {
+        int n = times.Length;
+        Keyframe[] keys = new Keyframe[n];
+        for (int i = 0; i < n; i++)
+        {
+            float inTangent = 0f;
+            float outTangent = 0f;
+
+            if (i > 0)
+            {
+                float dt = times[i] - times[i - 1];
+                if (dt > 1e-6f) inTangent = (values[i] - values[i - 1]) / dt;
+            }
+            if (i < n - 1)
+            {
+                float dt = times[i + 1] - times[i];
+                if (dt > 1e-6f) outTangent = (values[i + 1] - values[i]) / dt;
+            }
+
+            keys[i] = new Keyframe(times[i], values[i], inTangent, outTangent);
+        }
+        return new AnimationCurve(keys);
+    }
+
+    private static string[] BuildMuscleCurveNames()
+    {
+        string[] names = (string[])HumanTrait.MuscleName.Clone();
+
+        Dictionary<string, string> fingerMap = new Dictionary<string, string>();
+        string[] sides = { "Left", "Right" };
+        string[] fingers = { "Thumb", "Index", "Middle", "Ring", "Little" };
+        foreach (string side in sides)
+        {
+            foreach (string finger in fingers)
+            {
+                fingerMap[$"{side} {finger} 1 Stretched"] = $"{side}Hand.{finger}.1 Stretched";
+                fingerMap[$"{side} {finger} Spread"] = $"{side}Hand.{finger}.Spread";
+                fingerMap[$"{side} {finger} 2 Stretched"] = $"{side}Hand.{finger}.2 Stretched";
+                fingerMap[$"{side} {finger} 3 Stretched"] = $"{side}Hand.{finger}.3 Stretched";
+            }
+        }
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            if (fingerMap.TryGetValue(names[i], out string mapped))
+                names[i] = mapped;
+        }
+        return names;
     }
 
     private string GetRecordingsDirectory()

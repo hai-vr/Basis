@@ -143,12 +143,18 @@ namespace Basis.BasisUI
 
         public void OnAvatarHeightChange(BasisHeightDriver.HeightModeChange change)
         {
-            // v1 had a special case for T-pose. Keep it: only rescale if not T-pose.
-            if (change != BasisHeightDriver.HeightModeChange.OnTpose)
+            if (change == BasisHeightDriver.HeightModeChange.OnTpose)
             {
-                BasisDebug.Log("OnAvatarHeightChange Menu Updating", BasisDebug.LogTag.Core);
-                SetRootMode(GetFindCurrentMode());
+                return;
             }
+
+            if (InUse == PanelGroupRootMode.PlaySpaceStable && _stableHasAnchor)
+            {
+                ApplyScaleOnly();
+                return;
+            }
+
+            SetRootMode(GetFindCurrentMode());
         }
 
         public PanelGroupRootMode GetFindCurrentMode()

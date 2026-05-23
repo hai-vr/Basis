@@ -271,6 +271,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<string> RecorderCountdownSeconds = new("recordercountdownseconds", new BasisPlatformDefault<string>("3"));
+        public static BasisSettingsBinding<bool> RecorderAutoStop = new("recorderautostop", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> RecorderMaxDurationSeconds = new("recordermaxdurationseconds", new BasisPlatformDefault<string>("30"));
+
         /// <summary>
         /// When enabled, suppresses all <see cref="BasisDebug"/> log output (Log, LogWarning, LogError).
         /// Raw <see cref="UnityEngine.Debug"/> calls are unaffected.
@@ -561,6 +565,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> PhotoEmbedPhotographer = new("photoembedphotographer", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> PhotoEmbedWorld = new("photoembedworld", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> PhotoEmbedPersonDetails = new("photoembedpersondetails", new BasisPlatformDefault<bool>(false));
+
+        // ---------------- RAYCAST / INTERACTION VISUALS ----------------
+        public static BasisSettingsBinding<float> RaycastLineWidth = new("raycastlinewidth", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<string> RaycastLineColor = new("raycastlinecolor", new BasisPlatformDefault<string>(""));
+        public static BasisSettingsBinding<string> PickupHighlightColor = new("pickuphighlightcolor", new BasisPlatformDefault<string>(""));
+        public static BasisSettingsBinding<string> PickupLineColor = new("pickuplinecolor", new BasisPlatformDefault<string>(""));
 
         // ---------------- GLOBAL ONE EURO PARAMS ----------------
         public static BasisSettingsBinding<float> FBIKMinCutoff = new("fbikmincutoff", new BasisPlatformDefault<float>(5.5f));
@@ -1621,6 +1631,11 @@ namespace Basis.BasisUI
             UIPaletteCaution.LoadBindingValue();
             UIPaletteDanger.LoadBindingValue();
             UIPaletteScrollbar.LoadBindingValue();
+
+            RaycastLineWidth.LoadBindingValue();
+            RaycastLineColor.LoadBindingValue();
+            PickupHighlightColor.LoadBindingValue();
+            PickupLineColor.LoadBindingValue();
 
             // Subscribers that read RawValue (Apply* in OnSettingsFinishedChanges)
             // ran during Initialize before bindings were refreshed from the file —

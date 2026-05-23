@@ -103,25 +103,10 @@ namespace Basis.Scripts.UI
                 LineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 LineRenderer.startWidth = 0.1f;
                 LineRenderer.endWidth = 0.1f;
-                LineRenderer.widthMultiplier = BasisPlayerInteract.interactLineWidth;
                 LineRenderer.useWorldSpace = true;
                 LineRenderer.textureMode = LineTextureMode.Tile;
                 LineRenderer.applyActiveColorSpace = false;
-                var g = new Gradient();
-                g.SetKeys(
-                    new[]
-                    {
-        new GradientColorKey(new Color(0.3019608f,0.09411766f,0.2980392f), 0f),
-        new GradientColorKey(new Color(0.1058824f,0.1411765f,0.3137255f), 1f),
-                    },
-                    new[]
-                    {
-        new GradientAlphaKey(1.00f, 1),
-        new GradientAlphaKey(1, 0),
-                    }
-                );
-
-                LineRenderer.colorGradient = g;
+                BasisRaycastLineCustomization.StyleUiLine(LineRenderer);
             }
             if (basisInput.DeviceMatchSettings.HasRayCastRadical)
             {

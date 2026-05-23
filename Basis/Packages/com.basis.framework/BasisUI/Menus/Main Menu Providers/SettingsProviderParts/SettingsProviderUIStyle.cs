@@ -71,6 +71,19 @@ public static class SettingsProviderUIStyle
 
         RectTransform container = descriptor.ContentParent;
 
+        BuildColorPickers(container);
+
+        SettingsProvider.AddResetPageButton(container, "settings.tab.uistyle", ResetUIStyleDefaults);
+        descriptor.ForceRebuild();
+        return tab;
+    }
+
+    /// <summary>
+    /// Builds the full set of palette colour pickers into <paramref name="container"/>.
+    /// Shared by the UI Style tab and the Chat tab's colour section.
+    /// </summary>
+    public static void BuildColorPickers(RectTransform container)
+    {
         // Background Colors
         AddColorPicker(container, Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.background1"), UiPaletteStyle.BackgroundColor1, BasisSettingsDefaults.UIPaletteBG1);
         AddColorPicker(container, Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.background2"), UiPaletteStyle.BackgroundColor2, BasisSettingsDefaults.UIPaletteBG2);
@@ -97,10 +110,6 @@ public static class SettingsProviderUIStyle
         AddColorPicker(container, Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.white"), UiPaletteStyle.WhiteColor, BasisSettingsDefaults.UIPaletteWhite);
         AddColorPicker(container, Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.black"), UiPaletteStyle.BlackColor, BasisSettingsDefaults.UIPaletteBlack);
         AddColorPicker(container, Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.clear"), UiPaletteStyle.ClearColor, BasisSettingsDefaults.UIPaletteClear);
-
-        SettingsProvider.AddResetPageButton(container, "settings.tab.uistyle", ResetUIStyleDefaults);
-        descriptor.ForceRebuild();
-        return tab;
     }
 
     private static void AddColorPicker(RectTransform parent, string title,
@@ -115,51 +124,59 @@ public static class SettingsProviderUIStyle
             binding.SetValueWithoutNotify(ColorUtility.ToHtmlStringRGBA(currentColor));
         }
 
+        AddBindingColorPicker(parent, title, binding, currentColor, applied =>
+        {
+            SetPaletteColor(style, applied);
+            UiStyleSettings.UpdateAllStyleComponents();
+        });
+    }
+
+    /// <summary>
+    /// Generic hue + hex colour picker bound to a string settings binding.
+    /// <paramref name="initialColor"/> seeds the swatch/slider; <paramref name="onColorApplied"/>
+    /// runs for live preview while the binding is written on commit.
+    /// </summary>
+    public static void AddBindingColorPicker(RectTransform parent, string title,
+        BasisSettingsBinding<string> binding, Color initialColor, Action<Color> onColorApplied)
+    {
         PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group, parent);
         group.SetTitle(title);
 
         RectTransform content = group.ContentParent;
 
-        // Color preview swatch
         PanelImage preview = PanelImage.CreateNew(content);
-        preview.Image.color = currentColor;
+        preview.Image.color = initialColor;
         preview.SetSize(new Vector2(200, 30));
 
-        // Hue slider (0-360)
-        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
+        Color.RGBToHSV(initialColor, out float h, out float s, out float v);
         float currentS = s;
         float currentV = v;
-        float currentA = currentColor.a;
+        float currentA = initialColor.a;
 
         PanelSlider hueSlider = PanelSlider.CreateNew(content);
         hueSlider.SetSliderSettings(new PanelSlider.SliderSettings(
             Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hue"), "", 0, 360, true, 0, ValueDisplayMode.Degrees));
         hueSlider.SetValueWithoutNotify(Mathf.RoundToInt(h * 360));
 
-        // Hex text field
         PanelTextField hexField = PanelTextField.CreateNewEntry(content);
         hexField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hex"));
         hexField.AssignBinding(binding);
         if (hexField._inputField != null)
         {
             hexField._inputField.characterLimit = 8;
+            hexField._inputField.SetTextWithoutNotify(ColorUtility.ToHtmlStringRGBA(initialColor));
         }
 
-        // --- Wiring ---
-
-        // Live preview while dragging hue slider
         hueSlider.SliderComponent.onValueChanged.AddListener(hue =>
         {
             Color c = Color.HSVToRGB(hue / 360f, currentS, currentV);
             c.a = currentA;
-            SetPaletteColor(style, c);
-            UiStyleSettings.UpdateAllStyleComponents();
+            onColorApplied?.Invoke(c);
             preview.Image.color = c;
             hexField._inputField?.SetTextWithoutNotify(ColorUtility.ToHtmlStringRGBA(c));
         });
 
-        // Persist on slider release
         hueSlider.OnValueChanged += _ =>
         {
             Color c = Color.HSVToRGB(hueSlider.Value / 360f, currentS, currentV);
@@ -167,13 +184,11 @@ public static class SettingsProviderUIStyle
             binding.SetValue(ColorUtility.ToHtmlStringRGBA(c));
         };
 
-        // Hex submit -> update hue slider + preview + palette
         hexField.OnValueChanged += hex =>
         {
             if (TryParseColor(hex, out Color parsed))
             {
-                SetPaletteColor(style, parsed);
-                UiStyleSettings.UpdateAllStyleComponents();
+                onColorApplied?.Invoke(parsed);
                 preview.Image.color = parsed;
 
                 Color.RGBToHSV(parsed, out float newH, out float newS, out float newV);

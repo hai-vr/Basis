@@ -326,6 +326,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     if (HighlightClone.TryGetComponent(out MeshRenderer meshRenderer))
                     {
                         meshRenderer.material = ColliderHighlightMat;
+                        BasisPickupHighlightColor.Register(meshRenderer);
                     }
                     else
                     {
@@ -1027,6 +1028,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             OnInteractStartEvent.RemoveListener(OnInteractionEventFired);
 
+            if (HighlightClone != null && HighlightClone.TryGetComponent(out MeshRenderer highlightRenderer))
+            {
+                BasisPickupHighlightColor.Unregister(highlightRenderer);
+            }
             Destroy(HighlightClone);
             if (asyncOperationHighlightMat.IsValid())
             {
