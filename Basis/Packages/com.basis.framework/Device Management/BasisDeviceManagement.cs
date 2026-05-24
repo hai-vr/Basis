@@ -220,6 +220,9 @@ namespace Basis.Scripts.Device_Management
                 Instance = this;
             }
 
+            // Detect Wine/Proton once up front so any subsystem can branch on it.
+            BasisProtonDetection.Initialize();
+
             StaticCurrentMode = BasisConstants.None;
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
             BasisSettingsSystem.Initialize();
