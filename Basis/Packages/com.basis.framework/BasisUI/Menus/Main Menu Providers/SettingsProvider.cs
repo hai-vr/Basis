@@ -570,6 +570,7 @@ namespace Basis.BasisUI
         private static int _avatarRateLastFps = -1;
         private static int _avatarRateLastRate = -1;
         private static bool _avatarRateWarnShown;
+        private const int AvatarRateWarningPollInterval = 15;
 
         private static void UpdateAvatarRateWarning()
         {
@@ -580,7 +581,13 @@ namespace Basis.BasisUI
                 _avatarRateTickSubscribed = false;
                 return;
             }
+
             if (_avatarRateSlider == null || !_avatarRateSlider.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            if (Time.frameCount % AvatarRateWarningPollInterval != 0)
             {
                 return;
             }
@@ -1723,13 +1730,6 @@ namespace Basis.BasisUI
                 BasisLocalization.Get("settings.chat.pickup.lineColor"),
                 BasisSettingsDefaults.PickupLineColor, pickupLineColorInit,
                 c => Basis.Scripts.UI.BasisRaycastLineCustomization.PreviewInteractionLineColor(c));
-
-            PanelElementDescriptor uiColorsHeader = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, container);
-            uiColorsHeader.SetTitle(BasisLocalization.Get("settings.chat.uicolors.title"));
-            uiColorsHeader.SetDescription(BasisLocalization.Get("settings.chat.uicolors.description"));
-
-            SettingsProviderUIStyle.BuildColorPickers(container);
         }
 
         private static void ResetChatDefaults()
