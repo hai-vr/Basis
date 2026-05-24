@@ -53,6 +53,8 @@ namespace HVR.Vixxy
             "UnityEngine.Rendering.Universal.DecalProjector",
             // Jiggle
             "GatorDragonGames.JigglePhysics.JiggleRig",
+            // Authored motion (toggle the component's enabled state per movement group)
+            "BasisAuthoredMotion",
             // UI
             "TMPro.TextMeshPro",
             "TMPro.TextMeshProUGUI",
