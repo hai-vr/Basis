@@ -3,7 +3,6 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Simulation;
-using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
@@ -349,11 +348,6 @@ namespace Basis.MediaPipe
             BasisInputXRSimulate input = go.AddComponent<BasisInputXRSimulate>();
             input.FollowMovement = move;
             input.InitializeTracking(id, SubSystem, SubSystem, true, role);
-
-            if (role == BasisBoneTrackedRole.Head && BasisDesktopEye.Instance != null)
-            {
-                BasisDesktopEye.Instance.Reticle?.SetEnabled(true);
-            }
 
             BasisDeviceManagement.Instance.TryAdd(input);
 
