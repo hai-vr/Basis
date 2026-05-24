@@ -60,6 +60,8 @@ public partial class BasisEventDriver : MonoBehaviour
     const int PROF_NET_COMPLETE_REMOTE_LERP = 3;
     const int PROF_NET_MICROPHONE = 4;
 
+    private static bool _hvrSimulateErrorLogged;
+
     // ── Partial method declarations (calls are stripped in non-editor builds) ──
     partial void ProfileLateUpdateInit();
     partial void ProfileBegin(int section);
@@ -332,7 +334,11 @@ public partial class BasisEventDriver : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogError($"HVRBasisBuiltInAddresses.Simulate failed: {ex}");
+            if (!_hvrSimulateErrorLogged)
+            {
+                _hvrSimulateErrorLogged = true;
+                BasisDebug.LogError($"HVRBasisBuiltInAddresses.Simulate failed: {ex}");
+            }
         }
 
         // ── BlendShape simulate ──
