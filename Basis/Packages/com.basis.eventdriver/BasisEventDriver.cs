@@ -337,7 +337,7 @@ public partial class BasisEventDriver : MonoBehaviour
             if (!_hvrSimulateErrorLogged)
             {
                 _hvrSimulateErrorLogged = true;
-                BasisDebug.LogError($"HVRBasisBuiltInAddresses.Simulate failed: {ex}");
+                Debug.LogError($"HVRBasisBuiltInAddresses.Simulate failed: {ex}");
             }
         }
 
