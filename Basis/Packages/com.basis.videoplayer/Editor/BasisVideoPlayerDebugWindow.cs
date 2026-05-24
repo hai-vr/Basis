@@ -321,6 +321,8 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
 
             EditorGUILayout.LabelField("Backend", "OS-codec PTS-paced ring (no CPU queue)");
             EditorGUILayout.LabelField("State", eng.State.ToString());
+            long ttffMs = ParseCounter(dbg, "ttff=");
+            EditorGUILayout.LabelField("Time to first frame", ttffMs >= 0 ? $"{ttffMs} ms" : "— (connecting)");
 
             EditorGUILayout.Space(2);
             EditorGUILayout.LabelField("Framerate", EditorStyles.boldLabel);

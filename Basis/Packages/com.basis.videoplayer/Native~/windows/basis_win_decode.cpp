@@ -144,6 +144,8 @@ struct basis_decoder {
     int64_t lastPtsUs = -1;
     int64_t prevWritePts = INT64_MIN;        /* last frame PTS written to the ring */
     int64_t frameIntervalUs = 0;             /* EMA of inter-frame PTS delta (source frame period) */
+    LARGE_INTEGER createQpc = {};            /* engine open time (for time-to-first-frame) */
+    volatile LONG ttffMs = -1;               /* ms from open to first presented frame */
     CRITICAL_SECTION presentLock;
 
     /* debug counters */
@@ -567,6 +569,7 @@ extern "C" basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     if (d->devUnity) d->devUnity->GetImmediateContext(&d->ctxUnity);
     InitializeCriticalSection(&d->presentLock);
     QueryPerformanceFrequency(&d->qpcFreq);
+    QueryPerformanceCounter(&d->createQpc);
     for (int i = 0; i < basis_decoder::RING; ++i) d->ringPts[i] = INT64_MIN;
     d->pcm.init(48000 * 2 * 4); /* ~4s stereo */
 
@@ -737,7 +740,14 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     if (buf < 40000) buf = 40000;
     if (buf > maxBuf) buf = maxBuf;
     d->bufferUs = (LONG)buf;
-    int64_t nowMedia = liveClock - buf;
+
+    /* Fast start: ramp the effective cushion from ~0 up to the target over the
+     * first ~1.2s, so the first decoded frame is presented almost immediately
+     * instead of waiting a full buffer behind live, then settle into the full
+     * buffer. wallElapsed resets on a hard resync, so a rebuffer re-primes too. */
+    int64_t wallElapsed = (int64_t)((nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq);
+    int64_t effBuf = (wallElapsed < 1200000) ? (buf * wallElapsed / 1200000) : buf;
+    int64_t nowMedia = liveClock - effBuf;
     d->dbg_lagms = (LONG)((newest - nowMedia) / 1000);
 
     /* recover from non-monotonic/bogus PTS (lastPresentedPts stuck above the ring) */
@@ -759,6 +769,10 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
             if (d->ringMutexUnity[best]) d->ringMutexUnity[best]->ReleaseSync(0);
             d->lastPresentedPts = bestPts;
             InterlockedIncrement(&d->dbg_copy);
+            if (d->ttffMs < 0) {
+                LARGE_INTEGER tnow; QueryPerformanceCounter(&tnow);
+                d->ttffMs = (LONG)((tnow.QuadPart - d->createQpc.QuadPart) * 1000 / freq);
+            }
         } else {
             InterlockedIncrement(&d->dbg_acqfail);
         }
@@ -819,8 +833,8 @@ extern "C" void basis_decoder_set_buffer(basis_decoder_t* d, int mode, int buffe
 extern "C" int basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) {
     if (!d || !buf || size <= 0) return 0;
     return snprintf(buf, (size_t)size,
-                    "blit=%ld copy=%ld render=%ld nodue=%ld acq=%ld lag=%ldms buf=%ldms mode=%d | acfg=%d aout=%ld asr=%d",
+                    "blit=%ld copy=%ld render=%ld nodue=%ld acq=%ld lag=%ldms buf=%ldms mode=%d ttff=%ldms | acfg=%d aout=%ld asr=%d",
                     (long)d->dbg_blit, (long)d->dbg_copy, (long)d->dbg_render, (long)d->dbg_nodue, (long)d->dbg_acqfail,
-                    (long)d->dbg_lagms, (long)(d->bufferUs / 1000), (int)d->bufferMode,
+                    (long)d->dbg_lagms, (long)(d->bufferUs / 1000), (int)d->bufferMode, (long)d->ttffMs,
                     d->aconfigured ? 1 : 0, (long)d->dbg_aout, d->asr);
 }

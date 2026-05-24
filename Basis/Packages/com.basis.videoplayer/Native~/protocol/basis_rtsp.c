@@ -440,18 +440,14 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
 
     char body[8192]; int blen = 0;
 
-    int opt_send = rtsp_send(&r, "OPTIONS", base_url, NULL);
-    int opt_code = (opt_send == 0) ? rtsp_recv(&r, NULL, 0, NULL) : -2;
-    char opt_status[160];
-    strncpy(opt_status, r.last_status[0] ? r.last_status : "<none>", sizeof(opt_status) - 1);
-    opt_status[sizeof(opt_status) - 1] = 0;
-
+    /* Go straight to DESCRIBE. OPTIONS is only a capability probe — it costs a full
+     * round trip on every connect and some servers drop the link right after it
+     * (which is why DESCRIBE-first was already the recovery path). Auth is sent
+     * pre-emptively on every request, so OPTIONS wasn't needed for discovery. */
     int desc_send = rtsp_send(&r, "DESCRIBE", base_url, "Accept: application/sdp\r\n");
     int code = (desc_send == 0) ? rtsp_recv(&r, body, sizeof(body) - 1, &blen) : -2;
 
-    /* If the socket died after OPTIONS (write failed or no response), the server
-     * likely doesn't keep the connection alive past OPTIONS. Reconnect and try
-     * DESCRIBE as the first request. */
+    /* one reconnect retry if the first request didn't land (transient/half-open) */
     if (desc_send != 0 || code < 0) {
         basis_io_close(r.io);
         r.io = basis_io_connect(url->host, url->port, 10000);
@@ -466,8 +462,7 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
     if (code != 200 || blen <= 0) {
         char emsg[800];
         snprintf(emsg, sizeof(emsg),
-                 "RTSP: DESCRIBE failed (opt_send=%d opt_code=%d opt='%s' | desc_send=%d desc='%s' code=%d body=%dB auth='%s' loc='%s' url=%s)",
-                 opt_send, opt_code, opt_status,
+                 "RTSP: DESCRIBE failed (desc_send=%d desc='%s' code=%d body=%dB auth='%s' loc='%s' url=%s)",
                  desc_send, r.last_status[0] ? r.last_status : "<none>", code, blen,
                  r.www_auth[0] ? r.www_auth : "none", r.location[0] ? r.location : "none", base_url);
         sink->on_error(sink->user, emsg);
