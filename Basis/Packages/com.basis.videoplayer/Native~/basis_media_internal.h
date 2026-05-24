@@ -148,6 +148,13 @@ uint64_t basis_gfx_vk_physical_device(void);
 uint64_t basis_gfx_vk_graphics_queue(void);
 uint32_t basis_gfx_vk_graphics_queue_family(void);
 
+/* Vulkan: fetch Unity's currently-recording command buffer (so the YCbCr->RGBA
+ * resolve runs inside Unity's frame, no separate submit/fence) and ensure we're
+ * outside Unity's render pass. Writes Unity's current and "safe" (GPU-completed)
+ * frame numbers for resource lifetime tracking. Returns VkCommandBuffer as
+ * uintptr_t, or 0 if no buffer is available this call. Render thread only. */
+uint64_t basis_gfx_vk_begin_record(uint64_t* out_current_frame, uint64_t* out_safe_frame);
+
 /* Thread-safe state/error helpers implemented in basis_media_core.c. */
 void        basis_engine_set_state(basis_media_engine_t* engine, basis_media_state_t state);
 void        basis_engine_set_error(basis_media_engine_t* engine, const char* message);

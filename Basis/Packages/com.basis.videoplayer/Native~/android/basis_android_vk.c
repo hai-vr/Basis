@@ -1,21 +1,31 @@
 /*
  * basis_android_vk.c — Vulkan zero-copy present for Quest.
  *
- * Imports a decoded AHardwareBuffer (YCbCr) via
+ * Imports each decoded AHardwareBuffer (YCbCr) via
  * VK_ANDROID_external_memory_android_hardware_buffer and resolves it to an RGBA
- * VkImage that Unity samples. Runs on Unity's VkDevice/queue (IUnityGraphicsVulkan,
- * surfaced through basis_gfx_vk_*).
+ * VkImage that Unity samples. The resolve is a fullscreen draw that samples the
+ * AHB through an immutable Y'CbCr-conversion sampler (the conversion does
+ * YCbCr->RGB), recorded into Unity's own command buffer (IUnityGraphicsVulkan)
+ * so there is no separate queue submit or fence to manage — it runs as part of
+ * Unity's frame, and Unity's safeFrameNumber tells us when an imported buffer is
+ * free to release.
  *
- * STATUS: the AHB import + Y'CbCr conversion object + RGBA target are set up here.
- * The actual YCbCr->RGBA resolve pass (descriptor set with the ycbcr-conversion
- * sampler, a fullscreen pipeline, command-buffer submit on Unity's queue, and the
- * image-layout transitions) is the one piece that must be finished and validated
- * on-device — it is marked TODO below. Until then the RGBA image is allocated and
- * wired end-to-end (Unity gets a valid VkImage) but not yet filled.
+ * Pipeline objects (Y'CbCr conversion, immutable sampler, descriptor layout,
+ * render pass, graphics pipeline) depend only on the AHB external format, so they
+ * are built once and reused; only the per-frame source image/view/descriptor are
+ * rebuilt, from a small ring so a buffer is never destroyed while the GPU may
+ * still be reading it.
+ *
+ * ON-DEVICE VALIDATION POINTS (can't be exercised off-Quest):
+ *   - external-format image view + ycbcr immutable sampler descriptor wiring
+ *   - the render pass leaves rgbaImage in SHADER_READ_ONLY_OPTIMAL, which is the
+ *     layout Unity expects for a CreateExternalTexture image
+ *   - safeFrameNumber-based reclamation depth (BASIS_VK_RING) vs frames in flight
  */
 
 #include "basis_android_vk.h"
 #include "../basis_media_internal.h"
+#include "basis_vk_shaders.h"
 
 #define VK_USE_PLATFORM_ANDROID_KHR
 #include <vulkan/vulkan.h>
@@ -26,6 +36,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define BASIS_VK_RING 4   /* imported source buffers kept alive for in-flight frames */
+
+typedef struct {
+    AHardwareBuffer* ahb;
+    VkImage          image;
+    VkDeviceMemory   memory;
+    VkImageView      view;
+    VkDescriptorSet  set;
+    uint64_t         lastUsedFrame;  /* Unity frame this slot was recorded into */
+    int              inUse;
+} basis_vk_slot;
+
 struct basis_vk_present {
     VkInstance instance;
     VkPhysicalDevice phys;
@@ -33,22 +55,32 @@ struct basis_vk_present {
     VkQueue queue;
     uint32_t queueFamily;
 
-    /* extension entry points */
     PFN_vkGetAndroidHardwareBufferPropertiesANDROID getAHBProps;
 
     pthread_mutex_t lock;
-    AHardwareBuffer* pending;   /* newest decoded buffer awaiting import (render thread) */
-    AHardwareBuffer* imported;  /* currently imported buffer */
+    AHardwareBuffer* pending;   /* newest decoded buffer awaiting import */
     int w, h;
 
-    /* imported YCbCr image */
-    VkImage srcImage;
-    VkDeviceMemory srcMemory;
+    /* format-keyed resolve pipeline (rebuilt only if the external format changes) */
+    int      haveFormat;
+    uint64_t externalFormat;
     VkSamplerYcbcrConversion ycbcr;
+    VkSampler             sampler;     /* immutable, ycbcr conversion attached */
+    VkDescriptorSetLayout dsLayout;
+    VkPipelineLayout      pipeLayout;
+    VkRenderPass          renderPass;
+    VkPipeline            pipeline;
+    VkShaderModule        vert, frag;
+    VkDescriptorPool      descPool;
 
-    /* RGBA target Unity samples */
-    VkImage rgbaImage;
+    /* per-frame ring of imported source images + their descriptor sets */
+    basis_vk_slot ring[BASIS_VK_RING];
+
+    /* RGBA target Unity samples (single image; barriers/serialization order it) */
+    VkImage       rgbaImage;
     VkDeviceMemory rgbaMemory;
+    VkImageView   rgbaView;
+    VkFramebuffer fbo;
     int rgbaW, rgbaH;
 
     uint64_t frameCounter;
@@ -82,37 +114,23 @@ void basis_vk_set_hardware_buffer(basis_vk_present* v, AHardwareBuffer* ahb, int
     pthread_mutex_unlock(&v->lock);
 }
 
-static void destroy_src(basis_vk_present* v) {
-    if (v->srcImage)  { vkDestroyImage(v->device, v->srcImage, NULL); v->srcImage = VK_NULL_HANDLE; }
-    if (v->srcMemory) { vkFreeMemory(v->device, v->srcMemory, NULL); v->srcMemory = VK_NULL_HANDLE; }
-    if (v->ycbcr)     { vkDestroySamplerYcbcrConversion(v->device, v->ycbcr, NULL); v->ycbcr = VK_NULL_HANDLE; }
-    if (v->imported)  { AHardwareBuffer_release(v->imported); v->imported = NULL; }
+/* ---- slot (per-frame source image) ------------------------------------- */
+
+static void destroy_slot(basis_vk_present* v, basis_vk_slot* s) {
+    if (s->view)   { vkDestroyImageView(v->device, s->view, NULL); s->view = VK_NULL_HANDLE; }
+    if (s->image)  { vkDestroyImage(v->device, s->image, NULL); s->image = VK_NULL_HANDLE; }
+    if (s->memory) { vkFreeMemory(v->device, s->memory, NULL); s->memory = VK_NULL_HANDLE; }
+    if (s->ahb)    { AHardwareBuffer_release(s->ahb); s->ahb = NULL; }
+    s->inUse = 0;
 }
 
-/* Import an AHardwareBuffer as an external-format Y'CbCr VkImage. */
-static int import_ahb(basis_vk_present* v, AHardwareBuffer* ahb, int w, int h) {
-    if (!v->device || !v->getAHBProps) return -1;
-
-    VkAndroidHardwareBufferFormatPropertiesANDROID fmtProps = { VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID };
-    VkAndroidHardwareBufferPropertiesANDROID props = { VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, &fmtProps };
-    if (v->getAHBProps(v->device, ahb, &props) != VK_SUCCESS) return -1;
-
-    /* Y'CbCr conversion described by the AHB's external format. */
+/* Import an AHardwareBuffer as an external-format Y'CbCr VkImage + view into slot s. */
+static int import_into_slot(basis_vk_present* v, basis_vk_slot* s, AHardwareBuffer* ahb,
+                            int w, int h, const VkAndroidHardwareBufferPropertiesANDROID* props,
+                            uint64_t externalFormat) {
     VkExternalFormatANDROID extFmt = { VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID };
-    extFmt.externalFormat = fmtProps.externalFormat;
+    extFmt.externalFormat = externalFormat;
 
-    VkSamplerYcbcrConversionCreateInfo cy = { VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO };
-    cy.pNext = &extFmt;
-    cy.format = VK_FORMAT_UNDEFINED;
-    cy.ycbcrModel = fmtProps.suggestedYcbcrModel;
-    cy.ycbcrRange = fmtProps.suggestedYcbcrRange;
-    cy.components = fmtProps.samplerYcbcrConversionComponents;
-    cy.xChromaOffset = fmtProps.suggestedXChromaOffset;
-    cy.yChromaOffset = fmtProps.suggestedYChromaOffset;
-    cy.chromaFilter = VK_FILTER_LINEAR;
-    if (vkCreateSamplerYcbcrConversion(v->device, &cy, NULL, &v->ycbcr) != VK_SUCCESS) return -1;
-
-    /* image with external format + dedicated AHB memory */
     VkExternalMemoryImageCreateInfo extImg = { VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO };
     extImg.pNext = &extFmt;
     extImg.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
@@ -120,7 +138,7 @@ static int import_ahb(basis_vk_present* v, AHardwareBuffer* ahb, int w, int h) {
     VkImageCreateInfo ici = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     ici.pNext = &extImg;
     ici.imageType = VK_IMAGE_TYPE_2D;
-    ici.format = VK_FORMAT_UNDEFINED; /* external format */
+    ici.format = VK_FORMAT_UNDEFINED;          /* external format */
     ici.extent.width = (uint32_t)w; ici.extent.height = (uint32_t)h; ici.extent.depth = 1;
     ici.mipLevels = 1; ici.arrayLayers = 1;
     ici.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -128,31 +146,223 @@ static int import_ahb(basis_vk_present* v, AHardwareBuffer* ahb, int w, int h) {
     ici.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
     ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    if (vkCreateImage(v->device, &ici, NULL, &v->srcImage) != VK_SUCCESS) return -1;
+    if (vkCreateImage(v->device, &ici, NULL, &s->image) != VK_SUCCESS) return -1;
 
     VkImportAndroidHardwareBufferInfoANDROID importInfo = { VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID };
     importInfo.buffer = ahb;
     VkMemoryDedicatedAllocateInfo dedicated = { VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO, &importInfo };
-    dedicated.image = v->srcImage;
+    dedicated.image = s->image;
 
-    /* pick a memory type from props.memoryTypeBits */
     uint32_t typeIndex = 0;
-    for (uint32_t i = 0; i < 32; ++i) if (props.memoryTypeBits & (1u << i)) { typeIndex = i; break; }
+    for (uint32_t i = 0; i < 32; ++i) if (props->memoryTypeBits & (1u << i)) { typeIndex = i; break; }
 
     VkMemoryAllocateInfo mai = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, &dedicated };
-    mai.allocationSize = props.allocationSize;
+    mai.allocationSize = props->allocationSize;
     mai.memoryTypeIndex = typeIndex;
-    if (vkAllocateMemory(v->device, &mai, NULL, &v->srcMemory) != VK_SUCCESS) return -1;
-    if (vkBindImageMemory(v->device, v->srcImage, v->srcMemory, 0) != VK_SUCCESS) return -1;
+    if (vkAllocateMemory(v->device, &mai, NULL, &s->memory) != VK_SUCCESS) return -1;
+    if (vkBindImageMemory(v->device, s->image, s->memory, 0) != VK_SUCCESS) return -1;
 
-    v->imported = ahb; /* take ownership of the ref */
+    /* view carries the same ycbcr conversion so sampling does YCbCr->RGB */
+    VkSamplerYcbcrConversionInfo cvInfo = { VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO };
+    cvInfo.conversion = v->ycbcr;
+    VkImageViewCreateInfo vci = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    vci.pNext = &cvInfo;
+    vci.image = s->image;
+    vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    vci.format = VK_FORMAT_UNDEFINED;          /* external format */
+    vci.components = (VkComponentMapping){ VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
+                                           VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+    vci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    vci.subresourceRange.levelCount = 1;
+    vci.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(v->device, &vci, NULL, &s->view) != VK_SUCCESS) return -1;
+
+    /* point this slot's descriptor at the new view (immutable sampler ignored) */
+    VkDescriptorImageInfo dii = {0};
+    dii.imageView = s->view;
+    dii.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkWriteDescriptorSet wr = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+    wr.dstSet = s->set;
+    wr.dstBinding = 0;
+    wr.descriptorCount = 1;
+    wr.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    wr.pImageInfo = &dii;
+    vkUpdateDescriptorSets(v->device, 1, &wr, 0, NULL);
+
+    AHardwareBuffer_acquire(ahb);
+    s->ahb = ahb;
     return 0;
+}
+
+/* ---- format-keyed pipeline objects ------------------------------------- */
+
+static VkShaderModule make_module(basis_vk_present* v, const uint32_t* code, size_t bytes) {
+    VkShaderModuleCreateInfo ci = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    ci.codeSize = bytes;
+    ci.pCode = code;
+    VkShaderModule m = VK_NULL_HANDLE;
+    vkCreateShaderModule(v->device, &ci, NULL, &m);
+    return m;
+}
+
+static void destroy_format_objects(basis_vk_present* v) {
+    for (int i = 0; i < BASIS_VK_RING; ++i) destroy_slot(v, &v->ring[i]);
+    if (v->pipeline)   { vkDestroyPipeline(v->device, v->pipeline, NULL); v->pipeline = VK_NULL_HANDLE; }
+    if (v->renderPass) { vkDestroyRenderPass(v->device, v->renderPass, NULL); v->renderPass = VK_NULL_HANDLE; }
+    if (v->pipeLayout) { vkDestroyPipelineLayout(v->device, v->pipeLayout, NULL); v->pipeLayout = VK_NULL_HANDLE; }
+    if (v->descPool)   { vkDestroyDescriptorPool(v->device, v->descPool, NULL); v->descPool = VK_NULL_HANDLE; }
+    if (v->dsLayout)   { vkDestroyDescriptorSetLayout(v->device, v->dsLayout, NULL); v->dsLayout = VK_NULL_HANDLE; }
+    if (v->sampler)    { vkDestroySampler(v->device, v->sampler, NULL); v->sampler = VK_NULL_HANDLE; }
+    if (v->ycbcr)      { vkDestroySamplerYcbcrConversion(v->device, v->ycbcr, NULL); v->ycbcr = VK_NULL_HANDLE; }
+    if (v->vert)       { vkDestroyShaderModule(v->device, v->vert, NULL); v->vert = VK_NULL_HANDLE; }
+    if (v->frag)       { vkDestroyShaderModule(v->device, v->frag, NULL); v->frag = VK_NULL_HANDLE; }
+    for (int i = 0; i < BASIS_VK_RING; ++i) v->ring[i].set = VK_NULL_HANDLE;
+    v->haveFormat = 0;
+}
+
+static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
+                                 const VkAndroidHardwareBufferFormatPropertiesANDROID* fmt) {
+    if (v->haveFormat && v->externalFormat == externalFormat) return 0;
+    destroy_format_objects(v);
+
+    /* Y'CbCr conversion described by the AHB external format. */
+    VkExternalFormatANDROID extFmt = { VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID };
+    extFmt.externalFormat = externalFormat;
+    VkSamplerYcbcrConversionCreateInfo cy = { VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO };
+    cy.pNext = &extFmt;
+    cy.format = VK_FORMAT_UNDEFINED;
+    cy.ycbcrModel = fmt->suggestedYcbcrModel;
+    cy.ycbcrRange = fmt->suggestedYcbcrRange;
+    cy.components = fmt->samplerYcbcrConversionComponents;
+    cy.xChromaOffset = fmt->suggestedXChromaOffset;
+    cy.yChromaOffset = fmt->suggestedYChromaOffset;
+    cy.chromaFilter = VK_FILTER_LINEAR;
+    if (vkCreateSamplerYcbcrConversion(v->device, &cy, NULL, &v->ycbcr) != VK_SUCCESS) return -1;
+
+    /* immutable sampler with the conversion attached */
+    VkSamplerYcbcrConversionInfo cvInfo = { VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO };
+    cvInfo.conversion = v->ycbcr;
+    VkSamplerCreateInfo sci = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+    sci.pNext = &cvInfo;
+    sci.magFilter = VK_FILTER_LINEAR; sci.minFilter = VK_FILTER_LINEAR;
+    sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sci.unnormalizedCoordinates = VK_FALSE;
+    if (vkCreateSampler(v->device, &sci, NULL, &v->sampler) != VK_SUCCESS) return -1;
+
+    /* descriptor set layout: binding 0 = combined image sampler w/ immutable sampler */
+    VkDescriptorSetLayoutBinding b = {0};
+    b.binding = 0;
+    b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    b.descriptorCount = 1;
+    b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    b.pImmutableSamplers = &v->sampler;
+    VkDescriptorSetLayoutCreateInfo dlc = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+    dlc.bindingCount = 1; dlc.pBindings = &b;
+    if (vkCreateDescriptorSetLayout(v->device, &dlc, NULL, &v->dsLayout) != VK_SUCCESS) return -1;
+
+    /* pool + one descriptor set per ring slot */
+    VkDescriptorPoolSize ps = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, BASIS_VK_RING };
+    VkDescriptorPoolCreateInfo pci = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    pci.maxSets = BASIS_VK_RING; pci.poolSizeCount = 1; pci.pPoolSizes = &ps;
+    if (vkCreateDescriptorPool(v->device, &pci, NULL, &v->descPool) != VK_SUCCESS) return -1;
+    for (int i = 0; i < BASIS_VK_RING; ++i) {
+        VkDescriptorSetAllocateInfo dai = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+        dai.descriptorPool = v->descPool; dai.descriptorSetCount = 1; dai.pSetLayouts = &v->dsLayout;
+        if (vkAllocateDescriptorSets(v->device, &dai, &v->ring[i].set) != VK_SUCCESS) return -1;
+    }
+
+    VkPipelineLayoutCreateInfo plc = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    plc.setLayoutCount = 1; plc.pSetLayouts = &v->dsLayout;
+    if (vkCreatePipelineLayout(v->device, &plc, NULL, &v->pipeLayout) != VK_SUCCESS) return -1;
+
+    /* render pass: write rgba then hand it to Unity already SHADER_READ_ONLY */
+    VkAttachmentDescription att = {0};
+    att.format = VK_FORMAT_R8G8B8A8_UNORM;
+    att.samples = VK_SAMPLE_COUNT_1_BIT;
+    att.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    att.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    att.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    att.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkAttachmentReference ref = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkSubpassDescription sub = {0};
+    sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    sub.colorAttachmentCount = 1; sub.pColorAttachments = &ref;
+    VkSubpassDependency deps[2] = {0};
+    deps[0].srcSubpass = VK_SUBPASS_EXTERNAL; deps[0].dstSubpass = 0;
+    deps[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    deps[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    deps[0].srcAccessMask = 0;
+    deps[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    deps[1].srcSubpass = 0; deps[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    deps[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    deps[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    deps[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    deps[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    VkRenderPassCreateInfo rpc = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+    rpc.attachmentCount = 1; rpc.pAttachments = &att;
+    rpc.subpassCount = 1; rpc.pSubpasses = &sub;
+    rpc.dependencyCount = 2; rpc.pDependencies = deps;
+    if (vkCreateRenderPass(v->device, &rpc, NULL, &v->renderPass) != VK_SUCCESS) return -1;
+
+    v->vert = make_module(v, basis_vk_resolve_vert_spv, sizeof(basis_vk_resolve_vert_spv));
+    v->frag = make_module(v, basis_vk_resolve_frag_spv, sizeof(basis_vk_resolve_frag_spv));
+    if (!v->vert || !v->frag) return -1;
+
+    VkPipelineShaderStageCreateInfo stages[2] = {
+        { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO },
+        { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO },
+    };
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;   stages[0].module = v->vert; stages[0].pName = "main";
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = v->frag; stages[1].pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vin = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+    VkPipelineInputAssemblyStateCreateInfo ia = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineViewportStateCreateInfo vp = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+    vp.viewportCount = 1; vp.scissorCount = 1;
+    VkPipelineRasterizationStateCreateInfo rs = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+    rs.polygonMode = VK_POLYGON_MODE_FILL; rs.cullMode = VK_CULL_MODE_NONE;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth = 1.0f;
+    VkPipelineMultisampleStateCreateInfo ms = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineColorBlendAttachmentState cba = {0};
+    cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo cb = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+    cb.attachmentCount = 1; cb.pAttachments = &cba;
+    VkDynamicState dyn[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo ds = { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+    ds.dynamicStateCount = 2; ds.pDynamicStates = dyn;
+
+    VkGraphicsPipelineCreateInfo gpc = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+    gpc.stageCount = 2; gpc.pStages = stages;
+    gpc.pVertexInputState = &vin; gpc.pInputAssemblyState = &ia;
+    gpc.pViewportState = &vp; gpc.pRasterizationState = &rs;
+    gpc.pMultisampleState = &ms; gpc.pColorBlendState = &cb;
+    gpc.pDynamicState = &ds;
+    gpc.layout = v->pipeLayout; gpc.renderPass = v->renderPass; gpc.subpass = 0;
+    if (vkCreateGraphicsPipelines(v->device, VK_NULL_HANDLE, 1, &gpc, NULL, &v->pipeline) != VK_SUCCESS) return -1;
+
+    v->externalFormat = externalFormat;
+    v->haveFormat = 1;
+    return 0;
+}
+
+static void destroy_rgba(basis_vk_present* v) {
+    if (v->fbo)       { vkDestroyFramebuffer(v->device, v->fbo, NULL); v->fbo = VK_NULL_HANDLE; }
+    if (v->rgbaView)  { vkDestroyImageView(v->device, v->rgbaView, NULL); v->rgbaView = VK_NULL_HANDLE; }
+    if (v->rgbaImage) { vkDestroyImage(v->device, v->rgbaImage, NULL); v->rgbaImage = VK_NULL_HANDLE; }
+    if (v->rgbaMemory){ vkFreeMemory(v->device, v->rgbaMemory, NULL); v->rgbaMemory = VK_NULL_HANDLE; }
+    v->rgbaW = v->rgbaH = 0;
 }
 
 static int ensure_rgba(basis_vk_present* v, int w, int h) {
     if (v->rgbaImage && v->rgbaW == w && v->rgbaH == h) return 0;
-    if (v->rgbaImage) { vkDestroyImage(v->device, v->rgbaImage, NULL); v->rgbaImage = VK_NULL_HANDLE; }
-    if (v->rgbaMemory) { vkFreeMemory(v->device, v->rgbaMemory, NULL); v->rgbaMemory = VK_NULL_HANDLE; }
+    destroy_rgba(v);
 
     VkImageCreateInfo ici = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     ici.imageType = VK_IMAGE_TYPE_2D;
@@ -161,7 +371,7 @@ static int ensure_rgba(basis_vk_present* v, int w, int h) {
     ici.mipLevels = 1; ici.arrayLayers = 1;
     ici.samples = VK_SAMPLE_COUNT_1_BIT;
     ici.tiling = VK_IMAGE_TILING_OPTIMAL;
-    ici.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    ici.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     if (vkCreateImage(v->device, &ici, NULL, &v->rgbaImage) != VK_SUCCESS) return -1;
@@ -174,13 +384,28 @@ static int ensure_rgba(basis_vk_present* v, int w, int h) {
     VkMemoryAllocateInfo mai = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
     mai.allocationSize = req.size; mai.memoryTypeIndex = ti;
     if (vkAllocateMemory(v->device, &mai, NULL, &v->rgbaMemory) != VK_SUCCESS) return -1;
-    vkBindImageMemory(v->device, v->rgbaImage, v->rgbaMemory, 0);
+    if (vkBindImageMemory(v->device, v->rgbaImage, v->rgbaMemory, 0) != VK_SUCCESS) return -1;
+
+    VkImageViewCreateInfo vci = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    vci.image = v->rgbaImage; vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    vci.format = VK_FORMAT_R8G8B8A8_UNORM;
+    vci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    vci.subresourceRange.levelCount = 1; vci.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(v->device, &vci, NULL, &v->rgbaView) != VK_SUCCESS) return -1;
+
+    VkFramebufferCreateInfo fci = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+    fci.renderPass = v->renderPass; fci.attachmentCount = 1; fci.pAttachments = &v->rgbaView;
+    fci.width = (uint32_t)w; fci.height = (uint32_t)h; fci.layers = 1;
+    if (vkCreateFramebuffer(v->device, &fci, NULL, &v->fbo) != VK_SUCCESS) return -1;
+
     v->rgbaW = w; v->rgbaH = h;
     return 0;
 }
 
+/* ---- per-frame resolve ------------------------------------------------- */
+
 int basis_vk_render_update(basis_vk_present* v) {
-    if (!v || !v->device) return 0;
+    if (!v || !v->device || !v->getAHBProps) return 0;
 
     AHardwareBuffer* ahb = NULL; int w, h;
     pthread_mutex_lock(&v->lock);
@@ -188,23 +413,65 @@ int basis_vk_render_update(basis_vk_present* v) {
     pthread_mutex_unlock(&v->lock);
     if (!ahb) return 0;
 
-    /* rebuild import for the newest buffer (AHBs are recycled, but re-importing
-     * per frame is the simplest correct option; can be pooled later) */
-    destroy_src(v);
-    if (import_ahb(v, ahb, w, h) != 0) { AHardwareBuffer_release(ahb); return 0; }
-    if (ensure_rgba(v, w, h) != 0) return 0;
+    /* AHB format + memory properties (drives the ycbcr conversion + allocation) */
+    VkAndroidHardwareBufferFormatPropertiesANDROID fmtProps = { VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID };
+    VkAndroidHardwareBufferPropertiesANDROID props = { VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, &fmtProps };
+    if (v->getAHBProps(v->device, ahb, &props) != VK_SUCCESS) { AHardwareBuffer_release(ahb); return 0; }
 
-    /* TODO(on-device): record + submit the YCbCr->RGBA resolve here:
-     *   - VkImageView over srcImage with a VkSamplerYcbcrConversionInfo chained
-     *     into the view + an immutable-sampler descriptor using v->ycbcr
-     *   - a fullscreen pipeline (or vkCmdBlitImage is NOT valid for ycbcr;
-     *     must sample) writing into rgbaImage as a color attachment
-     *   - layout transitions: srcImage UNDEFINED->SHADER_READ_ONLY,
-     *     rgbaImage UNDEFINED->COLOR_ATTACHMENT then ->SHADER_READ_ONLY
-     *   - submit on v->queue; coordinate with Unity via IUnityGraphicsVulkan
-     *     (UnityVulkanRecordingState / EnsureOutsideRenderPass)
-     * Until this lands, rgbaImage is allocated but not filled. */
+    if (ensure_format_objects(v, fmtProps.externalFormat, &fmtProps) != 0) { AHardwareBuffer_release(ahb); return 0; }
+    if (ensure_rgba(v, w, h) != 0) { AHardwareBuffer_release(ahb); return 0; }
 
+    /* Unity's command buffer for this frame (+ GPU-completion watermark). */
+    uint64_t curFrame = 0, safeFrame = 0;
+    VkCommandBuffer cmd = (VkCommandBuffer)(uintptr_t)basis_gfx_vk_begin_record(&curFrame, &safeFrame);
+    if (!cmd) { AHardwareBuffer_release(ahb); return 0; }
+
+    /* reclaim slots the GPU has finished with, then take a free one */
+    for (int i = 0; i < BASIS_VK_RING; ++i)
+        if (v->ring[i].inUse && safeFrame >= v->ring[i].lastUsedFrame) destroy_slot(v, &v->ring[i]);
+    int slot = -1;
+    for (int i = 0; i < BASIS_VK_RING; ++i) if (!v->ring[i].inUse) { slot = i; break; }
+    if (slot < 0) { AHardwareBuffer_release(ahb); return 0; } /* all in flight: drop a frame */
+
+    basis_vk_slot* s = &v->ring[slot];
+    if (import_into_slot(v, s, ahb, w, h, &props, fmtProps.externalFormat) != 0) {
+        destroy_slot(v, s);
+        AHardwareBuffer_release(ahb);
+        return 0;
+    }
+    AHardwareBuffer_release(ahb); /* import_into_slot took its own ref */
+
+    /* transition the imported source UNDEFINED -> SHADER_READ_ONLY for sampling */
+    VkImageMemoryBarrier toRead = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+    toRead.srcAccessMask = 0;
+    toRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    toRead.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    toRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toRead.image = s->image;
+    toRead.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    toRead.subresourceRange.levelCount = 1;
+    toRead.subresourceRange.layerCount = 1;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, NULL, 0, NULL, 1, &toRead);
+
+    VkRenderPassBeginInfo rp = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+    rp.renderPass = v->renderPass; rp.framebuffer = v->fbo;
+    rp.renderArea.extent.width = (uint32_t)w; rp.renderArea.extent.height = (uint32_t)h;
+    vkCmdBeginRenderPass(cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport vpr = { 0.0f, 0.0f, (float)w, (float)h, 0.0f, 1.0f };
+    VkRect2D sc = { {0,0}, { (uint32_t)w, (uint32_t)h } };
+    vkCmdSetViewport(cmd, 0, 1, &vpr);
+    vkCmdSetScissor(cmd, 0, 1, &sc);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->pipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->pipeLayout, 0, 1, &s->set, 0, NULL);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+    vkCmdEndRenderPass(cmd);
+
+    s->inUse = 1;
+    s->lastUsedFrame = curFrame;
     v->frameCounter++;
     return 1;
 }
@@ -219,13 +486,11 @@ uint64_t basis_vk_frame_counter(basis_vk_present* v) { return v ? v->frameCounte
 
 void basis_vk_release(basis_vk_present* v) {
     if (!v || !v->device) return;
-    destroy_src(v);
-    if (v->rgbaImage) { vkDestroyImage(v->device, v->rgbaImage, NULL); v->rgbaImage = VK_NULL_HANDLE; }
-    if (v->rgbaMemory) { vkFreeMemory(v->device, v->rgbaMemory, NULL); v->rgbaMemory = VK_NULL_HANDLE; }
+    destroy_format_objects(v);   /* also destroys ring slots */
+    destroy_rgba(v);
     pthread_mutex_lock(&v->lock);
     if (v->pending) { AHardwareBuffer_release(v->pending); v->pending = NULL; }
     pthread_mutex_unlock(&v->lock);
-    v->rgbaW = v->rgbaH = 0;
 }
 
 void basis_vk_destroy(basis_vk_present* v) {

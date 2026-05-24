@@ -226,9 +226,9 @@ static void run_http_like(basis_media_engine_t* e) {
 #endif
 }
 
-static void demux_body(basis_media_engine_t* e) {
-    basis_engine_set_state(e, BASIS_MEDIA_STATE_CONNECTING);
-
+/* Dispatch the URL to its protocol handler. Blocks until the stream drops, the
+ * engine is stopped, or a hard error is set. */
+static void run_protocol_once(basis_media_engine_t* e) {
     if (basis_url_is_rtsp(&e->parts)) {
         basis_rtsp_run(&e->sink, &e->parts);
     } else if (basis_url_is_rtmp(&e->parts)) {
@@ -240,10 +240,59 @@ static void demux_body(basis_media_engine_t* e) {
     } else { /* http / https */
         run_http_like(e);
     }
+}
 
-    if (e->running) {
-        /* loop exited without an explicit error -> treat as end of stream */
-        basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
+/* Sleep that wakes early when the engine is stopped, so teardown never blocks on
+ * a reconnect backoff. */
+static void sleep_interruptible(basis_media_engine_t* e, int ms) {
+    while (ms > 0 && e->running) {
+        int chunk = ms < 50 ? ms : 50;
+        sleep_ms(chunk);
+        ms -= chunk;
+    }
+}
+
+static int engine_state_is_error(basis_media_engine_t* e) {
+    int err;
+    mutex_lock(&e->lock);
+    err = (e->state == BASIS_MEDIA_STATE_ERROR);
+    mutex_unlock(&e->lock);
+    return err;
+}
+
+/* Demux thread: run the protocol, and on an unexpected drop reconnect with
+ * exponential backoff (keeping the decoder + GPU resources alive — far cheaper
+ * than a full teardown/reopen). Backoff resets whenever a run actually received
+ * media, so brief blips recover instantly while a dead endpoint backs off. A hard
+ * error (auth/unsupported) or repeated no-progress failures stop the loop; on
+ * give-up we surface ENDED so the upper layer can do a full reopen if it loops. */
+static void demux_body(basis_media_engine_t* e) {
+    int backoff_ms = 500;
+    int attempt = 0;
+    const int MAX_ATTEMPTS = 6; /* ~500ms..8s capped: several retries before giving up */
+
+    while (e->running) {
+        basis_engine_set_state(e, BASIS_MEDIA_STATE_CONNECTING);
+        long au_before = e->video_au_count + e->audio_frame_count;
+
+        run_protocol_once(e);
+
+        if (!e->running) break;              /* user stop */
+        if (engine_state_is_error(e)) break; /* hard failure: retrying won't help */
+
+        long au_after = e->video_au_count + e->audio_frame_count;
+        if (au_after - au_before > 10) { attempt = 0; backoff_ms = 500; }
+        else attempt++;
+
+        if (attempt >= MAX_ATTEMPTS) {
+            basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
+            break;
+        }
+
+        basis_engine_set_state(e, BASIS_MEDIA_STATE_BUFFERING); /* reconnecting */
+        sleep_interruptible(e, backoff_ms);
+        backoff_ms *= 2;
+        if (backoff_ms > 8000) backoff_ms = 8000;
     }
 }
 

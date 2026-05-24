@@ -55,6 +55,26 @@ extern "C" uint64_t basis_gfx_vk_physical_device(void) { return s_vkPhys; }
 extern "C" uint64_t basis_gfx_vk_graphics_queue(void) { return s_vkQueue; }
 extern "C" uint32_t basis_gfx_vk_graphics_queue_family(void) { return s_vkQueueFamily; }
 
+extern "C" uint64_t basis_gfx_vk_begin_record(uint64_t* out_current_frame, uint64_t* out_safe_frame) {
+    if (out_current_frame) *out_current_frame = 0;
+    if (out_safe_frame) *out_safe_frame = 0;
+#if defined(__ANDROID__)
+    if (!s_unityVulkan) return 0;
+    IUnityGraphicsVulkan* vk = (IUnityGraphicsVulkan*)s_unityVulkan;
+    /* Get outside any Unity render pass first (this may record), then grab the
+     * recording state — resource-access calls would invalidate it, so we take it
+     * last and only record our own commands afterward. */
+    vk->EnsureOutsideRenderPass();
+    UnityVulkanRecordingState rec;
+    if (!vk->CommandRecordingState(&rec, kUnityVulkanGraphicsQueueAccess_DontCare)) return 0;
+    if (out_current_frame) *out_current_frame = rec.currentFrameNumber;
+    if (out_safe_frame) *out_safe_frame = rec.safeFrameNumber;
+    return (uint64_t)(uintptr_t)rec.commandBuffer;
+#else
+    return 0;
+#endif
+}
+
 /* ---- device discovery --------------------------------------------------- */
 
 static void capture_devices() {

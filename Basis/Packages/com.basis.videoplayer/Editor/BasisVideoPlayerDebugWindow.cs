@@ -332,7 +332,17 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
             var esz = eng.VideoSize;
             EditorGUILayout.LabelField("Decoded Size", esz.x > 0 ? $"{esz.x} x {esz.y}" : "(unknown)");
             EditorGUILayout.LabelField("Position", FormatUs(eng.PositionUs < 0 ? 0 : eng.PositionUs));
-            EditorGUILayout.LabelField("Buffer", $"{_target.BufferMode} / {_target.BufferMilliseconds} ms (start)");
+
+            EditorGUILayout.Space(2);
+            EditorGUILayout.LabelField("Playback buffer", EditorStyles.boldLabel);
+            long bufMs = ParseCounter(dbg, "buf=");
+            long lagMs = ParseCounter(dbg, "lag=");
+            EditorGUILayout.LabelField("Buffered ahead", $"{lagMs} ms");
+            EditorGUILayout.LabelField($"Target ({_target.BufferMode})", $"{bufMs} ms");
+            Rect bufRect = GUILayoutUtility.GetRect(0, 18, GUILayout.ExpandWidth(true));
+            float bufFill = bufMs > 0 ? (float)lagMs / bufMs : 0f;
+            Color bufCol = bufFill >= 0.75f ? GoodColor : (bufFill >= 0.4f ? WarnColor : ErrorColor);
+            DrawBar(bufRect, bufFill, $"{lagMs} / {bufMs} ms", bufCol);
 
             EditorGUILayout.Space(2);
             EditorGUILayout.LabelField("Native counters", EditorStyles.boldLabel);

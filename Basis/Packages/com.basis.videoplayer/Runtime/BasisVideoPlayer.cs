@@ -261,6 +261,26 @@ public sealed class BasisVideoPlayer : MonoBehaviour
         if (media == null) throw new ArgumentNullException(nameof(media));
         activeMediaSource = media;
 
+        // Under Wine/Proton, Media Foundation may be missing and initializing the
+        // native plugin can hard-crash, so ask before touching it (once per session,
+        // shared across players). On native Windows/Android/Quest this runs inline.
+        if (BasisVideoProtonGate.RequiresGate)
+        {
+            BasisVideoProtonGate.Request(
+                onAllowed: () => StartNativeEngineForSource(media),
+                onDenied: () => HandleProtonDeclined(media));
+            return;
+        }
+
+        StartNativeEngineForSource(media);
+    }
+
+    private void StartNativeEngineForSource(BasisMediaSource media)
+    {
+        // The decision may resolve a frame or more later (dialog), so re-check this
+        // is still the source we were asked to load before starting the engine.
+        if (!ReferenceEquals(activeMediaSource, media)) return;
+
         try
         {
             if (string.IsNullOrEmpty(media.Uri))
@@ -275,6 +295,15 @@ public sealed class BasisVideoPlayer : MonoBehaviour
             HandleError(ex);
         }
 
+        ApplyMediaSourceSettings(media);
+    }
+
+    private void HandleProtonDeclined(BasisMediaSource media)
+    {
+        if (!ReferenceEquals(activeMediaSource, media)) return;
+        BasisDebug.LogWarning(
+            "BasisVideoPlayer: not loading on Proton/Wine (declined, or Media Foundation unavailable). No video will play.",
+            BasisDebug.LogTag.Video);
         ApplyMediaSourceSettings(media);
     }
 
