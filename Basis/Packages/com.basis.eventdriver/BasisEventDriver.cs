@@ -326,7 +326,14 @@ public partial class BasisEventDriver : MonoBehaviour
 #endif
         ProfileEnd(PROF_REMOTE_AUDIO_APPLY);
 
-        HVRBasisBuiltInAddresses.Simulate();
+        try
+        {
+            HVRBasisBuiltInAddresses.Simulate();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"HVRBasisBuiltInAddresses.Simulate failed: {ex}");
+        }
 
         // ── BlendShape simulate ──
         ProfileBegin(PROF_BLENDSHAPE_SIMULATE);
