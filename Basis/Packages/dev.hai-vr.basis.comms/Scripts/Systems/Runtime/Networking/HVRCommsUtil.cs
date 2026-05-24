@@ -9,9 +9,25 @@ namespace HVR.Basis.Comms
 {
     public static class HVRCommsUtil
     {
+        private static bool _applicationIsQuitting;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void InitializeQuitGuard()
+        {
+            _applicationIsQuitting = false;
+            Application.quitting -= OnApplicationQuitting;
+            Application.quitting += OnApplicationQuitting;
+        }
+
+        private static void OnApplicationQuitting()
+        {
+            _applicationIsQuitting = true;
+        }
+
         public static T GetOrCreateSceneInstance<T>(ref T instance) where T : Component
         {
             if (instance != null) return instance;
+            if (_applicationIsQuitting) return null;
 
             var go = new GameObject($"HVR.{typeof(T).Name}");
             Object.DontDestroyOnLoad(go);

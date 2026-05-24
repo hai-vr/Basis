@@ -197,7 +197,7 @@ namespace HVR.Basis.Comms
 
         public static void PublishValues(string address, OscData[] values)
         {
-            OSCAcquisitionServer.SceneInstance.PublishValues(address, values);
+            OSCAcquisitionServer.SceneInstance?.PublishValues(address, values);
         }
 
         public static void UpdateSubscriptions(EntityId ownerId, bool receiveAll, IEnumerable<string> subscribedAddresses, IEnumerable<string> subscribedPrefixes)
@@ -219,7 +219,7 @@ namespace HVR.Basis.Comms
                 RebuildDispatcherState_NoLock();
             }
             // (eventual consistency is acceptable) and this avoids a potential deadlock if the acquisition server needs to call back into this service while processing the subscription update.
-            OSCAcquisitionServer.SceneInstance.UpdateSubscriptions(ownerId, exactAddresses, prefixAddresses);
+            OSCAcquisitionServer.SceneInstance?.UpdateSubscriptions(ownerId, exactAddresses, prefixAddresses);
         }
 
         public static void UpdateSubscriptions(EntityId ownerId, IEnumerable<string> subscribedAddresses, IEnumerable<string> subscribedPrefixes)
@@ -240,7 +240,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            OSCAcquisitionServer.SceneInstance.ClearSubscriptions(ownerId);
+            OSCAcquisitionServer.SceneInstance?.ClearSubscriptions(ownerId);
         }
 
         private static void RebuildDispatcherState_NoLock()
