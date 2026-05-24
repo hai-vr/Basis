@@ -246,6 +246,7 @@ namespace BasisNetworkServer
 
                 if (s.HasA && s.HasB)
                 {
+                    bool firstFire = s.State != SessionState.Punched;
                     bool sameNat = s.EndpointA_External != null &&
                                    s.EndpointB_External != null &&
                                    s.EndpointA_External.Address.Equals(s.EndpointB_External.Address);
@@ -254,7 +255,7 @@ namespace BasisNetworkServer
                     // Spray predicted ports on both sides (A/B are arrival-ordered, not
                     // mapped to a specific peer), except on a same-network pair where the
                     // internal punch already handles it.
-                    int spray = (!sameNat) ? GetPredictionRange() : 0;
+                    int spray = (firstFire && !sameNat) ? GetPredictionRange() : 0;
 
                     BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {s.EndpointA_Internal}), B={s.EndpointB_External} (int {s.EndpointB_Internal}). Firing NatIntroduce (spray={spray}).{lanTag}");
                     LiteNetLib.NetManager lnlManager = (NetworkServer.Server as LNLNetManager)?.manager;
