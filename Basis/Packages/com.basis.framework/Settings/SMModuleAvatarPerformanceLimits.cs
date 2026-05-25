@@ -27,11 +27,11 @@ public static class SMModuleAvatarPerformanceLimits
     /// Performance Limits tab but short enough that the user sees the effect of a
     /// single change without obvious latency.
     /// </summary>
-    private const float DebounceSeconds = 0.35f;
+    private const double DebounceSeconds = 0.35f;
 
     // Negative = nothing pending. Uses realtimeSinceStartup so the debounce
     // still fires when Time.timeScale is 0 (pause menu etc.).
-    private static float _pendingFireTime = -1f;
+    private static double _pendingFireTime = -1f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Register()
@@ -76,8 +76,16 @@ public static class SMModuleAvatarPerformanceLimits
     /// </summary>
     public static void SimulateDebounce()
     {
-        if (_pendingFireTime < 0f) return;
-        if (Time.realtimeSinceStartup < _pendingFireTime) return;
+        if (_pendingFireTime < 0f)
+        {
+            return;
+        }
+
+        if (Time.realtimeSinceStartupAsDouble < _pendingFireTime)
+        {
+            return;
+        }
+
         _pendingFireTime = -1f;
         ReconcileLoadedAvatars();
     }
@@ -103,7 +111,7 @@ public static class SMModuleAvatarPerformanceLimits
     /// </summary>
     private static void ScheduleReconcile()
     {
-        _pendingFireTime = Time.realtimeSinceStartup + DebounceSeconds;
+        _pendingFireTime = Time.realtimeSinceStartupAsDouble + DebounceSeconds;
     }
 
     /// <summary>
