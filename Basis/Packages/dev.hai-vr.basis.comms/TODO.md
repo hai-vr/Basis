@@ -18,7 +18,7 @@ Fixes to do:
 - ⬜ Investigate the "Illegal Sender" error in the logs.
 - ⬜ Investigate how messages from VRCFaceTracking seem to arrive with more irregularity when the Basis window is focused / when the VRCFaceTracking window is not focused.
 - 🟨 Remote should ignore any incoming NewNet_WearerSubmitsUpdatedHighFrequencyVariables packets until it has received all new variables.
-- ⬜ HVRBasisBuiltInAddresses may not handle Dictionary with destroyed Comms components.
+- 🟨 HVRBasisBuiltInAddresses may not handle Dictionary with destroyed Comms components.
 
 Optimizations:
 - ⬜ Actuate the scene objects based on a change in the (choiceA, choiceB, lerp value) tuple, rather than a change in the clamped input value.

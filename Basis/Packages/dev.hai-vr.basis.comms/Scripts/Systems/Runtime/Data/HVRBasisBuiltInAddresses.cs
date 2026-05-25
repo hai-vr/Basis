@@ -7,7 +7,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
-using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -19,11 +18,13 @@ namespace HVR.Basis.Comms
         private static int _addressMax;
         private static FieldInfo _lastAppliedField;
 
-        private static readonly Dictionary<HVRAvatarComms, List<HVRBasisBuiltInAddresses>> Required = new();
-        private static readonly Dictionary<HVRAvatarComms, HVRBasisBuiltInAddressesVisemeFlags> Flags = new();
+        private static int nextDataId = 1;
+        private static readonly Dictionary<HVRAvatarComms, int> commsToDataId = new();
+        private static readonly Dictionary<int, CommsFlags> dataIdToData = new();
 
         private HVRBasisBuiltInAddressesVisemeFlags requiredFlags = 0;
 
+        private readonly int _dataId;
         private HVRAvatarComms _comms;
         private BasisAvatar _avatar;
 
@@ -35,6 +36,13 @@ namespace HVR.Basis.Comms
         private float[] _lastRead;
         private float _lastMax;
         private bool _firstTick = true;
+
+        private class CommsFlags
+        {
+            public HVRAvatarComms comms;
+            public List<HVRBasisBuiltInAddresses> required;
+            public HVRBasisBuiltInAddressesVisemeFlags flags;
+        }
 
         public HVRBasisBuiltInAddresses(HVRAvatarComms comms, bool isWearer)
         {
@@ -64,22 +72,26 @@ namespace HVR.Basis.Comms
             _avatar = HVRCommsUtil.GetAvatar(_comms);
             _isWearer = isWearer;
 
-            if (!Required.ContainsKey(_comms)) Required[_comms] = new List<HVRBasisBuiltInAddresses>();
-            Required[_comms].Add(this);
-            Flags[_comms] = requiredFlags;
-            ReaggregateFlags();
+            if (commsToDataId.TryGetValue(_comms, out _dataId))
+            {
+                dataIdToData[_dataId].required.Add(this);
+                dataIdToData[_dataId].flags |= requiredFlags;
+            }
+            else
+            {
+                _dataId = nextDataId++;
+                commsToDataId.Add(_comms, _dataId);
+                dataIdToData.Add(_dataId, new CommsFlags { comms = _comms, required = new List<HVRBasisBuiltInAddresses> { this }, flags = requiredFlags });
+            }
         }
 
         public void Destroy()
         {
-            if (ReferenceEquals(_comms, null)) return;
-            if (!Required.TryGetValue(_comms, out var list)) return;
-
-            list.Remove(this);
-            if (list.Count == 0)
+            dataIdToData[_dataId].required.Remove(this);
+            if (dataIdToData[_dataId].required.Count == 0)
             {
-                Required.Remove(_comms);
-                Flags.Remove(_comms);
+                dataIdToData.Remove(_dataId);
+                commsToDataId.Remove(_comms);
             }
             else
             {
@@ -89,30 +101,49 @@ namespace HVR.Basis.Comms
 
         private void ReaggregateFlags()
         {
-            Flags[_comms] = Required[_comms].Aggregate((HVRBasisBuiltInAddressesVisemeFlags)0, (current, acquisition) => current | acquisition.requiredFlags);
+            dataIdToData[_dataId].flags = dataIdToData[_dataId].required.Aggregate((HVRBasisBuiltInAddressesVisemeFlags)0, (current, acquisition) => current | acquisition.requiredFlags);
         }
 
         public static void Simulate()
         {
-            foreach (var commsToRequired in Required)
+            try
             {
-                commsToRequired.Value[0].ApplyForAllInComms(commsToRequired.Key);
+                SimulateInner();
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError("Exception occurred while processing HVRBasisBuiltInAddresses.Simulate()", BasisDebug.LogTag.Avatar);
+                BasisDebug.LogError(e, BasisDebug.LogTag.Avatar);
+                throw;
             }
         }
 
-        private void ApplyForAllInComms(HVRAvatarComms comms)
+        private static void SimulateInner()
+        {
+            foreach (var data in dataIdToData.Values)
+            {
+                var comms = data.comms;
+                if (null != comms)
+                {
+                    data.required[0].ApplyForAllInComms(data);
+                }
+            }
+        }
+
+        private void ApplyForAllInComms(CommsFlags commsFlags)
         {
             if (!_isWearer && _remoteReceiver == null && BasisNetworkPlayers.AvatarToPlayer(_avatar, out _, out var netPlayer) && netPlayer is BasisNetworkReceiver netReceiver)
             {
                 _remoteReceiver = netReceiver;
             }
-            ProcessViseme(comms);
+            ProcessViseme(commsFlags);
         }
 
-        private void ProcessViseme(HVRAvatarComms comms)
+        private void ProcessViseme(CommsFlags commsFlags)
         {
-            if (comms == null) return;
-            var variableStore = comms.VariableStore;
+            if (null == commsFlags.comms) return;
+
+            var variableStore = commsFlags.comms.VariableStore;
             if (variableStore == null) return;
             if (_firstTick)
             {
@@ -129,7 +160,7 @@ namespace HVR.Basis.Comms
 
             _lastAppliedRef = (float[])_lastAppliedField.GetValue(_contextNullable);
 
-            var flagsForThisComms = Flags[comms];
+            var flagsForThisComms = commsFlags.flags;
 
             _lastRead ??= new float[BasisOpenLipSyncContext.VisemeCount];
 
