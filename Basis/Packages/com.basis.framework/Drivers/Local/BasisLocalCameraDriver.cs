@@ -35,9 +35,6 @@ namespace Basis.Scripts.Drivers
         public SteamAudioListener SteamListener;
 #endif
 
-        /// <summary>Cached instance ID of <see cref="Camera"/> used to gate callbacks.</summary>
-        public static int CameraInstanceID;
-
         /// <summary>URP camera data (XR render toggling, etc.).</summary>
         public UniversalAdditionalCameraData CameraData;
 
@@ -131,6 +128,18 @@ namespace Basis.Scripts.Drivers
         private CameraParams _currentCamParams;
         private bool _wasThirdPerson = false;
         private float _currentThirdPersonDistance = 1.0f;
+
+        // True while the audio listener has been pushed off its camera-local-zero anchor to
+        // stay on the head (third-person follow-head). Used to snap it back exactly once.
+        private bool _listenerDetachedFromCamera;
+
+        // Cached desktop mic-icon layout. The viewport->camera-local position cancels out the
+        // camera's world pose, so it is recomputed only when one of these inputs actually changes.
+        private bool _micLayoutValid;
+        private float _micLayoutFov, _micLayoutAspect, _micLayoutRatio;
+        private Vector3 _micLayoutLossyScale;
+        private Vector2 _micLayoutOffset;
+        private bool _micLayoutMobile;
 
         /// <summary>The desired far clipping plane from scene settings before avatar overriding.</summary>
         private float DesiredClipFar = 1000.0f;
@@ -294,7 +303,6 @@ namespace Basis.Scripts.Drivers
                 HasInstance = true;
             }
             CameraInstance = Camera;
-            CameraInstanceID = Camera.GetEntityId();
 
             // Set initial scale from player height and set the clip planes.
             UpdateCameraScale();
@@ -598,32 +606,68 @@ namespace Basis.Scripts.Drivers
                     var headWorld = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
                     HeadPosition = headWorld.position;
                     HeadRotation = headWorld.rotation;
-                    if (BasisSettingsDefaults.AudioListenerFollowsHead.RawValue)
-                    {
-                        ListenerTransform.SetPositionAndRotation(HeadPosition, HeadRotation);
-                    }
                 }
                 else
                 {
                     HeadPosition = Position;
                     HeadRotation = Rotation;
+                }
+
+                // ListenerTransform is a child of the camera at local zero, so it tracks the camera
+                // for free in first-person and orbit-follow third-person. It only needs an explicit
+                // world pose to stay on the head while the camera orbits away (follow-head option).
+                if (IsThirdPerson && BasisSettingsDefaults.AudioListenerFollowsHead.RawValue)
+                {
                     ListenerTransform.SetPositionAndRotation(HeadPosition, HeadRotation);
+                    _listenerDetachedFromCamera = true;
+                }
+                else if (_listenerDetachedFromCamera)
+                {
+                    ListenerTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                    _listenerDetachedFromCamera = false;
                 }
                 if (CameraData.allowXRRendering)
                 {
 #if !BASIS_DISABLE_MICROPHONE
                     ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera, Position);
 #endif
+                    // XR drives ParentOfUI directly; invalidate the desktop layout cache so it
+                    // recomputes when we return to the desktop path.
+                    _micLayoutValid = false;
                 }
                 else
                 {
-                    Vector3 viewportPos = BasisDeviceManagement.IsMobileHardware() ? MobileMicrophoneViewportPosition : DesktopMicrophoneViewportPosition;
-                    viewportPos.x += microphoneIconDriver.IconPositionOffset.x;
-                    viewportPos.y += microphoneIconDriver.IconPositionOffset.y;
-                    Vector3 worldPoint = Camera.ViewportToWorldPoint(viewportPos);
-                    // assume this transform is the camera parent
-                    Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                    ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
+                    // The viewport->camera-local mic position cancels out the camera's world pose,
+                    // so it only depends on FOV, aspect, camera scale, the icon offset, mobile mode
+                    // and the height ratio. Recompute (and re-set the transform) only on a change
+                    // instead of running ViewportToWorldPoint + InverseTransformPoint every frame.
+                    bool isMobile = BasisDeviceManagement.IsMobileHardware();
+                    float fov = CameraInstance.fieldOfView;
+                    float aspect = CameraInstance.aspect;
+                    Vector3 lossyScale = this.transform.lossyScale;
+                    Vector2 offset = microphoneIconDriver.IconPositionOffset;
+                    float ratio = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
+
+                    if (!_micLayoutValid || fov != _micLayoutFov || aspect != _micLayoutAspect
+                        || lossyScale != _micLayoutLossyScale || offset != _micLayoutOffset
+                        || isMobile != _micLayoutMobile || ratio != _micLayoutRatio)
+                    {
+                        Vector3 viewportPos = isMobile ? MobileMicrophoneViewportPosition : DesktopMicrophoneViewportPosition;
+                        viewportPos.x += offset.x;
+                        viewportPos.y += offset.y;
+                        Vector3 worldPoint = Camera.ViewportToWorldPoint(viewportPos);
+                        // assume this transform is the camera parent
+                        Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
+                        ParentOfUI.localPosition = localPos * ratio;
+
+                        _micLayoutValid = true;
+                        _micLayoutFov = fov;
+                        _micLayoutAspect = aspect;
+                        _micLayoutLossyScale = lossyScale;
+                        _micLayoutOffset = offset;
+                        _micLayoutMobile = isMobile;
+                        _micLayoutRatio = ratio;
+                    }
                 }
                 avatarPreviewDriver.Simulate();
             }
@@ -723,30 +767,31 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// URP callback after camera render: restores head scale to normal for this camera.
         /// </summary>
-        private void EndCameraRendering(ScriptableRenderContext context, Camera camera)
+        private void EndCameraRendering(ScriptableRenderContext context, Camera renderingCamera)
         {
-            if (BasisLocalAvatarDriver.Mapping.Hashead)
+            if (ReferenceEquals(renderingCamera, CameraInstance) && BasisLocalAvatarDriver.Mapping.Hashead)
             {
-                if (Camera.GetEntityId() == CameraInstanceID)
-                {
-                    BasisLocalAvatarDriver.ScaleHeadToNormal();
-                }
+                BasisLocalAvatarDriver.ScaleHeadToNormal();
             }
         }
         /// <summary>
-        /// URP callback before camera render: caches camera transform, hides head for view,
-        /// and positions the microphone UI either in XR or desktop mode.
+        /// URP callback before camera render: sets the local head's visibility for the main
+        /// camera — hidden in first-person, shown in third-person.
         /// </summary>
-        public void BeginCameraRendering(ScriptableRenderContext context, Camera Camera)
+        public void BeginCameraRendering(ScriptableRenderContext context, Camera renderingCamera)
         {
-            if (BasisLocalAvatarDriver.Mapping.Hashead)
+            if (ReferenceEquals(renderingCamera, CameraInstance) && BasisLocalAvatarDriver.Mapping.Hashead)
             {
-                if (Camera.GetEntityId() == CameraInstanceID)
+                // Be authoritative for the main camera's own head state. A mirror/handheld camera
+                // renders in onBeforeRender and leaves the head zeroed (it assumes first-person),
+                // so third-person must restore it here or the main view shows a headless avatar.
+                if (IsThirdPerson)
                 {
-                    if (!IsThirdPerson)
-                    {
-                        BasisLocalAvatarDriver.ScaleheadToZero();
-                    }
+                    BasisLocalAvatarDriver.ScaleHeadToNormal();
+                }
+                else
+                {
+                    BasisLocalAvatarDriver.ScaleheadToZero();
                 }
             }
         }
