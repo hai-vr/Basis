@@ -530,12 +530,14 @@ namespace Basis.Scripts.Drivers
 
         public void ToggleThirdPerson()
         {
-            if (!IsThirdPersonAllowed())
+            if (IsThirdPersonAllowed())
+            {
+                IsThirdPerson = !IsThirdPerson;
+            }
+            else
             {
                 IsThirdPerson = false;
-                return;
             }
-            IsThirdPerson = !IsThirdPerson;
         }
 
         /// <summary>
@@ -552,30 +554,28 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void ApplyZoom(float zoomDelta)
         {
-            if (!IsThirdPersonAllowed())
+            if (IsThirdPersonAllowed())
             {
-                return;
-            }
-
-            // If scrolling out while in 1st person
-            if (!IsThirdPerson && zoomDelta < 0)
-            {
-                IsThirdPerson = true;
-                _currentThirdPersonDistance = ThirdPersonMinZoomDist + 0.1f;
-            }
-            else if (IsThirdPerson)
-            {
-                _currentThirdPersonDistance -= zoomDelta * ThirdPersonZoomSensitivity;
-
-                // If zoomed all the way in, return to first person
-                if (_currentThirdPersonDistance < ThirdPersonMinZoomDist)
+                // If scrolling out while in 1st person
+                if (!IsThirdPerson && zoomDelta < 0)
                 {
-                    IsThirdPerson = false;
-                    _currentThirdPersonDistance = ThirdPersonMinZoomDist;
+                    IsThirdPerson = true;
+                    _currentThirdPersonDistance = ThirdPersonMinZoomDist + 0.1f;
                 }
-                else if (_currentThirdPersonDistance > ThirdPersonMaxZoomDist)
+                else if (IsThirdPerson)
                 {
-                    _currentThirdPersonDistance = ThirdPersonMaxZoomDist;
+                    _currentThirdPersonDistance -= zoomDelta * ThirdPersonZoomSensitivity;
+
+                    // If zoomed all the way in, return to first person
+                    if (_currentThirdPersonDistance < ThirdPersonMinZoomDist)
+                    {
+                        IsThirdPerson = false;
+                        _currentThirdPersonDistance = ThirdPersonMinZoomDist;
+                    }
+                    else if (_currentThirdPersonDistance > ThirdPersonMaxZoomDist)
+                    {
+                        _currentThirdPersonDistance = ThirdPersonMaxZoomDist;
+                    }
                 }
             }
         }
@@ -595,13 +595,9 @@ namespace Basis.Scripts.Drivers
 
                 if (IsThirdPerson)
                 {
-                    // Orbital camera has detached from the head — track the head bone separately
-                    // so gaze, audio listener distance, and similar systems don't drift to the
-                    // third-person orbit position.
                     var headWorld = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
                     HeadPosition = headWorld.position;
                     HeadRotation = headWorld.rotation;
-
                     if (BasisSettingsDefaults.AudioListenerFollowsHead.RawValue)
                     {
                         ListenerTransform.SetPositionAndRotation(HeadPosition, HeadRotation);
@@ -613,7 +609,6 @@ namespace Basis.Scripts.Drivers
                     HeadRotation = Rotation;
                     ListenerTransform.SetPositionAndRotation(HeadPosition, HeadRotation);
                 }
-
                 if (CameraData.allowXRRendering)
                 {
 #if !BASIS_DISABLE_MICROPHONE
@@ -635,9 +630,6 @@ namespace Basis.Scripts.Drivers
 
             if (!IsThirdPerson || !BasisDeviceManagement.IsUserInDesktop())
             {
-                // Left third-person (zoomed back in, toggled off, or switched to VR/XR):
-                // snap back to first-person once, then skip the orbital camera math so it
-                // never overwrites the first-person / XR-tracked camera transform.
                 if (_wasThirdPerson)
                 {
                     transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
@@ -647,8 +639,14 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
+            // BasisLockToInput re-parents this camera at runtime (player root <-> head input),
+            // so the orbit center must be read fresh. A value cached in OnEnable goes stale and
+            // leaves third-person orbiting the player root, ~eye-height too low (Y only).
+            Transform parentTransform = transform.parent;
+            if (parentTransform == null) return;
+
             float scale = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
-            ParentTransform.GetPositionAndRotation(out Vector3 targetTrackingPos, out Quaternion targetTrackingRot);
+            parentTransform.GetPositionAndRotation(out Vector3 targetTrackingPos, out Quaternion targetTrackingRot);
 
             Vector3 euler = targetTrackingRot.eulerAngles;
             float targetPitch = euler.x;
@@ -697,15 +695,10 @@ namespace Basis.Scripts.Drivers
             float maxDistance = direction.magnitude;
             float scaledRadius = CameraCollisionRadius * scale;
 
-            float actualDistance = _currentCamParams.distance;
             if (maxDistance > 0.001f && Physics.SphereCast(_currentCamParams.trackingPosition, scaledRadius, direction.normalized, out RaycastHit hit, maxDistance, CameraCollisionMask, QueryTriggerInteraction.Ignore))
             {
                 desiredWorldPos = hit.point + (hit.normal * scaledRadius);
-                actualDistance = hit.distance;
             }
-
-            float zoomT = Mathf.InverseLerp(ThirdPersonMinZoomDist * scale, ThirdPersonMaxZoomDist * scale, actualDistance);
-            CameraInstance.fieldOfView = Mathf.Lerp(ThirdPersonMinZoomDistFoV, ThirdPersonMaxZoomDistFoV, zoomT);
 
             transform.SetPositionAndRotation(desiredWorldPos, desiredRotation);
         }

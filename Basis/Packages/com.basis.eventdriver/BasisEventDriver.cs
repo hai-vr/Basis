@@ -16,7 +16,6 @@ using SteamAudio;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering;
 
 namespace Basis.EventDriver
 {
