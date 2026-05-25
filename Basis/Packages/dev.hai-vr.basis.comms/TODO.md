@@ -17,6 +17,8 @@ Fixes to do:
   - ⬜ Consider generating a hash of all the unique addresses to serve as verification and transmit only the values, not the keys.
 - ⬜ Investigate the "Illegal Sender" error in the logs.
 - ⬜ Investigate how messages from VRCFaceTracking seem to arrive with more irregularity when the Basis window is focused / when the VRCFaceTracking window is not focused.
+- 🟨 Remote should ignore any incoming NewNet_WearerSubmitsUpdatedHighFrequencyVariables packets until it has received all new variables.
+- 🟨 HVRBasisBuiltInAddresses may not handle Dictionary with destroyed Comms components.
 
 Optimizations:
 - ✅ Optimize the size of the networked packets by removing the array length
