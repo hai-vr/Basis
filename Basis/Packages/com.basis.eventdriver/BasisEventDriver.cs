@@ -16,6 +16,7 @@ using SteamAudio;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using static Basis.EventDriver.BasisEventDriverProfileSections;
 
 namespace Basis.EventDriver
 {
@@ -33,34 +34,8 @@ namespace Basis.EventDriver
 #else
             false;
 #endif
-
-        // ── Profile section IDs ─────────────────────────────────────
-        const int PROF_NETWORK_APPLY = 0;
-        const int PROF_DEVICE_MANAGEMENT = 1;
-        const int PROF_REMOTE_AUDIO_SIMULATE = 2;
-        const int PROF_NAMEPLATE_SCHEDULE = 3;
-        const int PROF_BTWEEN = 4;
-        const int PROF_LOCAL_PLAYER = 5;
-        const int PROF_REMOTE_FACE_SIMULATE = 6;
-        const int PROF_REMOTE_AUDIO_APPLY = 7;
-        const int PROF_BLENDSHAPE_SIMULATE = 8;
-        const int PROF_BLENDSHAPE_APPLY = 9;
-        const int PROF_JIGGLE_SCHEDULE = 10;
-        const int PROF_NETWORK_TRANSMIT = 11;
-        const int PROF_JIGGLE_POSE = 12;
-        const int PROF_MICROPHONE = 13;
-        const int PROF_NAMEPLATE_COMPLETE = 14;
-        const int PROF_JIGGLE_COMPLETE_POSE = 15;
-        const int PROF_SHADOW_CLONE = 16;
-
-        const int PROF_NET_TRANSMIT_PICKUPS = 0;
-        const int PROF_NET_FIRE_BEFORE_APPLY = 1;
-        const int PROF_NET_SIMULATE_APPLY = 2;
-        const int PROF_NET_COMPLETE_REMOTE_LERP = 3;
-        const int PROF_NET_MICROPHONE = 4;
-
+        // Profiler section IDs live in BasisEventDriverProfileSections (pulled in via `using static`).
         private static bool _hvrSimulateErrorLogged;
-
         // ── Partial method declarations (calls are stripped in non-editor builds) ──
         partial void ProfileLateUpdateInit();
         partial void ProfileBegin(int section);
@@ -70,38 +45,30 @@ namespace Basis.EventDriver
         partial void ProfileLateUpdateFinish();
         partial void ProfileBeforeRenderInit();
         partial void ProfileBeforeRenderFinish();
-
-        // ── Fields ──────────────────────────────────────────────────
         /// <summary>
         /// Accumulator used to track elapsed time since the last interval tick.
         /// </summary>
         public float timeSinceLastUpdate = 0f;
-
         /// <summary>
         /// Frame delta time (scaled).
         /// </summary>
         public float DeltaTime;
-
         /// <summary>
         /// Current time as a double (scaled), mirrored from <see cref="Time.timeAsDouble"/>.
         /// </summary>
         public double TimeAsDouble;
-
         /// <summary>
         /// Fixed-step time as a double, mirrored from <see cref="Time.fixedTimeAsDouble"/>.
         /// </summary>
         public double fixedTimeAsDouble;
-
         /// <summary>
         /// Fixed-step delta time in seconds.
         /// </summary>
         public float fixedDeltaTime;
-
         /// <summary>
         /// Unscaled frame delta time in seconds.
         /// </summary>
         public float unscaledDeltaTime;
-
         /// <summary>
         /// realtimeSinceStartupAsDouble
         /// </summary>
@@ -124,14 +91,8 @@ namespace Basis.EventDriver
         /// <summary>
         /// Instance of Basis Event Driver
         /// </summary>
-
         public static BasisEventDriver Instance;
-
         public static bool StateOfOnRenderBefore = false;
-
-
-        // ── Lifecycle ───────────────────────────────────────────────
-
         /// <summary>
         /// Unity enable hook. Subscribes render callbacks (client), initializes scene and network drivers.
         /// </summary>
@@ -142,11 +103,11 @@ namespace Basis.EventDriver
             {
                 Application.onBeforeRender += OnBeforeRender;
             }
-
-            BasisOpenLipSyncDriver.Initialize();
+            BasisOpenLipSyncDriver.BeginInitialize();
             BasisSceneFactory.Initialize();
-            BasisObjectSyncDriver.Initialization();
+            BasisObjectSyncDriver.Initialize();
             RemoteBoneJobSystem.Initialize();
+            BasisOpenLipSyncDriver.EndInitialize();
         }
 
         /// <summary>
@@ -167,26 +128,24 @@ namespace Basis.EventDriver
         public void OnDisable()
         {
             if (!IsHeadlessClient)
+            {
                 Application.onBeforeRender -= OnBeforeRender;
+            }
         }
-
-        // ── Update ──────────────────────────────────────────────────
-
         /// <summary>
         /// Unity update loop. Drains main-thread actions, advances network simulation (compute),
         /// schedules remote interpolation, updates input on clients, and runs periodic tasks.
         /// </summary>
         public void Update()
         {
-
-            // Join the network compute kicked off at the tail of the previous LateUpdate, before
-            // the main-thread action drain and join/leave lifecycle below mutate any receiver.
-            BasisNetworkManagement.CompleteNetworkCompute();
-
             DeltaTime = Time.deltaTime;
             unscaledDeltaTime = Time.unscaledDeltaTime;
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
             TimeAsDouble = Time.timeAsDouble;
+
+            // Join the network compute kicked off at the tail of the previous LateUpdate, before
+            // the main-thread action drain and join/leave lifecycle below mutate any receiver.
+            BasisNetworkManagement.CompleteNetworkCompute(DeltaTime);
 
             BasisFrameClock.Tick(unscaledDeltaTime);
 
@@ -233,9 +192,6 @@ namespace Basis.EventDriver
                 BasisSceneFactory.Simulate(fixedDeltaTime);
             }
         }
-
-        // ── LateUpdate ──────────────────────────────────────────────
-
         /// <summary>
         /// LateUpdate step for device management loop, eye simulation, local player late sim,
         /// microphone updates (client), network apply, and JigglePhysics scheduling/pose/render.
@@ -412,9 +368,6 @@ namespace Basis.EventDriver
 
             ProfileLateUpdateFinish();
         }
-
-        // ── OnBeforeRender ──────────────────────────────────────────
-
         /// <summary>
         /// Callback invoked before rendering each frame (client), used to run final local player
         /// render-time simulation and to publish avatar changes.

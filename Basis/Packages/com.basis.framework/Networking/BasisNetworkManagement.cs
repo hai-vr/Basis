@@ -294,7 +294,7 @@ namespace Basis.Scripts.Networking
         /// main-thread finish: Phase 3 AudioSource apply, interpolation job schedule, shout drain,
         /// and profiler update. Must run before any receiver state is mutated this frame.
         /// </summary>
-        public static void CompleteNetworkCompute()
+        public static void CompleteNetworkCompute(float DeltaTime)
         {
             if (!s_computePending)
             {
@@ -306,9 +306,9 @@ namespace Basis.Scripts.Networking
 
             // Phase 3 (main thread): apply AudioSource state only for receivers that decoded
             // audio this tick. Recorded in phase 2, so this no longer scans every player.
-            for (int k = 0; k < s_decodedCount; k++)
+            for (int Index = 0; Index < s_decodedCount; Index++)
             {
-                snapshot[s_decodedIndices[k]].PostCompute();
+                snapshot[s_decodedIndices[Index]].PostCompute();
             }
 
             BasisRemoteNetworkDriver.Compute();
@@ -317,7 +317,7 @@ namespace Basis.Scripts.Networking
 
             if (HasRequested)
             {
-                _timer += Time.deltaTime;
+                _timer += DeltaTime;
                 if (_timer >= 0.1f)
                 {
                     _timer = 0f;

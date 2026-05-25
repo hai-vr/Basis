@@ -235,9 +235,6 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void PostCompute()
         {
-            // AudioReceiverModule is field-initialized at construction and never
-            // assigned null; the lifecycle guarantees this. Drop the ?. so the
-            // per-receiver hot path doesn't pay the null check.
             AudioReceiverModule.ApplyAudioState();
         }
 
