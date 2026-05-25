@@ -1,6 +1,14 @@
 Changelog
 =====
 
+## 2025-05-26
+
+*Authored by Haï~*
+
+Fixes:
+- Handle case where variables were upgraded before receiving the variable.
+- Handle destroyed Comms components in HVRBasisBuiltInAddresses.
+
 ## 2025-05-21
 
 *Authored by Haï~*
