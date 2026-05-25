@@ -119,6 +119,7 @@ namespace Basis.EventDriver
             BasisObjectSyncDriver.OnDestroy();
             Application.onBeforeRender -= OnBeforeRender;
             RemoteBoneJobSystem.Dispose();
+            BasisAuthoredMotionSystem.Dispose();
             BasisAvatarBufferPool.Deinitialize();
         }
 
@@ -309,6 +310,9 @@ namespace Basis.EventDriver
                 BasisAvatarDriver.ScheduleReadBlendShapes();
             }
             ProfileEnd(PROF_BLENDSHAPE_APPLY);
+
+            // ── Authored motion: write non-humanoid authored bones before jiggle samples them ──
+            BasisAuthoredMotionSystem.Complete(BasisAuthoredMotionSystem.Schedule());
 
             // ── JigglePhysics schedule ──
             ProfileBegin(PROF_JIGGLE_SCHEDULE);

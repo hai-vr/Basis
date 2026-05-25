@@ -5,7 +5,8 @@ using UnityEngine;
 /// <c>Sequence</c>: an AnimationClip's curves sampled to a fixed-rate, blittable buffer so the
 /// batched Burst job can interpolate without touching a managed <c>AnimationCurve</c>. One asset
 /// is referenced by every instance of an avatar; per-instance runtime state is just a playhead.
-/// Rotations bake to quaternion deltas; position/scale bake as deltas from the captured rest pose.
+/// Rotations bake as absolute local rotations and the job writes them straight to the bone, so a
+/// converted clip reproduces its authored pose exactly regardless of the avatar's rest pose.
 /// </summary>
 [CreateAssetMenu(fileName = "BasisMotionClip", menuName = "Basis/Authored Motion Clip")]
 public class BasisMotionClip : ScriptableObject
@@ -19,11 +20,14 @@ public class BasisMotionClip : ScriptableObject
     [Tooltip("Number of driven transforms this clip covers.")]
     public int transformCount;
 
+    [Tooltip("Transform path each row drives, relative to the sequence root. One per transform.")]
+    public string[] paths;
+
     // Flattened samples, laid out [transform0_frame0..frameN-1, transform1_...].
     // Index a (transform, frame) as transformIndex * frameCount + frame.
-    public Vector4[] rotationSamples;   // xyzw quaternion deltas from rest
-    public Vector3[] positionSamples;   // local position deltas from rest
-    public Vector3[] scaleSamples;      // local scale deltas from rest
+    public Vector4[] rotationSamples;   // absolute local rotation, xyzw
+    public Vector3[] positionSamples;   // reserved (unused in v1)
+    public Vector3[] scaleSamples;      // reserved (unused in v1)
 
     /// <summary>Clip length in seconds (<c>frameCount / frameRate</c>).</summary>
     public float Length => frameRate > 0f ? frameCount / frameRate : 0f;

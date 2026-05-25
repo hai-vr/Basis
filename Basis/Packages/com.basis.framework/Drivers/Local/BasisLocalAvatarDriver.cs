@@ -149,8 +149,7 @@ namespace Basis.Scripts.Drivers
                 Rig.OnInitialize();
             }
 
-            // Register authored cosmetic/secondary motion on the local avatar (drives non-humanoid
-            // transforms IK doesn't touch). Rest poses are captured from the current TPose.
+            // Register authored motion (drives non-humanoid transforms IK doesn't touch); rest captured at the current TPose.
             var authoredMotions = player.BasisAvatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
             for (int i = 0; i < authoredMotions.Length; i++)
             {

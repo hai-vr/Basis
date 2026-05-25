@@ -34,10 +34,38 @@ public struct AuthoredMovementData
     public float noiseSpeed;     // Noise
     public uint seed;            // Noise / RandomSelect
 
+    // RandomSelect — selection is deterministic per cycle, so each slot evaluates independently.
+    public float period;         // seconds per pick cycle
+    public float totalWeight;    // sum of option weights + idle weight
+    public float attack;         // ease-in seconds
+    public float release;        // ease-out seconds
+    public int optionStart;      // first option index in the shared options buffer
+    public int optionCount;      // options targeting this slot
+
+    // Sequence — a playhead over a shared baked-sample buffer; rotation written absolutely.
+    public int sampleStart;      // first frame index in the shared rotation-sample buffer
+    public int frameCount;       // frames for this slot's transform
+    public float frameRate;      // samples per second
+    public int loop;             // 0 = one-shot, 1 = loop
+
     // Captured rest pose (local space); motion composes as a delta from this.
     public quaternion restRotation;
     public float3 restPosition;
     public float3 restScale;
+}
+
+/// <summary>
+/// One weighted <c>RandomSelect</c> option. The slot's target eases to this rotation when a
+/// cycle's deterministic roll lands in <c>[bandLo, bandHi)</c> of the movement's total weight;
+/// the gap up to <c>totalWeight</c> is the idle band (pose nothing). Held in a buffer shared by
+/// every slot so the per-transform job stays allocation-free.
+/// </summary>
+public struct AuthoredOptionData
+{
+    public float bandLo;
+    public float bandHi;
+    public float3 axis;
+    public float angleDeg;
 }
 
 /// <summary>
@@ -50,6 +78,8 @@ public struct AuthoredMovementData
 public struct AuthoredMotionJob : IJobParallelForTransform
 {
     [ReadOnly] public NativeArray<AuthoredMovementData> Movements;
+    [ReadOnly] public NativeArray<AuthoredOptionData> Options;
+    [ReadOnly] public NativeArray<float4> RotationSamples;
     [ReadOnly] public NativeArray<byte> ValidMask;
     public float Time;
 
@@ -92,15 +122,75 @@ public struct AuthoredMotionJob : IJobParallelForTransform
                 break;
             }
 
-            // TODO (iterative Burst-off pass): RandomSelect needs a per-slot RNG + interval/ease
-            // state buffer; Sequence needs the shared baked-curve buffer + a per-instance playhead.
-            // Both add a side NativeArray the job reads — wired once the deterministic kinds are
-            // validated against the reference avatar. No-op until then.
             case Kind.RandomSelect:
+            {
+                if (m.optionCount == 0) break;
+                float period = m.period > 1e-4f ? m.period : 1f;
+                float cyclesF = t / period;
+                int cycle = (int)math.floor(cyclesF);
+                float intoCycle = (cyclesF - cycle) * period; // seconds since this cycle began
+
+                quaternion now = PickDelta(m, cycle, out bool posedNow);
+                quaternion prev = PickDelta(m, cycle - 1, out bool posedPrev);
+
+                // Ease out (release) when this cycle picks rest after being posed; ease in (attack) otherwise.
+                float ease = (!posedNow && posedPrev) ? m.release : m.attack;
+                float blend = ease > 1e-4f ? math.saturate(intoCycle / ease) : 1f;
+                transform.localRotation = math.mul(m.restRotation, math.slerp(prev, now, blend));
+                break;
+            }
+
             case Kind.Sequence:
+            {
+                if (m.frameCount <= 0) break;
+                float fr = m.frameRate > 1e-4f ? m.frameRate : 30f;
+                float length = m.frameCount / fr;
+                float pt = m.loop != 0 ? math.fmod(t, length) : math.min(math.max(t, 0f), length);
+                if (pt < 0f) pt += length; // fmod can return negative for negative t
+
+                float frameF = pt * fr;
+                int f0 = (int)math.floor(frameF);
+                float frac = frameF - f0;
+                int f1;
+                if (m.loop != 0)
+                {
+                    f0 = ((f0 % m.frameCount) + m.frameCount) % m.frameCount;
+                    f1 = (f0 + 1) % m.frameCount;
+                }
+                else
+                {
+                    f0 = math.clamp(f0, 0, m.frameCount - 1);
+                    f1 = math.min(f0 + 1, m.frameCount - 1);
+                }
+
+                quaternion q0 = new quaternion(RotationSamples[m.sampleStart + f0]);
+                quaternion q1 = new quaternion(RotationSamples[m.sampleStart + f1]);
+                transform.localRotation = math.slerp(q0, q1, frac);
+                break;
+            }
+
             default:
                 break;
         }
+    }
+
+    // Deterministic weighted pick for one cycle: this slot's winning rotation delta, or identity if idle / another target won.
+    quaternion PickDelta(in AuthoredMovementData m, int cycle, out bool posed)
+    {
+        uint h = math.hash(new int2((int)m.seed, cycle)) | 1u;
+        float r = new Unity.Mathematics.Random(h).NextFloat() * m.totalWeight;
+
+        for (int o = 0; o < m.optionCount; o++)
+        {
+            AuthoredOptionData opt = Options[m.optionStart + o];
+            if (r >= opt.bandLo && r < opt.bandHi)
+            {
+                posed = true;
+                return quaternion.AxisAngle(math.normalizesafe(opt.axis, new float3(0f, 1f, 0f)), math.radians(opt.angleDeg));
+            }
+        }
+        posed = false;
+        return quaternion.identity;
     }
 
     static void ApplyChannel(TransformAccess transform, in AuthoredMovementData m, float value)
@@ -153,6 +243,8 @@ public static class BasisAuthoredMotionSystem
         public BasisAuthoredMotion Component;
         public Transform[] Targets;          // one per slot
         public AuthoredMovementData[] Data;  // parallel to Targets
+        public AuthoredOptionData[] Options; // RandomSelect options, rebased into sOptions on rebuild
+        public float4[] RotationSamples;     // Sequence rotation frames, rebased into sRotationSamples on rebuild
         public bool[] MovementEnabled;       // per-slot author default (Movement.enabled)
         public bool ComponentEnabled;        // mirrors the component's runtime enabled state
         public int Offset;                   // current start index in the native containers
@@ -160,6 +252,8 @@ public static class BasisAuthoredMotionSystem
 
     // Persistent SoA, parallel to sTargets.
     static NativeList<AuthoredMovementData> sMovements;
+    static NativeList<AuthoredOptionData> sOptions;   // shared RandomSelect option bands
+    static NativeList<float4> sRotationSamples;       // shared Sequence rotation frames (absolute, xyzw)
     static NativeList<byte> sValidMask;
     static TransformAccessArray sTargets;
 
@@ -175,6 +269,8 @@ public static class BasisAuthoredMotionSystem
     {
         if (sInitialized) return;
         sMovements = new NativeList<AuthoredMovementData>(initialCapacity, Allocator.Persistent);
+        sOptions = new NativeList<AuthoredOptionData>(0, Allocator.Persistent);
+        sRotationSamples = new NativeList<float4>(0, Allocator.Persistent);
         sValidMask = new NativeList<byte>(initialCapacity, Allocator.Persistent);
         sTargets = new TransformAccessArray(math.max(1, initialCapacity));
         sRegistrations.Clear();
@@ -187,6 +283,8 @@ public static class BasisAuthoredMotionSystem
         if (!sInitialized) return;
         CompletePending();
         if (sMovements.IsCreated) sMovements.Dispose();
+        if (sOptions.IsCreated) sOptions.Dispose();
+        if (sRotationSamples.IsCreated) sRotationSamples.Dispose();
         if (sValidMask.IsCreated) sValidMask.Dispose();
         if (sTargets.isCreated) sTargets.Dispose();
         sRegistrations.Clear();
@@ -237,21 +335,21 @@ public static class BasisAuthoredMotionSystem
         // Complete the previous frame's writes before rescheduling over the same containers.
         CompletePending();
 
-        // A destroyed driven transform is auto-removed from the TransformAccessArray, desyncing it
-        // from the parallel SoA — rebuild (pruning dead entries) to resync before scheduling.
+        // A destroyed transform auto-drops from the TransformAccessArray, desyncing the parallel SoA — rebuild to resync.
         if (sTargets.length != sMovements.Length)
         {
             Rebuild();
             if (sMovements.Length == 0) return default;
         }
 
-        // TODO: a shared/networked clock would keep remote copies bit-identical; Time.timeAsDouble
-        // is adequate while validating the deterministic kinds locally.
+        // TODO: a shared/networked clock for bit-identical remote copies; Time.timeAsDouble is fine for local validation.
         float time = (float)Time.timeAsDouble;
 
         sPending = new AuthoredMotionJob
         {
             Movements = sMovements.AsDeferredJobArray(),
+            Options = sOptions.AsDeferredJobArray(),
+            RotationSamples = sRotationSamples.AsDeferredJobArray(),
             ValidMask = sValidMask.AsDeferredJobArray(),
             Time = time,
         }.Schedule(sTargets);
@@ -278,6 +376,8 @@ public static class BasisAuthoredMotionSystem
         var data = new List<AuthoredMovementData>();
         var targets = new List<Transform>();
         var movementEnabled = new List<bool>();
+        var options = new List<AuthoredOptionData>();
+        var rotSamples = new List<float4>();
 
         Movement[] movements = component.movements;
         for (int i = 0; i < movements.Length; i++)
@@ -322,16 +422,88 @@ public static class BasisAuthoredMotionSystem
                     break;
 
                 case Kind.RandomSelect:
-                    // TODO: side state buffer (see job). Slot reserved so the target is tracked.
-                    if (mv.selectTarget != null)
-                        AddSlot(data, targets, movementEnabled, Base(mv, seed, mv.selectTarget), mv.selectTarget, mv.enabled);
+                {
+                    if (mv.options == null || mv.options.Length == 0) break;
+
+                    // Cumulative weight bands in declaration order; the idle weight takes the remainder.
+                    float running = 0f;
+                    var resolved = new List<(Transform tf, float3 axis, float angle, float lo, float hi)>();
+                    for (int o = 0; o < mv.options.Length; o++)
+                    {
+                        var opt = mv.options[o];
+                        float w = Mathf.Max(0f, opt.weight);
+                        Transform tf = opt.target != null ? opt.target : mv.selectTarget;
+                        if (tf == null || w <= 0f) continue;
+                        float lo = running; running += w;
+                        resolved.Add((tf, opt.axis, opt.angleDeg, lo, running));
+                    }
+                    float total = running + Mathf.Max(0f, mv.idleWeight);
+                    if (resolved.Count == 0 || total <= 0f) break;
+
+                    // One slot per distinct target; lay its options out contiguously in the buffer.
+                    var done = new HashSet<Transform>();
+                    for (int o = 0; o < resolved.Count; o++)
+                    {
+                        Transform tf = resolved[o].tf;
+                        if (!done.Add(tf)) continue;
+
+                        int start = options.Count;
+                        int count = 0;
+                        for (int p = 0; p < resolved.Count; p++)
+                        {
+                            if (resolved[p].tf != tf) continue;
+                            options.Add(new AuthoredOptionData
+                            {
+                                bandLo = resolved[p].lo,
+                                bandHi = resolved[p].hi,
+                                axis = resolved[p].axis,
+                                angleDeg = resolved[p].angle,
+                            });
+                            count++;
+                        }
+
+                        AuthoredMovementData d = Base(mv, seed, tf);
+                        d.period = Mathf.Max(1e-4f, mv.intervalRange.x);
+                        d.totalWeight = total;
+                        d.attack = mv.attack;
+                        d.release = mv.release;
+                        d.optionStart = start;
+                        d.optionCount = count;
+                        AddSlot(data, targets, movementEnabled, d, tf, mv.enabled);
+                    }
                     break;
+                }
 
                 case Kind.Sequence:
-                    // TODO: shared baked-curve buffer + per-instance playhead (see job).
-                    if (mv.sequenceTarget != null)
-                        AddSlot(data, targets, movementEnabled, Base(mv, seed, mv.sequenceTarget), mv.sequenceTarget, mv.enabled);
+                {
+                    BasisMotionClip clip = mv.bakedClip;
+                    if (clip == null || clip.transformCount <= 0 || clip.frameCount <= 0 || clip.rotationSamples == null)
+                        break;
+
+                    Transform root = mv.sequenceRoot != null ? mv.sequenceRoot : component.transform;
+                    int fc = clip.frameCount;
+                    for (int ti = 0; ti < clip.transformCount; ti++)
+                    {
+                        string path = (clip.paths != null && ti < clip.paths.Length) ? clip.paths[ti] : null;
+                        Transform tf = ResolvePath(root, path);
+                        if (tf == null) continue;
+
+                        int start = rotSamples.Count;
+                        for (int f = 0; f < fc; f++)
+                        {
+                            Vector4 q = clip.rotationSamples[ti * fc + f];
+                            rotSamples.Add(new float4(q.x, q.y, q.z, q.w));
+                        }
+
+                        AuthoredMovementData d = Base(mv, seed, tf);
+                        d.sampleStart = start;
+                        d.frameCount = fc;
+                        d.frameRate = clip.frameRate;
+                        d.loop = mv.loop ? 1 : 0;
+                        AddSlot(data, targets, movementEnabled, d, tf, mv.enabled);
+                    }
                     break;
+                }
             }
         }
 
@@ -342,6 +514,8 @@ public static class BasisAuthoredMotionSystem
             Component = component,
             Targets = targets.ToArray(),
             Data = data.ToArray(),
+            Options = options.ToArray(),
+            RotationSamples = rotSamples.ToArray(),
             MovementEnabled = movementEnabled.ToArray(),
             ComponentEnabled = component.isActiveAndEnabled,
             Offset = 0,
@@ -351,6 +525,7 @@ public static class BasisAuthoredMotionSystem
     // Builds the common fields and captures the rest pose from the driven transform.
     static AuthoredMovementData Base(Movement mv, uint seed, Transform tf)
     {
+        tf.GetLocalPositionAndRotation(out Vector3 restPos, out Quaternion restRot);
         return new AuthoredMovementData
         {
             kind = (int)mv.kind,
@@ -366,8 +541,8 @@ public static class BasisAuthoredMotionSystem
             orbitSpeedDeg = mv.orbitSpeedDeg,
             noiseSpeed = mv.noiseSpeed,
             seed = seed,
-            restRotation = tf.localRotation,
-            restPosition = tf.localPosition,
+            restRotation = restRot,
+            restPosition = restPos,
             restScale = tf.localScale,
         };
     }
@@ -380,15 +555,19 @@ public static class BasisAuthoredMotionSystem
         enabledList.Add(movementEnabled);
     }
 
-    // Rebuilds the native containers from the managed registrations after a structural change.
-    // O(total slots), only on register/unregister (rare, calibration-time) — the per-frame
-    // Schedule never rebuilds.
+    // Resolves a baked-clip path under root (empty = root itself), matching how an AnimationClip binds curves.
+    static Transform ResolvePath(Transform root, string path)
+    {
+        if (root == null) return null;
+        return string.IsNullOrEmpty(path) ? root : root.Find(path);
+    }
+
+    // Rebuilds the native containers from the managed registrations on a structural change — never per-frame.
     static void Rebuild()
     {
         CompletePending();
 
-        // Prune registrations whose component was destroyed (Unity fake-null) without an
-        // explicit Unregister — keeps the containers from carrying dead avatars.
+        // Prune registrations whose component was destroyed without an explicit Unregister (Unity fake-null).
         for (int i = sRegistrations.Count - 1; i >= 0; i--)
         {
             if (sRegistrations[i].Component == null)
@@ -402,6 +581,8 @@ public static class BasisAuthoredMotionSystem
         for (int i = 0; i < sRegistrations.Count; i++) total += sRegistrations[i].Data.Length;
 
         sMovements.Clear();
+        sOptions.Clear();
+        sRotationSamples.Clear();
         sValidMask.Clear();
         if (sTargets.isCreated) sTargets.Dispose();
         sTargets = new TransformAccessArray(math.max(1, total));
@@ -410,19 +591,31 @@ public static class BasisAuthoredMotionSystem
         {
             Registration reg = sRegistrations[r];
             reg.Offset = sMovements.Length;
+
+            // Concatenate this registration's side buffers; slots reference them via a rebased offset.
+            int optionBase = sOptions.Length;
+            if (reg.Options != null)
+                for (int o = 0; o < reg.Options.Length; o++) sOptions.Add(reg.Options[o]);
+
+            int sampleBase = sRotationSamples.Length;
+            if (reg.RotationSamples != null)
+                for (int s = 0; s < reg.RotationSamples.Length; s++) sRotationSamples.Add(reg.RotationSamples[s]);
+
             for (int i = 0; i < reg.Data.Length; i++)
             {
                 Transform tf = reg.Targets[i];
                 if (tf == null) continue; // UGC: a target may have been destroyed
-                sMovements.Add(reg.Data[i]);
+                AuthoredMovementData d = reg.Data[i];
+                if ((Kind)d.kind == Kind.RandomSelect) d.optionStart += optionBase;
+                else if ((Kind)d.kind == Kind.Sequence) d.sampleStart += sampleBase;
+                sMovements.Add(d);
                 sTargets.Add(tf);
                 sValidMask.Add((byte)(reg.ComponentEnabled && reg.MovementEnabled[i] ? 1 : 0));
             }
         }
     }
 
-    // Toggle-system-agnostic: any actuator that flips the component's enabled state lands here
-    // (via BasisAuthoredMotion.EnabledStateChanged), and we patch just this component's mask slice.
+    // Toggle-system-agnostic: any actuator flipping the component's enabled lands here; patch just its mask slice.
     static void OnEnabledStateChanged(BasisAuthoredMotion component, bool enabled)
     {
         if (!sLookup.TryGetValue(component, out Registration reg)) return;
