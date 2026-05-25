@@ -199,16 +199,6 @@ namespace Basis.Scripts.Networking
         public static float MinCutoff = 0.05f;
         public static float Beta = 2;
         public static float DerivativeCutoff = 2;
-        /// <summary>
-        /// Synchronous compute (begin + join in one call). The per-frame path pipelines instead
-        /// via <see cref="BeginNetworkCompute"/> / <see cref="CompleteNetworkCompute"/>.
-        /// </summary>
-        /// <param name="UnscaledDeltaTime">Delta time since last tick (unscaled).</param>
-        public static void SimulateNetworkCompute(double UnscaledDeltaTime)
-        {
-            BeginNetworkCompute(UnscaledDeltaTime);
-            CompleteNetworkCompute();
-        }
 
         /// <summary>
         /// Phase 1 (main thread) then kicks off the parallel per-receiver compute (Phase 2) on a

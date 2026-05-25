@@ -2,13 +2,13 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Drivers;
 using System;
 public class BasisFrameRateVisualization : MonoBehaviour
 {
     public TextMeshProUGUI fpsText;
     public string Title;
 
-    private float deltaTime;
     private int cachedHour, cachedMinute, cachedSecond;
     private float nextTimeUpdate;
 
@@ -55,17 +55,29 @@ public class BasisFrameRateVisualization : MonoBehaviour
         }
     }
 
-    void Update()
+    private void OnEnable()
     {
-        float dt = Time.unscaledDeltaTime;
-        // Keep smoothing the delta every frame so the displayed value stays accurate.
-        deltaTime += (dt - deltaTime) * 0.1f;
+        BasisFrameClock.AddRequest();
+        BasisFrameClock.OnTick += OnFrameTick;
+    }
 
-        _redrawTimer += dt;
-        if (_redrawTimer < RedrawInterval) return;
+    private void OnDisable()
+    {
+        BasisFrameClock.OnTick -= OnFrameTick;
+        BasisFrameClock.RemoveRequest();
+    }
+
+    private void OnFrameTick()
+    {
+        _redrawTimer += Time.unscaledDeltaTime;
+        if (_redrawTimer < RedrawInterval)
+        {
+            return;
+        }
+
         _redrawTimer -= RedrawInterval;
 
-        float fps = 1f / deltaTime;
+        float fps = BasisFrameClock.SmoothedFramesPerSecond;
 
         // Only fetch system time once per second
         float time = Time.unscaledTime;

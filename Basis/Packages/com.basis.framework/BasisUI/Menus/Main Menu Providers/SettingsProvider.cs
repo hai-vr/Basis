@@ -508,6 +508,7 @@ namespace Basis.BasisUI
             if (!_avatarRateTickSubscribed)
             {
                 BasisFrameClock.OnTick += UpdateAvatarRateWarning;
+                BasisFrameClock.AddRequest();
                 _avatarRateTickSubscribed = true;
             }
 
@@ -578,6 +579,7 @@ namespace Basis.BasisUI
             if (warning == null)
             {
                 BasisFrameClock.OnTick -= UpdateAvatarRateWarning;
+                BasisFrameClock.RemoveRequest();
                 _avatarRateTickSubscribed = false;
                 return;
             }
