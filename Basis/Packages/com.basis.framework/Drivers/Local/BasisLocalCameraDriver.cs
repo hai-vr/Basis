@@ -308,8 +308,6 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
                 BasisNetworkModeration.OnShoutModeChanged += OnShoutModeChangedForIcon;
                 Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged += microphoneIconDriver.OnTalkModeChanged;
-#else
-                ParentOfUI.gameObject.SetActive(false);
 #endif
 
                 RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
@@ -419,8 +417,8 @@ namespace Basis.Scripts.Drivers
             }
             else
             {
-                // Leaving desktop (VR/XR) hard-disables third-person; SnapToFirstPerson
-                // runs on the next SimulateThirdPerson tick to restore the camera transform.
+                // Leaving desktop (VR/XR) hard-disables third-person; the next Simulate
+                // tick snaps the camera back to first-person to restore the camera transform.
                 IsThirdPerson = false;
             }
             UpdateCameraScale(BasisHeightDriver.HeightModeChange.OnTpose);
@@ -442,10 +440,10 @@ namespace Basis.Scripts.Drivers
 
         private void OnShoutModeChangedForIcon(ushort playerId, bool enabled)
         {
-            if (microphoneIconDriver != null)
-            {
-                microphoneIconDriver.OnShoutModeChanged();
-            }
+            // The icon color is derived purely from local state (BasisAudioTransmission.IsInShoutMode,
+            // which is only ever set for the local player, plus the local talk mode), so any shout-mode
+            // signal just re-derives the local color. No need to look up the network player to filter.
+            microphoneIconDriver.OnShoutModeChanged();
         }
 #endif
 
@@ -635,11 +633,18 @@ namespace Basis.Scripts.Drivers
                 avatarPreviewDriver.Simulate();
             }
 
-            if ((!IsThirdPerson || !BasisDeviceManagement.IsUserInDesktop()) && _wasThirdPerson)
+            if (!IsThirdPerson || !BasisDeviceManagement.IsUserInDesktop())
             {
-                transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-                CameraInstance.fieldOfView = DefaultCameraFov;
-                _wasThirdPerson = false;
+                // Left third-person (zoomed back in, toggled off, or switched to VR/XR):
+                // snap back to first-person once, then skip the orbital camera math so it
+                // never overwrites the first-person / XR-tracked camera transform.
+                if (_wasThirdPerson)
+                {
+                    transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                    CameraInstance.fieldOfView = DefaultCameraFov;
+                    _wasThirdPerson = false;
+                }
+                return;
             }
 
             float scale = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;

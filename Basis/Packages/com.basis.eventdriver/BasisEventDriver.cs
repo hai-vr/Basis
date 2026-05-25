@@ -293,7 +293,7 @@ namespace Basis.EventDriver
                 localplayer.LocalVisemeDriver.Apply();
                 localplayer.Simulate(DeltaTime);
                 // Complete the finger slerp job (TransformAccessArray write) before touching the
-                // camera transform, so SimulateThirdPerson never overlaps jobified transform access.
+                // camera transform, so Simulate never overlaps jobified transform access.
                 localplayer.LocalHandDriver.Apply();
                 LocalCameraDriver.Simulate(DeltaTime);
                 localplayer.LocalEyeDriver.Simulate(DeltaTime);
