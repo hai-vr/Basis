@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using System;
@@ -109,6 +110,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Shader path used to initialize <see cref="clearMaterial"/>.</summary>
     private const string CLEAR_SHADER_PATH = "Unlit/Color";
 
+    /// <summary>Number of handheld cameras currently out. The desktop reticle is suppressed
+    /// while this is greater than zero and restored when the last camera closes.</summary>
+    private static int _activeHandHeldCount;
+
     /// <summary>Folder where screenshots are written (platform-dependent).</summary>
     private string picturesFolder;
 
@@ -127,6 +132,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public new async void Awake()
     {
+        // Take the desktop reticle down immediately on bring-out — before the awaits below —
+        // destroyed rather than hidden, and restored when the last camera closes. Ref-counted
+        // for multi-camera setups; no-op in VR. Done synchronously so it can't race OnDestroy.
+        _activeHandHeldCount++;
+        ApplyReticleSuppression();
+
         InitializeCameraSettings();
         InitializeMaterial();
         InitializeMeshRendererCheck();
@@ -146,6 +157,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.gameObject.SetActive(true);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied += SyncBackgroundFromMainCamera;
+
+        if (BasisLocalCameraDriver.HasInstance)
+        {
+            BasisLocalCameraDriver.Instance.ExitThirdPerson();
+        }
 
         // Notify network that PIP camera was created
         if (BasisNetworkConnection.LocalPlayerPeer != null)
@@ -174,6 +190,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             BasisNetworkPIPCameraDriver.SendPIPState(false, Vector3.zero, Quaternion.identity);
         }
+
+        // Camera is closing: drop the ref count and lift reticle suppression once the
+        // last camera is gone, so it returns if the user still wants it.
+        _activeHandHeldCount = Mathf.Max(0, _activeHandHeldCount - 1);
+        ApplyReticleSuppression();
 
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
@@ -204,6 +225,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low);
         BasisDebug.Log($"[HandHeldCamera] Preview reset to {PreviewCaptureWidth}x{PreviewCaptureHeight} @ {AntialiasingQuality.Low}");
         captureCamera.targetTexture = renderTexture;
+    }
+
+    /// <summary>
+    /// Suppresses (destroys) or restores the desktop reticle based on how many handheld
+    /// cameras are currently out. No-op in VR, where there is no desktop eye/reticle.
+    /// </summary>
+    private static void ApplyReticleSuppression()
+    {
+        if (BasisDesktopEye.Instance != null)
+        {
+            BasisDesktopEye.Instance.Reticle?.SetSuppressed(_activeHandHeldCount > 0);
+        }
     }
 
     /// <summary>Initializes base camera properties (HDR, MSAA, physical cam, targets).</summary>

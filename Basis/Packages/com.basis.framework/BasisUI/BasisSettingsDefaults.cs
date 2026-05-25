@@ -1034,6 +1034,10 @@ namespace Basis.BasisUI
         // dt scaling, like the rotation speeds). Lower = softer blend, higher = snappier.
         public static BasisSettingsBinding<float> VSpineTorsoYawBlendSpeed = new("vspinetorsoyawblendspeed", new BasisPlatformDefault<float>(8f));
 
+        // Off forces the yaw deadzone to 0 in VR (torso follows immediately); on uses the configured
+        // VSpineTorsoYawDeadzoneDeg cone in VR too. Desktop always uses the configured value.
+        public static BasisSettingsBinding<bool> VSpineTorsoYawPlayInVR = new("vspinetorsoyawplayinvr", new BasisPlatformDefault<bool>(false));
+
 
         // ---------------- TRACKER PAIRING (virtual midpoint) ----------------
         // Hides the pairing tuning sliders behind an advanced toggle so the
@@ -1568,6 +1572,7 @@ namespace Basis.BasisUI
             VSpineHipsForwardBias.LoadBindingValue();
             VSpineTorsoYawDeadzoneDeg.LoadBindingValue();
             VSpineTorsoYawBlendSpeed.LoadBindingValue();
+            VSpineTorsoYawPlayInVR.LoadBindingValue();
 
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();

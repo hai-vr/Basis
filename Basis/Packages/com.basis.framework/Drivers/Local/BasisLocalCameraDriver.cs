@@ -548,6 +548,14 @@ namespace Basis.Scripts.Drivers
             }
         }
 
+        public void ExitThirdPerson()
+        {
+            if (IsThirdPerson)
+            {
+                IsThirdPerson = false;
+            }
+        }
+
         /// <summary>
         /// True when the third-person camera is permitted: requires the admin lockout to be off,
         /// the General-tab toggle to be enabled, AND the user to be in desktop mode (VR/XR
@@ -628,9 +636,7 @@ namespace Basis.Scripts.Drivers
                 }
                 if (CameraData.allowXRRendering)
                 {
-#if !BASIS_DISABLE_MICROPHONE
                     ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera, Position);
-#endif
                     // XR drives ParentOfUI directly; invalidate the desktop layout cache so it
                     // recomputes when we return to the desktop path.
                     _micLayoutValid = false;
@@ -687,7 +693,6 @@ namespace Basis.Scripts.Drivers
             // so the orbit center must be read fresh. A value cached in OnEnable goes stale and
             // leaves third-person orbiting the player root, ~eye-height too low (Y only).
             Transform parentTransform = transform.parent;
-            if (parentTransform == null) return;
 
             float scale = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
             parentTransform.GetPositionAndRotation(out Vector3 targetTrackingPos, out Quaternion targetTrackingRot);

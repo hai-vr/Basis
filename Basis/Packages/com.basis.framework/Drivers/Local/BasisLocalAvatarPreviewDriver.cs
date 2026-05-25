@@ -185,10 +185,10 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void Simulate()
         {
-            if (!active || PreviewCamera == null) return;
-            if (!BasisLocalPlayer.PlayerReady || BasisLocalPlayer.Instance == null) return;
-            if (!BasisLocalAvatarDriver.Mapping.Hashead || BasisLocalAvatarDriver.Mapping.head == null) return;
-
+            if (!active)
+            {
+                return;
+            }
             Transform head = BasisLocalAvatarDriver.Mapping.head;
 
             Vector3 feetPos = BasisLocalPlayer.Instance.transform.position;
@@ -205,7 +205,7 @@ namespace Basis.Scripts.Drivers
             if (halfFovTan < 1e-4f) halfFovTan = 1e-4f;
             float cameraDistance = (verticalSpan * 0.5f) / halfFovTan;
 
-            Vector3 cameraPos = frameCenter + head.forward * cameraDistance;
+            Vector3 cameraPos = frameCenter + BasisLocalCameraDriver.HeadForward() * cameraDistance;
 
             PreviewCamera.transform.SetPositionAndRotation(
                 cameraPos,
