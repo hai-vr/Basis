@@ -257,6 +257,9 @@ namespace Basis.Scripts.BasisSdk.Players
         [System.NonSerialized]
         public Basis.Scripts.Avatar.BasisAvatarPerformanceLimits.PerformanceInfo LastPerformanceInfo;
 
+        [System.NonSerialized]
+        public bool RequiresPerformanceReval;
+
         /// <summary>
         /// Per-player override that tells the avatar performance filter to treat this
         /// remote as if no limits were enabled. Set from the individual-player menu

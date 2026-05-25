@@ -40,7 +40,7 @@ public class AvatarLoaderEditorWindow : EditorWindow
 
         foreach (var players in BasisNetworkPlayers.RemotePlayers)
         {
-            await players.Value.RemotePlayer.CreateAvatar(loadmode, loadableBundle);
+            await players.Value.CreateAvatar(loadmode, loadableBundle);
         }
 
         Debug.Log("Avatar load initiated for all remote players.");

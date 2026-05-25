@@ -104,7 +104,7 @@ namespace Basis.Scripts.Networking.Receivers
             entry.Receiver.HasAudioSource = true;
 
             // Wire up the player's existing viseme driver so lip-sync works during shout mode
-            if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
+            if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
             {
                 entry.Driver.Initialize(receiver.AudioReceiverModule.visemeDriver);
             }
@@ -190,7 +190,7 @@ namespace Basis.Scripts.Networking.Receivers
             entry.Receiver.Insert(audioData);
 
             // Notify the player's nameplate that audio was received so it shows the talking state
-            if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
+            if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
             {
                 receiver.Player.AudioReceived?.Invoke();
             }

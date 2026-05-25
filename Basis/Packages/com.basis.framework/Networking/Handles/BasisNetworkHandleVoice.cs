@@ -27,7 +27,7 @@ public static class BasisNetworkHandleVoice
                     audioUpdate = new ServerAudioSegmentMessage();
                 }
                 audioUpdate.Deserialize(Reader, largeId);
-                if (BasisNetworkPlayers.RemotePlayers.TryGetValue(audioUpdate.playerIdMessage.playerID, out BasisNetworkReceiver player))
+                if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(audioUpdate.playerIdMessage.playerID, out BasisNetworkReceiver player))
                 {
                     if (audioUpdate.audioSegmentData.LengthUsed == 0)
                     {
