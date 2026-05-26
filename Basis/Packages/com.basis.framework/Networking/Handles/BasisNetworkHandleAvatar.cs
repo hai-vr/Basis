@@ -22,7 +22,7 @@ public static class BasisNetworkHandleAvatar
 
         ushort playerId = ssm.playerIdMessage.playerID;
 
-        if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver player))
+        if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver player))
         {
             BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, ssm);
         }

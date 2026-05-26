@@ -174,7 +174,7 @@ MonoBehaviour:
   - UnityEngine.AudioDistortionFilter
   - Cilbox.CilboxAvatarBasis
   - Basis.Shims.BasisAvatarShim
-  - Basis.Shims.BasisNetworkShim
+  - Basis.BasisNetworkShim
   - Cilbox.CilboxProxy
   - Basis.Shims.BasisOsc
   - Basis.Scripts.BasisSdk.BasisHeadChop

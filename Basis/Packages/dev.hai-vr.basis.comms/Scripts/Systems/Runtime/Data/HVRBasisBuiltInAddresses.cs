@@ -72,11 +72,11 @@ namespace HVR.Basis.Comms
 
         public void Destroy()
         {
-            if (_comms == null) return;
-            if (_contextNullable == null) return;
+            if (ReferenceEquals(_comms, null)) return;
+            if (!Required.TryGetValue(_comms, out var list)) return;
 
-            Required[_comms].Remove(this);
-            if (Required[_comms].Count == 0)
+            list.Remove(this);
+            if (list.Count == 0)
             {
                 Required.Remove(_comms);
                 Flags.Remove(_comms);
@@ -111,7 +111,9 @@ namespace HVR.Basis.Comms
 
         private void ProcessViseme(HVRAvatarComms comms)
         {
+            if (comms == null) return;
             var variableStore = comms.VariableStore;
+            if (variableStore == null) return;
             if (_firstTick)
             {
                 variableStore.SubmitOrDefineDefaultValue(_addressIds[0], 1f); // sil has a default value of 1

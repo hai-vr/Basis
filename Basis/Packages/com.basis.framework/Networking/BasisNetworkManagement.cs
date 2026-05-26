@@ -199,16 +199,6 @@ namespace Basis.Scripts.Networking
         public static float MinCutoff = 0.05f;
         public static float Beta = 2;
         public static float DerivativeCutoff = 2;
-        /// <summary>
-        /// Synchronous compute (begin + join in one call). The per-frame path pipelines instead
-        /// via <see cref="BeginNetworkCompute"/> / <see cref="CompleteNetworkCompute"/>.
-        /// </summary>
-        /// <param name="UnscaledDeltaTime">Delta time since last tick (unscaled).</param>
-        public static void SimulateNetworkCompute(double UnscaledDeltaTime)
-        {
-            BeginNetworkCompute(UnscaledDeltaTime);
-            CompleteNetworkCompute();
-        }
 
         /// <summary>
         /// Phase 1 (main thread) then kicks off the parallel per-receiver compute (Phase 2) on a
@@ -294,7 +284,7 @@ namespace Basis.Scripts.Networking
         /// main-thread finish: Phase 3 AudioSource apply, interpolation job schedule, shout drain,
         /// and profiler update. Must run before any receiver state is mutated this frame.
         /// </summary>
-        public static void CompleteNetworkCompute()
+        public static void CompleteNetworkCompute(float DeltaTime)
         {
             if (!s_computePending)
             {
@@ -306,9 +296,9 @@ namespace Basis.Scripts.Networking
 
             // Phase 3 (main thread): apply AudioSource state only for receivers that decoded
             // audio this tick. Recorded in phase 2, so this no longer scans every player.
-            for (int k = 0; k < s_decodedCount; k++)
+            for (int Index = 0; Index < s_decodedCount; Index++)
             {
-                snapshot[s_decodedIndices[k]].PostCompute();
+                snapshot[s_decodedIndices[Index]].PostCompute();
             }
 
             BasisRemoteNetworkDriver.Compute();
@@ -317,7 +307,7 @@ namespace Basis.Scripts.Networking
 
             if (HasRequested)
             {
-                _timer += Time.deltaTime;
+                _timer += DeltaTime;
                 if (_timer >= 0.1f)
                 {
                     _timer = 0f;

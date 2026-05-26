@@ -262,6 +262,7 @@ namespace Basis.Scripts.Device_Management
         }
         public void Simulate()
         {
+            OnDeviceManagementLoop?.Invoke();
             int Count = BaseTypes.Count;
             for (int Index = 0; Index < Count; Index++)
             {

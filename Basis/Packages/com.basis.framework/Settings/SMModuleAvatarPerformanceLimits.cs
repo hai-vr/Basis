@@ -1,64 +1,29 @@
+using System.Collections.Generic;
 using Basis.BasisUI;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.Receivers;
 using UnityEngine;
 using Basis.Scripts.Settings;
-
-/// <summary>
-/// Settings bridge that forwards the performance-limit sliders/toggles into
-/// <see cref="BasisAvatarPerformanceLimits"/>. Mirrors <c>SMModuleAvatarLoadGates</c>:
-/// subscribes once at runtime init, seeds the static state from the saved settings,
-/// and reacts to <see cref="BasisSettingsSystem.OnSettingChanged"/>.
-///
-/// Setting values are applied immediately (cheap field writes), but the resulting
-/// avatar reload pass is debounced — rapid toggling would otherwise fire one full
-/// reconcile per click, and reconcile reloads every remote avatar in the room. The
-/// debounce collapses a burst of changes into a single reconcile after the user has
-/// settled, so flipping ten toggles in a second reloads each avatar once, not ten
-/// times.
-/// </summary>
 public static class SMModuleAvatarPerformanceLimits
 {
-    /// <summary>
-    /// How long to wait after the last perf-limit setting change before running the
-    /// reconcile pass. Must be long enough to absorb a fast click-through of the
-    /// Performance Limits tab but short enough that the user sees the effect of a
-    /// single change without obvious latency.
-    /// </summary>
-    private const float DebounceSeconds = 0.35f;
-
-    // Negative = nothing pending. Uses realtimeSinceStartup so the debounce
-    // still fires when Time.timeScale is 0 (pause menu etc.).
-    private static float _pendingFireTime = -1f;
+    private const double DebounceSeconds = 0.35f;
+    private static double _pendingFireTime = -1f;
+    public static int RevalBudgetPerFrame = 10;
+    public static bool RequiresPerformanceCheck = false;
+    private static readonly Queue<BasisRemotePlayer> _revalQueue = new();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Register()
     {
-        // Seed every limit from the current settings store. The binding layer already
-        // ran its LoadBindingValue during static init, so RawValue is authoritative
-        // for the saved value (or platform default) by the time we read it here.
         ApplyAll();
-
         BasisSettingsSystem.OnSettingChanged -= OnSettingChanged;
         BasisSettingsSystem.OnSettingChanged += OnSettingChanged;
-
-        // The session-only bypass toggle doesn't go through BasisSettingsSystem,
-        // so we get a dedicated event from the evaluator and route it into the
-        // same debounced reconcile pass as a regular setting change.
         BasisAvatarPerformanceLimits.OnBypassChanged -= OnBypassChanged;
         BasisAvatarPerformanceLimits.OnBypassChanged += OnBypassChanged;
-
-        // Content-tag filter changes also flow into the perf reconcile pass —
-        // Evaluate now consults the tag list, so a freshly-blocked tag flips
-        // wouldBeBlocked for any loaded avatar carrying it (and the inverse on
-        // unblock), which DetermineAction maps to Reload exactly like a hard-block
-        // limit change.
         BasisContentTagFilter.OnChanged -= OnTagFilterChanged;
         BasisContentTagFilter.OnChanged += OnTagFilterChanged;
     }
-
     private static void OnBypassChanged()
     {
         ScheduleReconcile();
@@ -68,18 +33,36 @@ public static class SMModuleAvatarPerformanceLimits
     {
         ScheduleReconcile();
     }
-
-    /// <summary>
-    /// Per-frame debounce tick. Called from <c>BasisEventDriver.Update</c> so we
-    /// don't need a dedicated MonoBehaviour. Fires the reconcile pass once the
-    /// debounce window has elapsed since the last <see cref="ScheduleReconcile"/>.
-    /// </summary>
-    public static void SimulateDebounce()
+    public static void Simulate()
     {
-        if (_pendingFireTime < 0f) return;
-        if (Time.realtimeSinceStartup < _pendingFireTime) return;
-        _pendingFireTime = -1f;
-        ReconcileLoadedAvatars();
+        if (RequiresPerformanceCheck != false)
+        {
+            if (_pendingFireTime >= 0f)
+            {
+                if (Time.realtimeSinceStartupAsDouble < _pendingFireTime)
+                {
+                    return;
+                }
+                _pendingFireTime = -1f;
+            }
+
+            int budget = RevalBudgetPerFrame;
+            while (budget > 0 && _revalQueue.Count > 0)
+            {
+                BasisRemotePlayer player = _revalQueue.Dequeue();
+                if (player == null || !player.RequiresPerformanceReval)
+                {
+                    continue;
+                }
+                player.RequiresPerformanceReval = false;
+                ReconcilePlayer(player);
+                budget--;
+            }
+            if (_revalQueue.Count == 0)
+            {
+                RequiresPerformanceCheck = false;
+            }
+        }
     }
 
     private static void OnSettingChanged(string settingName, string value)
@@ -89,94 +72,54 @@ public static class SMModuleAvatarPerformanceLimits
         {
             return;
         }
-
-        // Setting values are applied immediately — new avatar loads that happen
-        // during the debounce window still see the freshest limits. Only the
-        // reconcile-existing-avatars pass is deferred.
         ApplyAll();
         ScheduleReconcile();
     }
-
-    /// <summary>
-    /// Push the debounced reconcile firing time forward. Each new setting change
-    /// resets the timer so a fast click-through only runs one reconcile at the end.
-    /// </summary>
     private static void ScheduleReconcile()
     {
-        _pendingFireTime = Time.realtimeSinceStartup + DebounceSeconds;
-    }
+        _pendingFireTime = Time.realtimeSinceStartupAsDouble + DebounceSeconds;
 
-    /// <summary>
-    /// Walk every currently-known remote player and take the cheapest correct
-    /// action for each given the new limits. <see cref="BasisAvatarPerformanceLimits.DetermineAction"/>
-    /// classifies each player as None, TrimInPlace, or Reload; we then dispatch:
-    ///
-    ///   • None — skip entirely (nothing would change).
-    ///   • TrimInPlace — re-run <c>TrimExcessComponents</c> on the live avatar
-    ///     and accumulate the destroyed counts into the player's stored
-    ///     <c>LastPerformanceInfo</c>. No bundle I/O, no instantiation, no setup
-    ///     pass; this is the fast path that makes fast toggling feel instant.
-    ///   • Reload — full <c>ReloadAvatar</c>, needed only when a trim relaxed
-    ///     (destroyed components need to come back) or the hard-block flag flipped.
-    ///
-    /// Called by <see cref="SimulateDebounce"/> so a burst of toggle changes
-    /// collapses into a single reconcile pass.
-    /// </summary>
-    private static void ReconcileLoadedAvatars()
-    {
         foreach (var kvp in BasisNetworkPlayers.RemotePlayers)
         {
-            BasisNetworkReceiver receiver = kvp.Value;
-            if (receiver == null) continue;
-
-            BasisRemotePlayer player = receiver.RemotePlayer;
-            if (player == null) continue;
-
-            BasisLoadableBundle bundle = player.AlwaysRequestedAvatar;
-            if (bundle == null || bundle.BasisBundleConnector == null)
+            BasisRemotePlayer player = kvp.Value;
+            if (player == null || player.RequiresPerformanceReval)
             {
                 continue;
             }
-
-            // Skip players whose cached request IS the fallback avatar — reloading
-            // would just destroy and re-instantiate the same loading mesh.
-            if (BasisAvatarFactory.IsLoadingAvatar(bundle))
+            player.RequiresPerformanceReval = true;
+            _revalQueue.Enqueue(player);
+            RequiresPerformanceCheck = true;
+        }
+    }
+    private static void ReconcilePlayer(BasisRemotePlayer player)
+    {
+        BasisLoadableBundle bundle = player.AlwaysRequestedAvatar;
+        if (bundle == null || bundle.BasisBundleConnector == null)
+        {
+            return;
+        }
+        if (BasisAvatarFactory.IsLoadingAvatar(bundle))
+        {
+            return;
+        }
+        if (player.BasisAvatar == null || player.IsConsideredFallBackAvatar)
+        {
+            bool wasBlocked = player.LastPerformanceInfo.Blocked;
+            bool wouldBeBlocked = BasisAvatarPerformanceLimits.Evaluate(bundle.BasisBundleConnector).Blocked;
+            if (wasBlocked != wouldBeBlocked)
             {
-                continue;
+                player.ReloadAvatar();
             }
+            return;
+        }
+        var action = BasisAvatarPerformanceLimits.DetermineAction(bundle.BasisBundleConnector, player.LastPerformanceInfo);
+        switch (action)
+        {
+            case BasisAvatarPerformanceLimits.ReconcileAction.None:
+                break;
 
-            // Players currently showing the fallback (either perf-blocked, out of
-            // range, or load failure): there's no real instantiated avatar to trim
-            // in-place. Only a hard-block flip that newly un-blocks them needs a
-            // reload — trim changes take effect automatically when the range-change
-            // path next reloads them. Test via a direct Evaluate instead of the
-            // full DetermineAction so we don't traverse trim categories we can't
-            // act on from here anyway.
-            if (player.BasisAvatar == null || player.IsConsideredFallBackAvatar)
-            {
-                bool wasBlocked = player.LastPerformanceInfo.Blocked;
-                bool wouldBeBlocked = BasisAvatarPerformanceLimits.Evaluate(bundle.BasisBundleConnector).Blocked;
-                if (wasBlocked != wouldBeBlocked)
+            case BasisAvatarPerformanceLimits.ReconcileAction.TrimInPlace:
                 {
-                    player.ReloadAvatar();
-                }
-                continue;
-            }
-
-            var action = BasisAvatarPerformanceLimits.DetermineAction(bundle.BasisBundleConnector, player.LastPerformanceInfo);
-            switch (action)
-            {
-                case BasisAvatarPerformanceLimits.ReconcileAction.None:
-                    // No effective change for this player — don't touch them.
-                    break;
-
-                case BasisAvatarPerformanceLimits.ReconcileAction.TrimInPlace:
-                {
-                    // Mutate the already-instantiated tree in place. TrimExcessComponents
-                    // uses DestroyImmediate so the result is visible on the same frame,
-                    // no double buffering required. Accumulate the delta into the
-                    // player's cached PerformanceInfo — the trim is strictly additive
-                    // (we only ever destroy, never restore) so summing matches reality.
                     var delta = BasisAvatarPerformanceLimits.TrimExcessComponents(player.BasisAvatar.gameObject);
                     var info = player.LastPerformanceInfo;
                     info.AnimatorsTrimmed += delta.AnimatorsTrimmed;
@@ -192,10 +135,9 @@ public static class SMModuleAvatarPerformanceLimits
                     break;
                 }
 
-                case BasisAvatarPerformanceLimits.ReconcileAction.Reload:
-                    player.ReloadAvatar();
-                    break;
-            }
+            case BasisAvatarPerformanceLimits.ReconcileAction.Reload:
+                player.ReloadAvatar();
+                break;
         }
     }
 

@@ -26,6 +26,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         private GameObject _quadGO;
         private bool _userEnabled;
         private bool _focused = true;
+        private bool _suppressed;
 
         public void Initialize()
         {
@@ -58,9 +59,29 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             ApplyVisibility();
         }
 
+        /// <summary>
+        /// Hard-suppresses the reticle while a feature needs the screen center clear
+        /// (e.g. the handheld camera is out). Unlike <see cref="SetEnabled"/>/<see cref="SetFocused"/>
+        /// this destroys the quad rather than deactivating it, and re-creates it on demand when
+        /// suppression is lifted — provided the user setting and cursor focus still want it shown.
+        /// </summary>
+        public void SetSuppressed(bool suppressed)
+        {
+            if (_suppressed == suppressed) return;
+            _suppressed = suppressed;
+            if (suppressed)
+            {
+                Destroy();
+            }
+            else
+            {
+                ApplyVisibility();
+            }
+        }
+
         private void ApplyVisibility()
         {
-            bool visible = _userEnabled && _focused;
+            bool visible = _userEnabled && _focused && !_suppressed;
             // Lazy init
             if (visible && _quadGO == null)
             {

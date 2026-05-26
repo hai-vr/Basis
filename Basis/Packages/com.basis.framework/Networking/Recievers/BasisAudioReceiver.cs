@@ -296,11 +296,17 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void ApplyAudioState()
         {
-            if (!_lastDrainDecoded || !HasAudioSource) return;
-            if (VoiceBuffer.HasRealAudio)
-                EnableAndEnsurePlaying();
-            else
-                DisableAudio();
+            if (_lastDrainDecoded && HasAudioSource)
+            {
+                if (VoiceBuffer.HasRealAudio)
+                {
+                    EnableAndEnsurePlaying();
+                }
+                else
+                {
+                    DisableAudio();
+                }
+            }
         }
 
         public void DrainAndDecode()

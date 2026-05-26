@@ -333,8 +333,15 @@ public static class BasisRemoteNetworkDriver
     /// <summary>Schedule jobs for the current frame (does not complete them).</summary>
     public static void Compute()
     {
-        if (!_initialized) return;
-        if (BasisNetworkPlayers.ReceiverCount == 0) return;
+        if (!_initialized)
+        {
+            return;
+        }
+
+        if (BasisNetworkPlayers.ReceiverCount == 0)
+        {
+            return;
+        }
 
         oneEuroJob.Complete();
 

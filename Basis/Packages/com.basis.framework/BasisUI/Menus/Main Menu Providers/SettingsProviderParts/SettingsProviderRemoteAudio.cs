@@ -48,7 +48,7 @@ namespace Basis.BasisUI
             _lastAppliedJitterDepth = depth;
             if (firstApply) return; // startup — no live receivers to poke
 
-            foreach (var kvp in BasisNetworkPlayers.RemotePlayers)
+            foreach (var kvp in BasisNetworkPlayers.RemotePlayerReceivers)
             {
                 BasisNetworkReceiver receiver = kvp.Value;
                 if (receiver?.AudioReceiverModule?.VoiceBuffer != null)
@@ -70,7 +70,7 @@ namespace Basis.BasisUI
             BasisAudioClipPool.ClipBufferScalar = scalar;
             BasisAudioClipPool.Clear();
 
-            foreach (var kvp in BasisNetworkPlayers.RemotePlayers)
+            foreach (var kvp in BasisNetworkPlayers.RemotePlayerReceivers)
             {
                 BasisNetworkReceiver receiver = kvp.Value;
                 if (receiver?.AudioReceiverModule != null && receiver.AudioReceiverModule.HasAudioSource)
@@ -612,7 +612,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
         /// </summary>
         public static void ApplyRemoteAudioToAll()
         {
-            foreach (var kvp in BasisNetworkPlayers.RemotePlayers)
+            foreach (var kvp in BasisNetworkPlayers.RemotePlayerReceivers)
             {
                 BasisNetworkReceiver receiver = kvp.Value;
                 if (receiver?.AudioReceiverModule != null && receiver.AudioReceiverModule.HasAudioSource)

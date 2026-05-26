@@ -133,7 +133,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
         }
 
         // Try to get the remote player by id.
-        if (!BasisNetworkPlayers.RemotePlayers.TryGetValue(storedId, out BasisNetworkReceiver rec))
+        if (!BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(storedId, out BasisNetworkReceiver rec))
         {
             // ID no longer exists in dictionary (disconnected / removed).
             ClearCurrentRemote();

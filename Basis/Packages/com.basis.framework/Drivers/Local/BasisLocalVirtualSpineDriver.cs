@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Burst;
@@ -190,6 +191,11 @@ public class BasisLocalVirtualSpineDriver
         float torsoYawDeadzoneDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
         float torsoYawBlendSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.RawValue;
         float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+
+        if (BasisDeviceManagement.IsCurrentModeVR() && !Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawPlayInVR.RawValue)
+        {
+            torsoYawDeadzoneDeg = 0f;
+        }
 
         // =========================
         // 1) HEAD & NECK (top cues)

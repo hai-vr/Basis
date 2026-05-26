@@ -793,6 +793,8 @@
     { "key": "settings.bodyTracking.vspineTorsoYawDeadzone.description", "value": "Degrees the head can turn before the chest/spine/hips start following. The torso holds inside this cone, then catches up to the head; the cone re-centers when the head stops, so reversing must re-cross it. 0 = follow immediately. Default: 45" },
     { "key": "settings.bodyTracking.vspineTorsoYawBlend.title", "value": "Torso Yaw Blend Speed" },
     { "key": "settings.bodyTracking.vspineTorsoYawBlend.description", "value": "How quickly the torso eases into and out of following once the head crosses the play cone. Lower = softer, slower blend (removes the click at the edge); higher = snappier. Default: 8" },
+    { "key": "settings.bodyTracking.vspineTorsoYawPlayInVR.title", "value": "Torso Yaw Play In VR" },
+    { "key": "settings.bodyTracking.vspineTorsoYawPlayInVR.description", "value": "When off, the torso follows your head immediately in VR (no yaw play), so the head can't turn independently of the chest. Enable to use the Torso Yaw Play cone in VR too. Desktop always uses the configured play. Default: off" },
 
     { "key": "settings.bodyTracking.smoothingStrength.title", "value": "Smoothing Strength" },
     { "key": "settings.bodyTracking.smoothingStrength.description", "value": "Global multiplier for all smoothing filters. 1x = default. Higher values greatly increase smoothing but add latency. WARNING: Values above 10x may cause noticeable input delay." },

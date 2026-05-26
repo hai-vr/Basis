@@ -4,6 +4,7 @@ using OpenLipSync.Inference;
 using OpenLipSync.Inference.OVRCompat;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 public static class BasisOpenLipSyncDriver
 {
@@ -31,44 +32,87 @@ public static class BasisOpenLipSyncDriver
 
     public static bool IsInitialized => _initialized;
 
-    public static void Initialize()
+    public static AsyncOperationHandle<TextAsset> modelAsset;
+    public static AsyncOperationHandle<TextAsset> configAsset;
+    public static void BeginInitialize()
+    {
+        if (_initialized || modelAsset.IsValid()) return;
+
+        modelAsset = Addressables.LoadAssetAsync<TextAsset>(ModelAddress);
+        configAsset = Addressables.LoadAssetAsync<TextAsset>(ConfigAddress);
+    }
+
+    public static void EndInitialize()
     {
         if (_initialized) return;
 
         try
         {
-            var modelAsset = Addressables.LoadAssetAsync<TextAsset>(ModelAddress).WaitForCompletion();
-            var configAsset = Addressables.LoadAssetAsync<TextAsset>(ConfigAddress).WaitForCompletion();
+            if (!modelAsset.IsValid())
+            {
+                BeginInitialize();
+            }
 
-            if (modelAsset == null)
+            modelAsset.WaitForCompletion();
+            if (configAsset.IsValid())
+            {
+                configAsset.WaitForCompletion();
+            }
+
+            if (!modelAsset.IsValid() || modelAsset.Status != AsyncOperationStatus.Succeeded || modelAsset.Result == null)
             {
                 BasisDebug.Log("[OpenLipSync] No model found at " + ModelAddress + " - OpenLipSync disabled");
+                ReleaseHandles();
                 return;
             }
 
             _backend = new OpenLipSyncBackend();
-            string configJson = configAsset != null ? configAsset.text : null;
+            string configJson = configAsset.IsValid() && configAsset.Status == AsyncOperationStatus.Succeeded && configAsset.Result != null
+                ? configAsset.Result.text
+                : null;
 
             int sampleRate = AudioSettings.outputSampleRate;
-            var result = _backend.InitializeFromBytes(sampleRate, modelAsset.bytes, configJson);
+            var result = _backend.InitializeFromBytes(sampleRate, modelAsset.Result.bytes, configJson);
 
             if (result != Result.Success)
             {
                 BasisDebug.LogWarning($"[OpenLipSync] Backend initialization failed: {_backend.LastError}");
                 _backend.Dispose();
                 _backend = null;
+                ReleaseHandles();
                 return;
             }
 
             _initialized = true;
             string slotInfo = UseSlotLimit ? $"{MaxSlots} slots" : "unlimited slots";
             BasisDebug.Log($"[OpenLipSync] Initialized successfully ({slotInfo} available)");
+            ReleaseHandles();
         }
         catch (Exception ex)
         {
             BasisDebug.LogWarning($"[OpenLipSync] Initialization exception: {ex.Message}");
             Shutdown();
         }
+    }
+
+    public static void Initialize()
+    {
+        BeginInitialize();
+        EndInitialize();
+    }
+
+    private static void ReleaseHandles()
+    {
+        if (modelAsset.IsValid())
+        {
+            Addressables.Release(modelAsset);
+        }
+        if (configAsset.IsValid())
+        {
+            Addressables.Release(configAsset);
+        }
+        modelAsset = default;
+        configAsset = default;
     }
 
     public static void Shutdown()
@@ -91,6 +135,7 @@ public static class BasisOpenLipSyncDriver
 
         _backend?.Dispose();
         _backend = null;
+        ReleaseHandles();
     }
 
     public static bool TryAcquireSlot(EntityId playerInstanceId, out uint contextHandle)
@@ -135,26 +180,18 @@ public static class BasisOpenLipSyncDriver
         }
     }
 
-    public static Result ProcessFrame(uint contextHandle, float[] audioData, Frame frame)
-    {
-        if (!_initialized || _backend == null) return Result.Unknown;
-        return _backend.ProcessFrameFloat(contextHandle, audioData, stereo: false, ref frame);
-    }
-
     /// <summary>
     /// Overload that processes only the first <paramref name="sampleCount"/> samples
     /// from the buffer, avoiding the need to allocate a trimmed copy.
     /// </summary>
     public static Result ProcessFrame(uint contextHandle, float[] audioData, int sampleCount, Frame frame)
     {
-        if (!_initialized || _backend == null) return Result.Unknown;
-        return _backend.ProcessFrameFloat(contextHandle, new ReadOnlySpan<float>(audioData, 0, sampleCount), stereo: false, ref frame);
+        return !_initialized || _backend == null ? Result.Unknown : _backend.ProcessFrameFloat(contextHandle, new ReadOnlySpan<float>(audioData, 0, sampleCount), stereo: false, ref frame);
     }
 
     public static Result SendSignal(uint contextHandle, Signals signal, int arg1)
     {
-        if (!_initialized || _backend == null) return Result.Unknown;
-        return _backend.SendSignal(contextHandle, signal, arg1);
+        return !_initialized || _backend == null ? Result.Unknown : _backend.SendSignal(contextHandle, signal, arg1);
     }
 
     /// <summary>
@@ -179,13 +216,20 @@ public static class BasisOpenLipSyncDriver
     /// </summary>
     public static void EnforceSlotLimit()
     {
-        if (!UseSlotLimit || !_initialized || _backend == null) return;
+        if (!UseSlotLimit || !_initialized || _backend == null)
+        {
+            return;
+        }
 
         // Evict active contexts that exceed the new limit
         while (_playerToContext.Count > MaxSlots)
         {
             var enumerator = _playerToContext.GetEnumerator();
-            if (!enumerator.MoveNext()) break;
+            if (!enumerator.MoveNext())
+            {
+                break;
+            }
+
             var entityId = enumerator.Current.Key;
             var ctx = enumerator.Current.Value;
             _playerToContext.Remove(entityId);
@@ -195,7 +239,6 @@ public static class BasisOpenLipSyncDriver
                 onRevoked?.Invoke();
             }
         }
-
         // Trim pooled contexts so total (active + pooled) doesn't exceed MaxSlots
         int maxPooled = Math.Max(0, MaxSlots - _playerToContext.Count);
         while (_contextPool.Count > maxPooled)
@@ -203,11 +246,7 @@ public static class BasisOpenLipSyncDriver
             _backend.DestroyContext(_contextPool.Pop());
         }
     }
-
     public static int ActiveSlotCount => _playerToContext.Count;
-    public static int PooledSlotCount => _contextPool.Count;
-
-    // Debug accessors
     public static int DebugMelFramesProduced => _backend?.DebugMelFramesProduced ?? 0;
     public static int DebugInferenceRuns => _backend?.DebugInferenceRuns ?? 0;
     public static float DebugLastInferenceMax => _backend?.DebugLastInferenceMax ?? 0f;

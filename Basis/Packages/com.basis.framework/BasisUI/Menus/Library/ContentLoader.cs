@@ -240,8 +240,13 @@ namespace Basis.BasisUI
                         finalScale = placementResult.spawnScale;
                         break;
                     case BundledContentHolder.PlacementType.SpawnInFrontOfPlayer:
-                        Vector3 playerPosReference = BasisLocalCameraDriver.Position;
-                        Vector3 forward = BasisLocalCameraDriver.Forward();
+                        // Spawn at the player's head ("eye height and in front of them", per the
+                        // PlacementType doc). HeadPosition/HeadForward equal the camera pose in
+                        // first-person, but in third-person they stay on the head bone instead of
+                        // the orbiting camera — otherwise the prop lands out where the third-person
+                        // camera is rather than in front of the player.
+                        Vector3 playerPosReference = BasisLocalCameraDriver.HeadPosition;
+                        Vector3 forward = BasisLocalCameraDriver.HeadForward();
 
                         finalPos = EmbeddedItems.GetOffsetForEmbeddedItem(item, playerPosReference, forward);
                         finalRot = Quaternion.LookRotation(forward, Vector3.up);

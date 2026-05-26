@@ -16,7 +16,8 @@ namespace Basis.Scripts.Networking
     {
         // --- Collections (thread-safe) -------------------------------------
         public static readonly ConcurrentDictionary<ushort, BasisNetworkPlayer> Players = new();
-        public static readonly ConcurrentDictionary<ushort, BasisNetworkReceiver> RemotePlayers = new();
+        public static readonly ConcurrentDictionary<ushort, BasisNetworkReceiver> RemotePlayerReceivers = new();
+        public static readonly ConcurrentDictionary<ushort, BasisRemotePlayer> RemotePlayers = new();
         public static readonly ConcurrentDictionary<ushort, byte> JoiningPlayers = new(); // used as a concurrent set
         public static readonly ConcurrentDictionary<string, ushort> OwnershipPairing = new();
 
@@ -39,6 +40,7 @@ namespace Basis.Scripts.Networking
                 BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(BasisNetworkPlayer.Key);
             }
             Players.Clear();
+            RemotePlayerReceivers.Clear();
             RemotePlayers.Clear();
             JoiningPlayers.Clear();
             OwnershipPairing.Clear();
@@ -54,7 +56,7 @@ namespace Basis.Scripts.Networking
         {
             if (!_snapshotDirty) return;
 
-            int count = RemotePlayers.Count;
+            int count = RemotePlayerReceivers.Count;
             if (count == 0)
             {
                 // Null out stale references so GC can collect departed receivers
@@ -77,7 +79,7 @@ namespace Basis.Scripts.Networking
 
             // Enumerate directly (struct enumerator) — no Values/ToArray allocation
             int i = 0;
-            foreach (var kvp in RemotePlayers)
+            foreach (var kvp in RemotePlayerReceivers)
             {
                 if (i >= _snapshotBuffer.Length) break;
                 _snapshotBuffer[i++] = kvp.Value;
@@ -124,18 +126,19 @@ namespace Basis.Scripts.Networking
 
             if (!netPlayer.Player.IsLocal)
             {
-                if (RemotePlayers.ContainsKey(netPlayer.playerId))
+                if (RemotePlayerReceivers.ContainsKey(netPlayer.playerId))
                 {
                     BasisDebug.LogWarning($"Remote player {netPlayer.playerId} already exists. Removing old entry before adding new one.");
                     BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(netPlayer.playerId);
                 }
 
-                if (!RemotePlayers.TryAdd(netPlayer.playerId, (BasisNetworkReceiver)netPlayer))
+                if (!RemotePlayerReceivers.TryAdd(netPlayer.playerId, (BasisNetworkReceiver)netPlayer))
                 {
                     Players.TryRemove(netPlayer.playerId, out _);
                     BasisDebug.LogError($"Failed to add remote player {netPlayer.playerId} to RemotePlayers. Rolled back from Players.");
                     return false;
                 }
+                RemotePlayers[netPlayer.playerId] = (BasisRemotePlayer)netPlayer.Player;
                 _snapshotDirty = true;
             }
 
@@ -152,6 +155,7 @@ namespace Basis.Scripts.Networking
             }
 
             Players.TryRemove(netId, out player);
+            RemotePlayerReceivers.TryRemove(netId, out _);
             RemotePlayers.TryRemove(netId, out _);
             _snapshotDirty = true;
             return true;

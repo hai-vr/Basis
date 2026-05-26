@@ -124,10 +124,6 @@ namespace Basis.Scripts.Drivers
             // Context will be created when the player enters viseme range.
             UseOpenLipSync = false;
             EligibleForOpenLipSync = false;
-            if (!BasisOpenLipSyncDriver.IsInitialized)
-            {
-                BasisOpenLipSyncDriver.Initialize();
-            }
             EligibleForOpenLipSync = BasisOpenLipSyncDriver.IsInitialized;
 
             BlendShapeCount = Avatar.FaceVisemeMovement.Length;

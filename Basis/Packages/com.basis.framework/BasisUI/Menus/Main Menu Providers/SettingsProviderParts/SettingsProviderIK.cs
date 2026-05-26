@@ -583,6 +583,11 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.VSpineTorsoYawBlendSpeed);
             if (vspineTorsoYawBlend != null)
                 vspineTorsoYawBlend.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawBlend.description"));
+
+            var vspineTorsoYawPlayInVR = PanelToggle.CreateNewEntry(vspineParent);
+            vspineTorsoYawPlayInVR.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawPlayInVR.title"));
+            vspineTorsoYawPlayInVR.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.vspineTorsoYawPlayInVR.description"));
+            vspineTorsoYawPlayInVR.AssignBinding(BasisSettingsDefaults.VSpineTorsoYawPlayInVR);
         });
 
         // ============== Smoothing (One Euro) ==============
@@ -833,6 +838,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.VSpineHipsForwardBias.ResetToDefault();
         BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.ResetToDefault();
         BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.ResetToDefault();
+        BasisSettingsDefaults.VSpineTorsoYawPlayInVR.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxForwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxLateralDeg.ResetToDefault();
