@@ -29,7 +29,6 @@ namespace Basis.BasisUI.VideoPlayer
         private PanelToggle _debugToggle;
         private PanelTextField _urlField;
         private PanelSlider _volumeSlider;
-        private PanelToggle _muteToggle;
         private PanelDropdown _bitrateDropdown;
         private PanelDropdown _audioTrackDropdown;
         private PanelToggle _advancedToggle;
@@ -113,7 +112,6 @@ namespace Basis.BasisUI.VideoPlayer
             _debugToggle = null;
             _urlField = null;
             _volumeSlider = null;
-            _muteToggle = null;
             _bitrateDropdown = null;
             _audioTrackDropdown = null;
             _advancedToggle = null;
@@ -176,6 +174,39 @@ namespace Basis.BasisUI.VideoPlayer
                 int idx = _audioTrackDropdown.Index;
                 if (idx >= 0) _activePlayer.SelectAudioTrack(idx);
             };
+        }
+
+        private void BuildUserGroup(RectTransform parent)
+        {
+            _userGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
+            _userGroup.SetTitle("My Settings");
+            _userGroup.SetDescription("Client-side controls — only affect your own playback.");
+            RectTransform content = _userGroup.ContentParent;
+
+            _volumeSlider = PanelSlider.CreateNew(content);
+            _volumeSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Volume"));
+            _volumeSlider.OnValueChanged = v =>
+            {
+                if (_activePlayer == null) return;
+                float volume = Mathf.Clamp01(v / 100f);
+                _activePlayer.Volume = volume;
+                _activePlayer.Mute = volume <= 0f;
+                if (_activePlayer.AudioComponent != null)
+                {
+                    _activePlayer.AudioComponent.VolumeGain = volume;
+                    _activePlayer.AudioComponent.Mute = volume <= 0f;
+                }
+            };
+
+            RectTransform actions = BuildActionRow(content);
+            PanelButton resyncBtn = PanelButton.CreateNew(actions);
+            resyncBtn.Descriptor.SetTitle("Resync");
+            resyncBtn.OnClicked += () =>
+            {
+                if (_activePlayer == null) return;
+                _activePlayer.AudioComponent?.ResetSyncAnchor();
+                _activePlayer.Clock.Reset();
+            };
 
             _advancedToggle = PanelToggle.CreateNewEntry(content);
             _advancedToggle.Descriptor.SetTitle("Advanced");
@@ -212,42 +243,6 @@ namespace Basis.BasisUI.VideoPlayer
             PanelButton back30 = PanelButton.CreateNew(dvrActions);
             back30.Descriptor.SetTitle("⏪ 30s");
             back30.OnClicked += () => _activePlayer?.TrySeekBack(System.TimeSpan.FromSeconds(30));
-        }
-
-        private void BuildUserGroup(RectTransform parent)
-        {
-            _userGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-            _userGroup.SetTitle("My Settings");
-            _userGroup.SetDescription("Client-side controls — only affect your own playback.");
-            RectTransform content = _userGroup.ContentParent;
-
-            _volumeSlider = PanelSlider.CreateNew(content);
-            _volumeSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Volume"));
-            _volumeSlider.OnValueChanged = v =>
-            {
-                if (_activePlayer == null) return;
-                _activePlayer.Volume = Mathf.Clamp01(v / 100f);
-                if (_activePlayer.AudioComponent != null) _activePlayer.AudioComponent.VolumeGain = _activePlayer.Volume;
-            };
-
-            _muteToggle = PanelToggle.CreateNewEntry(content);
-            _muteToggle.Descriptor.SetTitle("Mute");
-            _muteToggle.OnValueChanged = v =>
-            {
-                if (_activePlayer == null) return;
-                _activePlayer.Mute = v;
-                if (_activePlayer.AudioComponent != null) _activePlayer.AudioComponent.Mute = v;
-            };
-
-            RectTransform actions = BuildActionRow(content);
-            PanelButton resyncBtn = PanelButton.CreateNew(actions);
-            resyncBtn.Descriptor.SetTitle("Resync");
-            resyncBtn.OnClicked += () =>
-            {
-                if (_activePlayer == null) return;
-                _activePlayer.AudioComponent?.ResetSyncAnchor();
-                _activePlayer.Clock.Reset();
-            };
         }
 
         private void RebuildSelector()
@@ -335,8 +330,7 @@ namespace Basis.BasisUI.VideoPlayer
                 _urlField.SetValueWithoutNotify(current ?? string.Empty);
             }
 
-            _volumeSlider?.SetValueWithoutNotify(Mathf.Clamp01(_activePlayer.Volume) * 100f);
-            _muteToggle?.SetValueWithoutNotify(_activePlayer.Mute);
+            _volumeSlider?.SetValueWithoutNotify(_activePlayer.Mute ? 0f : Mathf.Clamp01(_activePlayer.Volume) * 100f);
 
             _dvrToggle?.SetValueWithoutNotify(_activePlayer.DvrEnabled);
             _dvrWindowSlider?.SetValueWithoutNotify(_activePlayer.DvrWindowSeconds);
