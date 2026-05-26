@@ -456,13 +456,23 @@ public static class BasisLocalMicrophoneDriver
 
         int currentPosition = Microphone.GetPosition(MicrophoneDevice);
         position = currentPosition;
-        if (position <= 0) return;
+        if (position <= 0)
+        {
+            return;
+        }
 
         int clipFrames = clip.samples;
-        if (clipFrames <= 0) return;
+        if (clipFrames <= 0)
+        {
+            return;
+        }
 
         int ch = clip.channels;
-        if (ch < 1) ch = 1;
+        if (ch < 1)
+        {
+            ch = 1;
+        }
+
         channels = ch;
 
         // Clamp to min(bufferLength, clipFrames) so a device restart that produced a
@@ -471,15 +481,16 @@ public static class BasisLocalMicrophoneDriver
         LocalOpusSettings.CreateOrResizeArray(framesToUse, ref microphoneBufferArray);
 
         int dataLength = GetDataLength(framesToUse, head, position);
-        if (dataLength < ProcessFrameSize) return;
+        if (dataLength < ProcessFrameSize)
+        {
+            return;
+        }
 
-        // Pull only the new region [head .. head+dataLength) from the clip, in fixed
-        // chunks of one process frame. Each chunk is downmixed into the mono ring at
-        // its matching ring positions. Replaces a previous full-clip GetData per tick
-        // (~192 KB → ~3.8 KB per chunk for mono).
         int chunkInterleaved = ProcessFrameSize * channels;
         if (_micDelta == null || _micDelta.Length != chunkInterleaved)
+        {
             _micDelta = new float[chunkInterleaved];
+        }
 
         // Serialize ring-buffer writes against the bg processor reading the same
         // region and advancing `head`. Without the lock, ProcessAudioData can read
@@ -500,9 +511,13 @@ public static class BasisLocalMicrophoneDriver
         processingEvent.Set();
 
         if (Interlocked.Exchange(ref _scheduleMainHasAudio, 0) == 1)
+        {
             MainThreadOnHasAudio?.Invoke();
+        }
         else if (Interlocked.Exchange(ref _scheduleMainHasSilence, 0) == 1)
+        {
             MainThreadOnHasSilence?.Invoke();
+        }
     }
 
     /// <summary>
@@ -512,8 +527,15 @@ public static class BasisLocalMicrophoneDriver
     /// </summary>
     private static void DownmixDeltaIntoRingMono(int headFrame, int frameCount, int ringFrames, int ch, float[] srcDelta, float[] dstMono)
     {
-        if (srcDelta == null || dstMono == null || frameCount <= 0) return;
-        if (ch < 1) ch = 1;
+        if (srcDelta == null || dstMono == null || frameCount <= 0)
+        {
+            return;
+        }
+
+        if (ch < 1)
+        {
+            ch = 1;
+        }
 
         int firstFrames = Mathf.Min(frameCount, ringFrames - headFrame);
 
@@ -521,7 +543,10 @@ public static class BasisLocalMicrophoneDriver
         {
             Array.Copy(srcDelta, 0, dstMono, headFrame, firstFrames);
             if (firstFrames < frameCount)
+            {
                 Array.Copy(srcDelta, firstFrames, dstMono, 0, frameCount - firstFrames);
+            }
+
             return;
         }
 

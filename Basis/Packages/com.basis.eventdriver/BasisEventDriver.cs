@@ -176,7 +176,7 @@ namespace Basis.EventDriver
             }
 
             OSCAcquisitionServer.Simulate();
-            SMModuleAvatarPerformanceLimits.SimulateDebounce();
+            SMModuleAvatarPerformanceLimits.Simulate();
             timeSinceLastUpdate += DeltaTime;
         }
 
@@ -226,7 +226,6 @@ namespace Basis.EventDriver
 
             // ── Device management ──
             ProfileBegin(PROF_DEVICE_MANAGEMENT);
-            BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
             if (BasisDeviceManagement.HasEvents)
             {
                 BasisDeviceManagement.Instance.Simulate();
@@ -242,8 +241,8 @@ namespace Basis.EventDriver
             ProfileBegin(PROF_LOCAL_PLAYER);
             if (BasisLocalPlayer.PlayerReady)
             {
-                var LocalCameraDriver = BasisLocalCameraDriver.Instance;
-                var localplayer = BasisLocalPlayer.Instance;
+                BasisLocalCameraDriver LocalCameraDriver = BasisLocalCameraDriver.Instance;
+                BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
                 localplayer.FacialBlinkDriver.Simulate(TimeAsDouble);
                 localplayer.LocalVisemeDriver.Apply();
                 localplayer.Simulate(DeltaTime);

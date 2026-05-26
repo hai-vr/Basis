@@ -132,14 +132,14 @@ public static class BasisRemoteFaceManagement
             byte* pUse = (byte*)useJobEye.GetUnsafePtr();
             byte* pLastHas = (byte*)lastHasEyeBones.GetUnsafePtr();
 
-            for (int i = 0; i < count; i++)
+            for (int Index = 0; Index < count; Index++)
             {
-                BasisNetworkReceiver receiver = snapshot[i];
+                BasisNetworkReceiver receiver = snapshot[Index];
                 BasisRemoteFaceDriver Face = receiver.RemotePlayer.RemoteFaceDriver;
 
-                bool slotChanged = i >= lastBuiltCount
-                    || !ReferenceEquals(faceCache[i], Face)
-                    || lastFaceGen[i] != Face.FaceGeneration;
+                bool slotChanged = Index >= lastBuiltCount
+                    || !ReferenceEquals(faceCache[Index], Face)
+                    || lastFaceGen[Index] != Face.FaceGeneration;
 
                 if (slotChanged)
                 {
@@ -147,21 +147,21 @@ public static class BasisRemoteFaceManagement
                         && Face.LeftEyeTransform != null
                         && Face.RightEyeTransform != null;
 
-                    faceCache[i] = Face;
-                    eyesCache[i] = receiver.EyesAndMouth;
-                    lastFaceGen[i] = Face.FaceGeneration;
-                    pLastHas[i] = hasValidEyeBones ? (byte)1 : (byte)0;
+                    faceCache[Index] = Face;
+                    eyesCache[Index] = receiver.EyesAndMouth;
+                    lastFaceGen[Index] = Face.FaceGeneration;
+                    pLastHas[Index] = hasValidEyeBones ? (byte)1 : (byte)0;
 
                     // Blit on eye-bone presence, not useJob, so calibration is ready when OverrideEye later clears.
                     if (hasValidEyeBones)
                     {
-                        pCalL[i] = new EyeCalibrationBlit
+                        pCalL[Index] = new EyeCalibrationBlit
                         {
                             basis = Face.calLeft.basis,
                             invBasis = Face.calLeft.invBasis,
                             initialRotation = Face.calLeft.initialRotation,
                         };
-                        pCalR[i] = new EyeCalibrationBlit
+                        pCalR[Index] = new EyeCalibrationBlit
                         {
                             basis = Face.calRight.basis,
                             invBasis = Face.calRight.invBasis,
@@ -172,7 +172,7 @@ public static class BasisRemoteFaceManagement
                     needRebuild = true;
                 }
 
-                pUse[i] = (pLastHas[i] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
+                pUse[Index] = (pLastHas[Index] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
             }
         }
 

@@ -732,7 +732,9 @@ namespace Basis.Scripts.UI.NamePlate
             ProcessBakeQueue();
 
             if (!ShouldRunJobs())
+            {
                 return;
+            }
 
             ScheduleSimulate(now, returnDelay, transitionDuration, NormalColorFloat4);
         }
@@ -748,7 +750,9 @@ namespace Basis.Scripts.UI.NamePlate
         {
             // If a job is still running, don't stomp buffers.
             if (jobScheduled && !handle.IsCompleted)
+            {
                 return;
+            }
 
             // If it finished, complete it now so we can apply structural changes/resizes safely.
             if (jobScheduled)
@@ -758,10 +762,14 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             if (pendingRemove.Count > 0 || pendingAdd.Count > 0)
+            {
                 ApplyPendingStructuralChanges();
+            }
 
             if (count == 0)
+            {
                 return;
+            }
 
             EnsureCapacity(count);
 

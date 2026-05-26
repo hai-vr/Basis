@@ -33,7 +33,7 @@ public static class SMModuleAvatarPerformanceLimits
     {
         ScheduleReconcile();
     }
-    public static void SimulateDebounce()
+    public static void Simulate()
     {
         if (RequiresPerformanceCheck != false)
         {
