@@ -23,6 +23,7 @@
 #include <media/NdkImage.h>
 #include <android/native_window.h>
 #include <android/hardware_buffer.h>
+#include <android/log.h>
 
 #include <pthread.h>
 #include <stdlib.h>
@@ -245,11 +246,16 @@ void basis_decoder_destroy(basis_decoder_t* d) {
 }
 
 int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
-    /* Android: let AMediaExtractor handle https TS/MP4 (TLS + demux). */
+    /* Android: try AMediaExtractor first (HW demux of seekable containers).
+     * On failure (live TS, HLS/DASH manifest, etc.) return 0 so the core falls
+     * back to basis_jni_https + the portable basis_ts/basis_mp4 demuxer. */
     d->extractor = AMediaExtractor_new();
-    if (AMediaExtractor_setDataSource(d->extractor, url) != AMEDIA_OK) {
+    media_status_t st = AMediaExtractor_setDataSource(d->extractor, url);
+    if (st != AMEDIA_OK) {
+        __android_log_print(ANDROID_LOG_INFO, "basis_media",
+            "AMediaExtractor rejected url (code %d); falling back to JNI HTTPS + TS/MP4 demuxer", (int)st);
         AMediaExtractor_delete(d->extractor); d->extractor = NULL;
-        return 0; /* fall back to core demuxers (none on Android) -> error upstream */
+        return 0;
     }
     size_t n = AMediaExtractor_getTrackCount(d->extractor);
     for (size_t i = 0; i < n; ++i) {

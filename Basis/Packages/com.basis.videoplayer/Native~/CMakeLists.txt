@@ -94,6 +94,7 @@ elseif(ANDROID)
     list(APPEND PLATFORM_SOURCES
         android/basis_android_decode.c
         android/basis_android_vk.c
+        android/basis_jni_https.c
         unity/basis_unity_plugin.cpp)
     set(BASIS_IS_REAL_BACKEND ON)
 else()

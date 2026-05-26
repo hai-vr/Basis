@@ -37,6 +37,13 @@
   typedef pthread_t        basis_thread_t;
   typedef pthread_mutex_t  basis_mutex_t;
 #endif
+#if defined(__ANDROID__)
+  #include "android/basis_jni_https.h"
+  #include <android/log.h>
+  #define BASIS_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "basis_media", __VA_ARGS__)
+#else
+  #define BASIS_LOGI(...) ((void)0)
+#endif
 
 /* ---- tiny thread/mutex/sleep shims -------------------------------------- */
 
@@ -199,6 +206,18 @@ static void run_http_like(basis_media_engine_t* e) {
 #if defined(_WIN32)
     src = basis_win_http_open(e->url);   /* WinHTTP: handles http + https/TLS */
     rd = basis_win_http_read;
+#elif defined(__ANDROID__)
+    /* AMediaExtractor either took the URL (already returned above) or rejected
+     * it (unsupported live container, etc). Fall back to a JNI-backed Java
+     * HttpsURLConnection feeding the portable TS/MP4 demuxers — same path used
+     * for RTSP/RTMP. Works for both http:// and https://.
+     *
+     * Read timeout is 60s, not 15s: live streams can have brief stalls (key-
+     * frame intervals, network jitter, server buffering) that a short timeout
+     * would mistake for a dead socket. Connect timeout stays implicitly short
+     * (the open call). */
+    src = basis_jni_https_open(e->url, 60000);
+    rd = basis_jni_https_read;
 #else
     if (e->parts.tls) {
         basis_engine_set_error(e, "https requires the platform TLS stack (WinHTTP/AMediaExtractor); not available on this build.");
@@ -221,6 +240,8 @@ static void run_http_like(basis_media_engine_t* e) {
 
 #if defined(_WIN32)
     basis_win_http_close(src);
+#elif defined(__ANDROID__)
+    basis_jni_https_close(src);
 #else
     basis_http_close(src);
 #endif
@@ -281,10 +302,14 @@ static void demux_body(basis_media_engine_t* e) {
         if (engine_state_is_error(e)) break; /* hard failure: retrying won't help */
 
         long au_after = e->video_au_count + e->audio_frame_count;
-        if (au_after - au_before > 10) { attempt = 0; backoff_ms = 500; }
+        long delta = au_after - au_before;
+        BASIS_LOGI("demux run ended: delta_aus=%ld total_aus=%ld attempt=%d/%d",
+                   delta, au_after, attempt + 1, MAX_ATTEMPTS);
+        if (delta > 10) { attempt = 0; backoff_ms = 500; }
         else attempt++;
 
         if (attempt >= MAX_ATTEMPTS) {
+            BASIS_LOGI("demux giving up after %d empty attempts; setting ENDED", MAX_ATTEMPTS);
             basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
             break;
         }
