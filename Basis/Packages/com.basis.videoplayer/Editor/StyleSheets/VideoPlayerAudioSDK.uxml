@@ -31,29 +31,6 @@
             <engine:Toggle label="Mute" name="MuteField"/>
         </engine:Foldout>
 
-        <engine:Foldout text="Live Status" name="StatusFoldout" value="true" class="bvp-foldout">
-            <engine:VisualElement class="bvp-status-grid">
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Has Audio Source" class="bvp-status-label"/><engine:Label text="—" name="StatusHasSource" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Source Playing" class="bvp-status-label"/><engine:Label text="—" name="StatusPlaying" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Has Media Anchor" class="bvp-status-label"/><engine:Label text="—" name="StatusAnchor" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Media Time" class="bvp-status-label"/><engine:Label text="—" name="StatusMediaTime" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Consumed Samples" class="bvp-status-label"/><engine:Label text="—" name="StatusConsumed" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Dropped (total)" class="bvp-status-label"/><engine:Label text="—" name="StatusDropped" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="PCM Peak / RMS" class="bvp-status-label"/><engine:Label text="—" name="StatusPcmLevels" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Latency (out)" class="bvp-status-label"/><engine:Label text="—" name="StatusLatency" class="bvp-status-value"/></engine:VisualElement>
-            </engine:VisualElement>
-
-            <engine:Label text="Queue Depth" class="bvp-section-title" style="margin-top: 6px;"/>
-            <engine:VisualElement class="bvp-bar-row">
-                <engine:Label text="Audio frames" class="bvp-bar-label"/>
-                <engine:VisualElement class="bvp-bar-track">
-                    <engine:VisualElement name="StatusDepthFill" class="bvp-bar-fill bvp-bar-fill-audio"/>
-                </engine:VisualElement>
-                <engine:Label text="—" name="StatusDepthValue" class="bvp-bar-value"/>
-            </engine:VisualElement>
-            <engine:Label text="Enter Play Mode for live values." name="StatusEditModeHint" class="bvp-help-info"/>
-        </engine:Foldout>
-
         <engine:VisualElement name="ActionsCard" class="bvp-card bvp-actions-card">
             <engine:Button text="Clear Queue" name="ClearQueueButton" class="bvp-primary-button"/>
             <engine:Button text="Reset Sync Anchor" name="ResetAnchorButton" class="bvp-secondary-button"/>

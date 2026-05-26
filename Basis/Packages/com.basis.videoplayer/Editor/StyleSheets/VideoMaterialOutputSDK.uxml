@@ -34,15 +34,5 @@
             <editor:PropertyField name="PictureField" label="Picture"/>
         </engine:Foldout>
 
-        <engine:Foldout text="Live Status" name="StatusFoldout" value="false" class="bvp-foldout">
-            <engine:VisualElement class="bvp-status-grid">
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Player Resolved" class="bvp-status-label"/><engine:Label text="—" name="StatusPlayerResolved" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Renderer Resolved" class="bvp-status-label"/><engine:Label text="—" name="StatusRendererResolved" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Material" class="bvp-status-label"/><engine:Label text="—" name="StatusMaterial" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Property Found" class="bvp-status-label"/><engine:Label text="—" name="StatusProperty" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Current Output" class="bvp-status-label"/><engine:Label text="—" name="StatusCurrentTex" class="bvp-status-value"/></engine:VisualElement>
-            </engine:VisualElement>
-            <engine:Label text="" name="StatusHelp" class="bvp-help-info" style="display: none; margin-top: 6px;"/>
-        </engine:Foldout>
     </engine:VisualElement>
 </engine:UXML>

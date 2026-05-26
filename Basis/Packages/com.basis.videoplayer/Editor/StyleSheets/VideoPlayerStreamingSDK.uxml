@@ -16,19 +16,6 @@
             <engine:Toggle label="Configure On Start" name="ConfigureOnStartField"/>
         </engine:Foldout>
 
-        <engine:Foldout text="Live Status" name="StatusFoldout" value="true" class="bvp-foldout">
-            <engine:VisualElement class="bvp-status-grid">
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Resolved URL" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusResolvedUrl" class="bvp-status-value"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Player Attached" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusHasPlayer" class="bvp-status-pill bvp-pill-neutral"/>
-                </engine:VisualElement>
-            </engine:VisualElement>
-        </engine:Foldout>
-
         <engine:VisualElement name="ActionsCard" class="bvp-card bvp-actions-card">
             <engine:Button text="Play" name="ConfigureButton" class="bvp-primary-button"/>
             <engine:Button text="Open Debug Window" name="OpenDebugButton" class="bvp-secondary-button"/>

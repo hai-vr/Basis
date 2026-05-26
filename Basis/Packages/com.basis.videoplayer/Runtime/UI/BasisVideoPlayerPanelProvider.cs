@@ -32,7 +32,8 @@ namespace Basis.BasisUI.VideoPlayer
         private PanelToggle _muteToggle;
         private PanelDropdown _bitrateDropdown;
         private PanelDropdown _audioTrackDropdown;
-        private PanelSlider _sleepTimerSlider;
+        private PanelToggle _advancedToggle;
+        private PanelElementDescriptor _advancedGroup;
         private PanelToggle _dvrToggle;
         private PanelSlider _dvrWindowSlider;
         private BasisVideoPlayer _activePlayer;
@@ -115,7 +116,8 @@ namespace Basis.BasisUI.VideoPlayer
             _muteToggle = null;
             _bitrateDropdown = null;
             _audioTrackDropdown = null;
-            _sleepTimerSlider = null;
+            _advancedToggle = null;
+            _advancedGroup = null;
             _dvrToggle = null;
             _dvrWindowSlider = null;
             _activePlayer = null;
@@ -175,23 +177,27 @@ namespace Basis.BasisUI.VideoPlayer
                 if (idx >= 0) _activePlayer.SelectAudioTrack(idx);
             };
 
-            _sleepTimerSlider = PanelSlider.CreateNew(content);
-            _sleepTimerSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced("Sleep Timer (min)", 0f, 120f, true, 0, ValueDisplayMode.Raw));
-            _sleepTimerSlider.OnValueChanged = v =>
+            _advancedToggle = PanelToggle.CreateNewEntry(content);
+            _advancedToggle.Descriptor.SetTitle("Advanced");
+            _advancedToggle.OnValueChanged = v =>
             {
-                if (_activePlayer == null) return;
-                _activePlayer.StopAfterSeconds = Mathf.Max(0f, v) * 60f;
+                ApplyAdvancedVisibility(v);
             };
 
-            _dvrToggle = PanelToggle.CreateNewEntry(content);
-            _dvrToggle.Descriptor.SetTitle("DVR (rolling rewind)");
+            _advancedGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, content);
+            _advancedGroup.SetTitle("DVR (rolling rewind)");
+            _advancedGroup.gameObject.SetActive(false);
+            RectTransform advContent = _advancedGroup.ContentParent;
+
+            _dvrToggle = PanelToggle.CreateNewEntry(advContent);
+            _dvrToggle.Descriptor.SetTitle("DVR Enabled");
             _dvrToggle.OnValueChanged = v =>
             {
                 if (_activePlayer == null) return;
                 _activePlayer.DvrEnabled = v;
             };
 
-            _dvrWindowSlider = PanelSlider.CreateNew(content);
+            _dvrWindowSlider = PanelSlider.CreateNew(advContent);
             _dvrWindowSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced("DVR Window (s)", 0f, 60f, true, 0, ValueDisplayMode.Raw));
             _dvrWindowSlider.OnValueChanged = v =>
             {
@@ -199,7 +205,7 @@ namespace Basis.BasisUI.VideoPlayer
                 _activePlayer.DvrWindowSeconds = Mathf.Clamp(v, 0f, 60f);
             };
 
-            RectTransform dvrActions = BuildActionRow(content);
+            RectTransform dvrActions = BuildActionRow(advContent);
             PanelButton back10 = PanelButton.CreateNew(dvrActions);
             back10.Descriptor.SetTitle("⏪ 10s");
             back10.OnClicked += () => _activePlayer?.TrySeekBack(System.TimeSpan.FromSeconds(10));
@@ -241,18 +247,6 @@ namespace Basis.BasisUI.VideoPlayer
                 if (_activePlayer == null) return;
                 _activePlayer.AudioComponent?.ResetSyncAnchor();
                 _activePlayer.Clock.Reset();
-            };
-
-            PanelButton screenshotBtn = PanelButton.CreateNew(actions);
-            screenshotBtn.Descriptor.SetTitle("Screenshot");
-            screenshotBtn.OnClicked += () =>
-            {
-                if (_activePlayer == null) return;
-                _activePlayer.CaptureScreenshot(null, (path, ex) =>
-                {
-                    if (ex != null) BasisDebug.LogWarning($"Screenshot failed: {ex.Message}", BasisDebug.LogTag.Video);
-                    else BasisDebug.Log($"Screenshot saved to {path}", BasisDebug.LogTag.Video);
-                });
             };
         }
 
@@ -344,7 +338,6 @@ namespace Basis.BasisUI.VideoPlayer
             _volumeSlider?.SetValueWithoutNotify(Mathf.Clamp01(_activePlayer.Volume) * 100f);
             _muteToggle?.SetValueWithoutNotify(_activePlayer.Mute);
 
-            _sleepTimerSlider?.SetValueWithoutNotify(Mathf.RoundToInt(_activePlayer.StopAfterSeconds / 60f));
             _dvrToggle?.SetValueWithoutNotify(_activePlayer.DvrEnabled);
             _dvrWindowSlider?.SetValueWithoutNotify(_activePlayer.DvrWindowSeconds);
 
@@ -407,6 +400,7 @@ namespace Basis.BasisUI.VideoPlayer
             _debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
             _debugGroup.SetTitle("Debug");
             _debugGroup.SetDescription("Toggle to surface live pipeline counters.");
+            _debugGroup.gameObject.SetActive(false);
             RectTransform content = _debugGroup.ContentParent;
 
             _debugToggle = PanelToggle.CreateNewEntry(content);
@@ -418,6 +412,21 @@ namespace Basis.BasisUI.VideoPlayer
                 if (v) RefreshDebugInfo();
                 else _debugGroup?.SetDescription("Toggle to surface live pipeline counters.");
             };
+        }
+
+        private void ApplyAdvancedVisibility(bool visible)
+        {
+            if (_advancedGroup != null)
+            {
+                _advancedGroup.gameObject.SetActive(visible);
+                _advancedGroup.ForceRebuild();
+            }
+            if (_debugGroup != null)
+            {
+                _debugGroup.gameObject.SetActive(visible);
+                _debugGroup.ForceRebuild();
+            }
+            _controlGroup?.ForceRebuild();
         }
 
         private void ApplyVerboseLoggingToActivePlayer(bool enabled)
