@@ -376,6 +376,5 @@ MonoBehaviour:
   - Basis.BasisNetworkShim
   - Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton
   - Basis.Shims.VideoPlayerShim
-  - Basis.Shims.BasisNetworkShim
   - Basis.Shims.BasisInteractableShim
   - Basis.Shims.BasisOsc
