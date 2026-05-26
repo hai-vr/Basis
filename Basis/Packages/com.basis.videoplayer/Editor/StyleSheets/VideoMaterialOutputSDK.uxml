@@ -1,0 +1,33 @@
+<engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <engine:VisualElement class="bvp-root">
+        <engine:VisualElement name="HeaderCard" class="bvp-card bvp-header-card">
+            <engine:Label text="Basis Video Material Output" name="HeaderTitle" selectable="false" class="bvp-header-title"/>
+            <engine:Label text="Binds the player's OutputTexture to a Renderer material property" name="HeaderSubtitle" selectable="false" class="bvp-header-subtitle"/>
+        </engine:VisualElement>
+
+        <engine:Foldout text="Binding" name="BindingFoldout" value="true" class="bvp-foldout">
+            <editor:ObjectField label="Player" name="PlayerField" type="BasisVideoPlayer, BasisVideoPlayer" allow-scene-objects="true"/>
+            <editor:ObjectField label="Target Renderer" name="TargetRendererField" type="UnityEngine.Renderer, UnityEngine.CoreModule" allow-scene-objects="true"/>
+            <engine:IntegerField label="Material Index" name="MaterialIndexField"/>
+            <engine:TextField label="Texture Property Name" name="TexturePropertyField" tooltip="URP uses _BaseMap; legacy BiRP uses _MainTex."/>
+            <engine:Toggle label="Use Shared Material" name="UseSharedMaterialField" tooltip="When ON, every renderer using the material will see the video. When OFF, a per-instance copy is created."/>
+        </engine:Foldout>
+
+        <engine:Foldout text="Behavior" name="BehaviorFoldout" value="true" class="bvp-foldout">
+            <editor:ObjectField label="Placeholder Texture" name="PlaceholderField" type="UnityEngine.Texture, UnityEngine.CoreModule" allow-scene-objects="true"/>
+            <engine:Toggle label="Restore Placeholder On Ended" name="RestoreOnEndedField"/>
+            <engine:Toggle label="Flip Vertically" name="FlipVerticallyField" tooltip="Native GPU textures (D3D11/D3D12) come in top-left origin; ON by default."/>
+        </engine:Foldout>
+
+        <engine:Foldout text="Live Status" name="StatusFoldout" value="false" class="bvp-foldout">
+            <engine:VisualElement class="bvp-status-grid">
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Player Resolved" class="bvp-status-label"/><engine:Label text="—" name="StatusPlayerResolved" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Renderer Resolved" class="bvp-status-label"/><engine:Label text="—" name="StatusRendererResolved" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Material" class="bvp-status-label"/><engine:Label text="—" name="StatusMaterial" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Property Found" class="bvp-status-label"/><engine:Label text="—" name="StatusProperty" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Current Output" class="bvp-status-label"/><engine:Label text="—" name="StatusCurrentTex" class="bvp-status-value"/></engine:VisualElement>
+            </engine:VisualElement>
+            <engine:Label text="" name="StatusHelp" class="bvp-help-info" style="display: none; margin-top: 6px;"/>
+        </engine:Foldout>
+    </engine:VisualElement>
+</engine:UXML>

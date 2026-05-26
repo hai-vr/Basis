@@ -1,7 +1,7 @@
 # License
 
-The source code in this package — all C#, the native C wrapper, the Yuv420ToRgb
-shader, and the Go test server — is released under the MIT License:
+The source code in this package — all C#, the native C wrapper, and the Go test
+server — is released under the MIT License:
 
 ```
 MIT License

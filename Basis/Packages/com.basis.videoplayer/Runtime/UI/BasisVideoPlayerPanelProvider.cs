@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Basis.BasisUI;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using UnityEngine;
 using UnityEngine.UI;
@@ -24,11 +25,15 @@ namespace Basis.BasisUI.VideoPlayer
         private PanelElementDescriptor _controlGroup;
         private PanelElementDescriptor _userGroup;
         private PanelElementDescriptor _emptyState;
+        private PanelElementDescriptor _debugGroup;
+        private PanelToggle _debugToggle;
         private PanelTextField _urlField;
         private PanelSlider _volumeSlider;
         private PanelToggle _muteToggle;
         private BasisVideoPlayer _activePlayer;
         private readonly List<BasisVideoPlayer> _entries = new List<BasisVideoPlayer>();
+        private bool _debugTickSubscribed;
+        private readonly System.Text.StringBuilder _debugBuilder = new System.Text.StringBuilder(256);
 
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
@@ -83,18 +88,22 @@ namespace Basis.BasisUI.VideoPlayer
 
             BuildControlGroup(_scrollContent);
             BuildUserGroup(_scrollContent);
+            BuildDebugGroup(_scrollContent);
 
             RebuildSelector();
         }
 
         private void OnPanelClosed()
         {
+            SetDebugTickSubscription(false);
             _panel = null;
             _scrollContent = null;
             _selector = null;
             _controlGroup = null;
             _userGroup = null;
             _emptyState = null;
+            _debugGroup = null;
+            _debugToggle = null;
             _urlField = null;
             _volumeSlider = null;
             _muteToggle = null;
@@ -240,12 +249,97 @@ namespace Basis.BasisUI.VideoPlayer
 
             _volumeSlider?.SetValueWithoutNotify(Mathf.Clamp01(_activePlayer.Volume) * 100f);
             _muteToggle?.SetValueWithoutNotify(_activePlayer.Mute);
+
+            if (_debugTickSubscribed) RefreshDebugInfo();
         }
 
         private void SetGroupsActive(bool active)
         {
             _controlGroup?.SetActive(active && HasControlPermission());
             _userGroup?.SetActive(active);
+        }
+
+        private void BuildDebugGroup(RectTransform parent)
+        {
+            _debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
+            _debugGroup.SetTitle("Debug");
+            _debugGroup.SetDescription("Toggle to surface live pipeline counters.");
+            RectTransform content = _debugGroup.ContentParent;
+
+            _debugToggle = PanelToggle.CreateNewEntry(content);
+            _debugToggle.Descriptor.SetTitle("Debug Mode");
+            _debugToggle.OnValueChanged = v =>
+            {
+                SetDebugTickSubscription(v);
+                if (v) RefreshDebugInfo();
+                else _debugGroup?.SetDescription("Toggle to surface live pipeline counters.");
+            };
+        }
+
+        private void SetDebugTickSubscription(bool subscribe)
+        {
+            if (subscribe == _debugTickSubscribed) return;
+            if (subscribe)
+            {
+                BasisFrameClock.AddRequest();
+                BasisFrameClock.OnTick += RefreshDebugInfo;
+            }
+            else
+            {
+                BasisFrameClock.OnTick -= RefreshDebugInfo;
+                BasisFrameClock.RemoveRequest();
+            }
+            _debugTickSubscribed = subscribe;
+        }
+
+        private void RefreshDebugInfo()
+        {
+            if (_debugGroup == null) return;
+            if (_activePlayer == null)
+            {
+                _debugGroup.SetDescription("No active player.");
+                return;
+            }
+
+            _debugBuilder.Clear();
+            var eng = _activePlayer.NativeEngine;
+            string backend = eng != null ? "OS-codec engine" : (_activePlayer.Source != null ? _activePlayer.Source.GetType().Name : "(no source)");
+            _debugBuilder.Append("Backend: ").Append(backend).Append('\n');
+
+            string state = _activePlayer.IsPlaying ? (_activePlayer.IsPaused ? "Paused" : "Playing") : "Stopped";
+            _debugBuilder.Append("State: ").Append(state).Append('\n');
+
+            var sz = _activePlayer.VideoSize;
+            _debugBuilder.Append("Size: ").Append(sz.x > 0 ? $"{sz.x} x {sz.y}" : "—").Append('\n');
+
+            long mediaUs = _activePlayer.Clock != null ? _activePlayer.Clock.CurrentMediaTimeUs : 0;
+            _debugBuilder.Append("Position: ").Append(mediaUs / 1000L).Append(" ms\n");
+
+            _debugBuilder.Append("Queue: ").Append(_activePlayer.QueuedFrameCount).Append(" / ").Append(_activePlayer.MaxQueueLength).Append('\n');
+            _debugBuilder.Append("Presented: ").Append(_activePlayer.PresentedFrameCount).Append('\n');
+            _debugBuilder.Append("Dropped: ").Append(_activePlayer.DroppedFrameCount)
+                .Append(" (overflow ").Append(_activePlayer.OverflowDropCount)
+                .Append(", late ").Append(_activePlayer.LateSkipCount)
+                .Append(", fmt ").Append(_activePlayer.FormatErrorCount).Append(")\n");
+
+            if (eng != null)
+            {
+                _debugBuilder.Append("Engine: ").Append(eng.State).Append('\n');
+                string dbg = eng.DebugInfo;
+                if (!string.IsNullOrEmpty(dbg)) _debugBuilder.Append(dbg);
+            }
+
+            var audio = _activePlayer.AudioComponent;
+            if (audio != null)
+            {
+                var src = audio.ActiveAudioSource;
+                _debugBuilder.Append("\nAudio: ")
+                    .Append(src != null && src.isPlaying ? "playing" : "idle")
+                    .Append(" peak ").Append(audio.LastPcmPeak.ToString("F3"))
+                    .Append(" rms ").Append(audio.LastPcmRms.ToString("F3"));
+            }
+
+            _debugGroup.SetDescription(_debugBuilder.ToString());
         }
 
         private static RectTransform BuildActionRow(RectTransform parent)

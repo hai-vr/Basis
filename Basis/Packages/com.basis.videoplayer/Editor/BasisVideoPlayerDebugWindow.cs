@@ -1,22 +1,19 @@
 using System;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class BasisVideoPlayerDebugWindow : EditorWindow
 {
-    private Vector2 _scrollPos;
-    private bool _showPlayer = true;
-    private bool _showSource = true;
-    private bool _showVideoDecode = true;
-    private bool _showVideoQueue = true;
-    private bool _showClock = true;
-    private bool _showAudioDecode = true;
-    private bool _showAudioQueue = true;
-    private bool _showAudioOutput = true;
+    private const string UxmlPath = "Packages/com.basis.videoplayer/Editor/StyleSheets/VideoPlayerDebug.uxml";
+    private const string UssPath = "Packages/com.basis.videoplayer/Editor/StyleSheets/VideoPlayerSDK.uss";
 
     private BasisVideoPlayer _target;
+    private ObjectField _targetField;
+    private VisualElement _missingBanner;
+    private VisualElement _editModeHint;
 
-    // Native fps sampling (counters are monotonic; we differentiate over wall time).
     private double _fpsLastTime;
     private ulong _fpsLastDecoded;
     private long _fpsLastPresented;
@@ -25,13 +22,8 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
     private float _displayedFps;
     private float _renderFps;
 
-    private static readonly Color BarColor = new Color(0.2f, 0.7f, 1f, 0.8f);
-    private static readonly Color BarBgColor = new Color(0.15f, 0.15f, 0.15f, 1f);
-    private static readonly Color GoodColor = new Color(0.3f, 0.9f, 0.3f);
-    private static readonly Color WarnColor = new Color(1f, 0.8f, 0.2f);
-    private static readonly Color ErrorColor = new Color(1f, 0.3f, 0.3f);
-    private static readonly Color VideoBarColor = new Color(0.2f, 0.7f, 1f, 0.85f);
-    private static readonly Color AudioBarColor = new Color(0.9f, 0.5f, 0.2f, 0.85f);
+    private Label _diagPath, _diagSnapshots;
+    private Button _diagAttach, _diagStart, _diagStop, _diagFlush, _diagReveal;
 
     [MenuItem("Basis/Debug/Video Player Debug")]
     public static void ShowWindow()
@@ -40,229 +32,447 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
         w.minSize = new Vector2(440, 600);
     }
 
-    private void OnEnable() { EditorApplication.update += Repaint; }
-    private void OnDisable() { EditorApplication.update -= Repaint; }
-
-    private void OnGUI()
+    public void CreateGUI()
     {
-        DrawHeader();
-
-        if (_target == null && Application.isPlaying)
+        var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(UxmlPath);
+        var sheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(UssPath);
+        if (tree == null)
         {
-            _target = FindFirstObjectByTypeSafe();
+            rootVisualElement.Add(new HelpBox("VideoPlayerDebug.uxml missing.", HelpBoxMessageType.Error));
+            return;
         }
 
-        _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
+        tree.CloneTree(rootVisualElement);
+        if (sheet != null) rootVisualElement.styleSheets.Add(sheet);
 
-        if (_target == null)
-        {
-            EditorGUILayout.HelpBox(
-                "No BasisVideoPlayer assigned and none found in the scene.\nAssign one above or enter Play Mode with a scene that has one.",
-                MessageType.Info);
-        }
-        else
-        {
-            _showPlayer = DrawSection("1. Player", _showPlayer, DrawPlayerSection);
-            _showSource = DrawSection("2. Source / Transport", _showSource, DrawSourceSection);
-            _showVideoDecode = DrawSection("3. Video Decode", _showVideoDecode, DrawVideoDecodeSection);
-            _showVideoQueue = DrawSection("4. Video Queue", _showVideoQueue, DrawVideoQueueSection);
-            _showClock = DrawSection("5. A/V Sync Clock", _showClock, DrawClockSection);
-            _showAudioDecode = DrawSection("6. Audio Decode", _showAudioDecode, DrawAudioDecodeSection);
-            _showAudioQueue = DrawSection("7. Audio Queue", _showAudioQueue, DrawAudioQueueSection);
-            _showAudioOutput = DrawSection("8. Audio Output", _showAudioOutput, DrawAudioOutputSection);
-        }
+        _targetField = rootVisualElement.Q<ObjectField>("TargetPlayer");
+        _targetField.objectType = typeof(BasisVideoPlayer);
+        _targetField.RegisterValueChangedCallback(evt => _target = evt.newValue as BasisVideoPlayer);
 
-        EditorGUILayout.EndScrollView();
+        _missingBanner = rootVisualElement.Q<VisualElement>("MissingTargetBanner");
+        _editModeHint = rootVisualElement.Q<VisualElement>("EditModeHint");
+
+        BindDiagnostics();
+        rootVisualElement.schedule.Execute(Refresh).Every(250);
     }
 
-    private void DrawHeader()
+    private void BindDiagnostics()
     {
-        EditorGUILayout.LabelField("Video Player Pipeline", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Source -> Packet -> Decode -> Queue -> Render / Audio Out",
-            EditorStyles.miniLabel);
-        EditorGUILayout.Space(2);
-        _target = (BasisVideoPlayer)EditorGUILayout.ObjectField(
-            "Player", _target, typeof(BasisVideoPlayer), allowSceneObjects: true);
+        _diagPath = rootVisualElement.Q<Label>("DiagPathLabel");
+        _diagSnapshots = rootVisualElement.Q<Label>("DiagSnapshotsLabel");
+        _diagAttach = rootVisualElement.Q<Button>("DiagAttachButton");
+        _diagStart = rootVisualElement.Q<Button>("DiagStartButton");
+        _diagStop = rootVisualElement.Q<Button>("DiagStopButton");
+        _diagFlush = rootVisualElement.Q<Button>("DiagFlushButton");
+        _diagReveal = rootVisualElement.Q<Button>("DiagRevealButton");
 
-        if (!Application.isPlaying)
+        _diagAttach.clicked += () =>
         {
-            EditorGUILayout.HelpBox("Enter Play Mode for live counters.", MessageType.Info);
-        }
-
-        DrawDiagnosticsControls();
-        EditorGUILayout.Space(4);
+            if (_target != null) Undo.AddComponent<BasisVideoPlayerDiagnostics>(_target.gameObject);
+        };
+        _diagStart.clicked += () =>
+        {
+            var d = _target != null ? _target.GetComponent<BasisVideoPlayerDiagnostics>() : null;
+            if (d != null) d.StartLogging();
+        };
+        _diagStop.clicked += () =>
+        {
+            var d = _target != null ? _target.GetComponent<BasisVideoPlayerDiagnostics>() : null;
+            if (d != null) d.StopLogging();
+        };
+        _diagFlush.clicked += () =>
+        {
+            var d = _target != null ? _target.GetComponent<BasisVideoPlayerDiagnostics>() : null;
+            if (d != null) d.Flush();
+        };
+        _diagReveal.clicked += () =>
+        {
+            var d = _target != null ? _target.GetComponent<BasisVideoPlayerDiagnostics>() : null;
+            if (d == null) return;
+            string p = d.ResolvedLogPath;
+            if (!string.IsNullOrEmpty(p) && System.IO.File.Exists(p)) EditorUtility.RevealInFinder(p);
+            else EditorUtility.RevealInFinder(System.IO.Path.GetDirectoryName(p) ?? Application.persistentDataPath);
+        };
     }
 
-    private void DrawDiagnosticsControls()
+    private void Refresh()
     {
+        if (_target == null && Application.isPlaying) _target = FindFirstObjectByTypeSafe();
+        if (_target != null && _targetField.value != _target) _targetField.SetValueWithoutNotify(_target);
+
+        _missingBanner.style.display = _target == null ? DisplayStyle.Flex : DisplayStyle.None;
+        _editModeHint.style.display = Application.isPlaying ? DisplayStyle.None : DisplayStyle.Flex;
+
+        RefreshDiagnosticsControls();
         if (_target == null) return;
 
-        var diag = _target.GetComponent<BasisVideoPlayerDiagnostics>();
+        RefreshPlayer();
+        RefreshSource();
+        RefreshVideoDecode();
+        RefreshVideoQueue();
+        RefreshClock();
+        RefreshAudioDecode();
+        RefreshAudioQueue();
+        RefreshAudioOutput();
+    }
 
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Diagnostics CSV", GUILayout.Width(EditorGUIUtility.labelWidth));
+    private void RefreshDiagnosticsControls()
+    {
+        var diag = _target != null ? _target.GetComponent<BasisVideoPlayerDiagnostics>() : null;
+        bool hasTarget = _target != null;
+        bool hasDiag = diag != null;
+        bool playing = Application.isPlaying;
+        bool logging = hasDiag && diag.IsLogging;
 
-        if (diag == null)
+        Show(_diagAttach, hasTarget && !hasDiag);
+        Show(_diagStart, hasDiag && playing && !logging);
+        Show(_diagStop, hasDiag && playing && logging);
+        Show(_diagFlush, hasDiag && playing && logging);
+        Show(_diagReveal, hasDiag);
+
+        if (_diagPath != null) _diagPath.text = "Path: " + (hasDiag && !string.IsNullOrEmpty(diag.ResolvedLogPath) ? diag.ResolvedLogPath : "(unset)");
+        if (_diagSnapshots != null) _diagSnapshots.text = "Snapshots: " + (hasDiag && playing ? diag.SnapshotsWritten.ToString() : "0");
+    }
+
+    private void RefreshPlayer()
+    {
+        SetPill("P_Playing", _target.IsPlaying);
+        SetPill("P_Paused", _target.IsPaused);
+        SetText("P_FramesPresented", _target.PresentedFrameCount.ToString());
+        SetText("P_MaxQueue", _target.MaxQueueLength.ToString());
+        SetText("P_LateSkip", _target.LateFrameSkipUs + " us");
+        SetText("P_PresOffset", _target.PresentationOffsetUs + " us");
+        SetText("P_OverflowPolicy", _target.OverflowPolicy.ToString());
+
+        if (_target.Source == null && _target.NativeEngine == null)
         {
-            if (GUILayout.Button("Attach Logger"))
-            {
-                Undo.AddComponent<BasisVideoPlayerDiagnostics>(_target.gameObject);
-            }
+            ShowHelp("P_Help", "Player has no Source assigned. Add a BasisVideoPlayerStreaming or BasisVideoPlayerSynthetic on the same GameObject, or assign player.Source from code.", "bvp-help-warn");
+        }
+        else if (Application.isPlaying && _target.NativeEngine == null && _target.IsPlaying && _target.PresentedFrameCount == 0 && _target.QueuedFrameCount == 0)
+        {
+            ShowHelp("P_Help", "Playing but no frames have arrived or been presented. Check the source/transport status below.", "bvp-help-warn");
         }
         else
         {
-            if (Application.isPlaying)
-            {
-                if (diag.IsLogging)
-                {
-                    if (GUILayout.Button("Stop")) diag.StopLogging();
-                    if (GUILayout.Button("Flush")) diag.Flush();
-                }
-                else
-                {
-                    if (GUILayout.Button("Start")) diag.StartLogging();
-                }
-            }
-            if (GUILayout.Button("Reveal"))
-            {
-                string p = diag.ResolvedLogPath;
-                if (!string.IsNullOrEmpty(p) && System.IO.File.Exists(p))
-                {
-                    EditorUtility.RevealInFinder(p);
-                }
-                else
-                {
-                    EditorUtility.RevealInFinder(System.IO.Path.GetDirectoryName(p) ?? Application.persistentDataPath);
-                }
-            }
-        }
-        EditorGUILayout.EndHorizontal();
-
-        if (diag != null)
-        {
-            EditorGUILayout.LabelField("  Path", string.IsNullOrEmpty(diag.ResolvedLogPath) ? "(unset)" : diag.ResolvedLogPath, EditorStyles.miniLabel);
-            if (Application.isPlaying)
-            {
-                EditorGUILayout.LabelField("  Snapshots", diag.SnapshotsWritten.ToString(), EditorStyles.miniLabel);
-            }
+            HideHelp("P_Help");
         }
     }
 
-    private BasisVideoPlayer FindFirstObjectByTypeSafe()
-    {
-#if UNITY_2023_1_OR_NEWER
-        return FindFirstObjectByType<BasisVideoPlayer>(FindObjectsInactive.Include);
-#else
-        var all = Resources.FindObjectsOfTypeAll<BasisVideoPlayer>();
-        for (int i = 0; i < all.Length; i++)
-        {
-            var p = all[i];
-            if (p != null && p.gameObject.scene.IsValid()) return p;
-        }
-        return null;
-#endif
-    }
-
-    private void DrawPlayerSection()
-    {
-        StatusLabel("Playing", _target.IsPlaying);
-        StatusLabel("Paused", _target.IsPaused);
-
-        EditorGUILayout.LabelField("Frames Presented", _target.PresentedFrameCount.ToString());
-        EditorGUILayout.LabelField("Queue Length Max", _target.MaxQueueLength.ToString());
-        EditorGUILayout.LabelField("Late-Frame Skip", $"{_target.LateFrameSkipUs} us");
-        EditorGUILayout.LabelField("Presentation Offset", $"{_target.PresentationOffsetUs} us");
-        EditorGUILayout.LabelField("Overflow Policy", _target.OverflowPolicy.ToString());
-
-        if (_target.Source == null)
-        {
-            EditorGUILayout.HelpBox(
-                "Player has no Source assigned. Add a BasisVideoPlayerStreaming or BasisVideoPlayerSynthetic on the same GameObject, or assign player.Source from code.",
-                MessageType.Warning);
-        }
-        else if (Application.isPlaying && _target.IsPlaying && _target.PresentedFrameCount == 0 && _target.QueuedFrameCount == 0)
-        {
-            EditorGUILayout.HelpBox(
-                "Playing but no frames have arrived or been presented. Check the source/transport status below.",
-                MessageType.Warning);
-        }
-    }
-
-    private void DrawSourceSection()
+    private void RefreshSource()
     {
         var eng = _target.NativeEngine;
         if (eng != null)
         {
-            EditorGUILayout.LabelField("Backend", "OS-codec engine (zero-copy)");
-            EditorGUILayout.LabelField("URL", eng.Url);
-            StatusLabel("Running", eng.IsRunning);
-            EditorGUILayout.LabelField("State", eng.State.ToString());
+            SetText("S_Backend", "OS-codec engine (zero-copy)");
+            SetText("S_UrlOrType", eng.Url ?? "(no url)");
+            SetPill("S_Running", eng.IsRunning);
+            SetText("S_State", eng.State.ToString());
             var sz = eng.VideoSize;
-            EditorGUILayout.LabelField("Video Size", sz.x > 0 ? $"{sz.x} x {sz.y}" : "(unknown)");
-            EditorGUILayout.LabelField("Position", FormatUs(eng.PositionUs < 0 ? 0 : eng.PositionUs));
-            StatusLabel("Output Texture", eng.OutputTexture != null);
+            SetText("S_VideoSize", sz.x > 0 ? $"{sz.x} x {sz.y}" : "(unknown)");
+            SetText("S_Position", FormatUs(eng.PositionUs < 0 ? 0 : eng.PositionUs));
+            SetPill("S_OutputTex", eng.OutputTexture != null);
 
             if (Application.isPlaying && eng.State == BasisMediaEngineState.Error)
-            {
-                EditorGUILayout.HelpBox(
-                    "Engine reported an error — see the Console for the message, and verify basis_media_native is built and present under Plugins/.",
-                    MessageType.Error);
-            }
+                ShowHelp("S_Help", "Engine reported an error — see the Console for the message, and verify basis_media_native is built and present under Plugins/.", "bvp-help-error");
             else if (Application.isPlaying && eng.IsRunning && eng.OutputTexture == null)
-            {
-                EditorGUILayout.HelpBox(
-                    "Engine running but no frame published yet (connecting/buffering), or the native library isn't producing frames.",
-                    MessageType.Info);
-            }
+                ShowHelp("S_Help", "Engine running but no frame published yet (connecting/buffering), or the native library isn't producing frames.", "bvp-help-info");
+            else HideHelp("S_Help");
             return;
         }
 
         var source = _target.Source;
         if (source == null)
         {
-            EditorGUILayout.LabelField("(no source assigned)");
+            SetText("S_Backend", "(no source assigned)");
+            SetText("S_UrlOrType", "—");
+            SetPill("S_Running", false);
+            SetText("S_State", "—");
+            SetText("S_VideoSize", "—");
+            SetText("S_Position", "—");
+            SetPill("S_OutputTex", false);
+            HideHelp("S_Help");
             return;
         }
 
-        EditorGUILayout.LabelField("Type", source.GetType().Name);
-        StatusLabel("Running", source.IsRunning);
+        SetText("S_Backend", "CPU source");
+        SetText("S_UrlOrType", source.GetType().Name);
+        SetPill("S_Running", source.IsRunning);
 
         if (source is BasisSyntheticTestSource synth)
         {
-            EditorGUILayout.LabelField("Resolution", $"{synth.Width} x {synth.Height}");
-            EditorGUILayout.LabelField("FPS Target", synth.FramesPerSecond.ToString());
-            EditorGUILayout.LabelField("Pattern", synth.PatternMode.ToString());
-            EditorGUILayout.LabelField("Frames Emitted", synth.FramesEmitted.ToString());
+            SetText("S_State", $"{synth.PatternMode}");
+            SetText("S_VideoSize", $"{synth.Width} x {synth.Height}");
+            SetText("S_Position", $"{synth.FramesEmitted} frames @ {synth.FramesPerSecond} fps");
+            SetPill("S_OutputTex", true);
         }
+        else
+        {
+            SetText("S_State", "—");
+            SetText("S_VideoSize", "—");
+            SetText("S_Position", "—");
+            SetPill("S_OutputTex", true);
+        }
+        HideHelp("S_Help");
     }
 
-    private void DrawVideoDecodeSection()
+    private void RefreshVideoDecode()
     {
         var eng = _target.NativeEngine;
         if (eng == null)
         {
-            EditorGUILayout.LabelField("(CPU source — OS hardware decode not in use)");
+            SetText("VD_Decoder", "(CPU source — OS hardware decode not in use)");
+            SetText("VD_DecodedSize", "—");
+            SetText("VD_LastPts", "—");
+            SetText("VD_OutputTex", "—");
+            HideHelp("VD_Help");
             return;
         }
 
-        EditorGUILayout.LabelField("Decoder", "OS hardware (Media Foundation / MediaCodec)");
+        SetText("VD_Decoder", "OS hardware (Media Foundation / MediaCodec)");
         var sz = eng.VideoSize;
-        EditorGUILayout.LabelField("Decoded Size", sz.x > 0 ? $"{sz.x} x {sz.y}" : "(none yet)");
-        EditorGUILayout.LabelField("Last PTS", FormatUs(eng.PositionUs < 0 ? 0 : eng.PositionUs));
+        SetText("VD_DecodedSize", sz.x > 0 ? $"{sz.x} x {sz.y}" : "(none yet)");
+        SetText("VD_LastPts", FormatUs(eng.PositionUs < 0 ? 0 : eng.PositionUs));
         var tex = eng.OutputTexture;
-        EditorGUILayout.LabelField("Output Texture", tex != null ? $"{tex.width} x {tex.height}" : "(none)");
+        SetText("VD_OutputTex", tex != null ? $"{tex.width} x {tex.height}" : "(none)");
 
         if (Application.isPlaying && eng.IsRunning && tex == null)
+            ShowHelp("VD_Help", "No decoded frame yet. Check that basis_media_native is present for this platform/arch and that the stream URL is reachable.", "bvp-help-warn");
+        else HideHelp("VD_Help");
+    }
+
+    private void RefreshVideoQueue()
+    {
+        var eng = _target.NativeEngine;
+        if (eng != null)
         {
-            EditorGUILayout.HelpBox(
-                "No decoded frame yet. Check that basis_media_native is present for this platform/arch and that the stream URL is reachable.",
-                MessageType.Warning);
+            string dbg = eng.DebugInfo ?? string.Empty;
+            UpdateNativeFps(eng, dbg);
+
+            SetText("VQ_Backend", "OS-codec PTS-paced ring (no CPU queue)");
+            SetText("VQ_State", eng.State.ToString());
+            long ttffMs = ParseCounter(dbg, "ttff=");
+            SetText("VQ_TTFF", ttffMs >= 0 ? $"{ttffMs} ms" : "— (connecting)");
+
+            SetFpsText("VQ_FpsDecoded", _decodedFps);
+            SetFpsText("VQ_FpsDisplayed", _displayedFps);
+            SetFpsText("VQ_FpsRender", _renderFps);
+
+            long bufMs = ParseCounter(dbg, "buf=");
+            long lagMs = ParseCounter(dbg, "lag=");
+            SetText("VQ_BufferLabel", $"Buffered ahead ({_target.BufferMode}, target {bufMs} ms)");
+            SetText("VQ_BufferValue", $"{lagMs} / {bufMs} ms");
+            float bufFill = bufMs > 0 ? Mathf.Clamp01((float)lagMs / bufMs) : 0f;
+            string fillClass = bufFill >= 0.75f ? "bvp-bar-fill-good" : (bufFill >= 0.4f ? "bvp-bar-fill-warn" : "bvp-bar-fill-bad");
+            SetBar("VQ_BufferFill", bufFill, fillClass);
+
+            SetText("VQ_DepthValue", "(not used on OS-codec path)");
+            SetBar("VQ_DepthFill", 0f, null);
+
+            SetText("VQ_ClockNow", "(OS-codec internal)");
+            SetText("VQ_HeadPts", "—");
+            SetText("VQ_TailPts", "—");
+            SetText("VQ_QueueSpan", "—");
+
+            SetText("VQ_DropOverflow", "—");
+            SetText("VQ_DropLate", "—");
+            SetText("VQ_DropFormat", "—");
+            SetText("VQ_DropCatchup", "—");
+
+            SetText("VQ_NativeCounters", string.IsNullOrEmpty(dbg) ? "(no data — is the plugin built?)" : dbg);
+            HideHelp("VQ_Help");
+            return;
+        }
+
+        int depth = _target.QueuedFrameCount;
+        int max = Mathf.Max(1, _target.MaxQueueLength);
+        float fill = (float)depth / max;
+
+        SetText("VQ_Backend", "CPU queue");
+        SetText("VQ_State", _target.IsPlaying ? "Playing" : (_target.IsPaused ? "Paused" : "Idle"));
+        SetText("VQ_TTFF", "—");
+        SetFpsText("VQ_FpsDecoded", 0);
+        SetFpsText("VQ_FpsDisplayed", 0);
+        SetFpsText("VQ_FpsRender", 0);
+
+        SetText("VQ_BufferLabel", "(OS-codec path only)");
+        SetText("VQ_BufferValue", "—");
+        SetBar("VQ_BufferFill", 0f, null);
+
+        SetText("VQ_DepthValue", $"{depth} / {max}");
+        SetBar("VQ_DepthFill", fill, null);
+
+        long clockNow = _target.Clock.CurrentMediaTimeUs;
+        long headPts = _target.HeadFramePtsUs;
+        long tailPts = _target.TailFramePtsUs;
+
+        SetText("VQ_ClockNow", FormatUs(clockNow));
+        SetText("VQ_HeadPts", headPts >= 0 ? FormatUs(headPts) + $"  ({DeltaLabel(headPts - clockNow)})" : "(empty)");
+        SetText("VQ_TailPts", tailPts > 0 ? FormatUs(tailPts) + $"  ({DeltaLabel(tailPts - clockNow)})" : "—");
+        SetText("VQ_QueueSpan", tailPts > 0 ? FormatUs(tailPts - (headPts < 0 ? tailPts : headPts)) : "—");
+
+        SetText("VQ_DropOverflow", _target.OverflowDropCount.ToString());
+        SetText("VQ_DropLate", _target.LateSkipCount.ToString() + $" (>{_target.LateFrameSkipUs}us behind)");
+        SetText("VQ_DropFormat", _target.FormatErrorCount.ToString());
+        SetText("VQ_DropCatchup", _target.CatchUpSkipCount.ToString() + " (informational)");
+
+        SetText("VQ_NativeCounters", "(CPU source — no native counters)");
+
+        if (Application.isPlaying && depth >= max && _target.OverflowDropCount > 0)
+        {
+            bool headInFuture = headPts > clockNow + 50_000;
+            bool clockMaybeStalled = clockNow == 0 && _target.IsPlaying && depth > 0;
+            if (clockMaybeStalled)
+                ShowHelp("VQ_Help", "Queue full + Clock stuck at 0. The A/V clock never anchored. Most common cause: audio is wired as the master clock but the AudioSource isn't actually playing (or no streaming clip was assigned), so HasMediaTime stays false AND the local wall-clock anchor isn't running either. Verify section 8 (Audio Output) shows 'Is Playing: YES' and 'Has Media Anchor: YES'.", "bvp-help-error");
+            else if (headInFuture)
+                ShowHelp("VQ_Help", $"Queue is full of FUTURE frames (head is {DeltaLabel(headPts - clockNow)}). The server is sending faster than real time.\nFixes, in order:\n  1. Throttle the server to real-time pacing.\n  2. Set OverflowPolicy = DropNewest so far-future frames are shed instead of near-due ones.\n  3. Raise MaxQueueLength to absorb the burst.", "bvp-help-error");
+            else
+                ShowHelp("VQ_Help", "Queue full and overflow drops accumulating, but head PTS is near the clock — frames are arriving in tight bursts faster than Update() can drain them. Raise MaxQueueLength.", "bvp-help-warn");
+        }
+        else if (Application.isPlaying && _target.CatchUpSkipCount > _target.PresentedFrameCount && _target.CatchUpSkipCount > 30)
+        {
+            ShowHelp("VQ_Help", "Catch-up coalesce dominates: more frames walked-past than presented. Normal for bursty network or clock jumps. Not data loss — earlier frames decoded successfully, only the most recent is rendered.", "bvp-help-info");
+        }
+        else if (Application.isPlaying && _target.LateSkipCount > 0)
+        {
+            ShowHelp("VQ_Help", "Late-skip is firing: frames arrived too far behind the clock (set by LateFrameSkipUs). Either the producer is delayed, or the clock has jumped ahead. Set LateFrameSkipUs=0 to disable, or raise it.", "bvp-help-warn");
+        }
+        else
+        {
+            HideHelp("VQ_Help");
         }
     }
 
-    // Differentiates the engine's monotonic counters over wall time to get fps.
-    // Decoded comes from the frame counter; displayed/render are parsed out of the
-    // native debug string ("copy=" / "render="). Resets cleanly on a new stream.
+    private void RefreshClock()
+    {
+        var clock = _target.Clock;
+        SetPill("C_Started", clock.IsStarted);
+        SetText("C_CurrentTime", FormatUs(clock.CurrentMediaTimeUs));
+        bool hasExternal = clock.ExternalSource != null;
+        SetPill("C_HasExternal", hasExternal);
+        SetPill("C_ExtHasMedia", hasExternal && clock.ExternalSource.HasMediaTime);
+        SetText("C_ExtTime", hasExternal ? FormatUs(clock.ExternalSource.CurrentMediaTimeUs) : "—");
+        SetText("C_ExtType", hasExternal ? clock.ExternalSource.GetType().Name : "—");
+    }
+
+    private void RefreshAudioDecode()
+    {
+        var eng = _target.NativeEngine;
+        if (eng == null)
+        {
+            SetText("AD_Decoder", "(CPU source — no OS audio decode)");
+            SetText("AD_Format", "—");
+            return;
+        }
+        SetText("AD_Decoder", "OS hardware AAC");
+        SetText("AD_Format", eng.TryGetPcmFormat(out int sr, out int ch) ? $"{sr} Hz / {ch} ch" : "(pending first audio frame)");
+    }
+
+    private void RefreshAudioQueue()
+    {
+        var audio = _target.AudioComponent;
+        var eng = _target.NativeEngine;
+
+        if (eng != null)
+        {
+            SetText("AQ_Backend", "OS-codec PCM ring (pulled on audio thread)");
+            SetText("AQ_Format", eng.TryGetPcmFormat(out int sr, out int ch) ? $"{sr} Hz / {ch} ch" : "(pending first audio frame)");
+            if (audio != null)
+            {
+                var asrc = audio.ActiveAudioSource;
+                SetPill("AQ_SourcePlaying", asrc != null && asrc.isPlaying);
+                SetText("AQ_PcmLevels", $"{audio.LastPcmPeak:F3} / {audio.LastPcmRms:F3}");
+                SetText("AQ_Dropped", audio.DroppedFrameCount.ToString());
+                SetText("AQ_DropPolicy", audio.DropOldestOnOverflow ? "DropOldest" : "DropNewest");
+                SetBar("AQ_DepthFill", audio.MaxQueuedFrames > 0 ? (float)audio.QueuedFrameCount / Mathf.Max(1, audio.MaxQueuedFrames) : Mathf.Min(1f, audio.QueuedFrameCount / 64f), null);
+                SetText("AQ_DepthValue", audio.MaxQueuedFrames > 0 ? $"{audio.QueuedFrameCount} / {audio.MaxQueuedFrames}" : $"{audio.QueuedFrameCount} / unbounded");
+                HideHelp("AQ_Help");
+            }
+            else
+            {
+                SetPill("AQ_SourcePlaying", false);
+                SetText("AQ_PcmLevels", "—");
+                SetText("AQ_Dropped", "—");
+                SetText("AQ_DropPolicy", "—");
+                SetBar("AQ_DepthFill", 0f, null);
+                SetText("AQ_DepthValue", "—");
+                ShowHelp("AQ_Help", "No BasisVideoPlayerAudio on the GameObject — add one (with an AudioSource) for sound.", "bvp-help-info");
+            }
+            return;
+        }
+
+        if (audio == null)
+        {
+            SetText("AQ_Backend", "(no BasisVideoPlayerAudio on player's GameObject)");
+            SetText("AQ_Format", "—");
+            SetPill("AQ_SourcePlaying", false);
+            SetText("AQ_PcmLevels", "—");
+            SetText("AQ_Dropped", "—");
+            SetText("AQ_DropPolicy", "—");
+            SetBar("AQ_DepthFill", 0f, null);
+            SetText("AQ_DepthValue", "—");
+            HideHelp("AQ_Help");
+            return;
+        }
+
+        int depth = audio.QueuedFrameCount;
+        int max = audio.MaxQueuedFrames > 0 ? audio.MaxQueuedFrames : Mathf.Max(1, depth + 1);
+        SetText("AQ_Backend", "CPU PCM queue");
+        SetText("AQ_Format", $"{audio.SampleRate} Hz / {audio.ChannelCount} ch");
+        var asrcCpu = audio.ActiveAudioSource;
+        SetPill("AQ_SourcePlaying", asrcCpu != null && asrcCpu.isPlaying);
+        SetText("AQ_PcmLevels", $"{audio.LastPcmPeak:F3} / {audio.LastPcmRms:F3}");
+        SetText("AQ_Dropped", audio.DroppedFrameCount.ToString());
+        SetText("AQ_DropPolicy", audio.DropOldestOnOverflow ? "DropOldest" : "DropNewest");
+        SetBar("AQ_DepthFill", audio.MaxQueuedFrames > 0 ? (float)depth / max : Mathf.Min(1f, depth / 64f), null);
+        SetText("AQ_DepthValue", audio.MaxQueuedFrames > 0 ? $"{depth} / {max}" : $"{depth} / unbounded");
+        HideHelp("AQ_Help");
+    }
+
+    private void RefreshAudioOutput()
+    {
+        var audio = _target.AudioComponent;
+        if (audio == null)
+        {
+            SetText("AO_SourceName", "(no BasisVideoPlayerAudio component)");
+            SetPill("AO_IsPlaying", false);
+            SetText("AO_Volume", "—");
+            SetText("AO_SpatialBlend", "—");
+            SetPill("AO_Mute", false);
+            SetText("AO_Gain", "—");
+            SetText("AO_Clip", "—");
+            SetText("AO_Format", "—");
+            SetText("AO_Consumed", "—");
+            SetPill("AO_HasAnchor", false);
+            SetText("AO_MediaTime", "—");
+            HideHelp("AO_Help");
+            return;
+        }
+
+        var src = audio.ActiveAudioSource;
+        if (src == null)
+        {
+            SetText("AO_SourceName", "(no AudioSource)");
+            ShowHelp("AO_Help", "BasisVideoPlayerAudio has no AudioSource. Assign TargetAudioSource or add an AudioSource to the GameObject.", "bvp-help-error");
+            return;
+        }
+
+        SetText("AO_SourceName", src.name);
+        SetPill("AO_IsPlaying", src.isPlaying);
+        SetText("AO_Volume", src.volume.ToString("F2"));
+        SetText("AO_SpatialBlend", src.spatialBlend.ToString("F2"));
+        SetPill("AO_Mute", audio.Mute);
+        SetText("AO_Gain", audio.VolumeGain.ToString("F2"));
+        SetText("AO_Clip", audio.StreamingClip != null ? audio.StreamingClip.name : "(none)");
+        SetText("AO_Format", $"{audio.SampleRate} Hz / {audio.ChannelCount} ch");
+        SetText("AO_Consumed", audio.ConsumedSampleCount.ToString());
+        SetPill("AO_HasAnchor", audio.HasMediaTime);
+        SetText("AO_MediaTime", FormatUs(audio.CurrentMediaTimeUs));
+
+        if (Application.isPlaying && src.isPlaying && audio.ConsumedSampleCount == 0 && audio.QueuedFrameCount > 0)
+            ShowHelp("AO_Help", "AudioSource reports playing and frames are queued, but the PCM callback hasn't been driven. The streaming AudioClip may not be assigned (AssignClipOnAwake?) or the AudioSource is muted at the mixer.", "bvp-help-warn");
+        else HideHelp("AO_Help");
+    }
+
     private void UpdateNativeFps(BasisNativeVideoSource eng, string dbg)
     {
         double now = EditorApplication.timeSinceStartup;
@@ -291,14 +501,6 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
         _fpsLastRendered = rendered;
     }
 
-    private void DrawFpsLine(string label, float fps)
-    {
-        var prev = GUI.contentColor;
-        GUI.contentColor = fps >= 24f ? GoodColor : (fps >= 12f ? WarnColor : ErrorColor);
-        EditorGUILayout.LabelField(label, $"{fps:F1} fps");
-        GUI.contentColor = prev;
-    }
-
     private static long ParseCounter(string s, string key)
     {
         if (string.IsNullOrEmpty(s)) return 0;
@@ -311,300 +513,11 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
         return (i > start && long.TryParse(s.Substring(start, i - start), out long v)) ? v : 0;
     }
 
-    private void DrawVideoQueueSection()
-    {
-        var eng = _target.NativeEngine;
-        if (eng != null)
-        {
-            string dbg = eng.DebugInfo;
-            UpdateNativeFps(eng, dbg);
-
-            EditorGUILayout.LabelField("Backend", "OS-codec PTS-paced ring (no CPU queue)");
-            EditorGUILayout.LabelField("State", eng.State.ToString());
-            long ttffMs = ParseCounter(dbg, "ttff=");
-            EditorGUILayout.LabelField("Time to first frame", ttffMs >= 0 ? $"{ttffMs} ms" : "— (connecting)");
-
-            EditorGUILayout.Space(2);
-            EditorGUILayout.LabelField("Framerate", EditorStyles.boldLabel);
-            DrawFpsLine("Decoded", _decodedFps);
-            DrawFpsLine("Displayed", _displayedFps);
-            DrawFpsLine("Render calls", _renderFps);
-
-            EditorGUILayout.Space(2);
-            var esz = eng.VideoSize;
-            EditorGUILayout.LabelField("Decoded Size", esz.x > 0 ? $"{esz.x} x {esz.y}" : "(unknown)");
-            EditorGUILayout.LabelField("Position", FormatUs(eng.PositionUs < 0 ? 0 : eng.PositionUs));
-
-            EditorGUILayout.Space(2);
-            EditorGUILayout.LabelField("Playback buffer", EditorStyles.boldLabel);
-            long bufMs = ParseCounter(dbg, "buf=");
-            long lagMs = ParseCounter(dbg, "lag=");
-            EditorGUILayout.LabelField("Buffered ahead", $"{lagMs} ms");
-            EditorGUILayout.LabelField($"Target ({_target.BufferMode})", $"{bufMs} ms");
-            Rect bufRect = GUILayoutUtility.GetRect(0, 18, GUILayout.ExpandWidth(true));
-            float bufFill = bufMs > 0 ? (float)lagMs / bufMs : 0f;
-            Color bufCol = bufFill >= 0.75f ? GoodColor : (bufFill >= 0.4f ? WarnColor : ErrorColor);
-            DrawBar(bufRect, bufFill, $"{lagMs} / {bufMs} ms", bufCol);
-
-            EditorGUILayout.Space(2);
-            EditorGUILayout.LabelField("Native counters", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(dbg ?? "(no data — is the plugin built?)", MessageType.None);
-            EditorGUILayout.LabelField("  blit=decoded  copy=presented  lag=ms behind live", EditorStyles.miniLabel);
-            return;
-        }
-
-        int depth = _target.QueuedFrameCount;
-        int max = Mathf.Max(1, _target.MaxQueueLength);
-        float fill = (float)depth / max;
-
-        EditorGUILayout.LabelField("Queued / Max", $"{depth} / {max}");
-        Rect r = GUILayoutUtility.GetRect(0, 16, GUILayout.ExpandWidth(true));
-        DrawBar(r, fill, $"{depth} frames", VideoBarColor);
-
-        EditorGUILayout.LabelField("Overflow Policy", _target.OverflowPolicy.ToString());
-
-        long clockNow = _target.Clock.CurrentMediaTimeUs;
-        long headPts = _target.HeadFramePtsUs;
-        long tailPts = _target.TailFramePtsUs;
-
-        EditorGUILayout.Space(2);
-        EditorGUILayout.LabelField("Queue timing", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("  Clock now", FormatUs(clockNow));
-        if (headPts >= 0)
-        {
-            long headDelta = headPts - clockNow;
-            EditorGUILayout.LabelField("  Head PTS", FormatUs(headPts) + $"  ({DeltaLabel(headDelta)})");
-        }
-        else
-        {
-            EditorGUILayout.LabelField("  Head PTS", "(empty)");
-        }
-        if (tailPts > 0)
-        {
-            long tailDelta = tailPts - clockNow;
-            EditorGUILayout.LabelField("  Tail PTS (last enqueued)", FormatUs(tailPts) + $"  ({DeltaLabel(tailDelta)})");
-            EditorGUILayout.LabelField("  Queue span", FormatUs(tailPts - (headPts < 0 ? tailPts : headPts)));
-        }
-
-        EditorGUILayout.Space(2);
-        EditorGUILayout.LabelField("Drop categories", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("  Overflow (queue full)", _target.OverflowDropCount.ToString());
-        EditorGUILayout.LabelField("  Late-skip (>" + _target.LateFrameSkipUs + "us behind)", _target.LateSkipCount.ToString());
-        EditorGUILayout.LabelField("  Format-error", _target.FormatErrorCount.ToString());
-        EditorGUILayout.LabelField("  Catch-up coalesce (informational)", _target.CatchUpSkipCount.ToString());
-
-        long overflow = _target.OverflowDropCount;
-        long catchup = _target.CatchUpSkipCount;
-        long late = _target.LateSkipCount;
-
-        if (Application.isPlaying && depth >= max && overflow > 0)
-        {
-            bool headInFuture = headPts > clockNow + 50_000; // >50 ms ahead
-            bool clockMaybeStalled = clockNow == 0 && _target.IsPlaying && depth > 0;
-
-            if (clockMaybeStalled)
-            {
-                EditorGUILayout.HelpBox(
-                    "Queue full + Clock stuck at 0. The A/V clock never anchored. Most common cause: audio is wired as the master clock but the AudioSource isn't actually playing (or no streaming clip was assigned), so HasMediaTime stays false AND the local wall-clock anchor isn't running either. Verify section 8 (Audio Output) shows 'Is Playing: YES' and 'Has Media Anchor: YES'.",
-                    MessageType.Error);
-            }
-            else if (headInFuture)
-            {
-                EditorGUILayout.HelpBox(
-                    $"Queue is full of FUTURE frames (head is {DeltaLabel(headPts - clockNow)}). The server is sending faster than real time — PTSs span more wall-time than has elapsed.\n" +
-                    "Fixes, in order of preference:\n" +
-                    "  1. Throttle the server to real-time pacing (sleep between packets to match frame duration).\n" +
-                    "  2. If the server can't be changed: set OverflowPolicy = DropNewest so the FAR-future frames are shed instead of near-due ones (DropOldest discards the frames you're about to show).\n" +
-                    "  3. Raise MaxQueueLength to absorb the burst (memory cost = MaxQueueLength × frame size).",
-                    MessageType.Error);
-            }
-            else
-            {
-                EditorGUILayout.HelpBox(
-                    "Queue full and overflow drops accumulating, but head PTS is near the clock — frames are arriving in tight bursts faster than Update() can drain them. Raise MaxQueueLength (each unit ≈ 1/fps seconds of buffer).",
-                    MessageType.Warning);
-            }
-        }
-        else if (Application.isPlaying && catchup > _target.PresentedFrameCount && catchup > 30)
-        {
-            EditorGUILayout.HelpBox(
-                "Catch-up coalesce dominates: more frames were walked-past than presented. This is normal when frames arrive bursty over network, OR when the clock occasionally jumps forward (audio buffer refill). Not a data loss — earlier frames were decoded successfully, only the most recent is rendered.",
-                MessageType.Info);
-        }
-        else if (Application.isPlaying && late > 0)
-        {
-            EditorGUILayout.HelpBox(
-                "Late-skip is firing: frames arrived too far behind the clock (set by LateFrameSkipUs). Either the producer is delayed, or the clock has jumped ahead. Set LateFrameSkipUs=0 to disable, or raise it.",
-                MessageType.Warning);
-        }
-    }
-
     private static string DeltaLabel(long deltaUs)
     {
         if (deltaUs > 0) return $"+{FormatUs(deltaUs)} future";
         if (deltaUs < 0) return $"-{FormatUs(-deltaUs)} past";
         return "now";
-    }
-
-    private void DrawClockSection()
-    {
-        var clock = _target.Clock;
-        StatusLabel("Started", clock.IsStarted);
-        EditorGUILayout.LabelField("Current Media Time", FormatUs(clock.CurrentMediaTimeUs));
-        bool hasExternal = clock.ExternalSource != null;
-        StatusLabel("External Source Wired", hasExternal);
-        if (hasExternal)
-        {
-            StatusLabel("External Has Media Time", clock.ExternalSource.HasMediaTime);
-            EditorGUILayout.LabelField("External Media Time", FormatUs(clock.ExternalSource.CurrentMediaTimeUs));
-            EditorGUILayout.LabelField("External Type", clock.ExternalSource.GetType().Name);
-        }
-    }
-
-    private BasisVideoPlayerAudio GetAudio() => _target.AudioComponent;
-
-    private void DrawAudioDecodeSection()
-    {
-        var eng = _target.NativeEngine;
-        if (eng == null)
-        {
-            EditorGUILayout.LabelField("(CPU source — no OS audio decode)");
-            return;
-        }
-
-        EditorGUILayout.LabelField("Decoder", "OS hardware AAC");
-        if (eng.TryGetPcmFormat(out int sr, out int ch))
-            EditorGUILayout.LabelField("Format", $"{sr} Hz / {ch} ch");
-        else
-            EditorGUILayout.LabelField("Format", "(pending first audio frame)");
-    }
-
-    private void DrawAudioQueueSection()
-    {
-        var audio = GetAudio();
-        var eng = _target.NativeEngine;
-        if (eng != null)
-        {
-            EditorGUILayout.LabelField("Backend", "OS-codec PCM ring (pulled on audio thread)");
-            if (eng.TryGetPcmFormat(out int sr, out int ch)) EditorGUILayout.LabelField("Format", $"{sr} Hz / {ch} ch");
-            else EditorGUILayout.LabelField("Format", "(pending first audio frame)");
-            if (audio != null)
-            {
-                var asrc = audio.ActiveAudioSource;
-                StatusLabel("Source Playing", asrc != null && asrc.isPlaying);
-                EditorGUILayout.LabelField("PCM peak / rms", $"{audio.LastPcmPeak:F3} / {audio.LastPcmRms:F3}");
-            }
-            else
-            {
-                EditorGUILayout.HelpBox("No BasisVideoPlayerAudio on the GameObject — add one (with an AudioSource) for sound.", MessageType.Info);
-            }
-            return;
-        }
-
-        if (audio == null)
-        {
-            EditorGUILayout.LabelField("(no BasisVideoPlayerAudio on player's GameObject)");
-            return;
-        }
-
-        int depth = audio.QueuedFrameCount;
-        int max = audio.MaxQueuedFrames > 0 ? audio.MaxQueuedFrames : Mathf.Max(1, depth + 1);
-        float fill = audio.MaxQueuedFrames > 0 ? (float)depth / max : 0f;
-
-        EditorGUILayout.LabelField("Queued / Max", audio.MaxQueuedFrames > 0
-            ? $"{depth} / {max}"
-            : $"{depth} / unbounded");
-        Rect r = GUILayoutUtility.GetRect(0, 16, GUILayout.ExpandWidth(true));
-        DrawBar(r, audio.MaxQueuedFrames > 0 ? fill : Mathf.Min(1f, depth / 64f), $"{depth} frames", AudioBarColor);
-
-        EditorGUILayout.LabelField("Dropped (total)", audio.DroppedFrameCount.ToString());
-        EditorGUILayout.LabelField("Drop Policy", audio.DropOldestOnOverflow ? "DropOldest" : "DropNewest");
-    }
-
-    private void DrawAudioOutputSection()
-    {
-        var audio = GetAudio();
-        if (audio == null)
-        {
-            EditorGUILayout.LabelField("(no BasisVideoPlayerAudio component)");
-            return;
-        }
-
-        var src = audio.ActiveAudioSource;
-        if (src == null)
-        {
-            EditorGUILayout.HelpBox(
-                "BasisVideoPlayerAudio has no AudioSource. Assign TargetAudioSource or add an AudioSource to the GameObject.",
-                MessageType.Error);
-            return;
-        }
-
-        EditorGUILayout.LabelField("AudioSource", src.name);
-        StatusLabel("Is Playing", src.isPlaying);
-        EditorGUILayout.LabelField("Volume", src.volume.ToString("F2"));
-        EditorGUILayout.LabelField("Spatial Blend", src.spatialBlend.ToString("F2"));
-        StatusLabel("Mute (sink)", audio.Mute);
-        EditorGUILayout.LabelField("Gain (sink)", audio.VolumeGain.ToString("F2"));
-
-        EditorGUILayout.Space(2);
-        EditorGUILayout.LabelField("Clip", audio.StreamingClip != null ? audio.StreamingClip.name : "(none)");
-        EditorGUILayout.LabelField("Format", $"{audio.SampleRate} Hz / {audio.ChannelCount} ch");
-        EditorGUILayout.LabelField("Consumed Samples", audio.ConsumedSampleCount.ToString());
-
-        StatusLabel("Has Media Anchor", audio.HasMediaTime);
-        EditorGUILayout.LabelField("Audio Media Time", FormatUs(audio.CurrentMediaTimeUs));
-
-        if (Application.isPlaying && src.isPlaying && audio.ConsumedSampleCount == 0 && audio.QueuedFrameCount > 0)
-        {
-            EditorGUILayout.HelpBox(
-                "AudioSource reports playing and frames are queued, but the PCM callback hasn't been driven. The streaming AudioClip may not be assigned (AssignClipOnAwake?) or the AudioSource is muted at the mixer.",
-                MessageType.Warning);
-        }
-    }
-
-    private bool DrawSection(string title, bool expanded, Action drawContent)
-    {
-        expanded = EditorGUILayout.BeginFoldoutHeaderGroup(expanded, title);
-        if (expanded)
-        {
-            EditorGUI.indentLevel++;
-            drawContent();
-            EditorGUI.indentLevel--;
-        }
-        EditorGUILayout.EndFoldoutHeaderGroup();
-        EditorGUILayout.Space(2);
-        return expanded;
-    }
-
-    private void StatusLabel(string label, bool value)
-    {
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField(label, GUILayout.Width(EditorGUIUtility.labelWidth));
-        var prev = GUI.color;
-        GUI.color = value ? GoodColor : ErrorColor;
-        EditorGUILayout.LabelField(value ? "YES" : "NO", EditorStyles.boldLabel);
-        GUI.color = prev;
-        EditorGUILayout.EndHorizontal();
-    }
-
-    private void DrawBar(Rect rect, float fill, string label, Color? color = null)
-    {
-        fill = Mathf.Clamp01(fill);
-        EditorGUI.DrawRect(rect, BarBgColor);
-        Rect filled = new Rect(rect.x, rect.y, rect.width * fill, rect.height);
-        EditorGUI.DrawRect(filled, color ?? BarColor);
-        EditorGUI.LabelField(rect, $"  {label}", EditorStyles.miniLabel);
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        const long KiB = 1024;
-        const long MiB = 1024 * KiB;
-        const long GiB = 1024 * MiB;
-        if (bytes >= GiB) return $"{bytes / (double)GiB:F2} GiB";
-        if (bytes >= MiB) return $"{bytes / (double)MiB:F2} MiB";
-        if (bytes >= KiB) return $"{bytes / (double)KiB:F2} KiB";
-        return $"{bytes} B";
     }
 
     private static string FormatUs(long us)
@@ -614,5 +527,83 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
         if (ms < 1000) return $"{us} us ({ms} ms)";
         double s = us / 1_000_000.0;
         return $"{us} us ({s:F3} s)";
+    }
+
+    private static void Show(VisualElement el, bool show)
+    {
+        if (el != null) el.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    private void SetText(string name, string text)
+    {
+        var l = rootVisualElement.Q<Label>(name);
+        if (l != null) l.text = text;
+    }
+
+    private void SetFpsText(string name, float fps)
+    {
+        var l = rootVisualElement.Q<Label>(name);
+        if (l == null) return;
+        l.text = $"{fps:F1} fps";
+        l.style.color = fps >= 24f ? new Color(0.3f, 0.9f, 0.3f) : (fps >= 12f ? new Color(1f, 0.8f, 0.2f) : new Color(1f, 0.3f, 0.3f));
+    }
+
+    private void SetPill(string name, bool value)
+    {
+        var l = rootVisualElement.Q<Label>(name);
+        if (l == null) return;
+        l.text = value ? "YES" : "NO";
+        l.RemoveFromClassList("bvp-pill-neutral");
+        l.RemoveFromClassList("bvp-pill-good");
+        l.RemoveFromClassList("bvp-pill-bad");
+        l.AddToClassList(value ? "bvp-pill-good" : "bvp-pill-bad");
+    }
+
+    private void SetBar(string name, float fill, string fillClass)
+    {
+        var el = rootVisualElement.Q<VisualElement>(name);
+        if (el == null) return;
+        fill = Mathf.Clamp01(fill);
+        el.style.width = new Length(fill * 100f, LengthUnit.Percent);
+        if (fillClass != null)
+        {
+            el.RemoveFromClassList("bvp-bar-fill-good");
+            el.RemoveFromClassList("bvp-bar-fill-warn");
+            el.RemoveFromClassList("bvp-bar-fill-bad");
+            el.AddToClassList(fillClass);
+        }
+    }
+
+    private void ShowHelp(string name, string message, string cssClass)
+    {
+        var l = rootVisualElement.Q<Label>(name);
+        if (l == null) return;
+        l.text = message;
+        l.RemoveFromClassList("bvp-help-info");
+        l.RemoveFromClassList("bvp-help-warn");
+        l.RemoveFromClassList("bvp-help-error");
+        l.AddToClassList(cssClass);
+        l.style.display = DisplayStyle.Flex;
+    }
+
+    private void HideHelp(string name)
+    {
+        var l = rootVisualElement.Q<Label>(name);
+        if (l != null) l.style.display = DisplayStyle.None;
+    }
+
+    private BasisVideoPlayer FindFirstObjectByTypeSafe()
+    {
+#if UNITY_2023_1_OR_NEWER
+        return FindFirstObjectByType<BasisVideoPlayer>(FindObjectsInactive.Include);
+#else
+        var all = Resources.FindObjectsOfTypeAll<BasisVideoPlayer>();
+        for (int i = 0; i < all.Length; i++)
+        {
+            var p = all[i];
+            if (p != null && p.gameObject.scene.IsValid()) return p;
+        }
+        return null;
+#endif
     }
 }

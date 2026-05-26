@@ -239,7 +239,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: BasisVideoPlayer::BasisVideoPlayer
   DisplayName: Main Video Player
-  MaxQueueLength: 32
+  MaxQueueLength: 64
   OverflowPolicy: 0
   LateFrameSkipUs: 0
   BufferMode: 1
@@ -277,10 +277,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b44864d73d66054f8bf1d87375c121a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: BasisVideoPlayer::BasisVideoPlayerStreaming
-  StreamUrl: rtspt://stream.vrcdn.live/live/towneh
+  StreamUrl: rtspt://stream.vrcdn.live/live/vrcdn
   AutoSelectPerPlatform: 1
-  PcUrl: rtspt://stream.vrcdn.live/live/towneh
-  QuestUrl: https://stream.vrcdn.live/live/towneh.live.ts
+  PcUrl: rtspt://stream.vrcdn.live/live/vrcdn
+  QuestUrl: https://stream.vrcdn.live/live/vrcdn.live.ts
   ConfigureOnStart: 1
 --- !u!114 &1325980082505240853
 MonoBehaviour:

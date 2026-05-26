@@ -2,7 +2,10 @@
     "name": "BasisVideoPlayer.Editor",
     "rootNamespace": "",
     "references": [
-        "BasisVideoPlayer"
+        "BasisVideoPlayer",
+        "Basis Framework",
+        "BasisNetworkCore",
+        "BasisSDK"
     ],
     "includePlatforms": [
         "Editor"

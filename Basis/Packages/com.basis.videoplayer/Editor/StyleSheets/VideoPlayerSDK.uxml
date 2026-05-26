@@ -1,0 +1,83 @@
+<engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <engine:VisualElement class="bvp-root">
+        <engine:VisualElement name="HeaderCard" class="bvp-card bvp-header-card">
+            <engine:Label text="Basis Video Player" name="HeaderTitle" selectable="false" class="bvp-header-title"/>
+            <engine:Label text="OS-codec live streaming + CPU synthetic sources" name="HeaderSubtitle" selectable="false" class="bvp-header-subtitle"/>
+        </engine:VisualElement>
+
+        <engine:VisualElement name="IdentityCard" class="bvp-card">
+            <engine:Label text="Identity" class="bvp-section-title"/>
+            <engine:TextField label="Display Name" name="DisplayNameField" tooltip="Friendly name shown in the Video Players menu and diagnostics. Defaults to the GameObject name when empty."/>
+        </engine:VisualElement>
+
+        <engine:Foldout text="Buffering" name="BufferingFoldout" value="true" class="bvp-foldout">
+            <engine:IntegerField label="Max Queue Length" name="MaxQueueLengthField" tooltip="Maximum queued frames before the overflow policy kicks in. ~1s at 30 fps by default."/>
+            <engine:EnumField label="Overflow Policy" name="OverflowPolicyField" tooltip="DropOldest keeps fresh frames; DropNewest keeps the buffered history."/>
+            <engine:LongField label="Late Frame Skip (us)" name="LateFrameSkipField" tooltip="CPU source path only. Frames older than this are skipped without presenting. 0 = always present most recent."/>
+            <engine:EnumField label="Buffer Mode" name="BufferModeField" tooltip="OS-codec live path. Dynamic auto-tunes the jitter buffer; Fixed holds BufferMilliseconds exactly."/>
+            <engine:IntegerField label="Buffer Milliseconds" name="BufferMillisecondsField" tooltip="OS-codec live path. Jitter buffer length. Starting value in Dynamic mode."/>
+        </engine:Foldout>
+
+        <engine:Foldout text="Playback" name="PlaybackFoldout" value="true" class="bvp-foldout">
+            <engine:Toggle label="Auto Play On Source Assigned" name="AutoPlayField"/>
+            <engine:Toggle label="Stop On Disable" name="StopOnDisableField"/>
+            <engine:Toggle label="Loop" name="LoopField"/>
+            <engine:FloatField label="Loop Restart Delay (s)" name="LoopRestartDelayField"/>
+            <engine:LongField label="Presentation Offset (us)" name="PresentationOffsetField" tooltip="Positive = present frames earlier (audio ahead); negative = delay."/>
+        </engine:Foldout>
+
+        <engine:Foldout text="Audio" name="AudioFoldout" value="true" class="bvp-foldout">
+            <engine:EnumField label="Audio Routing" name="AudioRoutingField"/>
+            <engine:Slider label="Volume" name="VolumeField" low-value="0" high-value="1" show-input-field="true"/>
+            <engine:Toggle label="Mute" name="MuteField"/>
+            <engine:Slider label="Playback Rate" name="PlaybackRateField" low-value="0.25" high-value="4" show-input-field="true"/>
+        </engine:Foldout>
+
+        <engine:Foldout text="Logging" name="LoggingFoldout" value="false" class="bvp-foldout">
+            <engine:Toggle label="Verbose Logging" name="VerboseLoggingField"/>
+        </engine:Foldout>
+
+        <engine:Foldout text="Live Status" name="StatusFoldout" value="false" class="bvp-foldout">
+            <engine:VisualElement name="StatusGrid" class="bvp-status-grid">
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Playing" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusPlaying" class="bvp-status-pill bvp-pill-neutral"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Paused" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusPaused" class="bvp-status-pill bvp-pill-neutral"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Prepared" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusPrepared" class="bvp-status-pill bvp-pill-neutral"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Video Size" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusVideoSize" class="bvp-status-value"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Queued Frames" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusQueued" class="bvp-status-value"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Presented" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusPresented" class="bvp-status-value"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Dropped (total)" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusDropped" class="bvp-status-value"/>
+                </engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row">
+                    <engine:Label text="Media Time" class="bvp-status-label"/>
+                    <engine:Label text="—" name="StatusMediaTime" class="bvp-status-value"/>
+                </engine:VisualElement>
+            </engine:VisualElement>
+            <engine:Label text="Enter Play Mode for live counters." name="StatusEditModeHint" class="bvp-help-info"/>
+        </engine:Foldout>
+
+        <engine:VisualElement name="ActionsCard" class="bvp-card bvp-actions-card">
+            <engine:Button text="Open Debug Window" name="OpenDebugWindowButton" class="bvp-primary-button"/>
+            <engine:Button text="Documentation" name="DocumentationButton" class="bvp-secondary-button"/>
+        </engine:VisualElement>
+    </engine:VisualElement>
+</engine:UXML>
