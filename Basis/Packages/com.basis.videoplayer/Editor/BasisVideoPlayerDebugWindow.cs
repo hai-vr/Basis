@@ -452,7 +452,7 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
         if (src == null)
         {
             SetText("AO_SourceName", "(no AudioSource)");
-            ShowHelp("AO_Help", "BasisVideoPlayerAudio has no AudioSource. Assign TargetAudioSource or add an AudioSource to the GameObject.", "bvp-help-error");
+            ShowHelp("AO_Help", "BasisVideoPlayerAudio has no AudioSource. Assign TargetAudioSource or add an AudioSource on the same GameObject.", "bvp-help-error");
             return;
         }
 
@@ -462,14 +462,14 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
         SetText("AO_SpatialBlend", src.spatialBlend.ToString("F2"));
         SetPill("AO_Mute", audio.Mute);
         SetText("AO_Gain", audio.VolumeGain.ToString("F2"));
-        SetText("AO_Clip", audio.StreamingClip != null ? audio.StreamingClip.name : "(none)");
+        SetText("AO_Clip", src.clip != null ? src.clip.name : "(none)");
         SetText("AO_Format", $"{audio.SampleRate} Hz / {audio.ChannelCount} ch");
         SetText("AO_Consumed", audio.ConsumedSampleCount.ToString());
         SetPill("AO_HasAnchor", audio.HasMediaTime);
         SetText("AO_MediaTime", FormatUs(audio.CurrentMediaTimeUs));
 
         if (Application.isPlaying && src.isPlaying && audio.ConsumedSampleCount == 0 && audio.QueuedFrameCount > 0)
-            ShowHelp("AO_Help", "AudioSource reports playing and frames are queued, but the PCM callback hasn't been driven. The streaming AudioClip may not be assigned (AssignClipOnAwake?) or the AudioSource is muted at the mixer.", "bvp-help-warn");
+            ShowHelp("AO_Help", "AudioSource reports playing and frames are queued, but the PCM callback hasn't been driven. The routing clip may not be assigned, or the AudioSource is muted at the mixer.", "bvp-help-warn");
         else HideHelp("AO_Help");
     }
 
@@ -595,7 +595,7 @@ public class BasisVideoPlayerDebugWindow : EditorWindow
     private BasisVideoPlayer FindFirstObjectByTypeSafe()
     {
 #if UNITY_2023_1_OR_NEWER
-        return FindFirstObjectByType<BasisVideoPlayer>(FindObjectsInactive.Include);
+        return FindAnyObjectByType<BasisVideoPlayer>(FindObjectsInactive.Include);
 #else
         var all = Resources.FindObjectsOfTypeAll<BasisVideoPlayer>();
         for (int i = 0; i < all.Length; i++)

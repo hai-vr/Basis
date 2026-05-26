@@ -78,6 +78,33 @@ internal static class BasisNativeMedia
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
     private static extern IntPtr basis_media_get_render_event_func();
 
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_bitrate_track_count(IntPtr engine);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_bitrate_track(IntPtr engine, int index, out int bps, out int width, out int height, byte[] codecBuf, int codecBufSize, byte[] labelBuf, int labelBufSize);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_select_bitrate(IntPtr engine, int index);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_selected_bitrate(IntPtr engine);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_audio_track_count(IntPtr engine);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_audio_track(IntPtr engine, int index, out int channels, out int sampleRate, out int bps, out int dualMono, byte[] langBuf, int langBufSize, byte[] codecBuf, int codecBufSize, byte[] labelBuf, int labelBufSize);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_select_audio_track(IntPtr engine, int index);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_selected_audio_track(IntPtr engine);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_seek_back_us(IntPtr engine, long backUs);
+
     // ---- Managed wrappers (translate the flat ABI into friendlier types) ----
 
     public static IntPtr Open(string url)
@@ -154,5 +181,99 @@ internal static class BasisNativeMedia
     {
         try { return basis_media_get_render_event_func(); }
         catch (DllNotFoundException) { return IntPtr.Zero; }
+    }
+
+    public static int GetBitrateTrackCount(IntPtr e)
+    {
+        if (e == IntPtr.Zero) return 0;
+        try { return basis_media_get_bitrate_track_count(e); }
+        catch (EntryPointNotFoundException) { return 0; }
+    }
+
+    public static bool TryGetBitrateTrack(IntPtr e, int index, out int bps, out int w, out int h, out string codec, out string label)
+    {
+        bps = 0; w = 0; h = 0; codec = null; label = null;
+        if (e == IntPtr.Zero) return false;
+        var codecBuf = new byte[64];
+        var labelBuf = new byte[128];
+        try
+        {
+            int r = basis_media_get_bitrate_track(e, index, out bps, out w, out h, codecBuf, codecBuf.Length, labelBuf, labelBuf.Length);
+            if (r != 0) return false;
+            codec = ReadCString(codecBuf);
+            label = ReadCString(labelBuf);
+            return true;
+        }
+        catch (EntryPointNotFoundException) { return false; }
+    }
+
+    public static bool SelectBitrate(IntPtr e, int index)
+    {
+        if (e == IntPtr.Zero) return false;
+        try { return basis_media_select_bitrate(e, index) == 0; }
+        catch (EntryPointNotFoundException) { return false; }
+    }
+
+    public static int GetSelectedBitrate(IntPtr e)
+    {
+        if (e == IntPtr.Zero) return -1;
+        try { return basis_media_get_selected_bitrate(e); }
+        catch (EntryPointNotFoundException) { return -1; }
+    }
+
+    public static int GetAudioTrackCount(IntPtr e)
+    {
+        if (e == IntPtr.Zero) return 0;
+        try { return basis_media_get_audio_track_count(e); }
+        catch (EntryPointNotFoundException) { return 0; }
+    }
+
+    public static bool TryGetAudioTrack(IntPtr e, int index, out int channels, out int sampleRate, out int bps, out bool dualMono, out string lang, out string codec, out string label)
+    {
+        channels = 0; sampleRate = 0; bps = 0; dualMono = false; lang = null; codec = null; label = null;
+        if (e == IntPtr.Zero) return false;
+        var langBuf = new byte[16];
+        var codecBuf = new byte[64];
+        var labelBuf = new byte[128];
+        try
+        {
+            int dual;
+            int r = basis_media_get_audio_track(e, index, out channels, out sampleRate, out bps, out dual, langBuf, langBuf.Length, codecBuf, codecBuf.Length, labelBuf, labelBuf.Length);
+            if (r != 0) return false;
+            dualMono = dual != 0;
+            lang = ReadCString(langBuf);
+            codec = ReadCString(codecBuf);
+            label = ReadCString(labelBuf);
+            return true;
+        }
+        catch (EntryPointNotFoundException) { return false; }
+    }
+
+    public static bool SelectAudioTrack(IntPtr e, int index)
+    {
+        if (e == IntPtr.Zero) return false;
+        try { return basis_media_select_audio_track(e, index) == 0; }
+        catch (EntryPointNotFoundException) { return false; }
+    }
+
+    public static int GetSelectedAudioTrack(IntPtr e)
+    {
+        if (e == IntPtr.Zero) return -1;
+        try { return basis_media_get_selected_audio_track(e); }
+        catch (EntryPointNotFoundException) { return -1; }
+    }
+
+    public static bool SeekBackUs(IntPtr e, long backUs)
+    {
+        if (e == IntPtr.Zero) return false;
+        try { return basis_media_seek_back_us(e, backUs) == 0; }
+        catch (EntryPointNotFoundException) { return false; }
+    }
+
+    private static string ReadCString(byte[] buf)
+    {
+        int n = 0;
+        while (n < buf.Length && buf[n] != 0) n++;
+        return n == 0 ? null : System.Text.Encoding.UTF8.GetString(buf, 0, n);
     }
 }

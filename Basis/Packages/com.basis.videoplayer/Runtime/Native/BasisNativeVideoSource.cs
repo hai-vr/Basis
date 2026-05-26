@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -41,6 +42,8 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
     public event Action<int, int> OnVideoSizeChanged;
     public event Action OnEndOfStream;
     public event Action<Exception> OnError;
+    public event Action<BasisBitrateTrack> OnBitrateTrackChanged;
+    public event Action<BasisAudioTrack> OnAudioTrackChanged;
 
     public string Url { get; }
     public Texture OutputTexture => externalTexture;
@@ -76,6 +79,32 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
     // Desired jitter buffer; applied to the native engine on Start and on change.
     private int bufferMode = (int)BasisVideoBufferMode.Dynamic;
     private int bufferMs = 120;
+
+    private readonly List<BasisBitrateTrack> bitrateTracks = new List<BasisBitrateTrack>();
+    private readonly List<BasisAudioTrack> audioTracks = new List<BasisAudioTrack>();
+    private int lastReportedBitrateIndex = -2;
+    private int lastReportedAudioTrackIndex = -2;
+
+    public IReadOnlyList<BasisBitrateTrack> BitrateTracks => bitrateTracks;
+    public IReadOnlyList<BasisAudioTrack> AudioTracks => audioTracks;
+    public int SelectedBitrateIndex => BasisNativeMedia.GetSelectedBitrate(handle);
+    public int SelectedAudioTrackIndex => BasisNativeMedia.GetSelectedAudioTrack(handle);
+
+    public bool SelectBitrate(int index)
+    {
+        bool ok = BasisNativeMedia.SelectBitrate(handle, index);
+        if (ok) PollTrackStateOnce();
+        return ok;
+    }
+
+    public bool SelectAudioTrack(int index)
+    {
+        bool ok = BasisNativeMedia.SelectAudioTrack(handle, index);
+        if (ok) PollTrackStateOnce();
+        return ok;
+    }
+
+    public bool SeekBackUs(long backUs) => BasisNativeMedia.SeekBackUs(handle, backUs);
 
     // Diagnostics: heartbeat so we can see whether frames keep flowing.
     private int pumpCount;
@@ -122,10 +151,55 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         if (handle != IntPtr.Zero) BasisNativeMedia.Stop(handle);
     }
 
+    private void PollTrackStateOnce()
+    {
+        if (handle == IntPtr.Zero) return;
+
+        int brCount = BasisNativeMedia.GetBitrateTrackCount(handle);
+        if (brCount != bitrateTracks.Count)
+        {
+            bitrateTracks.Clear();
+            for (int i = 0; i < brCount; i++)
+            {
+                if (BasisNativeMedia.TryGetBitrateTrack(handle, i, out int bps, out int w, out int h, out string codec, out string label))
+                {
+                    bitrateTracks.Add(new BasisBitrateTrack { Index = i, BitsPerSecond = bps, Width = w, Height = h, Codec = codec, Label = label });
+                }
+            }
+        }
+        int brSel = BasisNativeMedia.GetSelectedBitrate(handle);
+        if (brSel != lastReportedBitrateIndex)
+        {
+            lastReportedBitrateIndex = brSel;
+            if (brSel >= 0 && brSel < bitrateTracks.Count) OnBitrateTrackChanged?.Invoke(bitrateTracks[brSel]);
+        }
+
+        int atCount = BasisNativeMedia.GetAudioTrackCount(handle);
+        if (atCount != audioTracks.Count)
+        {
+            audioTracks.Clear();
+            for (int i = 0; i < atCount; i++)
+            {
+                if (BasisNativeMedia.TryGetAudioTrack(handle, i, out int ch, out int sr, out int bps, out bool dm, out string lang, out string codec, out string label))
+                {
+                    audioTracks.Add(new BasisAudioTrack { Index = i, ChannelCount = ch, SampleRate = sr, BitsPerSecond = bps, IsDualMono = dm, Language = lang, Codec = codec, Label = label });
+                }
+            }
+        }
+        int atSel = BasisNativeMedia.GetSelectedAudioTrack(handle);
+        if (atSel != lastReportedAudioTrackIndex)
+        {
+            lastReportedAudioTrackIndex = atSel;
+            if (atSel >= 0 && atSel < audioTracks.Count) OnAudioTrackChanged?.Invoke(audioTracks[atSel]);
+        }
+    }
+
     // Main-thread tick: drive the render-thread texture update and surface events.
     public void Pump()
     {
         if (handle == IntPtr.Zero || disposed) return;
+
+        PollTrackStateOnce();
 
         // Ask the engine to publish its newest decoded frame into the Unity
         // texture on the render thread. IssuePluginEventAndData lives on

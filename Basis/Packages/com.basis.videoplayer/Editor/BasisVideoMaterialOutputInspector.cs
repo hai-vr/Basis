@@ -39,6 +39,11 @@ public class BasisVideoMaterialOutputInspector : Editor
         BindByName("PlaceholderField", "PlaceholderTexture");
         BindByName("RestoreOnEndedField", "RestorePlaceholderOnEnded");
         BindByName("FlipVerticallyField", "FlipVertically");
+        BindByName("ProjectionModeField", "ProjectionMode");
+        BindByName("StereoEyeField", "StereoEye");
+        BindByName("AspectModeField", "AspectMode");
+        BindByName("DisplayAspectOverrideField", "DisplayAspectOverride");
+        BindByName("PictureField", "Picture");
         _root.Bind(serializedObject);
 
         _playerResolved = _root.Q<Label>("StatusPlayerResolved");

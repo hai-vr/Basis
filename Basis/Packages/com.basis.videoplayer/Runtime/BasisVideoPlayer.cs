@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 // Top-level facade. Wires an IBasisFrameSource (live streaming) or
 // IBasisSeekableFrameSource (file / URL playback) to an IBasisFrameRenderer
@@ -66,6 +68,21 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     [Tooltip("Playback rate multiplier. 1.0 = real-time. Source backends that don't support rate changes ignore this.")]
     [Range(0.25f, 4f)] public float PlaybackRate = 1f;
 
+    [Header("Sleep Timer")]
+    [Tooltip("If > 0, the player calls Stop() automatically this many seconds after Play. 0 disables. Useful for fall-asleep-to-the-stream rooms.")]
+    [Min(0f)] public float StopAfterSeconds = 0f;
+
+    [Header("Capture")]
+    [Tooltip("CaptureScreenshot flips rows before encoding to PNG. Native GPU textures (D3D11/12) read back top-left origin and need flipping to be right-way-up on disk; toggle if your platform already reads bottom-left origin.")]
+    public bool FlipVerticallyForScreenshot = true;
+
+    [Header("DVR")]
+    [Tooltip("If true and the source is live, BufferMilliseconds is forced up to DvrWindowSeconds*1000 (capped at 60s) so the engine holds a rolling rewind window. Has no effect on seekable sources, which already support Seek to any position.")]
+    public bool DvrEnabled = false;
+
+    [Tooltip("Length of the live-rewind window in seconds. The engine retains this much decoded history; TrySeekBack(within this window) reverses playback. Costs proportional memory in the native ring; keep modest (5–30 s typical, 60 s cap).")]
+    [Range(0f, 60f)] public float DvrWindowSeconds = 10f;
+
     [Header("Logging")]
     [Tooltip("If true, informational events (end-of-stream, restart, dropped frames) are logged. Errors are always logged regardless.")]
     public bool VerboseLogging = false;
@@ -94,6 +111,7 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     public event Action<TimeSpan> OnSeekCompleted;
     public event Action<Texture> OnOutputTextureChanged;
     public event Action<BasisBitrateTrack> OnBitrateTrackChanged;
+    public event Action<BasisAudioTrack> OnAudioTrackChanged;
 
     // Diagnostic event; not in the public lifecycle list but kept for tooling
     // that wants per-frame callbacks.
@@ -103,17 +121,17 @@ public sealed class BasisVideoPlayer : MonoBehaviour
 
     public IBasisFrameRenderer Renderer
     {
-        get => renderer ??= new BasisRgba32FrameRenderer();
+        get => _renderer ??= new BasisRgba32FrameRenderer();
         set
         {
             DetachRenderer();
-            renderer?.Dispose();
-            renderer = value;
+            _renderer?.Dispose();
+            _renderer = value;
             AttachRenderer();
             // Push the current output texture through the change event so
             // newly attached consumers can rebind without waiting for the
             // next resize.
-            OnOutputTextureChanged?.Invoke(renderer?.OutputTexture);
+            OnOutputTextureChanged?.Invoke(_renderer?.OutputTexture);
         }
     }
 
@@ -141,7 +159,7 @@ public sealed class BasisVideoPlayer : MonoBehaviour
 
     // When the OS-codec engine is active it owns a zero-copy external texture;
     // otherwise the CPU renderer's RenderTexture is the output.
-    public Texture OutputTexture => nativeEngine != null ? nativeEngine.OutputTexture : renderer?.OutputTexture;
+    public Texture OutputTexture => nativeEngine != null ? nativeEngine.OutputTexture : _renderer?.OutputTexture;
 
     public bool IsPlaying => runtimeIsPlaying;
     public bool IsPaused => runtimeIsPaused;
@@ -177,13 +195,52 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     public BasisVideoPlayerAudio AudioComponent => audioComponent;
     public BasisMediaSource ActiveMediaSource => activeMediaSource;
 
+    public System.Collections.Generic.IReadOnlyList<BasisBitrateTrack> BitrateTracks =>
+        nativeEngine != null ? nativeEngine.BitrateTracks : System.Array.Empty<BasisBitrateTrack>();
+    public int SelectedBitrateIndex => nativeEngine != null ? nativeEngine.SelectedBitrateIndex : -1;
+
+    public bool SelectBitrate(int index) => nativeEngine != null && nativeEngine.SelectBitrate(index);
+
+    public System.Collections.Generic.IReadOnlyList<BasisAudioTrack> AudioTracks =>
+        nativeEngine != null ? nativeEngine.AudioTracks : System.Array.Empty<BasisAudioTrack>();
+    public int SelectedAudioTrackIndex => nativeEngine != null ? nativeEngine.SelectedAudioTrackIndex : -1;
+
+    public bool SelectAudioTrack(int index) => nativeEngine != null && nativeEngine.SelectAudioTrack(index);
+
+    public bool TrySeekBack(TimeSpan back)
+    {
+        if (back <= TimeSpan.Zero) return false;
+        if (seekableSource != null && seekableSource.IsPrepared)
+        {
+            var target = seekableSource.Position - back;
+            if (target < TimeSpan.Zero) target = TimeSpan.Zero;
+            Seek(target);
+            return true;
+        }
+        if (nativeEngine != null)
+        {
+            long backUs = (long)Math.Min(back.TotalMilliseconds, int.MaxValue) * 1000L;
+            bool ok = nativeEngine.SeekBackUs(backUs);
+            if (!ok && VerboseLogging) BasisDebug.LogWarning("BasisVideoPlayer.TrySeekBack: native engine does not expose basis_media_seek_back_us (rebuild native plugin to enable live DVR).", BasisDebug.LogTag.Video);
+            return ok;
+        }
+        return false;
+    }
+
+    private int ResolvedBufferMilliseconds()
+    {
+        if (!DvrEnabled) return BufferMilliseconds;
+        int dvrMs = Mathf.RoundToInt(Mathf.Clamp(DvrWindowSeconds, 0f, 60f) * 1000f);
+        return Mathf.Max(BufferMilliseconds, dvrMs);
+    }
+
     // Active OS-codec backend, or null when on the CPU IBasisFrameSource path.
     // Exposed for diagnostics/tooling.
     public BasisNativeVideoSource NativeEngine => nativeEngine;
 
     private IBasisFrameSource source;
     private IBasisSeekableFrameSource seekableSource;
-    private IBasisFrameRenderer renderer;
+    private IBasisFrameRenderer _renderer;
     private readonly ConcurrentQueue<BasisVideoFrame> videoQueue = new ConcurrentQueue<BasisVideoFrame>();
     private float pendingRestartTimer;
     private bool restartScheduled;
@@ -194,6 +251,8 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     private BasisVideoPlayerAudio audioComponent;
     private long lastEnqueuedPtsUs;
     private BasisMediaSource activeMediaSource;
+    private float sleepTimerRemainingSeconds;
+    private bool sleepTimerArmed;
 
     // Live OS-codec path (RTSPT / RTMP / MPEG-TS / fMP4). Mutually exclusive with
     // the CPU IBasisFrameSource path (synthetic test source): whichever is
@@ -209,6 +268,7 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     private long pendingVideoSize;
     private long pendingSeekCompletedUs = long.MinValue;
     private BasisBitrateTrack pendingBitrateTrack;
+    private BasisAudioTrack pendingAudioTrack;
     private Exception pendingError;
     private bool firstFrameEmittedThisPlay;
 
@@ -329,7 +389,11 @@ public sealed class BasisVideoPlayer : MonoBehaviour
             if (!nativeEngine.IsRunning) nativeEngine.Start();
             else nativeEngine.Play();
             runtimeIsPlaying = nativeEngine.IsRunning;
-            if (runtimeIsPlaying) OnStarted?.Invoke();
+            if (runtimeIsPlaying)
+            {
+                ArmSleepTimer();
+                OnStarted?.Invoke();
+            }
             return;
         }
 
@@ -348,11 +412,16 @@ public sealed class BasisVideoPlayer : MonoBehaviour
         firstFrameEmittedThisPlay = false;
         if (!source.IsRunning) source.Start();
         runtimeIsPlaying = source.IsRunning;
-        if (runtimeIsPlaying) OnStarted?.Invoke();
+        if (runtimeIsPlaying)
+        {
+            ArmSleepTimer();
+            OnStarted?.Invoke();
+        }
     }
 
     public void Stop()
     {
+        sleepTimerArmed = false;
         if (nativeEngine != null)
         {
             nativeEngine.Stop();
@@ -394,6 +463,91 @@ public sealed class BasisVideoPlayer : MonoBehaviour
         OnStarted?.Invoke();
     }
 
+    public void CaptureScreenshot(string relativePath = null, Action<string, Exception> onComplete = null)
+    {
+        var tex = OutputTexture;
+        if (tex == null) { onComplete?.Invoke(null, new InvalidOperationException("No output texture yet.")); return; }
+        if (tex.width <= 0 || tex.height <= 0) { onComplete?.Invoke(null, new InvalidOperationException("Output texture has zero dimensions.")); return; }
+
+        if (string.IsNullOrEmpty(relativePath))
+        {
+            relativePath = $"Screenshots/basis_video_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}.png";
+        }
+        if (!BasisVideoPlayerSecurity.TrySandboxLogPath(relativePath, out string fullPath, out string reason))
+        {
+            onComplete?.Invoke(null, new UnauthorizedAccessException(reason));
+            return;
+        }
+
+        try
+        {
+            string dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        }
+        catch (Exception ex) { onComplete?.Invoke(null, ex); return; }
+
+        int w = tex.width, h = tex.height;
+        bool isBgra = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11
+                   || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12;
+
+        AsyncGPUReadback.Request(tex, 0, request =>
+        {
+            if (request.hasError) { onComplete?.Invoke(null, new Exception("AsyncGPUReadback failed.")); return; }
+            try
+            {
+                var data = request.GetData<byte>();
+                byte[] bytes = new byte[data.Length];
+                data.CopyTo(bytes);
+                if (isBgra) SwizzleBgraToRgba(bytes);
+                if (FlipVerticallyForScreenshot) FlipRowsRgba32(bytes, w, h);
+                var managed = new Texture2D(w, h, TextureFormat.RGBA32, false, false);
+                managed.LoadRawTextureData(bytes);
+                byte[] png = managed.EncodeToPNG();
+                UnityEngine.Object.Destroy(managed);
+                File.WriteAllBytes(fullPath, png);
+                if (VerboseLogging) BasisDebug.Log($"BasisVideoPlayer wrote screenshot {fullPath} ({png.Length} bytes).", BasisDebug.LogTag.Video);
+                onComplete?.Invoke(fullPath, null);
+            }
+            catch (Exception ex) { onComplete?.Invoke(null, ex); }
+        });
+    }
+
+    private static void SwizzleBgraToRgba(byte[] rgba)
+    {
+        for (int i = 0; i + 3 < rgba.Length; i += 4) { byte b = rgba[i]; rgba[i] = rgba[i + 2]; rgba[i + 2] = b; }
+    }
+
+    private static void FlipRowsRgba32(byte[] data, int width, int height)
+    {
+        int stride = width * 4;
+        var tmp = new byte[stride];
+        for (int y = 0; y < height / 2; y++)
+        {
+            int top = y * stride;
+            int bot = (height - 1 - y) * stride;
+            Buffer.BlockCopy(data, top, tmp, 0, stride);
+            Buffer.BlockCopy(data, bot, data, top, stride);
+            Buffer.BlockCopy(tmp, 0, data, bot, stride);
+        }
+    }
+
+    private void ArmSleepTimer()
+    {
+        if (StopAfterSeconds <= 0f) { sleepTimerArmed = false; return; }
+        sleepTimerRemainingSeconds = StopAfterSeconds;
+        sleepTimerArmed = true;
+    }
+
+    private void TickSleepTimer()
+    {
+        if (!sleepTimerArmed || runtimeIsPaused || !runtimeIsPlaying) return;
+        sleepTimerRemainingSeconds -= Time.unscaledDeltaTime;
+        if (sleepTimerRemainingSeconds > 0f) return;
+        sleepTimerArmed = false;
+        if (VerboseLogging) BasisDebug.Log("BasisVideoPlayer sleep timer elapsed; stopping.", BasisDebug.LogTag.Video);
+        Stop();
+    }
+
     public void TogglePause()
     {
         if (runtimeIsPaused) Resume();
@@ -420,7 +574,7 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     {
         ApplyAudioRoutingToComponent();
         // Live-tune the buffer when changed in the inspector during play.
-        if (Application.isPlaying) nativeEngine?.SetBuffer(BufferMode, BufferMilliseconds);
+        if (Application.isPlaying) nativeEngine?.SetBuffer(BufferMode, ResolvedBufferMilliseconds());
     }
 
     private void OnDisable()
@@ -437,8 +591,8 @@ public sealed class BasisVideoPlayer : MonoBehaviour
         source = null;
         seekableSource = null;
         DetachRenderer();
-        renderer?.Dispose();
-        renderer = null;
+        _renderer?.Dispose();
+        _renderer = null;
     }
 
     private void AttachSource()
@@ -505,9 +659,11 @@ public sealed class BasisVideoPlayer : MonoBehaviour
             nativeEngine.OnVideoSizeChanged += HandleVideoSizeChanged;
             nativeEngine.OnEndOfStream += HandleEndOfStream;
             nativeEngine.OnError += HandleError;
+            nativeEngine.OnBitrateTrackChanged += HandleBitrateTrackChanged;
+            nativeEngine.OnAudioTrackChanged += HandleAudioTrackChanged;
         }
         if (audioComponent != null) audioComponent.NativePcmSource = nativeEngine;
-        if (nativeEngine != null) nativeEngine.SetBuffer(BufferMode, BufferMilliseconds);
+        if (nativeEngine != null) nativeEngine.SetBuffer(BufferMode, ResolvedBufferMilliseconds());
 
         // Push the (currently null) external texture so consumers rebind once a
         // frame lands; the real texture arrives via OnOutputTextureChanged in Update.
@@ -523,6 +679,8 @@ public sealed class BasisVideoPlayer : MonoBehaviour
         nativeEngine.OnVideoSizeChanged -= HandleVideoSizeChanged;
         nativeEngine.OnEndOfStream -= HandleEndOfStream;
         nativeEngine.OnError -= HandleError;
+        nativeEngine.OnBitrateTrackChanged -= HandleBitrateTrackChanged;
+        nativeEngine.OnAudioTrackChanged -= HandleAudioTrackChanged;
         if (audioComponent != null && ReferenceEquals(audioComponent.NativePcmSource, nativeEngine))
             audioComponent.NativePcmSource = null;
         try { nativeEngine.Dispose(); }
@@ -533,14 +691,14 @@ public sealed class BasisVideoPlayer : MonoBehaviour
 
     private void AttachRenderer()
     {
-        if (renderer == null) return;
-        renderer.OnOutputTextureChanged += HandleOutputTextureChanged;
+        if (_renderer == null) return;
+        _renderer.OnOutputTextureChanged += HandleOutputTextureChanged;
     }
 
     private void DetachRenderer()
     {
-        if (renderer == null) return;
-        renderer.OnOutputTextureChanged -= HandleOutputTextureChanged;
+        if (_renderer == null) return;
+        _renderer.OnOutputTextureChanged -= HandleOutputTextureChanged;
     }
 
     private void ResetSourceState()
@@ -645,6 +803,11 @@ public sealed class BasisVideoPlayer : MonoBehaviour
         pendingBitrateTrack = track;
     }
 
+    private void HandleAudioTrackChanged(BasisAudioTrack track)
+    {
+        pendingAudioTrack = track;
+    }
+
     private void HandleOutputTextureChanged(Texture texture)
     {
         // Renderer can fire from blit code paths, but Graphics.Blit is main-thread only,
@@ -654,6 +817,8 @@ public sealed class BasisVideoPlayer : MonoBehaviour
 
     private void Update()
     {
+        TickSleepTimer();
+
         // OS-codec engine path: drive the render-thread texture update, surface
         // ready/size/EOS/error events, then mirror status. No CPU frame queue.
         if (nativeEngine != null)
@@ -852,6 +1017,13 @@ public sealed class BasisVideoPlayer : MonoBehaviour
             var track = pendingBitrateTrack;
             pendingBitrateTrack = null;
             OnBitrateTrackChanged?.Invoke(track);
+        }
+
+        if (pendingAudioTrack != null)
+        {
+            var track = pendingAudioTrack;
+            pendingAudioTrack = null;
+            OnAudioTrackChanged?.Invoke(track);
         }
 
         if (sourceEndOfStreamPending)

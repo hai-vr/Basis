@@ -41,13 +41,37 @@ public sealed class BasisVideoMaterialOutput : MonoBehaviour
     [Tooltip("Flip the video vertically. Native GPU textures (D3D11/D3D12) are top-left origin and come in upside-down for Unity sampling, so this defaults ON. Toggle if your content/platform is already the right way up.")]
     public bool FlipVertically = true;
 
+    [Header("Projection")]
+    [Tooltip("How the source frame is laid out. Mono/SBS/OU select the correct UV half via UV transform; Equirect360/VR180/Fisheye set a shader keyword (BASIS_PROJ_*) for compatible shaders.")]
+    public BasisVideoProjectionMode ProjectionMode = BasisVideoProjectionMode.Mono;
+
+    [Tooltip("Which half of a stereo SBS/OU stream to display on a non-VR or single-eye target. Stereo VR rendering on a per-eye material would use UnityStereoEyeIndex in the shader instead.")]
+    public BasisVideoStereoEye StereoEye = BasisVideoStereoEye.Left;
+
+    [Header("Aspect")]
+    [Tooltip("Original = sample untransformed; Stretch = same; FitInside = letterbox to preserve source aspect; FitOutside = crop to fill display; PixelPerfect = 1:1 source pixels at the chosen scale.")]
+    public BasisVideoAspectMode AspectMode = BasisVideoAspectMode.Original;
+
+    [Tooltip("Display aspect ratio for FitInside/FitOutside/PixelPerfect. Defaults to the renderer's local-bounds aspect when 0. Override for non-square quads or skewed targets.")]
+    [Min(0f)] public float DisplayAspectOverride = 0f;
+
+    [Header("Picture")]
+    [Tooltip("Per-output picture controls. Shader must read _BasisBrightness/_BasisContrast/_BasisSaturation/_BasisGamma from the MaterialPropertyBlock; unsupported shaders just ignore them.")]
+    public BasisVideoPicture Picture = BasisVideoPicture.Default;
+
     private static readonly int FallbackPropertyId = Shader.PropertyToID("_MainTex");
+    private static readonly int PropBrightness = Shader.PropertyToID("_BasisBrightness");
+    private static readonly int PropContrast = Shader.PropertyToID("_BasisContrast");
+    private static readonly int PropSaturation = Shader.PropertyToID("_BasisSaturation");
+    private static readonly int PropGamma = Shader.PropertyToID("_BasisGamma");
 
     private Texture originalTexture;
     private Vector2 originalScale = Vector2.one;
     private Vector2 originalOffset = Vector2.zero;
     private bool capturedOriginal;
     private int propertyId;
+    private MaterialPropertyBlock mpb;
+    private string activeShaderKeyword;
 
     private void Reset()
     {
@@ -137,15 +161,89 @@ public sealed class BasisVideoMaterialOutput : MonoBehaviour
     {
         var material = GetMaterial();
         if (material == null) return;
-        if (material.HasProperty(propertyId))
+        if (!material.HasProperty(propertyId)) return;
+
+        material.SetTexture(propertyId, texture);
+
+        bool isLiveVideo = texture != null && texture != PlaceholderTexture;
+        if (!isLiveVideo)
         {
-            material.SetTexture(propertyId, texture);
-            // Vertical flip via the texture transform (UVs sample top-to-bottom).
-            // Only flip the live video texture, not the placeholder/original.
-            bool flip = FlipVertically && texture != null && texture != PlaceholderTexture;
-            material.SetTextureScale(propertyId, flip ? new Vector2(originalScale.x, -originalScale.y) : originalScale);
-            material.SetTextureOffset(propertyId, flip ? new Vector2(originalOffset.x, originalOffset.y + originalScale.y) : originalOffset);
+            material.SetTextureScale(propertyId, originalScale);
+            material.SetTextureOffset(propertyId, originalOffset);
+            ApplyShaderKeyword(material, null);
+            ClearPicture();
+            return;
         }
+
+        BasisVideoOutputMath.GetProjectionUv(ProjectionMode, StereoEye,
+            out Vector2 projScale, out Vector2 projOffset, out string keyword);
+
+        int vw = texture.width;
+        int vh = texture.height;
+        if (ProjectionMode == BasisVideoProjectionMode.SideBySideLR || ProjectionMode == BasisVideoProjectionMode.SideBySideRL) vw /= 2;
+        else if (ProjectionMode == BasisVideoProjectionMode.OverUnderTB || ProjectionMode == BasisVideoProjectionMode.OverUnderBT) vh /= 2;
+
+        float displayAspect = DisplayAspectOverride > 0f ? DisplayAspectOverride : EstimateRendererAspect();
+        BasisVideoOutputMath.GetAspectUv(AspectMode, vw, vh, displayAspect,
+            out Vector2 aspScale, out Vector2 aspOffset);
+
+        BasisVideoOutputMath.Compose(projScale, projOffset, aspScale, aspOffset,
+            out Vector2 scale, out Vector2 offset);
+
+        scale.x *= originalScale.x;
+        scale.y *= originalScale.y;
+        offset.x = originalOffset.x + originalScale.x * offset.x;
+        offset.y = originalOffset.y + originalScale.y * offset.y;
+
+        if (FlipVertically) BasisVideoOutputMath.ApplyVerticalFlip(ref scale, ref offset);
+
+        material.SetTextureScale(propertyId, scale);
+        material.SetTextureOffset(propertyId, offset);
+
+        ApplyShaderKeyword(material, keyword);
+        ApplyPicture();
+    }
+
+    private float EstimateRendererAspect()
+    {
+        if (TargetRenderer == null) return 1f;
+        var b = TargetRenderer.localBounds.size;
+        if (b.x > 0f && b.y > 0f) return b.x / b.y;
+        return 1f;
+    }
+
+    private void ApplyShaderKeyword(Material material, string keyword)
+    {
+        if (material == null) return;
+        if (!string.IsNullOrEmpty(activeShaderKeyword) && activeShaderKeyword != keyword)
+        {
+            material.DisableKeyword(activeShaderKeyword);
+        }
+        activeShaderKeyword = keyword;
+        if (!string.IsNullOrEmpty(keyword)) material.EnableKeyword(keyword);
+    }
+
+    private void ApplyPicture()
+    {
+        if (TargetRenderer == null) return;
+        mpb ??= new MaterialPropertyBlock();
+        TargetRenderer.GetPropertyBlock(mpb, MaterialIndex);
+        mpb.SetFloat(PropBrightness, Picture.Brightness);
+        mpb.SetFloat(PropContrast, Picture.Contrast);
+        mpb.SetFloat(PropSaturation, Picture.Saturation);
+        mpb.SetFloat(PropGamma, Picture.Gamma <= 0f ? 1f : Picture.Gamma);
+        TargetRenderer.SetPropertyBlock(mpb, MaterialIndex);
+    }
+
+    private void ClearPicture()
+    {
+        if (TargetRenderer == null || mpb == null) return;
+        TargetRenderer.GetPropertyBlock(mpb, MaterialIndex);
+        mpb.SetFloat(PropBrightness, 1f);
+        mpb.SetFloat(PropContrast, 1f);
+        mpb.SetFloat(PropSaturation, 1f);
+        mpb.SetFloat(PropGamma, 1f);
+        TargetRenderer.SetPropertyBlock(mpb, MaterialIndex);
     }
 
     // Re-apply when the flip toggle changes in the inspector during play.

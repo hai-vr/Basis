@@ -2,7 +2,7 @@
     <engine:VisualElement class="bvp-root">
         <engine:VisualElement name="HeaderCard" class="bvp-card bvp-header-card">
             <engine:Label text="Basis Video Player" name="HeaderTitle" selectable="false" class="bvp-header-title"/>
-            <engine:Label text="OS-codec live streaming + CPU synthetic sources" name="HeaderSubtitle" selectable="false" class="bvp-header-subtitle"/>
+            <engine:Label text="OS-codec live streaming" name="HeaderSubtitle" selectable="false" class="bvp-header-subtitle"/>
         </engine:VisualElement>
 
         <engine:VisualElement name="IdentityCard" class="bvp-card">
@@ -33,51 +33,21 @@
             <engine:Slider label="Playback Rate" name="PlaybackRateField" low-value="0.25" high-value="4" show-input-field="true"/>
         </engine:Foldout>
 
+        <engine:Foldout text="Capture" name="CaptureFoldout" value="false" class="bvp-foldout">
+            <engine:Toggle label="Flip Screenshots Vertically" name="FlipScreenshotField" tooltip="CaptureScreenshot flips rows before PNG encode (D3D11/12 readbacks are top-left)."/>
+        </engine:Foldout>
+
+        <engine:Foldout text="DVR" name="DvrFoldout" value="false" class="bvp-foldout">
+            <engine:Toggle label="DVR Enabled" name="DvrEnabledField" tooltip="Forces a rolling rewind buffer on live sources by raising BufferMilliseconds. Seekable sources ignore this (regular Seek already works)."/>
+            <engine:Slider label="DVR Window (s)" name="DvrWindowField" low-value="0" high-value="60" show-input-field="true"/>
+        </engine:Foldout>
+
         <engine:Foldout text="Logging" name="LoggingFoldout" value="false" class="bvp-foldout">
             <engine:Toggle label="Verbose Logging" name="VerboseLoggingField"/>
         </engine:Foldout>
 
-        <engine:Foldout text="Live Status" name="StatusFoldout" value="false" class="bvp-foldout">
-            <engine:VisualElement name="StatusGrid" class="bvp-status-grid">
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Playing" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusPlaying" class="bvp-status-pill bvp-pill-neutral"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Paused" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusPaused" class="bvp-status-pill bvp-pill-neutral"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Prepared" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusPrepared" class="bvp-status-pill bvp-pill-neutral"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Video Size" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusVideoSize" class="bvp-status-value"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Queued Frames" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusQueued" class="bvp-status-value"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Presented" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusPresented" class="bvp-status-value"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Dropped (total)" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusDropped" class="bvp-status-value"/>
-                </engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row">
-                    <engine:Label text="Media Time" class="bvp-status-label"/>
-                    <engine:Label text="—" name="StatusMediaTime" class="bvp-status-value"/>
-                </engine:VisualElement>
-            </engine:VisualElement>
-            <engine:Label text="Enter Play Mode for live counters." name="StatusEditModeHint" class="bvp-help-info"/>
-        </engine:Foldout>
-
         <engine:VisualElement name="ActionsCard" class="bvp-card bvp-actions-card">
             <engine:Button text="Open Debug Window" name="OpenDebugWindowButton" class="bvp-primary-button"/>
-            <engine:Button text="Documentation" name="DocumentationButton" class="bvp-secondary-button"/>
         </engine:VisualElement>
     </engine:VisualElement>
 </engine:UXML>

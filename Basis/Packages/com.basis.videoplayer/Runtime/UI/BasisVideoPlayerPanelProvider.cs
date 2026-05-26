@@ -30,6 +30,11 @@ namespace Basis.BasisUI.VideoPlayer
         private PanelTextField _urlField;
         private PanelSlider _volumeSlider;
         private PanelToggle _muteToggle;
+        private PanelDropdown _bitrateDropdown;
+        private PanelDropdown _audioTrackDropdown;
+        private PanelSlider _sleepTimerSlider;
+        private PanelToggle _dvrToggle;
+        private PanelSlider _dvrWindowSlider;
         private BasisVideoPlayer _activePlayer;
         private readonly List<BasisVideoPlayer> _entries = new List<BasisVideoPlayer>();
         private bool _debugTickSubscribed;
@@ -96,6 +101,7 @@ namespace Basis.BasisUI.VideoPlayer
         private void OnPanelClosed()
         {
             SetDebugTickSubscription(false);
+            UnsubscribeFromActivePlayer();
             _panel = null;
             _scrollContent = null;
             _selector = null;
@@ -107,6 +113,11 @@ namespace Basis.BasisUI.VideoPlayer
             _urlField = null;
             _volumeSlider = null;
             _muteToggle = null;
+            _bitrateDropdown = null;
+            _audioTrackDropdown = null;
+            _sleepTimerSlider = null;
+            _dvrToggle = null;
+            _dvrWindowSlider = null;
             _activePlayer = null;
             _entries.Clear();
         }
@@ -145,6 +156,56 @@ namespace Basis.BasisUI.VideoPlayer
             PanelButton stopBtn = PanelButton.CreateNew(actions);
             stopBtn.Descriptor.SetTitle("Stop");
             stopBtn.OnClicked += () => _activePlayer?.Stop();
+
+            _bitrateDropdown = PanelDropdown.CreateNewEntry(content);
+            _bitrateDropdown.Descriptor.SetTitle("Bitrate");
+            _bitrateDropdown.OnValueChanged = _ =>
+            {
+                if (_activePlayer == null || _bitrateDropdown == null) return;
+                int idx = _bitrateDropdown.Index;
+                if (idx > 0) _activePlayer.SelectBitrate(idx - 1);
+            };
+
+            _audioTrackDropdown = PanelDropdown.CreateNewEntry(content);
+            _audioTrackDropdown.Descriptor.SetTitle("Audio Track");
+            _audioTrackDropdown.OnValueChanged = _ =>
+            {
+                if (_activePlayer == null || _audioTrackDropdown == null) return;
+                int idx = _audioTrackDropdown.Index;
+                if (idx >= 0) _activePlayer.SelectAudioTrack(idx);
+            };
+
+            _sleepTimerSlider = PanelSlider.CreateNew(content);
+            _sleepTimerSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced("Sleep Timer (min)", 0f, 120f, true, 0, ValueDisplayMode.Raw));
+            _sleepTimerSlider.OnValueChanged = v =>
+            {
+                if (_activePlayer == null) return;
+                _activePlayer.StopAfterSeconds = Mathf.Max(0f, v) * 60f;
+            };
+
+            _dvrToggle = PanelToggle.CreateNewEntry(content);
+            _dvrToggle.Descriptor.SetTitle("DVR (rolling rewind)");
+            _dvrToggle.OnValueChanged = v =>
+            {
+                if (_activePlayer == null) return;
+                _activePlayer.DvrEnabled = v;
+            };
+
+            _dvrWindowSlider = PanelSlider.CreateNew(content);
+            _dvrWindowSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced("DVR Window (s)", 0f, 60f, true, 0, ValueDisplayMode.Raw));
+            _dvrWindowSlider.OnValueChanged = v =>
+            {
+                if (_activePlayer == null) return;
+                _activePlayer.DvrWindowSeconds = Mathf.Clamp(v, 0f, 60f);
+            };
+
+            RectTransform dvrActions = BuildActionRow(content);
+            PanelButton back10 = PanelButton.CreateNew(dvrActions);
+            back10.Descriptor.SetTitle("⏪ 10s");
+            back10.OnClicked += () => _activePlayer?.TrySeekBack(System.TimeSpan.FromSeconds(10));
+            PanelButton back30 = PanelButton.CreateNew(dvrActions);
+            back30.Descriptor.SetTitle("⏪ 30s");
+            back30.OnClicked += () => _activePlayer?.TrySeekBack(System.TimeSpan.FromSeconds(30));
         }
 
         private void BuildUserGroup(RectTransform parent)
@@ -181,6 +242,18 @@ namespace Basis.BasisUI.VideoPlayer
                 _activePlayer.AudioComponent?.ResetSyncAnchor();
                 _activePlayer.Clock.Reset();
             };
+
+            PanelButton screenshotBtn = PanelButton.CreateNew(actions);
+            screenshotBtn.Descriptor.SetTitle("Screenshot");
+            screenshotBtn.OnClicked += () =>
+            {
+                if (_activePlayer == null) return;
+                _activePlayer.CaptureScreenshot(null, (path, ex) =>
+                {
+                    if (ex != null) BasisDebug.LogWarning($"Screenshot failed: {ex.Message}", BasisDebug.LogTag.Video);
+                    else BasisDebug.Log($"Screenshot saved to {path}", BasisDebug.LogTag.Video);
+                });
+            };
         }
 
         private void RebuildSelector()
@@ -216,7 +289,9 @@ namespace Basis.BasisUI.VideoPlayer
 
             int idx = _activePlayer != null ? _entries.IndexOf(_activePlayer) : 0;
             if (idx < 0) idx = 0;
+            UnsubscribeFromActivePlayer();
             _activePlayer = _entries[idx];
+            SubscribeToActivePlayer();
             _selector.SetValueWithoutNotify(labels[idx]);
 
             ApplyActivePlayerToControls();
@@ -227,9 +302,28 @@ namespace Basis.BasisUI.VideoPlayer
             if (_selector == null) return;
             int idx = _selector.Index;
             if (idx < 0 || idx >= _entries.Count) return;
+            UnsubscribeFromActivePlayer();
             _activePlayer = _entries[idx];
+            SubscribeToActivePlayer();
             ApplyActivePlayerToControls();
         }
+
+        private void SubscribeToActivePlayer()
+        {
+            if (_activePlayer == null) return;
+            _activePlayer.OnBitrateTrackChanged += HandleActiveBitrateChanged;
+            _activePlayer.OnAudioTrackChanged += HandleActiveAudioTrackChanged;
+        }
+
+        private void UnsubscribeFromActivePlayer()
+        {
+            if (_activePlayer == null) return;
+            _activePlayer.OnBitrateTrackChanged -= HandleActiveBitrateChanged;
+            _activePlayer.OnAudioTrackChanged -= HandleActiveAudioTrackChanged;
+        }
+
+        private void HandleActiveBitrateChanged(BasisBitrateTrack _) => RebuildBitrateDropdown();
+        private void HandleActiveAudioTrackChanged(BasisAudioTrack _) => RebuildAudioTrackDropdown();
 
         private void ApplyActivePlayerToControls()
         {
@@ -250,7 +344,56 @@ namespace Basis.BasisUI.VideoPlayer
             _volumeSlider?.SetValueWithoutNotify(Mathf.Clamp01(_activePlayer.Volume) * 100f);
             _muteToggle?.SetValueWithoutNotify(_activePlayer.Mute);
 
+            _sleepTimerSlider?.SetValueWithoutNotify(Mathf.RoundToInt(_activePlayer.StopAfterSeconds / 60f));
+            _dvrToggle?.SetValueWithoutNotify(_activePlayer.DvrEnabled);
+            _dvrWindowSlider?.SetValueWithoutNotify(_activePlayer.DvrWindowSeconds);
+
+            RebuildBitrateDropdown();
+            RebuildAudioTrackDropdown();
+
+            if (_debugToggle != null) _debugToggle.SetValueWithoutNotify(_activePlayer.VerboseLogging);
             if (_debugTickSubscribed) RefreshDebugInfo();
+        }
+
+        private void RebuildBitrateDropdown()
+        {
+            if (_bitrateDropdown == null || _activePlayer == null) return;
+            var tracks = _activePlayer.BitrateTracks;
+            var labels = new List<string>();
+            labels.Add("Auto");
+            for (int i = 0; i < tracks.Count; i++)
+            {
+                var t = tracks[i];
+                string mbps = t.BitsPerSecond > 0 ? $"{t.BitsPerSecond / 1_000_000f:0.0} Mbps" : "?";
+                string dims = t.Height > 0 ? $"{t.Width}x{t.Height}" : "audio";
+                string label = !string.IsNullOrEmpty(t.Label) ? t.Label : $"{dims} @ {mbps}";
+                labels.Add(label);
+            }
+            _bitrateDropdown.AssignEntries(labels);
+            int sel = _activePlayer.SelectedBitrateIndex;
+            int row = sel >= 0 && sel < tracks.Count ? sel + 1 : 0;
+            if (row < labels.Count) _bitrateDropdown.SetValueWithoutNotify(labels[row]);
+            _bitrateDropdown.gameObject.SetActive(tracks.Count > 0);
+        }
+
+        private void RebuildAudioTrackDropdown()
+        {
+            if (_audioTrackDropdown == null || _activePlayer == null) return;
+            var tracks = _activePlayer.AudioTracks;
+            var labels = new List<string>();
+            for (int i = 0; i < tracks.Count; i++)
+            {
+                var t = tracks[i];
+                string lang = !string.IsNullOrEmpty(t.Language) ? t.Language : "und";
+                string ch = t.ChannelCount > 0 ? $"{t.ChannelCount}ch" : "?";
+                string lbl = !string.IsNullOrEmpty(t.Label) ? t.Label : $"[{lang}] {ch}";
+                if (t.IsDualMono) lbl += " (dual-mono)";
+                labels.Add(lbl);
+            }
+            _audioTrackDropdown.AssignEntries(labels);
+            int sel = _activePlayer.SelectedAudioTrackIndex;
+            if (sel >= 0 && sel < labels.Count) _audioTrackDropdown.SetValueWithoutNotify(labels[sel]);
+            _audioTrackDropdown.gameObject.SetActive(tracks.Count > 0);
         }
 
         private void SetGroupsActive(bool active)
@@ -271,9 +414,15 @@ namespace Basis.BasisUI.VideoPlayer
             _debugToggle.OnValueChanged = v =>
             {
                 SetDebugTickSubscription(v);
+                ApplyVerboseLoggingToActivePlayer(v);
                 if (v) RefreshDebugInfo();
                 else _debugGroup?.SetDescription("Toggle to surface live pipeline counters.");
             };
+        }
+
+        private void ApplyVerboseLoggingToActivePlayer(bool enabled)
+        {
+            if (_activePlayer != null) _activePlayer.VerboseLogging = enabled;
         }
 
         private void SetDebugTickSubscription(bool subscribe)
