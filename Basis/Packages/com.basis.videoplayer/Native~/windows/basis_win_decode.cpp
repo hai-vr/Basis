@@ -691,13 +691,14 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     if (newest == INT64_MIN) { LeaveCriticalSection(&d->presentLock); return 0; }
 
     /* Presentation clock, locked to the live decode edge. The wall clock (QPC)
-     * gives smooth, monotonic advance at real rate; a slow low-pass correction
-     * (~0.5s) pulls it toward `newest` (freshest decoded PTS) every render. This
+     * gives smooth, monotonic advance at real rate; a low-pass correction
+     * (~0.25s) pulls it toward `newest` (freshest decoded PTS) every render. This
      * fixes the one-shot anchor's drift: that version let the clock run ahead of
      * the frames actually arriving, so almost nothing was ever "due" (nodue spikes,
-     * present rate collapsed to ~60% of decode). The correction is slow enough not
-     * to chase short network stalls — the jitter buffer below absorbs those.
-     * Large gaps (startup, rebuffer, discontinuity) hard-resync. */
+     * present rate collapsed to ~60% of decode). The correction is fast enough to
+     * track bursty live sources without chasing single-frame jitter (the jitter
+     * buffer below absorbs those). Large gaps (startup, rebuffer, discontinuity)
+     * hard-resync. */
     int64_t freq = d->qpcFreq.QuadPart ? d->qpcFreq.QuadPart : 1;
     if (!d->clockStarted) {
         d->clockStarted = true;
@@ -712,13 +713,13 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
 
     int64_t liveClock = d->mediaStartUs + (int64_t)((nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq);
     int64_t err = newest - liveClock;            /* >0: clock behind the live edge */
-    if (err > 1000000 || err < -1000000) {
+    if (err > 700000 || err < -700000) {
         d->wallStartQpc = nowq.QuadPart;
         d->mediaStartUs = newest;
         d->lastPresentedPts = INT64_MIN;
         liveClock = newest;
     } else {
-        int64_t corr = err * dtUs / 500000;      /* TAU ~0.5s lock toward live */
+        int64_t corr = err * dtUs / 250000;      /* TAU ~0.25s lock toward live */
         d->mediaStartUs += corr;
         liveClock += corr;
     }
@@ -727,7 +728,8 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
      * frame span so the decoder can't lap the presenter — a fixed-ms buffer would
      * overrun the ring at high source rates, so the ceiling scales with the source
      * frame period (e.g. 120ms is fine at 60fps but clamps near 100ms at 250fps).
-     * Dynamic mode grows on underrun risk and shrinks slowly when over-buffered. */
+     * Dynamic mode grows fast on underrun risk and shrinks symmetrically when
+     * over-buffered, with a 200ms hysteresis to avoid grow/shrink fighting. */
     int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
     int64_t maxBuf = (int64_t)(basis_decoder::RING - 6) * interval;
     if (maxBuf < 60000) maxBuf = 60000;
@@ -735,7 +737,7 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     int64_t fill = newest - (liveClock - buf);
     if (d->bufferMode == 1) {
         if (fill < 2 * interval) buf += interval;
-        else if (fill > buf + 200000) buf -= 1000;
+        else if (fill > buf + 200000) buf -= 10000;
     }
     if (buf < 40000) buf = 40000;
     if (buf > maxBuf) buf = maxBuf;
@@ -753,14 +755,31 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     /* recover from non-monotonic/bogus PTS (lastPresentedPts stuck above the ring) */
     if (d->lastPresentedPts != INT64_MIN && d->lastPresentedPts > newest) d->lastPresentedPts = INT64_MIN;
 
-    /* Present the latest frame that is due (PTS <= now) and newer than the last shown. */
-    int best = -1; int64_t bestPts = d->lastPresentedPts;
+    /* Present the next un-rendered frame in PTS order — smoother under bursts
+     * than "latest due", since when a burst makes multiple frames due in one
+     * render tick, picking oldest shows them in sequence over the next few
+     * ticks instead of skipping intermediates. Fall back to the latest due
+     * frame when the backlog exceeds CATCHUP_INTERVALS so we don't lock to a
+     * stale frame after a hard-resync or extended stall. */
+    const int CATCHUP_INTERVALS = 4;
+    int oldest = -1; int64_t oldestPts = INT64_MAX;
+    int latest = -1; int64_t latestPts = d->lastPresentedPts;
     for (int i = 0; i < basis_decoder::RING; ++i) {
         int64_t p = d->ringPts[i];
         if (p == INT64_MIN) continue;
-        if (p > bestPts && p <= nowMedia) { best = i; bestPts = p; }
+        if (p > d->lastPresentedPts && p <= nowMedia) {
+            if (p < oldestPts) { oldest = i; oldestPts = p; }
+            if (p > latestPts) { latest = i; latestPts = p; }
+        }
     }
-    if (best < 0) { InterlockedIncrement(&d->dbg_nodue); LeaveCriticalSection(&d->presentLock); return 0; }
+    int best; int64_t bestPts;
+    if (oldest < 0) {
+        InterlockedIncrement(&d->dbg_nodue); LeaveCriticalSection(&d->presentLock); return 0;
+    } else if (oldest != latest && (latestPts - oldestPts) > CATCHUP_INTERVALS * interval) {
+        best = latest; bestPts = latestPts;
+    } else {
+        best = oldest; bestPts = oldestPts;
+    }
 
     if (d->api == BASIS_GFX_D3D11 && d->outTexD11 && d->ringOnUnity[best] && d->ctxUnity) {
         HRESULT a = d->ringMutexUnity[best] ? d->ringMutexUnity[best]->AcquireSync(0, 8) : S_OK;

@@ -31,7 +31,9 @@ public sealed class BasisVideoPlayerDiagnostics : MonoBehaviour
     private StreamWriter writer;
     private StringBuilder lineBuilder;
     private float nextSnapshotTime;
+    private float lastSnapshotTime;
     private int rowsSinceFlush;
+    private readonly NativeEngineDebug engineDebug = new NativeEngineDebug();
 
     private void Awake()
     {
@@ -77,6 +79,7 @@ public sealed class BasisVideoPlayerDiagnostics : MonoBehaviour
             SnapshotsWritten = 0;
             rowsSinceFlush = 0;
             nextSnapshotTime = Time.realtimeSinceStartup;
+            lastSnapshotTime = -1f;
             BasisDebug.Log($"BasisVideoPlayerDiagnostics: logging to {ResolvedLogPath}", BasisDebug.LogTag.Video);
         }
         catch (Exception ex)
@@ -165,7 +168,28 @@ public sealed class BasisVideoPlayerDiagnostics : MonoBehaviour
             "audio_spatial",
             "pcm_peak",
             "pcm_rms",
-            "listener_paused"
+            "listener_paused",
+            "wall_dt_ms",
+            "eng_decoded_frames",
+            "eng_blit_count",
+            "eng_copy_count",
+            "eng_render_count",
+            "eng_nodue_count",
+            "eng_acq_fails",
+            "eng_lag_ms",
+            "eng_buf_ms",
+            "eng_buf_mode",
+            "eng_ttff_ms",
+            "eng_audio_cfg",
+            "eng_aout_count",
+            "eng_audio_sr",
+            "eng_bitrate_idx",
+            "eng_audio_track_idx",
+            "audio_expected_sr",
+            "audio_expected_ch",
+            "audio_latency_us",
+            "audio_has_media_time",
+            "audio_media_time_us"
         );
     }
 
@@ -177,6 +201,16 @@ public sealed class BasisVideoPlayerDiagnostics : MonoBehaviour
         var eng = player.NativeEngine;
         var src = player.Source;
         var aud = audioComponent != null ? audioComponent : player.AudioComponent;
+
+        float wallDtMs = lastSnapshotTime >= 0f ? (unityTime - lastSnapshotTime) * 1000f : 0f;
+        lastSnapshotTime = unityTime;
+
+        engineDebug.Reset();
+        if (eng != null)
+        {
+            try { engineDebug.ParseFrom(eng.DebugInfo); }
+            catch (Exception ex) { BasisDebug.LogWarning($"BasisVideoPlayerDiagnostics: debug parse failed: {ex.Message}", BasisDebug.LogTag.Video); }
+        }
 
         AppendF(unityTime);
         AppendB(player.IsPlaying);
@@ -207,7 +241,30 @@ public sealed class BasisVideoPlayerDiagnostics : MonoBehaviour
         AppendF(src2 != null ? src2.spatialBlend : 0f);
         AppendF(aud != null ? aud.LastPcmPeak : 0f);
         AppendF(aud != null ? aud.LastPcmRms : 0f);
-        AppendB(AudioListener.pause, last: true);
+        AppendB(AudioListener.pause);
+
+        AppendF(wallDtMs);
+        AppendL(eng != null ? (long)eng.DecodedFrameCount : 0);
+        AppendL(engineDebug.Blit);
+        AppendL(engineDebug.Copy);
+        AppendL(engineDebug.Render);
+        AppendL(engineDebug.NoDue);
+        AppendL(engineDebug.AcqFails);
+        AppendL(engineDebug.LagMs);
+        AppendL(engineDebug.BufMs);
+        AppendI(engineDebug.BufMode);
+        AppendL(engineDebug.TtffMs);
+        AppendI(engineDebug.AudioCfg);
+        AppendL(engineDebug.AOutCount);
+        AppendI(engineDebug.AudioSr);
+        AppendI(eng != null ? eng.SelectedBitrateIndex : -1);
+        AppendI(eng != null ? eng.SelectedAudioTrackIndex : -1);
+
+        AppendI(aud != null ? aud.SampleRate : 0);
+        AppendI(aud != null ? aud.ChannelCount : 0);
+        AppendL(aud != null ? aud.AudioOutputLatencyUs : 0);
+        AppendB(aud != null && aud.HasMediaTime);
+        AppendL(aud != null ? aud.CurrentMediaTimeUs : 0, last: true);
 
         try
         {
@@ -226,4 +283,83 @@ public sealed class BasisVideoPlayerDiagnostics : MonoBehaviour
     private void AppendL(long v, bool last = false) { lineBuilder.Append(v); if (!last) lineBuilder.Append(','); }
     private void AppendB(bool v, bool last = false) { lineBuilder.Append(v ? "1" : "0"); if (!last) lineBuilder.Append(','); }
     private void AppendStr(string v, bool last = false) { if (v != null) lineBuilder.Append(v); if (!last) lineBuilder.Append(','); }
+
+    private sealed class NativeEngineDebug
+    {
+        public long Blit, Copy, Render, NoDue, AcqFails;
+        public long LagMs, BufMs, TtffMs, AOutCount;
+        public int BufMode, AudioCfg, AudioSr;
+
+        public void Reset()
+        {
+            Blit = Copy = Render = NoDue = AcqFails = 0;
+            LagMs = BufMs = TtffMs = AOutCount = 0;
+            BufMode = AudioCfg = AudioSr = 0;
+        }
+
+        public void ParseFrom(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return;
+            int i = 0;
+            int n = s.Length;
+            while (i < n)
+            {
+                while (i < n && (s[i] == ' ' || s[i] == '\t' || s[i] == '|' || s[i] == ',')) i++;
+                if (i >= n) break;
+                int keyStart = i;
+                while (i < n && s[i] != '=' && s[i] != ' ' && s[i] != '\t' && s[i] != '|' && s[i] != ',') i++;
+                if (i >= n || s[i] != '=') continue;
+                int keyLen = i - keyStart;
+                i++;
+                int valStart = i;
+                while (i < n && s[i] != ' ' && s[i] != '\t' && s[i] != '|' && s[i] != ',') i++;
+                int valLen = i - valStart;
+                if (keyLen <= 0 || valLen <= 0) continue;
+                Assign(s, keyStart, keyLen, valStart, valLen);
+            }
+        }
+
+        private void Assign(string s, int kStart, int kLen, int vStart, int vLen)
+        {
+            if (vLen >= 2 && s[vStart + vLen - 2] == 'm' && s[vStart + vLen - 1] == 's') vLen -= 2;
+            if (vLen <= 0) return;
+            long v = 0;
+            int sign = 1;
+            int vi = vStart;
+            int vEnd = vStart + vLen;
+            if (s[vi] == '-') { sign = -1; vi++; }
+            else if (s[vi] == '+') { vi++; }
+            for (; vi < vEnd; vi++)
+            {
+                char c = s[vi];
+                if (c < '0' || c > '9') return;
+                v = v * 10 + (c - '0');
+            }
+            v *= sign;
+
+            switch (kLen)
+            {
+                case 3:
+                    if (s[kStart] == 'a' && s[kStart + 1] == 'c' && s[kStart + 2] == 'q') { AcqFails = v; return; }
+                    if (s[kStart] == 'a' && s[kStart + 1] == 's' && s[kStart + 2] == 'r') { AudioSr = (int)v; return; }
+                    if (s[kStart] == 'b' && s[kStart + 1] == 'u' && s[kStart + 2] == 'f') { BufMs = v; return; }
+                    if (s[kStart] == 'l' && s[kStart + 1] == 'a' && s[kStart + 2] == 'g') { LagMs = v; return; }
+                    return;
+                case 4:
+                    if (s[kStart] == 'b' && s[kStart + 1] == 'l' && s[kStart + 2] == 'i' && s[kStart + 3] == 't') { Blit = v; return; }
+                    if (s[kStart] == 'c' && s[kStart + 1] == 'o' && s[kStart + 2] == 'p' && s[kStart + 3] == 'y') { Copy = v; return; }
+                    if (s[kStart] == 'm' && s[kStart + 1] == 'o' && s[kStart + 2] == 'd' && s[kStart + 3] == 'e') { BufMode = (int)v; return; }
+                    if (s[kStart] == 'a' && s[kStart + 1] == 'c' && s[kStart + 2] == 'f' && s[kStart + 3] == 'g') { AudioCfg = (int)v; return; }
+                    if (s[kStart] == 'a' && s[kStart + 1] == 'o' && s[kStart + 2] == 'u' && s[kStart + 3] == 't') { AOutCount = v; return; }
+                    if (s[kStart] == 't' && s[kStart + 1] == 't' && s[kStart + 2] == 'f' && s[kStart + 3] == 'f') { TtffMs = v; return; }
+                    return;
+                case 5:
+                    if (s[kStart] == 'n' && s[kStart + 4] == 'e') { NoDue = v; return; }
+                    return;
+                case 6:
+                    if (s[kStart] == 'r' && s[kStart + 5] == 'r') { Render = v; return; }
+                    return;
+            }
+        }
+    }
 }
