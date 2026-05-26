@@ -64,6 +64,9 @@ internal static class BasisNativeMedia
     private static extern void basis_media_set_buffer(IntPtr engine, int mode, int bufferMs);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern void basis_media_set_output_texture(IntPtr engine, IntPtr nativeTexture, int w, int h);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
     private static extern IntPtr basis_media_get_texture(IntPtr engine, out int w, out int h);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
@@ -149,6 +152,20 @@ internal static class BasisNativeMedia
     public static void SetBuffer(IntPtr e, int mode, int bufferMs)
     {
         if (e != IntPtr.Zero) basis_media_set_buffer(e, mode, bufferMs);
+    }
+
+    // Register a Unity-allocated RenderTexture as the engine's render target.
+    // Used on the Android/Vulkan path to dodge the Mali libGLES_mali.so crash in
+    // vkCreateImageView triggered by Texture2D.CreateExternalTexture wrapping a
+    // plugin-owned VkImage. On Windows this is accepted but ignored (the D3D
+    // CreateExternalTexture path doesn't hit the same driver bug). Older .so
+    // builds without the symbol get silently skipped — older bindings stay
+    // functional through the existing GetTexture path.
+    public static void SetOutputTexture(IntPtr e, IntPtr nativeTexture, int w, int h)
+    {
+        if (e == IntPtr.Zero) return;
+        try { basis_media_set_output_texture(e, nativeTexture, w, h); }
+        catch (EntryPointNotFoundException) { /* old .so: caller falls back to GetTexture */ }
     }
 
     public static string GetDebug(IntPtr e)

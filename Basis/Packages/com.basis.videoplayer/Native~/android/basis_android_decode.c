@@ -299,13 +299,15 @@ int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,
     if (extradata && extradata_len > 0)
         AMediaFormat_setBuffer(fmt, "csd-0", (void*)extradata, extradata_len); /* Annex-B SPS/PPS(/VPS) */
 
-    d->vcodec = AMediaCodec_createDecoderByType(mime);
-    if (!d->vcodec || AMediaCodec_configure(d->vcodec, fmt, d->window, NULL, 0) != AMEDIA_OK ||
-        AMediaCodec_start(d->vcodec) != AMEDIA_OK) {
+    AMediaCodec* c = AMediaCodec_createDecoderByType(mime);
+    if (!c || AMediaCodec_configure(c, fmt, d->window, NULL, 0) != AMEDIA_OK ||
+        AMediaCodec_start(c) != AMEDIA_OK) {
+        if (c) AMediaCodec_delete(c);
         AMediaFormat_delete(fmt);
         basis_engine_set_error(d->engine, "Android: video AMediaCodec configure/start failed");
         return -1;
     }
+    d->vcodec = c;
     AMediaFormat_delete(fmt);
     d->vconfigured = 1;
     basis_engine_set_state(d->engine, BASIS_MEDIA_STATE_PLAYING);
@@ -321,9 +323,15 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
     AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_SAMPLE_RATE, sample_rate ? sample_rate : 48000);
     AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_CHANNEL_COUNT, channels ? channels : 2);
     if (asc && asc_len > 0) AMediaFormat_setBuffer(fmt, "csd-0", (void*)asc, asc_len);
-    d->acodec = AMediaCodec_createDecoderByType("audio/mp4a-latm");
-    if (d->acodec && AMediaCodec_configure(d->acodec, fmt, NULL, NULL, 0) == AMEDIA_OK)
-        AMediaCodec_start(d->acodec);
+    AMediaCodec* c = AMediaCodec_createDecoderByType("audio/mp4a-latm");
+    if (!c || AMediaCodec_configure(c, fmt, NULL, NULL, 0) != AMEDIA_OK ||
+        AMediaCodec_start(c) != AMEDIA_OK) {
+        if (c) AMediaCodec_delete(c);
+        AMediaFormat_delete(fmt);
+        d->aconfigured = 1;
+        return -1;
+    }
+    d->acodec = c;
     AMediaFormat_delete(fmt);
     d->aconfigured = 1;
     return 0;
@@ -389,4 +397,8 @@ void basis_decoder_set_buffer(basis_decoder_t* d, int mode, int ms) {
     /* Present pacing on the Android/Vulkan path is TODO (see basis_android_vk.c);
      * accept the call so the ABI is uniform. */
     (void)d; (void)mode; (void)ms;
+}
+
+void basis_decoder_set_output_texture(basis_decoder_t* d, void* native_texture, int w, int h) {
+    if (d && d->vk) basis_vk_set_output_texture(d->vk, native_texture, w, h);
 }

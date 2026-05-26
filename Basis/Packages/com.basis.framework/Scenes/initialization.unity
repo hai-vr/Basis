@@ -119,103 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &266321934 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 6715880030743322348, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-  m_PrefabInstance: {fileID: 801234059}
-  m_PrefabAsset: {fileID: 0}
---- !u!82 &266321935 stripped
-AudioSource:
-  m_CorrespondingSourceObject: {fileID: 136030129054553920, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-  m_PrefabInstance: {fileID: 801234059}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &266321937
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 266321934}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 59c3684b22f00604a97bb68037fcf4cd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: SteamAudioUnity::SteamAudio.SteamAudioSource
-  directBinaural: 1
-  interpolation: 0
-  perspectiveCorrection: 0
-  distanceAttenuation: 1
-  distanceAttenuationInput: 1
-  distanceAttenuationValue: 1
-  airAbsorption: 1
-  airAbsorptionInput: 0
-  airAbsorptionLow: 1
-  airAbsorptionMid: 1
-  airAbsorptionHigh: 1
-  directivity: 0
-  directivityInput: 0
-  dipoleWeight: 0
-  dipolePower: 0
-  directivityValue: 1
-  occlusion: 1
-  occlusionInput: 0
-  occlusionType: 0
-  occlusionRadius: 1
-  occlusionSamples: 16
-  occlusionValue: 1
-  transmission: 1
-  transmissionType: 0
-  transmissionInput: 0
-  transmissionLow: 1
-  transmissionMid: 1
-  transmissionHigh: 1
-  maxTransmissionSurfaces: 1
-  directMixLevel: 1
-  reflections: 0
-  reflectionsType: 0
-  useDistanceCurveForReflections: 0
-  currentBakedSource: {fileID: 0}
-  reverbTimeLow: 0
-  reverbTimeMid: 0
-  reverbTimeHigh: 0
-  hybridReverbEQLow: 1
-  hybridReverbEQMid: 1
-  hybridReverbEQHigh: 1
-  hybridReverbDelay: 0
-  applyHRTFToReflections: 0
-  reflectionsMixLevel: 1
-  pathing: 0
-  pathingProbeBatch: {fileID: 0}
-  pathValidation: 1
-  findAlternatePaths: 1
-  pathingEQ:
-  - 1
-  - 1
-  - 1
-  pathingSH:
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  applyHRTFToPathing: 0
-  pathingMixLevel: 1
-  mAudioSource: {fileID: 0}
-  Transform: {fileID: 0}
-  IsUnityEngineUsed: 0
-  AllowsUpdateParameters: 0
---- !u!1001 &801234059
+--- !u!1001 &636871785
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -223,61 +127,17 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 136030129054553920, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: panLevelCustomCurve.m_Curve.Array.data[0].value
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: FadeInSeconds
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: FadeOutSeconds
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: TargetAudioSource
-      value: 
-      objectReference: {fileID: 266321935}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: AudioOutputs.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: AdditionalOutputs.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: AudioOutputs.Array.data[0].Role
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: AudioOutputs.Array.data[1].Role
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: AudioOutputs.Array.data[1].Source
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 1325980082505240853, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: AdditionalOutputs.Array.data[0].Role
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2265814159907839490, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -0.3
-      objectReference: {fileID: 0}
     - target: {fileID: 4507114126077030822, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -1.16604
       objectReference: {fileID: 0}
     - target: {fileID: 4507114126077030822, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: -1.55
       objectReference: {fileID: 0}
     - target: {fileID: 4507114126077030822, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -5.01
+      value: -3.75437
       objectReference: {fileID: 0}
     - target: {fileID: 4507114126077030822, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
       propertyPath: m_LocalRotation.w
@@ -307,10 +167,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 6120556251235419922, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      propertyPath: DvrEnabled
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 8238937759899344198, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
       propertyPath: m_Name
       value: VideoPlayerStreaming
@@ -318,10 +174,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 6715880030743322348, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 266321937}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
 --- !u!1001 &1187098623
 PrefabInstance:
@@ -436,4 +289,4 @@ SceneRoots:
   m_Roots:
   - {fileID: 1187098623}
   - {fileID: 1620637457}
-  - {fileID: 801234059}
+  - {fileID: 636871785}

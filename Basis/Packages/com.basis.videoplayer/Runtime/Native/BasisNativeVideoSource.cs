@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using GfxAPI = UnityEngine.Rendering.GraphicsDeviceType;
 
 // Public mirror of the native engine state (basis_media_state_t), usable from the
 // editor assembly. Values match BasisNativeMedia.State.
@@ -46,10 +47,20 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
     public event Action<BasisAudioTrack> OnAudioTrackChanged;
 
     public string Url { get; }
-    public Texture OutputTexture => externalTexture;
+    public Texture OutputTexture => unityOwnedRT != null ? (Texture)unityOwnedRT : externalTexture;
     public Vector2Int VideoSize => new Vector2Int(texW, texH);
     public bool IsRunning => handle != IntPtr.Zero && started && !disposed;
     public BasisMediaEngineState State => (BasisMediaEngineState)(int)BasisNativeMedia.GetState(handle);
+
+    // On Vulkan we flip the texture handoff direction: instead of the plugin
+    // allocating a VkImage and Unity wrapping it via Texture2D.CreateExternalTexture
+    // (Mali crashes inside vkCreateImageView on Pixel 7/8/9 + Android 16), we
+    // allocate a RenderTexture here and pass its native pointer to the plugin via
+    // basis_media_set_output_texture. The plugin then renders into Unity's image
+    // through IUnityGraphicsVulkan::AccessTexture — Unity's own view already
+    // exists from the RT allocation, so no fragile view-create happens at runtime.
+    private static bool UsesAccessTexturePath =>
+        SystemInfo.graphicsDeviceType == GfxAPI.Vulkan;
 
     // PTS (microseconds) of the most recently published frame; -1 until known.
     public long PositionUs => BasisNativeMedia.GetPositionUs(handle);
@@ -66,10 +77,12 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
 
     private IntPtr handle;
     private CommandBuffer renderCmd;
-    private Texture2D externalTexture;
+    private Texture2D externalTexture;        // Windows path: wraps plugin VkImage / D3D texture
+    private RenderTexture unityOwnedRT;       // Vulkan path: Unity-allocated, plugin renders into it
     private IntPtr lastTexturePtr;
     private ulong lastFrameCounter;
     private int texW, texH;
+    private bool outputRegistered;            // true once SetOutputTexture has been called
     private bool started;
     private bool disposed;
     private bool readyFired;
@@ -201,6 +214,20 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
 
         PollTrackStateOnce();
 
+        // On the Vulkan path: as soon as the engine has detected the video size,
+        // allocate a RenderTexture and hand its native pointer to the plugin.
+        // The plugin will then render into THIS image via AccessTexture instead
+        // of allocating its own VkImage (the latter crashes Mali on Pixel 7/8/9
+        // when Unity wraps it with Texture2D.CreateExternalTexture).
+        if (UsesAccessTexturePath && !outputRegistered && BasisNativeMedia.TryGetVideoSize(handle, out int detW, out int detH) && detW > 0 && detH > 0)
+        {
+            EnsureUnityOwnedRT(detW, detH);
+            BasisNativeMedia.SetOutputTexture(handle, unityOwnedRT.GetNativeTexturePtr(), detW, detH);
+            outputRegistered = true;
+            texW = detW; texH = detH;
+            OnVideoSizeChanged?.Invoke(texW, texH);
+        }
+
         // Ask the engine to publish its newest decoded frame into the Unity
         // texture on the render thread. IssuePluginEventAndData lives on
         // CommandBuffer (not GL); run it via a reused buffer. Cheap no-op
@@ -217,13 +244,20 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         if (fc != lastFrameCounter)
         {
             lastFrameCounter = fc;
-            IntPtr tex = BasisNativeMedia.GetTexture(handle, out int w, out int h);
-            if (tex != IntPtr.Zero && (tex != lastTexturePtr || w != texW || h != texH || externalTexture == null))
+
+            if (!UsesAccessTexturePath)
             {
-                RebindTexture(tex, w, h);
-                OnVideoSizeChanged?.Invoke(texW, texH);
+                // Windows / D3D path: the plugin owns the texture; wrap it once
+                // per (handle,size) change with Texture2D.CreateExternalTexture.
+                IntPtr tex = BasisNativeMedia.GetTexture(handle, out int w, out int h);
+                if (tex != IntPtr.Zero && (tex != lastTexturePtr || w != texW || h != texH || externalTexture == null))
+                {
+                    RebindTexture(tex, w, h);
+                    OnVideoSizeChanged?.Invoke(texW, texH);
+                }
             }
-            if (!readyFired && externalTexture != null)
+
+            if (!readyFired && OutputTexture != null)
             {
                 readyFired = true;
                 OnReady?.Invoke();
@@ -250,8 +284,9 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         if (hb != lastLoggedState || (pumpCount % 120) == 0)
         {
             lastLoggedState = hb;
+            string texDesc = OutputTexture != null ? $"{texW}x{texH}" : "none";
             BasisDebug.Log(
-                $"[NativeMedia] state={hb} frames={fc} posUs={PositionUs} tex={(externalTexture != null ? $"{texW}x{texH}" : "none")} [{BasisNativeMedia.GetDebug(handle)}]",
+                $"[NativeMedia] state={hb} frames={fc} posUs={PositionUs} tex={texDesc} [{BasisNativeMedia.GetDebug(handle)}]",
                 BasisDebug.LogTag.Video);
         }
     }
@@ -272,6 +307,37 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         externalTexture = Texture2D.CreateExternalTexture(w, h, fmt, false, false, nativeTex);
         externalTexture.wrapMode = TextureWrapMode.Clamp;
         externalTexture.filterMode = FilterMode.Bilinear;
+    }
+
+    // Vulkan path: allocate (or reallocate on size change) the Unity-owned
+    // RenderTexture the plugin will render into. Calling Create() forces the
+    // VkImage to exist before GetNativeTexturePtr() — we need a valid handle
+    // BEFORE basis_media_set_output_texture, so the plugin can call AccessTexture
+    // on the first render frame.
+    private void EnsureUnityOwnedRT(int w, int h)
+    {
+        if (unityOwnedRT != null && unityOwnedRT.width == w && unityOwnedRT.height == h) return;
+
+        if (unityOwnedRT != null)
+        {
+            // Detach from the plugin first so the next render_update finds no
+            // output and skips its work, then dispose the RT itself.
+            BasisNativeMedia.SetOutputTexture(handle, IntPtr.Zero, 0, 0);
+            unityOwnedRT.Release();
+            UnityEngine.Object.Destroy(unityOwnedRT);
+            unityOwnedRT = null;
+            outputRegistered = false;
+        }
+
+        unityOwnedRT = new RenderTexture(w, h, 0, RenderTextureFormat.ARGB32)
+        {
+            name = "BasisNativeMedia.RT",
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear,
+            useMipMap = false,
+            autoGenerateMips = false,
+        };
+        unityOwnedRT.Create();
     }
 
     private static TextureFormat NativeTextureFormat()
@@ -314,6 +380,22 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         {
             UnityEngine.Object.Destroy(externalTexture);
             externalTexture = null;
+        }
+
+        // Vulkan path: detach the plugin's output reference BEFORE Close so the
+        // render thread sees a NULL handle and skips its render_update, then
+        // dispose the RenderTexture itself. Close() joins the decode threads
+        // afterwards, by which point nothing is poking the VkImage.
+        if (handle != IntPtr.Zero && outputRegistered)
+        {
+            BasisNativeMedia.SetOutputTexture(handle, IntPtr.Zero, 0, 0);
+            outputRegistered = false;
+        }
+        if (unityOwnedRT != null)
+        {
+            unityOwnedRT.Release();
+            UnityEngine.Object.Destroy(unityOwnedRT);
+            unityOwnedRT = null;
         }
 
         if (handle != IntPtr.Zero)

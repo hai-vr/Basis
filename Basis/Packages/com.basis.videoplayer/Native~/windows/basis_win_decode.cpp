@@ -830,6 +830,12 @@ extern "C" void basis_decoder_set_buffer(basis_decoder_t* d, int mode, int buffe
     if (buffer_ms > 0) d->bufferUs = (LONG)(buffer_ms * 1000);
 }
 
+extern "C" void basis_decoder_set_output_texture(basis_decoder_t* d, void* native_texture, int w, int h) {
+    /* Windows uses D3D11/12 CreateExternalTexture (no Mali crash there), so the
+     * AccessTexture path is not needed. Accept the call for ABI uniformity. */
+    (void)d; (void)native_texture; (void)w; (void)h;
+}
+
 extern "C" int basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) {
     if (!d || !buf || size <= 0) return 0;
     return snprintf(buf, (size_t)size,

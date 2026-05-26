@@ -19,7 +19,6 @@
     <assembly fullname="BasisNetworkClient" preserve="all" />
     <assembly fullname="BasisNetworkCore" preserve="all" />
     <assembly fullname="BasisNetworkServer" preserve="all" />
-    <assembly fullname="BasisOpenVR" preserve="all" />
     <assembly fullname="BasisOpenXR" preserve="all" />
     <assembly fullname="BasisPoolTable" preserve="all" />
     <assembly fullname="BasisProfiler" preserve="all" />
@@ -31,6 +30,7 @@
     <assembly fullname="BasisShims" preserve="all" />
     <assembly fullname="BasisVehicles" preserve="all" />
     <assembly fullname="BasisVehiclesNetwork" preserve="all" />
+    <assembly fullname="BasisVideoPlayer" preserve="all" />
     <assembly fullname="BouncyCastle.Cryptography" preserve="all" />
     <assembly fullname="Cilbox" preserve="all" />
     <assembly fullname="Crypto" preserve="all" />

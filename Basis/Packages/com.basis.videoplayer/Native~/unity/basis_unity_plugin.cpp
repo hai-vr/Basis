@@ -75,6 +75,48 @@ extern "C" uint64_t basis_gfx_vk_begin_record(uint64_t* out_current_frame, uint6
 #endif
 }
 
+extern "C" int basis_gfx_vk_access_texture(void* native_texture,
+                                           int requested_layout,
+                                           uint64_t* out_image,
+                                           int* out_layout,
+                                           int* out_format,
+                                           int* out_w,
+                                           int* out_h) {
+    if (out_image) *out_image = 0;
+    if (out_layout) *out_layout = 0;
+    if (out_format) *out_format = 0;
+    if (out_w) *out_w = 0;
+    if (out_h) *out_h = 0;
+#if defined(__ANDROID__)
+    if (!s_unityVulkan || !native_texture) return 0;
+    IUnityGraphicsVulkan* vk = (IUnityGraphicsVulkan*)s_unityVulkan;
+    /* AccessTexture inserts a pipeline barrier to transition the image to the
+     * requested layout, and is documented to invalidate any previously-fetched
+     * recording state — callers must re-query CommandRecordingState afterwards
+     * if they need it (basis_android_vk's render path does AccessTexture first,
+     * then re-queries via basis_gfx_vk_begin_record before recording). */
+    UnityVulkanImage img = {};
+    if (!vk->AccessTexture(native_texture,
+                           UnityVulkanWholeImage,
+                           (VkImageLayout)requested_layout,
+                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                           VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                           kUnityVulkanResourceAccess_PipelineBarrier,
+                           &img))
+        return 0;
+
+    if (out_image) *out_image = (uint64_t)(uintptr_t)img.image;
+    if (out_layout) *out_layout = (int)img.layout;
+    if (out_format) *out_format = (int)img.format;
+    if (out_w) *out_w = (int)img.extent.width;
+    if (out_h) *out_h = (int)img.extent.height;
+    return 1;
+#else
+    (void)native_texture; (void)requested_layout;
+    return 0;
+#endif
+}
+
 /* ---- device discovery --------------------------------------------------- */
 
 static void capture_devices() {

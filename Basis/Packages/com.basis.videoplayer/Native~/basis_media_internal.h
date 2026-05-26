@@ -117,6 +117,7 @@ int      basis_decoder_get_audio_format(basis_decoder_t* dec, int* out_rate, int
 int      basis_decoder_read_audio(basis_decoder_t* dec, float* out, int max_floats); /* audio thread */
 int      basis_decoder_get_debug(basis_decoder_t* dec, char* buf, int size); /* diagnostics */
 void     basis_decoder_set_buffer(basis_decoder_t* dec, int mode, int buffer_ms); /* 0=fixed,1=dynamic */
+void     basis_decoder_set_output_texture(basis_decoder_t* dec, void* native_texture, int w, int h); /* Android: Unity-owned dst */
 
 /* ---- Engine internals shared with the platform backend ------------------ */
 
@@ -154,6 +155,20 @@ uint32_t basis_gfx_vk_graphics_queue_family(void);
  * frame numbers for resource lifetime tracking. Returns VkCommandBuffer as
  * uintptr_t, or 0 if no buffer is available this call. Render thread only. */
 uint64_t basis_gfx_vk_begin_record(uint64_t* out_current_frame, uint64_t* out_safe_frame);
+
+/* Vulkan: ask Unity for the VkImage backing a C#-side Texture/RenderTexture
+ * (its GetNativeTexturePtr()). Unity inserts pipeline barriers to transition
+ * the resource to the requested layout/stage/access for the calling command
+ * buffer. Returns 1 on success (out_image/out_layout/out_format/out_w/out_h
+ * filled), 0 if unavailable. requested_layout uses raw VkImageLayout values
+ * (e.g. VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL = 2). */
+int basis_gfx_vk_access_texture(void* native_texture,
+                                int requested_layout,
+                                uint64_t* out_image,
+                                int* out_layout,
+                                int* out_format,
+                                int* out_w,
+                                int* out_h);
 
 /* Thread-safe state/error helpers implemented in basis_media_core.c. */
 void        basis_engine_set_state(basis_media_engine_t* engine, basis_media_state_t state);

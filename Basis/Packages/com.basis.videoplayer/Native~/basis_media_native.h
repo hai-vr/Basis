@@ -125,6 +125,17 @@ BASIS_API void* BASIS_CALL basis_media_get_texture(basis_media_engine_t* engine,
  * changes. Starts at 0. */
 BASIS_API uint64_t BASIS_CALL basis_media_get_frame_counter(basis_media_engine_t* engine);
 
+/* Register a Unity-allocated destination texture for the engine to render into.
+ * Used on the Android/Vulkan path INSTEAD of basis_media_get_texture +
+ * Texture2D.CreateExternalTexture: Mali drivers (Pixel 7/8/9 Tensor SoC) crash
+ * inside vkCreateImageView when Unity wraps a plugin-owned VkImage, so we flip
+ * the handoff direction — C# allocates a RenderTexture, hands its native
+ * pointer here, and the plugin uses IUnityGraphicsVulkan::AccessTexture each
+ * render to render into Unity's existing image. On Windows this is a no-op.
+ * Safe to call once the video size is known (TryGetVideoSize succeeds);
+ * passing NULL clears the registration. */
+BASIS_API void BASIS_CALL basis_media_set_output_texture(basis_media_engine_t* engine, void* native_texture, int w, int h);
+
 /* ---- Audio (pulled from the Unity audio thread) ------------------------- */
 
 /* 0 and fills sample_rate/channels once known; -1 otherwise. */

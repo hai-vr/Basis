@@ -30,9 +30,17 @@ void basis_vk_set_hardware_buffer(basis_vk_present* v, struct AHardwareBuffer* a
  * VkImage. Returns 1 if a new frame was published. */
 int basis_vk_render_update(basis_vk_present* v);
 
-/* The RGBA VkImage handle (as uintptr_t) to wrap with CreateExternalTexture. */
+/* Returns the registered Unity texture native handle (for diagnostics) and the
+ * size. Returns 0 until basis_vk_set_output_texture has been called. */
 uint64_t basis_vk_get_image(basis_vk_present* v, int* w, int* h);
 uint64_t basis_vk_frame_counter(basis_vk_present* v);
+
+/* Main thread: register the Unity-owned VkImage (RenderTexture.GetNativeTexturePtr())
+ * the engine should render into. Replaces the old "plugin allocates VkImage,
+ * Unity wraps via CreateExternalTexture" handoff — Mali's vkCreateImageView
+ * crashes when wrapping plugin-allocated images on Pixel 7/8/9 + Android 16.
+ * Pass NULL to clear. Idempotent if called with the same handle/size. */
+void basis_vk_set_output_texture(basis_vk_present* v, void* native_texture, int w, int h);
 
 /* Render thread: free all Vulkan + AHB resources. */
 void basis_vk_release(basis_vk_present* v);

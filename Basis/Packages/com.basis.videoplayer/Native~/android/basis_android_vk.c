@@ -31,6 +31,7 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
 #include <android/hardware_buffer.h>
+#include <android/log.h>
 
 #include <pthread.h>
 #include <stdlib.h>
@@ -76,12 +77,17 @@ struct basis_vk_present {
     /* per-frame ring of imported source images + their descriptor sets */
     basis_vk_slot ring[BASIS_VK_RING];
 
-    /* RGBA target Unity samples (single image; barriers/serialization order it) */
-    VkImage       rgbaImage;
-    VkDeviceMemory rgbaMemory;
-    VkImageView   rgbaView;
+    /* RGBA target — Unity-owned, populated via IUnityGraphicsVulkan::AccessTexture.
+     * The native handle comes from C# (RenderTexture.GetNativeTexturePtr()) via
+     * basis_vk_set_output_texture; we only own the framebuffer that pairs it with
+     * the YCbCr->RGB render pass, and rebuild that when Unity rotates the
+     * underlying VkImage (rare). */
+    void*         unityNativeTex;
+    VkImage       cachedUnityImage; /* the VkImage AccessTexture returned for unityNativeTex */
+    VkImageView   unityImageView;
     VkFramebuffer fbo;
-    int rgbaW, rgbaH;
+    int           unityW, unityH;
+    int           unityFormat;     /* VkFormat returned by AccessTexture (UNORM or SRGB) */
 
     uint64_t frameCounter;
 };
@@ -352,60 +358,73 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
     return 0;
 }
 
-static void destroy_rgba(basis_vk_present* v) {
-    if (v->fbo)       { vkDestroyFramebuffer(v->device, v->fbo, NULL); v->fbo = VK_NULL_HANDLE; }
-    if (v->rgbaView)  { vkDestroyImageView(v->device, v->rgbaView, NULL); v->rgbaView = VK_NULL_HANDLE; }
-    if (v->rgbaImage) { vkDestroyImage(v->device, v->rgbaImage, NULL); v->rgbaImage = VK_NULL_HANDLE; }
-    if (v->rgbaMemory){ vkFreeMemory(v->device, v->rgbaMemory, NULL); v->rgbaMemory = VK_NULL_HANDLE; }
-    v->rgbaW = v->rgbaH = 0;
+static void destroy_unity_fbo(basis_vk_present* v) {
+    if (v->fbo)            { vkDestroyFramebuffer(v->device, v->fbo, NULL); v->fbo = VK_NULL_HANDLE; }
+    if (v->unityImageView) { vkDestroyImageView(v->device, v->unityImageView, NULL); v->unityImageView = VK_NULL_HANDLE; }
+    v->cachedUnityImage = VK_NULL_HANDLE;
 }
 
-static int ensure_rgba(basis_vk_present* v, int w, int h) {
-    if (v->rgbaImage && v->rgbaW == w && v->rgbaH == h) return 0;
-    destroy_rgba(v);
-
-    VkImageCreateInfo ici = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-    ici.imageType = VK_IMAGE_TYPE_2D;
-    ici.format = VK_FORMAT_R8G8B8A8_UNORM;
-    ici.extent.width = (uint32_t)w; ici.extent.height = (uint32_t)h; ici.extent.depth = 1;
-    ici.mipLevels = 1; ici.arrayLayers = 1;
-    ici.samples = VK_SAMPLE_COUNT_1_BIT;
-    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
-    ici.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    if (vkCreateImage(v->device, &ici, NULL, &v->rgbaImage) != VK_SUCCESS) return -1;
-
-    VkMemoryRequirements req; vkGetImageMemoryRequirements(v->device, v->rgbaImage, &req);
-    VkPhysicalDeviceMemoryProperties mp; vkGetPhysicalDeviceMemoryProperties(v->phys, &mp);
-    uint32_t ti = 0;
-    for (uint32_t i = 0; i < mp.memoryTypeCount; ++i)
-        if ((req.memoryTypeBits & (1u << i)) && (mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) { ti = i; break; }
-    VkMemoryAllocateInfo mai = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-    mai.allocationSize = req.size; mai.memoryTypeIndex = ti;
-    if (vkAllocateMemory(v->device, &mai, NULL, &v->rgbaMemory) != VK_SUCCESS) return -1;
-    if (vkBindImageMemory(v->device, v->rgbaImage, v->rgbaMemory, 0) != VK_SUCCESS) return -1;
+/* Rebuild the framebuffer that pairs Unity's VkImage with our YCbCr->RGB render
+ * pass. Called per frame; the (image,view,fbo) trio is cached and only rebuilt
+ * when AccessTexture hands back a different VkImage (Unity allocated a new RT,
+ * or rotated under us). The image itself is OWNED BY UNITY — we never destroy
+ * it, only the view and framebuffer we created on top. */
+static int ensure_unity_fbo(basis_vk_present* v, VkImage image, VkFormat format, int w, int h) {
+    if (v->fbo && v->cachedUnityImage == image && v->unityW == w && v->unityH == h) return 0;
+    destroy_unity_fbo(v);
 
     VkImageViewCreateInfo vci = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-    vci.image = v->rgbaImage; vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    vci.format = VK_FORMAT_R8G8B8A8_UNORM;
+    vci.image = image;
+    vci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    /* Match the format Unity reported for its image — UNORM for linear-space
+     * RenderTextures, SRGB for gamma-corrected. Mali only crashes when the
+     * view-create receives a format that wasn't declared at image-create time;
+     * Unity declared this image with its own format, so using the same format
+     * here is always legal. */
+    vci.format = format;
     vci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    vci.subresourceRange.levelCount = 1; vci.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(v->device, &vci, NULL, &v->rgbaView) != VK_SUCCESS) return -1;
+    vci.subresourceRange.levelCount = 1;
+    vci.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(v->device, &vci, NULL, &v->unityImageView) != VK_SUCCESS) return -1;
 
     VkFramebufferCreateInfo fci = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-    fci.renderPass = v->renderPass; fci.attachmentCount = 1; fci.pAttachments = &v->rgbaView;
-    fci.width = (uint32_t)w; fci.height = (uint32_t)h; fci.layers = 1;
+    fci.renderPass = v->renderPass;
+    fci.attachmentCount = 1;
+    fci.pAttachments = &v->unityImageView;
+    fci.width = (uint32_t)w;
+    fci.height = (uint32_t)h;
+    fci.layers = 1;
     if (vkCreateFramebuffer(v->device, &fci, NULL, &v->fbo) != VK_SUCCESS) return -1;
 
-    v->rgbaW = w; v->rgbaH = h;
+    v->cachedUnityImage = image;
+    v->unityW = w;
+    v->unityH = h;
+    v->unityFormat = (int)format;
     return 0;
+}
+
+void basis_vk_set_output_texture(basis_vk_present* v, void* native_texture, int w, int h) {
+    if (!v) return;
+    /* If the handle changed, drop the cached framebuffer; next render_update will
+     * rebuild against the new Unity image. We intentionally don't touch
+     * cachedUnityImage here because AccessTexture may legitimately return the
+     * same VkImage for a recreated RenderTexture if Unity reused the slot. */
+    if (v->unityNativeTex != native_texture) {
+        destroy_unity_fbo(v);
+        v->unityNativeTex = native_texture;
+    }
+    v->unityW = w;
+    v->unityH = h;
 }
 
 /* ---- per-frame resolve ------------------------------------------------- */
 
 int basis_vk_render_update(basis_vk_present* v) {
     if (!v || !v->device || !v->getAHBProps) return 0;
+    /* Without a registered Unity output texture we have nowhere to render. C# is
+     * expected to call basis_media_set_output_texture once TryGetVideoSize
+     * returns a non-zero size; until then the demuxer's AHBs sit in v->pending. */
+    if (!v->unityNativeTex) return 0;
 
     AHardwareBuffer* ahb = NULL; int w, h;
     pthread_mutex_lock(&v->lock);
@@ -419,9 +438,32 @@ int basis_vk_render_update(basis_vk_present* v) {
     if (v->getAHBProps(v->device, ahb, &props) != VK_SUCCESS) { AHardwareBuffer_release(ahb); return 0; }
 
     if (ensure_format_objects(v, fmtProps.externalFormat, &fmtProps) != 0) { AHardwareBuffer_release(ahb); return 0; }
-    if (ensure_rgba(v, w, h) != 0) { AHardwareBuffer_release(ahb); return 0; }
 
-    /* Unity's command buffer for this frame (+ GPU-completion watermark). */
+    /* AccessTexture takes the destination from UNDEFINED/whatever -> COLOR_ATTACHMENT_OPTIMAL
+     * via a pipeline barrier and returns the underlying VkImage + format. This is
+     * the handoff the Mali driver crashes on when done via CreateExternalTexture
+     * (it builds an image view for a plugin-owned image and walks past a table);
+     * the AccessTexture path has Unity build the view at allocation time and just
+     * reuse it here, which doesn't trip the bug. NOTE: this invalidates any prior
+     * CommandRecordingState, so we must call basis_gfx_vk_begin_record AFTER. */
+    uint64_t unityImageU64 = 0; int unityLayout = 0, unityFormat = 0, unityW = 0, unityH = 0;
+    if (!basis_gfx_vk_access_texture(v->unityNativeTex,
+                                     /*VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL*/ 2,
+                                     &unityImageU64, &unityLayout, &unityFormat, &unityW, &unityH)) {
+        AHardwareBuffer_release(ahb);
+        return 0;
+    }
+    VkImage unityImage = (VkImage)(uintptr_t)unityImageU64;
+
+    if (ensure_unity_fbo(v, unityImage, (VkFormat)unityFormat,
+                         unityW > 0 ? unityW : w,
+                         unityH > 0 ? unityH : h) != 0) {
+        AHardwareBuffer_release(ahb);
+        return 0;
+    }
+
+    /* AccessTexture may have recorded into Unity's command buffer; re-query the
+     * recording state now to pick up the post-barrier cursor. */
     uint64_t curFrame = 0, safeFrame = 0;
     VkCommandBuffer cmd = (VkCommandBuffer)(uintptr_t)basis_gfx_vk_begin_record(&curFrame, &safeFrame);
     if (!cmd) { AHardwareBuffer_release(ahb); return 0; }
@@ -456,13 +498,14 @@ int basis_vk_render_update(basis_vk_present* v) {
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0, 0, NULL, 0, NULL, 1, &toRead);
 
+    int rw = v->unityW, rh = v->unityH;
     VkRenderPassBeginInfo rp = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
     rp.renderPass = v->renderPass; rp.framebuffer = v->fbo;
-    rp.renderArea.extent.width = (uint32_t)w; rp.renderArea.extent.height = (uint32_t)h;
+    rp.renderArea.extent.width = (uint32_t)rw; rp.renderArea.extent.height = (uint32_t)rh;
     vkCmdBeginRenderPass(cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
 
-    VkViewport vpr = { 0.0f, 0.0f, (float)w, (float)h, 0.0f, 1.0f };
-    VkRect2D sc = { {0,0}, { (uint32_t)w, (uint32_t)h } };
+    VkViewport vpr = { 0.0f, 0.0f, (float)rw, (float)rh, 0.0f, 1.0f };
+    VkRect2D sc = { {0,0}, { (uint32_t)rw, (uint32_t)rh } };
     vkCmdSetViewport(cmd, 0, 1, &vpr);
     vkCmdSetScissor(cmd, 0, 1, &sc);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->pipeline);
@@ -478,8 +521,11 @@ int basis_vk_render_update(basis_vk_present* v) {
 
 uint64_t basis_vk_get_image(basis_vk_present* v, int* w, int* h) {
     if (!v) { if (w) *w = 0; if (h) *h = 0; return 0; }
-    if (w) *w = v->rgbaW; if (h) *h = v->rgbaH;
-    return (uint64_t)(uintptr_t)v->rgbaImage;
+    if (w) *w = v->unityW;
+    if (h) *h = v->unityH;
+    /* On the AccessTexture path Unity owns the destination; C# already has the
+     * handle (it gave it to us). Return the same handle for diagnostics only. */
+    return (uint64_t)(uintptr_t)v->unityNativeTex;
 }
 
 uint64_t basis_vk_frame_counter(basis_vk_present* v) { return v ? v->frameCounter : 0; }
@@ -487,7 +533,8 @@ uint64_t basis_vk_frame_counter(basis_vk_present* v) { return v ? v->frameCounte
 void basis_vk_release(basis_vk_present* v) {
     if (!v || !v->device) return;
     destroy_format_objects(v);   /* also destroys ring slots */
-    destroy_rgba(v);
+    destroy_unity_fbo(v);
+    v->unityNativeTex = NULL;
     pthread_mutex_lock(&v->lock);
     if (v->pending) { AHardwareBuffer_release(v->pending); v->pending = NULL; }
     pthread_mutex_unlock(&v->lock);
