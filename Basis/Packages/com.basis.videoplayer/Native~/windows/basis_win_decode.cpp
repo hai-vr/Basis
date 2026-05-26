@@ -755,31 +755,14 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     /* recover from non-monotonic/bogus PTS (lastPresentedPts stuck above the ring) */
     if (d->lastPresentedPts != INT64_MIN && d->lastPresentedPts > newest) d->lastPresentedPts = INT64_MIN;
 
-    /* Present the next un-rendered frame in PTS order — smoother under bursts
-     * than "latest due", since when a burst makes multiple frames due in one
-     * render tick, picking oldest shows them in sequence over the next few
-     * ticks instead of skipping intermediates. Fall back to the latest due
-     * frame when the backlog exceeds CATCHUP_INTERVALS so we don't lock to a
-     * stale frame after a hard-resync or extended stall. */
-    const int CATCHUP_INTERVALS = 4;
-    int oldest = -1; int64_t oldestPts = INT64_MAX;
-    int latest = -1; int64_t latestPts = d->lastPresentedPts;
+    /* Present the latest frame that is due (PTS <= now) and newer than the last shown. */
+    int best = -1; int64_t bestPts = d->lastPresentedPts;
     for (int i = 0; i < basis_decoder::RING; ++i) {
         int64_t p = d->ringPts[i];
         if (p == INT64_MIN) continue;
-        if (p > d->lastPresentedPts && p <= nowMedia) {
-            if (p < oldestPts) { oldest = i; oldestPts = p; }
-            if (p > latestPts) { latest = i; latestPts = p; }
-        }
+        if (p > bestPts && p <= nowMedia) { best = i; bestPts = p; }
     }
-    int best; int64_t bestPts;
-    if (oldest < 0) {
-        InterlockedIncrement(&d->dbg_nodue); LeaveCriticalSection(&d->presentLock); return 0;
-    } else if (oldest != latest && (latestPts - oldestPts) > CATCHUP_INTERVALS * interval) {
-        best = latest; bestPts = latestPts;
-    } else {
-        best = oldest; bestPts = oldestPts;
-    }
+    if (best < 0) { InterlockedIncrement(&d->dbg_nodue); LeaveCriticalSection(&d->presentLock); return 0; }
 
     if (d->api == BASIS_GFX_D3D11 && d->outTexD11 && d->ringOnUnity[best] && d->ctxUnity) {
         HRESULT a = d->ringMutexUnity[best] ? d->ringMutexUnity[best]->AcquireSync(0, 8) : S_OK;

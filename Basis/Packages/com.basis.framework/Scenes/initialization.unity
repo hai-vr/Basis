@@ -167,6 +167,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6120556251235419922, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
+      propertyPath: BufferMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6120556251235419922, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
+      propertyPath: BufferMilliseconds
+      value: 240
+      objectReference: {fileID: 0}
     - target: {fileID: 8238937759899344198, guid: b626617aca178e74b9150ea01e88eaa8, type: 3}
       propertyPath: m_Name
       value: VideoPlayerStreaming
