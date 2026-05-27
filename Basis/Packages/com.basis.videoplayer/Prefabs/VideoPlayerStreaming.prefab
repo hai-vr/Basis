@@ -232,6 +232,7 @@ GameObject:
   - component: {fileID: 1325980082505240853}
   - component: {fileID: 2859578426207650292}
   - component: {fileID: 5505517674190816405}
+  - component: {fileID: 6909635529111236433}
   m_Layer: 0
   m_Name: VideoPlayerStreaming
   m_TagString: Untagged
@@ -328,8 +329,8 @@ MonoBehaviour:
   MaxQueueLength: 64
   OverflowPolicy: 0
   LateFrameSkipUs: 0
-  BufferMode: 1
-  BufferMilliseconds: 120
+  BufferMode: 0
+  BufferMilliseconds: 240
   AutoPlayOnSourceAssigned: 1
   StopOnDisable: 1
   Loop: 0
@@ -446,3 +447,20 @@ MonoBehaviour:
   AllowAnyoneToTakeControl: 1
   DriftSeekThresholdSeconds: 2
   VerboseLogging: 0
+--- !u!114 &6909635529111236433
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8238937759899344198}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6d522ad8b3c8994697772711c4a66d4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisVideoPlayer::BasisVideoPlayerDiagnostics
+  AutoStart: 1
+  SnapshotsPerSecond: 50
+  FlushEveryNSnapshots: 200
+  AppendBetweenSessions: 0
+  LogPathOverride: 

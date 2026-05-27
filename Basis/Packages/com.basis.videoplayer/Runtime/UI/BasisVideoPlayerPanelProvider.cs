@@ -32,9 +32,6 @@ namespace Basis.BasisUI.VideoPlayer
         private PanelDropdown _bitrateDropdown;
         private PanelDropdown _audioTrackDropdown;
         private PanelToggle _advancedToggle;
-        private PanelElementDescriptor _advancedGroup;
-        private PanelToggle _dvrToggle;
-        private PanelSlider _dvrWindowSlider;
         private BasisVideoPlayer _activePlayer;
         private readonly List<BasisVideoPlayer> _entries = new List<BasisVideoPlayer>();
         private bool _debugTickSubscribed;
@@ -115,9 +112,6 @@ namespace Basis.BasisUI.VideoPlayer
             _bitrateDropdown = null;
             _audioTrackDropdown = null;
             _advancedToggle = null;
-            _advancedGroup = null;
-            _dvrToggle = null;
-            _dvrWindowSlider = null;
             _activePlayer = null;
             _entries.Clear();
         }
@@ -214,35 +208,6 @@ namespace Basis.BasisUI.VideoPlayer
             {
                 ApplyAdvancedVisibility(v);
             };
-
-            _advancedGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, content);
-            _advancedGroup.SetTitle("DVR (rolling rewind)");
-            _advancedGroup.gameObject.SetActive(false);
-            RectTransform advContent = _advancedGroup.ContentParent;
-
-            _dvrToggle = PanelToggle.CreateNewEntry(advContent);
-            _dvrToggle.Descriptor.SetTitle("DVR Enabled");
-            _dvrToggle.OnValueChanged = v =>
-            {
-                if (_activePlayer == null) return;
-                _activePlayer.DvrEnabled = v;
-            };
-
-            _dvrWindowSlider = PanelSlider.CreateNew(advContent);
-            _dvrWindowSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced("DVR Window (s)", 0f, 60f, true, 0, ValueDisplayMode.Raw));
-            _dvrWindowSlider.OnValueChanged = v =>
-            {
-                if (_activePlayer == null) return;
-                _activePlayer.DvrWindowSeconds = Mathf.Clamp(v, 0f, 60f);
-            };
-
-            RectTransform dvrActions = BuildActionRow(advContent);
-            PanelButton back10 = PanelButton.CreateNew(dvrActions);
-            back10.Descriptor.SetTitle("⏪ 10s");
-            back10.OnClicked += () => _activePlayer?.TrySeekBack(System.TimeSpan.FromSeconds(10));
-            PanelButton back30 = PanelButton.CreateNew(dvrActions);
-            back30.Descriptor.SetTitle("⏪ 30s");
-            back30.OnClicked += () => _activePlayer?.TrySeekBack(System.TimeSpan.FromSeconds(30));
         }
 
         private void RebuildSelector()
@@ -332,9 +297,6 @@ namespace Basis.BasisUI.VideoPlayer
 
             _volumeSlider?.SetValueWithoutNotify(_activePlayer.Mute ? 0f : Mathf.Clamp01(_activePlayer.Volume) * 100f);
 
-            _dvrToggle?.SetValueWithoutNotify(_activePlayer.DvrEnabled);
-            _dvrWindowSlider?.SetValueWithoutNotify(_activePlayer.DvrWindowSeconds);
-
             RebuildBitrateDropdown();
             RebuildAudioTrackDropdown();
 
@@ -410,11 +372,6 @@ namespace Basis.BasisUI.VideoPlayer
 
         private void ApplyAdvancedVisibility(bool visible)
         {
-            if (_advancedGroup != null)
-            {
-                _advancedGroup.gameObject.SetActive(visible);
-                _advancedGroup.ForceRebuild();
-            }
             if (_debugGroup != null)
             {
                 _debugGroup.gameObject.SetActive(visible);

@@ -54,6 +54,8 @@ public static class BasisVideoProtonGate
         string ver = BasisProtonDetection.WineVersion;
         string host = string.IsNullOrEmpty(ver) ? "Proton/Wine" : $"Proton/Wine ({ver})";
 
+        if (!BasisMainMenu.Instance) BasisMainMenu.Open();
+
         var panel = BasisMenuDialoguePanel.CreateNew(
             "Video Player",
             $"This session is running through {host}. The video player needs Windows Media Foundation, " +

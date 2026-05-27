@@ -318,9 +318,14 @@ public sealed class BasisVideoPlayer : MonoBehaviour
     // code that assigns Source directly (e.g. BasisSyntheticTestSource for tests).
     public void LoadSource(BasisMediaSource media)
     {
-        if (media == null) throw new ArgumentNullException(nameof(media));
+        if (media == null)
+        {
+            throw new ArgumentNullException(nameof(media));
+        }
+
         activeMediaSource = media;
 
+        /* not needed anymore!
         // Under Wine/Proton, Media Foundation may be missing and initializing the
         // native plugin can hard-crash, so ask before touching it (once per session,
         // shared across players). On native Windows/Android/Quest this runs inline.
@@ -331,6 +336,7 @@ public sealed class BasisVideoPlayer : MonoBehaviour
                 onDenied: () => HandleProtonDeclined(media));
             return;
         }
+        */
 
         StartNativeEngineForSource(media);
     }
