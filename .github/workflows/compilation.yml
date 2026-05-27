@@ -84,13 +84,11 @@ jobs:
       - name: "Create version string"
         id: version
         run: echo "gitversion=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
-      - name: "Remove OpenXR when building for Linux"
+      - name: "Sanitize Linux client project"
         if: matrix.targetPlatform == 'StandaloneLinux64'
-        run: rm -rf ${projectPath}/Packages/com.basis.openxr
-        # run: jq 'del(.dependencies ["com.unity.xr.openxr"])' < ${projectPath}/Packages/manifest.json > manifest.json.tmp && mv manifest.json.tmp ${projectPath}/Packages/manifest.json
-      - name: "Remove Meta XR Core when building for Linux"
-        if: matrix.targetPlatform == 'StandaloneLinux64'
-        run: rm -rf ${projectPath}/Packages/com.meta.xr.sdk.core
+        shell: bash
+        run: |
+          python3 .github/scripts/sanitize_linux_client_ci.py "${projectPath}"
       # Fix docker not ready on windows
       - name: Ensure Docker service is running
         if: matrix.buildPlatform == 'windows-2022'
