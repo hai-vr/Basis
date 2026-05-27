@@ -18,6 +18,7 @@ PACKAGE_DIRS_TO_REMOVE = (
 PACKAGE_DEPENDENCIES_TO_REMOVE = (
     "com.llealloo.audiolink",
     "com.unity.xr.openxr",
+    "com.valvesoftware.openxr.utils",
     "com.valvesoftware.unity.openvr",
 )
 
@@ -39,6 +40,11 @@ XR_ASSET_PATHS_TO_REMOVE = (
 
 LINKER_ASSEMBLIES_TO_REMOVE = (
     "AudioLink",
+)
+
+PACKAGE_LOCK_ENTRIES_TO_REMOVE = PACKAGE_DEPENDENCIES_TO_REMOVE + (
+    "com.basis.openvr",
+    "com.basis.openxr",
 )
 
 
@@ -98,6 +104,35 @@ def remove_manifest_dependencies(project_root: Path) -> list[str]:
         manifest_path.write_text("".join(output), encoding="utf-8")
 
     return removed_dependencies
+
+
+def remove_package_lock_entries(project_root: Path) -> list[str]:
+    lock_path = project_root / "Packages/packages-lock.json"
+    if not lock_path.exists():
+        return []
+
+    import json
+
+    lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
+    dependencies = lock_data.get("dependencies", {})
+    removed_entries: list[str] = []
+
+    for dependency in PACKAGE_LOCK_ENTRIES_TO_REMOVE:
+        if dependencies.pop(dependency, None) is not None:
+            removed_entries.append(dependency)
+
+    for package_info in dependencies.values():
+        package_dependencies = package_info.get("dependencies")
+        if not isinstance(package_dependencies, dict):
+            continue
+
+        for dependency in PACKAGE_LOCK_ENTRIES_TO_REMOVE:
+            package_dependencies.pop(dependency, None)
+
+    if removed_entries:
+        lock_path.write_text(json.dumps(lock_data, indent=2) + "\n", encoding="utf-8")
+
+    return removed_entries
 
 
 def strip_editor_build_settings(project_root: Path) -> list[str]:
@@ -236,6 +271,12 @@ def main() -> int:
     if removed_dependencies:
         print(f"Removed {len(removed_dependencies)} manifest dependencies from {project_root / 'Packages/manifest.json'}")
         for dependency in removed_dependencies:
+            print(f"  - {dependency}")
+
+    removed_lock_entries = remove_package_lock_entries(project_root)
+    if removed_lock_entries:
+        print(f"Removed {len(removed_lock_entries)} package lock entries from {project_root / 'Packages/packages-lock.json'}")
+        for dependency in removed_lock_entries:
             print(f"  - {dependency}")
 
     removed_config_keys = strip_editor_build_settings(project_root)
