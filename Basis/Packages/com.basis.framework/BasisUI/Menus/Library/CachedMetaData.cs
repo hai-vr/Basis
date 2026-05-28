@@ -154,9 +154,6 @@ namespace Basis.BasisUI
                 BasisLoadableBundle = wrapper.BasisLoadableBundle,
             };
 
-            // might as well cache the sprite now
-            cached.CachedSprite = CreateSpriteFromMetaData(cached);
-
             string dateStrCache = connector?.DateOfCreation;
             if (!string.IsNullOrEmpty(dateStrCache) && DateTime.TryParse(dateStrCache, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedDate))
             {

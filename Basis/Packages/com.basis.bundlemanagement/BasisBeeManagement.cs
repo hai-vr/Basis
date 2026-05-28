@@ -180,7 +180,7 @@ public static class BasisBeeManagement
     /// and if not, whether the failure was transient (network/cancel) or fatal (missing/corrupt).</returns>
     public static async Task<BasisMetaLoadResult> HandleMetaOnlyLoad(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken)
     {
-        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation).ConfigureAwait(false);
+        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
         (BasisBundleConnector Connector, string ErrorMessage) output;
         if (IsMetaOnDisc)
         {

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2806f50b6e83ffc12b3aadabcbada3ee, type: 3}
   m_Name: BasisDefaultTrustedUrls
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   Urls:
   - https://cdn.discordapp.com/*
   - https://*.disbridge.com/*
@@ -26,3 +26,4 @@ MonoBehaviour:
   - https://i.redd.it/*
   - https://pbs.twimg.com/*
   - https://*.vrcdn.cloud/*
+  - https://*.vrcdn.live/*
