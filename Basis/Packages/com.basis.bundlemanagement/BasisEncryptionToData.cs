@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 public static class BasisEncryptionToData
@@ -97,8 +98,38 @@ public static class BasisEncryptionToData
         }
 
         BasisDebug.Log("Converting byte array to JSON string...", BasisDebug.LogTag.Event);
-        connector = BasisSerialization.DeserializeValue<BasisBundleConnector>(data);
+        try
+        {
+            connector = BasisSerialization.DeserializeValue<BasisBundleConnector>(data);
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"DeserializeValue<BasisBundleConnector> threw {ex.GetType().Name}: {ex.Message}. PlaintextLength={data.Length}. Head={JsonHeadPreview(data)}");
+            return false;
+        }
+
+        if (connector == null)
+        {
+            BasisDebug.LogError($"DeserializeValue<BasisBundleConnector> returned null (decrypt OK but wrapper/Value missing). PlaintextLength={data.Length}. Head={JsonHeadPreview(data)}");
+            return false;
+        }
+
         BasisDebug.Log("Converted byte array to JSON string...", BasisDebug.LogTag.Event);
         return true;
+    }
+
+    private static string JsonHeadPreview(byte[] data)
+    {
+        if (data == null || data.Length == 0) return "<empty>";
+        int count = Math.Min(data.Length, 256);
+        string preview = Encoding.UTF8.GetString(data, 0, count);
+        StringBuilder sb = new StringBuilder(preview.Length);
+        for (int i = 0; i < preview.Length; i++)
+        {
+            char c = preview[i];
+            sb.Append(c < 0x20 || c == 0x7F ? '.' : c);
+        }
+        if (data.Length > count) sb.Append("...");
+        return sb.ToString();
     }
 }
