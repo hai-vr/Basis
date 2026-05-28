@@ -24,5 +24,6 @@ namespace Basis.Network.Core
         public bool MtuDiscovery = true;
         public bool DisconnectOnUnreachable = false;
         public bool AllowPeerAddressChange = true;
+        public int MultiSocketCount = 1;
     }
 }

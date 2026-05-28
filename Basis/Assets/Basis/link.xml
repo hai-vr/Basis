@@ -16,9 +16,11 @@
     <assembly fullname="BasisGizmos" preserve="all" />
     <assembly fullname="BasisMediaPipe" preserve="all" />
     <assembly fullname="BasisMediaPipe.Homuler" preserve="all" />
+    <assembly fullname="BasisMediaPlayer" preserve="all" />
     <assembly fullname="BasisNetworkClient" preserve="all" />
     <assembly fullname="BasisNetworkCore" preserve="all" />
     <assembly fullname="BasisNetworkServer" preserve="all" />
+    <assembly fullname="BasisOpenVR" preserve="all" />
     <assembly fullname="BasisOpenXR" preserve="all" />
     <assembly fullname="BasisPoolTable" preserve="all" />
     <assembly fullname="BasisProfiler" preserve="all" />
@@ -30,7 +32,6 @@
     <assembly fullname="BasisShims" preserve="all" />
     <assembly fullname="BasisVehicles" preserve="all" />
     <assembly fullname="BasisVehiclesNetwork" preserve="all" />
-    <assembly fullname="BasisMediaPlayer" preserve="all" />
     <assembly fullname="BouncyCastle.Cryptography" preserve="all" />
     <assembly fullname="Cilbox" preserve="all" />
     <assembly fullname="Crypto" preserve="all" />
@@ -126,7 +127,6 @@
     <assembly fullname="Valve.OpenXR.Utils" preserve="all" />
     <assembly fullname="XRSDKOpenVR" preserve="all" />
     <assembly fullname="audioplugin_phonon" preserve="all" />
-    <assembly fullname="basis_media_native" preserve="all" />
     <assembly fullname="com.cqf.urpvolumetricfog.runtime" preserve="all" />
     <assembly fullname="com.gator-dragon-games.jigglephysics" preserve="all" />
     <assembly fullname="openvr_api" preserve="all" />

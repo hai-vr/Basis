@@ -3,6 +3,7 @@ using Basis.Network.Core.Compression;
 using Basis.Network.Server;
 using Basis.Network.Server.Auth;
 using BasisDidLink;
+using BasisNetworkServer;
 using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
@@ -80,6 +81,8 @@ public static class NetworkServer
             BasisStatistics.StartWorkerThread(Server);
         }
 
+        BasisNetworkUdpDropMonitor.Start();
+
         BNL.Log("Server Worker Threads Booted");
     }
 
@@ -94,6 +97,7 @@ public static class NetworkServer
         {
             BNL.LogWarning($"NetworkServer.StopServer failed: {ex.Message}");
         }
+        BasisNetworkUdpDropMonitor.Stop();
         Server = null;
         Listener = null;
         AuthenticatedPeers.Clear();
@@ -201,13 +205,16 @@ public static class NetworkServer
             return;
         }
 
+        int senderId = sender.Id;
+        int sent = 0;
         foreach (var client in clients)
         {
-            if (client.Id != sender.Id)
+            if (client.Id != senderId && TrySendNoRecord(client, writer, channel, deliveryMethod, maxMessages))
             {
-                TrySend(client, writer, channel, deliveryMethod, maxMessages);
+                sent++;
             }
         }
+        BasisNetworkStatistics.RecordOutboundBatch(channel, sent, (long)sent * writer.Length);
     }
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
@@ -216,10 +223,15 @@ public static class NetworkServer
             return;
         }
 
+        int sent = 0;
         foreach (var client in clients)
         {
-            TrySend(client, writer, channel, deliveryMethod, maxMessages);
+            if (TrySendNoRecord(client, writer, channel, deliveryMethod, maxMessages))
+            {
+                sent++;
+            }
         }
+        BasisNetworkStatistics.RecordOutboundBatch(channel, sent, (long)sent * writer.Length);
     }
 
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, ref List<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
@@ -230,33 +242,41 @@ public static class NetworkServer
         }
 
         int count = clients.Count;
+        int sent = 0;
         for (int Index = 0; Index < count; Index++)
         {
             NetPeer client = clients[Index];
-            TrySend(client, writer, channel, deliveryMethod, maxMessages);
+            if (TrySendNoRecord(client, writer, channel, deliveryMethod, maxMessages))
+            {
+                sent++;
+            }
         }
+        BasisNetworkStatistics.RecordOutboundBatch(channel, sent, (long)sent * writer.Length);
     }
 
     public static void TrySend(NetPeer client, NetDataWriter writer, byte channel, DeliveryMethod deliveryMethod, int maxMessages = 70)
     {
+        if (TrySendNoRecord(client, writer, channel, deliveryMethod, maxMessages))
+        {
+            BasisNetworkStatistics.RecordOutbound(channel, writer.Length);
+        }
+    }
+
+    // Returns true if the send actually went out (vs dropped by the per-channel queue cap).
+    // Splits the queue/send decision from the stats record so broadcast loops can fold N×
+    // Interlocked into one RecordOutboundBatch call per (channel, broadcast).
+    private static bool TrySendNoRecord(NetPeer client, NetDataWriter writer, byte channel, DeliveryMethod deliveryMethod, int maxMessages)
+    {
         if (deliveryMethod == DeliveryMethod.Sequenced || deliveryMethod == DeliveryMethod.Unreliable)
         {
             int queuedMessages = client.GetPacketsCountInQueue(channel, deliveryMethod);
-            if (queuedMessages <= maxMessages)
+            if (queuedMessages > maxMessages)
             {
-                BasisNetworkStatistics.RecordOutbound(channel, writer.Length);
-                client.Send(writer, channel, deliveryMethod);
-            }
-            else
-            {
-                // BNL.LogError("Skipping send out of Channel " + channel);
+                return false;
             }
         }
-        else
-        {
-            BasisNetworkStatistics.RecordOutbound(channel, writer.Length);
-            client.Send(writer, channel, deliveryMethod);
-        }
+        client.Send(writer, channel, deliveryMethod);
+        return true;
     }
     public static bool CheckValidated(NetDataWriter writer)
     {

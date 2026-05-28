@@ -20,14 +20,35 @@ namespace LiteNetLib
         private IPEndPoint _bufferEndPointv6;
         private EndPoint _receiveEndPoint4 = new IPEndPoint(IPAddress.Any, 0);
         private EndPoint _receiveEndPoint6 = new IPEndPoint(IPAddress.IPv6Any, 0);
+
+        // Extra SO_REUSEPORT sockets + their receive threads, populated when MultiSocketCount > 1 on Linux.
+        private readonly List<Socket> _extraSocketsV4 = new List<Socket>();
+        private readonly List<Socket> _extraSocketsV6 = new List<Socket>();
+        private readonly List<Thread> _extraReceiveThreads = new List<Thread>();
+        private const int SO_REUSEPORT_LINUX = 15;
+        private bool _useReusePort;
 #if UNITY_SOCKET_FIX
         private PausedSocketFix _pausedSocketFix;
         private bool _useSocketFix;
 #endif
 
 #if NET8_0_OR_GREATER
-        private readonly SocketAddress _sockAddrCacheV4 = new SocketAddress(AddressFamily.InterNetwork);
-        private readonly SocketAddress _sockAddrCacheV6 = new SocketAddress(AddressFamily.InterNetworkV6);
+        // ThreadStatic so each receive thread (primary + SO_REUSEPORT extras) gets its own
+        // SocketAddress scratch — Socket.ReceiveFrom writes the source address into this buffer,
+        // so a shared instance across threads would race.
+        [ThreadStatic] private static SocketAddress _sockAddrCacheV4Ts;
+        [ThreadStatic] private static SocketAddress _sockAddrCacheV6Ts;
+
+        private static SocketAddress GetSockAddrCache(AddressFamily af)
+        {
+            if (af == AddressFamily.InterNetwork)
+            {
+                if (_sockAddrCacheV4Ts == null) _sockAddrCacheV4Ts = new SocketAddress(AddressFamily.InterNetwork);
+                return _sockAddrCacheV4Ts;
+            }
+            if (_sockAddrCacheV6Ts == null) _sockAddrCacheV6Ts = new SocketAddress(AddressFamily.InterNetworkV6);
+            return _sockAddrCacheV6Ts;
+        }
 #endif
 
         private const int SioUdpConnreset = -1744830452; //SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12
@@ -127,16 +148,16 @@ namespace LiteNetLib
             }
         }
 
-        private void NativeReceiveLogic()
+        private void NativeReceiveLogic() => NativeReceiveLogicForSocketPair(_udpSocketv4, _udpSocketv6);
+
+        private void NativeReceiveLogicForSocketPair(Socket socketv4, Socket socketV6)
         {
-            IntPtr socketHandle4 = _udpSocketv4.Handle;
-            IntPtr socketHandle6 = _udpSocketv6?.Handle ?? IntPtr.Zero;
+            IntPtr socketHandle4 = socketv4.Handle;
+            IntPtr socketHandle6 = socketV6?.Handle ?? IntPtr.Zero;
             byte[] addrBuffer4 = new byte[NativeSocket.IPv4AddrSize];
             byte[] addrBuffer6 = new byte[NativeSocket.IPv6AddrSize];
             var tempEndPoint = new IPEndPoint(IPAddress.Any, 0);
             var selectReadList = new List<Socket>(2);
-            var socketv4 = _udpSocketv4;
-            var socketV6 = _udpSocketv6;
             var packet = PoolGetPacket(NetConstants.MaxPacketSize);
 
             while (_isRunning)
@@ -255,7 +276,7 @@ namespace LiteNetLib
         {
             var packet = PoolGetPacket(NetConstants.MaxPacketSize);
 #if NET8_0_OR_GREATER
-            var sockAddr = s.AddressFamily == AddressFamily.InterNetwork ? _sockAddrCacheV4 : _sockAddrCacheV6;
+            var sockAddr = GetSockAddrCache(s.AddressFamily);
             packet.Size = s.ReceiveFrom(packet, SocketFlags.None, sockAddr);
             OnMessageReceived(packet, TryGetPeer(sockAddr, out var peer) ? peer : (IPEndPoint)bufferEndPoint.Create(sockAddr));
 #else
@@ -264,13 +285,16 @@ namespace LiteNetLib
 #endif
         }
 
-        private void ReceiveLogic()
+        private void ReceiveLogic() => ReceiveLogicForSocketPair(_udpSocketv4, _udpSocketv6);
+
+        private void ReceiveLogicForSocketPair(Socket socketv4, Socket socketV6)
         {
-            EndPoint bufferEndPoint4 = _receiveEndPoint4;
-            EndPoint bufferEndPoint6 = _receiveEndPoint6;
+            // Per-thread endpoint instances so multi-socket extras don't alias the primary
+            // socket's templates. Socket.ReceiveFrom replaces the ref rather than mutating
+            // the original, but allocating per-thread keeps this fact local to each loop.
+            EndPoint bufferEndPoint4 = new IPEndPoint(IPAddress.Any, 0);
+            EndPoint bufferEndPoint6 = new IPEndPoint(IPAddress.IPv6Any, 0);
             var selectReadList = new List<Socket>(2);
-            var socketv4 = _udpSocketv4;
-            var socketV6 = _udpSocketv6;
 
             while (_isRunning)
             {
@@ -346,6 +370,23 @@ namespace LiteNetLib
             NotConnected = false;
             _manualMode = manualMode;
             UseNativeSockets = UseNativeSockets && NativeSocket.IsSupported;
+
+            // SO_REUSEPORT multi-socket ingress: Linux-only. Decide here so the primary socket
+            // also opts in (SO_REUSEPORT must be set on every socket sharing the port).
+            int extraSocketCount = 0;
+            if (MultiSocketCount > 1)
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    _useReusePort = true;
+                    extraSocketCount = MultiSocketCount - 1;
+                }
+                else
+                {
+                    NetDebug.WriteError($"[NM] MultiSocketCount={MultiSocketCount} requested but SO_REUSEPORT is Linux-only; falling back to single socket");
+                }
+            }
+
             _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             if (!BindSocket(_udpSocketv4, new IPEndPoint(addressIPv4, port)))
                 return false;
@@ -395,6 +436,55 @@ namespace LiteNetLib
                     _logicThread = new Thread(UpdateLogic) { Name = "LogicThread", IsBackground = true };
                     _logicThread.Start();
                 }
+
+                // Spawn extra SO_REUSEPORT sockets + receive threads. Each gets its own v4
+                // (and v6 if enabled) socket bound to the same port. The Linux kernel hashes
+                // inbound 4-tuples across them — per-peer order preserved, single-recv-thread
+                // pps wall lifted.
+                for (int i = 0; i < extraSocketCount; i++)
+                {
+                    var extraV4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                    if (!BindSocket(extraV4, new IPEndPoint(addressIPv4, LocalPort)))
+                    {
+                        NetDebug.WriteError($"[NM] Extra REUSEPORT socket #{i + 1} (v4) bind failed; stopping at {i} extras");
+                        extraV4.Close();
+                        break;
+                    }
+                    _extraSocketsV4.Add(extraV4);
+
+                    Socket extraV6 = null;
+                    if (_udpSocketv6 != null)
+                    {
+                        extraV6 = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+                        if (!BindSocket(extraV6, new IPEndPoint(addressIPv6, LocalPort)))
+                        {
+                            // v6 bind can fail with AddressAlreadyInUse on dual-stack hosts even with
+                            // REUSEPORT — degrade to v4-only for this slot rather than aborting.
+                            extraV6.Close();
+                            extraV6 = null;
+                        }
+                        else
+                        {
+                            _extraSocketsV6.Add(extraV6);
+                        }
+                    }
+
+                    Socket capturedV4 = extraV4;
+                    Socket capturedV6 = extraV6;
+                    Thread extraThread = new Thread(() =>
+                    {
+                        if (UseNativeSockets)
+                            NativeReceiveLogicForSocketPair(capturedV4, capturedV6);
+                        else
+                            ReceiveLogicForSocketPair(capturedV4, capturedV6);
+                    })
+                    {
+                        Name = $"ReceiveThread({LocalPort}#{i + 1})",
+                        IsBackground = true
+                    };
+                    _extraReceiveThreads.Add(extraThread);
+                    extraThread.Start();
+                }
             }
 
             return true;
@@ -423,9 +513,26 @@ namespace LiteNetLib
 
             try
             {
-                socket.ExclusiveAddressUse = !ReuseAddress;
-                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, ReuseAddress);
+                // SO_REUSEPORT needs ReuseAddress too on most BSDs / Linux for port sharing.
+                bool wantReuse = ReuseAddress || _useReusePort;
+                socket.ExclusiveAddressUse = !wantReuse;
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, wantReuse);
                 socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontRoute, DontRoute);
+                if (_useReusePort && RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    try
+                    {
+                        // SO_REUSEPORT = 15 on Linux. Set MUST happen before bind. Enables the
+                        // kernel to RSS-hash inbound 4-tuples across all sockets sharing the port,
+                        // giving one receive thread per socket without app-level load balancing.
+                        socket.SetSocketOption(SocketOptionLevel.Socket, (SocketOptionName)SO_REUSEPORT_LINUX, 1);
+                    }
+                    catch (SocketException ex)
+                    {
+                        NetDebug.WriteError($"[NM] SO_REUSEPORT setsockopt failed ({ex.SocketErrorCode}); multi-socket disabled");
+                        _useReusePort = false;
+                    }
+                }
             }
             catch
             {
@@ -706,6 +813,18 @@ namespace LiteNetLib
             if (_receiveThread != null && _receiveThread != Thread.CurrentThread)
                 _receiveThread.Join();
             _receiveThread = null;
+
+            foreach (var t in _extraReceiveThreads)
+            {
+                if (t != null && t != Thread.CurrentThread) t.Join();
+            }
+            _extraReceiveThreads.Clear();
+            foreach (var s in _extraSocketsV4) s?.Close();
+            foreach (var s in _extraSocketsV6) s?.Close();
+            _extraSocketsV4.Clear();
+            _extraSocketsV6.Clear();
+            _useReusePort = false;
+
             _udpSocketv4?.Close();
             _udpSocketv6?.Close();
             _udpSocketv4 = null;

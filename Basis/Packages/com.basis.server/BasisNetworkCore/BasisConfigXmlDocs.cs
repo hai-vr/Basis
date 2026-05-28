@@ -147,6 +147,7 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("MtuDiscovery", " Enable path-MTU discovery. true|false. "));
             t.Fields.Add(new FieldDoc("DisconnectOnUnreachable", " [NOT APPLIED] Disconnect a peer when an ICMP 'unreachable' is received. true|false. "));
             t.Fields.Add(new FieldDoc("AllowPeerAddressChange", " Allow a peer's remote endpoint (IP/port) to change mid-session, e.g. mobile network roaming. true|false. "));
+            t.Fields.Add(new FieldDoc("MultiSocketCount", " Number of UDP sockets to bind on the listen port using SO_REUSEPORT (Linux only). 1 = single socket / single receive thread (default). N>1 spawns N-1 extra sockets + receive threads so the Linux kernel RSS-hashes inbound 4-tuples across them; per-peer packet order is preserved because each peer's 4-tuple is stable. On Windows/macOS this falls back to 1 with a warning at Start(). Sensible range: 2-4 around 1k players, 4-8 around 2k. int. "));
             _docs[typeof(LNLTransportConfig)] = t;
         }
     }

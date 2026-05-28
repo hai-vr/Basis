@@ -76,6 +76,27 @@ namespace BasisNetworkServer.BasisNetworking
             Interlocked.Add(ref _outBytesStripes[s][index], bytesEncoded);
         }
 
+        /// <summary>
+        /// Record a batch of N outbound messages on the same <paramref name="index"/>. Caller
+        /// is expected to have accumulated <paramref name="count"/> messages totaling
+        /// <paramref name="bytesEncoded"/> bytes within one logical scope (e.g. one receiver's
+        /// tick in the BSR send loop). Folds N×(LOCK XADD + LOCK ADD) into 2×LOCK ADD —
+        /// at 1k+ players this is several percent of total CPU saved in the BSR hot path.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void RecordOutboundBatch(byte index, long count, long bytesEncoded)
+        {
+            if (!IsRecordingData || count <= 0)
+            {
+                return;
+            }
+
+            int s = EnsureStripe();
+
+            Interlocked.Add(ref _outCountStripes[s][index], count);
+            Interlocked.Add(ref _outBytesStripes[s][index], bytesEncoded);
+        }
+
         // ===== Snapshot API =====
 
         /// <summary>

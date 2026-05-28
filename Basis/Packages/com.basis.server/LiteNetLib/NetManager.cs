@@ -262,6 +262,16 @@ namespace LiteNetLib
         public bool ReuseAddress = false;
 
         /// <summary>
+        /// Number of UDP sockets to bind on the same port using SO_REUSEPORT (Linux only).
+        /// 1 (default) = single socket / single receive thread, current behavior. Values &gt;1
+        /// spawn additional sockets and receive threads so the Linux kernel RSS-hashes inbound
+        /// datagrams across them, lifting the single-recv-thread pps ceiling. Each per-peer
+        /// 4-tuple still hashes to one socket, so per-peer packet order is preserved.
+        /// On non-Linux platforms this falls back to 1 with a warning logged at Start().
+        /// </summary>
+        public int MultiSocketCount = 1;
+
+        /// <summary>
         /// Maximum number of fragments allowed per message.
         /// Default: ushort.MaxValue (65535)
         /// </summary>
