@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   AudioMixer: {fileID: 66868534081707349, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
   selectedTypes:
-  - BasisVideoPlayer
-  - BasisVideoPlayerNetworking
-  - BasisVideoPlayerAudio
-  - BasisVideoPlayerStreaming
-  - BasisVideoPlayerSynthetic
+  - BasisMediaPlayer
+  - BasisMediaPlayerNetworking
+  - BasisMediaPlayerAudio
+  - BasisMediaPlayerStreaming
+  - BasisMediaPlayerSynthetic
   - BasisVideoDisplay
   - BasisVideoMaterialOutput
   - BasisSDKMirror
@@ -233,7 +233,7 @@ MonoBehaviour:
   - UnityEngine.VFX.VisualEffect
   - UnityEngine.WindZone
   - UnityEngine.WheelCollider
-  - UnityEngine.Video.VideoPlayer
+  - UnityEngine.Video.MediaPlayer
   - UnityEngine.EventSystems.PhysicsRaycaster
   - UnityEngine.EventSystems.Physics2DRaycaster
   - UnityEngine.EventSystems.TouchInputModule
@@ -330,7 +330,7 @@ MonoBehaviour:
   - Basis.Scripts.Vehicles.Parts.BasisVehicleEngineAudio
   - Basis.Network.Vehicles.BasisNetworkedVehicle
   - Prism.PrismPlayer
-  - Prism.PrismVideoPlayer
+  - Prism.PrismMediaPlayer
   - Prism.Native.Windows.WindowsWebRTCPlayer
   - Prism.Native.Windows.WindowsMediaPlayer
   - Prism.Native.Windows.WindowsMediaEnginePlayer
@@ -338,7 +338,7 @@ MonoBehaviour:
   - Prism.UnityMainThreadDispatcher
   - Prism.Audio.SurroundSpeakerSetup
   - Prism.Audio.SpeakerAudioFilter
-  - Prism.UI.VideoPlayerUI
+  - Prism.UI.MediaPlayerUI
   - Basis.Scripts.UI.UI_Panels.BasisUIComponent
   - Cilbox.CilboxProxy
   - VolumetricAdditionalLight

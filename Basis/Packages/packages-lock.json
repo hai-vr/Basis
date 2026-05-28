@@ -90,6 +90,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.mediaplayer": {
+      "version": "file:com.basis.mediaplayer",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.addressables": "2.9.1"
+      }
+    },
     "com.basis.openlipsync": {
       "version": "file:com.basis.openlipsync",
       "depth": 0,
@@ -172,14 +180,6 @@
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
-    },
-    "com.basis.videoplayer": {
-      "version": "file:com.basis.videoplayer",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {
-        "com.unity.addressables": "2.9.1"
-      }
     },
     "com.basis.visualtrackers": {
       "version": "file:com.basis.visualtrackers",
