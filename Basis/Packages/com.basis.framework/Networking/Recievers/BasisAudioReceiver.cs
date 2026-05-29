@@ -55,6 +55,11 @@ namespace Basis.Scripts.Networking.Receivers
         public volatile int SilenceInjectedCount;
         /// <summary>Frames reconstructed from Opus FEC data embedded in the NEXT packet (diagnostic counter).</summary>
         public volatile int FecRecoveredCount;
+        /// <summary>Drain ticks where buffered packets were held back by the initial-fill gate (diagnostic counter).</summary>
+        public volatile int GateBlockedCount;
+        /// <summary>Times the idle-reset rearmed the initial-fill gate (diagnostic counter).</summary>
+        public volatile int RearmCount;
+        private int _gateLogThrottle;
 
         /// <summary>
         /// Maximum consecutive missing slots that trigger Opus PLC.
@@ -119,8 +124,15 @@ namespace Basis.Scripts.Networking.Receivers
                 // 40 ms packet still decodes during in-flight transitions where this
                 // receiver still thinks FrameSize == 960. Actual length comes back via
                 // the return value.
-                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.MaxFrameSize, false);
-                VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
+                try
+                {
+                    pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.MaxFrameSize, false);
+                    VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
+                }
+                catch
+                {
+                    OnDecodePLC();
+                }
             }
 #endif
         }
@@ -188,7 +200,10 @@ namespace Basis.Scripts.Networking.Receivers
             // packets again instead of releasing the first post-mute packet with
             // only 20 ms of audio queued). Latched so we only do this once per
             // idle cycle while packets refill.
-            if (System.Threading.Volatile.Read(ref _silentUnits20ms) >= IdleResetThresholdUnits)
+#pragma warning disable CS0420 // Volatile.Read provides correct semantics for this volatile field
+            if (System.Threading.Volatile.Read(ref _silentUnits20ms) >= IdleResetThresholdUnits
+                && VoiceBuffer.EncodedBufferedCount == 0)
+#pragma warning restore CS0420
             {
                 if (!_idleResetDone)
                 {
@@ -200,6 +215,7 @@ namespace Basis.Scripts.Networking.Receivers
                     }
 #endif
                     VoiceBuffer.RearmInitialBuffer();
+                    RearmCount++;
                     _idleResetDone = true;
                 }
             }
@@ -277,6 +293,18 @@ namespace Basis.Scripts.Networking.Receivers
                     }
                     OnDecode(data, length);
                     _lastDrainDecoded = true;
+                }
+            }
+
+            if (!_lastDrainDecoded && VoiceBuffer.Started
+                && VoiceBuffer.EncodedBufferedCount > 0
+                && VoiceBuffer.ReceivedSinceStart < VoiceBuffer.InitialBufferDepth)
+            {
+                GateBlockedCount++;
+                if ((_gateLogThrottle++ % 50) == 0)
+                {
+                    int pid = BasisNetworkReceiver != null ? BasisNetworkReceiver.playerId : -1;
+                    BasisDebug.Log($"[VoiceGate] player {pid} stalled: receivedSinceStart={VoiceBuffer.ReceivedSinceStart} < JitterBufferSize={VoiceBuffer.InitialBufferDepth}, encodedBuffered={VoiceBuffer.EncodedBufferedCount}, rearms={RearmCount}");
                 }
             }
         }
@@ -639,7 +667,9 @@ namespace Basis.Scripts.Networking.Receivers
                 int newUnits = (int)(_silentUsAccum / 20000L);
                 if (newUnits > 0)
                 {
+#pragma warning disable CS0420 // Volatile.Read provides correct semantics for this volatile field
                     int delta = newUnits - System.Threading.Volatile.Read(ref _silentUnits20ms);
+#pragma warning restore CS0420
                     if (delta > 0)
                         System.Threading.Interlocked.Add(ref _silentUnits20ms, delta);
                     _silentUsAccum -= newUnits * 20000L;

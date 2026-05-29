@@ -10,7 +10,6 @@ namespace Basis.Scripts.Drivers
             public float beta;
             public float dCutoff;
 
-            private bool hasPrev;
             private Quaternion prev;
             private readonly OneEuroFilterVector3 vecFilter;
 
@@ -22,6 +21,6 @@ namespace Basis.Scripts.Drivers
                 vecFilter = new OneEuroFilterVector3(minCutoff, beta, dCutoff);
             }
 
-            public void Reset() => hasPrev = false;
+            public void Reset() { }
         }
 }

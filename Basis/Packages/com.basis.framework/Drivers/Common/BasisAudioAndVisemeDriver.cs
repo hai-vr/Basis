@@ -77,9 +77,9 @@ namespace Basis.Scripts.Drivers
         public bool WasSuccessful;
 
         /// <summary>
-        /// Cached instance ID of the face renderer used to safely bind/unbind events.
+        /// Cached entity id of the face renderer used to safely bind/unbind events.
         /// </summary>
-        public int HashInstanceID = -1;
+        public EntityId HashInstanceID = EntityId.None;
 
         /// <summary>
         /// Configures lip-sync for the given player and avatar. Records eligibility

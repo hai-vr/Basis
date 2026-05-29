@@ -107,6 +107,12 @@ public static class BasisNetworkHandleRemoval
                 BasisAvatarFactory.CancelPlayerLoad(network.Player);
             }
 
+            // Remove from the bone job system before destroy, while the transforms are still alive.
+            if (network.Player is Basis.Scripts.BasisSdk.Players.BasisRemotePlayer remotePlayer)
+            {
+                remotePlayer.RemoveFromBoneDriver();
+            }
+
             if (network.Player != null)
             {
                 BasisAvatarFactory.DeleteLastAvatar(network.Player);

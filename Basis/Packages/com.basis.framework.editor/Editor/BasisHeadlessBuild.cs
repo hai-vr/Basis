@@ -58,7 +58,7 @@ public static class BasisHeadlessBuild
         if (target == BuildTarget.StandaloneLinux64)
         {
             int linuxArchitecture = ParseLinuxArchitecture(linuxArchitectureArg);
-            PlayerSettings.SetArchitecture(targetGroup, linuxArchitecture);
+            PlayerSettings.SetArchitecture(NamedBuildTarget.FromBuildTargetGroup(targetGroup), linuxArchitecture);
             Debug.Log($"[BasisHeadlessBuild] Linux architecture(set)={linuxArchitecture}");
         }
         Debug.Log($"[BasisHeadlessBuild] activeBuildTarget(after)={EditorUserBuildSettings.activeBuildTarget}");

@@ -108,7 +108,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             uint qb = Clamp((uint)math.round((math.clamp(b * invRange, -1f, 1f) * 0.5f + 0.5f) * maxQ), 0, maxQ);
             uint qc = Clamp((uint)math.round((math.clamp(c * invRange, -1f, 1f) * 0.5f + 0.5f) * maxQ), 0, maxQ);
 
-            return (ulong)maxIdx | ((ulong)qa << 2) | ((ulong)qb << (2 + bpc)) | ((ulong)qc << (2 + 2 * bpc));
+            return (ulong)(uint)maxIdx | ((ulong)qa << 2) | ((ulong)qb << (2 + bpc)) | ((ulong)qc << (2 + 2 * bpc));
         }
 
         private static uint Clamp(uint v, uint min, uint max)

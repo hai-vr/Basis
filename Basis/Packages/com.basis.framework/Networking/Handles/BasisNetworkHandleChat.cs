@@ -122,7 +122,9 @@ public static class BasisNetworkHandleChat
         }
 
         OnChatMessageReceived?.Invoke(senderPlayerId, message);
-        ApplyRemoteChat(senderPlayerId, message, serverChatMessage.chatMessage.playNotificationSound);
+        // Fire-and-forget: this main-thread handler must not block on the per-player
+        // settings lookup awaited inside ApplyRemoteChat.
+        _ = ApplyRemoteChat(senderPlayerId, message, serverChatMessage.chatMessage.playNotificationSound);
     }
 
     /// <summary>

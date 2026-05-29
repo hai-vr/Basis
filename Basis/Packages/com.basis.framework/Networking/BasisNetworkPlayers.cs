@@ -231,7 +231,7 @@ namespace Basis.Scripts.Networking
                 return false;
             }
 
-            int instance = basisPlayer.GetEntityId();
+            var instance = basisPlayer.GetEntityId();
             foreach (var nPlayer in Players.Values)
             {
                 if (nPlayer?.Player == null) continue;

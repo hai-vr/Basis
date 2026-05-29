@@ -150,6 +150,12 @@ namespace UnityEngine.XR.OpenXR.Features.Interactions
             InputSystem.InputSystem.RemoveLayout(nameof(XRTracker));
         }
 
+        // Lets the OpenXR binding-path validator resolve this profile's control paths.
+        // A tracker is an InputDevice-derived profile (not an XRController).
+        protected override string GetDeviceLayoutName() => nameof(XRViveTracker);
+
+        protected override InteractionProfileType GetInteractionProfileType() => InteractionProfileType.Device;
+
         protected override void RegisterActionMapsWithRuntime()
         {
             var trackerConfigs = new (InputDeviceTrackerCharacteristics characteristic, string userPath)[]

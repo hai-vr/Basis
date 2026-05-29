@@ -134,7 +134,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         // Adaptive jitter buffer depth. Floors at MinJitterDepth = 1 (one packet of
         // baseline cushion so the slowdown branch only fires on actual starvation, not
-        // routine jitter). Grows toward MaxJitterDepth on underruns, decays slowly when
+        // routine jitter). Grows toward MaxJitterDepth on underruns, decays back when
         // stable. Cold start begins at MinJitterDepth so a fresh remote join lerps at
         // rate 1.0 immediately — the adaptive logic only adds headroom after observing
         // real underruns. Driven by BasisSettingsDefaults.NetworkJitterBufferDepth via
@@ -142,8 +142,8 @@ namespace Basis.Scripts.Networking.Receivers
         public static int MinJitterDepth = 1;
         public static int MaxJitterDepth = 4;
         public static float InitialJitterDepth = 1f;
-        private const float DepthBumpOnUnderrun = 1.0f;
-        private const float DepthDecayPerSecond = 0.05f;
+        private const float DepthBumpOnUnderrun = 0.5f;
+        private const float DepthDecayPerSecond = 0.5f;
         // Backlog within this many packets of the target is treated as noise —
         // playback stays at rate 1.0 instead of snapping to MaxPlaybackRate.
         private const float CatchupDeadband = 1.0f;

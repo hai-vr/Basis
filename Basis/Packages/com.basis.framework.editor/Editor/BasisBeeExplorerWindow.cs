@@ -48,7 +48,7 @@ public class BasisBeeExplorerWindow : EditorWindow
         }
     }
 
-    public async void OnGUI()
+    public void OnGUI()
     {
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 

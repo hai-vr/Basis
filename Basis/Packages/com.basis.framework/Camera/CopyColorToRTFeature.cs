@@ -112,12 +112,12 @@ public class CopyCameraColorToStaticRTFeature : ScriptableRendererFeature
             if (settings.forceHDR)
             {
                 var requested = GraphicsFormat.R16G16B16A16_SFloat;
-                desc.graphicsFormat = SystemInfo.GetCompatibleFormat(requested, FormatUsage.Render);
+                desc.graphicsFormat = SystemInfo.GetCompatibleFormat(requested, GraphicsFormatUsage.Render);
             }
             else
             {
                 // Keep camera's format, but ensure it's actually renderable on the platform.
-                desc.graphicsFormat = SystemInfo.GetCompatibleFormat(camDesc.graphicsFormat, FormatUsage.Render);
+                desc.graphicsFormat = SystemInfo.GetCompatibleFormat(camDesc.graphicsFormat, GraphicsFormatUsage.Render);
             }
 
             bool needsRebuild =

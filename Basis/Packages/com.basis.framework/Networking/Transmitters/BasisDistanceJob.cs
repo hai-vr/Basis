@@ -14,7 +14,6 @@ public struct BasisDistanceJobParallel : IJobParallelFor
     public float SquaredVoiceDistance;
     public float SquaredHearingDistance;
     public float SquaredAvatarDistance;
-    public bool ComputeRange;
     /// <summary>Multiplier for exit threshold (use > 1 for hysteresis, e.g. 1.10f)</summary>
     public float HysteresisPercent;
 
@@ -141,6 +140,8 @@ public struct BasisDistanceJobParallel : IJobParallelFor
 [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
 public struct BasisDistanceReduceJob : IJob
 {
+    public int ReceiverCount;
+
     [ReadOnly] public NativeArray<float> PerIndexMinD2;
     [ReadOnly] public NativeArray<int> PerIndexMask;
 
@@ -152,7 +153,7 @@ public struct BasisDistanceReduceJob : IJob
         float minD2 = float.PositiveInfinity;
         int mask = 0;
 
-        int len = PerIndexMinD2.Length;
+        int len = ReceiverCount;
         for (int i = 0; i < len; i++)
         {
             minD2 = math.min(minD2, PerIndexMinD2[i]);

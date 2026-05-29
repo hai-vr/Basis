@@ -39,7 +39,7 @@ public class SMModuleBloomOverrideURP : BasisSettingsBase
 
     private void ApplyOverride()
     {
-        Volume[] volumes = FindObjectsByType<Volume>(FindObjectsSortMode.None);
+        Volume[] volumes = FindObjectsByType<Volume>(FindObjectsInactive.Exclude);
         foreach (Volume volume in volumes)
         {
             if (volume.profile == null)

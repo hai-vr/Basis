@@ -41,8 +41,12 @@ public static partial class SerializableBasis
 
             if (count == 0)
             {
+                // Explicit "no recipients": use a non-null empty array so the consumer
+                // (BasisSavedState.AddLastData) treats this as a real clear. A null Users
+                // means "couldn't parse / corrupt" and is deliberately left for the consumer
+                // to ignore (keep the last-known recipients).
                 ReturnPool();
-                Users = null;
+                Users = Array.Empty<ushort>();
                 UsersLength = 0;
                 return;
             }
@@ -133,12 +137,14 @@ public static partial class SerializableBasis
         /// </summary>
         public void ReturnPool()
         {
-            if (Users != null)
+            // Only pool-rented arrays (length > 0) go back to the pool — never the
+            // Array.Empty<ushort>() "explicit empty" sentinel, and never null.
+            if (Users != null && Users.Length != 0)
             {
                 ArrayPool<ushort>.Shared.Return(Users);
-                Users = null;
-                UsersLength = 0;
             }
+            Users = null;
+            UsersLength = 0;
         }
 
         private static void SkipRemaining(NetDataReader reader)

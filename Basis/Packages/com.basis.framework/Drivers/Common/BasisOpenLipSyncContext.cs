@@ -187,6 +187,7 @@ namespace Basis.Scripts.Drivers
             if (Interlocked.Exchange(ref _hasNewAudio, 0) != 1) return;
 
             // Swap buffers
+#pragma warning disable CS0420 // Volatile.Read/Write provide correct semantics for these volatile fields
             int oldActive = _activeBuffer;
             int newActive = oldActive ^ 1;
             Volatile.Write(ref _activeBuffer, newActive);
@@ -203,7 +204,6 @@ namespace Basis.Scripts.Drivers
             Array.Copy(frozenBuffer, 0, _audioChunk, 0, frozenCount);
 
             // Reset write index for the now-frozen buffer
-#pragma warning disable CS0420 // Volatile.Write provides correct semantics for volatile fields
             if (oldActive == 0) Volatile.Write(ref _writeIndexA, 0);
             else Volatile.Write(ref _writeIndexB, 0);
 #pragma warning restore CS0420

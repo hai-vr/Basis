@@ -9,7 +9,7 @@ using UnityEngine;
 /// player switching back, or multiple remote players sharing the same model — skips
 /// the expensive bake/capture work and copies from cache instead.
 ///
-/// Cache key: <c>Animator.avatar.GetInstanceID()</c> — unique per loaded Avatar asset,
+/// Cache key: <c>Animator.avatar.GetEntityId()</c> — unique per loaded Avatar asset,
 /// stable across instances of the same model within a session.
 ///
 /// Subsystems store their data in typed slots on <see cref="Entry"/>. A null slot means
@@ -124,21 +124,21 @@ public static class BasisAvatarModelCache
     //  Storage
     // ────────────────────────────────────────────────────────────
 
-    private static readonly Dictionary<int, Entry> _cache = new Dictionary<int, Entry>(16);
+    private static readonly Dictionary<EntityId, Entry> _cache = new Dictionary<EntityId, Entry>(16);
 
     /// <summary>
     /// Gets the cache key for an animator's avatar asset.
-    /// Returns 0 if the avatar is null (caller should skip caching).
+    /// Returns <see cref="EntityId.None"/> if the avatar is null (caller should skip caching).
     /// </summary>
-    public static int GetKey(Animator animator)
+    public static EntityId GetKey(Animator animator)
     {
-        return animator != null && animator.avatar != null ? animator.avatar.GetInstanceID() : 0;
+        return animator != null && animator.avatar != null ? animator.avatar.GetEntityId() : EntityId.None;
     }
 
     /// <summary>
     /// Gets or creates the cache entry for the given avatar asset key.
     /// </summary>
-    public static Entry GetOrCreate(int key)
+    public static Entry GetOrCreate(EntityId key)
     {
         if (!_cache.TryGetValue(key, out Entry entry))
         {
@@ -151,7 +151,7 @@ public static class BasisAvatarModelCache
     /// <summary>
     /// Tries to get an existing cache entry. Returns false if not cached.
     /// </summary>
-    public static bool TryGet(int key, out Entry entry)
+    public static bool TryGet(EntityId key, out Entry entry)
     {
         return _cache.TryGetValue(key, out entry);
     }
@@ -159,7 +159,7 @@ public static class BasisAvatarModelCache
     /// <summary>
     /// Removes a specific avatar's cache entry (e.g., when its bundle is unloaded).
     /// </summary>
-    public static void Remove(int key)
+    public static void Remove(EntityId key)
     {
         _cache.Remove(key);
     }
@@ -190,10 +190,10 @@ public static class BasisAvatarModelCache
     /// </summary>
     public static void RecordPosesCached(Basis.Scripts.Common.BasisTransformMapping mapping, Animator animator)
     {
-        int key = GetKey(animator);
+        EntityId key = GetKey(animator);
 
         // Cache hit: restore from arrays
-        if (key != 0 && TryGet(key, out var entry) && entry.TposeLocal != null && entry.TposeFromRoot != null && entry.TposeWorld != null)
+        if (key != EntityId.None && TryGet(key, out var entry) && entry.TposeLocal != null && entry.TposeFromRoot != null && entry.TposeWorld != null)
         {
             RestorePosesFromCache(mapping, animator, entry);
             return;
@@ -203,13 +203,13 @@ public static class BasisAvatarModelCache
         mapping.RecordPoses(animator);
 
         // Store for next time
-        if (key != 0)
+        if (key != EntityId.None)
         {
             StorePosesToCache(key, mapping);
         }
     }
 
-    private static void StorePosesToCache(int key, Basis.Scripts.Common.BasisTransformMapping mapping)
+    private static void StorePosesToCache(EntityId key, Basis.Scripts.Common.BasisTransformMapping mapping)
     {
         var entry = GetOrCreate(key);
         int boneCount = (int)HumanBodyBones.LastBone;

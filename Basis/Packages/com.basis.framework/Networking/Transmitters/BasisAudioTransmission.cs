@@ -13,6 +13,7 @@ namespace Basis.Scripts.Networking.Transmitters
     {
 #if !UNITY_SERVER
         public OpusSharp.Core.Interfaces.IOpusEncoder encoder;
+        private readonly object _encoderLock = new object();
 #endif
         public BasisNetworkPlayer NetworkedPlayer;
         public BasisLocalPlayer Local;
@@ -29,6 +30,7 @@ namespace Basis.Scripts.Networking.Transmitters
         // is full. _frameAccumFilled tracks how many samples are currently buffered.
         private float[] _frameAccum;
         private int _frameAccumFilled;
+        private volatile bool _accumResetRequested;
 #endif
         /// <summary>
         /// When true, voice is sent on ShoutVoiceChannel (channel 0) instead of VoiceChannel (channel 3).
@@ -62,8 +64,11 @@ namespace Basis.Scripts.Networking.Transmitters
             LocalOpusSettings.OnPacketLossPercentChanged -= ApplyPacketLossPerc;
             LocalOpusSettings.OnBitrateChanged -= ApplyBitrate;
             SharedOpusSettings.OnDesiredDurationChanged -= ApplyFrameDuration;
-            encoder?.Dispose();
-            encoder = null;
+            lock (_encoderLock)
+            {
+                encoder?.Dispose();
+                encoder = null;
+            }
             _frameAccum = null;
             _frameAccumFilled = 0;
 #endif
@@ -106,11 +111,14 @@ namespace Basis.Scripts.Networking.Transmitters
         /// </summary>
         private void ApplyBitrate(int bitrate)
         {
-            if (encoder == null) return;
             if (bitrate < LocalOpusSettings.DefaultBitrate / 8) bitrate = LocalOpusSettings.DefaultBitrate / 8;
             try
             {
-                encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_BITRATE, bitrate);
+                lock (_encoderLock)
+                {
+                    if (encoder == null) return;
+                    encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_BITRATE, bitrate);
+                }
             }
             catch (OpusSharp.Core.OpusException ex)
             {
@@ -126,7 +134,7 @@ namespace Basis.Scripts.Networking.Transmitters
         /// </summary>
         private void ApplyFrameDuration(float durationSeconds)
         {
-            _frameAccumFilled = 0;
+            _accumResetRequested = true;
         }
 
         /// <summary>
@@ -137,12 +145,15 @@ namespace Basis.Scripts.Networking.Transmitters
         /// </summary>
         private void ApplyPacketLossPerc(int percent)
         {
-            if (encoder == null) return;
             if (percent < 0) percent = 0;
             else if (percent > 100) percent = 100;
             try
             {
-                encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_PACKET_LOSS_PERC, percent);
+                lock (_encoderLock)
+                {
+                    if (encoder == null) return;
+                    encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_PACKET_LOSS_PERC, percent);
+                }
             }
             catch (OpusSharp.Core.OpusException ex)
             {
@@ -200,6 +211,7 @@ namespace Basis.Scripts.Networking.Transmitters
             // In normal mode we only send if someone is in range.
             if (!IsInShoutMode && !NetworkedPlayer.HasReasonToSendAudio)
             {
+                _frameAccumFilled = 0;
                 return;
             }
 
@@ -215,8 +227,15 @@ namespace Basis.Scripts.Networking.Transmitters
             if (targetSamples <= micChunk)
             {
                 EncodeAndSend(BasisLocalMicrophoneDriver.processBufferArray, targetSamples);
+                _frameAccumFilled = 0;
                 SilentForHowLong = 0;
                 return;
+            }
+
+            if (_accumResetRequested)
+            {
+                _accumResetRequested = false;
+                _frameAccumFilled = 0;
             }
 
             if (_frameAccum == null || _frameAccum.Length != targetSamples)
@@ -231,8 +250,6 @@ namespace Basis.Scripts.Networking.Transmitters
 
             if (_frameAccumFilled < targetSamples)
             {
-                // Still buffering. Track silence so the receiver-side jitter buffer is
-                // told about the gap on the eventual encoded packet.
                 return;
             }
 
@@ -247,7 +264,11 @@ namespace Basis.Scripts.Networking.Transmitters
         private void EncodeAndSend(float[] pcm, int sampleCount)
         {
             writer.Reset();
-            Segment.LengthUsed = encoder.Encode(pcm, sampleCount, Segment.buffer, Segment.TotalLength);
+            lock (_encoderLock)
+            {
+                if (encoder == null) return;
+                Segment.LengthUsed = encoder.Encode(pcm, sampleCount, Segment.buffer, Segment.TotalLength);
+            }
             Segment.SequenceNumber = _sequenceNumber++;
 
             if (SilentForHowLong > 256)
@@ -279,6 +300,8 @@ namespace Basis.Scripts.Networking.Transmitters
 #if UNITY_SERVER
             return;
 #else
+            _frameAccumFilled = 0;
+
             if (!IsInShoutMode && !NetworkedPlayer.HasReasonToSendAudio)
             {
                 return;

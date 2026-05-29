@@ -390,6 +390,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
         }
         public bool IsLoadingAnAvatar = false;
+        private bool _reloadQueuedDuringLoad = false;
         /// <summary>
         /// Creates or replaces the current avatar using the provided load mode and bundle.
         /// Applies user visibility settings and distance gating before loading,
@@ -400,22 +401,27 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <returns>A task that completes when the avatar is loaded or a fallback is applied.</returns>
         public async Task CreateAvatar(byte Mode, BasisLoadableBundle BasisLoadableBundle)
         {
+            if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
+            {
+                AvatarLoadErrorMessage = "Avatar bundle was empty or null";
+                BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
+                BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
+                Mode = 0;
+            }
+
+            // Remember last requested avatar and mode for potential reloads.
+            AlwaysRequestedAvatar = BasisLoadableBundle;
+            AlwaysRequestedMode = Mode;
+
             if (IsLoadingAnAvatar)
             {
+                _reloadQueuedDuringLoad = true;
                 return;
             }
             IsLoadingAnAvatar = true;
             BasisPlayerSettingsData BasisPlayerSettingsData = default;
             try
             {
-                if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
-                {
-                    AvatarLoadErrorMessage = "Avatar bundle was empty or null";
-                    BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
-                    BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
-                    Mode = 0;
-                }
-
                 // Fetch per-player visibility settings.
                 BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
 
@@ -429,10 +435,6 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
 
                 IsBlocked = BasisPlayerSettingsData.IsBlocked;
-
-                // Remember last requested avatar and mode for potential reloads.
-                AlwaysRequestedAvatar = BasisLoadableBundle;
-                AlwaysRequestedMode = Mode;
 
                 bool effectivelyBlocked = IsEffectivelyBlocked;
 
@@ -485,6 +487,13 @@ namespace Basis.Scripts.BasisSdk.Players
                 IsLoadingAnAvatar = false;
             }
 
+            if (_reloadQueuedDuringLoad)
+            {
+                _reloadQueuedDuringLoad = false;
+                await CreateAvatar(AlwaysRequestedMode, AlwaysRequestedAvatar);
+                return;
+            }
+
             // Any terminal "pin to fallback" state must skip the range-based re-evaluation
             // below — otherwise the mismatch check fires every iteration (fallback is the
             // correct state for these, but the check reads it as drift) and ReloadAvatar
@@ -520,6 +529,16 @@ namespace Basis.Scripts.BasisSdk.Players
 
             OnRemotePlayerDestroying?.Invoke();
 
+            RemoveFromBoneDriver();
+        }
+
+        /// <summary>
+        /// Unregisters this player from the bone job system. Must run while the avatar
+        /// transforms are still alive (before any destroy) or the parallel SoA desyncs.
+        /// Idempotent via the InBoneDriver guard.
+        /// </summary>
+        public void RemoveFromBoneDriver()
+        {
             if (RemoteAvatarDriver.InBoneDriver)
             {
                 RemoteBoneJobSystem.RemoveRemotePlayer(NetworkReceiver.playerId);

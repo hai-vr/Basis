@@ -49,9 +49,7 @@ namespace UnityEngine.XR.OpenXR.Features
     {
         public const string featureId = "com.stresslevelzero.fixnovisiblemesh";
 
-        bool gotSession = false;
         static ulong xrSession;
-        bool gotInstance = false;
         static ulong xrInstance;
         static ulong refSpace;
 
@@ -196,7 +194,6 @@ namespace UnityEngine.XR.OpenXR.Features
         {
             Debug.Log("OpenXR Fix Visibility Mesh Feature: OnInstanceCreate");
 
-            gotInstance = true;
             xrInstance = inputXrInstance;
             
             GetFunctionDelegates();
@@ -394,8 +391,6 @@ namespace UnityEngine.XR.OpenXR.Features
             {
                 return d_OriginalXrGetVisibilityMaskKHR.Invoke(session, viewType, viewIndex, maskType, ref visMaskPtr);
             }
-
-            return 0;
         }
     }
 }

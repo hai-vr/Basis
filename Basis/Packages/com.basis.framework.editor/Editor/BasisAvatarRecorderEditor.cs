@@ -553,9 +553,6 @@ public class BasisAvatarRecorderWindow : EditorWindow
 
     private void ConvertFileToAnimationClip(string path)
     {
-        if (BasisAvatarRecorder.BytesPerFrame <= 0)
-            return;
-
         if (!File.Exists(path))
         {
             EditorUtility.DisplayDialog("Convert to AnimationClip", $"File not found:\n{path}", "OK");

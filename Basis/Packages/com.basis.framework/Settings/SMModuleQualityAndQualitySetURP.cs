@@ -197,8 +197,7 @@ namespace BattlePhaze.SettingsManager.Integrations
         {
             // Includes inactive terrains too, which is usually what you want in settings menus.
             Terrain[] terrains = FindObjectsByType<Terrain>(
-                FindObjectsInactive.Include,
-                FindObjectsSortMode.None);
+                FindObjectsInactive.Include);
 
             for (int i = 0; i < terrains.Length; i++)
             {

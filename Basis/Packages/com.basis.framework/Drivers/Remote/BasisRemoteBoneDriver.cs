@@ -839,6 +839,7 @@ public static class RemoteBoneJobSystem
     {
         if (!sInitialized) return false;
         CompletePending();
+        RemovePendingAdd(key);
         return RemoveRemotePlayerInternal(key);
     }
 
@@ -946,6 +947,21 @@ public static class RemoteBoneJobSystem
             CommitAddInternal(sPendingAdds[i]);
         }
         sPendingAdds.Clear();
+    }
+
+    /// <summary>
+    /// Drops any queued (uncommitted) registration for a key, so a player that leaves
+    /// before its add commits can't later commit a ghost entry into the SoA/TAA.
+    /// </summary>
+    static void RemovePendingAdd(int key)
+    {
+        for (int i = sPendingAdds.Count - 1; i >= 0; i--)
+        {
+            if (sPendingAdds[i].Key == key)
+            {
+                sPendingAdds.RemoveAt(i);
+            }
+        }
     }
 
     /// <summary>

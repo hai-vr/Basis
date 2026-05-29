@@ -391,7 +391,7 @@ namespace Basis.EventDriver
         /// <summary>
         /// Application quit hook. Disposes physics and stops microphone processing.
         /// </summary>
-        public async void OnApplicationQuit()
+        public void OnApplicationQuit()
         {
             JigglePhysics.Dispose();
 #if !BASIS_DISABLE_MICROPHONE

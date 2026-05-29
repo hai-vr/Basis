@@ -285,8 +285,8 @@ namespace Basis.Scripts.Drivers
 
             // Check if T-pose local rotations are already cached for this avatar model.
             // The rotations are deterministic per Avatar asset — only bone transforms are per-instance.
-            int cacheKey = BasisAvatarModelCache.GetKey(animator);
-            var cacheEntry = cacheKey != 0 ? BasisAvatarModelCache.GetOrCreate(cacheKey) : null;
+            EntityId cacheKey = BasisAvatarModelCache.GetKey(animator);
+            var cacheEntry = cacheKey != EntityId.None ? BasisAvatarModelCache.GetOrCreate(cacheKey) : null;
             bool hasCachedTpose = cacheEntry?.TposeLocal != null;
 
             if (hasCachedTpose)

@@ -60,7 +60,7 @@ public struct BasisAvatarTextureStats
             return stats;
 
         // Track unique textures by instance ID to avoid double-counting shared textures.
-        var seen = new HashSet<int>();
+        var seen = new HashSet<EntityId>();
 
         for (int r = 0; r < renderers.Length; r++)
         {
@@ -88,7 +88,7 @@ public struct BasisAvatarTextureStats
                     Texture tex = mat.GetTexture(propName);
 
                     if (tex == null) continue;
-                    if (!seen.Add(tex.GetInstanceID())) continue;
+                    if (!seen.Add(tex.GetEntityId())) continue;
 
                     Texture2D tex2D = tex as Texture2D;
                     bool isStreaming = tex2D != null && tex2D.streamingMipmaps;

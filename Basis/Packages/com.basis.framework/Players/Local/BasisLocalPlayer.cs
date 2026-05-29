@@ -384,7 +384,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public void OnDestroy()
         {
-            if (BasisLocalPlayerData.Instance == this)
+            if (ReferenceEquals(BasisLocalPlayerData.Instance, this))
             {
                 BasisLocalPlayerData.Instance = null;
                 BasisLocalPlayerData.PlayerReady = false;

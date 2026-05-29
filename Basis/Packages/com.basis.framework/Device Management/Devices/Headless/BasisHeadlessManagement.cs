@@ -77,7 +77,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     /// </summary>
     private void RemoveAllMaterialTextures()
     {
-        Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Include);
         HashSet<Material> processedMats = new HashSet<Material>();
 
         foreach (Renderer renderer in renderers)
@@ -181,7 +181,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     /// </summary>
     private void RemoveAllReflectionProbes()
     {
-        ReflectionProbe[] probes = FindObjectsByType<ReflectionProbe>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        ReflectionProbe[] probes = FindObjectsByType<ReflectionProbe>(FindObjectsInactive.Include);
         foreach (ReflectionProbe probe in probes)
         {
             Destroy(probe.gameObject);
@@ -214,7 +214,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 
     private void RemoveAllLightmapReferences()
     {
-        Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsInactive.Include);
         foreach (Renderer renderer in renderers)
         {
             if (renderer == null)
@@ -244,7 +244,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     /// </summary>
     private void RemoveAllText()
     {
-        Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include);
         foreach (Canvas canvas in canvases)
         {
             Destroy(canvas);
