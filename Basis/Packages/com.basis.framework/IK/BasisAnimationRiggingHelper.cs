@@ -17,15 +17,7 @@ public static class BasisAnimationRiggingHelper
         // Holder + component
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
         BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullBodyIK>(go);
-
-        // ----------------------------
-        // Core: grab data (local copy)
-        // ----------------------------
         var data = BasisFullIKConstraint.data;
-
-        // ----------------------------
-        // Skeleton references
-        // ----------------------------
         // Torso / head chain
         data.hips = Mapping.Hips;
         data.spine = Mapping.spine;
@@ -33,11 +25,9 @@ public static class BasisAnimationRiggingHelper
         data.upperChest = Mapping.Upperchest;
         data.neck = Mapping.neck;
         data.head = Mapping.head;
-
         // Shoulders
         data.LeftShoulder = Mapping.leftShoulder;
         data.RightShoulder = Mapping.RightShoulder;
-
         // Arms
         data.leftUpperArm = Mapping.leftUpperArm;
         data.leftLowerArm = Mapping.leftLowerArm;
@@ -45,32 +35,23 @@ public static class BasisAnimationRiggingHelper
         data.RightUpperArm = Mapping.RightUpperArm;
         data.RightLowerArm = Mapping.RightLowerArm;
         data.RightHand = Mapping.rightHand;
-
         // Optional twist bones (auto-detected from rig hierarchy; null when not present)
         data.LeftUpperArmTwist = Mapping.leftUpperArmTwist;
         data.LeftLowerArmTwist = Mapping.leftLowerArmTwist;
         data.RightUpperArmTwist = Mapping.RightUpperArmTwist;
         data.RightLowerArmTwist = Mapping.RightLowerArmTwist;
-
         // Legs
         data.LeftUpperLeg = Mapping.LeftUpperLeg;
         data.LeftLowerLeg = Mapping.LeftLowerLeg;
         data.leftFoot = Mapping.leftFoot;
-
         data.RightUpperLeg = Mapping.RightUpperLeg;
         data.RightLowerLeg = Mapping.RightLowerLeg;
         data.RightFoot = Mapping.rightFoot;
-
         // Toes
         data.LeftToe = Mapping.leftToe;
         data.RightToe = Mapping.rightToe;
-
-        // ----------------------------
-        // Calibration defaults
-        // ----------------------------
         // Head
         data.m_CalibratedRotationHead = Mapping.Hashead ? Mapping.head.rotation : Quaternion.identity;
-
         // Feet
         data.M_CalibrationLeftFootRotation = Mapping.Hashead ? Mapping.leftFoot.rotation : Quaternion.identity;
         data.M_CalibrationRightFootRotation = Mapping.Hashead ? Mapping.rightFoot.rotation : Quaternion.identity;
@@ -114,11 +95,6 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? Mapping.RightShoulder.rotation : Quaternion.identity;
         // Hips reference rotation
         data.OffsetRotationHips = Mapping.HasHips ? Mapping.Hips.rotation : Quaternion.identity;
-
-
-        // ----------------------------
-        // Targets & hints
-        // ----------------------------
         // Head
         data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
         data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
@@ -145,30 +121,25 @@ public static class BasisAnimationRiggingHelper
         // Cache world data once per control (less property spam, easier to read)
         var leftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
         var rightLowerArm = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
-
         var chest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
-
         var leftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
         var rightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-
         var leftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData;
         var rightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData;
 
         // --- Arms ---
         data.LeftLowerArmPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerArm, leftLowerArm.position, leftLowerArm.rotation);
         data.LeftLowerArmRotation = leftLowerArm.rotation;
-
         data.RightLowerArmPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.position, rightLowerArm.rotation);
         data.RightLowerArmRotation = rightLowerArm.rotation;
 
-        // --- Shoulders (rotation only in your data model) ---
+        // --- Shoulders ---
         data.LeftShoulderRotation = leftShoulder.rotation;
         data.RightShoulderRotation = rightShoulder.rotation;
 
         // --- Legs ---
         data.PositionLeftLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.position, leftLowerLeg.rotation);
         data.RotationLeftLowerLeg = leftLowerLeg.rotation;
-
         data.PositionRightLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.position, rightLowerLeg.rotation);
         data.RotationRightLowerLeg = rightLowerLeg.rotation;
 
@@ -200,18 +171,22 @@ public static class BasisAnimationRiggingHelper
     private static (bool valid, Vector3 pos) GetLM(Transform[] arr, int i)
     {
         if (arr != null && i >= 0 && i < arr.Length && arr[i] != null)
+        {
             return (true, arr[i].position);
+        }
 
         return (false, Vector3.zero);
     }
     private static Quaternion ComputeHandRotationWithFallback( Vector3 wrist,(bool valid, Vector3 pos)[] pointsA,(bool valid, Vector3 pos)[] pointsB, ref bool hasLast, ref Quaternion lastRot)
     {
-        // pointsA[i] pairs with pointsB[i] as a candidate
-        for (int i = 0; i < pointsA.Length; i++)
+        for (int Index = 0; Index < pointsA.Length; Index++)
         {
-            if (!pointsA[i].valid || !pointsB[i].valid) continue;
+            if (!pointsA[Index].valid || !pointsB[Index].valid)
+            {
+                continue;
+            }
 
-            Quaternion rot = HandRotationFromLandmarks(wrist, pointsA[i].pos, pointsB[i].pos);
+            Quaternion rot = HandRotationFromLandmarks(wrist, pointsA[Index].pos, pointsB[Index].pos);
             if (rot == Quaternion.identity) continue;
 
             lastRot = rot;
@@ -240,10 +215,7 @@ public static class BasisAnimationRiggingHelper
         {
             return Quaternion.identity;
         }
-
         up.Normalize();
-        right = Vector3.Cross(up, forward).normalized;
-
         return Quaternion.LookRotation(forward, up);
     }
     public static void GeneratedRequiredTransforms(BasisLocalPlayer player,Transform baseLevel)

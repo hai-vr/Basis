@@ -1008,7 +1008,10 @@ w20, w54;
                 ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
                 ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             }
-            if (anatShoulderSlide.Get(stream)) ApplyShoulderSlide(stream);
+            if (anatShoulderSlide.Get(stream))
+            {
+                ApplyShoulderSlide(stream);
+            }
 
             // 3) Legs: two-bone IK with bend normal preference
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
@@ -1023,9 +1026,14 @@ w20, w54;
             float swingRate = swingSmoothRateDeg.Get(stream);
             float swingDt = stream.deltaTime;
             if (enabledLeftHand.Get(stream))
+            {
                 ApplySwingContinuity(stream, k_SwingLeftElbow, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand.Get(stream), swingRate, swingDt);
+            }
+
             if (enabledRightHand.Get(stream))
+            {
                 ApplySwingContinuity(stream, k_SwingRightElbow, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand.Get(stream), swingRate, swingDt);
+            }
 
             // 4b) Arm twist distribution: spread wrist/elbow roll along the optional twist bones
             // so the mesh doesn't pinch at the wrist when the hand rotates.

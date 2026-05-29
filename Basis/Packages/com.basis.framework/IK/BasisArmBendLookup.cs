@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using UnityEngine;
 
 namespace UnityEngine.Animations.Rigging
 {
@@ -38,9 +37,6 @@ namespace UnityEngine.Animations.Rigging
 
                 // Default bend direction heuristics (from HVR-IK's multi-factor approach):
                 Vector3 bendDir;
-
-                // How much the hand is outward vs inward
-                float outwardness = Mathf.Clamp01(isLeft ? -x : x);
                 // How much the hand is forward
                 float forwardness = Mathf.Clamp01(z);
                 // How much the hand is above
