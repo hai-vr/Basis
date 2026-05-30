@@ -364,6 +364,11 @@ namespace BasisNetworkServer.Security
                         HandleCrashReportingSet(peer, reader));
                     break;
 
+                case AdminRequestMode.SetGlobalAudioRangeLimits:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleAudioRangeLimitsSet(peer, reader));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessDisallow:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleHeadlessDisallowSet(peer, reader));
@@ -682,6 +687,18 @@ namespace BasisNetworkServer.Security
             BasisCrashReportStateManager.SetEnabled(enabled);
             BasisCrashReportStateManager.BroadcastState();
             SendBackMessage(peer, $"Crash reporting {(enabled ? "ENABLED" : "DISABLED")}.");
+        }
+
+        private static void HandleAudioRangeLimitsSet(NetPeer peer, NetPacketReader reader)
+        {
+            float microphoneMeters = reader.GetFloat();
+            float hearingMeters = reader.GetFloat();
+            BasisAudioRangeLimitManager.SetLimits(microphoneMeters, hearingMeters);
+            NetworkServer.Configuration.MaxMicrophoneRangeMeters = BasisAudioRangeLimitManager.MaxMicrophoneRangeMeters;
+            NetworkServer.Configuration.MaxHearingRangeMeters = BasisAudioRangeLimitManager.MaxHearingRangeMeters;
+            SaveConfig();
+            BasisAudioRangeLimitManager.BroadcastState();
+            SendBackMessage(peer, $"Audio range limits set: microphone {NetworkServer.Configuration.MaxMicrophoneRangeMeters} m, hearing {NetworkServer.Configuration.MaxHearingRangeMeters} m.");
         }
 
         private static void HandleGlobalToggle(NetPeer peer, string contentType, bool nowLocked)

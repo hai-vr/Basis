@@ -106,6 +106,9 @@ namespace BasisNetworkCore.Serializable
 
             GlobalGetCrashReportState, // server→client: whether client error/exception reporting is enabled
             SetGlobalCrashReporting,   // admin: enable/disable client error/exception reporting (persisted). Payload: [bool]
+
+            GlobalGetAudioRangeLimits, // server→client: max microphone + hearing range in metres. Payload: [float micMeters][float hearingMeters]
+            SetGlobalAudioRangeLimits, // admin: set max microphone + hearing range in metres (persisted). Payload: [float micMeters][float hearingMeters]
         }
     }
 }

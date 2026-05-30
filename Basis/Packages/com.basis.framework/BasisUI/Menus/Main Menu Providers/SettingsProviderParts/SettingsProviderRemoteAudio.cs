@@ -94,7 +94,7 @@ namespace Basis.BasisUI
             // in the Audio Source group below.
             PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
                 listenerDampenGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.hearingRange"), 25),
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.hearingRange"), BasisNetworkModeration.ServerMaxHearingRangeMeters),
                 BasisSettingsDefaults.HearingRange);
 
             PanelSlider sliderListenerConeAngle = PanelSlider.CreateEntryAndBind(

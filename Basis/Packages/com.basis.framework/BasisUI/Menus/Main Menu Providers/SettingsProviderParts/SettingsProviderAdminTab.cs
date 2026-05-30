@@ -98,6 +98,16 @@ namespace Basis.BasisUI
             opusPacketLossSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusPacketLossPercent);
             opusPacketLossSlider.OnValueChanged += value => BasisNetworkModeration.SetGlobalOpusPacketLoss(Mathf.RoundToInt(value));
 
+            PanelSlider maxMicrophoneRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
+            maxMicrophoneRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxMicrophoneRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
+            maxMicrophoneRangeSlider.Descriptor.SetDescription("Maximum microphone (voice transmit) range in metres any client may set. Each client's Microphone Range slider and effective range is clamped to this.");
+            maxMicrophoneRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxMicrophoneRangeMeters);
+
+            PanelSlider maxHearingRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
+            maxHearingRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxHearingRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
+            maxHearingRangeSlider.Descriptor.SetDescription("Maximum hearing (audio receive) range in metres any client may set. Each client's Hearing Range slider and effective range is clamped to this.");
+            maxHearingRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxHearingRangeMeters);
+
             controller.AvatarLockToggle = avatarLock;
             controller.PropLockToggle = propLock;
             controller.WorldLockToggle = worldLock;
@@ -107,6 +117,20 @@ namespace Basis.BasisUI
             controller.HeadlessAudioToggle = headlessAudioToggle;
             controller.HeadlessDisallowToggle = disallowHeadlessToggle;
             controller.OpusPacketLossSlider = opusPacketLossSlider;
+            controller.MaxMicrophoneRangeSlider = maxMicrophoneRangeSlider;
+            controller.MaxHearingRangeSlider = maxHearingRangeSlider;
+            controller.MaxMicrophoneRangeMeters = BasisNetworkModeration.ServerMaxMicrophoneRangeMeters;
+            controller.MaxHearingRangeMeters = BasisNetworkModeration.ServerMaxHearingRangeMeters;
+            maxMicrophoneRangeSlider.OnValueChanged += value =>
+            {
+                controller.MaxMicrophoneRangeMeters = value;
+                BasisNetworkModeration.SetGlobalAudioRangeLimits(controller.MaxMicrophoneRangeMeters, controller.MaxHearingRangeMeters);
+            };
+            maxHearingRangeSlider.OnValueChanged += value =>
+            {
+                controller.MaxHearingRangeMeters = value;
+                BasisNetworkModeration.SetGlobalAudioRangeLimits(controller.MaxMicrophoneRangeMeters, controller.MaxHearingRangeMeters);
+            };
 
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
             PanelElementDescriptor cameraPolicyGroup =
@@ -425,6 +449,10 @@ namespace Basis.BasisUI
             public PanelToggle HeadlessAudioToggle;
             public PanelToggle HeadlessDisallowToggle;
             public PanelSlider OpusPacketLossSlider;
+            public PanelSlider MaxMicrophoneRangeSlider;
+            public PanelSlider MaxHearingRangeSlider;
+            public float MaxMicrophoneRangeMeters;
+            public float MaxHearingRangeMeters;
             public System.Action<byte> ApplyCameraMask;
 
             private void OnEnable()
@@ -443,6 +471,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged += OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged += OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
+                BasisNetworkModeration.OnAudioRangeLimitsChanged += OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged += OnGlobalCameraPolicyChanged;
             }
@@ -457,6 +487,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
             }
 
@@ -468,6 +499,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
             }
 
@@ -502,6 +534,14 @@ namespace Basis.BasisUI
             private void OnGlobalOpusPacketLossChanged(int percent)
             {
                 if (OpusPacketLossSlider != null) OpusPacketLossSlider.SetValueWithoutNotify(percent);
+            }
+
+            private void OnAudioRangeLimitsChanged(float microphoneMeters, float hearingMeters)
+            {
+                MaxMicrophoneRangeMeters = microphoneMeters;
+                MaxHearingRangeMeters = hearingMeters;
+                if (MaxMicrophoneRangeSlider != null) MaxMicrophoneRangeSlider.SetValueWithoutNotify(microphoneMeters);
+                if (MaxHearingRangeSlider != null) MaxHearingRangeSlider.SetValueWithoutNotify(hearingMeters);
             }
 
             private void OnGlobalCameraPolicyChanged(byte mask)

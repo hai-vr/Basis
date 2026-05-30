@@ -5027,6 +5027,14 @@
       "value": "Opus FEC loss %"
     },
     {
+      "key": "settings.admin.maxMicrophoneRange",
+      "value": "Max Microphone Range"
+    },
+    {
+      "key": "settings.admin.maxHearingRange",
+      "value": "Max Hearing Range"
+    },
+    {
       "key": "settings.main.title.searchMenus",
       "value": "Search Menus"
     },

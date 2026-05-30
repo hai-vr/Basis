@@ -288,6 +288,10 @@ public static class BasisNetworkModeration
                 HandleGlobalOpusFrameDurationState(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetAudioRangeLimits:
+                HandleAudioRangeLimits(reader);
+                break;
+
             default:
                 BasisDebug.LogError($"Unhandled admin command: {mode}", BasisDebug.LogTag.Networking);
                 break;
@@ -764,6 +768,42 @@ public static class BasisNetworkModeration
         CrashReportingEnabled = reader.GetBool();
         BasisDebug.Log($"Crash reporting {(CrashReportingEnabled ? "enabled" : "disabled")} by server", BasisDebug.LogTag.Networking);
         OnCrashReportingStateChanged?.Invoke(CrashReportingEnabled);
+    }
+
+    /// <summary>
+    /// Server-pushed ceiling (metres) for the local microphone (voice transmit) range. Clients clamp
+    /// their Microphone Range slider and effective range to this. Defaults to 25 until a server pushes it.
+    /// </summary>
+    public static float ServerMaxMicrophoneRangeMeters { get; private set; } = 25f;
+
+    /// <summary>Server-pushed ceiling (metres) for the local hearing (audio receive) range.</summary>
+    public static float ServerMaxHearingRangeMeters { get; private set; } = 25f;
+
+    /// <summary>Fired when the server pushes new audio range limits (microphone, hearing) in metres.</summary>
+    public static event Action<float, float> OnAudioRangeLimitsChanged;
+
+    private static void HandleAudioRangeLimits(NetDataReader reader)
+    {
+        ServerMaxMicrophoneRangeMeters = reader.GetFloat();
+        ServerMaxHearingRangeMeters = reader.GetFloat();
+        SMModuleDistanceBasedReductions.SetMicrophoneRangeCapMeters(ServerMaxMicrophoneRangeMeters);
+        SMModuleDistanceBasedReductions.SetHearingRangeCapMeters(ServerMaxHearingRangeMeters);
+        BasisDebug.Log($"Audio range limits from server → microphone {ServerMaxMicrophoneRangeMeters} m, hearing {ServerMaxHearingRangeMeters} m", BasisDebug.LogTag.Networking);
+        OnAudioRangeLimitsChanged?.Invoke(ServerMaxMicrophoneRangeMeters, ServerMaxHearingRangeMeters);
+    }
+
+    /// <summary>
+    /// Admin: set the server-wide maximum microphone and hearing range (metres). Persisted to
+    /// config.xml and broadcast to every client.
+    /// </summary>
+    public static void SetGlobalAudioRangeLimits(float microphoneMeters, float hearingMeters)
+    {
+        if (microphoneMeters < 1f) microphoneMeters = 1f;
+        if (hearingMeters < 1f) hearingMeters = 1f;
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalAudioRangeLimits,
+            w => w.Put(microphoneMeters),
+            w => w.Put(hearingMeters));
     }
 
     private static void HandleGlobalHeadlessDisallowState(NetDataReader reader)

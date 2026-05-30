@@ -771,7 +771,7 @@ namespace Basis.BasisUI
             // Microphone broadcast range (relocated from General).
             PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
                 microphoneGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.microphoneRange"), 25),
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.microphoneRange"), BasisNetworkModeration.ServerMaxMicrophoneRangeMeters),
                 BasisSettingsDefaults.MicrophoneRange);
 
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);

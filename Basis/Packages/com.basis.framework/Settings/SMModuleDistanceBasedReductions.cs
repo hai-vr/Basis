@@ -6,6 +6,8 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
     private static float _microphoneRange = 25f * 25f;
     private static float _hearingRange = 25f * 25f;
+    private static float _microphoneRangeCapMeters;
+    private static float _hearingRangeCapMeters;
     private static float _avatarRange = 25f * 25f;
     private static float _meshLod = 25f;
     private static int _maxVisibleAvatars = 0;
@@ -81,6 +83,32 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     {
         get => _hearingRange;
         private set => SetAndNotify(ref _hearingRange, value, OnHearingRangeChanged);
+    }
+    public static void SetMicrophoneRangeCapMeters(float meters)
+    {
+        _microphoneRangeCapMeters = meters < 0f ? 0f : meters;
+        ReapplyMicrophoneRange();
+    }
+    public static void SetHearingRangeCapMeters(float meters)
+    {
+        _hearingRangeCapMeters = meters < 0f ? 0f : meters;
+        ReapplyHearingRange();
+    }
+    private static float CapMeters(float rawMeters, float capMeters)
+        => capMeters > 0f && rawMeters > capMeters ? capMeters : rawMeters;
+    private static void ReapplyMicrophoneRange()
+    {
+        float raw = CapMeters(BasisSettingsDefaults.MicrophoneRange.RawValue, _microphoneRangeCapMeters);
+        MicrophoneRange = SquaredDistance(raw);
+    }
+    private static void ReapplyHearingRange()
+    {
+#if UNITY_SERVER
+        HearingRange = 0f;
+#else
+        float raw = CapMeters(BasisSettingsDefaults.HearingRange.RawValue, _hearingRangeCapMeters);
+        HearingRange = SquaredDistance(raw);
+#endif
     }
     public static float AvatarRange
     {
@@ -186,11 +214,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         switch (matchedSettingName)
         {
             case var s when s == K_MIC_RANGE:
-                ApplyDistanceSetting(optionValue, "MicrophoneRange", v => MicrophoneRange = v, false);
+                ApplyDistanceSetting(optionValue, "MicrophoneRange", v => MicrophoneRange = v, false, _microphoneRangeCapMeters);
                 break;
 
             case var s when s == K_HEARING_RANGE:
-                ApplyDistanceSetting(optionValue, "HearingRange", v => HearingRange = v, true);
+                ApplyDistanceSetting(optionValue, "HearingRange", v => HearingRange = v, true, _hearingRangeCapMeters);
                 break;
 
             case var s when s == K_AVATAR_RANGE:
@@ -261,13 +289,14 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         }
     }
 
-    private static void ApplyDistanceSetting(string optionValue, string label, Action<float> assign, bool IfServerUseZero)
+    private static void ApplyDistanceSetting(string optionValue, string label, Action<float> assign, bool IfServerUseZero, float capMeters = 0f)
     {
         if (!TryReadSlider(optionValue, out var raw))
         {
             return;
         }
 
+        raw = CapMeters(raw, capMeters);
 #if UNITY_SERVER
         if (IfServerUseZero)
         {

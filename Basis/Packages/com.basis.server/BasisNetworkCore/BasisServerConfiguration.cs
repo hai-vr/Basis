@@ -19,7 +19,7 @@ public class Configuration
     /// doc comments). Newly-added settings are healed automatically regardless: on load a
     /// config missing any current field is re-saved with the new settings added.
     /// </summary>
-    public const int CurrentConfigVersion = 1;
+    public const int CurrentConfigVersion = 2;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -102,6 +102,8 @@ public class Configuration
     /// </summary>
     public byte CameraMetadataDisallowMask = 0;
     public bool CrashReportingEnabled = true;
+    public float MaxMicrophoneRangeMeters = 25f;
+    public float MaxHearingRangeMeters = 25f;
     /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath.
     /// Also loads per-transport config sidecars from <c>{configDir}/transports/{stackId}.xml</c>.

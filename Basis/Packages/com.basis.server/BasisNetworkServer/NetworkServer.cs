@@ -74,6 +74,7 @@ public static class NetworkServer
         BasisHeadlessConnectionPolicyManager.InitializeFromConfig(configuration.DisallowHeadless);
         BasisNetworkServer.Security.BasisGlobalLockManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(configuration);
+        BasisNetworkServer.Security.BasisAudioRangeLimitManager.InitializeFromConfig(configuration);
         SetupServer(configuration);
         SubscribeEvents(Configuration);
 
