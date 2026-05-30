@@ -666,7 +666,7 @@ namespace BasisNetworkServer.Security
         {
             ushort id = reader.GetUShort();
             Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(id, enable);
-            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable);
+            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable, (ushort)peer.Id);
         }
 
         private static void HandleGlobalToggle(NetPeer peer, string contentType, bool nowLocked)

@@ -487,12 +487,13 @@ namespace BasisServerHandle
         /// <summary>
         /// Broadcasts a shout mode state change to all clients via the AdminChannel.
         /// </summary>
-        public static void BroadcastShoutModeState(ushort targetPlayerId, bool enabled)
+        public static void BroadcastShoutModeState(ushort targetPlayerId, bool enabled, ushort initiatorPlayerId)
         {
             var writer = NetworkServer.RentWriter();
             AdminRequestMode mode = enabled ? AdminRequestMode.EnableShoutMode : AdminRequestMode.DisableShoutMode;
             new AdminRequest().Serialize(writer, mode);
             writer.Put(targetPlayerId);
+            writer.Put(initiatorPlayerId);
 
             NetPeer[] peers = NetworkServer.PeerSnapshot;
             foreach (var client in peers)
@@ -517,6 +518,7 @@ namespace BasisServerHandle
             {
                 writer.Reset();
                 new AdminRequest().Serialize(writer, AdminRequestMode.EnableShoutMode);
+                writer.Put((ushort)peerId);
                 writer.Put((ushort)peerId);
                 BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.AdminChannel, writer.Length);
                 newPeer.Send(writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);

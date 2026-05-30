@@ -26,6 +26,8 @@ namespace Basis.Scripts.Networking
         private static readonly HashSet<ushort> privateMembers = new HashSet<ushort>();
         private static ushort thisPersonTarget;
         private static bool hasThisPersonTarget;
+        private static BasisTalkMode pendingShoutExitMode;
+        private static bool hasPendingShoutExitMode;
 
         [RuntimeInitializeOnLoadMethod]
         private static void Init()
@@ -117,7 +119,10 @@ namespace Basis.Scripts.Networking
 
             if (CurrentMode == BasisTalkMode.Shout && BasisNetworkPlayer.LocalPlayer != null)
             {
+                pendingShoutExitMode = mode;
+                hasPendingShoutExitMode = true;
                 BasisNetworkModeration.DisableShoutMode(BasisNetworkPlayer.LocalPlayer.playerId);
+                return;
             }
 
             ApplyMode(mode);
@@ -258,11 +263,14 @@ namespace Basis.Scripts.Networking
 
             if (enabled)
             {
+                hasPendingShoutExitMode = false;
                 ApplyMode(BasisTalkMode.Shout);
             }
             else if (CurrentMode == BasisTalkMode.Shout)
             {
-                ApplyMode(BasisTalkMode.Normal);
+                BasisTalkMode target = hasPendingShoutExitMode ? pendingShoutExitMode : BasisTalkMode.Normal;
+                hasPendingShoutExitMode = false;
+                ApplyMode(target);
             }
         }
 

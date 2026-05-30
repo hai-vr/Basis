@@ -305,6 +305,7 @@ public static class BasisNetworkModeration
     private static void HandleShoutModeChanged(NetDataReader reader, bool enabled)
     {
         ushort targetPlayerId = reader.GetUShort();
+        ushort initiatorPlayerId = reader.AvailableBytes >= 2 ? reader.GetUShort() : targetPlayerId;
         string state = enabled ? "enabled" : "disabled";
         BasisDebug.Log($"Shout mode {state} for player {targetPlayerId}", BasisDebug.LogTag.Networking);
 
@@ -316,14 +317,13 @@ public static class BasisNetworkModeration
             Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInShoutMode = enabled;
             BasisDebug.Log($"Local player shout mode {state}", BasisDebug.LogTag.Networking);
 
-            // Notify the local player with a visible dialogue
-            if (enabled)
+            bool forcedByOther = initiatorPlayerId != targetPlayerId;
+            if (forcedByOther && !BasisTalkModeManager.LocalCanShout())
             {
-                DisplayMessage("Shout mode ENABLED - your voice is now broadcast to everyone.");
-            }
-            else
-            {
-                DisplayMessage("Shout mode DISABLED - your voice is back to normal.");
+                string initiatorName = ResolveDisplayName(initiatorPlayerId);
+                DisplayMessage(enabled
+                    ? $"{initiatorName} enabled shout mode for you - your voice is now broadcast to everyone."
+                    : $"{initiatorName} disabled shout mode for you - your voice is back to normal.");
             }
         }
         else
@@ -340,6 +340,16 @@ public static class BasisNetworkModeration
         }
 
         OnShoutModeChanged?.Invoke(targetPlayerId, enabled);
+    }
+
+    private static string ResolveDisplayName(ushort playerId)
+    {
+        if (BasisNetworkPlayers.Players.TryGetValue(playerId, out var player) && player != null)
+        {
+            string name = player.SafeDisplayName;
+            if (!string.IsNullOrEmpty(name)) return name;
+        }
+        return "An admin";
     }
 
     /// <summary>
