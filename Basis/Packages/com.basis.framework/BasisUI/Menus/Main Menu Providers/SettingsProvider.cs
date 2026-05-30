@@ -2351,9 +2351,6 @@ namespace Basis.BasisUI
 
             SettingsProviderPlatform.BuildAutoSwapUI(container);
 
-            // One reset button for this whole page
-            AddResetPageButton(container, "settings.tab.developer", ResetDeveloperDefaults);
-
             // ---- Diagnostic Notifications ----
             PanelElementDescriptor notificationGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2369,6 +2366,9 @@ namespace Basis.BasisUI
             toggleErrorNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.errorNotifications"));
             toggleErrorNotifications.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.errorNotifications.description"));
             toggleErrorNotifications.AssignBinding(BasisSettingsDefaults.ErrorNotifications);
+
+            // One reset button for this whole page
+            AddResetPageButton(container, "settings.tab.developer", ResetDeveloperDefaults);
 
             // Console Log (BuildConsoleUI creates 2 groups: controls + output)
             List<GameObject> consoleObjects = new();
