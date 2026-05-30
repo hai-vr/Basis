@@ -14,18 +14,21 @@ using UnityEngine;
 ///
 /// Layout under <c>Application.persistentDataPath/CrashReports</c>:
 ///   session.active : present while a session is running; deleted on a clean quit.
-///   pending.jsonl  : one base64-delimited record per captured report this session.
-/// If <c>session.active</c> still exists at startup, the previous run did not exit cleanly,
-/// so <c>pending.jsonl</c> from that run is loaded for replay before being rotated out.
+///   pending.jsonl  : reports captured during the CURRENT session.
+///   replay.jsonl   : an outbox of reports carried over from a crashed session, awaiting
+///                    send. It is deleted only once the reports have actually been handed off
+///                    for sending, so a crash before that point simply retries next launch,
+///                    while a successful send removes the outbox so the same reports are
+///                    never sent again on a later reboot.
 ///
-/// Records are stored one-per-line as <c>severity \t base64(system) \t base64(message) \t
-/// base64(stack)</c> — base64 keeps newlines and arbitrary characters from breaking the
-/// line format without pulling in a JSON dependency.
+/// Records are stored one per line as <c>severity \t base64(system) \t base64(message) \t
+/// base64(stack)</c> — base64 keeps newlines/arbitrary characters from breaking the line
+/// format without pulling in a JSON dependency.
 /// </summary>
 public static class BasisCrashReportStore
 {
     private const int MaxReplayEntries = 50;
-    private const long MaxPendingBytes = 2L * 1024 * 1024;
+    private const long MaxFileBytes = 2L * 1024 * 1024;
     private const int MaxMessageChars = 2000;
     private const int MaxStackChars = 12000;
 
@@ -34,6 +37,7 @@ public static class BasisCrashReportStore
 
     private static string _markerPath;
     private static string _pendingPath;
+    private static string _replayPath;
     private static bool _initialized;
     private static bool _replayed;
 
@@ -54,17 +58,34 @@ public static class BasisCrashReportStore
             string dir = Path.Combine(Application.persistentDataPath, "CrashReports");
             _markerPath = Path.Combine(dir, "session.active");
             _pendingPath = Path.Combine(dir, "pending.jsonl");
+            _replayPath = Path.Combine(dir, "replay.jsonl");
             Directory.CreateDirectory(dir);
 
-            // Marker survived from last time → the previous session crashed. Grab its reports.
-            if (File.Exists(_markerPath) && File.Exists(_pendingPath))
+            lock (FileLock)
             {
-                LoadPrevious();
-            }
+                bool previousCrashed = File.Exists(_markerPath);
 
-            // Rotate: start a fresh pending log and (re)arm the session marker.
-            try { if (File.Exists(_pendingPath)) File.Delete(_pendingPath); } catch { }
-            try { File.WriteAllText(_markerPath, DateTime.UtcNow.ToString("o")); } catch { }
+                // A crashed session's freshly-captured reports move into the outbox so they
+                // survive even if THIS session also crashes before it can send them.
+                if (previousCrashed && File.Exists(_pendingPath))
+                {
+                    FoldPendingIntoReplay();
+                }
+
+                // The current session always starts with an empty pending log.
+                TryDelete(_pendingPath);
+
+                // Load whatever is still waiting to be sent — this boot's fold, plus anything a
+                // previous boot loaded but never managed to send. Independent of the marker, so
+                // an outbox that survived a clean (but offline) shutdown still gets retried.
+                if (File.Exists(_replayPath))
+                {
+                    LoadReplay();
+                }
+
+                // (Re)arm the marker for this session.
+                try { File.WriteAllText(_markerPath, DateTime.UtcNow.ToString("o")); } catch { }
+            }
 
             Application.quitting += OnQuit;
             BasisNetworkModeration.OnCrashReportingStateChanged += OnCrashReportingStateChanged;
@@ -77,11 +98,13 @@ public static class BasisCrashReportStore
 
     private static void OnQuit()
     {
-        // Clean shutdown → nothing to report next time.
+        // Clean shutdown → drop this session's pending captures (they were sent live, or
+        // intentionally not sent). The outbox (replay.jsonl) is deliberately left alone: if it
+        // still holds unsent reports they should go out on the next launch.
         lock (FileLock)
         {
-            try { if (_pendingPath != null && File.Exists(_pendingPath)) File.Delete(_pendingPath); } catch { }
-            try { if (_markerPath != null && File.Exists(_markerPath)) File.Delete(_markerPath); } catch { }
+            TryDelete(_pendingPath);
+            TryDelete(_markerPath);
         }
     }
 
@@ -90,10 +113,7 @@ public static class BasisCrashReportStore
         if (enabled) TryReplay();
     }
 
-    /// <summary>
-    /// Append one captured report to the pending log. Thread-safe — called from Unity's
-    /// threaded log callback. Best-effort; IO failures are swallowed.
-    /// </summary>
+    /// <summary>Append one captured report to the current session's pending log. Thread-safe.</summary>
     public static void Persist(byte severity, string system, string message, string stackTrace)
     {
         if (!_initialized || string.IsNullOrEmpty(_pendingPath)) return;
@@ -105,13 +125,7 @@ public static class BasisCrashReportStore
                 + "\t" + Encode(Truncate(stackTrace, MaxStackChars));
             lock (FileLock)
             {
-                // Don't let an exception storm fill the disk.
-                try
-                {
-                    FileInfo info = new FileInfo(_pendingPath);
-                    if (info.Exists && info.Length > MaxPendingBytes) return;
-                }
-                catch { }
+                if (OverSizeLimit(_pendingPath)) return; // don't let an exception storm fill the disk
                 File.AppendAllText(_pendingPath, line + "\n");
             }
         }
@@ -119,8 +133,10 @@ public static class BasisCrashReportStore
     }
 
     /// <summary>
-    /// Send any reports captured from a previous crashed session, once connected and the
-    /// server allows reporting. Runs at most once per launch.
+    /// Send any reports carried over from a previous crashed session, once connected and the
+    /// server allows reporting. Runs at most once per launch; the on-disk outbox is deleted as
+    /// soon as the reports are taken for sending, so the same reports are never re-sent on a
+    /// later reboot (and a crash before this point simply retries the unchanged outbox).
     /// </summary>
     public static void TryReplay()
     {
@@ -131,9 +147,18 @@ public static class BasisCrashReportStore
         List<Entry> toSend;
         lock (FileLock)
         {
-            if (_previous.Count == 0) { _replayed = true; return; }
+            if (_previous.Count == 0)
+            {
+                // Nothing to replay — clear any stale outbox and stop checking.
+                TryDelete(_replayPath);
+                _replayed = true;
+                return;
+            }
             toSend = new List<Entry>(_previous);
             _previous.Clear();
+            // Mark as handled: deleting the outbox here is what guarantees these reports are
+            // not picked up and sent again after the next reboot.
+            TryDelete(_replayPath);
         }
         _replayed = true;
 
@@ -144,11 +169,38 @@ public static class BasisCrashReportStore
         BasisDebug.Log($"Replayed {toSend.Count} crash report(s) from the previous session.", BasisDebug.LogTag.Networking);
     }
 
-    private static void LoadPrevious()
+    // Append pending.jsonl onto replay.jsonl (capped to the most recent entries), so
+    // carried-over reports accumulate in the outbox. Caller holds FileLock.
+    private static void FoldPendingIntoReplay()
     {
         try
         {
-            string[] lines = File.ReadAllLines(_pendingPath);
+            List<string> lines = new List<string>();
+            if (File.Exists(_replayPath)) lines.AddRange(File.ReadAllLines(_replayPath));
+            if (File.Exists(_pendingPath)) lines.AddRange(File.ReadAllLines(_pendingPath));
+
+            if (lines.Count > MaxReplayEntries)
+                lines.RemoveRange(0, lines.Count - MaxReplayEntries);
+
+            StringBuilder sb = new StringBuilder();
+            foreach (string l in lines)
+            {
+                if (!string.IsNullOrEmpty(l)) sb.Append(l).Append('\n');
+            }
+            File.WriteAllText(_replayPath, sb.ToString());
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogWarning($"Failed to fold pending crash reports into the outbox: {e.Message}");
+        }
+    }
+
+    // Caller holds FileLock.
+    private static void LoadReplay()
+    {
+        try
+        {
+            string[] lines = File.ReadAllLines(_replayPath);
             int start = Math.Max(0, lines.Length - MaxReplayEntries);
             for (int i = start; i < lines.Length; i++)
             {
@@ -157,8 +209,23 @@ public static class BasisCrashReportStore
         }
         catch (Exception e)
         {
-            BasisDebug.LogWarning($"Failed to load previous crash reports: {e.Message}");
+            BasisDebug.LogWarning($"Failed to load carried-over crash reports: {e.Message}");
         }
+    }
+
+    private static bool OverSizeLimit(string path)
+    {
+        try
+        {
+            FileInfo info = new FileInfo(path);
+            return info.Exists && info.Length > MaxFileBytes;
+        }
+        catch { return false; }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { if (!string.IsNullOrEmpty(path) && File.Exists(path)) File.Delete(path); } catch { }
     }
 
     private static bool TryParse(string line, out Entry entry)
