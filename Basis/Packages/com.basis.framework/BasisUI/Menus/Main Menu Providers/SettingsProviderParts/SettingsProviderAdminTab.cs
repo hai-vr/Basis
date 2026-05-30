@@ -266,6 +266,17 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.RemoveWhitelist(uuid);
             };
 
+            // --- Server logs (admin pulls logs/ + CrashReports/ to disk) ---
+            PanelElementDescriptor logsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            logsGroup.SetTitle(BasisLocalization.Get("settings.admin.title.serverLogs"));
+            logsGroup.SetDescription("Pull the server's logs and crash reports. They are bundled and compressed on the server, sent over the network, and unpacked into a dated folder next to your settings.");
+
+            PanelButton requestLogsButton = PanelButton.CreateNew(logsGroup.ContentParent);
+            requestLogsButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.requestAllLogs"));
+            requestLogsButton.Descriptor.SetDescription("Asks the server to bundle and send every log and crash report. Requires the basis.admin.logs permission.");
+            requestLogsButton.OnClicked += () => BasisNetworkModeration.RequestAllLogs();
+
             // --- Default Library (saved to disk on the server, broadcast to all clients) ---
             BuildDefaultLibrarySection(container);
 

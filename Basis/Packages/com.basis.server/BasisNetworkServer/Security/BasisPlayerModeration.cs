@@ -369,6 +369,11 @@ namespace BasisNetworkServer.Security
                         HandleAudioRangeLimitsSet(peer, reader));
                     break;
 
+                case AdminRequestMode.RequestAllLogs:
+                    Require(peer, PermNodes.AdminLogs, () =>
+                        BasisServerLogBundleService.SendAllLogsToPeer(peer));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessDisallow:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleHeadlessDisallowSet(peer, reader));

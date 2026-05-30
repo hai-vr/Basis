@@ -45,7 +45,11 @@ namespace Basis.BasisUI
                 }
 
                 string system = ResolveSystem(message, stackTrace);
-                BasisErrorReportSender.Report(type == LogType.Exception ? (byte)1 : (byte)0, system, message, stackTrace);
+                byte severity = type == LogType.Exception ? (byte)1 : (byte)0;
+                // Persist locally first (always, even when disconnected or reporting is off) so a
+                // hard crash that kills the app before the live send is still re-sent next launch.
+                BasisCrashReportStore.Persist(severity, system, message, stackTrace);
+                BasisErrorReportSender.Report(severity, system, message, stackTrace);
                 BasisDeviceManagement.EnqueueOnMainThread(() => Present(type, system, message, stackTrace));
             }
             catch

@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// Sends the first sighting of an error/exception to the server on
@@ -20,6 +21,18 @@ public static class BasisErrorReportSender
         BasisDeviceManagement.EnqueueOnMainThread(() => Send(severity, system, message, stackTrace));
     }
 
+    /// <summary>
+    /// Re-send a report captured in a previous (crashed) session. Marked with severity 2
+    /// so the server records it as a "crash" rather than a live error/exception. Same
+    /// gating as <see cref="Report"/> — only transmits while connected and reporting is on.
+    /// Does not persist (the report is already on disk via <see cref="BasisCrashReportStore"/>).
+    /// </summary>
+    public static void SendPrevious(string system, string message, string stackTrace)
+    {
+        if (!BasisNetworkModeration.CrashReportingEnabled) return;
+        BasisDeviceManagement.EnqueueOnMainThread(() => Send(2, system, message, stackTrace));
+    }
+
     private static void Send(byte severity, string system, string message, string stackTrace)
     {
         try
@@ -27,11 +40,12 @@ public static class BasisErrorReportSender
             if (!BasisNetworkModeration.CrashReportingEnabled) return;
             if (BasisNetworkConnection.LocalPlayerPeer == null) return;
 
+            // Redact IPs, machine name, and user/profile paths before anything leaves the device.
             byte[] blob = PermissionCompression.CompressExtras(new[]
             {
-                system ?? string.Empty,
-                Truncate(message, MaxMessageChars),
-                Truncate(stackTrace, MaxStackChars),
+                Redact(system) ?? string.Empty,
+                Redact(Truncate(message, MaxMessageChars)),
+                Redact(Truncate(stackTrace, MaxStackChars)),
             });
 
             NetDataWriter writer = new NetDataWriter();
@@ -42,6 +56,11 @@ public static class BasisErrorReportSender
                 writer,
                 BasisNetworkCommons.EventsChannel,
                 DeliveryMethod.ReliableOrdered);
+
+            // A successful live send means we're connected and reporting is enabled, so this
+            // is also the right moment to flush any crash reports held over from a previous
+            // session. Guarded internally so it only happens once.
+            BasisCrashReportStore.TryReplay();
         }
         catch
         {
@@ -52,5 +71,42 @@ public static class BasisErrorReportSender
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
         return value.Length <= max ? value : value.Substring(0, max);
+    }
+
+    /// <summary>
+    /// Strip sensitive local details from a report field before it is sent: IPv4/IPv6
+    /// addresses, the machine name, the OS user name, and the user-profile path segment
+    /// that Unity bakes into stack-trace file paths (e.g. C:\Users\Name\...).
+    /// </summary>
+    private static string Redact(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        try
+        {
+            value = Regex.Replace(value, @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]");
+            value = Regex.Replace(value, @"\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\b", "[ip]");
+            value = Regex.Replace(value, @"([Uu]sers[\\/])[^\\/\r\n]+", "$1[user]");
+            value = Regex.Replace(value, @"(/home/)[^/\r\n]+", "$1[user]");
+            value = RedactToken(value, SafeName(() => UnityEngine.SystemInfo.deviceName), "[machine]");
+            value = RedactToken(value, SafeName(() => System.Environment.MachineName), "[machine]");
+            value = RedactToken(value, SafeName(() => System.Environment.UserName), "[user]");
+        }
+        catch
+        {
+        }
+        return value;
+    }
+
+    private static string RedactToken(string value, string token, string replacement)
+    {
+        // Skip very short tokens to avoid mangling unrelated text.
+        if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(token) || token.Length < 3) return value;
+        try { return Regex.Replace(value, Regex.Escape(token), replacement, RegexOptions.IgnoreCase); }
+        catch { return value; }
+    }
+
+    private static string SafeName(System.Func<string> getter)
+    {
+        try { return getter(); } catch { return null; }
     }
 }

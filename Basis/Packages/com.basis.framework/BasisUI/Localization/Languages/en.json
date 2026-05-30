@@ -5155,6 +5155,14 @@
       "value": "Default Library"
     },
     {
+      "key": "settings.admin.title.serverLogs",
+      "value": "Server Logs"
+    },
+    {
+      "key": "settings.admin.title.requestAllLogs",
+      "value": "Request all logs"
+    },
+    {
       "key": "settings.admin.title.beeUrl",
       "value": "BEE URL"
     },

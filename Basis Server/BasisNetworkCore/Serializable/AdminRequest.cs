@@ -107,8 +107,17 @@ namespace BasisNetworkCore.Serializable
             GlobalGetCrashReportState, // server→client: whether client error/exception reporting is enabled
             SetGlobalCrashReporting,   // admin: enable/disable client error/exception reporting (persisted). Payload: [bool]
 
-            GlobalGetAudioRangeLimits, // server→client: max microphone + hearing range in metres. Payload: [float micMeters][float hearingMeters]
+            GlobalGetAudioRangeLimits, // server→client: current max microphone + hearing range in metres. Payload: [float micMeters][float hearingMeters]
             SetGlobalAudioRangeLimits, // admin: set max microphone + hearing range in metres (persisted). Payload: [float micMeters][float hearingMeters]
+
+            // ── Server log bundle (admin pulls logs/ + CrashReports/ as one compressed bundle) ──
+            // The admin asks; the server packs its logs/ and CrashReports/ folders into one
+            // container, LZ4-compresses it, and streams the result back in order over the
+            // admin channel, split into chunks so a large bundle never relies on one datagram.
+            RequestAllLogs,   // client→server (admin): build and stream the full log bundle. Gated by basis.admin.logs. No payload.
+            LogBundleBegin,   // server→client: start of a transfer. Payload: [string serverNameSafe][string fileName][bool isCompressed][int payloadBytes][int rawBytes][int totalChunks]
+            LogBundleChunk,   // server→client: one ordered chunk. Payload: [int chunkIndex][lenPrefixed bytes]
+            LogBundleEnd,     // server→client: end of transfer. Payload: [bool ok][string message]
         }
     }
 }

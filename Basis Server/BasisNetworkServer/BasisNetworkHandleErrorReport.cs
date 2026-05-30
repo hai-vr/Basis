@@ -96,7 +96,7 @@ namespace BasisNetworkServer
             sb.Append("\"uuid\":\"").Append(JsonEscape(uuid)).Append("\",");
             sb.Append("\"displayName\":\"").Append(JsonEscape(displayName)).Append("\",");
             sb.Append("\"platform\":\"").Append(JsonEscape(platform)).Append("\",");
-            sb.Append("\"severity\":\"").Append(severity == 1 ? "exception" : "error").Append("\",");
+            sb.Append("\"severity\":\"").Append(severity == 1 ? "exception" : severity == 2 ? "crash" : "error").Append("\",");
             sb.Append("\"system\":\"").Append(JsonEscape(system)).Append("\",");
             sb.Append("\"message\":\"").Append(JsonEscape(message)).Append("\",");
             sb.Append("\"stack\":\"").Append(JsonEscape(stack)).Append("\"}");

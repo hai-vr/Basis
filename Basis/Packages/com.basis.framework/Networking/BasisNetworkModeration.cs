@@ -202,6 +202,16 @@ public static class BasisNetworkModeration
             w => w.Put(url));
     }
 
+    /// <summary>
+    /// Admin: ask the server to bundle its logs/ and CrashReports/ folders and stream them
+    /// back. <see cref="BasisLogBundleReceiver"/> reassembles, decompresses, and extracts them
+    /// into a dated folder next to the local settings. Server-gated by basis.admin.logs.
+    /// </summary>
+    public static void RequestAllLogs()
+    {
+        SendAdminRequest(AdminRequestMode.RequestAllLogs);
+    }
+
     public static void DisplayMessage(string message)
     {
         if (ValidateString(message, nameof(message)))
@@ -290,6 +300,18 @@ public static class BasisNetworkModeration
 
             case AdminRequestMode.GlobalGetAudioRangeLimits:
                 HandleAudioRangeLimits(reader);
+                break;
+
+            case AdminRequestMode.LogBundleBegin:
+                BasisLogBundleReceiver.Begin(reader);
+                break;
+
+            case AdminRequestMode.LogBundleChunk:
+                BasisLogBundleReceiver.Chunk(reader);
+                break;
+
+            case AdminRequestMode.LogBundleEnd:
+                BasisLogBundleReceiver.End(reader);
                 break;
 
             default:
