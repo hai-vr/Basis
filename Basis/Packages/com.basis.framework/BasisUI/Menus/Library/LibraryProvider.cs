@@ -1944,12 +1944,12 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
-            // Skip the row-action buttons for scene-mode and embedded rows — not user-owned spawns.
-            if (itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene
-                || itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded)
+            if (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded)
             {
                 return;
             }
+
+            bool isScene = itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
 
             PanelButton selectItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
             selectItem.Descriptor.SetTitle(string.Empty);
@@ -1958,6 +1958,7 @@ namespace Basis.BasisUI
             // Inset the icon so its strokes stay clear of the bevel — matches PE Image Simple Square's pattern.
             selectItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
+            selectItem.Descriptor.SetActive(!isScene);
             selectItem.OnClicked += async () =>
             {
                 if(hasSelected)
@@ -1983,6 +1984,7 @@ namespace Basis.BasisUI
             TeleportToItem.SetSize(new Vector2(80, 80));
             TeleportToItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
+            TeleportToItem.Descriptor.SetActive(!isScene);
             TeleportToItem.OnClicked += () =>
             {
 
