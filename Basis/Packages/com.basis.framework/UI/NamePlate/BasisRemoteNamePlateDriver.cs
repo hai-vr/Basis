@@ -428,6 +428,8 @@ namespace Basis.Scripts.UI.NamePlate
 
             UpdateCachedColors(newTransparency);
 
+            FlushPendingStructuralChanges();
+
             Vector3 scale = new Vector3(0.02f, 0.02f, 0.02f) * newSize;
             var arr = plates;
             int n = count;
@@ -885,6 +887,24 @@ namespace Basis.Scripts.UI.NamePlate
                     p.UpdateChatTimeout();
                     p.RefreshTypingIndicatorAnimation();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Completes any in-flight pulse job and flushes queued plate add/removes into
+        /// the live array. Safe to call off the per-frame path (e.g. on settings changes).
+        /// </summary>
+        private static void FlushPendingStructuralChanges()
+        {
+            if (jobScheduled)
+            {
+                handle.Complete();
+                jobScheduled = false;
+            }
+
+            if (pendingAdd.Count > 0 || pendingRemove.Count > 0)
+            {
+                ApplyPendingStructuralChanges();
             }
         }
 

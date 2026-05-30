@@ -1185,6 +1185,16 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
                 BasisSettingsDefaults.AvatarRange);
 
+            PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(qualityGroup);
+            toggleAvatarDistance.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDistance"));
+            toggleAvatarDistance.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDistance.description"));
+            bool avatarDistOn = !string.Equals(BasisSettingsDefaults.VisualState.RawValue, "off", StringComparison.OrdinalIgnoreCase);
+            toggleAvatarDistance.SetValueWithoutNotify(avatarDistOn);
+            toggleAvatarDistance.OnValueChanged += (val) =>
+            {
+                BasisSettingsDefaults.VisualState.SetValue(val ? "only avatar distance" : "off");
+            };
+
             PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(qualityGroup);
             toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
             toggleLimitAvatars.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAvatars"));
@@ -1960,16 +1970,6 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             debugGroup.SetTitle(BasisLocalization.Get("settings.developer.visualHelpers.title"));
             debugGroup.SetDescription(BasisLocalization.Get("settings.developer.visualHelpers.description"));
-
-            PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
-            toggleAvatarDistance.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDistance"));
-            toggleAvatarDistance.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDistance.description"));
-            bool avatarDistOn = !string.Equals(BasisSettingsDefaults.VisualState.RawValue, "off", StringComparison.OrdinalIgnoreCase);
-            toggleAvatarDistance.SetValueWithoutNotify(avatarDistOn);
-            toggleAvatarDistance.OnValueChanged += (val) =>
-            {
-                BasisSettingsDefaults.VisualState.SetValue(val ? "only avatar distance" : "off");
-            };
 
             PanelToggle toggleStatistics = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleStatistics.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.enableStatistics"));
