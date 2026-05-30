@@ -100,7 +100,7 @@ namespace Basis.Scripts.Common
 
                 lock (state.Sync)
                 {
-                    BasisDebug.Log($"removing lock for {state}");
+                    BasisDebug.Log($"removing lock for {key}");
                     return state.Owners.Remove(key);
                 }
             }
@@ -108,35 +108,50 @@ namespace Basis.Scripts.Common
             public void Clear()
             {
                 if (!States.TryGetValue(Context, out var state))
+                {
                     return;
+                }
 
                 lock (state.Sync)
+                {
                     state.Owners.Clear();
+                }
             }
 
             public bool Contains(string key)
             {
                 if (string.IsNullOrWhiteSpace(key))
+                {
                     return false;
+                }
 
                 if (!States.TryGetValue(Context, out var state))
+                {
                     return false;
+                }
 
                 lock (state.Sync)
+                {
                     return state.Owners.Contains(key);
+                }
             }
 
             public bool ContainsOnly(string key)
             {
                 if (string.IsNullOrWhiteSpace(key))
+                {
                     return false;
+                }
 
                 if (!States.TryGetValue(Context, out var state))
+                {
                     return false;
+                }
 
                 lock (state.Sync)
-                    return state.Owners.Count == 1 &&
-                           state.Owners.Contains(key);
+                {
+                    return state.Owners.Count == 1 && state.Owners.Contains(key);
+                }
             }
 
             public int Count
@@ -144,33 +159,40 @@ namespace Basis.Scripts.Common
                 get
                 {
                     if (!States.TryGetValue(Context, out var state))
+                    {
                         return 0;
+                    }
 
                     lock (state.Sync)
+                    {
                         return state.Owners.Count;
+                    }
                 }
             }
 
             public List<string> ToList()
             {
                 if (!States.TryGetValue(Context, out var state))
+                {
                     return new List<string>();
+                }
 
                 lock (state.Sync)
+                {
                     return state.Owners.ToList();
+                }
             }
 
             public override string ToString()
             {
                 if (!States.TryGetValue(Context, out var state))
+                {
                     return $"{Context}[]";
+                }
 
                 lock (state.Sync)
                 {
-                    if (state.Owners.Count == 0)
-                        return $"{Context}[]";
-
-                    return $"{Context}[{string.Join(", ", state.Owners)}]";
+                    return state.Owners.Count == 0 ? $"{Context}[]" : $"{Context}[{string.Join(", ", state.Owners)}]";
                 }
             }
 
@@ -192,14 +214,11 @@ namespace Basis.Scripts.Common
                 return Context.GetHashCode();
             }
 
-            public static bool operator ==(LockContext a, LockContext b)
-                => a?.Context == b?.Context;
+            public static bool operator ==(LockContext a, LockContext b) => a?.Context == b?.Context;
 
-            public static bool operator !=(LockContext a, LockContext b)
-                => !(a == b);
+            public static bool operator !=(LockContext a, LockContext b) => !(a == b);
 
-            public static implicit operator bool(LockContext context)
-                => context != null && context.Count > 0;
+            public static implicit operator bool(LockContext context) => context != null && context.Count > 0;
         }
     }
 }
