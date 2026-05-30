@@ -268,6 +268,10 @@ public static class BasisNetworkModeration
                 HandleGlobalHeadlessAudioState(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetCrashReportState:
+                HandleCrashReportState(reader);
+                break;
+
             case AdminRequestMode.GlobalGetHeadlessDisallowState:
                 HandleGlobalHeadlessDisallowState(reader);
                 break;
@@ -746,6 +750,22 @@ public static class BasisNetworkModeration
         OnGlobalHeadlessAudioStateChanged?.Invoke(GlobalHeadlessAudioOff);
     }
 
+    /// <summary>
+    /// Server-pushed flag: whether clients may report errors/exceptions. Defaults false so
+    /// nothing is sent until a server explicitly enables it (older servers never do).
+    /// </summary>
+    public static bool CrashReportingEnabled { get; private set; }
+
+    /// <summary>Fired when the server-pushed crash-reporting state changes.</summary>
+    public static event Action<bool> OnCrashReportingStateChanged;
+
+    private static void HandleCrashReportState(NetDataReader reader)
+    {
+        CrashReportingEnabled = reader.GetBool();
+        BasisDebug.Log($"Crash reporting {(CrashReportingEnabled ? "enabled" : "disabled")} by server", BasisDebug.LogTag.Networking);
+        OnCrashReportingStateChanged?.Invoke(CrashReportingEnabled);
+    }
+
     private static void HandleGlobalHeadlessDisallowState(NetDataReader reader)
     {
         GlobalHeadlessDisallowed = reader.GetBool();
@@ -761,6 +781,17 @@ public static class BasisNetworkModeration
         SendAdminRequest(
             AdminRequestMode.SetGlobalHeadlessAudio,
             w => w.Put(headlessAudioOff));
+    }
+
+    /// <summary>
+    /// Admin: enable or disable client error/exception reporting server-wide. Persisted to
+    /// config.xml and broadcast to every client.
+    /// </summary>
+    public static void SetGlobalCrashReporting(bool enabled)
+    {
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalCrashReporting,
+            w => w.Put(enabled));
     }
 
     /// <summary>

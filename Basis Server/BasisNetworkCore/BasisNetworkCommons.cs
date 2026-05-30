@@ -158,6 +158,12 @@ namespace Basis.Network.Core
         public const byte EventType_MuteStateChanged = 5;
         /// <summary>Transient chat typing state for a remote player.</summary>
         public const byte EventType_PlayerChatTyping = 6;
+        /// <summary>
+        /// Client→server one-shot error/exception report (first sighting only). The server
+        /// attaches identity from connect metadata and stores it to disk; never rebroadcast.
+        /// Wire: [eventType:1][severity:1][lenPrefixed PermissionCompression blob of (system, message, stack)]
+        /// </summary>
+        public const byte EventType_ErrorReport = 7;
 
         // ── Per-quality avatar channels (ushort playerID, for IDs >255) ──
         // Same layout as byte-ID channels: base + quality * 2 + hasAdditional

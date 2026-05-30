@@ -40,6 +40,10 @@ namespace BasisNetworkServer
                     HandleMuteStateChanged(reader, peer, eventType);
                     break;
 
+                case BasisNetworkCommons.EventType_ErrorReport:
+                    BasisNetworkHandleErrorReport.HandleEvent(reader, peer, eventType);
+                    break;
+
                 default:
                     BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                     reader.Recycle();

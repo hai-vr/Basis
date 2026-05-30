@@ -45,6 +45,7 @@ namespace Basis.BasisUI
                 }
 
                 string system = ResolveSystem(message, stackTrace);
+                BasisErrorReportSender.Report(type == LogType.Exception ? (byte)1 : (byte)0, system, message, stackTrace);
                 BasisDeviceManagement.EnqueueOnMainThread(() => Present(type, system, message, stackTrace));
             }
             catch

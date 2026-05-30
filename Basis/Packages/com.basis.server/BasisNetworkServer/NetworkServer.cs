@@ -73,6 +73,7 @@ public static class NetworkServer
         InitializeAuth();
         BasisHeadlessConnectionPolicyManager.InitializeFromConfig(configuration.DisallowHeadless);
         BasisNetworkServer.Security.BasisGlobalLockManager.InitializeFromConfig(configuration);
+        BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(configuration);
         SetupServer(configuration);
         SubscribeEvents(Configuration);
 

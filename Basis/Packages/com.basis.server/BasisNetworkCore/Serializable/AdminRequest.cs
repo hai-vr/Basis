@@ -103,6 +103,9 @@ namespace BasisNetworkCore.Serializable
             // Each set bit disallows one embedding category for all clients; 0 = all allowed.
             // The current mask is appended as a trailing byte in GlobalGetLockState.
             SetGlobalCameraPolicy,
+
+            GlobalGetCrashReportState, // server→client: whether client error/exception reporting is enabled
+            SetGlobalCrashReporting,   // admin: enable/disable client error/exception reporting (persisted). Payload: [bool]
         }
     }
 }

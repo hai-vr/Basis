@@ -119,6 +119,7 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("ThirdPersonDisabled", " Tell every client to hard-disable the desktop third-person camera. true|false. "));
             t.Fields.Add(new FieldDoc("AdditionalAvatarDataLock", " Strip AdditionalAvatarDatas (blendshapes, custom-behaviour params) from inbound avatar sync before relaying; muscle/position/rotation still sync. true|false. "));
             t.Fields.Add(new FieldDoc("CameraMetadataDisallowMask", " Bitmask of camera photo-metadata categories disallowed for all clients (set bit = disallowed). 0 = everything allowed. byte, range 0-255; the category-to-bit mapping is defined client-side. "));
+            t.Fields.Add(new FieldDoc("CrashReportingEnabled", " Allow clients to send a one-shot report of each error/exception they hit to the server, stored under CrashReports/<uuid>.jsonl with their UUID and display name. true|false; default true. Set false to globally disable reporting (clients are told to stop sending). ", " ===== Diagnostics ===== "));
             _docs[typeof(global::Configuration)] = t;
         }
 

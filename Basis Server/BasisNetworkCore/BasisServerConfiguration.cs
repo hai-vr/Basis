@@ -91,6 +91,7 @@ public class Configuration
     /// broadcast to clients in GlobalGetLockState.
     /// </summary>
     public byte CameraMetadataDisallowMask = 0;
+    public bool CrashReportingEnabled = true;
     /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath.
     /// Also loads per-transport config sidecars from <c>{configDir}/transports/{stackId}.xml</c>.

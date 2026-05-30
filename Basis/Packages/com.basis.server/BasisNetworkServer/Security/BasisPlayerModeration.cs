@@ -359,6 +359,11 @@ namespace BasisNetworkServer.Security
                         HandleHeadlessAudioSet(peer, reader));
                     break;
 
+                case AdminRequestMode.SetGlobalCrashReporting:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleCrashReportingSet(peer, reader));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessDisallow:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleHeadlessDisallowSet(peer, reader));
@@ -667,6 +672,16 @@ namespace BasisNetworkServer.Security
             ushort id = reader.GetUShort();
             Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(id, enable);
             BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable, (ushort)peer.Id);
+        }
+
+        private static void HandleCrashReportingSet(NetPeer peer, NetPacketReader reader)
+        {
+            bool enabled = reader.GetBool();
+            NetworkServer.Configuration.CrashReportingEnabled = enabled;
+            SaveConfig();
+            BasisCrashReportStateManager.SetEnabled(enabled);
+            BasisCrashReportStateManager.BroadcastState();
+            SendBackMessage(peer, $"Crash reporting {(enabled ? "ENABLED" : "DISABLED")}.");
         }
 
         private static void HandleGlobalToggle(NetPeer peer, string contentType, bool nowLocked)

@@ -358,6 +358,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisOpusPacketLossStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisOpusFrameDurationStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisCrashReportStateManager.SendStateToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else
