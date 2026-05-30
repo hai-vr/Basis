@@ -13,6 +13,16 @@ public class Configuration
     public const string LogsFolderName = "logs";
     public const string InitialResourcesFolderName = "initialresources";
     public const string DefaultLibraryFolderName = "defaultlibrary";
+
+    /// <summary>
+    /// Bump when config changes should force existing files to be rewritten (e.g. to refresh
+    /// doc comments). Newly-added settings are healed automatically regardless: on load a
+    /// config missing any current field is re-saved with the new settings added.
+    /// </summary>
+    public const int CurrentConfigVersion = 1;
+    /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
+    public int ConfigVersion = 0;
+
     public int PeerLimit = ushort.MaxValue;
     public ushort SetPort = 4296;
     /// <summary>Display name returned by the unconnected server-info query — what shows up as the row title in a client server-list UI.</summary>
@@ -104,17 +114,25 @@ public class Configuration
         var serializer = new XmlSerializer(typeof(Configuration));
         if (File.Exists(filePath))
         {
-            using var fileReader = new StreamReader(filePath);
-            result = (Configuration)serializer.Deserialize(fileReader);
-            fileReader.Close();
+            using (var fileReader = new StreamReader(filePath))
+            {
+                result = (Configuration)serializer.Deserialize(fileReader);
+            }
+
+            // Heal an older config: if it predates the current schema version or is missing
+            // any setting we now write, re-save it so the new settings (with defaults and
+            // doc comments) are added without disturbing the values already present.
+            if (BasisConfigXmlDocs.NeedsUpgrade(filePath, typeof(Configuration), result))
+            {
+                BNL.Log($"{filePath} is from an older version; adding missing settings.");
+                result.WriteXml(filePath);
+            }
         }
         else
         {
             BNL.Log($"{filePath} not found, creating with default values");
             result = new Configuration();
-            using var writer = new StreamWriter(filePath);
-            BasisConfigXmlDocs.Serialize(serializer, typeof(Configuration), result, writer);
-            writer.Close();
+            result.WriteXml(filePath);
         }
 
         string configDir = Path.GetDirectoryName(filePath);
@@ -130,6 +148,17 @@ public class Configuration
     /// </summary>
     public void SaveToXml(string filePath)
     {
+        WriteXml(filePath);
+        BasisTransportConfigStore.SaveAll(Path.GetDirectoryName(filePath));
+    }
+
+    /// <summary>
+    /// Atomically write just this config.xml (temp file + replace), stamping the current
+    /// schema version and injecting doc comments. Does not touch the transport sidecars.
+    /// </summary>
+    private void WriteXml(string filePath)
+    {
+        ConfigVersion = CurrentConfigVersion;
         var serializer = new XmlSerializer(typeof(Configuration));
         string dir = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -141,8 +170,6 @@ public class Configuration
         }
         if (File.Exists(filePath)) File.Replace(tempPath, filePath, null);
         else File.Move(tempPath, filePath);
-
-        BasisTransportConfigStore.SaveAll(dir);
     }
 
     /// <summary>

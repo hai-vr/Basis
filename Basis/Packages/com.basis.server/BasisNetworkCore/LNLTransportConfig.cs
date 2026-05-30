@@ -5,6 +5,11 @@ namespace Basis.Network.Core
     [Serializable]
     public sealed class LNLTransportConfig
     {
+        /// <summary>Bump to force existing files to be rewritten; newly-added fields are healed automatically on load.</summary>
+        public const int CurrentConfigVersion = 1;
+        /// <summary>Schema version stamped into the file; 0 = pre-versioning, upgraded on load.</summary>
+        public int ConfigVersion = 0;
+
         public bool UseNativeSockets = true;
         public bool NatPunchEnabled = true;
         public int NatPortPredictionRange = 32;

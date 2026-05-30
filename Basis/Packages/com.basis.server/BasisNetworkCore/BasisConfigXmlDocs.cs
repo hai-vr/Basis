@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Xml.Linq;
 using System.Xml.Serialization;
 
@@ -72,12 +73,77 @@ namespace Basis.Network.Core
             if (!string.IsNullOrEmpty(entry.Header)) doc.Root.AddFirst(new XComment(entry.Header));
         }
 
+        private const string VersionFieldName = "ConfigVersion";
+        private const string CurrentVersionFieldName = "CurrentConfigVersion";
+
+        /// <summary>
+        /// True when the config on disk predates the current schema and should be re-saved:
+        /// either its stamped <c>ConfigVersion</c> is below the type's <c>CurrentConfigVersion</c>,
+        /// or the file is missing any element the current type would write.
+        /// </summary>
+        public static bool NeedsUpgrade(string filePath, Type type, object loaded)
+        {
+            if (ReadVersion(loaded) < ReadCurrentVersion(type)) return true;
+            return IsMissingAnyField(filePath, type);
+        }
+
+        /// <summary>True if the XML at <paramref name="filePath"/> lacks any element the current shape of <paramref name="type"/> would serialize.</summary>
+        public static bool IsMissingAnyField(string filePath, Type type)
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return false;
+                XDocument doc = XDocument.Load(filePath);
+                if (doc.Root == null) return false;
+
+                var present = new HashSet<string>(StringComparer.Ordinal);
+                foreach (XElement el in doc.Root.Elements()) present.Add(el.Name.LocalName);
+
+                foreach (FieldInfo f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (f.IsInitOnly || f.IsLiteral) continue;
+                    if (Attribute.IsDefined(f, typeof(XmlIgnoreAttribute))) continue;
+                    if (!present.Contains(f.Name)) return true;
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>Stamp the instance <c>ConfigVersion</c> field (if present) up to the type's <c>CurrentConfigVersion</c>.</summary>
+        public static void StampVersion(object config)
+        {
+            if (config == null) return;
+            Type type = config.GetType();
+            FieldInfo f = type.GetField(VersionFieldName, BindingFlags.Public | BindingFlags.Instance);
+            if (f != null && f.FieldType == typeof(int)) f.SetValue(config, ReadCurrentVersion(type));
+        }
+
+        private static int ReadVersion(object config)
+        {
+            if (config == null) return 0;
+            FieldInfo f = config.GetType().GetField(VersionFieldName, BindingFlags.Public | BindingFlags.Instance);
+            if (f != null && f.FieldType == typeof(int)) return (int)f.GetValue(config);
+            return 0;
+        }
+
+        private static int ReadCurrentVersion(Type type)
+        {
+            FieldInfo f = type.GetField(CurrentVersionFieldName, BindingFlags.Public | BindingFlags.Static);
+            if (f != null && f.IsLiteral && f.FieldType == typeof(int)) return (int)f.GetRawConstantValue();
+            return 0;
+        }
+
         private static void RegisterServerConfig()
         {
             var t = new TypeDoc
             {
                 Header = " Basis dedicated-server configuration. Any environment variable whose name matches a field below overrides it at launch (e.g. PeerLimit=256). These comments are emitted from code, so they survive restarts AND in-game admin-panel saves. ",
             };
+            t.Fields.Add(new FieldDoc("ConfigVersion", " Config schema version, managed automatically. When the server gains new settings this file is rewritten to add them (with their defaults) and this number is bumped — don't edit by hand. "));
             t.Fields.Add(new FieldDoc("PeerLimit", " Maximum number of simultaneously connected peers (players). int. Default 65535. ", " ===== Networking / listener ===== "));
             t.Fields.Add(new FieldDoc("SetPort", " UDP port the server binds and listens on; clients connect to this. ushort, range 1-65535. "));
             t.Fields.Add(new FieldDoc("ServerName", " Display name shown as the row title in client server-list UIs (server-info query). string. "));
@@ -129,6 +195,7 @@ namespace Basis.Network.Core
             {
                 Header = " LiteNetLib transport tuning (sidecar for the 'litenetlib' network stack). Maps onto LiteNetLib's NetManager. Fields marked [NOT APPLIED] are serialized but not currently wired into the server's NetManager. Comments are emitted from code, so they survive restarts and saves. ",
             };
+            t.Fields.Add(new FieldDoc("ConfigVersion", " Config schema version, managed automatically; new settings are added to this file on load — don't edit by hand. "));
             t.Fields.Add(new FieldDoc("UseNativeSockets", " Use OS-native socket calls instead of the managed path (lower overhead). true|false. "));
             t.Fields.Add(new FieldDoc("NatPunchEnabled", " Enable the NAT punch-through module for peer introduction. true|false. "));
             t.Fields.Add(new FieldDoc("NatPortPredictionRange", " Hard-NAT traversal: how many sequential ports above a peer's server-observed external port the OTHER peer also punches (port-prediction spray). Helps sequential symmetric/CGNAT mappings where the peer-to-peer port differs from the one the server sees. 0 disables the spray; sane range 0-128. int. "));

@@ -25,6 +25,10 @@ WORKDIR /app
 COPY --from=build /app/publish .
 
 # Basic environment variables (override with a config.xml mount or runtime env)
+# On a brand-new server (no config.xml yet) the console can't run the interactive
+# first-time setup wizard, so set BasisFirstAdmin to the admin's player UUID (DID)
+# to seed one. Comma-separate for several, e.g.:
+#   -e BasisFirstAdmin=did:key:z6Mk...
 ENV SetPort=4296 \
     PromethusPort=1234 \
     HealthCheckPort=10666 \

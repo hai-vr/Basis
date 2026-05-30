@@ -112,8 +112,21 @@ namespace Basis.Network.Core
             {
                 try
                 {
-                    using StreamReader reader = new StreamReader(path);
-                    return serializer.Deserialize(reader);
+                    object loaded;
+                    using (StreamReader reader = new StreamReader(path))
+                    {
+                        loaded = serializer.Deserialize(reader);
+                    }
+
+                    // Heal an older sidecar: re-save when it predates the current schema version
+                    // or is missing any setting we now write, so new settings get added.
+                    if (BasisConfigXmlDocs.NeedsUpgrade(path, type, loaded))
+                    {
+                        BasisConfigXmlDocs.StampVersion(loaded);
+                        SaveAtomic(type, loaded, path);
+                        BNL.Log($"Transport config '{path}' is from an older version; adding missing settings.");
+                    }
+                    return loaded;
                 }
                 catch (Exception ex)
                 {
@@ -122,6 +135,7 @@ namespace Basis.Network.Core
             }
 
             object created = Activator.CreateInstance(type);
+            BasisConfigXmlDocs.StampVersion(created);
             try
             {
                 using StreamWriter writer = new StreamWriter(path);
@@ -138,6 +152,7 @@ namespace Basis.Network.Core
         {
             try
             {
+                BasisConfigXmlDocs.StampVersion(config);
                 XmlSerializer serializer = new XmlSerializer(type);
                 string tempPath = path + ".tmp";
                 using (StreamWriter writer = new StreamWriter(tempPath))
