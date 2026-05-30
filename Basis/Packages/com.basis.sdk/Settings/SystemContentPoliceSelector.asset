@@ -162,3 +162,4 @@ MonoBehaviour:
   - Basis.Scripts.Vehicles.Parts.BasisVehicleEngineAudio
   - Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton
   - Basis.Shims.BasisOsc
+  - UnityEngine.Video.VideoPlayer

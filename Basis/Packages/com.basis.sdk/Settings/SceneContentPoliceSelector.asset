@@ -383,3 +383,4 @@ MonoBehaviour:
   - Basis.Shims.MediaPlayerShim
   - Basis.Shims.BasisInteractableShim
   - Basis.Shims.BasisOsc
+  - UnityEngine.Video.VideoPlayer

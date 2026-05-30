@@ -346,3 +346,4 @@ MonoBehaviour:
   - Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton
   - GatorDragonGames.JigglePhysics.JiggleRig
   - Basis.Shims.BasisOsc
+  - UnityEngine.Video.VideoPlayer
