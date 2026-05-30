@@ -295,12 +295,12 @@ namespace Basis.BasisUI
         private static void BuildSettingsSearch(RectTransform container, PanelTabGroup tabGroup)
         {
             PanelTextField searchField = PanelTextField.CreateNewEntry(container);
-            searchField.Descriptor.SetTitle("Search Menus");
+            searchField.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.searchMenus"));
             searchField.Descriptor.SetDescription("Type to find a settings menu, then click a result to open it.");
 
             PanelElementDescriptor resultsGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, container);
-            resultsGroup.SetTitle("Results");
+            resultsGroup.SetTitle(BasisLocalization.Get("settings.main.title.results"));
             resultsGroup.SetActive(false);
 
             List<PanelButton> resultButtons = new List<PanelButton>();
@@ -784,31 +784,28 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownMicrophoneMode = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneMode.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.mode"));
-            dropdownMicrophoneMode.AssignEntries(new List<string>
-            {
-                "On Activation",
-                "Push To Talk"
-            });
+            dropdownMicrophoneMode.AssignLocalizedEntries(
+                new List<string> { "On Activation", "Push To Talk" },
+                new List<string> { "settings.microphone.mode.onActivation", "settings.microphone.mode.pushToTalk" });
             dropdownMicrophoneMode.AssignBinding(BasisSettingsDefaults.MicrophoneMode);
 
             PanelDropdown dropdownMicrophoneIcon = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneIcon.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.icon"));
-            dropdownMicrophoneIcon.AssignEntries(new List<string>
-            {
-                "AlwaysVisible",
-                "ActivityDetection",
-                "Hidden"
-            });
+            dropdownMicrophoneIcon.AssignLocalizedEntries(
+                new List<string> { "AlwaysVisible", "ActivityDetection", "Hidden" },
+                new List<string> { "settings.microphone.icon.alwaysVisible", "settings.microphone.icon.activityDetection", "settings.microphone.icon.hidden" });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
 
             PanelDropdown dropdownMicStartBehavior = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicStartBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.startBehavior"));
-            dropdownMicStartBehavior.AssignEntries(new List<string>
-            {
-                BasisLocalMicrophoneDriver.SettingStartOff,
-                BasisLocalMicrophoneDriver.SettingStartOn,
-                BasisLocalMicrophoneDriver.SettingStartRememberLast,
-            });
+            dropdownMicStartBehavior.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisLocalMicrophoneDriver.SettingStartOff,
+                    BasisLocalMicrophoneDriver.SettingStartOn,
+                    BasisLocalMicrophoneDriver.SettingStartRememberLast,
+                },
+                new List<string> { "settings.microphone.start.muted", "settings.microphone.start.unmuted", "settings.microphone.start.rememberLast" });
             dropdownMicStartBehavior.AssignBinding(BasisSettingsDefaults.MicStartBehavior);
 
             PanelElementDescriptor muteBehaviorGroup =
@@ -818,11 +815,13 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownMicMuteBehavior = PanelDropdown.CreateNewEntry(muteBehaviorGroup);
             dropdownMicMuteBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior"));
-            dropdownMicMuteBehavior.AssignEntries(new List<string>
-            {
-                BasisLocalMicrophoneDriver.SettingMuteShutdown,
-                BasisLocalMicrophoneDriver.SettingMuteSuppress,
-            });
+            dropdownMicMuteBehavior.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisLocalMicrophoneDriver.SettingMuteShutdown,
+                    BasisLocalMicrophoneDriver.SettingMuteSuppress,
+                },
+                new List<string> { "settings.microphone.mute.shutdown", "settings.microphone.mute.keepOpen" });
             dropdownMicMuteBehavior.AssignBinding(BasisSettingsDefaults.MicMuteBehavior);
 
             // -------------------- DSP SETTINGS --------------------
@@ -1230,26 +1229,31 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.qualityLevel"));
-            dropdownQualityLevel.AssignEntries(new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" });
+            dropdownQualityLevel.AssignLocalizedEntries(
+                new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" },
+                new List<string> { "settings.graphics.quality.veryLow", "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high", "settings.graphics.quality.ultra" });
             dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
 
             PanelDropdown dropdownShadowQuality = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownShadowQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.shadowQuality"));
-            dropdownShadowQuality.AssignEntries(new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" });
+            dropdownShadowQuality.AssignLocalizedEntries(
+                new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" },
+                new List<string> { "settings.graphics.quality.veryLow", "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high", "settings.graphics.quality.ultra" });
             dropdownShadowQuality.AssignBinding(BasisSettingsDefaults.ShadowQuality);
 
             PanelDropdown dropdownAntialiasing = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownAntialiasing.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.antialiasing"));
-            dropdownAntialiasing.AssignEntries(new List<string>
-            {
-                "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR"//,"STP"
-            });
+            dropdownAntialiasing.AssignLocalizedEntries(
+                new List<string> { "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR"/*,"STP"*/ },
+                new List<string> { "ui.option.off", "settings.graphics.aa.msaa2x", "settings.graphics.aa.msaa4x", "settings.graphics.aa.msaa8x", "settings.graphics.aa.linear", "settings.graphics.aa.point", "settings.graphics.aa.fsr" });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
             PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownVSync.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.verticalSync"));
             dropdownVSync.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.verticalSync.description"));
-            dropdownVSync.AssignEntries(new List<string> { "On", "Capped", "Off", "Half" });
+            dropdownVSync.AssignLocalizedEntries(
+                new List<string> { "On", "Capped", "Off", "Half" },
+                new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" });
             dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
 
             PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
@@ -1309,7 +1313,9 @@ namespace Basis.BasisUI
             List<string> screenModeOptions = new List<string> { "Fullscreen", "Borderless Window", "Windowed" };
 
             dropdownScreenMode.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.screenMode"));
-            dropdownScreenMode.AssignEntries(screenModeOptions);
+            dropdownScreenMode.AssignLocalizedEntries(
+                screenModeOptions,
+                new List<string> { "settings.graphics.screenMode.fullscreen", "settings.graphics.screenMode.borderless", "settings.graphics.screenMode.windowed" });
             dropdownScreenMode.DropdownComponent.onValueChanged.AddListener(ScreenMode);
             dropdownScreenMode.DropdownComponent.SetValueWithoutNotify(GetIndexFromScreenMode(Screen.fullScreenMode));
 
@@ -1419,7 +1425,9 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(advancedGroup.ContentParent);
             dropdownHDR.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.hdrSupport"));
-            dropdownHDR.AssignEntries(new List<string> { "Off", "32bit", "64bit" });
+            dropdownHDR.AssignLocalizedEntries(
+                new List<string> { "Off", "32bit", "64bit" },
+                new List<string> { "ui.option.off", "settings.graphics.hdr.32bit", "settings.graphics.hdr.64bit" });
             dropdownHDR.AssignBinding(BasisSettingsDefaults.HDRSupport);
 
             PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
@@ -1664,12 +1672,14 @@ namespace Basis.BasisUI
             PanelDropdown dropdownPhotoMetadata = PanelDropdown.CreateNewEntry(cameraGroup);
             dropdownPhotoMetadata.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
             dropdownPhotoMetadata.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photoMetadata.description"));
-            dropdownPhotoMetadata.AssignEntries(new List<string>
-            {
-                BasisSettingsDefaults.PhotoTagging_NoOne,
-                BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
-                BasisSettingsDefaults.PhotoTagging_JustMe
-            });
+            dropdownPhotoMetadata.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.PhotoTagging_NoOne,
+                    BasisSettingsDefaults.PhotoTagging_EveryoneInPhoto,
+                    BasisSettingsDefaults.PhotoTagging_JustMe
+                },
+                new List<string> { "settings.chat.camera.photoMetadata.noOne", "settings.chat.camera.photoMetadata.everyone", "settings.chat.camera.photoMetadata.justMe" });
             dropdownPhotoMetadata.AssignBinding(BasisSettingsDefaults.PhotoMetadataTagging);
 
             PanelToggle togglePhotoPersonDetails = PanelToggle.CreateNewEntry(cameraGroup);
@@ -2017,12 +2027,14 @@ namespace Basis.BasisUI
             PanelDropdown dropdownLogLevelFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
             dropdownLogLevelFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logLevelFilter"));
             dropdownLogLevelFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logLevelFilter.description"));
-            dropdownLogLevelFilter.AssignEntries(new List<string>
-            {
-                BasisSettingsDefaults.DebugLogFilterAll,
-                BasisSettingsDefaults.DebugLogLevelWarningsAndErrors,
-                BasisSettingsDefaults.DebugLogLevelErrorsOnly,
-            });
+            dropdownLogLevelFilter.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.DebugLogFilterAll,
+                    BasisSettingsDefaults.DebugLogLevelWarningsAndErrors,
+                    BasisSettingsDefaults.DebugLogLevelErrorsOnly,
+                },
+                new List<string> { "settings.developer.logLevel.all", "settings.developer.logLevel.warningsErrors", "settings.developer.logLevel.errorsOnly" });
             dropdownLogLevelFilter.AssignBinding(BasisSettingsDefaults.DebugLogLevelFilter);
 
             PanelElementDescriptor shaderGroup =
@@ -2067,7 +2079,7 @@ namespace Basis.BasisUI
             toggleNetStats.AssignBinding(BasisSettingsDefaults.DevShowNetStats);
 
             PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
-            toggleFaceTrackLipSync.Descriptor.SetTitle("Disable Lip Sync for Face-Tracked Players");
+            toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
             toggleFaceTrackLipSync.Descriptor.SetDescription("On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined.");
             toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
 
@@ -2128,6 +2140,48 @@ namespace Basis.BasisUI
             }
             RefreshAudioDebugSubVisibility(toggleAudioDebug.Value);
             toggleAudioDebug.OnValueChanged += RefreshAudioDebugSubVisibility;
+
+            // ---- Remote Avatar Data Debug ----
+            PanelElementDescriptor avatarDataDebugGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            avatarDataDebugGroup.SetTitle(BasisLocalization.Get("settings.developer.remoteAvatarDebug.title"));
+            avatarDataDebugGroup.SetDescription(BasisLocalization.Get("settings.developer.remoteAvatarDebug.description"));
+
+            PanelToggle toggleAvatarDataDebug = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
+            toggleAvatarDataDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDataDebug.enable"));
+            toggleAvatarDataDebug.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.enable.description"));
+            toggleAvatarDataDebug.AssignBinding(BasisSettingsDefaults.AvatarDataDebugEnabled);
+
+            PanelToggle toggleAvatarReceive = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
+            toggleAvatarReceive.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.receive"));
+            toggleAvatarReceive.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.receive.description"));
+            toggleAvatarReceive.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowReceive);
+
+            PanelToggle toggleAvatarStaging = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
+            toggleAvatarStaging.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.staging"));
+            toggleAvatarStaging.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.staging.description"));
+            toggleAvatarStaging.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowStaging);
+
+            PanelToggle toggleAvatarInterp = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
+            toggleAvatarInterp.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.interp"));
+            toggleAvatarInterp.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.interp.description"));
+            toggleAvatarInterp.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowInterp);
+
+            PanelToggle toggleAvatarMeta = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
+            toggleAvatarMeta.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.meta"));
+            toggleAvatarMeta.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.meta.description"));
+            toggleAvatarMeta.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowMeta);
+
+            void RefreshAvatarDataDebugSubVisibility(bool masterOn)
+            {
+                toggleAvatarReceive.Descriptor.SetActive(masterOn);
+                toggleAvatarStaging.Descriptor.SetActive(masterOn);
+                toggleAvatarInterp.Descriptor.SetActive(masterOn);
+                toggleAvatarMeta.Descriptor.SetActive(masterOn);
+                avatarDataDebugGroup.ForceRebuild();
+            }
+            RefreshAvatarDataDebugSubVisibility(toggleAvatarDataDebug.Value);
+            toggleAvatarDataDebug.OnValueChanged += RefreshAvatarDataDebugSubVisibility;
 
             // ---- Avatar Debug (face/eye tracking diagnostics + texture and tracker info) ----
             // The face / eye tracking section builders are owned by the comms
@@ -2300,6 +2354,22 @@ namespace Basis.BasisUI
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.developer", ResetDeveloperDefaults);
 
+            // ---- Diagnostic Notifications ----
+            PanelElementDescriptor notificationGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            notificationGroup.SetTitle(BasisLocalization.Get("settings.developer.notifications.title"));
+            notificationGroup.SetDescription(BasisLocalization.Get("settings.developer.notifications.description"));
+
+            PanelToggle toggleExceptionNotifications = PanelToggle.CreateNewEntry(notificationGroup.ContentParent);
+            toggleExceptionNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.exceptionNotifications"));
+            toggleExceptionNotifications.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.exceptionNotifications.description"));
+            toggleExceptionNotifications.AssignBinding(BasisSettingsDefaults.ExceptionNotifications);
+
+            PanelToggle toggleErrorNotifications = PanelToggle.CreateNewEntry(notificationGroup.ContentParent);
+            toggleErrorNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.errorNotifications"));
+            toggleErrorNotifications.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.errorNotifications.description"));
+            toggleErrorNotifications.AssignBinding(BasisSettingsDefaults.ErrorNotifications);
+
             // Console Log (BuildConsoleUI creates 2 groups: controls + output)
             List<GameObject> consoleObjects = new();
             void CreateConsole()
@@ -2321,6 +2391,8 @@ namespace Basis.BasisUI
 
         private static void ResetDeveloperDefaults()
         {
+            BasisSettingsDefaults.ExceptionNotifications.ResetToDefault();
+            BasisSettingsDefaults.ErrorNotifications.ResetToDefault();
             BasisSettingsDefaults.ShowGizmos.ResetToDefault();
             BasisSettingsDefaults.GizmoSkeletonLines.ResetToDefault();
             BasisSettingsDefaults.GizmoCalibrationSpheres.ResetToDefault();
@@ -2371,7 +2443,7 @@ namespace Basis.BasisUI
         private static void CreateBuildInfoSection(RectTransform parent)
         {
             PanelButton copyAll = PanelButton.CreateNew(parent);
-            copyAll.Descriptor.SetTitle("Copy Build Info");
+            copyAll.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.copyBuildInfo"));
             copyAll.Descriptor.SetDescription("Copies all fields to clipboard.");
             copyAll.OnClicked += () =>
             {

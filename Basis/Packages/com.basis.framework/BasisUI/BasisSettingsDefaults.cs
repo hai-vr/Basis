@@ -300,6 +300,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> AudioDebugShowSilence = new("audiodebugshowsilence", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> AudioDebugShowViseme = new("audiodebugshowviseme", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> AvatarDataDebugEnabled = new("avatardatadebugenabled", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> AvatarDataDebugShowReceive = new("avatardatadebugshowreceive", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AvatarDataDebugShowStaging = new("avatardatadebugshowstaging", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AvatarDataDebugShowInterp = new("avatardatadebugshowinterp", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AvatarDataDebugShowMeta = new("avatardatadebugshowmeta", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<string> MemoryAllocation = new("memoryallocation", new BasisPlatformDefault<string>
         {
             windows = "Dynamic",
@@ -543,6 +549,8 @@ namespace Basis.BasisUI
         // ---------------- NOTIFICATIONS ----------------
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> LeaveNotifications = new("leavenotifications", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> ExceptionNotifications = new("exceptionnotifications", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> ErrorNotifications = new("errornotifications", new BasisPlatformDefault<bool>(false));
 
         // ---------------- CHAT ----------------
         /// <summary>
@@ -1363,6 +1371,8 @@ namespace Basis.BasisUI
             // Notifications
             JoinNotifications.LoadBindingValue();
             LeaveNotifications.LoadBindingValue();
+            ExceptionNotifications.LoadBindingValue();
+            ErrorNotifications.LoadBindingValue();
 
             // Chat
             ChatDisabled.LoadBindingValue();

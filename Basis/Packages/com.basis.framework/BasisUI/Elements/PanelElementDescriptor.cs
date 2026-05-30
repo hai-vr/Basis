@@ -195,6 +195,22 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Sets the description with rich-text parsing left enabled, for trusted
+        /// code-built markup (colors, sizes, b/i). Only pass strings assembled in
+        /// code — never raw user or remote text — and wrap any interpolated payload
+        /// in &lt;noparse&gt; so its angle brackets aren't read as tags.
+        /// </summary>
+        public void SetRichDescription(string value)
+        {
+            if (!HasDescription) return;
+            _description = value;
+            _descriptionSet = true;
+            DescriptionLabel.gameObject.SetActive(!string.IsNullOrEmpty(value));
+            DescriptionLabel.richText = true;
+            DescriptionLabel.SetText(value);
+        }
+
+        /// <summary>
         /// Disables rich-text parsing on Title and Description labels. Use for fields
         /// that only display plain strings/numbers — TMP skips tag scanning entirely,
         /// which is a big win on polling-heavy panels (stats, bandwidth, buffers).

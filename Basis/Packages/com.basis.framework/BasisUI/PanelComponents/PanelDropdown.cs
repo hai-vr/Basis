@@ -58,6 +58,25 @@ namespace Basis.BasisUI
             SetValueWithoutNotify(Value);
         }
 
+        public void AssignEntries(List<string> entries, List<string> displayLabels)
+        {
+            Entries = entries;
+            DropdownComponent.ClearOptions();
+            DropdownComponent.AddOptions(displayLabels != null && displayLabels.Count == entries.Count ? displayLabels : entries);
+            SetValueWithoutNotify(Value);
+        }
+
+        public void AssignLocalizedEntries(List<string> entries, List<string> localizationKeys)
+        {
+            List<string> displayLabels = new List<string>(entries.Count);
+            for (int i = 0; i < entries.Count; i++)
+            {
+                string key = (localizationKeys != null && i < localizationKeys.Count) ? localizationKeys[i] : entries[i];
+                displayLabels.Add(BasisLocalization.Get(key));
+            }
+            AssignEntries(entries, displayLabels);
+        }
+
         public override void OnComponentUsed()
         {
             base.OnComponentUsed();

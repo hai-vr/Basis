@@ -308,7 +308,7 @@ namespace Basis.BasisUI
                     if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsEdit))
                     {
                         PanelButton fillBtn = PanelButton.CreateNew(entry.ContentParent);
-                        fillBtn.Descriptor.SetTitle("Select");
+                        fillBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.perm.title.select"));
                         fillBtn.Descriptor.SetDescription("Fill this group name into the admin fields below.");
                         string groupName = group.Name;
                         fillBtn.OnClicked += () =>
@@ -343,7 +343,7 @@ namespace Basis.BasisUI
                     if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsEdit))
                     {
                         PanelButton fillBtn = PanelButton.CreateNew(entry.ContentParent);
-                        fillBtn.Descriptor.SetTitle("Select");
+                        fillBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.perm.title.select"));
                         fillBtn.Descriptor.SetDescription("Fill this user's UUID into the admin fields below.");
                         string uuid = user.Uuid;
                         fillBtn.OnClicked += () =>

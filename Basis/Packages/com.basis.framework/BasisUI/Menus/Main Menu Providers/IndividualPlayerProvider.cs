@@ -1289,6 +1289,80 @@ namespace Basis.BasisUI
                 updater.VisemeField = visemeField;
             };
 
+            // ---- Avatar Data Debug Section ----
+            var avatarDataDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            avatarDataDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug"));
+            avatarDataDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.description"));
+
+            PanelToggle avatarDataDebugToggle = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
+            avatarDataDebugToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.showAvatarDataDebug"));
+            avatarDataDebugToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.showAvatarDataDebug.description"));
+            avatarDataDebugToggle.AssignBinding(BasisSettingsDefaults.AvatarDataDebugEnabled);
+
+            PanelElementDescriptor avatarReceiveField = null;
+            PanelElementDescriptor avatarStagingField = null;
+            PanelElementDescriptor avatarInterpField = null;
+            PanelElementDescriptor avatarMetaField = null;
+
+            void CreateAvatarDataDebugFields()
+            {
+                if (BasisSettingsDefaults.AvatarDataDebugShowReceive.RawValue)
+                {
+                    avatarReceiveField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarDataDebugGroup.ContentParent);
+                    avatarReceiveField.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.receive"));
+                    avatarReceiveField.SetDescription("...");
+                }
+
+                if (BasisSettingsDefaults.AvatarDataDebugShowStaging.RawValue)
+                {
+                    avatarStagingField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarDataDebugGroup.ContentParent);
+                    avatarStagingField.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.staging"));
+                    avatarStagingField.SetDescription("...");
+                }
+
+                if (BasisSettingsDefaults.AvatarDataDebugShowInterp.RawValue)
+                {
+                    avatarInterpField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarDataDebugGroup.ContentParent);
+                    avatarInterpField.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.interp"));
+                    avatarInterpField.SetDescription("...");
+                }
+
+                if (BasisSettingsDefaults.AvatarDataDebugShowMeta.RawValue)
+                {
+                    avatarMetaField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarDataDebugGroup.ContentParent);
+                    avatarMetaField.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.meta"));
+                    avatarMetaField.SetDescription("...");
+                }
+            }
+
+            if (BasisSettingsDefaults.AvatarDataDebugEnabled.RawValue)
+            {
+                CreateAvatarDataDebugFields();
+            }
+
+            updater.AvatarReceiveField = avatarReceiveField;
+            updater.AvatarStagingField = avatarStagingField;
+            updater.AvatarInterpField = avatarInterpField;
+            updater.AvatarMetaField = avatarMetaField;
+
+            avatarDataDebugToggle.OnValueChanged += enabled =>
+            {
+                if (avatarReceiveField != null) { UnityEngine.Object.Destroy(avatarReceiveField.gameObject); avatarReceiveField = null; }
+                if (avatarStagingField != null) { UnityEngine.Object.Destroy(avatarStagingField.gameObject); avatarStagingField = null; }
+                if (avatarInterpField != null) { UnityEngine.Object.Destroy(avatarInterpField.gameObject); avatarInterpField = null; }
+                if (avatarMetaField != null) { UnityEngine.Object.Destroy(avatarMetaField.gameObject); avatarMetaField = null; }
+
+                if (enabled)
+                {
+                    CreateAvatarDataDebugFields();
+                }
+
+                updater.AvatarReceiveField = avatarReceiveField;
+                updater.AvatarStagingField = avatarStagingField;
+                updater.AvatarInterpField = avatarInterpField;
+                updater.AvatarMetaField = avatarMetaField;
+            };
+
             var uuidField = PanelTextField.CreateNewEntry(root);
             uuidField.Descriptor.SetTitle("UUID");
             uuidField.SetValueWithoutNotify(remotePlayer.UUID);

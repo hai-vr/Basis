@@ -153,6 +153,7 @@ namespace Basis.Scripts.Networking.Receivers
         // and have it actually stay there.
         public static bool JitterDepthLocked = false;
         private float _dynamicJitterDepth = InitialJitterDepth;
+        private float _lastPlaybackRate = 1f;
 
         /// <summary>
         /// Sets the adaptive jitter depth parameters from a single user-facing "target depth"
@@ -189,6 +190,14 @@ namespace Basis.Scripts.Networking.Receivers
         public bool SentLatest = false;
         public BasisAvatarBuffer Current { get; private set; }
         public BasisAvatarBuffer Next { get; private set; }
+
+        public double InterpolationTimeDebug => interpolationTime;
+        public float LastPlaybackRate => _lastPlaybackRate;
+        public float DynamicJitterDepth => _dynamicJitterDepth;
+        public byte HighestSequence => _highestSequence;
+        public int SeenPackets => _seenPackets;
+        public float CachedHumanScaleDebug => CachedHumanScale;
+
         public bool hasRequiredData = false;
         /// <summary>
         /// Main-thread pre-pass: Unity object validation only (rare dirty path).
@@ -415,6 +424,7 @@ namespace Basis.Scripts.Networking.Receivers
                     rate = 1f;
                 }
                 rate = math.clamp(rate, MinPlaybackRate, MaxPlaybackRate);
+                _lastPlaybackRate = rate;
 
                 interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
                 if (!math.isfinite(interpolationTime))
@@ -528,6 +538,7 @@ namespace Basis.Scripts.Networking.Receivers
             ClearAndRelease();
             interpolationTime = 0f;
             _dynamicJitterDepth = InitialJitterDepth;
+            _lastPlaybackRate = 1f;
             // Clear any packets that arrived before init (rare, but safe)
             while (PayloadQueue.TryDequeue(out var buf))
             {

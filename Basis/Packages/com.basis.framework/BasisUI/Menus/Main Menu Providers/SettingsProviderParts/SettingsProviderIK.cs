@@ -68,13 +68,17 @@ public static class SettingsProviderIK
         dropdownSeatedMode.Descriptor.SetDescription(
             "Select the reference pose used for body scaling"
         );
-        dropdownSeatedMode.AssignEntries(new List<string> { SeatedMode_Standing, SeatedMode_Seated });
+        dropdownSeatedMode.AssignLocalizedEntries(
+            new List<string> { SeatedMode_Standing, SeatedMode_Seated },
+            new List<string> { "settings.bodyTracking.seatedMode.standing", "settings.bodyTracking.seatedMode.seated" });
         dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SitStand);
 
         // --- IK mode dropdown ---
         dropdownIKMode = PanelDropdown.CreateNewEntry(ikParent);
         dropdownIKMode.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikMode"));
-        dropdownIKMode.AssignEntries(new List<string> { "Eye Height", "Arm Distance" });
+        dropdownIKMode.AssignLocalizedEntries(
+            new List<string> { "Eye Height", "Arm Distance" },
+            new List<string> { "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
         dropdownIKMode.AssignBinding(BasisSettingsDefaults.IKMode);
         dropdownIKMode.Descriptor.SetDescription(
             "Determines how body scale is calculated."
@@ -83,7 +87,9 @@ public static class SettingsProviderIK
         // --- IK Lock Mode dropdown ---
         dropdownIKLockMode = PanelDropdown.CreateNewEntry(ikParent);
         dropdownIKLockMode.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.spineLockMode"));
-        dropdownIKLockMode.AssignEntries(new List<string> { "Lock Hips", "Lock Head", "Lock Both" });
+        dropdownIKLockMode.AssignLocalizedEntries(
+            new List<string> { "Lock Hips", "Lock Head", "Lock Both" },
+            new List<string> { "settings.bodyTracking.spineLock.hips", "settings.bodyTracking.spineLock.head", "settings.bodyTracking.spineLock.both" });
         dropdownIKLockMode.AssignBinding(BasisSettingsDefaults.IKLockMode);
         dropdownIKLockMode.Descriptor.SetDescription(
             "Lock Hips: Hips are the anchor, Lock Head: Head is the anchor."
@@ -102,7 +108,7 @@ public static class SettingsProviderIK
         // --- Avatar scale slider ---
         var avatarScaleSlider = PanelSlider.CreateAndBind(
             ikParent,
-            PanelSlider.SliderSettings.Advanced("Avatar Height Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale"), 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
             BasisSettingsDefaults.SelectedScale);
 
         if (avatarScaleSlider != null)
@@ -916,7 +922,7 @@ public static class SettingsProviderIK
         var boneSelectGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             parent);
-        boneSelectGroup.SetTitle("Per-Bone Settings");
+        boneSelectGroup.SetTitle(BasisLocalization.Get("settings.ik.title.perBoneSettings"));
         boneSelectGroup.SetDescription(
             "Pick a bone to inspect or tune. The toggles and sliders below apply only " +
             "to the bone you select here — switch bones to see each one's settings."
@@ -924,7 +930,7 @@ public static class SettingsProviderIK
 
         var boneNames = _bones.Select(b => b.Name).ToList();
         _boneDropdown = PanelDropdown.CreateNewEntry(boneSelectGroup.ContentParent);
-        _boneDropdown.Descriptor.SetTitle("Bone");
+        _boneDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.bone"));
         _boneDropdown.AssignEntries(boneNames);
         _boneDropdown.AssignBinding(BasisSettingsDefaults.SelectedBone);
         _boneDropdown.Descriptor.SetDescription("Select which bone’s smoothing and filtering settings are shown below.");
@@ -933,7 +939,7 @@ public static class SettingsProviderIK
         _boneEuroEditorGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             parent);
-        _boneEuroEditorGroup.SetTitle("Calibration & Smoothing");
+        _boneEuroEditorGroup.SetTitle(BasisLocalization.Get("settings.ik.title.calibrationSmoothing"));
         _boneEuroEditorGroup.SetDescription(
             "Controls for the selected bone. Use For Calibration decides whether trackers " +
             "can be assigned to this role during full-body calibration; the smoothing and " +
@@ -941,31 +947,31 @@ public static class SettingsProviderIK
         );
 
         _uiUseCalibration = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
-        _uiUseCalibration.Descriptor.SetTitle("Use For Calibration");
+        _uiUseCalibration.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.useForCalibration"));
         _uiUseCalibration.Descriptor.SetDescription(
             "When enabled, this role participates in full-body tracker calibration. " +
             "Disable to keep trackers from being assigned to it during the constellation pass."
         );
 
         _uiSmoothPos = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
-        _uiSmoothPos.Descriptor.SetTitle("Smooth Position");
+        _uiSmoothPos.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.smoothPosition"));
         _uiSmoothPos.Descriptor.SetDescription("Blends this bone’s position over time to reduce jitter.");
 
         _uiSmoothRot = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
-        _uiSmoothRot.Descriptor.SetTitle("Smooth Rotation");
+        _uiSmoothRot.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.smoothRotation"));
         _uiSmoothRot.Descriptor.SetDescription("Blends this bone’s rotation over time to reduce wobble.");
 
         _uiEuroPos = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
-        _uiEuroPos.Descriptor.SetTitle("Euro Filtering (Position)");
+        _uiEuroPos.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.euroFilteringPosition"));
         _uiEuroPos.Descriptor.SetDescription("Steady at rest with minimal lag during motion. ");
 
         _uiEuroRot = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
-        _uiEuroRot.Descriptor.SetTitle("Euro Filtering (Rotation)");
+        _uiEuroRot.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.euroFilteringRotation"));
         _uiEuroRot.Descriptor.SetDescription("Reduces micro-wobble while remaining responsive.");
 
         _uiCalibSphereScale = PanelSlider.CreateAndBind(
             _boneEuroEditorGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced("Calibration Sphere Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Raw),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.calibSphereScale"), 0.1f, 5f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.CalibSphereScaleHips);
 
         if (_uiCalibSphereScale != null)
