@@ -788,6 +788,10 @@ namespace HVR.Basis.Comms
                                 {
                                     highFrequencyInterpolatorDict[addressId] = DecodeFloat(packet.values[index], highFrequency);
                                 }
+                                else
+                                {
+                                    HVRLogging.ProtocolError($"Network ID {highFrequency.networkId} is not known. High frequency value will be ignored.");
+                                }
                             }
                         }
                         _highFrequencyInterpolator.Add(new HVRInterpolationSnapshot
