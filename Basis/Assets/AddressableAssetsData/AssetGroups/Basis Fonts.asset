@@ -40,11 +40,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 20944c1eade99894b85b88716c319dd2
-    m_Address: Packages/com.basis.sdk/Fonts/Inter_24pt-Italic SDF.asset
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 28a55616ee8726c4fab966e0d9d07bd0
     m_Address: Packages/com.basis.sdk/Fonts/Inter_24pt-MediumItalic SDF.asset
     m_ReadOnly: 0
@@ -58,11 +53,6 @@ MonoBehaviour:
   - m_GUID: 2e498d1c8094910479dc3e1b768306a4
     m_Address: Packages/com.basis.textmeshpro/Resources/Fonts & Materials/LiberationSans
       SDF - Fallback.asset
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 3961345727a7615428c1b1bf4345430a
-    m_Address: Packages/com.basis.sdk/Fonts/Overlay/Inter_Overlay.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -207,18 +197,8 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: e5115724bef668e428481e9fee6ee7b1
-    m_Address: Packages/com.basis.sdk/Fonts/Poppins-Regular SDF NamePlate.asset
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: eb1f76131081c464798b0bfa5ecfc761
     m_Address: Packages/com.basis.sdk/Fonts/Inter_24pt-Medium.ttf
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: f95a13c9091aed9419e73ccf68996dbf
-    m_Address: Packages/com.basis.sdk/Fonts/Inter_24pt-Bold SDF.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

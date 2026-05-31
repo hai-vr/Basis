@@ -234,6 +234,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 98857fb5827ece748ae5394a1ad8342d
+    m_Address: Packages/com.basis.sdk/Fonts/Poppins-Regular SDF.asset
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 98a748106e6c47748a99038c99c23bb8
     m_Address: LoadingAvatar
     m_ReadOnly: 0
@@ -286,6 +291,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: df4c5b7b152475f48adb88ead5775eb0
     m_Address: Packages/com.basis.sdk/Textures/Runtime/microphone-solid.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e5115724bef668e428481e9fee6ee7b1
+    m_Address: Packages/com.basis.sdk/Fonts/Poppins-Regular SDF NamePlate.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
