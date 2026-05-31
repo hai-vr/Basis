@@ -54,15 +54,34 @@ namespace Basis.Scripts.Networking
             try
             {
                 string path = Path.Combine(Application.persistentDataPath, FileName);
-                if (!File.Exists(path)) return new List<SavedServerEntry>();
+                if (!File.Exists(path))
+                {
+                    return new List<SavedServerEntry>();
+                }
+
                 string json = File.ReadAllText(path);
                 SavedServerListWrapper wrapper = JsonUtility.FromJson<SavedServerListWrapper>(json);
-                if (wrapper == null || wrapper.Entries == null) return new List<SavedServerEntry>();
+                if (wrapper == null || wrapper.Entries == null)
+                {
+                    return new List<SavedServerEntry>();
+                }
+
                 foreach (SavedServerEntry e in wrapper.Entries)
                 {
-                    if (e == null) continue;
-                    if (string.IsNullOrEmpty(e.Id)) e.Id = Guid.NewGuid().ToString("N");
-                    if (e.Port == 0) e.Port = 4296;
+                    if (e == null)
+                    {
+                        continue;
+                    }
+
+                    if (string.IsNullOrEmpty(e.Id))
+                    {
+                        e.Id = Guid.NewGuid().ToString("N");
+                    }
+
+                    if (e.Port == 0)
+                    {
+                        e.Port = 4296;
+                    }
                 }
                 return wrapper.Entries;
             }
@@ -93,8 +112,6 @@ namespace Basis.Scripts.Networking
         /// and the Server-typed content-share orb so they all parse identically.
         /// Returns false if the address segment ends up empty.
         /// </summary>
-        public static bool TryParseConnectionString(
-            string raw, out string address, out ushort port, out bool portProvided, out string password)
-            => LNLConnectionTargetParser.TryParseConnectionString(raw, out address, out port, out portProvided, out password);
+        public static bool TryParseConnectionString(string raw, out string address, out ushort port, out bool portProvided, out string password) => LNLConnectionTargetParser.TryParseConnectionString(raw, out address, out port, out portProvided, out password);
     }
 }

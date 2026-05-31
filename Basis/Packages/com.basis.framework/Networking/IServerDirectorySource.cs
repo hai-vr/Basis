@@ -55,7 +55,11 @@ namespace Basis.Scripts.Networking
 
         public static void Unregister(string sourceId)
         {
-            if (string.IsNullOrEmpty(sourceId)) return;
+            if (string.IsNullOrEmpty(sourceId))
+            {
+                return;
+            }
+
             bool removed = false;
             lock (_lock)
             {
@@ -68,7 +72,11 @@ namespace Basis.Scripts.Networking
                     }
                 }
             }
-            if (!removed) return;
+            if (!removed)
+            {
+                return;
+            }
+
             try { SourcesChanged?.Invoke(); }
             catch (Exception ex) { BasisDebug.LogError($"SourcesChanged handler threw: {ex.Message}"); }
         }

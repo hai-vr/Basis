@@ -114,7 +114,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Used to sort the players UI by arrival order and to display "joined Xs ago".
         /// Captured here because the server doesn't send a join timestamp.
         /// </summary>
-        public float JoinTime = Time.realtimeSinceStartup;
+        public double JoinTime = Time.realtimeSinceStartupAsDouble;
         public Dictionary<byte, ServerAvatarDataMessageQueue> NextMessages = new Dictionary<byte, ServerAvatarDataMessageQueue>();
         public struct ServerAvatarDataMessageQueue
         {

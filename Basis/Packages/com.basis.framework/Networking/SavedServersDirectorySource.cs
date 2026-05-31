@@ -26,7 +26,11 @@ namespace Basis.Scripts.Networking
 
         public static void Initialize()
         {
-            if (Instance != null) return;
+            if (Instance != null)
+            {
+                return;
+            }
+
             Instance = new SavedServersDirectorySource();
             BasisServerDirectoryRegistry.Register(Instance);
         }
@@ -93,7 +97,6 @@ namespace Basis.Scripts.Networking
             };
         }
 
-        public static bool IsDefaultEntryId(string id)
-            => string.Equals(id, DefaultServerId, StringComparison.OrdinalIgnoreCase);
+        public static bool IsDefaultEntryId(string id) => string.Equals(id, DefaultServerId, StringComparison.OrdinalIgnoreCase);
     }
 }

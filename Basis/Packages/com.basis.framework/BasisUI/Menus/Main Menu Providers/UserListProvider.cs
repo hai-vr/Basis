@@ -4,6 +4,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -542,9 +543,9 @@ namespace Basis.BasisUI
                 return p.transform.position;
             }
 
-            private static string FormatJoinedAgo(float joinTime)
+            private static string FormatJoinedAgo(double joinTime)
             {
-                float ago = Mathf.Max(0f, Time.realtimeSinceStartup - joinTime);
+                float ago = (float)math.max(0f, Time.realtimeSinceStartupAsDouble - joinTime);
                 if (ago < 60f)
                     return BasisLocalization.Get("menu.players.joinedAgoSeconds", Mathf.FloorToInt(ago));
                 if (ago < 3600f)
