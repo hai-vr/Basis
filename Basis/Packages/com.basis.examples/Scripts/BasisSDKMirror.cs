@@ -234,6 +234,11 @@ public class BasisSDKMirror : MonoBehaviour
     private void Initialize()
     {
         if (IsActive) return;
+        if (Renderer == null)
+        {
+            BasisDebug.LogError("BasisSDKMirror is missing its Renderer reference; mirror will not initialize.");
+            return;
+        }
 
         // Drop any stale cameras/textures from a prior init that didn't reach a clean teardown
         // (e.g. resources orphaned across a Play-Mode domain reload).
