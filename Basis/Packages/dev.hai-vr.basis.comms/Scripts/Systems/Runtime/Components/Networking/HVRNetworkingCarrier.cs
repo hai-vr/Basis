@@ -47,6 +47,10 @@ namespace HVR.Basis.Comms
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
+            if (_comms == null)
+            {
+                throw new InvalidOperationException("HVRNetworkingCarrier was marked ready but its Comms component is null; HVR network data for this avatar cannot be processed.");
+            }
             _networkReady = true;
         }
     }

@@ -784,8 +784,10 @@ namespace HVR.Basis.Comms
                             if (index < _upgradedToHighFrequencyInOrder.Count)
                             {
                                 var highFrequency = _upgradedToHighFrequencyInOrder[index];
-                                var addressId = _networkIdToAddressId[highFrequency.networkId];
-                                highFrequencyInterpolatorDict[addressId] = DecodeFloat(packet.values[index], highFrequency);
+                                if (_networkIdToAddressId.TryGetValue(highFrequency.networkId, out var addressId))
+                                {
+                                    highFrequencyInterpolatorDict[addressId] = DecodeFloat(packet.values[index], highFrequency);
+                                }
                             }
                         }
                         _highFrequencyInterpolator.Add(new HVRInterpolationSnapshot
