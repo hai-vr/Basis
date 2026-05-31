@@ -32,7 +32,7 @@ namespace BasisNetworkServer.Security
     public static class BasisServerLogBundleService
     {
         /// <summary>Bytes per streamed chunk. Comfortably below any single-message limit while keeping the chunk count low.</summary>
-        private const int ChunkSize = 200 * 1024;
+        private const int ChunkSize = 32 * 1024;
 
         /// <summary>Hard ceiling on the assembled (raw) container. Logs that big almost certainly mean something is wrong; refuse rather than flood the link.</summary>
         private const long MaxRawBytes = 256L * 1024 * 1024;
