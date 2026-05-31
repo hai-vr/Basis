@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using BasisPermissions;
@@ -42,6 +43,8 @@ namespace Basis.Scripts.Networking
             BasisP2PManager.OnSessionStateChanged += HandleP2PSessionChanged;
             BasisNetworkManagement.OnlocalPermissionsChanged -= HandlePermissionsChanged;
             BasisNetworkManagement.OnlocalPermissionsChanged += HandlePermissionsChanged;
+            BasisSettingsDefaults.ShoutShowOnMenuBar.OnChanged -= HandleShoutMenuBarPrefChanged;
+            BasisSettingsDefaults.ShoutShowOnMenuBar.OnChanged += HandleShoutMenuBarPrefChanged;
 #if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= HandleLocalMuteChanged;
             BasisLocalMicrophoneDriver.OnPausedAction += HandleLocalMuteChanged;
@@ -52,6 +55,11 @@ namespace Basis.Scripts.Networking
         {
             return BasisNetworkManagement.LocalPermissions != null &&
                    BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView);
+        }
+
+        public static bool ShoutAvailableOnMenuBar()
+        {
+            return LocalCanShout() && BasisSettingsDefaults.ShoutShowOnMenuBar.RawValue;
         }
 
         private static readonly BasisTalkMode[] CycleOrder =
@@ -65,13 +73,13 @@ namespace Basis.Scripts.Networking
 
         /// <summary>
         /// True only when there is a reason to expose the mic-mode button: we're already
-        /// in a non-normal mode, can shout (admin), have a private set, a marked person,
-        /// or at least one P2P-connected peer.
+        /// in a non-normal mode, shout is enabled on the menu bar, have a private set, a
+        /// marked person, or at least one P2P-connected peer.
         /// </summary>
         public static bool ShouldShowModeButton()
         {
             if (CurrentMode != BasisTalkMode.Normal) return true;
-            if (LocalCanShout()) return true;
+            if (ShoutAvailableOnMenuBar()) return true;
             if (privateMembers.Count > 0) return true;
             if (hasThisPersonTarget) return true;
             return BasisP2PManager.GetConnectedSessionCount() > 0;
@@ -85,7 +93,7 @@ namespace Basis.Scripts.Networking
                 case BasisTalkMode.Private: return privateMembers.Count > 0;
                 case BasisTalkMode.ThisPerson: return hasThisPersonTarget;
                 case BasisTalkMode.Direct: return BasisP2PManager.GetConnectedSessionCount() > 0;
-                case BasisTalkMode.Shout: return LocalCanShout();
+                case BasisTalkMode.Shout: return ShoutAvailableOnMenuBar();
                 default: return false;
             }
         }
@@ -316,6 +324,11 @@ namespace Basis.Scripts.Networking
         }
 
         private static void HandlePermissionsChanged()
+        {
+            OnLocalTalkModeChanged?.Invoke();
+        }
+
+        private static void HandleShoutMenuBarPrefChanged(bool _)
         {
             OnLocalTalkModeChanged?.Invoke();
         }

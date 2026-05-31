@@ -242,6 +242,38 @@ public static class BasisNetworkModeration
             BasisDebug.LogError(message);
         }
     }
+
+    /// <summary>
+    /// Like <see cref="DisplayMessage"/> but adds an "open folder" button that reveals
+    /// <paramref name="folderPath"/> in the OS file browser. This is an informational popup
+    /// (e.g. "logs saved"), so unlike <see cref="DisplayMessage"/> it does not log at error
+    /// level — the caller logs at whatever level fits.
+    /// </summary>
+    public static void DisplayMessageWithFolder(string message, string folderPath)
+    {
+        if (!ValidateString(message, nameof(message))) return;
+
+        bool menuWasAlreadyOpen = BasisMainMenu.Instance != null;
+        if (!menuWasAlreadyOpen)
+        {
+            BasisMainMenu.Open();
+        }
+        else if (BasisMainMenu.Instance.Dialogue)
+        {
+            BasisMainMenu.Instance.Dialogue.ReleaseInstance();
+        }
+
+        BasisMainMenu.Instance.OpenDialogue("admin", message, "open folder", "ok", accepted =>
+        {
+            if (accepted) BasisFileBrowserUtility.Reveal(folderPath);
+            // If we opened the menu solely to show this popup, close it again on dismiss.
+            if (!menuWasAlreadyOpen)
+            {
+                BasisMainMenu.Close();
+            }
+        });
+    }
+
     public static void AdminMessage(NetDataReader reader)
     {
         var request = new AdminRequest();

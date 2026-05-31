@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -315,19 +314,6 @@ namespace Basis.BasisUI
         }
 
         private static void OpenInFileBrowser(string path, bool selectFile)
-        {
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = selectFile ? $"/select,\"{path}\"" : $"\"{path}\"",
-                UseShellExecute = true
-            });
-#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
-            Process.Start("open", selectFile ? $"-R \"{path}\"" : $"\"{path}\"");
-#else
-            Application.OpenURL(selectFile ? Path.GetDirectoryName(path) : path);
-#endif
-        }
+            => BasisFileBrowserUtility.Reveal(path, selectFile);
     }
 }

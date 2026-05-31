@@ -1107,6 +1107,8 @@ namespace Basis.BasisUI
         // ---------------- ADMIN ----------------
         public static BasisSettingsBinding<bool> AdminAutoRefreshPlayerList = new("admin_autorefresh_playerlist", new BasisPlatformDefault<bool>(true));
 
+        public static BasisSettingsBinding<bool> ShoutShowOnMenuBar = new("admin_shout_on_menubar", new BasisPlatformDefault<bool>(false));
+
         // Limiter
         public static BasisSettingsBinding<float> LimitThreshold = new("limitthreshold", new BasisPlatformDefault<float>(0.95f)); // pre-clip
 
@@ -1607,6 +1609,7 @@ namespace Basis.BasisUI
 
             // Admin
             AdminAutoRefreshPlayerList.LoadBindingValue();
+            ShoutShowOnMenuBar.LoadBindingValue();
 
             // Remote Player Audio
             RAMinDistance.LoadBindingValue();

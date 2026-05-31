@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Basis.Network.Core;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.UI.UI_Panels;
 using K4os.Compression.LZ4;
 using UnityEngine;
 
@@ -30,6 +31,28 @@ public static class BasisLogBundleReceiver
     private static int _received;
     private static byte[] _buffer;
     private static int _offset;
+
+    // Loading-bar progress (admin "pull server logs" is a chunked download with real elapsed time).
+    private const string ProgressKey = "ServerLogDownload";
+    private const string DownloadLabel = "Downloading server logs";
+    private const string ExtractLabel = "Extracting server logs";
+    private static int _lastReportedPercent;
+
+    // Chunks map to 0–90% so the bar stays open across the End()/extraction handoff; extraction
+    // reports 95% and completion reports 100% (which removes the entry). Throttled to whole-percent
+    // changes so a many-chunk transfer doesn't flood the main-thread dispatch queue.
+    private static void ReportReceiveProgress()
+    {
+        float pct = _totalChunks > 0 ? (_received / (float)_totalChunks) * 90f : 2f;
+        if (pct < 2f) pct = 2f;
+        int rounded = Mathf.RoundToInt(pct);
+        if (rounded == _lastReportedPercent) return;
+        _lastReportedPercent = rounded;
+        BasisUILoadingBar.ProgressReport(ProgressKey, pct, DownloadLabel);
+    }
+
+    // Reporting 100 removes the entry (and closes the bar if nothing else is loading).
+    private static void ClearProgress() => BasisUILoadingBar.ProgressReport(ProgressKey, 100f, DownloadLabel);
 
     public static void Begin(NetDataReader reader)
     {
@@ -62,6 +85,8 @@ public static class BasisLogBundleReceiver
             _received = 0;
             _active = true;
             BasisDebug.Log($"Receiving server log bundle: {payloadBytes / 1024} KB in {totalChunks} chunk(s).", BasisDebug.LogTag.Networking);
+            _lastReportedPercent = -1;
+            ReportReceiveProgress();
         }
         catch (Exception e)
         {
@@ -87,6 +112,7 @@ public static class BasisLogBundleReceiver
             Buffer.BlockCopy(data, 0, _buffer, _offset, data.Length);
             _offset += data.Length;
             _received++;
+            ReportReceiveProgress();
         }
         catch (Exception e)
         {
@@ -121,6 +147,7 @@ public static class BasisLogBundleReceiver
         if (!ok)
         {
             BasisDebug.LogError($"Server reported log bundle failure: {message}");
+            ClearProgress();
             BasisNetworkModeration.DisplayMessage(string.IsNullOrEmpty(message) ? "Server failed to send logs." : message);
             Reset();
             return;
@@ -129,6 +156,7 @@ public static class BasisLogBundleReceiver
         if (_offset != _payloadBytes || _received != _totalChunks)
         {
             BasisDebug.LogError($"Log bundle incomplete ({_offset}/{_payloadBytes} bytes, {_received}/{_totalChunks} chunks).");
+            ClearProgress();
             BasisNetworkModeration.DisplayMessage("Log transfer was incomplete; please try again.");
             Reset();
             return;
@@ -146,6 +174,7 @@ public static class BasisLogBundleReceiver
         string destDir = Path.Combine(root, $"{serverNameSafe}_{stamp}");
         Reset();
 
+        BasisUILoadingBar.ProgressReport(ProgressKey, 95f, ExtractLabel);
         _ = Task.Run(() => ExpandAndNotify(payload, payloadLen, rawLen, compressed, destDir));
     }
 
@@ -172,12 +201,14 @@ public static class BasisLogBundleReceiver
             int fileCount = ExtractContainer(raw, rawLen, destDir);
 
             BasisDebug.Log($"Saved {fileCount} server log file(s) to {destDir}", BasisDebug.LogTag.Networking);
+            ClearProgress();
             BasisDeviceManagement.EnqueueOnMainThread(() =>
-                BasisNetworkModeration.DisplayMessage($"Server logs saved to:\n{destDir}"));
+                BasisNetworkModeration.DisplayMessageWithFolder($"Server logs saved to:\n{destDir}", destDir));
         }
         catch (Exception e)
         {
             BasisDebug.LogError($"Failed to save server logs: {e.Message}");
+            ClearProgress();
             BasisDeviceManagement.EnqueueOnMainThread(() =>
                 BasisNetworkModeration.DisplayMessage($"Failed to save server logs: {e.Message}"));
         }

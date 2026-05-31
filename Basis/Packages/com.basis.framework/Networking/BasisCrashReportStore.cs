@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Basis.Scripts.Networking;
+using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
 /// <summary>
@@ -31,6 +32,13 @@ public static class BasisCrashReportStore
     private const long MaxFileBytes = 2L * 1024 * 1024;
     private const int MaxMessageChars = 2000;
     private const int MaxStackChars = 12000;
+
+    // Brief acknowledgement that the carried-over crash reports are being flushed on reconnect.
+    // These are fire-and-forget sends queued in a tight loop, so the loading bar's idle timeout
+    // clears this rather than a tracked per-packet curve.
+    private const string ReplayIndicatorKey = "CrashReportReplay";
+    private const string ReplayIndicatorLabel = "Uploading crash reports";
+    private const float ReplayIndicatorPercent = 80f;
 
     private static readonly object FileLock = new object();
     private static readonly List<Entry> _previous = new List<Entry>();
@@ -162,6 +170,7 @@ public static class BasisCrashReportStore
         }
         _replayed = true;
 
+        BasisUILoadingBar.ProgressReport(ReplayIndicatorKey, ReplayIndicatorPercent, ReplayIndicatorLabel);
         foreach (Entry e in toSend)
         {
             BasisErrorReportSender.SendPrevious(e.System, e.Message, e.Stack);

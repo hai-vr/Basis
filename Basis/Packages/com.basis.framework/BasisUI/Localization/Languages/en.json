@@ -5051,6 +5051,14 @@
       "value": "Copy Build Info"
     },
     {
+      "key": "settings.admin.title.shout",
+      "value": "Shout"
+    },
+    {
+      "key": "settings.admin.title.showShoutOnMenuBar",
+      "value": "Show Shout On Menu Bar"
+    },
+    {
       "key": "settings.admin.title.globalContentLocks",
       "value": "Global Content Locks"
     },

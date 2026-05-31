@@ -35,6 +35,17 @@ namespace Basis.BasisUI
 
             AdminTabController controller = tab.gameObject.AddComponent<AdminTabController>();
 
+            // --- Menu-bar shout (local opt-in; off by default) ---
+            PanelElementDescriptor shoutGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            shoutGroup.SetTitle(BasisLocalization.Get("settings.admin.title.shout"));
+            shoutGroup.SetDescription("Local-only preference for your own menu. Does not affect other players or the server.");
+
+            PanelToggle shoutOnMenuBarToggle = PanelToggle.CreateNewEntry(shoutGroup.ContentParent);
+            shoutOnMenuBarToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar"));
+            shoutOnMenuBarToggle.Descriptor.SetDescription("Adds the Shout option to the mic-mode button on your main menu bar. Off by default, so the button stays hidden until you enable it here.");
+            shoutOnMenuBarToggle.AssignBinding(BasisSettingsDefaults.ShoutShowOnMenuBar);
+
             // --- Global lock group ---
             PanelElementDescriptor lockGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);

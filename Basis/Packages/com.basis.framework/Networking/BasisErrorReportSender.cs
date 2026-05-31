@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
+using Basis.Scripts.UI.UI_Panels;
 using System.Text.RegularExpressions;
 
 /// <summary>
@@ -15,10 +16,18 @@ public static class BasisErrorReportSender
     private const int MaxMessageChars = 2000;
     private const int MaxStackChars = 12000;
 
+    // A live report is one fire-and-forget reliable packet, so there's no real progress to track —
+    // this briefly surfaces that a report left the device and clears itself via the loading bar's
+    // idle timeout. Keyed and shared, so a burst of distinct errors keeps one indicator up instead
+    // of stacking many.
+    private const string UploadIndicatorKey = "ErrorReportUpload";
+    private const string UploadIndicatorLabel = "Uploading error report";
+    private const float UploadIndicatorPercent = 80f;
+
     public static void Report(byte severity, string system, string message, string stackTrace)
     {
         if (!BasisNetworkModeration.CrashReportingEnabled) return;
-        BasisDeviceManagement.EnqueueOnMainThread(() => Send(severity, system, message, stackTrace));
+        BasisDeviceManagement.EnqueueOnMainThread(() => Send(severity, system, message, stackTrace, showUploadIndicator: true));
     }
 
     /// <summary>
@@ -30,10 +39,12 @@ public static class BasisErrorReportSender
     public static void SendPrevious(string system, string message, string stackTrace)
     {
         if (!BasisNetworkModeration.CrashReportingEnabled) return;
-        BasisDeviceManagement.EnqueueOnMainThread(() => Send(2, system, message, stackTrace));
+        // No per-report indicator here: the carried-over batch is acknowledged once as a whole by
+        // BasisCrashReportStore.TryReplay rather than flashing once per replayed report.
+        BasisDeviceManagement.EnqueueOnMainThread(() => Send(2, system, message, stackTrace, showUploadIndicator: false));
     }
 
-    private static void Send(byte severity, string system, string message, string stackTrace)
+    private static void Send(byte severity, string system, string message, string stackTrace, bool showUploadIndicator)
     {
         try
         {
@@ -56,6 +67,12 @@ public static class BasisErrorReportSender
                 writer,
                 BasisNetworkCommons.EventsChannel,
                 DeliveryMethod.ReliableOrdered);
+
+            // Briefly surface that a report left the device (see UploadIndicator* notes above).
+            if (showUploadIndicator)
+            {
+                BasisUILoadingBar.ProgressReport(UploadIndicatorKey, UploadIndicatorPercent, UploadIndicatorLabel);
+            }
 
             // A successful live send means we're connected and reporting is enabled, so this
             // is also the right moment to flush any crash reports held over from a previous
