@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   AudioMixer: {fileID: -8890091482760681975, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
   selectedTypes:
+  - BasisAuthoredMotion
   - BasisMediaPlayer
   - BasisMediaPlayerNetworked
   - BasisSDKMirror
