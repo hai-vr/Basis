@@ -56,12 +56,14 @@ public static class BasisPlayerSettingsManager
             {
                 var json = await File.ReadAllTextAsync(path);
 
-                data = default;
+                BasisPlayerSettingsData loaded = default;
+                bool valid = false;
                 if (!string.IsNullOrWhiteSpace(json))
                 {
                     try
                     {
-                        data = JsonUtility.FromJson<BasisPlayerSettingsData>(json);
+                        loaded = JsonUtility.FromJson<BasisPlayerSettingsData>(json);
+                        valid = loaded.Version != 0;
                     }
                     catch (Exception e)
                     {
@@ -69,14 +71,18 @@ public static class BasisPlayerSettingsManager
                     }
                 }
 
-                if (data.Version == 0)
+                if (valid)
+                {
+                    data = loaded;
+                    if (string.IsNullOrEmpty(data.UUID))
+                    {
+                        data.UUID = uuid;
+                    }
+                }
+                else
                 {
                     data = CreateDefaults(uuid);
                     await SaveInternal(path, data);
-                }
-                else if (string.IsNullOrEmpty(data.UUID))
-                {
-                    data.UUID = uuid;
                 }
             }
 
