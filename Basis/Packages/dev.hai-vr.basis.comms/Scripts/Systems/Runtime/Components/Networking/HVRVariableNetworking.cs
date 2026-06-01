@@ -535,6 +535,10 @@ namespace HVR.Basis.Comms
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
             private readonly List<HVRVariableHighFrequency> _upgradedToHighFrequencyInOrder = new();
 
+            // Unknown high-frequency network IDs already reported, so a protocol-mismatched remote
+            // is logged once per ID instead of every packet (which would spam the log at the send rate).
+            private readonly HashSet<ushort> _reportedUnknownHighFrequencyNetworkIds = new();
+
             private readonly HVRInterpolator _lowFrequencyInterpolator = new(true);
             private readonly HVRInterpolator _highFrequencyInterpolator = new(true);
 
@@ -788,7 +792,7 @@ namespace HVR.Basis.Comms
                                 {
                                     highFrequencyInterpolatorDict[addressId] = DecodeFloat(packet.values[index], highFrequency);
                                 }
-                                else
+                                else if (_reportedUnknownHighFrequencyNetworkIds.Add(highFrequency.networkId))
                                 {
                                     HVRLogging.ProtocolError($"Network ID {highFrequency.networkId} is not known. High frequency value will be ignored.");
                                 }
