@@ -16,6 +16,13 @@ namespace Basis.Scripts.UI
         public BasisDeviceManagement BasisDeviceManagement;
         public List<BasisInput> Inputs;
         public bool HasEvent = false;
+        public const float TriggerReleaseThreshold = 0.5f;
+
+        private static bool IsTriggerDown(BasisInput input, bool wasDown)
+        {
+            float trigger = input.CurrentInputState.Trigger;
+            return wasDown ? trigger >= TriggerReleaseThreshold : trigger >= 1f;
+        }
 
         public void Initialize()
         {
@@ -83,7 +90,7 @@ namespace Basis.Scripts.UI
 
                     bool hasActiveUITarget = input.BasisUIRaycast.WasCorrectLayer && input.BasisUIRaycast.HadRaycastUITarget;
 
-                    bool isDownThisFrame = input.CurrentInputState.Trigger == 1;
+                    bool isDownThisFrame = IsTriggerDown(input, eventData.WasLastDown);
 
                     // Track down-transition for deselection later
                     if (input.BasisUIRaycast.WasCorrectLayer)
@@ -184,7 +191,7 @@ namespace Basis.Scripts.UI
             // Always keep latest raycast, so movement / scroll / hover use up-to-date info
             currentEventData.pointerCurrentRaycast = raycastResult;
 
-            bool IsDownThisFrame = BaseInput.CurrentInputState.Trigger == 1;
+            bool IsDownThisFrame = IsTriggerDown(BaseInput, currentEventData.WasLastDown);
 
             Shader.SetGlobalVector(CursorPos, hit.worldHitPosition);
 
