@@ -156,6 +156,12 @@ namespace Basis.Scripts.Drivers
             initialized = false;
             active = false;
 
+            if (displaySpriteRenderer != null)
+            {
+                if (displaySpriteRenderer.sharedMaterial != null) Object.Destroy(displaySpriteRenderer.sharedMaterial);
+                if (displaySpriteRenderer.sprite != null) Object.Destroy(displaySpriteRenderer.sprite);
+            }
+
             if (cameraGO != null) { Object.Destroy(cameraGO); cameraGO = null; }
             if (displayGO != null) { Object.Destroy(displayGO); displayGO = null; }
             if (parentOfUIGO != null) { Object.Destroy(parentOfUIGO); parentOfUIGO = null; }

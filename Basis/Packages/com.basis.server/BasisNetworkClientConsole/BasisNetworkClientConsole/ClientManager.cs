@@ -1,11 +1,15 @@
 using Basis.Config;
+using Basis.Contrib.Auth.DecentralizedIds.Newtypes;
+using Basis.Contrib.Crypto;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Utilities;
+using BasisNetworkClient;
 using System.Text;
 using System.Threading;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
+using static Basis.Network.Core.Serializable.SerializableBasis;
 using static SerializableBasis;
 
 namespace Basis.Network
@@ -40,14 +44,14 @@ namespace Basis.Network
             for (int Index = 0; Index < ClientCount; Index++)
             {
                 var name = NameGenerator.GenerateRandomPlayerName();
-                var uuid = Guid.NewGuid().ToString();
+                var identity = new ConsoleClientIdentity();
 
                 var readyMessage = new ReadyMessage
                 {
                     playerMetaDataMessage = new ClientMetaDataMessage
                     {
                         playerDisplayName = name,
-                        playerUUID = uuid,
+                        playerUUID = identity.Did,
                         playerPlatform = "Headless",
                     },
                     clientAvatarChangeMessage = new ClientAvatarChangeMessage
@@ -71,13 +75,13 @@ namespace Basis.Network
 
                 if (peer != null)
                 {
-                    netClient.listener.NetworkReceiveEvent += MessageHandler.OnReceive;
+                    netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, p, r, ch, m);
                     netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
                     lock (clients) clients.Add(netClient);
                     lock (peers) peers.Add(peer);
 
-                    BNL.Log($"Connected: {name} ({uuid})");
+                    BNL.Log($"Connected: {name} ({identity.Did})");
                 }
 
                 await Task.Delay(1, cts.Token);
@@ -91,20 +95,24 @@ namespace Basis.Network
 
             var oldClient = clients[index];
 
+            if (oldClient?.listener != null)
+            {
+                oldClient.listener.PeerDisconnectedEvent -= MessageHandler.OnDisconnect;
+            }
             oldClient?.Disconnect();
             BNL.Log($"Disconnected client at index {index}");
 
             await Task.Delay(3000); // wait before reconnecting
 
             var name = NameGenerator.GenerateRandomPlayerName();
-            var uuid = Guid.NewGuid().ToString();
+            var identity = new ConsoleClientIdentity();
 
             var readyMessage = new ReadyMessage
             {
                 playerMetaDataMessage = new ClientMetaDataMessage
                 {
                     playerDisplayName = name,
-                    playerUUID = uuid,
+                    playerUUID = identity.Did,
                     playerPlatform = "Headless",
                 },
                 clientAvatarChangeMessage = new ClientAvatarChangeMessage
@@ -127,14 +135,14 @@ namespace Basis.Network
 
             if (peer != null)
             {
-                netClient.listener.NetworkReceiveEvent += MessageHandler.OnReceive;
+                netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, p, r, ch, m);
                 netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
                 lock (clients) clients[index] = netClient;
                 Interlocked.Exchange(ref FinalClients[index], netClient);
                 Interlocked.Exchange(ref FinalPeers[index], peer);
 
-                BNL.Log($"Reconnected: {name} ({uuid}) at index {index}");
+                BNL.Log($"Reconnected: {name} ({identity.Did}) at index {index}");
             }
         }
         public Task StopClientsAsync()
@@ -147,10 +155,47 @@ namespace Basis.Network
             Configuration Configuration = new Configuration();
             Basis.Network.Core.BasisTransportConfigStore.Get<Basis.Network.Core.LNLTransportConfig>(
                 Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId).UseNativeSockets = true;
-            ///we dont use auth identity as we are fake client system
-            Configuration.UseAuthIdentity = false;
+            Configuration.UseAuthIdentity = true;
 
             return Configuration;
+        }
+    }
+
+    public sealed class ConsoleClientIdentity
+    {
+        private readonly PrivKey _privateKey;
+
+        public string Did { get; }
+
+        public ConsoleClientIdentity()
+        {
+            BasisDIDAuthIdentityClient.ClientKeyCreation(out (PubKey, PrivKey) keys, out Did did);
+            _privateKey = keys.Item2;
+            Did = did.V;
+        }
+
+        public bool TryRespondToChallenge(NetPacketReader reader, out NetDataWriter writer)
+        {
+            writer = new NetDataWriter();
+
+            BytesMessage challenge = new BytesMessage();
+            if (!challenge.Deserialize(reader, out byte[] nonce))
+            {
+                BNL.LogError("Malformed auth challenge from server");
+                return false;
+            }
+
+            if (!Ed25519.Sign(_privateKey, new Payload(nonce), out Signature? signature) || signature == null)
+            {
+                BNL.LogError("Unable to sign auth challenge");
+                return false;
+            }
+
+            BytesMessage signatureBytes = new BytesMessage();
+            BytesMessage fragmentBytes = new BytesMessage();
+            signatureBytes.Serialize(writer, signature.V);
+            fragmentBytes.Serialize(writer, Encoding.UTF8.GetBytes("N/A"));
+            return true;
         }
     }
 }

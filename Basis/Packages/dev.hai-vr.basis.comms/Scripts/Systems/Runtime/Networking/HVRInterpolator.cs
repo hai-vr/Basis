@@ -51,7 +51,7 @@ namespace HVR.Basis.Comms
                 else
                 {
                     _totalQueueSeconds -= _currentSnapshot.deltaTime;
-                    if (Mathf.Approximately(_totalQueueSeconds, 0f) && _totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
+                    if (_totalQueueSeconds < 0f) _totalQueueSeconds = 0f;
                 }
 
                 var needToCatchUp = _doCatchUp && currentQueueSeconds >= MinimumDurationInQueueToCatchUp;

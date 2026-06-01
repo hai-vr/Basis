@@ -26,7 +26,7 @@ namespace BasisDidLink
     {
         internal readonly DidAuthentication DidAuth;
         public ConcurrentDictionary<int, OnAuth> AuthIdentity = new ConcurrentDictionary<int, OnAuth>();
-        private readonly ConcurrentDictionary<NetPeer, CancellationTokenSource> _timeouts = new ConcurrentDictionary<NetPeer, CancellationTokenSource>();
+        private readonly ConcurrentDictionary<int, CancellationTokenSource> _timeouts = new ConcurrentDictionary<int, CancellationTokenSource>();
         public ConcurrentDictionary<string, byte> Admins = new ConcurrentDictionary<string, byte>();
         public static readonly string FilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Configuration.ConfigFolderName, "admins.xml");
         public BasisDIDAuthIdentity()
@@ -130,7 +130,7 @@ namespace BasisDidLink
                         NetworkServer.ReturnWriter(Writer);
 
                         CancellationTokenSource cts = new CancellationTokenSource();
-                        _timeouts[newPeer] = cts;
+                        _timeouts[newPeer.Id] = cts;
                         Task.Run(async () =>
                         {
                             await TimeOut(newPeer, UUID, cts);
@@ -158,9 +158,10 @@ namespace BasisDidLink
             try
             {
                 await Task.Delay(NetworkServer.Configuration.AuthValidationTimeOutMiliseconds, cts.Token);
-                if (!_timeouts.ContainsKey(newPeer)) return;
+                if (!_timeouts.ContainsKey(newPeer.Id)) return;
                 AuthIdentity.TryRemove(newPeer.Id, out _);
-                _timeouts.TryRemove(newPeer, out _);
+                _timeouts.TryRemove(newPeer.Id, out _);
+                cts.Dispose();
                 BNL.Log($"Authentication timeout for {UUID}.");
                 BasisServerHandleEvents.RejectWithReason(newPeer, "Authentication timeout");
                 newPeer.Disconnect();
@@ -173,9 +174,10 @@ namespace BasisDidLink
             try
             {
                 //     BNL.Log($"Authentication response received from {newPeer.Id}.");
-                if (_timeouts.TryRemove(newPeer, out var cts))
+                if (_timeouts.TryRemove(newPeer.Id, out var cts))
                 {
                     cts.Cancel();
+                    cts.Dispose();
                 }
 
                 BytesMessage SignatureBytes = new BytesMessage();
@@ -243,6 +245,11 @@ namespace BasisDidLink
         public void RemoveConnection(int NetPeer)
         {
             AuthIdentity.TryRemove(NetPeer, out var authIdentity);
+            if (_timeouts.TryRemove(NetPeer, out var cts))
+            {
+                try { cts.Cancel(); } catch { }
+                cts.Dispose();
+            }
         }
         public bool IsNetPeerAdmin(string UUID)
         {

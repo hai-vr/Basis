@@ -16,6 +16,8 @@ namespace Basis.Scripts.UI.NamePlate
 {
     public static class BasisRemoteNamePlateDriver
     {
+        public const string CombinedNameplateMeshName = "CombinedNameplateMesh";
+
         // Defaults baked from the original BasisFramework.prefab values.
         public static Color NormalColor = new Color(0.25490198f, 0.25490198f, 0.25490198f, 0.4509804f);
         public static Color IsTalkingColor = new Color(0.3529412f, 0.72156864f, 0.90588236f, 0.7490196f);
@@ -540,7 +542,7 @@ namespace Basis.Scripts.UI.NamePlate
                 writeIdx++;
             }
 
-            Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
+            Mesh combinedMesh = new Mesh { name = CombinedNameplateMeshName };
             combinedMesh.CombineMeshes(combine, false);
 
             namePlate.Filter.sharedMesh = combinedMesh;
@@ -630,6 +632,10 @@ namespace Basis.Scripts.UI.NamePlate
             float halfWidth = Mathf.Max((textSize.x / 2f) + padding, 6f);
             float halfHeight = Mathf.Max((textSize.y / 2f) + padding, 3f);
 
+            if (namePlate.ChatBubbleFilter.sharedMesh != null)
+            {
+                Object.Destroy(namePlate.ChatBubbleFilter.sharedMesh);
+            }
             namePlate.ChatBubbleFilter.sharedMesh = GenerateRoundedQuad(halfWidth, halfHeight, "Chat Bubble Quad");
 
             if (namePlate.ChatBubbleRenderer.sharedMaterial == null)

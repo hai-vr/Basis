@@ -316,6 +316,7 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
                 BasisNetworkModeration.OnShoutModeChanged += OnShoutModeChangedForIcon;
                 Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged += microphoneIconDriver.OnTalkModeChanged;
+                BasisLocalMicrophoneDriver.OnInitializedAction += OnMicrophoneDriverInitialized;
 #endif
 
                 RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
@@ -342,7 +343,6 @@ namespace Basis.Scripts.Drivers
 
 #if !BASIS_DISABLE_MICROPHONE
             microphoneIconDriver.HardEnableVisuals(false);
-            BasisLocalMicrophoneDriver.OnInitializedAction += OnMicrophoneDriverInitialized;
 #endif
 
             avatarPreviewDriver.Initialize(this);
@@ -381,6 +381,7 @@ namespace Basis.Scripts.Drivers
             BasisNetworkModeration.OnGlobalThirdPersonDisabledChanged -= OnGlobalThirdPersonDisabledChanged;
 #if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= microphoneIconDriver.OnPausedEvent;
+            BasisLocalMicrophoneDriver.OnInitializedAction -= OnMicrophoneDriverInitialized;
             BasisNetworkModeration.OnShoutModeChanged -= OnShoutModeChangedForIcon;
             Basis.Scripts.Networking.BasisTalkModeManager.OnLocalTalkModeChanged -= microphoneIconDriver.OnTalkModeChanged;
 #endif

@@ -165,7 +165,7 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("IPv6Address", " IPv6 address to bind. ::1 = loopback, :: = all IPv6 interfaces. string. "));
             t.Fields.Add(new FieldDoc("Password", " Password clients must present to join. Change this for any non-local server! string. ", " ===== Authentication ===== "));
             t.Fields.Add(new FieldDoc("UseAuth", " Require the join password (above) to be correct. true|false. "));
-            t.Fields.Add(new FieldDoc("UseAuthIdentity", " Require cryptographic player-identity (DID) verification in addition to the password. true|false. Headless/load-test fake clients require this to be false. "));
+            t.Fields.Add(new FieldDoc("UseAuthIdentity", " Require cryptographic player-identity (DID) verification in addition to the password. true|false. The headless load-test client console supports this, so it can stay enabled. "));
             t.Fields.Add(new FieldDoc("NetworkStackId", " Transport stack id. Empty = the default ('litenetlib'); only 'litenetlib' is registered and unknown ids fall back to it. Per-stack tuning lives in config/transports/<id>.xml. string. "));
             t.Fields.Add(new FieldDoc("BasisUserRestrictionMode", " Player join restriction mode. Allowed values: Normal | BlackList | WhiteList. "));
             t.Fields.Add(new FieldDoc("HowManyDuplicateAuthCanExist", " How many connections sharing the same auth identity may exist at once. int. "));

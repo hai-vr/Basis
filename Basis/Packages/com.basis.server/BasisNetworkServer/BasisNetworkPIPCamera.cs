@@ -239,6 +239,11 @@ namespace BasisNetworkServer
 
                 BNL.Log($"PIP camera auto-destroyed for disconnected player {peerId}");
             }
+
+            foreach (var kvp in PIPStates)
+            {
+                kvp.Value.LastSentTimes.Remove(peerId);
+            }
         }
 
         public static void Reset()

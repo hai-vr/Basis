@@ -467,6 +467,11 @@ namespace Basis.MediaPipe.Homuler
             _hand = null;
             _pose = null;
             if (_native.IsCreated) _native.Dispose();
+            if (_readbackRT != null)
+            {
+                _readbackRT.Release();
+                _readbackRT = null;
+            }
             IsAvailable = false;
             _busy = false;
             lock (_resultLock) { _hasLatest = false; }

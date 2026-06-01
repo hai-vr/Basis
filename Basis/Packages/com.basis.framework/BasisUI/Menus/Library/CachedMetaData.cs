@@ -23,6 +23,7 @@ namespace Basis.BasisUI
             public DateTime? Created;
             public string AssetBundleDescription;
             public Sprite CachedSprite;
+            public bool OwnsSprite;
             public string DateOfCreation;
             public string UniqueVersion;
 
@@ -51,6 +52,15 @@ namespace Basis.BasisUI
 
         public static void ClearMetaDataCache()
         {
+            foreach (CachedContent meta in _metaCache.Values)
+            {
+                if (meta == null || !meta.OwnsSprite || meta.CachedSprite == null) continue;
+                Texture2D texture = meta.CachedSprite.texture;
+                UnityEngine.Object.Destroy(meta.CachedSprite);
+                if (texture != null) UnityEngine.Object.Destroy(texture);
+                meta.CachedSprite = null;
+                meta.OwnsSprite = false;
+            }
             _metaCache.Clear();
         }
 
@@ -73,6 +83,7 @@ namespace Basis.BasisUI
                 new Rect(0, 0, tex.width, tex.height),
                 new Vector2(0.5f, 0.5f)
             );
+            meta.OwnsSprite = true;
 
             return meta.CachedSprite;
         }

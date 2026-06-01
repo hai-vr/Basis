@@ -191,7 +191,7 @@ namespace HVR.Basis.Comms
             else if (measurementType == HVRMeasureType.Angle)
             {
                 var to2 = target2 != null ? target2 : transform;
-                var angleDeg = Vector3.Angle(target.position - from.position, to2.position - from.position);
+                var angleDeg = Vector3.Angle(to.position - from.position, to2.position - from.position);
                 var intermediateValue = angleDeg;
 
                 ProcessAndSubmit(intermediateValue, true);

@@ -16,6 +16,16 @@ public static class BasisGizmoManager
     public static Action<bool> OnUseGizmosChanged; // Callback delegate.
     public static GameObject LoadedLineGizmo;
     public static GameObject LoadedGizmo;
+    private static Material _lineGizmoMaterial;
+
+    private static Material GetLineGizmoMaterial()
+    {
+        if (_lineGizmoMaterial == null)
+        {
+            _lineGizmoMaterial = new Material(Shader.Find("Sprites/Default"));
+        }
+        return _lineGizmoMaterial;
+    }
     public static GameObject Parent;
     public static void TryCreateParent()
     {
@@ -132,7 +142,7 @@ public static class BasisGizmoManager
             lineRenderer.SetPositions(new[] { start, end });
             lineRenderer.startWidth = width;
             lineRenderer.endWidth = width;
-            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.sharedMaterial = GetLineGizmoMaterial();
             lineRenderer.startColor = color;
             lineRenderer.endColor = color;
             lineRenderer.name = GizmoName;
@@ -221,7 +231,7 @@ public static class BasisGizmoManager
             lineRenderer.SetPositions(positions);
             lineRenderer.startWidth = width;
             lineRenderer.endWidth = width;
-            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.sharedMaterial = GetLineGizmoMaterial();
             lineRenderer.startColor = color;
             lineRenderer.endColor = color;
             lineRenderer.loop = loop;

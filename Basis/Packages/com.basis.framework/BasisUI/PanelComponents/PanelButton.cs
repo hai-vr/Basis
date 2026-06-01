@@ -90,7 +90,6 @@ namespace Basis.BasisUI
         public override void OnReleaseEvent()
         {
             base.OnReleaseEvent();
-            if (Descriptor.IconImage.sprite && _iconIsAddressable) AddressableAssets.Release(Descriptor.IconImage.sprite);
         }
         public LayoutElement Layout
         {

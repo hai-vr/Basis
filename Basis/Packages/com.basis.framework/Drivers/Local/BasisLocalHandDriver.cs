@@ -189,6 +189,8 @@ public class BasisLocalHandDriver
             }
         }
 
+        poseHandler.Dispose();
+
         GameObject.Destroy(CopyOfOrigionally);
 
         BuildNativePoseGrid();

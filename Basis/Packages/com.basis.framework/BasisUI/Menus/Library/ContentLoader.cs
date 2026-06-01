@@ -322,9 +322,8 @@ namespace Basis.BasisUI
                                 }
                                 else
                                 {
-                                    AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
-                                    GameObject CreatedObject = op.WaitForCompletion();
-                                    GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
+                                    AsyncOperationHandle<GameObject> op = Addressables.InstantiateAsync(item.Url, finalPos, finalRot, parentTarget);
+                                    GameObject instance = op.WaitForCompletion();
                                     BasisRuntimeSpawnRegistry.AddGameObject(
                                         item.Url,
                                         instance.name,

@@ -88,6 +88,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// Optional visible device model attached to this input.
         /// </summary>
         public BasisVisualTracker BasisVisualTracker;
+        private UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> _visualModelHandle;
 
         /// <summary>
         /// Raycaster for pointing at interactables (e.g., UI).
@@ -610,6 +611,11 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisDebug.Log("Found and removing  HideTrackedVisual", BasisDebug.LogTag.Input);
                 GameObject.Destroy(BasisVisualTracker.gameObject);
             }
+            if (_visualModelHandle.IsValid())
+            {
+                Addressables.Release(_visualModelHandle);
+                _visualModelHandle = default;
+            }
         }
         /// <summary>
         /// Creates and initializes raycasting helpers for this device (pointer + UI raycast).
@@ -682,8 +688,13 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="key">Addressables key for the model prefab.</param>
         public void LoadModelWithKey(string key)
         {
-            UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(key);
-            GameObject go = op.WaitForCompletion();
+            if (_visualModelHandle.IsValid())
+            {
+                Addressables.Release(_visualModelHandle);
+                _visualModelHandle = default;
+            }
+            _visualModelHandle = Addressables.LoadAssetAsync<GameObject>(key);
+            GameObject go = _visualModelHandle.WaitForCompletion();
             GameObject gameObject = GameObject.Instantiate(go, this.transform);
             gameObject.name = CommonDeviceIdentifier;
             if (gameObject.TryGetComponent(out BasisVisualTracker))

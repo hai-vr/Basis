@@ -61,11 +61,15 @@ namespace Basis.Scripts.TransformBinders
         /// </summary>
         public void OnDestroy()
         {
-            if (HasEvent)
+            if (BasisDeviceManagement.Instance != null)
             {
-                BasisDeviceManagement.Instance.AllInputDevices.OnListChanged -= FindRole;
-                BasisDeviceManagement.Instance.AllInputDevices.OnListItemRemoved -= ResetIfNeeded;
-                HasEvent = false;
+                BasisDeviceManagement.Instance.BasisLockToInputs.Remove(this);
+                if (HasEvent)
+                {
+                    BasisDeviceManagement.Instance.AllInputDevices.OnListChanged -= FindRole;
+                    BasisDeviceManagement.Instance.AllInputDevices.OnListItemRemoved -= ResetIfNeeded;
+                    HasEvent = false;
+                }
             }
         }
 

@@ -153,15 +153,18 @@ namespace HVR.Vixxy
 
             var currentChildName = child.name;
             var increment = 0;
-            foreach (Transform o in child.parent)
+            if (child.parent != null)
             {
-                if (o == child)
+                foreach (Transform o in child.parent)
                 {
-                    break;
-                }
-                if (o.name == currentChildName)
-                {
-                    increment++;
+                    if (o == child)
+                    {
+                        break;
+                    }
+                    if (o.name == currentChildName)
+                    {
+                        increment++;
+                    }
                 }
             }
 

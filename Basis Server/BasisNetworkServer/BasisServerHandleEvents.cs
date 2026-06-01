@@ -72,6 +72,9 @@ namespace BasisServerHandle
             if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
             {
                 PermissionIntegration.RemovePlayerMeta(uuid);
+                PermissionIntegration.EvictPermissionCache(uuid);
+                BasisNetworkHandleErrorReport.RemoveUser(uuid);
+                BasisNetworkResourceManagement.RemovePeerResources(uuid);
             }
 
             NetworkServer.AuthIdentity.RemoveConnection(id);
@@ -83,6 +86,7 @@ namespace BasisServerHandle
             BasisNetworkPreloadResourceManagement.RemovePeer(id);
             BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.ClearForPeer(id);
             BasisServerP2PBroker.RemovePeer(id);
+            BasisNetworkMessageProcessor.ClearPeerErrors(id);
 
             return NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }

@@ -81,7 +81,7 @@ namespace HVR.Basis.Comms
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
-            HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
+            HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on EyeTrackingBoneActuation.");
 
             var addresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
             foreach (var address in addresses)
@@ -317,6 +317,7 @@ namespace HVR.Basis.Comms
                 {
                     our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideEye = false;
                     our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideBlinking = false;
+                    our.Receiver.RemotePlayer.RemoteFaceDriver.OverrideViseme = false;
                 }
             }
         }

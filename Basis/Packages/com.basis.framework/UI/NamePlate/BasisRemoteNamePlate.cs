@@ -270,8 +270,10 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             // Clean up chat display
+            if (ChatBubbleFilter != null && ChatBubbleFilter.sharedMesh != null) Destroy(ChatBubbleFilter.sharedMesh);
             if (ChatText != null) Destroy(ChatText.gameObject);
             if (ChatBubbleFilter != null) Destroy(ChatBubbleFilter.gameObject);
+            if (Filter != null && Filter.sharedMesh != null && Filter.sharedMesh.name == BasisRemoteNamePlateDriver.CombinedNameplateMeshName) Destroy(Filter.sharedMesh);
             hasChatMessage = false;
             wantsTypingIndicator = false;
 

@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace Basis.Scripts.Avatar
@@ -26,11 +27,26 @@ namespace Basis.Scripts.Avatar
         /// Cached prefab for the loading/fallback avatar. Loaded once, instantiated many times.
         /// </summary>
         private static GameObject CachedLoadingAvatarPrefab;
+        private static AsyncOperationHandle<GameObject> _loadingAvatarHandle;
 
         public static void Initialize()
         {
-            var op = Addressables.LoadAssetAsync<GameObject>(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation);
-            CachedLoadingAvatarPrefab = op.WaitForCompletion();
+            if (_loadingAvatarHandle.IsValid())
+            {
+                return;
+            }
+            _loadingAvatarHandle = Addressables.LoadAssetAsync<GameObject>(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation);
+            CachedLoadingAvatarPrefab = _loadingAvatarHandle.WaitForCompletion();
+        }
+
+        public static void DeInitialize()
+        {
+            if (_loadingAvatarHandle.IsValid())
+            {
+                Addressables.Release(_loadingAvatarHandle);
+                _loadingAvatarHandle = default;
+            }
+            CachedLoadingAvatarPrefab = null;
         }
         /// <summary>
         /// Default loading avatar used as a fallback when no valid avatar is available.

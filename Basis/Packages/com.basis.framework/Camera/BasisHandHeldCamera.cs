@@ -201,6 +201,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         UnsubscribeMeshRendererCheck();
         ReleaseRenderTexture();
+        if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
+        if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
 
         if (HandHeld != null)
         {
@@ -277,6 +279,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Instantiates a unique material used for the preview mesh.</summary>
     private void InitializeMaterial()
     {
+        if (actualMaterial != null) Destroy(actualMaterial);
         actualMaterial = Instantiate(Material);
     }
 
@@ -387,7 +390,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (renderTexture == null || renderTexture.width != width || renderTexture.height != height || renderTexture.format != RenderTextureFormat)
         {
             if (renderTexture != null)
+            {
                 renderTexture.Release();
+                Destroy(renderTexture);
+            }
 
             var descriptor = new RenderTextureDescriptor(width, height, RenderTextureFormat, depth)
             {
@@ -463,6 +469,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (pooledScreenshot == null || pooledScreenshot.width != width || pooledScreenshot.height != height || pooledScreenshot.format != format)
         {
+            if (pooledScreenshot != null)
+                Destroy(pooledScreenshot);
             pooledScreenshot = new Texture2D(width, height, format, false);
         }
     }
@@ -712,7 +720,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     private void ReleaseRenderTexture()
     {
         if (renderTexture != null)
+        {
             renderTexture.Release();
+            Destroy(renderTexture);
+            renderTexture = null;
+        }
     }
 
     private async void UnRegisterLoadedNetID(string myLoadedNetId)

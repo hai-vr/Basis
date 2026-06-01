@@ -143,13 +143,12 @@ public static class BasisRemoteNetworkDriver
     public static float PoseBeta = 0.15f;
     public static float PoseDerivativeCutoff = 1.5f;
 
-    public static void Initialize(Allocator allocator = Allocator.Persistent)
-    {
-        if (_initialized) return;
-        _allocator = allocator;
-        AllocateAll(FixedCapacity);
+    static int _initializedCount;
 
-        for (int i = 0; i < FixedCapacity; i++)
+    static void EnsureInitialized(int count)
+    {
+        if (count <= _initializedCount) return;
+        for (int i = _initializedCount; i < count; i++)
         {
             _prevPositions[i] = float3.zero;
             _targetPositions[i] = float3.zero;
@@ -183,8 +182,9 @@ public static class BasisRemoteNetworkDriver
             _scaledBodyPositions[i] = float3.zero;
         }
 
-        int flat = FixedCapacity * BoneCount;
-        for (int c = 0; c < flat; c++)
+        int boneStart = _initializedCount * BoneCount;
+        int boneEnd = count * BoneCount;
+        for (int c = boneStart; c < boneEnd; c++)
         {
             _prevBoneRotations[c] = quaternion.identity;
             _targetBoneRotations[c] = quaternion.identity;
@@ -195,6 +195,15 @@ public static class BasisRemoteNetworkDriver
             _boneDerivFilter[c] = float2.zero;
         }
 
+        _initializedCount = count;
+    }
+
+    public static void Initialize(Allocator allocator = Allocator.Persistent)
+    {
+        if (_initialized) return;
+        _allocator = allocator;
+        AllocateAll(FixedCapacity);
+        _initializedCount = 0;
         _initialized = true;
     }
 
@@ -209,6 +218,7 @@ public static class BasisRemoteNetworkDriver
     public static unsafe void BeginWrite()
     {
         if (!_initialized) return;
+        EnsureInitialized(math.clamp(BasisNetworkPlayers.LargestNetworkReceiverID + 1, 0, FixedCapacity));
         _ptrInterpolationTimes = (IntPtr)_interpolationTimes.GetUnsafePtr();
         _ptrDeltaTimes = (IntPtr)_deltaTimes.GetUnsafePtr();
         _ptrHumanScales = (IntPtr)_humanScales.GetUnsafePtr();

@@ -242,6 +242,10 @@ namespace HVR.Basis.Comms
             foreach (var smr in smrs)
             {
                 var mesh = smr.sharedMesh;
+                if (mesh == null)
+                {
+                    continue;
+                }
                 if (!MeshBlendshapeIndices.TryGetValue(mesh, out var nameToIndex))
                 {
                     var blendshapeCount = mesh.blendShapeCount;

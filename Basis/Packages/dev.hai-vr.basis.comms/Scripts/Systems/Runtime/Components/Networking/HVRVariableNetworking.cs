@@ -534,6 +534,7 @@ namespace HVR.Basis.Comms
             internal readonly Dictionary<int, HVRVariableHolder> _addressIdToHolder = new();
             private readonly Dictionary<ushort, int> _networkIdToAddressId = new();
             private readonly List<HVRVariableHighFrequency> _upgradedToHighFrequencyInOrder = new();
+            private readonly HashSet<ushort> _upgradedHighFrequencyNetworkIds = new();
 
             // Unknown high-frequency network IDs already reported, so a protocol-mismatched remote
             // is logged once per ID instead of every packet (which would spam the log at the send rate).
@@ -593,7 +594,7 @@ namespace HVR.Basis.Comms
                     _lowFrequencyInterpolatorDict ??= new Dictionary<int, float>();
                     if (_addressIdToHolder[addressId].variable.needsInterpolation)
                     {
-                        _lowFrequencyInterpolatorDict.Add(addressId, currentValue);
+                        _lowFrequencyInterpolatorDict[addressId] = currentValue;
                     }
                     else
                     {
@@ -832,7 +833,13 @@ namespace HVR.Basis.Comms
                             _addressIdToHolder[addressId].variable.min = highFrequency.min;
                             _addressIdToHolder[addressId].variable.max = highFrequency.max;
                         }
-                        _upgradedToHighFrequencyInOrder.AddRange(newlyAdded);
+                        foreach (var highFrequency in newlyAdded)
+                        {
+                            if (_upgradedHighFrequencyNetworkIds.Add(highFrequency.networkId))
+                            {
+                                _upgradedToHighFrequencyInOrder.Add(highFrequency);
+                            }
+                        }
 
                         break;
                     }

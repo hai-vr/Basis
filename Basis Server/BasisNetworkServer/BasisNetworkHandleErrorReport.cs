@@ -30,6 +30,12 @@ namespace BasisNetworkServer
             new ConcurrentDictionary<string, HashSet<string>>();
         private static readonly object FileLock = new object();
 
+        public static void RemoveUser(string uuid)
+        {
+            if (string.IsNullOrEmpty(uuid)) return;
+            SeenPerUser.TryRemove(uuid, out _);
+        }
+
         public static void HandleEvent(NetPacketReader reader, NetPeer peer, byte eventType)
         {
             try

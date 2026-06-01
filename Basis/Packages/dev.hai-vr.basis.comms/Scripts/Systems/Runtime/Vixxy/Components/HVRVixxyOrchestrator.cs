@@ -56,7 +56,6 @@ namespace HVR.Vixxy
             // (consider switching to an int lookup).
 
             var aggregators = AggregatorsOf(addressId);
-            var (filters, actuators) = ActuatorsOf(addressId).Partition(actuator => actuator.HasFilters());
 
             // In AcquisitionService, acquisition events are raised as soon as the data arrives.
             // We don't want to process that new data when it arrives, instead we want to process
@@ -67,8 +66,17 @@ namespace HVR.Vixxy
             // like that of face tracking.
             // OR, modify AcquisitionService to have OnAddressValueChanged.
             _aggregatorsToUpdateThisTick.UnionWith(aggregators);
-            _actuatorsWithFiltersToCheckThisTick.UnionWith(filters);
-            _actuatorsToUpdateThisTick.UnionWith(actuators);
+            foreach (var actuator in ActuatorsOf(addressId))
+            {
+                if (actuator.HasFilters())
+                {
+                    _actuatorsWithFiltersToCheckThisTick.Add(actuator);
+                }
+                else
+                {
+                    _actuatorsToUpdateThisTick.Add(actuator);
+                }
+            }
             _anythingNeedsUpdating = true;
         }
 

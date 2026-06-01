@@ -244,26 +244,31 @@ public static class BasisContentShareManager
         }
 
         Vector3 position = new Vector3(msg.PositionX, msg.PositionY, msg.PositionZ);
-        var op = new UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject>();
+        string orbKey = null;
         switch (serverMsg.contentShareMessage.ContentType)
         {
             case ContentShareType.Avatar:
-                op = Addressables.LoadAssetAsync<GameObject>(AvatarOrb);
+                orbKey = AvatarOrb;
                 break;
             case ContentShareType.Prop:
-                op = Addressables.LoadAssetAsync<GameObject>(PropOrb);
+                orbKey = PropOrb;
                 break;
             case ContentShareType.World:
-                op = Addressables.LoadAssetAsync<GameObject>(WorldOrb);
+                orbKey = WorldOrb;
                 break;
             case ContentShareType.Server:
-                op = Addressables.LoadAssetAsync<GameObject>(ServerOrb);
+                orbKey = ServerOrb;
                 break;
         }
-        var Orb = op.WaitForCompletion();
-        var InSceneOrb = GameObject.Instantiate(Orb);
-        InSceneOrb.transform.position = position;
-        InSceneOrb.transform.parent = BasisDeviceManagement.Instance.transform;
+        if (string.IsNullOrEmpty(orbKey))
+        {
+            return;
+        }
+        var InSceneOrb = Addressables.InstantiateAsync(orbKey, position, Quaternion.identity, BasisDeviceManagement.Instance.transform).WaitForCompletion();
+        if (InSceneOrb == null)
+        {
+            return;
+        }
         // Add the content sphere component
         if (InSceneOrb.TryGetComponent<BasisContentSphere>(out BasisContentSphere Sphere))
         {
@@ -293,7 +298,7 @@ public static class BasisContentShareManager
         {
             if (sphere != null && sphere.gameObject != null)
             {
-                UnityEngine.Object.Destroy(sphere.gameObject);
+                Addressables.ReleaseInstance(sphere.gameObject);
             }
             BasisDebug.Log($"Content sphere removed: {sphereNetID}", BasisDebug.LogTag.Networking);
             OnSphereRemoved?.Invoke(sphereNetID);
@@ -309,7 +314,7 @@ public static class BasisContentShareManager
         {
             if (kvp.Value != null && kvp.Value.gameObject != null)
             {
-                UnityEngine.Object.Destroy(kvp.Value.gameObject);
+                Addressables.ReleaseInstance(kvp.Value.gameObject);
             }
         }
         ActiveSpheres.Clear();

@@ -135,7 +135,6 @@ namespace Basis.BasisUI
         public override void OnReleaseEvent()
         {
             base.OnReleaseEvent();
-            if (_iconIsAddressable) AddressableAssets.Release(_iconSprite);
         }
 
         public void SetIcon(Sprite value)

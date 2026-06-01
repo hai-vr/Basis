@@ -14,6 +14,7 @@ public class BasisTrackedBundleWrapper
     public bool IsBundleBackingStoreReleased = false;
     #endif
     private int _requestedTimes = 0;
+    public bool IsInUse => Volatile.Read(ref _requestedTimes) > 0;
     public bool DidErrorOccur = false;
     public static TimeSpan TimeSpan = TimeSpan.FromSeconds(BasisBeeConstants.TimeUntilMemoryRemoval);
     /// <summary>

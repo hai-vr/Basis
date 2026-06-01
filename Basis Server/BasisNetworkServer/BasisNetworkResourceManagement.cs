@@ -42,6 +42,35 @@ public static class BasisNetworkResourceManagement
             }
         }
     }
+    public static void RemovePeerResources(string uuid)
+    {
+        if (string.IsNullOrEmpty(uuid)) return;
+        LocalLoadResource[] resourceArray = UshortNetworkDatabase.Values.ToArray();
+        int length = resourceArray.Length;
+        for (int index = 0; index < length; index++)
+        {
+            LocalLoadResource llr = resourceArray[index];
+            if (llr.Persist || llr.UUIDOfCreator != uuid)
+            {
+                continue;
+            }
+            UnLoadResource unloadResource = new UnLoadResource
+            {
+                Mode = llr.Mode,
+                LoadedNetID = llr.LoadedNetID
+            };
+            NetDataWriter writer = NetworkServer.RentWriter();
+            unloadResource.Serialize(writer);
+            NetworkServer.BroadcastMessageToClients(
+                writer,
+                BasisNetworkCommons.UnloadResourceChannel,
+                NetworkServer.PeerSnapshot,
+                DeliveryMethod.ReliableOrdered
+            );
+            NetworkServer.ReturnWriter(writer);
+            UshortNetworkDatabase.Remove(llr.LoadedNetID, out LocalLoadResource Resource);
+        }
+    }
     public static void SendOutAllResources(NetPeer NewConnection)
     {
         LocalLoadResource[] Resource = UshortNetworkDatabase.Values.ToArray();

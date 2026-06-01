@@ -250,6 +250,7 @@ namespace Basis.Scripts.Device_Management
             CleanupAutoSwap();
             BasisXRManagement.DeInitialize();
             BasisPlayerFactory.DeInitialize();
+            BasisAvatarFactory.DeInitialize();
             StopAllDevices();
             UnsubscribeEvents();
 
