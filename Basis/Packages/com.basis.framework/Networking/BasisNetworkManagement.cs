@@ -228,8 +228,6 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
-            BasisRemoteNetworkDriver.BeginWrite();
-
             int receiverCount = BasisNetworkPlayers.ReceiverCount;
             var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
 
@@ -244,6 +242,8 @@ namespace Basis.Scripts.Networking
                     largestId = rec.playerId;
             }
             BasisNetworkPlayers.LargestNetworkReceiverID = largestId;
+
+            BasisRemoteNetworkDriver.BeginWrite();
 
             // Phase 2 (parallel): per-receiver audio decode + packet processing + interpolation +
             // SoA writes. All per-receiver state, no shared-state conflicts. Kicked off here and
