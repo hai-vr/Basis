@@ -209,6 +209,12 @@ namespace Basis.Scripts.Drivers
                 tposeHipsLocalPos = float3.zero;
                 tposeHipsLocalRot = quaternion.identity;
             }
+            // Initialize this player's interpolation slot before registering it with the bone
+            // job system. The bone Schedule reads _filtered*[playerId] earlier in LateUpdate than
+            // BeginWrite's lazy init runs (LateUpdate tail), so a cached/fallback avatar that
+            // calibrates within a frame of joining would otherwise be read from uninitialized
+            // memory and pose as NaN.
+            BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
             RemoteBoneJobSystem.AddRemotePlayer(
                 key: receiver.playerId,
                 remotePlayerRoot: animatorRoot,
