@@ -303,7 +303,10 @@ namespace Basis.Scripts.Networking
 
             BasisRemoteNetworkDriver.Compute();
             Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DrainAll();
+#if UNITY_EDITOR
+            // Editor-only: counters are fed by AddToCounter, which is [Conditional("UNITY_EDITOR")].
             BasisNetworkProfiler.Update();
+#endif
 
             if (HasRequested)
             {
