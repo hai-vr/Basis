@@ -342,10 +342,6 @@ namespace BasisServerHandle
                     //BNL.Log($"Sending out Network Id Count " + ServerUniqueIDMessageArray.Messages.Length);
                     NetworkServer.TrySend(newPeer, Writer, BasisNetworkCommons.NetIDAssignsChannel, DeliveryMethod.ReliableOrdered);
                 }
-                else
-                {
-                    BNL.Log($"No Network Ids Not Sending out");
-                }
 
                 NetworkServer.ReturnWriter(Writer);
 
