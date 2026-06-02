@@ -634,19 +634,17 @@ namespace Basis.Scripts.Drivers
         /// <param name="WorldTpose">World-space T-pose position to convert to avatar space.</param>
         public void SetInitialData(Transform Transform, BasisLocalBoneControl bone, BasisBoneTrackedRole Role, Vector3 WorldTpose, Quaternion WorldTposeRotation)
         {
-            bone.OutGoingData.position = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(Transform, WorldTpose);
-            bone.OutGoingData.rotation = Quaternion.Inverse(Transform.rotation) * WorldTposeRotation;
+            Vector3 outgoingPosition = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(Transform, WorldTpose);
+            Quaternion outgoingRotation = Quaternion.Inverse(Transform.rotation) * WorldTposeRotation;
 
             if (IsApartOfSpineVertical(Role))
             {
-                bone.OutGoingData.position.x = 0;
+                outgoingPosition.x = 0;
             }
 
-            bone.TposeLocal.rotation = bone.OutGoingData.rotation;
-            bone.TposeLocal.position = bone.OutGoingData.position;
-
-            bone.TposeLocalScaled.position = bone.TposeLocal.position;
-            bone.TposeLocalScaled.rotation = bone.TposeLocal.rotation;
+            bone.SetOutgoing(outgoingPosition, outgoingRotation);
+            bone.SetTposeLocal(outgoingPosition, outgoingRotation);
+            bone.SetTposeScaled(outgoingPosition, outgoingRotation);
         }
 
         /// <summary>
