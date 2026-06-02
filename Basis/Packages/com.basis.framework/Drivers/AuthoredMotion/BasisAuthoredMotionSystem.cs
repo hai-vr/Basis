@@ -147,8 +147,17 @@ public struct AuthoredMotionJob : IJobParallelForTransform
                 float fr = m.frameRate > 1e-4f ? m.frameRate : 30f;
                 float length = m.frameCount / fr;
                 float st = t * m.sequenceSpeed;
-                float pt = m.loop != 0 ? math.fmod(st, length) : math.min(math.max(st, 0f), length);
-                if (pt < 0f) pt += length; // fmod can return negative for negative t
+                float pt;
+                if (m.loop != 0)
+                {
+                    pt = math.fmod(st, length);
+                    if (pt < 0f) pt += length; // fmod can return negative for negative t
+                }
+                else
+                {
+                    // Reverse one-shot walks the playhead down from the end; forward holds at 0..length.
+                    pt = math.clamp(m.sequenceSpeed < 0f ? length + st : st, 0f, length);
+                }
 
                 float frameF = pt * fr;
                 int f0 = (int)math.floor(frameF);
