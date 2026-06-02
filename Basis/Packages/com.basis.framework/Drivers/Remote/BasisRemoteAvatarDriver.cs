@@ -139,10 +139,13 @@ namespace Basis.Scripts.Drivers
             }
 
             // Register authored motion (drives non-humanoid transforms the bone job / IK don't touch); rest captured at the current TPose.
-            var authoredMotions = RemotePlayer.BasisAvatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
-            for (int i = 0; i < authoredMotions.Length; i++)
+            var authoredMotions = RemotePlayer.BasisAvatar.AuthoredMotions;
+            if (authoredMotions != null)
             {
-                BasisAuthoredMotionSystem.Register(authoredMotions[i]);
+                for (int i = 0; i < authoredMotions.Length; i++)
+                {
+                    BasisAuthoredMotionSystem.Register(authoredMotions[i]);
+                }
             }
 
             // Face visibility setup

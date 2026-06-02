@@ -231,8 +231,9 @@ public struct AuthoredMotionJob : IJobParallelForTransform
 /// networked humanoid skeleton, so there's no write contention with the bone pipeline.
 ///
 /// <para>Registration is calibration-driven (no scene discovery): the local/remote avatar drivers
-/// call <see cref="Register"/> for each <see cref="BasisAuthoredMotion"/> on the avatar and
-/// <see cref="Unregister"/> on teardown/recalibration. Authoritative state lives in managed
+/// call <see cref="Register"/> for each <see cref="BasisAuthoredMotion"/> on the avatar at calibration;
+/// recalibration re-registers (dedup drops the stale record) and a torn-down avatar's slots are
+/// reclaimed by the next <see cref="Schedule"/> rebuild. Authoritative state lives in managed
 /// <c>Registration</c> records (rest poses captured once at registration); a structural change
 /// rebuilds the native containers from them.</para>
 /// </summary>
