@@ -47,6 +47,7 @@ public struct AuthoredMovementData
     public int frameCount;       // frames for this slot's transform
     public float frameRate;      // samples per second
     public int loop;             // 0 = one-shot, 1 = loop
+    public float sequenceSpeed;  // playback rate multiplier (negative reverses)
 
     // Captured rest pose (local space); motion composes as a delta from this.
     public quaternion restRotation;
@@ -145,7 +146,8 @@ public struct AuthoredMotionJob : IJobParallelForTransform
                 if (m.frameCount <= 0) break;
                 float fr = m.frameRate > 1e-4f ? m.frameRate : 30f;
                 float length = m.frameCount / fr;
-                float pt = m.loop != 0 ? math.fmod(t, length) : math.min(math.max(t, 0f), length);
+                float st = t * m.sequenceSpeed;
+                float pt = m.loop != 0 ? math.fmod(st, length) : math.min(math.max(st, 0f), length);
                 if (pt < 0f) pt += length; // fmod can return negative for negative t
 
                 float frameF = pt * fr;
@@ -501,6 +503,7 @@ public static class BasisAuthoredMotionSystem
                         d.frameCount = fc;
                         d.frameRate = clip.frameRate;
                         d.loop = mv.loop ? 1 : 0;
+                        d.sequenceSpeed = mv.sequenceSpeed;
                         AddSlot(data, targets, movementEnabled, d, tf, mv.enabled);
                     }
                     break;
