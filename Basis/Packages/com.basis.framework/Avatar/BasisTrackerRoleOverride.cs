@@ -75,6 +75,18 @@ namespace Basis.Scripts.Avatar
             OnOverridesChanged?.Invoke();
         }
 
+        /// <summary>
+        /// Remove every override. No-op if there are none.
+        /// </summary>
+        public static void ClearAll()
+        {
+            EnsureLoaded();
+            if (_overrides.Count == 0) return;
+            _overrides.Clear();
+            Save();
+            OnOverridesChanged?.Invoke();
+        }
+
         // ----------------------------------------------------------------
         // Persistence
         // ----------------------------------------------------------------

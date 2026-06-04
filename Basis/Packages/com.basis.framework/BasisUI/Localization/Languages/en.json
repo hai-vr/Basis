@@ -163,6 +163,10 @@
       "value": "Light up a glowing sphere on this tracker so you can spot which physical device it is. Press again to turn it off."
     },
     {
+      "key": "trackerLinking.identifyCalibratedRole",
+      "value": "({0})"
+    },
+    {
       "key": "trackerLinking.trackers.title",
       "value": "Connected Trackers"
     },

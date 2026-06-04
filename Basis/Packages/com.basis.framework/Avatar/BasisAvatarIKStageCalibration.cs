@@ -130,6 +130,9 @@ namespace Basis.Scripts.Avatar
         /// same trackers map the same way whether the user wears a child avatar or a
         /// three-meter giant.
         /// </summary>
+        /// <summary>Raised at the end of <see cref="FullBodyCalibration"/>, after tracker roles have been (re)assigned.</summary>
+        public static System.Action OnFullBodyCalibrated;
+
         public static void FullBodyCalibration()
         {
             BasisHeightDriver.OnAvatarFBCalibration();//avatar height is good,player height is needed
@@ -160,6 +163,8 @@ namespace Basis.Scripts.Avatar
             // newly stored avatar bone transforms. No-op when the ShowGizmos
             // master toggle is off; the toggle path rebuilds when it flips on.
             BasisLocalPlayer.Instance.LocalBoneDriver.RebuildCalibrationSpheres();
+
+            OnFullBodyCalibrated?.Invoke();
         }
 
         /// <summary>

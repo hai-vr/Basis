@@ -2206,10 +2206,17 @@ w20, w54;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
 
-                    // you can also soften this threshold if hinting fights with max reach
-                    if (abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > 0f)
+                    // Near full extension the elbow sits on the shoulder->hand axis, so ahProj collapses
+                    // and FromToRotation spins on tracker noise. Fade the hint out as SolveTwoBone does.
+                    float reachRatio = (totalLen > k_Epsilon) ? (atCorrectedLen / totalLen) : 0f;
+                    float hintFade = (reachRatio > 0.9f) ? 1f - Mathf.Clamp01((reachRatio - 0.9f) / 0.1f) : 1f;
+                    if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
                         Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
+                        if (hintFade < 1f)
+                        {
+                            hintR = Quaternion.Slerp(Quaternion.identity, hintR, hintFade);
+                        }
                         hintR = QuaternionExt.NormalizeSafe(hintR);
                         root.SetRotation(stream, hintR * root.GetRotation(stream));
                     }

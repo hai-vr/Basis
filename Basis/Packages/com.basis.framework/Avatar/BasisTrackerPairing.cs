@@ -135,6 +135,19 @@ namespace Basis.Scripts.Avatar
         }
 
         /// <summary>
+        /// Remove every pairing. Persists and fires <see cref="OnPairingsChanged"/>
+        /// once. No-op if there are none.
+        /// </summary>
+        public static void ClearAll()
+        {
+            EnsureLoaded();
+            if (_pairs.Count == 0) return;
+            _pairs.Clear();
+            Save();
+            OnPairingsChanged?.Invoke();
+        }
+
+        /// <summary>
         /// Snapshot enumeration of pairings, with each pair reported once from the
         /// canonical side. Useful for diagnostics or UI summaries.
         /// </summary>

@@ -4,6 +4,7 @@ using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Pairing;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -158,6 +159,8 @@ namespace Basis.BasisUI
             BasisTrackerPairing.OnPairingsChanged += handleChange;
             BasisTrackerRoleOverride.OnOverridesChanged += handleChange;
             BasisTrackerIdentifyGizmos.OnIdentifyChanged += handleChange;
+            BasisLocalAvatarDriver.CalibrationComplete += handleChange;
+            BasisAvatarIKStageCalibration.OnFullBodyCalibrated += handleChange;
 
             tabPage.OnInstanceReleased += () =>
             {
@@ -169,6 +172,8 @@ namespace Basis.BasisUI
                 BasisTrackerPairing.OnPairingsChanged -= handleChange;
                 BasisTrackerRoleOverride.OnOverridesChanged -= handleChange;
                 BasisTrackerIdentifyGizmos.OnIdentifyChanged -= handleChange;
+                BasisLocalAvatarDriver.CalibrationComplete -= handleChange;
+                BasisAvatarIKStageCalibration.OnFullBodyCalibrated -= handleChange;
                 state.TrackersContainer = null;
                 state.TrackersGroup = null;
                 state.TabDescriptor = null;
@@ -438,16 +443,24 @@ namespace Basis.BasisUI
             PanelElementDescriptor descriptor = button.Descriptor;
             if (descriptor == null || !descriptor.HasTitle) return;
 
+            string label;
             if (BasisTrackerIdentifyGizmos.TryGetColor(input, out Color color))
             {
                 string hex = ColorUtility.ToHtmlStringRGB(color);
-                descriptor.SetTitle($"<b><color=#{hex}>{BasisLocalization.Get("trackerLinking.identifyShowing")}</color></b>");
+                label = $"<b><color=#{hex}>{BasisLocalization.Get("trackerLinking.identifyShowing")}</color></b>";
             }
             else
             {
                 string accentHex = ColorUtility.ToHtmlStringRGB(ResolveAccentColor());
-                descriptor.SetTitle($"<b><color=#{accentHex}>{BasisLocalization.Get("trackerLinking.identifyLabel")}</color></b>");
+                label = $"<b><color=#{accentHex}>{BasisLocalization.Get("trackerLinking.identifyLabel")}</color></b>";
             }
+
+            if (input != null && input.TryGetRole(out BasisBoneTrackedRole role))
+            {
+                label += $" <size=85%>{BasisLocalization.Get("trackerLinking.identifyCalibratedRole", role.ToString())}</size>";
+            }
+
+            descriptor.SetTitle(label);
         }
 
         private static Color ResolveAccentColor()
@@ -629,6 +642,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PairingDistanceEmaAlpha.ResetToDefault();
             BasisSettingsDefaults.PairingWeightSmoothing.ResetToDefault();
             BasisSettingsDefaults.PairingRotationHalfLife.ResetToDefault();
+            BasisTrackerRoleOverride.ClearAll();
+            BasisTrackerPairing.ClearAll();
             BasisTrackerIdentifyGizmos.ClearAll();
         }
 
