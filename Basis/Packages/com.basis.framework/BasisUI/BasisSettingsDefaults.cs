@@ -1007,6 +1007,23 @@ namespace Basis.BasisUI
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
         // bend when looking at the floor, less (down to zero) when looking up.
         public static BasisSettingsBinding<float> FBIKLordosisPitchGainDeg = new("fbiklordosispitchgaindeg", new BasisPlatformDefault<float>(8f));
+        // Cervical lordosis shaping (see ApplyCervicalLordosis): neutral-pose base bend + neck/upperChest
+        // split, head pitch clamp, and the extreme-look window that drives extra spine roll plus
+        // hips/chest counter-translation. Horizontal/Down maxima are in meters. Only used when
+        // Cervical Lordosis (Anatomy) is on.
+        public static BasisSettingsBinding<float> FBIKLordosisBaseDeg = new("fbiklordosisbasedeg", new BasisPlatformDefault<float>(5f));
+        public static BasisSettingsBinding<float> FBIKLordosisNeckShare = new("fbiklordosisneckshare", new BasisPlatformDefault<float>(0.65f));
+        public static BasisSettingsBinding<float> FBIKLordosisMaxHeadPitchDeg = new("fbiklordosismaxheadpitchdeg", new BasisPlatformDefault<float>(80f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeStartDeg = new("fbiklordosisextremestartdeg", new BasisPlatformDefault<float>(50f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeFullDeg = new("fbiklordosisextremefulldeg", new BasisPlatformDefault<float>(80f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeRollForwardMaxDeg = new("fbiklordosisextremerollforwardmaxdeg", new BasisPlatformDefault<float>(10f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeRollBackwardMaxDeg = new("fbiklordosisextremerollbackwardmaxdeg", new BasisPlatformDefault<float>(4f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsHorizontalMax = new("fbiklordosisextremehipshorizontalmax", new BasisPlatformDefault<float>(0.025f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeChestHorizontalMax = new("fbiklordosisextremechesthorizontalmax", new BasisPlatformDefault<float>(0.04f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsDownMax = new("fbiklordosisextremehipsdownmax", new BasisPlatformDefault<float>(0.015f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeChestDownMax = new("fbiklordosisextremechestdownmax", new BasisPlatformDefault<float>(0.025f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsDownLookUp = new("fbiklordosisextremehipsdownlookup", new BasisPlatformDefault<float>(0.0005f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeChestDownLookUp = new("fbiklordosisextremechestdownlookup", new BasisPlatformDefault<float>(0.001f));
 
         // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
         // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
@@ -1573,6 +1590,19 @@ namespace Basis.BasisUI
             FBIKAnatCervicalLordosis.LoadBindingValue();
             FBIKAnatPelvicTwistRouting.LoadBindingValue();
             FBIKLordosisPitchGainDeg.LoadBindingValue();
+            FBIKLordosisBaseDeg.LoadBindingValue();
+            FBIKLordosisNeckShare.LoadBindingValue();
+            FBIKLordosisMaxHeadPitchDeg.LoadBindingValue();
+            FBIKLordosisExtremeStartDeg.LoadBindingValue();
+            FBIKLordosisExtremeFullDeg.LoadBindingValue();
+            FBIKLordosisExtremeRollForwardMaxDeg.LoadBindingValue();
+            FBIKLordosisExtremeRollBackwardMaxDeg.LoadBindingValue();
+            FBIKLordosisExtremeHipsHorizontalMax.LoadBindingValue();
+            FBIKLordosisExtremeChestHorizontalMax.LoadBindingValue();
+            FBIKLordosisExtremeHipsDownMax.LoadBindingValue();
+            FBIKLordosisExtremeChestDownMax.LoadBindingValue();
+            FBIKLordosisExtremeHipsDownLookUp.LoadBindingValue();
+            FBIKLordosisExtremeChestDownLookUp.LoadBindingValue();
             VSpineChestPitchFrac.LoadBindingValue();
             VSpineChestRollFrac.LoadBindingValue();
             VSpineSpinePitchFrac.LoadBindingValue();

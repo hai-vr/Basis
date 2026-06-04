@@ -3023,6 +3023,110 @@
       "value": "Extra cervical bend at full head-down on top of the 5° base. 0 = constant 5° lordosis; positive scales with how far the head is looking down. Only used when Cervical Lordosis (Anatomy) is on. Default: 8"
     },
     {
+      "key": "settings.bodyTracking.lordosisBase.title",
+      "value": "Lordosis Base Bend (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisBase.description",
+      "value": "Forward cervical bend held in a neutral, level-head pose, before pitch coupling is added. Only used when Cervical Lordosis (Anatomy) is on. Default: 5"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisNeckShare.title",
+      "value": "Lordosis Neck Share"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisNeckShare.description",
+      "value": "Fraction of the lordosis bend applied at the neck rather than the upperChest, when an upperChest bone exists. 1 = all neck. Default: 0.65"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisMaxHeadPitch.title",
+      "value": "Lordosis Max Head Pitch (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisMaxHeadPitch.description",
+      "value": "Clamp on head pitch up/down before the lordosis solve, so a steeply pitched head can't drive the neck past anatomical limits. Default: 80"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeStart.title",
+      "value": "Lordosis Extreme Onset (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeStart.description",
+      "value": "Head pitch magnitude at which the extreme-look response (extra spine roll plus hips/chest shift) begins ramping in. Default: 50"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeFull.title",
+      "value": "Lordosis Extreme Full (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeFull.description",
+      "value": "Head pitch magnitude at which the extreme-look response reaches full strength. Should sit above the onset value. Default: 80"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeRollForward.title",
+      "value": "Lordosis Extreme Roll Forward (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeRollForward.description",
+      "value": "Maximum extra spine roll added at full extreme look-down. Default: 10"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeRollBackward.title",
+      "value": "Lordosis Extreme Roll Backward (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeRollBackward.description",
+      "value": "Maximum extra spine roll added at full extreme look-up. Default: 4"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsHoriz.title",
+      "value": "Lordosis Extreme Hips Shift (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsHoriz.description",
+      "value": "Maximum horizontal hips counter-shift at full extreme look, in meters. Default: 0.025"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestHoriz.title",
+      "value": "Lordosis Extreme Chest Shift (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestHoriz.description",
+      "value": "Maximum horizontal chest counter-shift at full extreme look, in meters. Default: 0.04"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsDown.title",
+      "value": "Lordosis Extreme Hips Drop (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsDown.description",
+      "value": "Maximum downward hips shift at full look-down, in meters. Default: 0.015"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestDown.title",
+      "value": "Lordosis Extreme Chest Drop (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestDown.description",
+      "value": "Maximum downward chest shift at full look-down, in meters. Default: 0.025"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsDownLookUp.title",
+      "value": "Lordosis Extreme Hips Drop, Look-Up (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsDownLookUp.description",
+      "value": "Downward hips shift at full look-up, in meters; much smaller than the look-down drop. Default: 0.0005"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestDownLookUp.title",
+      "value": "Lordosis Extreme Chest Drop, Look-Up (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestDownLookUp.description",
+      "value": "Downward chest shift at full look-up, in meters; much smaller than the look-down drop. Default: 0.001"
+    },
+    {
       "key": "settings.bodyTracking.section.virtualSpine.title",
       "value": "Virtual Spine (no torso tracker)"
     },

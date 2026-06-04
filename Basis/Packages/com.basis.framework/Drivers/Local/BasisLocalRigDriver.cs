@@ -689,18 +689,6 @@ namespace Basis.Scripts.Drivers
             return 1f - Mathf.Exp(-2f * Mathf.PI * Mathf.Max(0.0001f, hz) * Mathf.Max(0.000001f, dt));
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector3 FallbackPos(ref Vector3 state, Vector3 raw, float alpha)
-        {
-            state = Vector3.LerpUnclamped(state, raw, alpha);
-            return state;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Quaternion FallbackRot(ref Quaternion state, Quaternion raw, float alpha)
-        {
-            state = Quaternion.Slerp(state, raw, alpha);
-            return state;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UpdateEuroSettings()
         {
             float strength = Mathf.Max(1f, SmoothingStrength);
@@ -955,6 +943,19 @@ namespace Basis.Scripts.Drivers
             data.AnatCervicalLordosis = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatCervicalLordosis.RawValue;
             data.AnatPelvicTwistRouting = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.RawValue;
             data.LordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
+            data.LordosisBaseDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisBaseDeg.RawValue;
+            data.LordosisNeckShare = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisNeckShare.RawValue;
+            data.LordosisMaxHeadPitchDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisMaxHeadPitchDeg.RawValue;
+            data.LordosisExtremeStartDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeStartDeg.RawValue;
+            data.LordosisExtremeFullDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeFullDeg.RawValue;
+            data.LordosisExtremeRollForwardMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeRollForwardMaxDeg.RawValue;
+            data.LordosisExtremeRollBackwardMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeRollBackwardMaxDeg.RawValue;
+            data.LordosisExtremeHipsHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax.RawValue;
+            data.LordosisExtremeChestHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax.RawValue;
+            data.LordosisExtremeHipsDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax.RawValue;
+            data.LordosisExtremeChestDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.RawValue;
+            data.LordosisExtremeHipsDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.RawValue;
+            data.LordosisExtremeChestDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp.RawValue;
 
             // Toggles + shoulder-solve params that previously only flowed at init. Without these
             // here, flipping the matching toggle/slider in the IK panel left the animation job

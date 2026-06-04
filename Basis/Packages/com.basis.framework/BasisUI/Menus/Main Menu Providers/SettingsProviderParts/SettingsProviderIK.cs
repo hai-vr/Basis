@@ -506,6 +506,97 @@ public static class SettingsProviderIK
                 BasisSettingsDefaults.FBIKLordosisPitchGainDeg);
             if (lordosisPitchGain != null)
                 lordosisPitchGain.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisPitchGain.description"));
+
+            var lordosisBase = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisBase.title"), 0f, 15f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisBaseDeg);
+            if (lordosisBase != null)
+                lordosisBase.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisBase.description"));
+
+            var lordosisNeckShare = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisNeckShare.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisNeckShare);
+            if (lordosisNeckShare != null)
+                lordosisNeckShare.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisNeckShare.description"));
+
+            var lordosisMaxHeadPitch = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisMaxHeadPitch.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisMaxHeadPitchDeg);
+            if (lordosisMaxHeadPitch != null)
+                lordosisMaxHeadPitch.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisMaxHeadPitch.description"));
+
+            var lordosisExtremeStart = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeStart.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeStartDeg);
+            if (lordosisExtremeStart != null)
+                lordosisExtremeStart.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeStart.description"));
+
+            var lordosisExtremeFull = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeFull.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeFullDeg);
+            if (lordosisExtremeFull != null)
+                lordosisExtremeFull.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeFull.description"));
+
+            var lordosisExtremeRollFwd = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeRollForward.title"), 0f, 30f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeRollForwardMaxDeg);
+            if (lordosisExtremeRollFwd != null)
+                lordosisExtremeRollFwd.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeRollForward.description"));
+
+            var lordosisExtremeRollBack = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeRollBackward.title"), 0f, 30f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeRollBackwardMaxDeg);
+            if (lordosisExtremeRollBack != null)
+                lordosisExtremeRollBack.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeRollBackward.description"));
+
+            var lordosisExtremeHipsHoriz = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsHoriz.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax);
+            if (lordosisExtremeHipsHoriz != null)
+                lordosisExtremeHipsHoriz.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsHoriz.description"));
+
+            var lordosisExtremeChestHoriz = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestHoriz.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax);
+            if (lordosisExtremeChestHoriz != null)
+                lordosisExtremeChestHoriz.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestHoriz.description"));
+
+            var lordosisExtremeHipsDown = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsDown.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax);
+            if (lordosisExtremeHipsDown != null)
+                lordosisExtremeHipsDown.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsDown.description"));
+
+            var lordosisExtremeChestDown = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestDown.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax);
+            if (lordosisExtremeChestDown != null)
+                lordosisExtremeChestDown.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestDown.description"));
+
+            var lordosisExtremeHipsDownLookUp = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsDownLookUp.title"), 0f, 0.01f, false, 4, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp);
+            if (lordosisExtremeHipsDownLookUp != null)
+                lordosisExtremeHipsDownLookUp.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsDownLookUp.description"));
+
+            var lordosisExtremeChestDownLookUp = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestDownLookUp.title"), 0f, 0.01f, false, 4, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp);
+            if (lordosisExtremeChestDownLookUp != null)
+                lordosisExtremeChestDownLookUp.Descriptor.SetDescription(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestDownLookUp.description"));
         });
 
         // ============== Virtual Spine (no torso tracker) ==============
@@ -833,6 +924,19 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringDamping.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisPitchGainDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisBaseDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisNeckShare.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisMaxHeadPitchDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeStartDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeFullDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeRollForwardMaxDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeRollBackwardMaxDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp.ResetToDefault();
         BasisSettingsDefaults.VSpineChestPitchFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineChestRollFrac.ResetToDefault();
         BasisSettingsDefaults.VSpineSpinePitchFrac.ResetToDefault();
