@@ -3085,11 +3085,10 @@ w20, w54;
             GenerateHeadToSpine(animator, ref job, ref data);
             GenerateChestToHead(animator, ref job, ref data);
 
-            // Generate arm bend lookup tables
-            var leftTable = BasisArmBendLookup.GenerateDefaultTable(true);
-            var rightTable = BasisArmBendLookup.GenerateDefaultTable(false);
-            job.ArmBendLookupLeft = new NativeArray<Vector3>(leftTable, Allocator.Persistent);
-            job.ArmBendLookupRight = new NativeArray<Vector3>(rightTable, Allocator.Persistent);
+            // Generate arm bend lookup tables. The sampler mirrors X per-arm, so one table serves both.
+            var bendTable = BasisArmBendLookup.GenerateDefaultTable();
+            job.ArmBendLookupLeft = new NativeArray<Vector3>(bendTable, Allocator.Persistent);
+            job.ArmBendLookupRight = new NativeArray<Vector3>(bendTable, Allocator.Persistent);
             job.HasArmBendLookup = true;
 
             var cacheBuilder = new AnimationJobCacheBuilder();
