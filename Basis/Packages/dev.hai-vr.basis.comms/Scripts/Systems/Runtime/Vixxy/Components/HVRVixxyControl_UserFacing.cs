@@ -440,8 +440,7 @@ namespace HVR.Vixxy
         public HVRVixxyPropertyQuaternionInterpolation interpolation;
 
         [NonSerialized] private bool _initialized;
-        [NonSerialized] private Quaternion _a = Quaternion.identity;
-        [NonSerialized] private Quaternion _b = Quaternion.identity;
+        [NonSerialized] private Quaternion[] _eulerizedChoices;
 
         public override object GetValueForChoice(int choice)
         {
@@ -454,10 +453,13 @@ namespace HVR.Vixxy
             {
                 if (!_initialized)
                 {
-                    _a = Quaternion.Euler(choices[inactiveIndex]);
-                    _b = Quaternion.Euler(choices[activeIndex]);
+                    _eulerizedChoices = new Quaternion[choices.Length];
+                    for (var i = 0; i < choices.Length; i++)
+                    {
+                        _eulerizedChoices[i] = Quaternion.Euler(choices[i]);
+                    }
                 }
-                return Quaternion.Slerp(_a, _b, active01);
+                return Quaternion.Slerp(_eulerizedChoices[inactiveIndex], _eulerizedChoices[activeIndex], active01);
             }
             else // Euler
             {

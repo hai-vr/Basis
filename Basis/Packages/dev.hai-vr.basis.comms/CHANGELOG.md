@@ -8,6 +8,7 @@ Changelog
 Fixes:
 - Handle case where variables were upgraded before receiving the variable.
 - Handle destroyed Comms components in HVRBasisBuiltInAddresses.
+- Fix spherical quaternion interpolation was caching incorrectly.
 
 ## 2025-05-21
 
