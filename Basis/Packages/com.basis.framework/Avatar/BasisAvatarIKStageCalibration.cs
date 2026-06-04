@@ -1207,8 +1207,6 @@ namespace Basis.Scripts.Avatar
 
             // Choose push magnitudes (tweakable)
             float hs = BasisHeightDriver.ScaledToMatchValue;
-
-            float elbowPush = 0.12f * hs;
             float kneePush = 0.10f * hs;
             float headPush = 0.08f * hs;
 
@@ -1225,24 +1223,6 @@ namespace Basis.Scripts.Avatar
                 localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
 
                 BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, localOffset);
-            }
-
-            // Elbow hints (lower arms)
-            {
-                {
-                    var lla = BasisLocalBoneDriver.LeftLowerArmControl;
-                    Quaternion trackerRot = lla.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: true, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerArm, localOffset);
-                }
-                {
-                    var rla = BasisLocalBoneDriver.RightLowerArmControl;
-                    Quaternion trackerRot = rla.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: false, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerArm, localOffset);
-                }
             }
             // Knee hints (lower legs) — often better with a touch of forward
             {

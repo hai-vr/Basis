@@ -621,13 +621,11 @@ namespace Basis.Scripts.Drivers
                 // ── LOWER ARMS (elbow hints) ──
                 llaPos = pOut[S_LeftLowerArm];
                 llaRot = rOut[S_LeftLowerArm];
-                llaPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerArm, llaPos, llaRot);
                 data.LeftLowerArmPosition = llaPos;
                 data.LeftLowerArmRotation = llaRot;
 
                 rlaPos = pOut[S_RightLowerArm];
                 rlaRot = rOut[S_RightLowerArm];
-                rlaPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerArm, rlaPos, rlaRot);
                 data.RightLowerArmPosition = rlaPos;
                 data.RightLowerArmRotation = rlaRot;
 
@@ -646,12 +644,6 @@ namespace Basis.Scripts.Drivers
             Vector3 fwdC = chestRot * Vector3.forward;
             Vector3 outC = chestRot * Vector3.right;
             Vector3 upC = chestRot * Vector3.up;
-            data.ElbowBendPrefLeft = (fwdC * elbowBendPrefLeftWeights.x
-                + outC * elbowBendPrefLeftWeights.y
-                + upC * elbowBendPrefLeftWeights.z).normalized;
-            data.ElbowBendPrefRight = (fwdC * elbowBendPrefRightWeights.x
-                + outC * elbowBendPrefRightWeights.y
-                + upC * elbowBendPrefRightWeights.z).normalized;
 
             Vector3 fwd = hipsRot * Vector3.forward;
             Vector3 outR = hipsRot * Vector3.right;
@@ -671,8 +663,6 @@ namespace Basis.Scripts.Drivers
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
         }
-        [SerializeField] private Vector3 elbowBendPrefLeftWeights = new Vector3(0, 1, 0);
-        [SerializeField] private Vector3 elbowBendPrefRightWeights = new Vector3(0, 1, 0);
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {

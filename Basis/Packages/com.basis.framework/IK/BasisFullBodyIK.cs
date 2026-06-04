@@ -249,9 +249,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 SpineBendNormal;
         [SyncSceneToStream, SerializeField] public Vector3 PlayerUp;
 
-        [SyncSceneToStream, SerializeField] public Vector3 ElbowBendPrefLeft;
-        [SyncSceneToStream, SerializeField] public Vector3 ElbowBendPrefRight;
-
         [SyncSceneToStream, SerializeField] public Vector3 KneeBendPrefLeft;
         [SyncSceneToStream, SerializeField] public Vector3 KneeBendPrefRight;
 
@@ -416,8 +413,6 @@ namespace UnityEngine.Animations.Rigging
         public string PlayerUpProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PlayerUp));
         public string KneeBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefLeft));
         public string KneeBendPrefRightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefRight));
-        public string ElbowBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ElbowBendPrefLeft));
-        public string ElbowBendPrefRightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ElbowBendPrefRight));
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegEnabled));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftLowerLegEnabled));
         public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootPosition));
@@ -920,7 +915,7 @@ namespace UnityEngine.Animations.Rigging
   HandleLeftUpperArmTwist, HandleLeftLowerArmTwist,
   HandleRightUpperArmTwist, HandleRightLowerArmTwist;
 
-        public Vector3Property targetPositionHead, TargetChestPosition, bendNormalHead, playerUp, KneeBendPrefLeft, KneeBendPrefRight, ElbowBendPrefLeft, ElbowBendPrefRight,
+        public Vector3Property targetPositionHead, TargetChestPosition, bendNormalHead, playerUp, KneeBendPrefLeft, KneeBendPrefRight,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
@@ -2640,10 +2635,6 @@ w20, w54;
             {
                 return;
             }
-
-            // Save the pre-solve (animation) transforms so we can blend back toward them.
-            // Reading tip/mid/root positions BEFORE the solve gives us the true animation pose,
-            // not a stale IK-modified pose from a previous frame.
             Vector3 origRootPos = root.GetPosition(stream);
             Quaternion origRootRot = root.GetRotation(stream);
             Quaternion origMidRot = mid.GetRotation(stream);
@@ -2660,9 +2651,6 @@ w20, w54;
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
             SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal);
-
-            // Blend the solved result back toward the original animation pose using the weight.
-            // At weight 1: fully IK. At weight 0.5: halfway. Near 0: almost pure animation.
             if (posWeight < 1f)
             {
                 root.SetPosition(stream, Vector3.Lerp(origRootPos, root.GetPosition(stream), posWeight));
@@ -2711,12 +2699,6 @@ w20, w54;
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
 
-            // Elbow bend direction. hasHint is true only when a real lower-arm (elbow) tracker is
-            // assigned, and in that case it wins at full weight: leave its position as the pole
-            // unblended, since the lookup grid is only an estimator and must not override a
-            // measured elbow. With no elbow tracker, drive the pole from the chest-relative lookup
-            // grid (VRIK-style) and flag it so the solver actually applies it, instead of falling
-            // back to the raw animated bend plane.
             if (!hasHint && HasArmBendLookup)
             {
                 Vector3 shoulderPos = root.GetPosition(stream);
@@ -2727,30 +2709,9 @@ w20, w54;
 
                 Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
                 hint = new AffineTransform(shoulderPos + 0.5f * armLen * lookupBend, hintRot);
-                hasHint = true; // apply the synthesized pole in the solve below
+                hasHint = true;
             }
-
-            // Solve arm — hand lands exactly at controller position.
-            // Collision NEVER influences the IK solve. The hand must match the controller 1:1.
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
-
-            // Post-solve: swing the elbow around the shoulder→hand axis to a position
-            // outside the torso. The hand sits on the swing axis so its position is
-            // preserved exactly — only the elbow's angular position changes, staying on
-            // its fixed-radius circle (bone lengths unchanged).
-            //
-            // Torso is modeled as three stacked capsules along the spine chain
-            // (hips→spine, spine→chest, chest→neck) with radii multiplied off chestRadius
-            // to approximate a human shape — widest at hips, narrowest at the waist.
-            //
-            // Direction strategy: we use capsule-capsule for detection (so upper-arm
-            // mid-segment penetration is caught), but for the push direction we take the
-            // vector from the chest axis to the elbow. That direction is always
-            // arm-side-correct — for the right arm it points right, for the left arm it
-            // points left — because the elbow naturally lives on its arm's side of the
-            // body. Using CapsuleCapsuleResolve's normal directly can flip in deep
-            // penetration (its fallback uses a body-relative axis cross product that
-            // doesn't know which arm is being solved).
             int collisionState = 0;
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
@@ -2770,9 +2731,6 @@ w20, w54;
 
                     if (elbowRadius > k_Epsilon)
                     {
-                        // Upper arm sits a bit wider than the hand/forearm capsule
-                        // (1.2× handRadius); approximates a human silhouette without
-                        // adding a dedicated field yet.
                         float upperArmR = Mathf.Max(0f, (handRadius.Get(stream) + handSkin.Get(stream)) * 1.2f);
 
                         float chestRBase = chestRadius.Get(stream);
@@ -2789,10 +2747,6 @@ w20, w54;
 
                         Vector3 chestPos = chestStart.GetPosition(stream);
                         Vector3 neckPos = chestEnd.GetPosition(stream);
-
-                        // Aggregate penetration across all torso segments. We only need
-                        // a "is there overlap" test; the push direction is anatomical
-                        // (shoulder-derived), not per-segment.
                         float worstPen = 0f;
                         if (HandleHips.IsValid(stream) && HandleSpine.IsValid(stream))
                         {
@@ -2812,12 +2766,6 @@ w20, w54;
 
                         if (worstPen > k_Epsilon)
                         {
-                            // Natural-side direction comes from the SHOULDER, not the
-                            // elbow. The shoulder is rigidly attached to the chest, so
-                            // its offset from the chest axis is always on its arm's
-                            // own side. The elbow may have been pushed through to the
-                            // wrong side by an extreme controller pose; using its own
-                            // offset as the direction would keep it stuck there.
                             Vector3 shoulderClosest = ClosestPointOnSegment(shoulderPos, chestPos, neckPos);
                             Vector3 shoulderOutDir = shoulderPos - shoulderClosest;
                             Vector3 shoulderPerp = shoulderOutDir - acDir * Vector3.Dot(shoulderOutDir, acDir);
@@ -2827,25 +2775,12 @@ w20, w54;
                             {
                                 Vector3 targetDir = shoulderPerp / Mathf.Sqrt(shoulderPerpSqr);
                                 Vector3 currentDir = (elbowPos - elbowCenter) / elbowRadius;
-
-                                // If the elbow is on the wrong side of the body (would
-                                // require the arm to pass through the torso to get to
-                                // a "blended halfway" position), no smooth path exists
-                                // — snap fully to the natural side. Smoothing across
-                                // an anatomically impossible region just leaves the arm
-                                // stuck in the middle.
                                 float sideDot = Vector3.Dot(currentDir, targetDir);
                                 float blend = sideDot < 0f ? 1f : k_ElbowCollisionBlend;
                                 collisionState = sideDot < 0f ? 2 : 1;
 
                                 Vector3 blendedDir = Vector3.Slerp(currentDir, targetDir, blend);
                                 Vector3 desiredElbow = elbowCenter + blendedDir * elbowRadius;
-
-                                // SwingElbowAroundAC rotates the shoulder; the hand inherits
-                                // that rotation through the arm hierarchy. Capture the
-                                // controller-matched hand pose set by SolveTwoBoneIKArms and
-                                // restore it after the swing — the hand must match the
-                                // tracker exactly in both position and rotation.
                                 Vector3 preservedHandPos = tip.GetPosition(stream);
                                 Quaternion preservedHandRot = tip.GetRotation(stream);
                                 SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
@@ -2913,9 +2848,6 @@ w20, w54;
 
                 KneeBendPrefLeft = Vector3Property.Bind(animator, component, data.KneeBendPrefLeftProperty),
                 KneeBendPrefRight = Vector3Property.Bind(animator, component, data.KneeBendPrefRightProperty),
-
-                ElbowBendPrefLeft = Vector3Property.Bind(animator, component, data.ElbowBendPrefLeftProperty),
-                ElbowBendPrefRight = Vector3Property.Bind(animator, component, data.ElbowBendPrefRightProperty),
 
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 hintPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftLowerLeg),
