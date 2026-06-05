@@ -105,7 +105,9 @@ public static class BasisNetworkIdResolver
             }
             else
             {
-                BasisDebug.LogError($"Redundant Mapping: '{stringId}' already maps to {resolvedId}.", BasisDebug.LogTag.Networking);
+                // Same stringId resolving to the same id again is harmless (e.g. a network
+                // retransmission). Log it quietly so it doesn't spam the error channel.
+                BasisDebug.Log($"Redundant Mapping: '{stringId}' already maps to {resolvedId}.", BasisDebug.LogTag.Networking);
             }
         }
         else

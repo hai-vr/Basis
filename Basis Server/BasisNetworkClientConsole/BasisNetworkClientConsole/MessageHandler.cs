@@ -20,6 +20,10 @@ namespace Basis.Network
                     AuthIdentityMessage(identity, peer, reader);
                     return; // already recycled inside
                 case BasisNetworkCommons.metaDataChannel:
+                    if (identity != null)
+                    {
+                        identity.Authenticated = true;
+                    }
                     break;
                 case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
                 case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:

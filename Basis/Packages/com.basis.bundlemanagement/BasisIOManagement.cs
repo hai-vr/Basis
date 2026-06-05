@@ -88,6 +88,7 @@ public static class BasisIOManagement
         foreach (char invalidChar in Path.GetInvalidFileNameChars())
         {
             normalizedPlatform = normalizedPlatform.Replace(invalidChar, '_');
+            uniqueVersion = uniqueVersion.Replace(invalidChar, '_');
         }
 
         return $"{uniqueVersion}.{normalizedPlatform}{extension}";
@@ -457,6 +458,13 @@ public static class BasisIOManagement
 
         string folderPath = GenerateFolderPath(subFolder);
         string localPath = Path.Combine(folderPath, fileName);
+
+        string fullFolder = Path.GetFullPath(folderPath);
+        if (fullFolder.Length == 0 || fullFolder[fullFolder.Length - 1] != Path.DirectorySeparatorChar)
+            fullFolder += Path.DirectorySeparatorChar;
+        if (!Path.GetFullPath(localPath).StartsWith(fullFolder, StringComparison.Ordinal))
+            throw new ArgumentException($"GenerateFilePath: resolved path escapes cache folder: {fileName}", nameof(fileName));
+
         BasisDebug.Log($"Generated folder path: {localPath}");
         return localPath;
     }

@@ -39,7 +39,10 @@ namespace Basis.MediaPipe
         {
             rotation = Quaternion.identity;
             positionOffset = Vector3.zero;
-            if (!result.HasFace) return false;
+            if (!result.HasFace)
+            {
+                return false;
+            }
 
             Quaternion headRot = result.FaceTransform.rotation;
             Quaternion rel = _calibrated ? _neutralInverse * headRot : headRot;

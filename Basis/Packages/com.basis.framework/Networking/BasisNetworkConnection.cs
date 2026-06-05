@@ -157,14 +157,24 @@ namespace Basis.Scripts.Networking
         }
         private static void PeerConnectedEvent(NetPeer peer)
         {
-            BasisDebug.Log("Success! Now setting up Networked Local Player");
+            BasisDebug.Log("Transport connected; awaiting authentication before local player setup.");
+            LocalPlayerPeer = peer;
+        }
+
+        public static void SetupLocalPlayer(NetPeer peer)
+        {
+            BasisDebug.Log("Authentication confirmed! Now setting up Networked Local Player");
 #if UNITY_SERVER
             BasisHeadlessRuntimeStatus.MarkConnected();
 #endif
 
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                BasisDebug.Log("PeerConnectedEvent On MainThread");
+                if (LocalPlayerIsConnected)
+                {
+                    return;
+                }
+                BasisDebug.Log("SetupLocalPlayer On MainThread");
                 try
                 {
 #if UNITY_SERVER

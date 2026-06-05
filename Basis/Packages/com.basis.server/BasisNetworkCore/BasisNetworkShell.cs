@@ -99,6 +99,8 @@ namespace Basis.Network.Core
         // avatar bundle compressor to size compressed payloads to fit one datagram.
         public int Mtu { get; }
 
+        public object Tag { get; set; }
+
         // public readonly NetStatistics Statistics;
     }
 

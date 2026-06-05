@@ -239,6 +239,10 @@ namespace Basis.BasisUI
 
             await RefreshCurrentTab(); // refresh the current active tab i.e what is defined by default above _currentPage
 
+            // The panel can be released while we await the refresh (e.g. the user closes
+            // the library menu); don't rebuild a panel that's already gone.
+            if (panel == null || panel.IsReleased) return;
+
             panel.Descriptor.ForceRebuild();
         }
 

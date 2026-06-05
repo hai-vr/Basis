@@ -22,6 +22,7 @@ public static class NetworkServer
     public static EventBasedNetListener Listener;
     public static NetManager Server;
     public static ConcurrentDictionary<int, NetPeer> AuthenticatedPeers = new();
+    public static readonly object AuthenticatedPeerTag = new object();
     public static Configuration Configuration;
     /// <summary>
     /// Allow-list consulted at <see cref="BasisServerHandle.BasisServerHandleEvents.OnNetworkAccepted"/>

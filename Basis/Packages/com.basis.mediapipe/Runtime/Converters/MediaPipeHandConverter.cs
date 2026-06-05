@@ -56,7 +56,10 @@ namespace Basis.MediaPipe
         {
             positionOffset = Vector3.zero;
             rotationOffset = Quaternion.identity;
-            if (lm == null || lm.Length < 21) return false;
+            if (lm == null || lm.Length < 21)
+            {
+                return false;
+            }
 
             Vector3 wrist = lm[0];
             Vector3 rawPos = new Vector3(
@@ -116,10 +119,7 @@ namespace Basis.MediaPipe
 
         public void Apply(in BasisMediaPipeResult result)
         {
-            if (BasisLocalPlayer.Instance == null) return;
             BasisLocalHandDriver driver = BasisLocalPlayer.Instance.LocalHandDriver;
-            if (driver == null) return;
-
             if (result.HasLeftHand && result.LeftHandLandmarks != null && result.LeftHandLandmarks.Length >= 21)
             {
                 ApplyHand(result.LeftHandLandmarks, driver.LeftHand, true);

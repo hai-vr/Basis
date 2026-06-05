@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -13,6 +14,8 @@ namespace Basis.Network.Core
     /// </summary>
     public static class PermissionCompression
     {
+        private const int MaxDecompressedBytes = 1 * 1024 * 1024;
+
         /// <summary>
         /// Compresses an array of permission strings into a single byte payload.
         /// Uses Deflate when it saves space, otherwise sends raw UTF8.
@@ -72,7 +75,23 @@ namespace Basis.Network.Core
                 using (var ds = new DeflateStream(ms, CompressionMode.Decompress))
                 using (var output = new MemoryStream())
                 {
-                    ds.CopyTo(output);
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(8192);
+                    try
+                    {
+                        int read;
+                        while ((read = ds.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            if (output.Length + read > MaxDecompressedBytes)
+                            {
+                                return Array.Empty<string>();
+                            }
+                            output.Write(buffer, 0, read);
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
                     payload = output.ToArray();
                 }
             }

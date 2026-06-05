@@ -303,6 +303,7 @@ namespace BasisServerHandle
 
             if (added)
             {
+                newPeer.Tag = NetworkServer.AuthenticatedPeerTag;
                 NetworkServer.RebuildPeerSnapshot();
                 BNL.Log($"Peer connected: {newPeer.Id}");
                 //never ever assume the UUID provided by the user is good always recalc on the server.
@@ -888,7 +889,7 @@ namespace BasisServerHandle
                     break;
                 default:
                     BNL.LogError($"Missing Mode {LocalLoadResource.Mode}");
-                    break;
+                    return;
             }
             // Route based on load strategy
             switch (LocalLoadResource.LoadStrategy)
@@ -934,7 +935,7 @@ namespace BasisServerHandle
                     break;
                 default:
                     BNL.LogError($"Missing Mode {UnLoadResource.Mode}");
-                    break;
+                    return;
             }
 
             //returns a message with the ushort back to the client, or it sends it to everyone if its new.
@@ -946,7 +947,7 @@ namespace BasisServerHandle
         {
             if (NetworkServer.Configuration.DisableWriteUnlessAdminPersistentFlag)
             {
-                if (PermissionIntegration.HasValidRequirement(peer, PermNodes.ConfigurationEditor))
+                if (!PermissionIntegration.HasValidRequirement(peer, PermNodes.ConfigurationEditor))
                 {
                     return;
                 }

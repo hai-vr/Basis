@@ -239,6 +239,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> EnableStatistics = new("enablestatistics", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> ShowVoiceRange = new("showvoicerange", new BasisPlatformDefault<bool>(false));
+
         /// <summary>
         /// When on, the client runs a loopback-only HTTP listener on
         /// 127.0.0.1:<see cref="StreamingMetaPort"/> exposing /stats.json and
@@ -1289,6 +1291,7 @@ namespace Basis.BasisUI
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
+            ShowVoiceRange.LoadBindingValue();
             DevDebugFaceTracking.LoadBindingValue();
             DevDebugEyeTracking.LoadBindingValue();
             DevShowBuildInfo.LoadBindingValue();

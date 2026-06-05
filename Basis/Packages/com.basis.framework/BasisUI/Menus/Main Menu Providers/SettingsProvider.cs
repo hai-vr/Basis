@@ -396,6 +396,14 @@ namespace Basis.BasisUI
             toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
             toggleAvatarPreviewMirror.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreviewMirror.description"));
 
+            toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Value);
+            toggleAvatarPreview.OnValueChanged += (val) =>
+            {
+                toggleAvatarPreviewMirror.Descriptor.SetActive(val);
+                hudGroup.ForceRebuild();
+                descriptor.ForceRebuild();
+            };
+
             // Third-person camera is desktop-only; hide the entire group in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
             {
@@ -408,13 +416,18 @@ namespace Basis.BasisUI
                 toggleThirdPerson.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
                 toggleThirdPerson.Descriptor.SetDescription(BasisLocalization.Get("settings.general.thirdPerson.description"));
 
-                // Audio source toggle is only meaningful while third-person is active, but we
-                // leave it visible alongside the parent toggle so the user can pre-configure
-                // their preference before flipping into third-person.
                 PanelToggle toggleAudioFromHead = PanelToggle.CreateNewEntry(cameraGroup);
                 toggleAudioFromHead.AssignBinding(BasisSettingsDefaults.AudioListenerFollowsHead);
                 toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
                 toggleAudioFromHead.Descriptor.SetDescription(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.description"));
+
+                toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Value);
+                toggleThirdPerson.OnValueChanged += (val) =>
+                {
+                    toggleAudioFromHead.Descriptor.SetActive(val);
+                    cameraGroup.ForceRebuild();
+                    descriptor.ForceRebuild();
+                };
             }
 
             // One reset button for this whole page
@@ -483,6 +496,11 @@ namespace Basis.BasisUI
             networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
             networkingGroup.SetDescription(BasisLocalization.Get("settings.general.networking.description"));
 
+            PanelToggle toggleDirectConnections = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
+            toggleDirectConnections.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.directConnections"));
+            toggleDirectConnections.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.directConnections.description"));
+            toggleDirectConnections.SetValueWithoutNotify(!BasisSettingsDefaults.DisableDirectConnections.RawValue);
+
             PanelSlider sliderP2PRate = PanelSlider.CreateEntryAndBind(
                 networkingGroup.ContentParent,
                 new PanelSlider.SliderSettings(
@@ -512,35 +530,29 @@ namespace Basis.BasisUI
                 _avatarRateTickSubscribed = true;
             }
 
-            PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
-            toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
-            toggleJitterBufferOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.jitterBufferOverride"));
-            toggleJitterBufferOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.jitterBufferOverride.description"));
-
-            PanelSlider sliderJitterBuffer = PanelSlider.CreateEntryAndBind(
-                networkingGroup.ContentParent,
-                new PanelSlider.SliderSettings(
-                    BasisLocalization.Get("settings.general.networking.jitterBuffer"),
-                    BasisLocalization.Get("settings.general.networking.jitterBuffer.description"),
-                    0, 6, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.NetworkJitterBufferDepth);
-
-            sliderJitterBuffer.Descriptor.SetActive(toggleJitterBufferOverride.Value);
-            toggleJitterBufferOverride.OnValueChanged += (val) =>
-            {
-                sliderJitterBuffer.Descriptor.SetActive(val);
-                networkingGroup.ForceRebuild();
-            };
-
-            PanelToggle toggleDisableDirectConn = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
-            toggleDisableDirectConn.AssignBinding(BasisSettingsDefaults.DisableDirectConnections);
-            toggleDisableDirectConn.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.disableDirectConnections"));
-            toggleDisableDirectConn.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.disableDirectConnections.description"));
-
             PanelElementDescriptor encryptionInfo = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
             encryptionInfo.SetTitle(BasisLocalization.Get("settings.general.networking.encryption.title"));
             encryptionInfo.SetDescription(BuildEncryptionStatusText());
+
+            void RefreshDirectConnectionVisibility(bool directOn)
+            {
+                sliderP2PRate.Descriptor.SetActive(directOn);
+                encryptionInfo.SetActive(directOn);
+                if (!directOn)
+                {
+                    _avatarRateWarnShown = false;
+                    p2pRateWarning.SetActive(false);
+                }
+                networkingGroup.ForceRebuild();
+            }
+            RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
+            toggleDirectConnections.OnValueChanged += (directOn) =>
+            {
+                BasisSettingsDefaults.DisableDirectConnections.SetValue(!directOn);
+                encryptionInfo.SetDescription(BuildEncryptionStatusText());
+                RefreshDirectConnectionVisibility(directOn);
+            };
         }
 
         private static string BuildEncryptionStatusText()
@@ -1878,6 +1890,31 @@ namespace Basis.BasisUI
             RefreshGizmoSubVisibility(toggleShowGizmos.Value);
             toggleShowGizmos.OnValueChanged += RefreshGizmoSubVisibility;
 
+            // ---- Networking (advanced) ----
+            PanelElementDescriptor networkGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            networkGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
+
+            PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkGroup.ContentParent);
+            toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
+            toggleJitterBufferOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.jitterBufferOverride"));
+            toggleJitterBufferOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.jitterBufferOverride.description"));
+
+            PanelSlider sliderJitterBuffer = PanelSlider.CreateEntryAndBind(
+                networkGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.general.networking.jitterBuffer"),
+                    BasisLocalization.Get("settings.general.networking.jitterBuffer.description"),
+                    0, 6, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.NetworkJitterBufferDepth);
+
+            sliderJitterBuffer.Descriptor.SetActive(toggleJitterBufferOverride.Value);
+            toggleJitterBufferOverride.OnValueChanged += (val) =>
+            {
+                sliderJitterBuffer.Descriptor.SetActive(val);
+                networkGroup.ForceRebuild();
+            };
+
             // ---- Avatar Recorder ----
             PanelElementDescriptor recorderGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1943,6 +1980,32 @@ namespace Basis.BasisUI
             recorderUpdaterGO.transform.SetParent(recorderGroup.transform, false);
             recorderUpdaterGO.AddComponent<BasisRecorderPanelUpdater>()
                 .Initialize(recorderStatusField, recorderButton);
+
+            // ---- Local Voice Range ----
+            PanelElementDescriptor voiceRangeGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            voiceRangeGroup.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.title"));
+            voiceRangeGroup.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.description"));
+
+            PanelToggle voiceRangeToggle = PanelToggle.CreateNewEntry(voiceRangeGroup.ContentParent);
+            voiceRangeToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.enable"));
+            voiceRangeToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.enable.description"));
+            voiceRangeToggle.AssignBinding(BasisSettingsDefaults.ShowVoiceRange);
+
+            PanelElementDescriptor voiceRangeStatusField =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, voiceRangeGroup.ContentParent);
+            voiceRangeStatusField.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.status.title"));
+            voiceRangeStatusField.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.empty"));
+
+            void RefreshVoiceRangeVisibility(bool on)
+            {
+                voiceRangeStatusField.SetActive(on);
+                if (on) BasisVoiceRangePanelUpdater.Attach(voiceRangeStatusField);
+                else BasisVoiceRangePanelUpdater.Detach();
+                voiceRangeGroup.ForceRebuild();
+            }
+            RefreshVoiceRangeVisibility(voiceRangeToggle.Value);
+            voiceRangeToggle.OnValueChanged += RefreshVoiceRangeVisibility;
 
             // ---- Identity (DID) ----
             // The user's DID/UUID is the long-lived id the server keys ban,
@@ -2396,6 +2459,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
+            BasisSettingsDefaults.ShowVoiceRange.ResetToDefault();
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();
             BasisSettingsDefaults.StreamingMetaPort.ResetToDefault();
             BasisSettingsDefaults.DisableLogging.ResetToDefault();

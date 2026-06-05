@@ -17,7 +17,6 @@ namespace Basis.Network
     public class ClientManager
     {
         public int ClientCount => ConfigManager.ClientCount;
-        private readonly List<NetworkClient> clients = new();
         private readonly CancellationTokenSource cts = new();
         public NetPeer[] FinalPeers;
         public NetworkClient[] FinalClients;
@@ -27,11 +26,10 @@ namespace Basis.Network
         private byte[] _cachedPasswordBytes;
         private byte[] _cachedAvatarBytes;
 
-        public async Task StartClientsAsync()
+        public void Prepare()
         {
             Size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
             BNL.Log($"Payload Size for muscles is now {Size}");
-            List<NetPeer> peers = new();
 
             _cachedPasswordBytes = Encoding.UTF8.GetBytes(ConfigManager.Password);
             var avatarInfo = new BasisAvatarNetworkLoad
@@ -41,6 +39,12 @@ namespace Basis.Network
             };
             _cachedAvatarBytes = avatarInfo.EncodeToBytes();
 
+            FinalPeers = new NetPeer[ClientCount];
+            FinalClients = new NetworkClient[ClientCount];
+        }
+
+        public async Task StartClientsAsync()
+        {
             for (int Index = 0; Index < ClientCount; Index++)
             {
                 var name = NameGenerator.GenerateRandomPlayerName();
@@ -75,25 +79,24 @@ namespace Basis.Network
 
                 if (peer != null)
                 {
+                    peer.Tag = identity;
                     netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, p, r, ch, m);
                     netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
-                    lock (clients) clients.Add(netClient);
-                    lock (peers) peers.Add(peer);
+                    Volatile.Write(ref FinalClients[Index], netClient);
+                    Volatile.Write(ref FinalPeers[Index], peer);
 
-                    BNL.Log($"Connected: {name} ({identity.Did})");
+                    BNL.Log($"Connecting: {name} ({identity.Did})");
                 }
 
                 await Task.Delay(1, cts.Token);
             }
-            FinalPeers = [.. peers];
-            FinalClients = [.. clients];
         }
         public async Task ReconnectClientAsync(int index)
         {
-            if (index < 0 || index >= clients.Count) return;
+            if (index < 0 || index >= FinalClients.Length) return;
 
-            var oldClient = clients[index];
+            var oldClient = Volatile.Read(ref FinalClients[index]);
 
             if (oldClient?.listener != null)
             {
@@ -135,10 +138,10 @@ namespace Basis.Network
 
             if (peer != null)
             {
+                peer.Tag = identity;
                 netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, p, r, ch, m);
                 netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
-                lock (clients) clients[index] = netClient;
                 Interlocked.Exchange(ref FinalClients[index], netClient);
                 Interlocked.Exchange(ref FinalPeers[index], peer);
 
@@ -147,7 +150,8 @@ namespace Basis.Network
         }
         public Task StopClientsAsync()
         {
-            foreach (var client in clients) client?.Disconnect();
+            if (FinalClients != null)
+                foreach (var client in FinalClients) client?.Disconnect();
             return Task.CompletedTask;
         }
         public Configuration CreateConfig()
@@ -164,6 +168,8 @@ namespace Basis.Network
     public sealed class ConsoleClientIdentity
     {
         private readonly PrivKey _privateKey;
+
+        public volatile bool Authenticated;
 
         public string Did { get; }
 

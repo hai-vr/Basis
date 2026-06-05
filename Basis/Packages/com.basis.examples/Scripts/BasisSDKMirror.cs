@@ -247,6 +247,11 @@ public class BasisSDKMirror : MonoBehaviour
         xFlip = Matrix4x4.Scale(new Vector3(-1f, 1f, 1f));
 
         var mainCamera = BasisLocalCameraDriver.Instance.Camera;
+        if (mainCamera == null)
+        {
+            BasisDebug.LogError("BasisSDKMirror could not initialize: the local camera is not available yet.");
+            return;
+        }
 
         CreatePortalCamera(mainCamera, StereoscopicEye.Left, ref LeftCamera, ref PortalTextureLeft);
         CreatePortalCamera(mainCamera, StereoscopicEye.Right, ref RightCamera, ref PortalTextureRight);

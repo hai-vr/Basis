@@ -256,6 +256,16 @@ namespace Basis.BasisUI
 
         private void OnTriggerChanged(BasisInput device)
         {
+            // The calibration panel (and its Button) can be released while trigger
+            // subscriptions are still active — e.g. a scene load fires input events
+            // after the menu has been torn down. Stop listening and bail so we never
+            // dereference a destroyed Button.
+            if (Button == null || Button.IsReleased)
+            {
+                UnsubscribeAll();
+                return;
+            }
+
             if (_calibrated)
                 return;
 

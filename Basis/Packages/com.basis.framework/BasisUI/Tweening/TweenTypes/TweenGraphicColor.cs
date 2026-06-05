@@ -42,6 +42,12 @@ namespace Basis.BTween
 
         public override bool Process(double currentTime)
         {
+            if (Target == null)
+            {
+                Reset();
+                return false;
+            }
+
             if (base.Process(currentTime))
                 return true;
 
@@ -64,8 +70,14 @@ namespace Basis.BTween
 
         public override void Finish()
         {
-            Target.color = EndValue;
+            if (Target != null) Target.color = EndValue;
             base.Finish();
+        }
+
+        public override void Reset()
+        {
+            base.Reset();
+            Target = null;
         }
     }
 }

@@ -11,7 +11,8 @@
         "BasisProfiler",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime",
-        "HVR.Basis.Comms"
+        "HVR.Basis.Comms",
+        "BasisDebug"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

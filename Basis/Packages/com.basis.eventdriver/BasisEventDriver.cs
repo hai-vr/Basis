@@ -35,7 +35,6 @@ namespace Basis.EventDriver
             false;
 #endif
         // Profiler section IDs live in BasisEventDriverProfileSections (pulled in via `using static`).
-        private static bool _hvrSimulateErrorLogged;
         // ── Partial method declarations (calls are stripped in non-editor builds) ──
         partial void ProfileLateUpdateInit();
         partial void ProfileBegin(int section);
@@ -139,6 +138,12 @@ namespace Basis.EventDriver
         /// </summary>
         public void Update()
         {
+            try { UpdateBody(); }
+            catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.Update failed: {ex}", BasisDebug.LogTag.Event); }
+        }
+
+        private void UpdateBody()
+        {
             DeltaTime = Time.deltaTime;
             unscaledDeltaTime = Time.unscaledDeltaTime;
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
@@ -187,6 +192,12 @@ namespace Basis.EventDriver
         /// </summary>
         public void FixedUpdate()
         {
+            try { FixedUpdateBody(); }
+            catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.FixedUpdate failed: {ex}", BasisDebug.LogTag.Event); }
+        }
+
+        private void FixedUpdateBody()
+        {
             fixedDeltaTime = Time.fixedDeltaTime;
             fixedTimeAsDouble = Time.fixedTimeAsDouble;
             if (BasisLocalPlayer.PlayerReady)
@@ -199,6 +210,12 @@ namespace Basis.EventDriver
         /// microphone updates (client), network apply, and JigglePhysics scheduling/pose/render.
         /// </summary>
         public void LateUpdate()
+        {
+            try { LateUpdateBody(); }
+            catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.LateUpdate failed: {ex}", BasisDebug.LogTag.Event); }
+        }
+
+        private void LateUpdateBody()
         {
             ProfileLateUpdateInit();
 
@@ -291,11 +308,7 @@ namespace Basis.EventDriver
             }
             catch (Exception ex)
             {
-                if (!_hvrSimulateErrorLogged)
-                {
-                    _hvrSimulateErrorLogged = true;
-                    Debug.LogError($"HVRBasisBuiltInAddresses.Simulate failed: {ex}");
-                }
+                BasisDebug.LogErrorOnce($"HVRBasisBuiltInAddresses.Simulate failed: {ex}", BasisDebug.LogTag.Event);
             }
 
             // ── BlendShape simulate ──
@@ -377,6 +390,12 @@ namespace Basis.EventDriver
         /// render-time simulation and to publish avatar changes.
         /// </summary>
         private void OnBeforeRender()
+        {
+            try { OnBeforeRenderBody(); }
+            catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.OnBeforeRender failed: {ex}", BasisDebug.LogTag.Event); }
+        }
+
+        private void OnBeforeRenderBody()
         {
             ProfileBeforeRenderInit();
 

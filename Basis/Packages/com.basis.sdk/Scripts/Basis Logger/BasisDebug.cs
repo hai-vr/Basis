@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 public static class BasisDebug
@@ -56,6 +58,93 @@ public static class BasisDebug
     {
         Debug.unityLogger.Log(FormatMessage(message, logTag, messageType));
     }
+
+    private static readonly ConcurrentDictionary<(string, int), byte> SiteOnceKeys = new ConcurrentDictionary<(string, int), byte>();
+    private static readonly ConcurrentDictionary<string, byte> NamedOnceKeys = new ConcurrentDictionary<string, byte>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetOnceKeys()
+    {
+        SiteOnceKeys.Clear();
+        NamedOnceKeys.Clear();
+    }
+
+    private static bool FirstTimeAtSite(string file, int line)
+    {
+        return SiteOnceKeys.TryAdd((file, line), 0);
+    }
+
+    private static bool FirstTimeForKey(string key)
+    {
+        return NamedOnceKeys.TryAdd(key, 0);
+    }
+
+    [HideInCallstack]
+    public static void LogOnce(string message, LogTag logTag = LogTag.System, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+    {
+        if (!FirstTimeAtSite(file, line)) return;
+        Log(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogWarningOnce(string message, LogTag logTag = LogTag.System, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+    {
+        if (!FirstTimeAtSite(file, line)) return;
+        LogWarning(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogErrorOnce(string message, LogTag logTag = LogTag.System, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+    {
+        if (!FirstTimeAtSite(file, line)) return;
+        LogError(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogOnce(ref bool fired, string message, LogTag logTag = LogTag.System)
+    {
+        if (fired) return;
+        fired = true;
+        Log(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogWarningOnce(ref bool fired, string message, LogTag logTag = LogTag.System)
+    {
+        if (fired) return;
+        fired = true;
+        LogWarning(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogErrorOnce(ref bool fired, string message, LogTag logTag = LogTag.System)
+    {
+        if (fired) return;
+        fired = true;
+        LogError(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogOnce(string key, string message, LogTag logTag = LogTag.System)
+    {
+        if (!FirstTimeForKey(key)) return;
+        Log(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogWarningOnce(string key, string message, LogTag logTag = LogTag.System)
+    {
+        if (!FirstTimeForKey(key)) return;
+        LogWarning(message, logTag);
+    }
+
+    [HideInCallstack]
+    public static void LogErrorOnce(string key, string message, LogTag logTag = LogTag.System)
+    {
+        if (!FirstTimeForKey(key)) return;
+        LogError(message, logTag);
+    }
+
     [HideInCallstack]
     public static string FormatMessage(string message, LogTag logTag, MessageType messageType)
     {

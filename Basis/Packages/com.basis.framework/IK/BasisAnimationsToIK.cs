@@ -44,6 +44,7 @@ public class BasisAnimationsToIK : MonoBehaviour
                 Transform bone = Animator.GetBoneTransform(humanoidBone);
                 if (bone == null)
                 {
+                    BasisDebug.LogWarningOnce("BasisAnimationsToIK.MissingBone." + humanoidBone, $"BasisAnimationsToIK: avatar has no {humanoidBone} bone for tracker role {role}; tracker {tracker.name} not bound.", BasisDebug.LogTag.IK);
                     continue;
                 }
 
@@ -102,7 +103,16 @@ public class BasisAnimationsToIK : MonoBehaviour
 
             b.Tracker.FollowMovement.SetPositionAndRotation(targetPos, targetRot);
         }
+        if (Animator == null)
+        {
+            return;
+        }
         Transform Trans = Animator.GetBoneTransform(HumanBodyBones.Head);
+        if (Trans == null || BasisDesktopEye.Instance == null)
+        {
+            BasisDebug.LogErrorOnce("BasisAnimationsToIK: missing Head bone or BasisDesktopEye.Instance; desktop eye coordinate not updated.", BasisDebug.LogTag.IK);
+            return;
+        }
         BasisDesktopEye.Instance.ScaledDeviceCoord.position = Trans.position;
         BasisDesktopEye.Instance.ScaledDeviceCoord.rotation = Trans.rotation;
     }

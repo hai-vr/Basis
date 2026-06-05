@@ -1823,12 +1823,12 @@
       "value": "Packets to stay behind by. Higher absorbs more network jitter at the cost of latency. 2 is default; raise on flaky connections, lower on LAN."
     },
     {
-      "key": "settings.general.networking.disableDirectConnections",
-      "value": "Disable Direct Connections"
+      "key": "settings.general.networking.directConnections",
+      "value": "Direct Connections"
     },
     {
-      "key": "settings.general.networking.disableDirectConnections.description",
-      "value": "Block peer-to-peer links. Incoming requests are auto-declined and you cannot start one. Voice and avatar always go through the server. Existing sessions are not closed."
+      "key": "settings.general.networking.directConnections.description",
+      "value": "Allow peer-to-peer links with other players. When off, incoming requests are auto-declined and you cannot start one; voice and avatar always go through the server. Existing sessions are not closed."
     },
     {
       "key": "settings.general.networking.encryption.title",
@@ -3689,6 +3689,38 @@
     {
       "key": "settings.developer.visualHelpers.description",
       "value": "Toggle individual debug visualizations."
+    },
+    {
+      "key": "settings.developer.voiceRange.title",
+      "value": "Local Voice Range"
+    },
+    {
+      "key": "settings.developer.voiceRange.description",
+      "value": "Live list of nearby players. 'hear' = they are inside your hearing range, so you can hear them; 'mic' = they are inside your microphone range, so your voice reaches them. This is YOUR side only — each other player has their own hearing and microphone range settings (their side) that you can't see here, and those can put you out of range for them even when this shows in range."
+    },
+    {
+      "key": "settings.developer.voiceRange.enable",
+      "value": "Show Local Voice Range"
+    },
+    {
+      "key": "settings.developer.voiceRange.enable.description",
+      "value": "When on, shows the live in-range list below. Off by default."
+    },
+    {
+      "key": "settings.developer.voiceRange.status.title",
+      "value": "Players"
+    },
+    {
+      "key": "settings.developer.voiceRange.summary",
+      "value": "In your hearing range: {0}   ·   In your mic range: {1}   ·   Players: {2}"
+    },
+    {
+      "key": "settings.developer.voiceRange.empty",
+      "value": "No other players are connected."
+    },
+    {
+      "key": "settings.developer.voiceRange.more",
+      "value": "…and {0} more"
     },
     {
       "key": "settings.developer.gizmos.title",

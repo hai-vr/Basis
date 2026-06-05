@@ -20,6 +20,8 @@ namespace Basis.MediaPipe
 
         private static void BuildSection(RectTransform parent)
         {
+            PanelElementDescriptor tabDescriptor = parent.GetComponentInParent<PanelElementDescriptor>(true);
+
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
             group.SetTitle("Webcam Tracking");
@@ -36,6 +38,11 @@ namespace Basis.MediaPipe
                 BasisMediaPipeManagement.Instance.SetEnabled(value);
                 BasisMediaPipeManagement.Instance.ApplySettings();
             };
+
+            PanelElementDescriptor settingsGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, parent);
+            settingsGroup.SetTitle(string.Empty);
+            content = settingsGroup.ContentParent;
 
             PanelDropdown cameraDropdown = PanelDropdown.CreateNewEntry(content);
             cameraDropdown.Descriptor.SetTitle("Camera");
@@ -213,7 +220,7 @@ namespace Basis.MediaPipe
             };
 
             PanelElementDescriptor diagnostics = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, parent);
+                PanelElementDescriptor.ElementStyles.Group, content);
             diagnostics.SetTitle("Diagnostics");
             diagnostics.SetDescription("Live webcam tracking state.");
 
@@ -234,6 +241,15 @@ namespace Basis.MediaPipe
 
             refresh.OnClicked += RefreshStatus;
             RefreshStatus();
+
+            void RefreshWebcamSettingsVisibility(bool on)
+            {
+                settingsGroup.SetActive(on);
+                settingsGroup.ForceRebuild();
+                tabDescriptor?.ForceRebuild();
+            }
+            RefreshWebcamSettingsVisibility(BasisMediaPipeSettings.Enable.RawValue);
+            enableToggle.OnValueChanged += RefreshWebcamSettingsVisibility;
         }
     }
 }

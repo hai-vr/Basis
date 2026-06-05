@@ -21,6 +21,16 @@ public static class BasisNetworkMessageProcessor
     public static void ProcessMessage(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
     {
         BasisNetworkStatistics.RecordInbound(channel, reader.AvailableBytes);
+        if (channel != BasisNetworkCommons.AuthIdentityChannel && !ReferenceEquals(peer.Tag, NetworkServer.AuthenticatedPeerTag))
+        {
+            reader.Recycle();
+            int preAuthErrors = _peerErrorCounts.AddOrUpdate(peer.Id, 1, (_, c) => c + 1);
+            if (preAuthErrors <= 5 || preAuthErrors % 100 == 0)
+            {
+                BNL.LogError($"Pre-auth message on channel {channel} from peer {peer.Id} ({peer.Address}) before authentication (error #{preAuthErrors}).");
+            }
+            return;
+        }
         try
         {
             switch (channel)

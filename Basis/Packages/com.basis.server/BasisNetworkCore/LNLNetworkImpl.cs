@@ -140,6 +140,12 @@ namespace Basis.Network.Core
 
         int NetPeer.Mtu => peer.Mtu;
 
+        object NetPeer.Tag
+        {
+            get => peer.Tag;
+            set => peer.Tag = value;
+        }
+
         void NetPeer.Disconnect()
         {
             peer.Disconnect();

@@ -20,7 +20,7 @@ namespace Basis
             NetDebug.Logger = new BasisClientLogger();
 
             var clientManager = new ClientManager();
-            await clientManager.StartClientsAsync();
+            clientManager.Prepare();
 
             AppDomain.CurrentDomain.ProcessExit += (_, __) =>
             {
@@ -33,6 +33,8 @@ namespace Basis
 
             // Drive all clients from one worker per CPU core
             StartClientDriverLoops(clientManager.FinalClients, clientManager.FinalPeers);
+
+            await clientManager.StartClientsAsync();
 
             // Start random reconnects
             _ = StartRandomReconnectLoop(clientManager);
@@ -102,7 +104,7 @@ namespace Basis
                     for (int i = start; i < end; i++)
                     {
                         var peer = Volatile.Read(ref peers[i]);
-                        if (peer != null)
+                        if (peer != null && (peer.Tag as ConsoleClientIdentity)?.Authenticated == true)
                             MovementSender.ProcessSingle(peer, i);
                     }
                 }

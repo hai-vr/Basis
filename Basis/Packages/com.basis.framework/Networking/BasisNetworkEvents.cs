@@ -345,6 +345,10 @@ public static class BasisNetworkEvents
                 BasisNetworkManagement.ServerMetaDataMessage = SMDM;
                 BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
                 BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
+                if (BasisNetworkConnection.LocalPlayerIsConnected == false)
+                {
+                    BasisNetworkConnection.SetupLocalPlayer(peer);
+                }
                 break;
             case BasisNetworkCommons.StoreDatabaseChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
