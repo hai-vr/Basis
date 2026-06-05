@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "ゲーム全体の音量。" },
     { "key": "settings.audio.menuVolume", "value": "メニュー音量" },
     { "key": "settings.audio.worldVolume", "value": "ワールド音量" },
-    { "key": "settings.audio.mediaVolume", "value": "メディア音量" },
     { "key": "settings.audio.voiceVolume", "value": "ボイス音量" },
     { "key": "settings.audio.avatarVolume", "value": "アバター音量" },
     { "key": "settings.audio.propVolume", "value": "プロップ音量" },

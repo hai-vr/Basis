@@ -656,12 +656,6 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.WorldVolume);
             sliderWorldVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyWorldVolume);
 
-            PanelSlider sliderVideoVolume = PanelSlider.CreateEntryAndBind(
-                mixerGroup,
-                PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.mediaVolume")),
-                BasisSettingsDefaults.MediaVolume);
-            sliderVideoVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyMediaVolume);
-
             PanelSlider sliderVoiceVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.voiceVolume")),
@@ -695,7 +689,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MainVolume.ResetToDefault();
             BasisSettingsDefaults.MenuVolume.ResetToDefault();
             BasisSettingsDefaults.WorldVolume.ResetToDefault();
-            BasisSettingsDefaults.MediaVolume.ResetToDefault();
             BasisSettingsDefaults.VoiceVolume.ResetToDefault();
             BasisSettingsDefaults.AvatarVolume.ResetToDefault();
             BasisSettingsDefaults.PropVolume.ResetToDefault();

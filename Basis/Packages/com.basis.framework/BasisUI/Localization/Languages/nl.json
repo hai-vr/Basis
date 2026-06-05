@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "Algemeen spelvolume." },
     { "key": "settings.audio.menuVolume", "value": "Menuvolume" },
     { "key": "settings.audio.worldVolume", "value": "Wereldvolume" },
-    { "key": "settings.audio.mediaVolume", "value": "Mediavolume" },
     { "key": "settings.audio.voiceVolume", "value": "Stemvolume" },
     { "key": "settings.audio.avatarVolume", "value": "Avatarvolume" },
     { "key": "settings.audio.propVolume", "value": "Propvolume" },

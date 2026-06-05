@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "समग्र गेम वॉल्यूम।" },
     { "key": "settings.audio.menuVolume", "value": "मेनू वॉल्यूम" },
     { "key": "settings.audio.worldVolume", "value": "वर्ल्ड वॉल्यूम" },
-    { "key": "settings.audio.mediaVolume", "value": "मीडिया वॉल्यूम" },
     { "key": "settings.audio.voiceVolume", "value": "आवाज़ वॉल्यूम" },
     { "key": "settings.audio.avatarVolume", "value": "अवतार वॉल्यूम" },
     { "key": "settings.audio.propVolume", "value": "प्रॉप वॉल्यूम" },

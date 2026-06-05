@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "مجموعی گیم والیوم۔" },
     { "key": "settings.audio.menuVolume", "value": "مینیو والیوم" },
     { "key": "settings.audio.worldVolume", "value": "دنیا کا والیوم" },
-    { "key": "settings.audio.mediaVolume", "value": "میڈیا والیوم" },
     { "key": "settings.audio.voiceVolume", "value": "آواز کا والیوم" },
     { "key": "settings.audio.avatarVolume", "value": "اواتار والیوم" },
     { "key": "settings.audio.propVolume", "value": "پروپ والیوم" },

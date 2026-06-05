@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "সামগ্রিক গেম ভলিউম।" },
     { "key": "settings.audio.menuVolume", "value": "মেনু ভলিউম" },
     { "key": "settings.audio.worldVolume", "value": "বিশ্ব ভলিউম" },
-    { "key": "settings.audio.mediaVolume", "value": "মিডিয়া ভলিউম" },
     { "key": "settings.audio.voiceVolume", "value": "ভয়েস ভলিউম" },
     { "key": "settings.audio.avatarVolume", "value": "অবতার ভলিউম" },
     { "key": "settings.audio.propVolume", "value": "প্রপ ভলিউম" },

@@ -16,6 +16,7 @@ namespace Basis.MediaPipe
         public bool InvertRoll = false;
         public float PositionGain = 1f;
         public float RollGain = 1f;
+        public float HeightOffset = 0f;
         public float Smoothing = 0.5f;
 
         private Quaternion _neutralInverse = Quaternion.identity;
@@ -57,9 +58,9 @@ namespace Basis.MediaPipe
             Vector3 translation = result.FaceTransform.GetColumn(3);
             Vector3 delta = _calibrated ? translation - _neutralPosition : Vector3.zero;
             // MediaPipe head transform translation is camera-space (cm); map to player-local
-            // (mirror x, y up, z forward) and scale cm->m.
-            // Y intentionally dropped: vertical head bob fights eye-height and looks bad.
-            Vector3 targetPos = new Vector3(-delta.x, 0f, -delta.z) * (PositionGain * 0.01f);
+            // (mirror x, z forward) and scale cm->m. Vertical bob is excluded (it fights eye
+            // height); HeightOffset is a static trim instead.
+            Vector3 targetPos = new Vector3(-delta.x * PositionGain * 0.01f, HeightOffset, -delta.z * PositionGain * 0.01f);
             _smoothedPosition = Vector3.Lerp(_smoothedPosition, targetPos, t);
             positionOffset = _smoothedPosition;
             return true;

@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "Volume geral do jogo." },
     { "key": "settings.audio.menuVolume", "value": "Volume do Menu" },
     { "key": "settings.audio.worldVolume", "value": "Volume do Mundo" },
-    { "key": "settings.audio.mediaVolume", "value": "Volume de Mídia" },
     { "key": "settings.audio.voiceVolume", "value": "Volume de Voz" },
     { "key": "settings.audio.avatarVolume", "value": "Volume de Avatar" },
     { "key": "settings.audio.propVolume", "value": "Volume de Adereços" },

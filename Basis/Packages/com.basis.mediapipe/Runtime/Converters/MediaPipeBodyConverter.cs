@@ -39,7 +39,13 @@ namespace Basis.MediaPipe
             rotation = Quaternion.identity;
             if (!TryTorsoRotation(result, out Quaternion rot)) return false;
 
-            Quaternion rel = _calibrated ? _neutralInverse * rot : rot;
+            if (!_calibrated)
+            {
+                _neutralInverse = Quaternion.Inverse(rot);
+                _calibrated = true;
+            }
+
+            Quaternion rel = _neutralInverse * rot;
             Vector3 euler = rel.eulerAngles;
             float twist = NormalizeAngle(euler.y) * (InvertTwist ? -1f : 1f) * TwistGain;
             float lean = NormalizeAngle(euler.x) * (InvertLean ? -1f : 1f) * LeanGain;

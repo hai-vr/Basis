@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "整体游戏音量。" },
     { "key": "settings.audio.menuVolume", "value": "菜单音量" },
     { "key": "settings.audio.worldVolume", "value": "世界音量" },
-    { "key": "settings.audio.mediaVolume", "value": "媒体音量" },
     { "key": "settings.audio.voiceVolume", "value": "语音音量" },
     { "key": "settings.audio.avatarVolume", "value": "虚拟形象音量" },
     { "key": "settings.audio.propVolume", "value": "道具音量" },

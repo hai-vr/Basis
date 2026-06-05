@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "مستوى صوت اللعبة الإجمالي." },
     { "key": "settings.audio.menuVolume", "value": "مستوى صوت القائمة" },
     { "key": "settings.audio.worldVolume", "value": "مستوى صوت العالم" },
-    { "key": "settings.audio.mediaVolume", "value": "مستوى صوت الوسائط" },
     { "key": "settings.audio.voiceVolume", "value": "مستوى الصوت" },
     { "key": "settings.audio.avatarVolume", "value": "مستوى صوت الأفاتار" },
     { "key": "settings.audio.propVolume", "value": "مستوى صوت المجسمات" },

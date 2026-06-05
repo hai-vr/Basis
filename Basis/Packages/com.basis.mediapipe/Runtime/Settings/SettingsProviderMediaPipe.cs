@@ -122,7 +122,10 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Hands & Fingers", "Track finger curl and splay.", BasisMediaPipeSettings.EnableHands);
             AddFeatureToggle("Head Rotation", "Your avatar's head turns, nods and tilts to follow your real head. The camera stays on the mouse.", BasisMediaPipeSettings.EnableHeadRotation);
             AddFeatureToggle("Head Position", "Your avatar's head shifts to follow your real head movement.", BasisMediaPipeSettings.EnableHeadPosition);
-            AddFeatureToggle("Hand Position (experimental)", "Move your avatar's hands to match your real hands (in addition to finger curl).", BasisMediaPipeSettings.EnableHandTracking);
+            AddFeatureToggle("Arm Tracking (experimental)", "Move your avatar's arms to match your real arms, retargeted from the pose skeleton (turns on the pose model; extra CPU).", BasisMediaPipeSettings.EnableHandTracking);
+            AddTuningToggle("Arm Elbow Pole (experimental)", "Steer the elbow with a pose-driven pole. May interact with full-body tracker calibration; leave off unless arms are tracking well first.", BasisMediaPipeSettings.EnableArmElbowPole);
+            AddTuningToggle("Swap Arms", "Fix left/right arms if they are reversed or cross the body.", BasisMediaPipeSettings.SwapArms);
+            AddTuningToggle("Invert Arm Depth", "Fix arms reaching backward instead of forward.", BasisMediaPipeSettings.InvertArmDepth);
             AddTuningToggle("Hand Rotation", "Off keeps a neutral wrist (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
             AddFeatureToggle("Body Lean/Twist (experimental)", "Lean and twist your torso. Uses the pose model (extra CPU); monocular, so approximate.", BasisMediaPipeSettings.EnableBody);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);
@@ -173,6 +176,17 @@ namespace Basis.MediaPipe
             headRotation.OnValueChanged += value =>
             {
                 BasisMediaPipeSettings.HeadRotationStrength.SetValue(value);
+                BasisMediaPipeManagement.Instance.ApplyTuning();
+            };
+
+            PanelSlider headHeight = PanelSlider.CreateNew(content);
+            headHeight.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = -0.25f, SliderMax = 0.25f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Meters });
+            headHeight.Descriptor.SetTitle("Head Height Trim");
+            headHeight.Descriptor.SetDescription("Fine vertical adjustment. The head is auto-fit to your avatar's eyes; nudge this only if needed.");
+            headHeight.SetValueWithoutNotify(BasisMediaPipeSettings.HeadHeight.RawValue);
+            headHeight.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.HeadHeight.SetValue(value);
                 BasisMediaPipeManagement.Instance.ApplyTuning();
             };
 

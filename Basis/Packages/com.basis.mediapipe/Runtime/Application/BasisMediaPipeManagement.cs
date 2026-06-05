@@ -28,9 +28,16 @@ namespace Basis.MediaPipe
         private readonly MediaPipeHandConverter _handConverter = new MediaPipeHandConverter();
         private readonly MediaPipeHeadConverter _headConverter = new MediaPipeHeadConverter();
         private readonly MediaPipeBodyConverter _bodyConverter = new MediaPipeBodyConverter();
+        private readonly MediaPipeArmConverter _armConverter = new MediaPipeArmConverter();
         private IBasisMediaPipeBackend _backend;
         private BasisMediaPipeResult _latest;
         private bool _hasLatest;
+
+        private Transform _hipsBone, _headBone, _leftUpperArm, _leftLowerArm, _leftHandBone, _rightUpperArm, _rightLowerArm, _rightHandBone;
+        private float _leftUpperLen, _leftForeLen, _rightUpperLen, _rightForeLen;
+        private bool _armRigValid;
+        private bool _armPosePathActive;
+        private bool _armDiagLogged;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
 
         /// <summary>Pulls persisted settings into Config and restarts the backend if it is already running.</summary>
@@ -58,7 +65,9 @@ namespace Basis.MediaPipe
             Config.CameraWidth = BasisMediaPipeSettings.ResolutionWidth.RawValue;
             Config.CameraHeight = BasisMediaPipeSettings.ResolutionHeight.RawValue;
             Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
-            Config.EnablePose = BasisMediaPipeSettings.EnableBody.RawValue;
+            Config.EnableChest = BasisMediaPipeSettings.EnableBody.RawValue;
+            Config.EnableArmElbowPole = BasisMediaPipeSettings.EnableArmElbowPole.RawValue;
+            Config.EnablePose = Config.EnableChest || Config.EnableHandTracking;
             ApplyTuning();
         }
 
@@ -78,7 +87,11 @@ namespace Basis.MediaPipe
             _handConverter.PoseSmoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
             _handConverter.FingerSmoothing = BasisMediaPipeSettings.FingerSmoothing.RawValue;
             _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
+            _armConverter.Smoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
+            _armConverter.SwapArms = BasisMediaPipeSettings.SwapArms.RawValue;
+            _armConverter.InvertForward = BasisMediaPipeSettings.InvertArmDepth.RawValue;
             _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
+            _headConverter.HeightOffset = BasisMediaPipeSettings.HeadHeight.RawValue;
             _headConverter.YawGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
             _headConverter.PitchGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
             _headConverter.RollGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
@@ -159,7 +172,91 @@ namespace Basis.MediaPipe
             IsDeviceBooted = true;
         }
 
-        private void HandleAvatarChanged() => CalibrateHead();
+        private void HandleAvatarChanged()
+        {
+            CacheArmRig();
+            _armConverter.Reset();
+            CalibrateHead();
+        }
+
+        private void CacheArmRig()
+        {
+            _armRigValid = false;
+            BasisAvatar avatar = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.BasisAvatar : null;
+            Animator anim = avatar != null ? avatar.Animator : null;
+            if (anim == null || !anim.isHuman) return;
+
+            _hipsBone = anim.GetBoneTransform(HumanBodyBones.Hips);
+            _headBone = anim.GetBoneTransform(HumanBodyBones.Head);
+            _leftUpperArm = anim.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            _leftLowerArm = anim.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+            _leftHandBone = anim.GetBoneTransform(HumanBodyBones.LeftHand);
+            _rightUpperArm = anim.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            _rightLowerArm = anim.GetBoneTransform(HumanBodyBones.RightLowerArm);
+            _rightHandBone = anim.GetBoneTransform(HumanBodyBones.RightHand);
+            if (_hipsBone == null || _leftUpperArm == null || _leftLowerArm == null || _leftHandBone == null
+                || _rightUpperArm == null || _rightLowerArm == null || _rightHandBone == null)
+            {
+                return;
+            }
+
+            Transform root = BasisLocalPlayer.Instance.transform;
+            _leftUpperLen = Vector3.Distance(root.InverseTransformPoint(_leftUpperArm.position), root.InverseTransformPoint(_leftLowerArm.position));
+            _leftForeLen = Vector3.Distance(root.InverseTransformPoint(_leftLowerArm.position), root.InverseTransformPoint(_leftHandBone.position));
+            _rightUpperLen = Vector3.Distance(root.InverseTransformPoint(_rightUpperArm.position), root.InverseTransformPoint(_rightLowerArm.position));
+            _rightForeLen = Vector3.Distance(root.InverseTransformPoint(_rightLowerArm.position), root.InverseTransformPoint(_rightHandBone.position));
+            _armRigValid = true;
+        }
+
+        private float CameraAspect()
+        {
+            WebCamTexture texture = _camera.Texture;
+            if (texture != null && texture.width > 16 && texture.height > 16)
+            {
+                return (float)texture.width / texture.height;
+            }
+            return Config.CameraHeight > 0 ? (float)Config.CameraWidth / Config.CameraHeight : 1f;
+        }
+
+        private bool TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
+        {
+            rig = default;
+            if (!_armRigValid || BasisLocalPlayer.Instance == null) return false;
+            if (_hipsBone == null || _leftUpperArm == null || _rightUpperArm == null) return false;
+
+            Transform root = BasisLocalPlayer.Instance.transform;
+            Vector3 leftAnchor = root.InverseTransformPoint(_leftUpperArm.position);
+            Vector3 rightAnchor = root.InverseTransformPoint(_rightUpperArm.position);
+            Vector3 hip = root.InverseTransformPoint(_hipsBone.position);
+
+            Vector3 up = ((leftAnchor + rightAnchor) * 0.5f) - hip;
+            Vector3 right = rightAnchor - leftAnchor;
+            if (up.sqrMagnitude < 1e-6f || right.sqrMagnitude < 1e-6f) return false;
+
+            up.Normalize();
+            Vector3 forward = Vector3.Cross(right.normalized, up).normalized;
+            right = Vector3.Cross(up, forward).normalized;
+
+            Vector3 shoulderCenter = (leftAnchor + rightAnchor) * 0.5f;
+            Vector3 headLocal = _headBone != null ? root.InverseTransformPoint(_headBone.position) : shoulderCenter + up * 0.2f;
+
+            rig = new MediaPipeArmConverter.AvatarArmRig
+            {
+                LeftAnchor = leftAnchor,
+                RightAnchor = rightAnchor,
+                LeftUpperLen = _leftUpperLen,
+                LeftForeLen = _leftForeLen,
+                RightUpperLen = _rightUpperLen,
+                RightForeLen = _rightForeLen,
+                Right = right,
+                Up = up,
+                Forward = forward,
+                HeadLocal = headLocal,
+                HeadMetric = Vector3.Distance(headLocal, shoulderCenter),
+                Valid = true,
+            };
+            return true;
+        }
 
         private void HandleBootModeChanged(string mode)
         {
@@ -227,7 +324,16 @@ namespace Basis.MediaPipe
                 if (result.HasFace && BasisLocalBoneDriver.EyeControl != null && _headConverter.TryGetHeadOffset(in result, out Quaternion headOffset, out Vector3 headPositionOffset))
                 {
                     BasisLocalBoneControl eye = BasisLocalBoneDriver.EyeControl;
-                    Vector3 headPosition = Config.EnableHeadPosition ? eye.OutGoingData.position + headPositionOffset : eye.OutGoingData.position;
+                    BasisLocalBoneControl headControl = BasisLocalBoneDriver.HeadControl;
+                    float eyeToHeadY = headControl != null ? headControl.TposeLocalScaled.position.y - eye.TposeLocalScaled.position.y : 0f;
+
+                    Vector3 headPosition = eye.OutGoingData.position;
+                    headPosition.y += eyeToHeadY + headPositionOffset.y;
+                    if (Config.EnableHeadPosition)
+                    {
+                        headPosition.x += headPositionOffset.x;
+                        headPosition.z += headPositionOffset.z;
+                    }
                     Quaternion headRotation = Config.EnableHeadRotation ? eye.OutGoingData.rotation * headOffset : eye.OutGoingData.rotation;
                     EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(headPosition, headRotation);
                 }
@@ -239,6 +345,13 @@ namespace Basis.MediaPipe
 
             if (Config.EnableHandTracking)
             {
+                bool posePath = result.HasPose && _armRigValid;
+                if (!_armDiagLogged || posePath != _armPosePathActive)
+                {
+                    _armDiagLogged = true;
+                    _armPosePathActive = posePath;
+                    BasisDebug.Log($"BasisMediaPipe arms: EnablePose={Config.EnablePose} HasPose={result.HasPose} armRig={_armRigValid} pose2D={(result.PoseLandmarks != null ? result.PoseLandmarks.Length : 0)} -> {(posePath ? "pose retarget" : "hand fallback")}");
+                }
                 ApplyHandTracker(in result, true);
                 ApplyHandTracker(in result, false);
             }
@@ -246,9 +359,11 @@ namespace Basis.MediaPipe
             {
                 RemoveTracker(BasisBoneTrackedRole.LeftHand);
                 RemoveTracker(BasisBoneTrackedRole.RightHand);
+                RemoveTracker(BasisBoneTrackedRole.LeftLowerArm);
+                RemoveTracker(BasisBoneTrackedRole.RightLowerArm);
             }
 
-            if (Config.EnablePose)
+            if (Config.EnableChest)
             {
                 if (result.HasPose && BasisLocalBoneDriver.ChestControl != null && _bodyConverter.TryGetChestRotation(in result, out Quaternion chestRotation))
                 {
@@ -264,18 +379,55 @@ namespace Basis.MediaPipe
         private void ApplyHandTracker(in BasisMediaPipeResult result, bool left)
         {
             Vector3[] landmarks = left ? result.LeftHandLandmarks : result.RightHandLandmarks;
-            bool detected = left ? result.HasLeftHand : result.HasRightHand;
-            BasisBoneTrackedRole role = left ? BasisBoneTrackedRole.LeftHand : BasisBoneTrackedRole.RightHand;
+            bool handDetected = left ? result.HasLeftHand : result.HasRightHand;
+            BasisBoneTrackedRole handRole = left ? BasisBoneTrackedRole.LeftHand : BasisBoneTrackedRole.RightHand;
+            BasisBoneTrackedRole elbowRole = left ? BasisBoneTrackedRole.LeftLowerArm : BasisBoneTrackedRole.RightLowerArm;
 
-            if (!detected || landmarks == null)
+            if (Config.EnablePose && result.HasPose && TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
+                && _armConverter.TryGetArm(result.PoseLandmarks, CameraAspect(), in rig, left,
+                    out Vector3 wristLocal, out Vector3 elbowLocal, out Quaternion wristRotation))
             {
-                RemoveTracker(role);
+                if (handDetected && landmarks != null && BasisLocalBoneDriver.HipsControl != null
+                    && _handConverter.TryGetHandTarget(landmarks, left, out _, out Quaternion handRotationOffset))
+                {
+                    wristRotation = BasisLocalBoneDriver.HipsControl.OutGoingData.rotation * handRotationOffset;
+                }
+
+                EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(wristLocal, wristRotation);
+
+                if (Config.EnableArmElbowPole)
+                {
+                    EnsureTracker(elbowRole).FollowMovement.SetLocalPositionAndRotation(elbowLocal, Quaternion.identity);
+                }
+                else
+                {
+                    RemoveTracker(elbowRole);
+                }
                 return;
             }
 
-            // Hands offset from the hips (the rig-simulated hips when there's no hip tracker),
-            // falling back to the eye/head if hips aren't available.
-            BasisLocalBoneControl baseControl = BasisLocalBoneDriver.HipsControl != null  ? BasisLocalBoneDriver.HipsControl : BasisLocalBoneDriver.EyeControl;
+            RemoveTracker(elbowRole);
+            if (!handDetected || landmarks == null || landmarks.Length < 21)
+            {
+                RemoveTracker(handRole);
+                return;
+            }
+
+            // No body pose: place the wrist from the hand landmarker, anchored to the head (face) when present.
+            float faceSize = result.HasFace ? result.FaceImageSize : 0f;
+            if (TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig handRig)
+                && _armConverter.TryGetArmFromHand(landmarks[0], result.HeadImagePosition, faceSize, CameraAspect(), in handRig, left, out Vector3 handWrist, out Quaternion handWristRotation))
+            {
+                if (BasisLocalBoneDriver.HipsControl != null
+                    && _handConverter.TryGetHandTarget(landmarks, left, out _, out Quaternion handRotationOffset))
+                {
+                    handWristRotation = BasisLocalBoneDriver.HipsControl.OutGoingData.rotation * handRotationOffset;
+                }
+                EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(handWrist, handWristRotation);
+                return;
+            }
+
+            BasisLocalBoneControl baseControl = BasisLocalBoneDriver.HipsControl != null ? BasisLocalBoneDriver.HipsControl : BasisLocalBoneDriver.EyeControl;
             if (baseControl == null)
             {
                 return;
@@ -284,7 +436,7 @@ namespace Basis.MediaPipe
             if (_handConverter.TryGetHandTarget(landmarks, left, out Vector3 positionOffset, out Quaternion rotationOffset))
             {
                 var basePose = baseControl.OutGoingData;
-                EnsureTracker(role).FollowMovement.SetLocalPositionAndRotation(basePose.position + basePose.rotation * positionOffset,basePose.rotation * rotationOffset);
+                EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(basePose.position + basePose.rotation * positionOffset, basePose.rotation * rotationOffset);
             }
         }
 
@@ -311,6 +463,7 @@ namespace Basis.MediaPipe
             if (_hasLatest)
             {
                 status += $"\nFace: {_latest.HasFace}   L-Hand: {_latest.HasLeftHand}   R-Hand: {_latest.HasRightHand}   Pose: {_latest.HasPose}";
+                status += $"\nArm rig: {(_armRigValid ? "ready" : "unavailable")}";
             }
             else
             {

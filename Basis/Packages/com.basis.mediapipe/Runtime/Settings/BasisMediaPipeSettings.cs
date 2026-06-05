@@ -35,6 +35,15 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<bool> SwapHands =
             new BasisSettingsBinding<bool>("mediapipe_swaphands", new BasisPlatformDefault<bool>(false));
 
+        public static readonly BasisSettingsBinding<bool> SwapArms =
+            new BasisSettingsBinding<bool>("mediapipe_swaparms", new BasisPlatformDefault<bool>(true));
+
+        public static readonly BasisSettingsBinding<bool> InvertArmDepth =
+            new BasisSettingsBinding<bool>("mediapipe_invertarmdepth", new BasisPlatformDefault<bool>(false));
+
+        public static readonly BasisSettingsBinding<bool> EnableArmElbowPole =
+            new BasisSettingsBinding<bool>("mediapipe_armelbowpole", new BasisPlatformDefault<bool>(false));
+
         public static readonly BasisSettingsBinding<bool> InvertBlink =
             new BasisSettingsBinding<bool>("mediapipe_invertblink", new BasisPlatformDefault<bool>(false));
 
@@ -68,6 +77,9 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<float> HeadRotationStrength =
             new BasisSettingsBinding<float>("mediapipe_headrotationstrength_v2", new BasisPlatformDefault<float>(0.6f));
 
+        public static readonly BasisSettingsBinding<float> HeadHeight =
+            new BasisSettingsBinding<float>("mediapipe_headheight", new BasisPlatformDefault<float>(0f));
+
         public static readonly BasisSettingsBinding<int> ResolutionWidth =
             new BasisSettingsBinding<int>("mediapipe_reswidth", new BasisPlatformDefault<int>(640));
 
@@ -99,6 +111,9 @@ namespace Basis.MediaPipe
             EnableHandTracking.LoadBindingValue();
             EnableBody.LoadBindingValue();
             SwapHands.LoadBindingValue();
+            SwapArms.LoadBindingValue();
+            InvertArmDepth.LoadBindingValue();
+            EnableArmElbowPole.LoadBindingValue();
             Mirror.LoadBindingValue();
             InvertBlink.LoadBindingValue();
             InvertHeadYaw.LoadBindingValue();
@@ -111,6 +126,7 @@ namespace Basis.MediaPipe
             HandRotation.LoadBindingValue();
             HeadPositionStrength.LoadBindingValue();
             HeadRotationStrength.LoadBindingValue();
+            HeadHeight.LoadBindingValue();
             ResolutionWidth.LoadBindingValue();
             ResolutionHeight.LoadBindingValue();
             CameraFps.LoadBindingValue();

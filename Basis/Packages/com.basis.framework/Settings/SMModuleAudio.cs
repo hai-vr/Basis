@@ -14,7 +14,6 @@ public class SMModuleAudio : BasisSettingsBase
     public static Action<float> MenusVolume;
     public static Action<float> WorldVolume;
     public static Action<float> VoiceVolume;
-    public static Action<float> VideoVolume;
 
     public static Action<float> AvatarVolume;
     public static Action<float> PropVolume;
@@ -23,7 +22,6 @@ public class SMModuleAudio : BasisSettingsBase
     public static float ActiveMenusVolume;
     public static float ActiveWorldVolume;
     public static float ActiveVoiceVolume;
-    public static float ActiveVideoVolume;
 
     public static float ActiveAvatarVolume;
     public static float ActivePropVolume;
@@ -33,7 +31,6 @@ public class SMModuleAudio : BasisSettingsBase
     private static string K_MENU_VOLUME => BasisSettingsDefaults.MenuVolume.BindingKey;
     private static string K_WORLD_VOLUME => BasisSettingsDefaults.WorldVolume.BindingKey;
     private static string K_VOICE_VOLUME => BasisSettingsDefaults.VoiceVolume.BindingKey;
-    private static string K_MEDIA_VOLUME => BasisSettingsDefaults.MediaVolume.BindingKey;
     private static string K_AVATAR_VOLUME => BasisSettingsDefaults.AvatarVolume.BindingKey;
     private static string K_PROP_VOLUME => BasisSettingsDefaults.PropVolume.BindingKey;
 
@@ -71,9 +68,6 @@ public class SMModuleAudio : BasisSettingsBase
                 break;
             case var s when s == K_PROP_VOLUME:
                 if (SliderReadOption(optionValue, out float newProp)) ApplyPropVolume(newProp);
-                break;
-            case var s when s == K_MEDIA_VOLUME:
-                if (SliderReadOption(optionValue, out float newVideo)) ApplyMediaVolume(newVideo);
                 break;
         }
     }
@@ -118,12 +112,6 @@ public class SMModuleAudio : BasisSettingsBase
         if (Instance == null) return;
         ActivePropVolume = Instance.ChangeVolume(sliderPercent, MIXER_PROP);
         PropVolume?.Invoke(ActivePropVolume);
-    }
-
-    public static void ApplyMediaVolume(float sliderPercent)
-    {
-        ActiveVideoVolume = Mathf.Clamp01(sliderPercent / 100f);
-        VideoVolume?.Invoke(ActiveVideoVolume);
     }
 
     public override void ChangedSettings()

@@ -67,8 +67,16 @@ namespace Basis.MediaPipe
             Quaternion rawRot = Quaternion.identity;
             if (UseRotation && TryRawRotation(lm, out Quaternion r))
             {
-                if (left) rawRot = _leftCalibrated ? _leftNeutralInverse * r : r;
-                else rawRot = _rightCalibrated ? _rightNeutralInverse * r : r;
+                if (left)
+                {
+                    if (!_leftCalibrated) { _leftNeutralInverse = Quaternion.Inverse(r); _leftCalibrated = true; }
+                    rawRot = _leftNeutralInverse * r;
+                }
+                else
+                {
+                    if (!_rightCalibrated) { _rightNeutralInverse = Quaternion.Inverse(r); _rightCalibrated = true; }
+                    rawRot = _rightNeutralInverse * r;
+                }
             }
 
             float t = 1f - Mathf.Clamp01(PoseSmoothing);

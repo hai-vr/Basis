@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "Общая громкость игры." },
     { "key": "settings.audio.menuVolume", "value": "Громкость меню" },
     { "key": "settings.audio.worldVolume", "value": "Громкость мира" },
-    { "key": "settings.audio.mediaVolume", "value": "Громкость медиа" },
     { "key": "settings.audio.voiceVolume", "value": "Громкость голоса" },
     { "key": "settings.audio.avatarVolume", "value": "Громкость аватара" },
     { "key": "settings.audio.propVolume", "value": "Громкость реквизита" },

@@ -307,6 +307,12 @@ namespace Basis.MediaPipe.Homuler
             if (result.faceLandmarks != null && result.faceLandmarks.Count > 0)
             {
                 output.HasFace = true;
+                var fl = result.faceLandmarks[0].landmarks;
+                if (fl != null && fl.Count > 152)
+                {
+                    output.HeadImagePosition = new Vector2(fl[1].x, fl[1].y);
+                    output.FaceImageSize = Mathf.Abs(fl[152].y - fl[10].y);
+                }
             }
 
             if (result.faceBlendshapes != null && result.faceBlendshapes.Count > 0)
@@ -369,16 +375,32 @@ namespace Basis.MediaPipe.Homuler
 
         private static void ParsePose(PoseLandmarkerResult result, ref BasisMediaPipeResult output)
         {
-            if (result.poseWorldLandmarks == null || result.poseWorldLandmarks.Count == 0) return;
-
-            var landmarks = result.poseWorldLandmarks[0].landmarks;
-            if (landmarks == null) return;
-
-            output.HasPose = true;
-            output.PoseWorldLandmarks = new Vector3[landmarks.Count];
-            for (int i = 0; i < landmarks.Count; i++)
+            if (result.poseWorldLandmarks != null && result.poseWorldLandmarks.Count > 0)
             {
-                output.PoseWorldLandmarks[i] = new Vector3(landmarks[i].x, landmarks[i].y, landmarks[i].z);
+                var world = result.poseWorldLandmarks[0].landmarks;
+                if (world != null)
+                {
+                    output.HasPose = true;
+                    output.PoseWorldLandmarks = new Vector3[world.Count];
+                    for (int i = 0; i < world.Count; i++)
+                    {
+                        output.PoseWorldLandmarks[i] = new Vector3(world[i].x, world[i].y, world[i].z);
+                    }
+                }
+            }
+
+            if (result.poseLandmarks != null && result.poseLandmarks.Count > 0)
+            {
+                var image = result.poseLandmarks[0].landmarks;
+                if (image != null)
+                {
+                    output.HasPose = true;
+                    output.PoseLandmarks = new Vector3[image.Count];
+                    for (int i = 0; i < image.Count; i++)
+                    {
+                        output.PoseLandmarks[i] = new Vector3(image[i].x, image[i].y, image[i].z);
+                    }
+                }
             }
         }
 

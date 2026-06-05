@@ -412,7 +412,6 @@
     { "key": "settings.audio.masterVolume.description", "value": "Gesamte Spiellautstärke." },
     { "key": "settings.audio.menuVolume", "value": "Menü-Lautstärke" },
     { "key": "settings.audio.worldVolume", "value": "Welt-Lautstärke" },
-    { "key": "settings.audio.mediaVolume", "value": "Medien-Lautstärke" },
     { "key": "settings.audio.voiceVolume", "value": "Sprachlautstärke" },
     { "key": "settings.audio.avatarVolume", "value": "Avatar-Lautstärke" },
     { "key": "settings.audio.propVolume", "value": "Prop-Lautstärke" },

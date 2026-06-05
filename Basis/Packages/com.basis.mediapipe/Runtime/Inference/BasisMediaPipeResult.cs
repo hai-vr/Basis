@@ -14,6 +14,9 @@ namespace Basis.MediaPipe
         public float[] FaceBlendshapes;
         public float TongueOut;
 
+        public Vector2 HeadImagePosition;
+        public float FaceImageSize;
+
         public Vector2 LeftEyeGaze;
         public Vector2 RightEyeGaze;
 
