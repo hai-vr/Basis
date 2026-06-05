@@ -469,12 +469,12 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.services.core": {
-      "version": "1.16.0",
+      "version": "1.17.0",
       "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.modules.androidjni": "1.0.0",
-        "com.unity.nuget.newtonsoft-json": "3.2.1",
+        "com.unity.nuget.newtonsoft-json": "3.2.2",
         "com.unity.modules.unitywebrequest": "1.0.0"
       },
       "url": "https://packages.unity.com"
