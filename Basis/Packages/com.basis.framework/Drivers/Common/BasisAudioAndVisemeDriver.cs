@@ -72,6 +72,12 @@ namespace Basis.Scripts.Drivers
         public AudioSource TrackedAudioSource;
 
         /// <summary>
+        /// True when <see cref="TrackedAudioSource"/> is disabled (player not speaking).
+        /// Maintained by BasisAudioReceiver so Simulate doesn't poll the native enabled flag.
+        /// </summary>
+        public bool AudioSourceInactive;
+
+        /// <summary>
         /// Tracks whether initialization completed successfully.
         /// </summary>
         public bool WasSuccessful;
@@ -214,7 +220,7 @@ namespace Basis.Scripts.Drivers
             }
 
             // Release context back to pool when audio source is inactive (player not speaking)
-            if (UseOpenLipSync && openLipSyncContext != null && TrackedAudioSource != null && !TrackedAudioSource.enabled)
+            if (UseOpenLipSync && openLipSyncContext != null && TrackedAudioSource != null && AudioSourceInactive)
             {
                 ReleaseOpenLipSyncContext();
             }

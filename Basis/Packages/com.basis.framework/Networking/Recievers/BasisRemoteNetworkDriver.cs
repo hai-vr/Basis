@@ -476,6 +476,10 @@ public static class BasisRemoteNetworkDriver
         _ptrSkipBones = (IntPtr)_skipBones.GetUnsafePtr();
     }
 
+    /// <summary>Base pointer to the per-player skip flags (valid after BeginRead); null if uninitialized.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe byte* SkipBonesPtr() => _initialized ? (byte*)(void*)_ptrSkipBones : null;
+
     // ─── OUTPUT GETTERS ───
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

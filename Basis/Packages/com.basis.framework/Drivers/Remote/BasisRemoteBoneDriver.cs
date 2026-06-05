@@ -1334,6 +1334,14 @@ public static class RemoteBoneJobSystem
     }
 
     /// <summary>
+    /// Exposes the playerId→dense <c>sOut</c> index map for bulk inline resolution in hot
+    /// selection loops, avoiding a <see cref="TryGetSOutIndex"/> call per player. The array is
+    /// indexed by ushort playerId; entries are -1 when absent. Read-only — do not mutate.
+    /// Returns null when the system isn't initialized. Valid for the current frame only.
+    /// </summary>
+    public static int[] GetSOutIndexMap() => sInitialized ? sKeyToIndex : null;
+
+    /// <summary>
     /// Returns <c>sOut</c> as a NativeArray for Burst-job consumption.
     /// Returns a default (uncreated) NativeArray when the system isn't initialized yet —
     /// callers must check <see cref="NativeArray{T}.IsCreated"/> before scheduling a

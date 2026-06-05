@@ -377,6 +377,12 @@ public class BasisLocalEyeDriver
         float* pTargetPriority = (float*)_jobTargetPriority.GetUnsafePtr();
         byte* pTargetIsCurrent = (byte*)_jobTargetIsCurrent.GetUnsafePtr();
 
+        // Fetch the playerId→sOut index map once and resolve inline below, instead of a
+        // TryGetSOutIndex call per receiver. sOutMapLen is 0 when the map is null, so the
+        // ternary returns -1 without ever indexing a null array.
+        int[] sOutIndexMap = RemoteBoneJobSystem.GetSOutIndexMap();
+        int sOutMapLen = sOutIndexMap != null ? sOutIndexMap.Length : 0;
+
         int playerSlots = 0;
         for (int i = 0; i < receiverCount; i++)
         {
@@ -393,10 +399,12 @@ public class BasisLocalEyeDriver
             if (!receiver._player.FaceIsVisible)
                 continue;
 
-            if (!RemoteBoneJobSystem.TryGetSOutIndex(receiver.playerId, out int idx))
+            int playerId = receiver.playerId;
+            int idx = (uint)playerId < (uint)sOutMapLen ? sOutIndexMap[playerId] : -1;
+            if (idx < 0)
                 continue;
 
-            pPlayerIds[playerSlots] = receiver.playerId;
+            pPlayerIds[playerSlots] = playerId;
             pPlayerSOutIdx[playerSlots] = idx;
             playerSlots++;
         }

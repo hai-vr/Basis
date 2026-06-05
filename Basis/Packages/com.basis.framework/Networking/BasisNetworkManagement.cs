@@ -343,7 +343,7 @@ namespace Basis.Scripts.Networking
         /// <summary>
         /// Applies networked state changes to receivers.
         /// </summary>
-        public static void SimulateNetworkApply()
+        public static unsafe void SimulateNetworkApply()
         {
             if (!NetworkRunning)
             {
@@ -379,6 +379,8 @@ namespace Basis.Scripts.Networking
             int _lod0 = 0, _lod1 = 0, _lod2 = 0, _lod3 = 0;
 #endif
 
+            byte* skipPtr = BasisRemoteNetworkDriver.SkipBonesPtr();
+
             for (int Index = 0; Index < count; Index++)
             {
                 var receiver = snapshot[Index];
@@ -401,7 +403,7 @@ namespace Basis.Scripts.Networking
                 if (poseLodEnabled && remote.PoseSkipCounter > 0)
                 {
                     remote.PoseSkipCounter--;
-                    BasisRemoteNetworkDriver.SetSkipMuscles(receiver.playerId, true);
+                    if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 1;
 #if UNITY_EDITOR
                     _skipped++;
 #endif
@@ -420,7 +422,7 @@ namespace Basis.Scripts.Networking
                     int lod = math.clamp(remote.CurrentLodLevel, 0, 3);
                     remote.PoseSkipCounter = SMModuleDistanceBasedReductions.PoseSkipByLod[lod];
                 }
-                BasisRemoteNetworkDriver.SetSkipMuscles(receiver.playerId, false);
+                if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 0;
             }
 #if UNITY_EDITOR
             if (p)

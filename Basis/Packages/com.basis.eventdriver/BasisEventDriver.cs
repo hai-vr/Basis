@@ -270,7 +270,6 @@ namespace Basis.EventDriver
                 localplayer.LocalHandDriver.Apply();
                 LocalCameraDriver.Simulate(DeltaTime);
                 localplayer.LocalEyeDriver.Simulate(DeltaTime);
-                localplayer.LocalEyeDriver.Apply();
             }
             ProfileEnd(PROF_LOCAL_PLAYER);
 
@@ -280,6 +279,14 @@ namespace Basis.EventDriver
             ProfileBegin(PROF_REMOTE_AUDIO_SIMULATE);
             BasisRemoteAudioDriver.Simulate(DeltaTime);
             ProfileEnd(PROF_REMOTE_AUDIO_SIMULATE);
+
+            // Complete the eye apply here rather than right after its schedule in LocalEyeDriver.Simulate,
+            // so the eye compute/apply jobs overlap the remote bone complete + remote audio simulate above.
+            // Still ahead of JigglePhysics.ScheduleSimulate, so the transform write has no jiggle job to stall on.
+            if (BasisLocalPlayer.PlayerReady)
+            {
+                BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
+            }
 
             // ── Nameplate schedule ──
             ProfileBegin(PROF_NAMEPLATE_SCHEDULE);

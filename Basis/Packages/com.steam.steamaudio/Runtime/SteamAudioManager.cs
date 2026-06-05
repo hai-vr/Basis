@@ -98,6 +98,15 @@ namespace SteamAudio
         EventWaitHandle mSimulationThreadWaitHandle = null;
         bool mStopSimulationThread = false;
         bool mSimulationCompleted = false;
+
+        // Direct simulation (occlusion ray casting) runs on its own worker, one
+        // frame behind the main thread. See ApplyInstance for the pipeline.
+        Thread mDirectThread = null;
+        EventWaitHandle mDirectWakeHandle = null;
+        EventWaitHandle mDirectDoneHandle = null;
+        bool mStopDirectThread = false;
+        bool mDirectInFlight = false;
+
         float mSimulationUpdateTimeElapsed = 0.0f;
         bool mSceneCommitRequired = false;
         Camera mMainCamera;
@@ -446,6 +455,11 @@ namespace SteamAudio
                 mSimulationThread = new Thread(RunSimulation);
                 mSimulationThread.Start();
 
+                mDirectWakeHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
+                mDirectDoneHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
+                mDirectThread = new Thread(RunDirectSimulation);
+                mDirectThread.Start();
+
                 mAudioEngineState = AudioEngineState.Create(SteamAudioSettings.Singleton.audioEngine);
                 if (mAudioEngineState != null)
                 {
@@ -592,7 +606,28 @@ namespace SteamAudio
             if (mCurrentScene == null || mSimulator == null)
                 return;
 
-            // Keep simulator scene commit logic
+            // Reap the direct simulation the worker ran against last frame's
+            // inputs. Blocking here instead of right after RunDirect lets the
+            // ~11ms of occlusion ray casting overlap the rest of the main-thread
+            // frame; one-frame-stale occlusion/attenuation is inaudible.
+            if (mDirectInFlight)
+            {
+                mDirectDoneHandle.WaitOne();
+                mDirectInFlight = false;
+
+                for (int i = 0; i < CurrentArraySource; i++)
+                {
+                    SteamAudioSource src = mSources[i];
+                    if (src == null) continue;
+
+                    src.UpdateOutputs(SimulationFlags.Direct);
+                    src.ForceUpdate();
+                }
+            }
+
+            // Commit only when no run is in flight: the direct worker is idle
+            // (reaped above) and the reflections thread is asleep. Steam Audio
+            // forbids Commit overlapping RunDirect/RunReflections.
             if (mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
             {
                 if (mSceneCommitRequired)
@@ -667,28 +702,19 @@ namespace SteamAudio
                 }
             }
 
-            mSimulator.RunDirect();
+            // RunDirect for these inputs is deferred to the worker (signaled at
+            // the end of this method) and reaped at the top of next frame. The
+            // direct UpdateOutputs/ForceUpdate that used to follow RunDirect now
+            // lives in that reap.
 
-            for (int i = 0; i < CurrentArraySource; i++)
-            {
-                SteamAudioSource src = mSources[i];
-                if (src == null)
-                {
-                    continue;
-                }
-
-                src.UpdateOutputs(SimulationFlags.Direct);
-                src.ForceUpdate();
-            }
-
-            // --- Reflections/Pathing timing logic unchanged ---
+            // --- Reflections/Pathing timing logic ---
+            bool runReflectionsThisFrame = false;
             mSimulationUpdateTimeElapsed += Time.deltaTime;
-            if (mSimulationUpdateTimeElapsed < settings.simulationUpdateInterval)
-                return;
+            bool reflectionsCadenceReady = mSimulationUpdateTimeElapsed >= settings.simulationUpdateInterval;
+            if (reflectionsCadenceReady)
+                mSimulationUpdateTimeElapsed = 0.0f;
 
-            mSimulationUpdateTimeElapsed = 0.0f;
-
-            if (mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
+            if (reflectionsCadenceReady && mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
             {
                 if (mSimulationCompleted)
                 {
@@ -737,6 +763,17 @@ namespace SteamAudio
                     }
                 }
 
+                runReflectionsThisFrame = true;
+            }
+
+            // Kick the workers only after every SetInputs above is written, so a
+            // run never reads inputs the main thread is still mutating. Direct
+            // runs every frame; reflections only on its cadence.
+            mDirectWakeHandle.Set();
+            mDirectInFlight = true;
+
+            if (runReflectionsThisFrame)
+            {
                 if (SteamAudioSettings.Singleton.sceneType == SceneType.Custom)
                 {
                     RunSimulationInternal();
@@ -811,6 +848,29 @@ namespace SteamAudio
             }
         }
 
+        void RunDirectSimulation()
+        {
+            while (!mStopDirectThread)
+            {
+                mDirectWakeHandle.WaitOne();
+
+                if (mStopDirectThread)
+                    break;
+
+                // finally{} guarantees the done signal even if RunDirect throws,
+                // so the main thread's reap (WaitOne) can never hang.
+                try
+                {
+                    if (mSimulator != null)
+                        mSimulator.RunDirect();
+                }
+                finally
+                {
+                    mDirectDoneHandle.Set();
+                }
+            }
+        }
+
         public static void Initialize(ManagerInitReason reason)
         {
             var managerObject = new GameObject("Steam Audio Manager");
@@ -833,6 +893,15 @@ namespace SteamAudio
                 Singleton.mStopSimulationThread = true;
                 Singleton.mSimulationThreadWaitHandle.Set();
                 Singleton.mSimulationThread.Join();
+            }
+
+            if (Singleton.mDirectThread != null)
+            {
+                Singleton.mStopDirectThread = true;
+                Singleton.mDirectWakeHandle.Set();
+                Singleton.mDirectThread.Join();
+                Singleton.mDirectThread = null;
+                Singleton.mDirectInFlight = false;
             }
 
 #if STEAMAUDIO_ENABLED
@@ -905,6 +974,15 @@ namespace SteamAudio
                 Singleton.mStopSimulationThread = true;
                 Singleton.mSimulationThreadWaitHandle.Set();
                 Singleton.mSimulationThread.Join();
+            }
+
+            if (Singleton.mDirectThread != null)
+            {
+                Singleton.mStopDirectThread = true;
+                Singleton.mDirectWakeHandle.Set();
+                Singleton.mDirectThread.Join();
+                Singleton.mDirectThread = null;
+                Singleton.mDirectInFlight = false;
             }
 
             RemoveAllDynamicObjects(force: true);
@@ -1020,6 +1098,13 @@ namespace SteamAudio
             Singleton.mStopSimulationThread = false;
             Singleton.mSimulationThread = new Thread(Singleton.RunSimulation);
             Singleton.mSimulationThread.Start();
+
+            Singleton.mStopDirectThread = false;
+            Singleton.mDirectInFlight = false;
+            Singleton.mDirectWakeHandle.Reset();
+            Singleton.mDirectDoneHandle.Reset();
+            Singleton.mDirectThread = new Thread(Singleton.RunDirectSimulation);
+            Singleton.mDirectThread.Start();
 
             Singleton.mAudioEngineState = AudioEngineState.Create(SteamAudioSettings.Singleton.audioEngine);
             if (Singleton.mAudioEngineState != null)

@@ -371,6 +371,7 @@ namespace Basis.Scripts.Networking.Receivers
                 ResetAudioThreadState();
                 audioSource.enabled = true;
                 _audioEnabled = true;
+                visemeDriver.AudioSourceInactive = false;
             }
             if (!_audioPlaying)
             {
@@ -385,6 +386,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 audioSource.enabled = false;
                 _audioEnabled = false;
+                visemeDriver.AudioSourceInactive = true;
                 // Disabling stops audio processing; treat as not-playing so the next
                 // enable path calls Play() again.
                 _audioPlaying = false;
@@ -403,7 +405,9 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 AudioSourceTransform = BasisAudioRemoteSource.RequestAudio(MouthParent).transform;
                 AudioSourceTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+#if UNITY_EDITOR
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkReceiver.Player.DisplayName}";
+#endif
                 audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
                 audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
                 audioSource.loop = true;
@@ -457,6 +461,7 @@ namespace Basis.Scripts.Networking.Receivers
             audioSource.Play();
             _audioPlaying = true;
             _audioEnabled = audioSource.enabled;
+            visemeDriver.AudioSourceInactive = !_audioEnabled;
         }
 
         public void UnloadAudioSource()
@@ -464,7 +469,11 @@ namespace Basis.Scripts.Networking.Receivers
             HasAudioSource = false;
             _audioEnabled = false;
             _audioPlaying = false;
-            if (visemeDriver != null) visemeDriver.TrackedAudioSource = null;
+            if (visemeDriver != null)
+            {
+                visemeDriver.TrackedAudioSource = null;
+                visemeDriver.AudioSourceInactive = true;
+            }
             if (audioSource != null && audioSource.clip != null)
             {
                 audioSource.Stop();
@@ -527,6 +536,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
             visemeDriver.TryInitialize(networkedPlayer.Player);
             visemeDriver.TrackedAudioSource = audioSource;
+            visemeDriver.AudioSourceInactive = !audioSource.enabled;
 
             if (BasisRemoteVisemeAudioDriver == null)
                 BasisRemoteVisemeAudioDriver = BasisHelpers.GetOrAddComponent<BasisRemoteAudioDriver>(audioSource.gameObject);

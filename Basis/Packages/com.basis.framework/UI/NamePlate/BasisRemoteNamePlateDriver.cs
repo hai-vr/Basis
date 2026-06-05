@@ -500,14 +500,17 @@ namespace Basis.Scripts.UI.NamePlate
             Vector2 textSize = Text.GetRenderedValues(true);
             float halfWidth = (textSize.x * 0.5f) + horizontalPadding;
 
+            float textScale = 1f;
             if (halfWidth > MaxPlateHalfWidth && textSize.x > 0.001f)
             {
                 float maxTextWidth = (MaxPlateHalfWidth - horizontalPadding) * 2f;
-                Text.fontSize = BakeFontSize * (maxTextWidth / textSize.x);
-                Text.ForceMeshUpdate();
-                textSize = Text.GetRenderedValues(true);
-                halfWidth = (textSize.x * 0.5f) + horizontalPadding;
+                textScale = maxTextWidth / textSize.x;
+                halfWidth = MaxPlateHalfWidth;
             }
+
+            Matrix4x4 textTransform = textScale == 1f
+                ? FlipX
+                : Matrix4x4.Scale(new Vector3(-textScale, textScale, 1f));
 
             Mesh plateMesh = GenerateRoundedQuad(halfWidth, 4.5f, "Rounded NamePlate Quad");
 
@@ -537,7 +540,7 @@ namespace Basis.Scripts.UI.NamePlate
                 var info = textInfo.meshInfo[i];
                 if (info.vertexCount == 0 || info.mesh == null) continue;
 
-                combine[writeIdx] = new CombineInstance { mesh = info.mesh, transform = FlipX };
+                combine[writeIdx] = new CombineInstance { mesh = info.mesh, transform = textTransform };
                 materials[writeIdx] = info.material;
                 writeIdx++;
             }
@@ -546,7 +549,7 @@ namespace Basis.Scripts.UI.NamePlate
             combinedMesh.CombineMeshes(combine, false);
 
             namePlate.Filter.sharedMesh = combinedMesh;
-            namePlate.Renderer.materials = materials;
+            namePlate.Renderer.sharedMaterials = materials;
 
             Object.Destroy(plateMesh);
             Text.gameObject.SetActive(false);
