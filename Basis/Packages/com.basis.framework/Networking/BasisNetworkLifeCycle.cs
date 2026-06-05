@@ -23,7 +23,12 @@ public static class BasisNetworkLifeCycle
         BasisAudioRemoteSource.Initialize();
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
-        BasisNetworkManagement.instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
+        // Remote players spawn as scene roots (null parent) so each avatar's bone hierarchy has its
+        // own Transform.root. IJobParallelForTransform batches by root, so a shared DeviceManagement
+        // parent forced every remote avatar's bones onto a single worker thread; distinct roots let the
+        // bone writes spread across all workers. DontDestroyOnLoad in CreateRemotePlayer keeps them alive
+        // across additive scene switches the way the persistent DeviceManagement parent used to.
+        BasisNetworkManagement.instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, null);
         // Reset & initialize metadata defaults
         BasisNetworkPlayers.ClearAllRegistries(); // new: central place
         BasisNetworkManagement.ServerMetaDataMessage = new ServerMetaDataMessage

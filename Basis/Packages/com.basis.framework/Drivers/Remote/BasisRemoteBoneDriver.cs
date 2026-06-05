@@ -1341,7 +1341,15 @@ public static class RemoteBoneJobSystem
     /// Add/RemoveAt so the array must be re-acquired each frame.
     /// </summary>
     public static NativeArray<RemoteFrameOutput> GetRemoteFrameArray()
-        => sInitialized && sOut.IsCreated ? sOut.AsArray() : default;
+    {
+        if (!sInitialized || !sOut.IsCreated) return default;
+        // sOut is written by BasisRemoteBoneJob, which is still in flight when the gaze selector
+        // reads it mid-LateUpdate. Complete the pipeline before exposing sOut as a NativeArray —
+        // remote players are now separate transform roots, so touching local transforms no longer
+        // force-syncs these jobs the way a shared DeviceManagement root used to.
+        CompletePending();
+        return sOut.AsArray();
+    }
 
     /// <summary>
     /// Returns the computed outgoing/world center-eye position and rotation for an avatar by key.

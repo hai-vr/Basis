@@ -150,6 +150,13 @@ namespace Basis.Scripts.Player
                 InstantiationParameters.Rotation,
                 InstantiationParameters.Parent);
 
+            // Root players (no parent) must survive additive world switches like the old
+            // DeviceManagement parent did. Teardown stays explicit via ClearAllRegistries/HandleDisconnectId.
+            if (InstantiationParameters.Parent == null)
+            {
+                Object.DontDestroyOnLoad(gameObject);
+            }
+
             if (gameObject.TryGetComponent<BasisRemotePlayer>(out BasisRemotePlayer CreatedRemotePlayer))
             {
                 // found component
