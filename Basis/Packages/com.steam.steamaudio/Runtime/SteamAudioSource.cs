@@ -373,6 +373,28 @@ namespace SteamAudio
             mAudioEngineSource.UpdateParameters(this);
         }
 
+        public void ReapDirect()
+        {
+            if (!mInitialized) return;
+
+            if (IsUnityEngineUsed && !HasSimulatedDirectOutput())
+                return;
+
+            UpdateOutputs(SimulationFlags.Direct);
+            if (mAudioEngineSource != null)
+                mAudioEngineSource.UpdateParameters(this);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool HasSimulatedDirectOutput()
+        {
+            return (distanceAttenuation && distanceAttenuationInput == DistanceAttenuationInput.PhysicsBased)
+                || (airAbsorption && airAbsorptionInput == AirAbsorptionInput.SimulationDefined)
+                || (directivity && directivityInput == DirectivityInput.SimulationDefined)
+                || (occlusion && occlusionInput == OcclusionInput.SimulationDefined)
+                || (transmission && transmissionInput == TransmissionInput.SimulationDefined);
+        }
+
         private void OnDrawGizmosSelected()
         {
             if (directivity && directivityInput == DirectivityInput.SimulationDefined && dipoleWeight > 0.0f)

@@ -620,8 +620,7 @@ namespace SteamAudio
                     SteamAudioSource src = mSources[i];
                     if (src == null) continue;
 
-                    src.UpdateOutputs(SimulationFlags.Direct);
-                    src.ForceUpdate();
+                    src.ReapDirect();
                 }
             }
 

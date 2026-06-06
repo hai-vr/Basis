@@ -114,8 +114,6 @@ namespace Basis.Scripts.UI.NamePlate
             ApplyTalkModeColors();
             BasisRemoteNamePlateDriver.Register(this);
 
-            // Create chat text display above nameplate
-            CreateChatTextDisplay();
             SetTypingIndicatorVisible(BasisRemotePlayer.IsChatTyping);
 
             if (!BasisRemoteNamePlateDriver.ShouldPlateBeActive(this))
@@ -196,6 +194,14 @@ namespace Basis.Scripts.UI.NamePlate
                 CurrentColor = normal;
             }
         }
+        private void EnsureChatDisplayCreated()
+        {
+            if (ChatText == null)
+            {
+                CreateChatTextDisplay();
+            }
+        }
+
         private void CreateChatTextDisplay()
         {
             // Create the chat bubble background object
@@ -452,10 +458,10 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public void SetChatText(string message)
         {
-            if (ChatText == null) return;
-
             if (string.IsNullOrEmpty(message))
             {
+                if (ChatText == null) return;
+
                 hasChatMessage = false;
                 currentChatMessage = null;
                 RefreshCachedChatTypingText();
@@ -467,6 +473,8 @@ namespace Basis.Scripts.UI.NamePlate
                 UpdateBubbleVisual();
                 return;
             }
+
+            EnsureChatDisplayCreated();
 
             currentChatMessage = message;
             chatMessageSetTime = Time.timeAsDouble;
@@ -491,6 +499,11 @@ namespace Basis.Scripts.UI.NamePlate
 
         public void SetTypingIndicatorVisible(bool visible)
         {
+            if (visible)
+            {
+                EnsureChatDisplayCreated();
+            }
+
             wantsTypingIndicator = visible;
             if (visible)
             {

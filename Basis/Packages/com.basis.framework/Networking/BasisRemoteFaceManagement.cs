@@ -72,6 +72,7 @@ public static class BasisRemoteFaceManagement
     public static NativeArray<byte> lastHasEyeBones;
     public static int lastBuiltCount;
     public static bool eyeTransformJobScheduled;
+    public static uint lastSnapshotVersion;
 
     public static int capacity;
 
@@ -125,6 +126,7 @@ public static class BasisRemoteFaceManagement
         EnsureManagedCaches(count);
 
         bool needRebuild = !eyeTransforms.isCreated || lastBuiltCount != count;
+        bool fullScan = needRebuild || BasisNetworkPlayers.SnapshotVersion != lastSnapshotVersion;
         unsafe
         {
             EyeCalibrationBlit* pCalL = (EyeCalibrationBlit*)eyeCalLeft.GetUnsafePtr();
@@ -132,49 +134,46 @@ public static class BasisRemoteFaceManagement
             byte* pUse = (byte*)useJobEye.GetUnsafePtr();
             byte* pLastHas = (byte*)lastHasEyeBones.GetUnsafePtr();
 
-            for (int Index = 0; Index < count; Index++)
+            if (fullScan)
             {
-                BasisNetworkReceiver receiver = snapshot[Index];
-                BasisRemoteFaceDriver Face = receiver.RemotePlayer.RemoteFaceDriver;
-
-                bool slotChanged = Index >= lastBuiltCount
-                    || !ReferenceEquals(faceCache[Index], Face)
-                    || lastFaceGen[Index] != Face.FaceGeneration;
-
-                if (slotChanged)
+                for (int Index = 0; Index < count; Index++)
                 {
-                    bool hasValidEyeBones = Face.HasEyeBones
-                        && Face.LeftEyeTransform != null
-                        && Face.RightEyeTransform != null;
+                    BasisNetworkReceiver receiver = snapshot[Index];
+                    BasisRemoteFaceDriver Face = receiver.RemotePlayer.RemoteFaceDriver;
 
-                    faceCache[Index] = Face;
-                    eyesCache[Index] = receiver.EyesAndMouth;
-                    lastFaceGen[Index] = Face.FaceGeneration;
-                    pLastHas[Index] = hasValidEyeBones ? (byte)1 : (byte)0;
+                    bool slotChanged = Index >= lastBuiltCount
+                        || !ReferenceEquals(faceCache[Index], Face)
+                        || lastFaceGen[Index] != Face.FaceGeneration;
 
-                    // Blit on eye-bone presence, not useJob, so calibration is ready when OverrideEye later clears.
-                    if (hasValidEyeBones)
+                    if (slotChanged)
                     {
-                        pCalL[Index] = new EyeCalibrationBlit
-                        {
-                            basis = Face.calLeft.basis,
-                            invBasis = Face.calLeft.invBasis,
-                            initialRotation = Face.calLeft.initialRotation,
-                        };
-                        pCalR[Index] = new EyeCalibrationBlit
-                        {
-                            basis = Face.calRight.basis,
-                            invBasis = Face.calRight.invBasis,
-                            initialRotation = Face.calRight.initialRotation,
-                        };
+                        faceCache[Index] = Face;
+                        eyesCache[Index] = receiver.EyesAndMouth;
+                        BlitSlot(Face, Index, pCalL, pCalR, pLastHas);
+                        needRebuild = true;
                     }
 
-                    needRebuild = true;
+                    pUse[Index] = (pLastHas[Index] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
                 }
+            }
+            else
+            {
+                for (int Index = 0; Index < count; Index++)
+                {
+                    BasisRemoteFaceDriver Face = faceCache[Index];
 
-                pUse[Index] = (pLastHas[Index] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
+                    if (lastFaceGen[Index] != Face.FaceGeneration)
+                    {
+                        BlitSlot(Face, Index, pCalL, pCalR, pLastHas);
+                        needRebuild = true;
+                    }
+
+                    pUse[Index] = (pLastHas[Index] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
+                }
             }
         }
+
+        lastSnapshotVersion = BasisNetworkPlayers.SnapshotVersion;
 
         if (needRebuild)
         {
@@ -235,6 +234,33 @@ public static class BasisRemoteFaceManagement
             eyeTransformJobScheduled = false;
         }
         HasJob = true;
+    }
+
+    static unsafe void BlitSlot(BasisRemoteFaceDriver Face, int Index, EyeCalibrationBlit* pCalL, EyeCalibrationBlit* pCalR, byte* pLastHas)
+    {
+        bool hasValidEyeBones = Face.HasEyeBones
+            && Face.LeftEyeTransform != null
+            && Face.RightEyeTransform != null;
+
+        lastFaceGen[Index] = Face.FaceGeneration;
+        pLastHas[Index] = hasValidEyeBones ? (byte)1 : (byte)0;
+
+        // Blit on eye-bone presence, not useJob, so calibration is ready when OverrideEye later clears.
+        if (hasValidEyeBones)
+        {
+            pCalL[Index] = new EyeCalibrationBlit
+            {
+                basis = Face.calLeft.basis,
+                invBasis = Face.calLeft.invBasis,
+                initialRotation = Face.calLeft.initialRotation,
+            };
+            pCalR[Index] = new EyeCalibrationBlit
+            {
+                basis = Face.calRight.basis,
+                invBasis = Face.calRight.invBasis,
+                initialRotation = Face.calRight.initialRotation,
+            };
+        }
     }
 
     /// <summary>

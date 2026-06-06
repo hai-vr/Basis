@@ -25,6 +25,7 @@ namespace Basis.Scripts.Networking
         // Reusable buffer — grows on demand, never shrinks (avoids per-frame allocation).
         public static BasisNetworkReceiver[] ReceiversSnapshot = Array.Empty<BasisNetworkReceiver>();
         public static int ReceiverCount;
+        public static uint SnapshotVersion;
         public static ushort LargestNetworkReceiverID;
         private static BasisNetworkReceiver[] _snapshotBuffer = Array.Empty<BasisNetworkReceiver>();
 
@@ -55,6 +56,7 @@ namespace Basis.Scripts.Networking
         public static void PublishReceiversSnapshot()
         {
             if (!_snapshotDirty) return;
+            SnapshotVersion++;
 
             int count = RemotePlayerReceivers.Count;
             if (count == 0)

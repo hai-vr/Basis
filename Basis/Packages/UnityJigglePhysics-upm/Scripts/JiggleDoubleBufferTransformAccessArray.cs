@@ -46,11 +46,10 @@ public class JiggleDoubleBufferTransformAccessArray {
             return;
         }
 
-        int removedSoFar = 0;
-        for (int i = 0; i < newTransformCount && removedSoFar < maxRemoveCount; i++) {
-            newTransformAccessArray.RemoveAtSwapBack(0);
+        int removeCount = Mathf.Min(newTransformCount, maxRemoveCount);
+        for (int i = 0; i < removeCount; i++) {
             newTransformCount--;
-            removedSoFar++;
+            newTransformAccessArray.RemoveAtSwapBack(newTransformCount);
         }
 
         shouldClear = newTransformCount > 0;
