@@ -81,7 +81,7 @@ namespace HVR.Basis.Comms
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
-            HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on EyeTrackingBoneActuation.");
+          //  HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on EyeTrackingBoneActuation.");
 
             var addresses = new[] { _eyeLeftXAddress, _eyeRightXAddress, _eyeYAddress };
             foreach (var address in addresses)

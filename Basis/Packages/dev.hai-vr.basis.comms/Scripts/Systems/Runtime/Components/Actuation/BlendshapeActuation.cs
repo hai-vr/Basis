@@ -265,7 +265,7 @@ namespace HVR.Basis.Comms
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
-            HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
+         //   HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
             _isWearer = isLocallyOwned;
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
