@@ -119,7 +119,8 @@ public struct JiggleJobSimulate : IJobFor {
         var rootPosition = tree.points[0].workingPosition;
         var rootLastPosition = tree.points[0].position;
         var rootDelta = rootPosition - rootLastPosition;
-        
+        var inverseScaleFactor = (1f / timeIncrements);
+
         for (int i = 0; i < tree.pointCount; i++) {
             var point = tree.points[i];
             var parameters = tree.parameters + i;
@@ -138,34 +139,27 @@ public struct JiggleJobSimulate : IJobFor {
             }
             var parent = tree.points[point.parentIndex];
 
-            //point->debug = pointLocalPosition;
-
-            var inverseScaleFactor = (1f / timeIncrements);
             var delta = (point.position - point.lastPosition)*inverseScaleFactor;
             var parentDelta = (parent.position - parent.lastPosition)*inverseScaleFactor;
             var localSpaceVelocity = delta - parentDelta;
             var velocity = delta - localSpaceVelocity;
-            if (parent.parentIndex != -1) {
-                var parentParameters = tree.parameters+point.parentIndex;
-                point.workingPosition = point.position
-                                         + velocity * (1f - parentParameters->airDrag)
-                                         +localSpaceVelocity * (1f - parentParameters->drag)
-                                         + gravity * parentParameters->gravityMultiplier * deltaTimeSquared * inverseScaleFactor;
-            } else {
-                var parameters = tree.parameters + i;
-                point.workingPosition = point.position
-                                         + velocity * (1f - parameters->airDrag)
-                                         +localSpaceVelocity * (1f - parameters->drag)
-                                         + gravity * parameters->gravityMultiplier * deltaTimeSquared * inverseScaleFactor;
-            }
+            var parameters = parent.parentIndex != -1 ? tree.parameters + point.parentIndex : tree.parameters + i;
+            point.workingPosition = point.position
+                                     + velocity * (1f - parameters->airDrag)
+                                     +localSpaceVelocity * (1f - parameters->drag)
+                                     + gravity * parameters->gravityMultiplier * deltaTimeSquared * inverseScaleFactor;
             tree.points[i] = point;
         }
     }
 
     quaternion FromToRotationFromNormalizedVectors(float3 from, float3 to) {
-        var axis = math.normalizesafe(math.cross(from, to), new float3(0f, 0f, 1f));
-        var angle = math.acos(math.clamp(math.dot(from, to), -1f, 1f));
-        return quaternion.AxisAngle(axis, angle);
+        var c = math.cross(from, to);
+        var q = new float4(c.x, c.y, c.z, 1f + math.dot(from, to));
+        var lenSq = math.dot(q, q);
+        if (lenSq < 1e-12f) {
+            return new quaternion(0f, 0f, 1f, 0f);
+        }
+        return new quaternion(q * math.rsqrt(lenSq));
     }
 
     float float3Angle(float3 a, float3 b) {
@@ -366,8 +360,10 @@ public struct JiggleJobSimulate : IJobFor {
             maxDepenetrationMagnitude = math.max(maxDepenetrationMagnitude, math.length(newCollisionDepenetration));
             collisionDepenetration += newCollisionDepenetration;
         }
-        collisionDepenetration = math.normalizesafe(collisionDepenetration, new float3(0,0,1)) * maxDepenetrationMagnitude;
-        point->workingPosition += collisionDepenetration;
+        if (maxDepenetrationMagnitude > 0f) {
+            collisionDepenetration = math.normalizesafe(collisionDepenetration, new float3(0,0,1)) * maxDepenetrationMagnitude;
+            point->workingPosition += collisionDepenetration;
+        }
     }
 
     private unsafe bool ContainsIndex(int* array, int arrayCount, int index) {
@@ -480,16 +476,11 @@ public struct JiggleJobSimulate : IJobFor {
             
             var parentParentWorkingPosition = parent->parentPose;
             if (parent->parentIndex != -1) {
-                var parentParent = tree.points+parent->parentIndex;
-                parentParentWorkingPosition = parentParent->workingPosition;
+                parentParentWorkingPosition = (tree.points + parent->parentIndex)->workingPosition;
             }
             var length_elasticity = parentParameters->lengthElasticity * parentParameters->lengthElasticity;
             var parentAimPose = math.normalizesafe(point->parentPose - parent->parentPose, new float3(0,0,1));
             var parentAim = math.normalizesafe(parent->workingPosition - parentParentWorkingPosition, new float3(0,0,1));
-            if (parent->parentIndex != -1) {
-                var parentParent = tree.points+parent->parentIndex;
-                parentAim = math.normalizesafe(parent->workingPosition - parentParent->workingPosition, new float3(0,0,1));
-            }
 
             var currentLength = math.length(point->workingPosition - parent->workingPosition);
             var from_to_rot = FromToRotationFromNormalizedVectors(parentAimPose, parentAim);
@@ -524,34 +515,27 @@ public struct JiggleJobSimulate : IJobFor {
             #region Angle Limit Constraint
 
             if (parentParameters->angleLimited) {
-                var angleLimitParentAimPose = math.normalizesafe(point->parentPose - parent->parentPose, new float3(0,0,1));
-                var angleLimitParentAim = math.normalizesafe(parent->workingPosition - parentParentWorkingPosition, new float3(0,0,1));
-                var angleLimitFromTo = FromToRotationFromNormalizedVectors(angleLimitParentAimPose, angleLimitParentAim);
-                var angleLimitConstraintTarget = math.rotate(angleLimitFromTo, point->pose - point->parentPose);
-
-                var angleLimitDesiredPosition = parent->workingPosition + angleLimitConstraintTarget;
-                
                 var currentAngleError = float3Angle(
                     math.normalizesafe(point->workingPosition - parent->workingPosition, new float3(0f, 0f, 1f)),
-                    math.normalizesafe(angleLimitDesiredPosition - parent->workingPosition, new float3(0f, 0f, 1f))
+                    math.normalizesafe(desiredPosition - parent->workingPosition, new float3(0f, 0f, 1f))
                 );
-                
+
                 var A = parentParameters->angleLimit * math.PI * 0.5f;
 
                 if (currentAngleError > A) {
                     var C = float3Angle(
-                        point->workingPosition - angleLimitDesiredPosition,
-                        parent->workingPosition - angleLimitDesiredPosition
+                        point->workingPosition - desiredPosition,
+                        parent->workingPosition - desiredPosition
                     ); // known included angle C
 
-                    var b = math.distance(parent->workingPosition, angleLimitDesiredPosition); // known side opposite angle B
+                    var b = math.distance(parent->workingPosition, desiredPosition); // known side opposite angle B
 
                     var B = math.PI - A - C;
-                
+
                     var oppositeCheck = math.sin(B);
                     var a = oppositeCheck == 0f ? 0f : b * math.sin(A) / oppositeCheck;
 
-                    var correctionVector = angleLimitDesiredPosition - point->workingPosition;
+                    var correctionVector = desiredPosition - point->workingPosition;
                     var correctionDir = math.normalizesafe(correctionVector, new float3(0,0,1));
                     var correctionDistance = math.length(correctionVector);
 
