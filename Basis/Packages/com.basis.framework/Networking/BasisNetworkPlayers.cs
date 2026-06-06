@@ -165,7 +165,7 @@ namespace Basis.Scripts.Networking
             Players.TryGetValue(playerId, out player);
 
         // --- Conversions (Avatar/Player) -----------------------------------
-        public static bool AvatarToPlayer(BasisAvatar avatar, out BasisPlayer basisPlayer, out BasisNetworkPlayer networkedPlayer)
+        public static bool AvatarToPlayer(BasisAvatar avatar, out IBasisPlayer basisPlayer, out BasisNetworkPlayer networkedPlayer)
         {
             basisPlayer = null;
             networkedPlayer = null;
@@ -192,7 +192,7 @@ namespace Basis.Scripts.Networking
             return false;
         }
 
-        public static bool AvatarToPlayer(BasisAvatar avatar, out BasisPlayer basisPlayer)
+        public static bool AvatarToPlayer(BasisAvatar avatar, out IBasisPlayer basisPlayer)
         {
             basisPlayer = null;
 
@@ -222,7 +222,7 @@ namespace Basis.Scripts.Networking
             return false;
         }
 
-        public static bool PlayerToNetworkedPlayer(BasisPlayer basisPlayer, out BasisNetworkPlayer networkedPlayer)
+        public static bool PlayerToNetworkedPlayer(IBasisPlayer basisPlayer, out BasisNetworkPlayer networkedPlayer)
         {
             networkedPlayer = null;
             if (basisPlayer == null)
@@ -231,11 +231,13 @@ namespace Basis.Scripts.Networking
                 return false;
             }
 
-            var instance = basisPlayer.GetEntityId();
+            // Match by reference: a player is the same object on both sides. The remote
+            // player is a plain managed object, so the old GetEntityId() identity check
+            // (a UnityEngine.Object method) no longer applies.
             foreach (var nPlayer in Players.Values)
             {
                 if (nPlayer?.Player == null) continue;
-                if (nPlayer.Player.GetEntityId() == instance)
+                if (ReferenceEquals(nPlayer.Player, basisPlayer))
                 {
                     networkedPlayer = nPlayer;
                     return true;

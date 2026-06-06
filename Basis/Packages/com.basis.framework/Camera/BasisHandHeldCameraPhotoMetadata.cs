@@ -146,7 +146,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         return null;
     }
 
-    private static string SafeName(BasisPlayer player)
+    private static string SafeName(IBasisPlayer player)
     {
         string name = player.SafeDisplayName;
         if (string.IsNullOrEmpty(name))
@@ -179,7 +179,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         for (int i = 0; i < players.Length; i++)
         {
             BasisNetworkPlayer networkPlayer = players[i];
-            if (networkPlayer == null || !networkPlayer.TryGetPlayer(out BasisPlayer player) || player == null)
+            if (networkPlayer == null || !networkPlayer.TryGetPlayer(out IBasisPlayer player) || player == null)
                 continue;
             if (player.IsLocal)
                 continue;
@@ -191,7 +191,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         return people;
     }
 
-    private static void TryAddVisiblePerson(List<TaggedPerson> people, Camera camera, Plane[] planes, BasisPlayer player, Transform ignoreRoot, bool details, bool panoramic)
+    private static void TryAddVisiblePerson(List<TaggedPerson> people, Camera camera, Plane[] planes, IBasisPlayer player, Transform ignoreRoot, bool details, bool panoramic)
     {
         if (player == null)
             return;
@@ -205,7 +205,7 @@ public static class BasisHandHeldCameraPhotoMetadata
             people.Add(tagged);
     }
 
-    private static bool TryBuildPerson(Camera camera, BasisPlayer player, bool requireBounds, bool details, bool computeBox, out TaggedPerson person)
+    private static bool TryBuildPerson(Camera camera, IBasisPlayer player, bool requireBounds, bool details, bool computeBox, out TaggedPerson person)
     {
         person = default;
 
@@ -242,7 +242,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         return true;
     }
 
-    private static string SafeAvatarName(BasisPlayer player)
+    private static string SafeAvatarName(IBasisPlayer player)
     {
         try
         {
@@ -256,7 +256,7 @@ public static class BasisHandHeldCameraPhotoMetadata
         return null;
     }
 
-    private static bool TryGetWorldBounds(BasisPlayer player, out Bounds bounds)
+    private static bool TryGetWorldBounds(IBasisPlayer player, out Bounds bounds)
     {
         bounds = default;
         var avatar = player.BasisAvatar;

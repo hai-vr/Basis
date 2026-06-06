@@ -214,8 +214,11 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>
         /// Backing store for jiggle colliders created for the avatar rig.
+        /// Initialized inline: the remote driver is a plain object (no Unity serialization
+        /// to populate this), so without the initializer it would be null and the jiggle
+        /// remove/add passes would dereference null.
         /// </summary>
-        public List<JiggleColliderSerializable> JiggleColliders;
+        public List<JiggleColliderSerializable> JiggleColliders = new List<JiggleColliderSerializable>();
 
         /// <summary>
         /// Creates a set of jiggle colliders for the provided mapping and registers them with the global <see cref="JigglePhysics"/>.

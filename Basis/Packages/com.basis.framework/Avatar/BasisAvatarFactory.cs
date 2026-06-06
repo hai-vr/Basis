@@ -209,9 +209,9 @@ namespace Basis.Scripts.Avatar
         public static async Task LoadAvatarRemote(BasisRemotePlayer Player, byte Mode, BasisLoadableBundle BasisLoadableBundle, Vector3 Position, Quaternion Rotation)
         {
             // Caller may have been destroyed between scheduling this load and us running
-            // (e.g. disconnect during an earlier async step). Unity's overloaded == catches
-            // destroyed-but-not-yet-GCd objects.
-            if (Player == null)
+            // (e.g. disconnect during an earlier async step). The remote player is a plain
+            // object now, so check the explicit IsDestroyed flag set by its teardown.
+            if (Player == null || Player.IsDestroyed)
             {
                 return;
             }
@@ -258,8 +258,8 @@ namespace Basis.Scripts.Avatar
 
                             // Player may have been destroyed while we were queued on the gate.
                             // Treat that as a cancellation so the existing OCE branch handles
-                            // cleanup instead of letting Player.transform throw downstream.
-                            if (Player == null)
+                            // cleanup instead of letting Player.Transform throw downstream.
+                            if (Player == null || Player.IsDestroyed)
                             {
                                 throw new OperationCanceledException(token);
                             }
@@ -328,12 +328,12 @@ namespace Basis.Scripts.Avatar
         /// <param name="BasisPlayer">The player to assign the avatar to.</param>
         /// <param name="Position">Spawn position for the avatar.</param>
         /// <param name="Rotation">Spawn rotation for the avatar.</param>
-        public static async Task<GameObject> DownloadAndLoadAvatar(BasisLoadableBundle BasisLoadableBundle, BasisPlayer BasisPlayer, Vector3 Position, Quaternion Rotation, CancellationToken Token, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024, List<BasisHeadChop.HeadChopTarget> HarvestedHeadChop = null)
+        public static async Task<GameObject> DownloadAndLoadAvatar(BasisLoadableBundle BasisLoadableBundle, IBasisPlayer BasisPlayer, Vector3 Position, Quaternion Rotation, CancellationToken Token, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024, List<BasisHeadChop.HeadChopTarget> HarvestedHeadChop = null)
         {
             string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
             GameObject Output = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject,
                 BasisLoadableBundle, true, BasisPlayer.ProgressReportAvatarLoad, Token,
-                Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.transform, false, true, MaxDownloadSizeInMB, HarvestedHeadChop);
+                Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.AvatarParent, false, true, MaxDownloadSizeInMB, HarvestedHeadChop);
 
             BasisPlayer.ProgressReportAvatarLoad.ReportProgress(UniqueID, 100, "Avatar ready");
             return Output;
@@ -344,9 +344,9 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         /// <param name="Player">The player to assign the fallback avatar to.</param>
         /// <param name="LoadingAvatarToUse">The address of the fallback avatar.</param>
-        public static void RemoveOldAvatarAndLoadFallback(BasisPlayer Player, Vector3 Position, Quaternion Rotation)
+        public static void RemoveOldAvatarAndLoadFallback(IBasisPlayer Player, Vector3 Position, Quaternion Rotation)
         {
-            var inSceneLoadingAvatar = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.transform);
+            var inSceneLoadingAvatar = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.AvatarParent);
 
             if (inSceneLoadingAvatar.TryGetComponent(out BasisAvatar avatar))
             {
@@ -365,7 +365,7 @@ namespace Basis.Scripts.Avatar
         /// references. The resulting trim counts are stashed on the remote player so
         /// the individual-player menu can show exactly what got removed.
         /// </summary>
-        private static void InitializePlayerAvatar(BasisPlayer Player, GameObject Output, List<BasisHeadChop.HeadChopTarget> headChop)
+        private static void InitializePlayerAvatar(IBasisPlayer Player, GameObject Output, List<BasisHeadChop.HeadChopTarget> headChop)
         {
             if (Output.TryGetComponent(out BasisAvatar avatar))
             {
@@ -394,7 +394,7 @@ namespace Basis.Scripts.Avatar
         /// Configures a player with a specific avatar.
         /// Handles both local and remote player cases.
         /// </summary>
-        private static void SetupPlayerAvatar(BasisPlayer Player, BasisAvatar avatar, bool isFallback, List<BasisHeadChop.HeadChopTarget> headChop)
+        private static void SetupPlayerAvatar(IBasisPlayer Player, BasisAvatar avatar, bool isFallback, List<BasisHeadChop.HeadChopTarget> headChop)
         {
             // Explicitly unregister old JiggleRigs synchronously. DeleteLastAvatar is async void
             // and GameObject.Destroy only fires OnDisable at end-of-frame, which races with the
@@ -450,19 +450,19 @@ namespace Basis.Scripts.Avatar
         /// <summary>
         /// Attempts to load the fallback avatar after a loading error.
         /// </summary>
-        public static void LoadAvatarAfterError(BasisPlayer Player, Vector3 Position, Quaternion Rotation)
+        public static void LoadAvatarAfterError(IBasisPlayer Player, Vector3 Position, Quaternion Rotation)
         {
             // Error paths reach here after an await — the player may already be destroyed.
-            // Accessing Player.transform on a destroyed object would throw a second
+            // Accessing Player.Transform on a destroyed object would throw a second
             // MissingReferenceException while we're already handling the first one.
-            if (Player == null)
+            if (Player == null || Player.IsDestroyed)
             {
                 return;
             }
 
             try
             {
-                GameObject data = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.transform);
+                GameObject data = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.AvatarParent);
 
                 InitializePlayerAvatar(Player, data, null);
                 Player.AvatarMetaData = BasisAvatarFactory.LoadingAvatar;
@@ -478,9 +478,9 @@ namespace Basis.Scripts.Avatar
         /// <summary>
         /// Creates instantiation parameters for spawning an avatar.
         /// </summary>
-        public static InstantiationParameters InstantiationParameters(BasisPlayer Player, Vector3 Position, Quaternion Rotation)
+        public static InstantiationParameters InstantiationParameters(IBasisPlayer Player, Vector3 Position, Quaternion Rotation)
         {
-            return new InstantiationParameters(Position, Rotation, Player.transform);
+            return new InstantiationParameters(Position, Rotation, Player.AvatarParent);
         }
 
         /// <summary>
@@ -489,7 +489,7 @@ namespace Basis.Scripts.Avatar
         /// <remarks>
         /// This method is async void: cleanup is triggered instantly, but actual unloading may be delayed.
         /// </remarks>
-        public static async void DeleteLastAvatar(BasisPlayer Player)
+        public static async void DeleteLastAvatar(IBasisPlayer Player)
         {
             if (Player.BasisAvatar != null)
             {
@@ -517,6 +517,12 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         public static void SetupRemoteAvatar(BasisRemotePlayer Player)
         {
+            // Remote avatars are scene roots (no parent), so they must survive additive
+            // scene switches on their own — the per-player root that used to do this is gone.
+            if (Player.BasisAvatar != null)
+            {
+                UnityEngine.Object.DontDestroyOnLoad(Player.BasisAvatar.gameObject);
+            }
             Player.RemoteAvatarDriver.RemoteCalibration(Player);
             Player.BasisAvatar.NotifyAvatarReady(false);
         }
@@ -627,30 +633,29 @@ namespace Basis.Scripts.Avatar
         }
 
         // Tracks the latest in-flight request per player (local/remote share this).
-        private static readonly ConcurrentDictionary<EntityId, CancellationTokenSource> _playerLoadCts = new();
+        // Keyed by the player object itself (reference identity) — the remote player is no
+        // longer a UnityEngine.Object, so the previous EntityId key is unavailable.
+        private static readonly ConcurrentDictionary<IBasisPlayer, CancellationTokenSource> _playerLoadCts = new();
 
-        private static CancellationToken ReplacePlayerLoadToken(BasisPlayer player)
+        private static CancellationToken ReplacePlayerLoadToken(IBasisPlayer player)
         {
-            EntityId key = player.GetEntityId();
-
             // Cancel & dispose previous request (if any)
-            if (_playerLoadCts.TryRemove(key, out var old))
+            if (_playerLoadCts.TryRemove(player, out var old))
             {
                 try { old.Cancel(); } catch { /* ignore */ }
                 old.Dispose();
             }
 
             var cts = new CancellationTokenSource();
-            _playerLoadCts[key] = cts;
+            _playerLoadCts[player] = cts;
             return cts.Token;
         }
 
-        private static void ClearPlayerLoadToken(BasisPlayer player, CancellationToken token)
+        private static void ClearPlayerLoadToken(IBasisPlayer player, CancellationToken token)
         {
-            EntityId key = player.GetEntityId();
-            if (_playerLoadCts.TryGetValue(key, out var cts) && cts.Token == token)
+            if (_playerLoadCts.TryGetValue(player, out var cts) && cts.Token == token)
             {
-                _playerLoadCts.TryRemove(key, out _);
+                _playerLoadCts.TryRemove(player, out _);
                 cts.Dispose();
             }
         }
@@ -659,11 +664,10 @@ namespace Basis.Scripts.Avatar
         /// Cancels any in-flight avatar load for the given player.
         /// Call this before destroying a player to prevent orphaned avatar GameObjects.
         /// </summary>
-        public static void CancelPlayerLoad(BasisPlayer player)
+        public static void CancelPlayerLoad(IBasisPlayer player)
         {
             if (player == null) return;
-            EntityId key = player.GetEntityId();
-            if (_playerLoadCts.TryRemove(key, out var cts))
+            if (_playerLoadCts.TryRemove(player, out var cts))
             {
                 try { cts.Cancel(); } catch { /* ignore */ }
                 cts.Dispose();

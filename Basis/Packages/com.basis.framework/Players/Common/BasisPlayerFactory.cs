@@ -144,29 +144,11 @@ namespace Basis.Scripts.Player
             ClientAvatarChangeMessage AvatarURL,
             ClientMetaDataMessage PlayerMetaDataMessage)
         {
-            GameObject gameObject = GameObject.Instantiate(
-                RemotePlayerReadyToSpawn,
-                InstantiationParameters.Position,
-                InstantiationParameters.Rotation,
-                InstantiationParameters.Parent);
-
-            // Root players (no parent) must survive additive world switches like the old
-            // DeviceManagement parent did. Teardown stays explicit via ClearAllRegistries/HandleDisconnectId.
-            if (InstantiationParameters.Parent == null)
-            {
-                Object.DontDestroyOnLoad(gameObject);
-            }
-
-            if (gameObject.TryGetComponent<BasisRemotePlayer>(out BasisRemotePlayer CreatedRemotePlayer))
-            {
-                // found component
-            }
-            else
-            {
-                BasisDebug.LogError("Missing RemotePlayer");
-            }
-
-            CreatedRemotePlayer.PlayerSelf = CreatedRemotePlayer.transform;
+            // The remote player is a plain managed object with no dedicated root GameObject.
+            // RemoteInitialize creates its own scene-root marker transforms (mouth, nameplate),
+            // and the avatar loads as its own scene root — each a distinct Transform.root so
+            // the bone jobs spread across worker threads.
+            BasisRemotePlayer CreatedRemotePlayer = new BasisRemotePlayer();
             CreatedRemotePlayer.RemoteInitialize(AvatarURL, PlayerMetaDataMessage);
             return CreatedRemotePlayer;
         }

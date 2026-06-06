@@ -42,7 +42,7 @@ namespace Basis.Network.Vehicles
 
         private float _sendTimer;
         private Transform VehicleTransform;
-        public BasisPlayer Player;
+        public IBasisPlayer Player;
         private List<BasisVehicleSnapshot> SnapShots = new List<BasisVehicleSnapshot>(64);
         private float[] _ownerSpinAbsDeg;
         private int _wheelCount;
@@ -110,14 +110,14 @@ namespace Basis.Network.Vehicles
                 SeatSync.OnNetworkPlayerExitSeat -= OnPlayerExitSeat;
             }
         }
-        private void OnPlayerExitSeat(BasisPlayer player)
+        private void OnPlayerExitSeat(IBasisPlayer player)
         {
             Player = player;
             ToggleItems(false);
             BasisDebug.Log($"Player Exited Seat {player.DisplayName}");
         }
 
-        private void OnPlayerEnterSeat(BasisPlayer player)
+        private void OnPlayerEnterSeat(IBasisPlayer player)
         {
             Player = player;
             bool isLocal = player != null && player.IsLocal;

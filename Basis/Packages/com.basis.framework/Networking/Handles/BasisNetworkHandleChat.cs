@@ -169,9 +169,9 @@ public static class BasisNetworkHandleChat
             return remotePlayer.RemoteAvatarDriver.References.Hips.position;
         }
 
-        if (remotePlayer.transform.position != Vector3.zero)
+        if (remotePlayer.Transform.position != Vector3.zero)
         {
-            return remotePlayer.transform.position;
+            return remotePlayer.Transform.position;
         }
 
         return fallbackPosition;

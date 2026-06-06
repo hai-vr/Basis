@@ -39,7 +39,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// The associated high-level player wrapper for this avatar.
         /// </summary>
-        public BasisPlayer Player;
+        public IBasisPlayer Player;
 
         /// <summary>
         /// Whether event hookups (like visibility checks) were made.
@@ -447,8 +447,9 @@ namespace Basis.Scripts.Drivers
             {
                 return false;
             }
-            if (IsNull(remotePlayer))
+            if (remotePlayer == null || remotePlayer.IsDestroyed)
             {
+                BasisDebug.LogError("Missing Object during calibration");
                 return false;
             }
             return true;

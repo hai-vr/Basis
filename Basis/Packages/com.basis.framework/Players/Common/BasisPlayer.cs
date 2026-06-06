@@ -6,10 +6,13 @@ using UnityEngine;
 namespace Basis.Scripts.BasisSdk.Players
 {
     /// <summary>
-    /// Base component for both local and remote players within the Basis SDK.
-    /// Provides common identity, avatar, visibility, progress, and lifecycle events.
+    /// Base component for the local player within the Basis SDK. The remote player no
+    /// longer derives from this type — it is a plain managed object implementing
+    /// <see cref="IBasisPlayer"/>. Shared state both players need is declared on the
+    /// interface; anything below that is not on the interface (the poll hooks, mode
+    /// constants) is local-only.
     /// </summary>
-    public abstract class BasisPlayer : MonoBehaviour
+    public abstract class BasisPlayer : MonoBehaviour, IBasisPlayer
     {
         /// <summary>
         /// Indicates whether this player represents the local user.
@@ -19,42 +22,56 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Platform this player is associated with.
         /// </summary>
-        public string PlayerPlatform;
+        public string PlayerPlatform { get; set; }
 
         /// <summary>
         /// Raw (untrusted) display name as provided by the source (user or network).
         /// </summary>
-        public string DisplayName;
+        public string DisplayName { get; set; }
 
         /// <summary>
         /// Unique identifier for the player.
         /// </summary>
-        public string UUID;
+        public string UUID { get; set; }
 
         /// <summary>
         /// Display-safe version of <see cref="DisplayName"/> with formatting tags removed.
         /// </summary>
-        public string SafeDisplayName;
+        public string SafeDisplayName { get; set; }
 
         /// <summary>
         /// Active avatar instance for this player, if any.
         /// </summary>
-        public BasisAvatar BasisAvatar;
+        public BasisAvatar BasisAvatar { get; set; }
 
         /// <summary>
         /// Root transform for the avatar representation (if separate from the player object).
         /// </summary>
-        public Transform AvatarTransform;
+        public Transform AvatarTransform { get; set; }
 
         /// <summary>
         /// Transform of the avatar's animator component
         /// </summary>
-        public Transform AvatarAnimatorTransform;
+        public Transform AvatarAnimatorTransform { get; set; }
 
         /// <summary>
         /// Cached self transform for quick access.
         /// </summary>
-        public Transform PlayerSelf; // yes caching myself is faster.
+        public Transform PlayerSelf { get; set; } // yes caching myself is faster.
+
+        /// <summary>The GameObject this player lives on.</summary>
+        public GameObject GameObject => gameObject;
+
+        /// <summary>The player's root transform.</summary>
+        public Transform Transform => transform;
+
+        /// <summary>Local avatars are parented under the local player.</summary>
+        public Transform AvatarParent => transform;
+
+        /// <summary>
+        /// Local players are MonoBehaviours, so Unity's overloaded == reports destruction.
+        /// </summary>
+        public bool IsDestroyed => this == null;
 
         /// <summary>
         /// Raised when the player's avatar switches to a new one (non-fallback).
@@ -64,7 +81,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Progress reporter for the current avatar load operation (high-level).
         /// </summary>
-        public BasisProgressReport ProgressReportAvatarLoad = new BasisProgressReport();
+        public BasisProgressReport ProgressReportAvatarLoad { get; } = new BasisProgressReport();
 
         /// <summary>
         /// Network-downloadable avatar load mode constant (value <c>0</c>).
@@ -84,22 +101,22 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Whether the face portion of the avatar is currently visible.
         /// </summary>
-        public bool FaceIsVisible;
+        public bool FaceIsVisible { get; set; }
 
         /// <summary>
         /// Helper used to determine whether a face renderer is currently visible to the camera.
         /// </summary>
-        public BasisMeshRendererCheck FaceRenderer;
+        public BasisMeshRendererCheck FaceRenderer { get; set; }
 
         /// <summary>
         /// Fine-grained progress reporter for avatar operations.
         /// </summary>
-        public BasisProgressReport AvatarProgress = new BasisProgressReport();
+        public BasisProgressReport AvatarProgress { get; } = new BasisProgressReport();
 
         /// <summary>
         /// Callback invoked when audio data is received for this player.
         /// </summary>
-        public Action AudioReceived;
+        public Action AudioReceived { get; set; }
 
         /// <summary>
         /// Delegate signature for simulation hooks (e.g., pre-bone simulation).
@@ -124,18 +141,17 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Whether the currently active avatar is considered a fallback (placeholder) asset.
         /// </summary>
-        public bool IsConsideredFallBackAvatar = true;
+        public bool IsConsideredFallBackAvatar { get; set; } = true;
 
         /// <summary>
         /// The current avatar load mode for this player (0 = downloading, 1 = local).
         /// </summary>
-        public byte AvatarLoadMode; // 0 downloading 1 local
+        public byte AvatarLoadMode { get; set; } // 0 downloading 1 local
 
         /// <summary>
         /// Metadata describing the avatar bundle used to create the current avatar.
         /// </summary>
-        [HideInInspector]
-        public BasisLoadableBundle AvatarMetaData;
+        public BasisLoadableBundle AvatarMetaData { get; set; }
 
         /// <summary>
         /// Computes and stores a display-safe version of <see cref="DisplayName"/> by stripping any &lt;...&gt; tags.

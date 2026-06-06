@@ -67,7 +67,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Player whose face visibility is observed.
         /// </summary>
-        public BasisPlayer linkedPlayer;
+        public IBasisPlayer linkedPlayer;
 
         /// <summary>
         /// Whether updates are currently enabled (e.g., face visible and renderer present).
@@ -79,7 +79,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         /// <param name="player">The owning <see cref="BasisPlayer"/>.</param>
         /// <param name="avatar">Avatar providing blink mesh and viseme indices.</param>
-        public void Initialize(BasisPlayer player, BasisAvatar avatar)
+        public void Initialize(IBasisPlayer player, BasisAvatar avatar)
         {
             linkedPlayer = player;
             blendShapeIndices.Clear();
@@ -190,7 +190,7 @@ namespace Basis.Scripts.Drivers
         /// canonical yaw/pitch input can be transformed into rig-local rotation. Run
         /// once per avatar at calibration time. Sets <see cref="HasEyeBones"/>.
         /// </summary>
-        private void InitializeEyes(BasisPlayer player, BasisAvatar avatar)
+        private void InitializeEyes(IBasisPlayer player, BasisAvatar avatar)
         {
             FaceGeneration++;
             HasEyeBones = false;

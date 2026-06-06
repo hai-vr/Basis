@@ -55,9 +55,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         // Hot loops iterating ReceiversSnapshot can read Player.X directly without
         // a null check; only initialization, UI, or async-lookup paths that may
         // race a despawn need <see cref="TryGetPlayer"/> (the safe accessor).
-        [System.NonSerialized] internal BasisPlayer _player;
+        [System.NonSerialized] internal IBasisPlayer _player;
 
-        public BasisPlayer Player
+        public IBasisPlayer Player
         {
             [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
             get => _player;
@@ -71,7 +71,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Hot per-frame paths should read <see cref="Player"/> directly.
         /// </summary>
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        public bool TryGetPlayer(out BasisPlayer player)
+        public bool TryGetPlayer(out IBasisPlayer player)
         {
             player = _player;
             return player != null;
@@ -247,11 +247,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.AvatarChannel, DeliveryMethod);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarDataMessage, netDataWriter.Length);
         }
-        public static bool AvatarToPlayer(BasisAvatar Avatar, out BasisPlayer BasisPlayer)
+        public static bool AvatarToPlayer(BasisAvatar Avatar, out IBasisPlayer BasisPlayer)
         {
             return BasisNetworkPlayers.AvatarToPlayer(Avatar, out BasisPlayer);
         }
-        public static bool PlayerToNetworkedPlayer(BasisPlayer BasisPlayer, out BasisNetworkPlayer BasisNetworkPlayer)
+        public static bool PlayerToNetworkedPlayer(IBasisPlayer BasisPlayer, out BasisNetworkPlayer BasisNetworkPlayer)
         {
             return BasisNetworkPlayers.PlayerToNetworkedPlayer(BasisPlayer, out BasisNetworkPlayer);
         }

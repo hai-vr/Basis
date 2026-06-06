@@ -140,6 +140,9 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public void RefreshActiveState()
         {
+            // The avatar's renderer-visibility callback can fire mid-teardown; bail if this
+            // plate has already been destroyed rather than touching its gameObject.
+            if (this == null) return;
             gameObject.SetActive(BasisRemoteNamePlateDriver.ShouldPlateBeActive(this));
         }
 

@@ -367,11 +367,6 @@ namespace SteamAudio
             MarkCacheDirty();
         }
 #endif
-
-        private void Update()
-        {
-            if (!mInitialized) return;
-        }
         public void ForceUpdate()
         {
             if (!mInitialized || mAudioEngineSource == null) return;

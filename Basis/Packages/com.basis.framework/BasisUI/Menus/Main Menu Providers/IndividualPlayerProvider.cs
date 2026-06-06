@@ -178,7 +178,7 @@ namespace Basis.BasisUI
             }
             else
             {
-                basePos = s_beaconTarget.Player.transform.position + Vector3.up * 1.5f;
+                basePos = s_beaconTarget.Player.Transform.position + Vector3.up * 1.5f;
             }
 
             Vector3 topPos = basePos + Vector3.up * BeaconHeight;

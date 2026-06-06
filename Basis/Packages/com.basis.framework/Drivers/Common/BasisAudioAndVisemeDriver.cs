@@ -25,7 +25,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Player whose avatar/renderer provide the viseme mesh and visibility state.
         /// </summary>
-        public BasisPlayer Player;
+        public IBasisPlayer Player;
 
         /// <summary>
         /// Avatar containing the viseme mesh and movement indices.
@@ -92,7 +92,7 @@ namespace Basis.Scripts.Drivers
         /// for OpenLipSync but defers context creation until the player is within
         /// viseme range (lazy allocation for 1000+ player scaling).
         /// </summary>
-        public bool TryInitialize(BasisPlayer BasisPlayer)
+        public bool TryInitialize(IBasisPlayer BasisPlayer)
         {
             WasSuccessful = false;
             Avatar = BasisPlayer.BasisAvatar;
@@ -116,9 +116,10 @@ namespace Basis.Scripts.Drivers
             }
 
             // Cache entity ID on the main thread — needed later for lazy slot
-            // acquisition which can be triggered from the audio thread.
+            // acquisition which can be triggered from the audio thread. The remote player
+            // is a plain object, so key off its owned GameObject's entity id.
             BasisOpenLipSyncDriver.UnregisterSlotRevokedCallback(_cachedEntityId);
-            _cachedEntityId = BasisPlayer.GetEntityId();
+            _cachedEntityId = BasisPlayer.GameObject.GetEntityId();
 
             // Listen for slot evictions (e.g. MaxSlots lowered at runtime)
             BasisOpenLipSyncDriver.RegisterSlotRevokedCallback(_cachedEntityId, OnOpenLipSyncSlotRevoked);

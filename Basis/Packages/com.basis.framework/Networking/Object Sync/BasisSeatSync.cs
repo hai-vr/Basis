@@ -30,8 +30,8 @@ public class BasisSeatSync : BasisNetworkBehaviour
         LinkedPlayer.ThePlayerID = 0;
         BasisLocalPlayer.JustBeforeNetworkApply.AddAction(20, ProvideRemotePlayerTarget);
     }
-    public Action<BasisPlayer> OnNetworkPlayerEnterSeat;
-    public Action<BasisPlayer> OnNetworkPlayerExitSeat;
+    public Action<IBasisPlayer> OnNetworkPlayerEnterSeat;
+    public Action<IBasisPlayer> OnNetworkPlayerExitSeat;
     /// <summary>Returns true if the local player is currently the recorded occupant.</summary>
     public bool IsLocallyEntered()
     {

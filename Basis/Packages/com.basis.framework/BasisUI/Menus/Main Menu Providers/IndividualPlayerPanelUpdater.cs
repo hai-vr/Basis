@@ -191,7 +191,7 @@ namespace Basis.BasisUI
                 Vector3 localPos = BasisLocalCameraDriver.Position;
                 Vector3 remotePos = RemotePlayer.MouthTransform != null
                     ? RemotePlayer.MouthTransform.position
-                    : RemotePlayer.transform.position;
+                    : RemotePlayer.Transform.position;
                 float dist = Vector3.Distance(localPos, remotePos);
                 DistanceField.SetDescription($"{dist:F2}m");
             }
