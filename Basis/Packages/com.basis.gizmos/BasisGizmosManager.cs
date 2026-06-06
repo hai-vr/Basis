@@ -39,6 +39,7 @@ public static class BasisGizmoManager
         if(Parent != null)
         {
             GameObject.Destroy(Parent);
+            Parent = null;
         }
     }
     /// <summary>

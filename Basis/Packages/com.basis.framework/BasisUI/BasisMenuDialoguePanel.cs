@@ -147,9 +147,24 @@ namespace Basis.BasisUI
                 return null;
             }
 
-            Component parent = BasisMainMenu.Instance.MenuObjectInstance.PanelRoot;
+            // The dialogue parents under the menu's panel root. That root can be gone
+            // while the menu chrome is torn down — and because the global exception
+            // notifier opens dialogues, it can reach here mid-teardown. Bail quietly
+            // instead of passing a null parent into CreateNew, whose "Parent Missing!"
+            // LogError would feed straight back into the notifier.
+            var menuInstance = BasisMainMenu.Instance.MenuObjectInstance;
+            if (menuInstance == null || menuInstance.PanelRoot == null)
+            {
+                return null;
+            }
+
+            Component parent = menuInstance.PanelRoot;
 
             BasisMenuDialoguePanel panel = CreateNew<BasisMenuDialoguePanel>(DialogueStyles.Default, parent);
+            if (panel == null)
+            {
+                return null;
+            }
             panel.LoadData(DialoguePanelData);
             panel.Callback = callback;
             panel.FillDialogue(title, description, accept, deny);

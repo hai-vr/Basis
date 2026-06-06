@@ -168,11 +168,6 @@ public class SMModuleDebugOptions : BasisSettingsBase
         UseGizmos = selected;
         BasisDebug.Log($"Gizmo State is {UseGizmos} {selected}");
 
-        if (UseGizmos)
-        {
-            BasisGizmoManager.TryCreateParent();
-        }
-
         BasisGizmoManager.OnUseGizmosChanged?.Invoke(UseGizmos);
 
         if (!UseGizmos)

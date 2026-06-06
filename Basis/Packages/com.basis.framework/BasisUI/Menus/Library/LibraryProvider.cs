@@ -457,7 +457,15 @@ namespace Basis.BasisUI
 
         public static PanelTabPage GetTabFromPage(Page page)
         {
-            return tabMap[page];
+            // tabMap is only populated while the menu is open, and its pages are Unity
+            // objects that may already be destroyed. Return null (rather than throwing
+            // KeyNotFoundException or handing back a destroyed object) so callers can
+            // simply null-check the result.
+            if (tabMap != null && tabMap.TryGetValue(page, out PanelTabPage tab) && tab != null)
+            {
+                return tab;
+            }
+            return null;
         }
 
         public static async Task RefreshTabAsync(Page page, bool clearSearch = false)
@@ -1618,6 +1626,13 @@ namespace Basis.BasisUI
 
         private static void UpdateInstantiatedTab()
         {
+            // Spawn-registry change events can arrive after the library panel is closed
+            // or released (a networked item unloading after a server round-trip is the
+            // common case). The tab pages are destroyed by then but the static
+            // OnRegistryChanged subscription can still be live, so don't rebuild UI that
+            // no longer exists.
+            if (panel == null || panel.IsReleased) return;
+
             // get the data
             IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> collections = BasisRuntimeSpawnRegistry.GetAll();
 
@@ -1770,6 +1785,7 @@ namespace Basis.BasisUI
 
             // get the page
             PanelTabPage page = GetTabFromPage(Page.Instantiated);
+            if (page == null) return; // tab missing or destroyed; nothing to rebuild
 
             // clear the page
             ClearTabContent(page.Descriptor.ContentParent);
