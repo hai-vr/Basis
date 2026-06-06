@@ -20,12 +20,20 @@ namespace Basis.Scripts.Addressable_Driver.Resource
                 GameObject spawned = ContentPoliceControl.ContentControl(TempSpawnDisableGameobject, resource, Required, instantiationParameters.Position, instantiationParameters.Rotation, false, Vector3.zero, Selector, instantiationParameters.Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop);
                 return spawned;
             }
-            else
+
+            // A failed load (no addressable location for the key, or a wrong asset type) completes
+            // with a null result, so the old "Unexpected result type: " + result.GetType() dereferenced
+            // null and threw a misleading NullReferenceException here instead of surfacing the real
+            // cause. Release the handle and throw a clear message; callers such as
+            // BasisAvatarFactory.LoadAvatarRemote catch this to run their fallback-avatar path.
+            string reason = result == null
+                ? (data.OperationException?.Message ?? "no addressable location for key")
+                : "unexpected result type " + result.GetType();
+            if (data.IsValid())
             {
-                UnityEngine.Debug.LogError("Unexpected result type: " + result.GetType());
                 Addressables.Release(data);
             }
-            return null;
+            throw new System.Exception($"Failed to load '{loadstring}' as a GameObject: {reason}");
         }
         /// <summary>
         /// loads a system based gameobject,
