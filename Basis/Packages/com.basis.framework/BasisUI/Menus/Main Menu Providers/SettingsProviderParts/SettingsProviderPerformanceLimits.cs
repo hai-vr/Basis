@@ -29,10 +29,10 @@ public static class SettingsProviderPerformanceLimits
         PanelElementDescriptor bypassGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         bypassGroup.SetTitle(BasisLocalization.Get("settings.perf.sessionBypass.title"));
-        bypassGroup.SetDescription(BasisLocalization.Get("settings.perf.sessionBypass.description"));
 
         PanelToggle bypassToggle = PanelToggle.CreateNewEntry(bypassGroup.ContentParent);
         bypassToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.perf.sessionBypass.toggle"));
+        bypassToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.sessionBypass.toggle.tooltip"));
         bypassToggle.SetValueWithoutNotify(BasisAvatarPerformanceLimits.BypassAllLimits);
         bypassToggle.OnValueChanged += on =>
         {
@@ -42,33 +42,37 @@ public static class SettingsProviderPerformanceLimits
         PanelElementDescriptor intro =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         intro.SetTitle(BasisLocalization.Get("settings.perf.intro.title"));
-        intro.SetDescription(BasisLocalization.Get("settings.perf.intro.description"));
 
         PanelElementDescriptor geometry =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         geometry.SetTitle(BasisLocalization.Get("settings.perf.group.geometry"));
-        geometry.SetDescription(BasisLocalization.Get("settings.perf.group.geometry.description"));
 
         AddLimitPair(geometry.ContentParent,
             BasisLocalization.Get("settings.perf.triangles.toggle"),
             BasisLocalization.Get("settings.perf.triangles.slider"),
             BasisSettingsDefaults.UsePerfLimitTriangles,
             BasisSettingsDefaults.MaxPerfTriangles,
-            1000, 2_000_000, true, displayMode: ValueDisplayMode.Compact);
+            1000, 2_000_000, true, displayMode: ValueDisplayMode.Compact,
+            toggleTooltip: BasisLocalization.Get("settings.perf.triangles.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.triangles.slider.tooltip"));
 
         AddLimitPair(geometry.ContentParent,
             BasisLocalization.Get("settings.perf.boundsSize.toggle"),
             BasisLocalization.Get("settings.perf.boundsSize.slider"),
             BasisSettingsDefaults.UsePerfLimitBoundsSize,
             BasisSettingsDefaults.MaxPerfBoundsSize,
-            10f, 50f, false, decimals: 1);
+            10f, 50f, false, decimals: 1,
+            toggleTooltip: BasisLocalization.Get("settings.perf.boundsSize.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.boundsSize.slider.tooltip"));
 
         AddLimitPair(geometry.ContentParent,
             BasisLocalization.Get("settings.perf.bones.toggle"),
             BasisLocalization.Get("settings.perf.bones.slider"),
             BasisSettingsDefaults.UsePerfLimitBones,
             BasisSettingsDefaults.MaxPerfBones,
-            16, 16384, true, displayMode: ValueDisplayMode.Compact);
+            16, 16384, true, displayMode: ValueDisplayMode.Compact,
+            toggleTooltip: BasisLocalization.Get("settings.perf.bones.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.bones.slider.tooltip"));
 
         PanelElementDescriptor meshes =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -79,28 +83,36 @@ public static class SettingsProviderPerformanceLimits
             BasisLocalization.Get("settings.perf.skinnedMeshes.slider"),
             BasisSettingsDefaults.UsePerfLimitSkinnedMeshes,
             BasisSettingsDefaults.MaxPerfSkinnedMeshes,
-            1, 64, true);
+            1, 64, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.skinnedMeshes.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.skinnedMeshes.slider.tooltip"));
 
         AddLimitPair(meshes.ContentParent,
             BasisLocalization.Get("settings.perf.basicMeshes.toggle"),
             BasisLocalization.Get("settings.perf.basicMeshes.slider"),
             BasisSettingsDefaults.UsePerfLimitBasicMeshes,
             BasisSettingsDefaults.MaxPerfBasicMeshes,
-            1, 128, true);
+            1, 128, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.basicMeshes.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.basicMeshes.slider.tooltip"));
 
         AddLimitPair(meshes.ContentParent,
             BasisLocalization.Get("settings.perf.materialSlots.toggle"),
             BasisLocalization.Get("settings.perf.materialSlots.slider"),
             BasisSettingsDefaults.UsePerfLimitMaterialSlots,
             BasisSettingsDefaults.MaxPerfMaterialSlots,
-            1, 256, true);
+            1, 256, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.materialSlots.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.materialSlots.slider.tooltip"));
 
         AddLimitPair(meshes.ContentParent,
             BasisLocalization.Get("settings.perf.textureMemory.toggle"),
             BasisLocalization.Get("settings.perf.textureMemory.slider"),
             BasisSettingsDefaults.UsePerfLimitTextureMemory,
             BasisSettingsDefaults.MaxPerfTextureMemoryMB,
-            8, 4096, true);
+            8, 4096, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.textureMemory.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.textureMemory.slider.tooltip"));
 
         PanelElementDescriptor physics =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -111,21 +123,27 @@ public static class SettingsProviderPerformanceLimits
             BasisLocalization.Get("settings.perf.jiggleBones.slider"),
             BasisSettingsDefaults.UsePerfLimitJiggleBones,
             BasisSettingsDefaults.MaxPerfJiggleBones,
-            0, 128, true);
+            0, 128, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.jiggleBones.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.jiggleBones.slider.tooltip"));
 
         AddLimitPair(physics.ContentParent,
             BasisLocalization.Get("settings.perf.colliders.toggle"),
             BasisLocalization.Get("settings.perf.colliders.slider"),
             BasisSettingsDefaults.UsePerfLimitColliders,
             BasisSettingsDefaults.MaxPerfColliders,
-            0, 128, true);
+            0, 128, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.colliders.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.colliders.slider.tooltip"));
 
         AddLimitPair(physics.ContentParent,
             BasisLocalization.Get("settings.perf.cloth.toggle"),
             BasisLocalization.Get("settings.perf.cloth.slider"),
             BasisSettingsDefaults.UsePerfLimitCloth,
             BasisSettingsDefaults.MaxPerfCloth,
-            0, 16, true);
+            0, 16, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.cloth.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.cloth.slider.tooltip"));
 
         PanelElementDescriptor effects =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -136,40 +154,49 @@ public static class SettingsProviderPerformanceLimits
             BasisLocalization.Get("settings.perf.particleSystems.slider"),
             BasisSettingsDefaults.UsePerfLimitParticleSystems,
             BasisSettingsDefaults.MaxPerfParticleSystems,
-            0, 128, true);
+            0, 128, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.particleSystems.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.particleSystems.slider.tooltip"));
 
         AddLimitPair(effects.ContentParent,
             BasisLocalization.Get("settings.perf.trailRenderers.toggle"),
             BasisLocalization.Get("settings.perf.trailRenderers.slider"),
             BasisSettingsDefaults.UsePerfLimitTrailRenderers,
             BasisSettingsDefaults.MaxPerfTrailRenderers,
-            0, 64, true);
+            0, 64, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.trailRenderers.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.trailRenderers.slider.tooltip"));
 
         AddLimitPair(effects.ContentParent,
             BasisLocalization.Get("settings.perf.lineRenderers.toggle"),
             BasisLocalization.Get("settings.perf.lineRenderers.slider"),
             BasisSettingsDefaults.UsePerfLimitLineRenderers,
             BasisSettingsDefaults.MaxPerfLineRenderers,
-            0, 64, true);
+            0, 64, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.lineRenderers.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.lineRenderers.slider.tooltip"));
 
         PanelElementDescriptor runtime =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         runtime.SetTitle(BasisLocalization.Get("settings.perf.group.runtime"));
-        runtime.SetDescription(BasisLocalization.Get("settings.perf.group.runtime.description"));
 
         AddLimitPair(runtime.ContentParent,
             BasisLocalization.Get("settings.perf.animators.toggle"),
             BasisLocalization.Get("settings.perf.animators.slider"),
             BasisSettingsDefaults.UsePerfLimitAnimators,
             BasisSettingsDefaults.MaxPerfAnimators,
-            1, 32, true);
+            1, 32, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.animators.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.animators.slider.tooltip"));
 
         AddLimitPair(runtime.ContentParent,
             BasisLocalization.Get("settings.perf.cilboxBehaviours.toggle"),
             BasisLocalization.Get("settings.perf.cilboxBehaviours.slider"),
             BasisSettingsDefaults.UsePerfLimitCilboxBehaviours,
             BasisSettingsDefaults.MaxPerfCilboxBehaviours,
-            0, 64, true);
+            0, 64, true,
+            toggleTooltip: BasisLocalization.Get("settings.perf.cilboxBehaviours.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.cilboxBehaviours.slider.tooltip"));
 
         SettingsProviderContentTags.BuildContentTagsContent(container);
     }
@@ -183,16 +210,21 @@ public static class SettingsProviderPerformanceLimits
         float sliderMax,
         bool wholeNumbers,
         int decimals = 0,
-        ValueDisplayMode displayMode = ValueDisplayMode.Raw)
+        ValueDisplayMode displayMode = ValueDisplayMode.Raw,
+        string toggleTooltip = null,
+        string sliderTooltip = null)
     {
         PanelToggle toggle = PanelToggle.CreateNewEntry(parent);
         toggle.Descriptor.SetTitle(toggleTitle);
+        toggle.Descriptor.SetTooltip(toggleTooltip);
         toggle.AssignBinding(useBinding);
 
         PanelSlider slider = PanelSlider.CreateEntryAndBind(parent, PanelSlider.SliderSettings.Advanced(sliderTitle, sliderMin, sliderMax, wholeNumbers, decimals, displayMode), maxBinding);
 
         if (slider != null)
         {
+            slider.Descriptor.SetTooltip(sliderTooltip);
+
             void Sync(bool on)
             {
                 if (slider == null) return;

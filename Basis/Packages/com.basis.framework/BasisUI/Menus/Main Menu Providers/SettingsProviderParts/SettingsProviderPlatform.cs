@@ -23,7 +23,6 @@ public static class SettingsProviderPlatform
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         infoGroup.SetTitle(BasisLocalization.Get("settings.platform.deviceMode"));
-        infoGroup.SetDescription(BasisLocalization.Get("settings.platform.deviceMode.description"));
 
        var currentModeField = PanelTextField.CreateNew(infoGroup.ContentParent);
         currentModeField.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.activeMode"));
@@ -65,6 +64,7 @@ public static class SettingsProviderPlatform
 
                 PanelButton modeButton = PanelButton.CreateNew(infoGroup.ContentParent);
                 modeButton.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.switchTo", displayName) + suffix);
+                modeButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.platform.switchTo.tooltip"));
                 modeButton.Descriptor.SetDescription(GetModeDescription(capturedMode));
                 modeButton.OnClicked += () =>
                 {
@@ -89,11 +89,10 @@ public static class SettingsProviderPlatform
         PanelElementDescriptor autoSwapGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         autoSwapGroup.SetTitle(BasisLocalization.Get("settings.platform.swapMode.title"));
-        autoSwapGroup.SetDescription(BasisLocalization.Get("settings.platform.swapMode.description"));
 
         PanelDropdown dropdownSwapMode = PanelDropdown.CreateNewEntry(autoSwapGroup);
         dropdownSwapMode.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.swapMode.title"));
-        dropdownSwapMode.Descriptor.SetDescription(BasisLocalization.Get("settings.platform.swapMode.dropdown.description"));
+        dropdownSwapMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.platform.swapMode.title.tooltip"));
         dropdownSwapMode.AssignEntries(new System.Collections.Generic.List<string>
         {
             BasisSettingsDefaults.SwapMode_Shutdown,

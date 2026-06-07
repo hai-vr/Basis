@@ -65,6 +65,9 @@ namespace Basis.BasisUI
         public bool HasTexture => TextureImage;
         public bool HasTitle => TitleLabel;
         public bool HasDescription => DescriptionLabel;
+        public string Description => _description;
+        public string Title => _title;
+        public string Tooltip => _tooltip;
         public bool HasHeader => Header;
         public RectTransform ContentParent
         {
@@ -86,6 +89,7 @@ namespace Basis.BasisUI
         protected Texture2D _textureImage;
         protected string _title;
         protected string _description;
+        protected string _tooltip;
         private bool _titleSet;
         private bool _descriptionSet;
 
@@ -191,6 +195,15 @@ namespace Basis.BasisUI
             _descriptionSet = true;
             DescriptionLabel.gameObject.SetActive(!string.IsNullOrEmpty(value));
             DescriptionLabel.SetText(value);
+        }
+
+        /// <summary>
+        /// Sets the hover-tooltip text for this element. Unlike SetDescription, this is not
+        /// shown inline on the panel — it only appears in the tooltip bar on hover.
+        /// </summary>
+        public void SetTooltip(string value)
+        {
+            _tooltip = value;
         }
 
         /// <summary>

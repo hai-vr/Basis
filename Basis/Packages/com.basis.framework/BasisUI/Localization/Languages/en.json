@@ -3,6 +3,1670 @@
   "nativeName": "English",
   "entries": [
     {
+      "key": "settings.general.disableSeats.tooltip",
+      "value": "Stop yourself from sitting in seats and chairs around the world."
+    },
+    {
+      "key": "settings.general.desktopReticle.tooltip",
+      "value": "Show a small aiming dot in the center of the screen on desktop."
+    },
+    {
+      "key": "settings.general.avatarPreview.tooltip",
+      "value": "Show a small preview of your avatar while in the menu."
+    },
+    {
+      "key": "settings.general.avatarPreviewMirror.tooltip",
+      "value": "Flip the avatar preview so it faces you like a mirror."
+    },
+    {
+      "key": "settings.general.thirdPerson.tooltip",
+      "value": "View your avatar from behind with a third-person desktop camera."
+    },
+    {
+      "key": "settings.general.thirdPerson.audioFromHead.tooltip",
+      "value": "Keep hearing sound from your avatar's head instead of the camera."
+    },
+    {
+      "key": "settings.general.language.title.tooltip",
+      "value": "Choose your menu language. Help translate Basis: copy en.json, translate it, and open a pull request at github.com/BasisVR/Basis."
+    },
+    {
+      "key": "settings.general.networking.directConnections.tooltip",
+      "value": "Allow peer-to-peer connections to other players for lower latency."
+    },
+    {
+      "key": "settings.general.networking.p2pAvatarRate.tooltip",
+      "value": "How many times per second your avatar pose is sent to peers."
+    },
+    {
+      "key": "settings.audio.masterVolume.tooltip",
+      "value": "Overall loudness of all sound in the app."
+    },
+    {
+      "key": "settings.audio.menuVolume.tooltip",
+      "value": "Loudness of menu clicks and interface sounds."
+    },
+    {
+      "key": "settings.audio.worldVolume.tooltip",
+      "value": "Loudness of sounds coming from the world around you."
+    },
+    {
+      "key": "settings.audio.voiceVolume.tooltip",
+      "value": "Loudness of other players' voices."
+    },
+    {
+      "key": "settings.audio.avatarVolume.tooltip",
+      "value": "Loudness of sounds played by other players' avatars."
+    },
+    {
+      "key": "settings.audio.propVolume.tooltip",
+      "value": "Loudness of sounds made by props and pickups."
+    },
+    {
+      "key": "settings.microphone.volume.tooltip",
+      "value": "Boost or lower how loud your microphone sounds to others."
+    },
+    {
+      "key": "settings.microphone.selection.tooltip",
+      "value": "Pick which microphone device to use for voice chat."
+    },
+    {
+      "key": "settings.general.microphoneRange.tooltip",
+      "value": "How far away other players can hear your voice."
+    },
+    {
+      "key": "settings.microphone.denoiser.tooltip",
+      "value": "Reduce background noise picked up by your microphone."
+    },
+    {
+      "key": "settings.microphone.agc.tooltip",
+      "value": "Automatically keep your voice at a steady, even volume."
+    },
+    {
+      "key": "settings.microphone.mode.tooltip",
+      "value": "Choose whether your mic is always on or push-to-talk."
+    },
+    {
+      "key": "settings.microphone.icon.tooltip",
+      "value": "Choose when the microphone status icon appears on screen."
+    },
+    {
+      "key": "settings.microphone.startBehavior.tooltip",
+      "value": "Whether your mic starts muted, unmuted, or as you left it."
+    },
+    {
+      "key": "settings.microphone.muteBehavior.tooltip",
+      "value": "Whether muting fully stops the mic or just silences it."
+    },
+    {
+      "key": "settings.microphone.limiter.threshold.tooltip",
+      "value": "Volume level above which the limiter starts taming loud peaks."
+    },
+    {
+      "key": "settings.microphone.limiter.knee.tooltip",
+      "value": "How gradually the limiter eases in around its threshold."
+    },
+    {
+      "key": "settings.microphone.denoiser.wet.tooltip",
+      "value": "How strongly noise removal is applied to your voice."
+    },
+    {
+      "key": "settings.microphone.denoiser.makeup.tooltip",
+      "value": "Extra gain added back after noise removal to restore volume."
+    },
+    {
+      "key": "settings.microphone.agc.targetRms.tooltip",
+      "value": "The loudness level automatic gain control aims to maintain."
+    },
+    {
+      "key": "settings.microphone.agc.maxGain.tooltip",
+      "value": "The most automatic gain control can boost a quiet voice."
+    },
+    {
+      "key": "settings.microphone.agc.attack.tooltip",
+      "value": "How quickly automatic gain reacts to your voice getting louder."
+    },
+    {
+      "key": "settings.microphone.agc.release.tooltip",
+      "value": "How quickly automatic gain recovers after your voice gets quieter."
+    },
+    {
+      "key": "settings.microphone.noiseGate.enable.tooltip",
+      "value": "Mute the mic when you are not speaking to cut background noise."
+    },
+    {
+      "key": "settings.microphone.noiseGate.threshold.tooltip",
+      "value": "Volume below which the noise gate closes and mutes you."
+    },
+    {
+      "key": "settings.microphone.noiseGate.attack.tooltip",
+      "value": "How quickly the noise gate opens when you start speaking."
+    },
+    {
+      "key": "settings.microphone.noiseGate.release.tooltip",
+      "value": "How quickly the noise gate closes after you stop speaking."
+    },
+    {
+      "key": "settings.microphone.iconPosition.horizontal.tooltip",
+      "value": "Move the microphone icon left or right on screen."
+    },
+    {
+      "key": "settings.microphone.iconPosition.vertical.tooltip",
+      "value": "Move the microphone icon up or down on screen."
+    },
+    {
+      "key": "settings.general.avatarRange.tooltip",
+      "value": "How far away other players' avatars stay visible."
+    },
+    {
+      "key": "settings.developer.avatarDistance.tooltip",
+      "value": "Hide distant avatars beyond your set range to save performance."
+    },
+    {
+      "key": "settings.general.limitAvatars.tooltip",
+      "value": "Cap how many other avatars are shown at once."
+    },
+    {
+      "key": "settings.general.maxAvatars.tooltip",
+      "value": "The maximum number of other avatars rendered at the same time."
+    },
+    {
+      "key": "settings.general.viewCone.tooltip",
+      "value": "Only show avatars within the area you are looking at."
+    },
+    {
+      "key": "settings.general.viewConeAngle.tooltip",
+      "value": "How wide the view cone is for showing nearby avatars."
+    },
+    {
+      "key": "settings.graphics.qualityLevel.tooltip",
+      "value": "Overall graphics quality, trading visuals against performance."
+    },
+    {
+      "key": "settings.graphics.shadowQuality.tooltip",
+      "value": "Detail and sharpness of shadows in the scene."
+    },
+    {
+      "key": "settings.graphics.antialiasing.tooltip",
+      "value": "Smooth jagged edges on objects, at some performance cost."
+    },
+    {
+      "key": "settings.graphics.verticalSync.tooltip",
+      "value": "Sync frame rate to your display to reduce screen tearing."
+    },
+    {
+      "key": "settings.graphics.frameRateCap.tooltip",
+      "value": "Set a maximum frames-per-second limit for rendering."
+    },
+    {
+      "key": "settings.graphics.memoryAllocation.tooltip",
+      "value": "How much texture memory the renderer is allowed to use."
+    },
+    {
+      "key": "settings.graphics.resolution.tooltip",
+      "value": "The screen resolution the game renders at."
+    },
+    {
+      "key": "settings.graphics.screenMode.tooltip",
+      "value": "Run fullscreen, borderless window, or windowed."
+    },
+    {
+      "key": "settings.graphics.mirrorQuality.override.tooltip",
+      "value": "Manually set mirror resolution instead of using the default."
+    },
+    {
+      "key": "settings.graphics.mirrorResolution.tooltip",
+      "value": "The resolution mirrors render at when override is enabled."
+    },
+    {
+      "key": "settings.graphics.bloom.override.tooltip",
+      "value": "Manually control the glow intensity of bright areas."
+    },
+    {
+      "key": "settings.graphics.bloom.intensity.tooltip",
+      "value": "How strong the glow effect is around bright lights."
+    },
+    {
+      "key": "settings.graphics.cameraClip.override.tooltip",
+      "value": "Manually set how near and far the camera can see."
+    },
+    {
+      "key": "settings.graphics.cameraClip.near.tooltip",
+      "value": "Closest distance the camera renders before clipping objects."
+    },
+    {
+      "key": "settings.graphics.cameraClip.far.tooltip",
+      "value": "Farthest distance the camera renders before hiding objects."
+    },
+    {
+      "key": "settings.graphics.poseLod.bias.tooltip",
+      "value": "Bias how aggressively distant avatar animation detail is reduced."
+    },
+    {
+      "key": "settings.graphics.renderScale.tooltip",
+      "value": "Render below or above native resolution for performance or sharpness."
+    },
+    {
+      "key": "settings.graphics.hdrSupport.tooltip",
+      "value": "Enable high dynamic range rendering for brighter highlights."
+    },
+    {
+      "key": "settings.graphics.foveated.tooltip",
+      "value": "Lower detail at the edges of your VR view to boost performance."
+    },
+    {
+      "key": "settings.graphics.fov.tooltip",
+      "value": "How wide your field of view is on screen."
+    },
+    {
+      "key": "settings.graphics.avatarLod.tooltip",
+      "value": "Detail level of avatar meshes as they get further away."
+    },
+    {
+      "key": "settings.graphics.worldLod.tooltip",
+      "value": "Detail level of world meshes as they get further away."
+    },
+    {
+      "key": "settings.graphics.localHeadBlendShapes.tooltip",
+      "value": "Animate your own avatar's facial expressions in first person."
+    },
+    {
+      "key": "settings.chat.joinNotifications.tooltip",
+      "value": "Show a message when someone joins the world."
+    },
+    {
+      "key": "settings.chat.leaveNotifications.tooltip",
+      "value": "Show a message when someone leaves the world."
+    },
+    {
+      "key": "settings.chat.disable.tooltip",
+      "value": "Turn off text chat so you neither send nor receive messages."
+    },
+    {
+      "key": "settings.chat.message.tooltip",
+      "value": "Type a message here to send it to everyone in the world."
+    },
+    {
+      "key": "settings.chat.textSize.tooltip",
+      "value": "How large chat text appears above players."
+    },
+    {
+      "key": "settings.chat.camera.photoMetadata.tooltip",
+      "value": "Choose who gets tagged in photos you take."
+    },
+    {
+      "key": "settings.chat.camera.personDetails.tooltip",
+      "value": "Save the names of people pictured into photo files."
+    },
+    {
+      "key": "settings.chat.camera.cameraSettings.tooltip",
+      "value": "Save the camera settings used into photo files."
+    },
+    {
+      "key": "settings.chat.camera.captureInfo.tooltip",
+      "value": "Save capture details like time and date into photo files."
+    },
+    {
+      "key": "settings.chat.camera.photographer.tooltip",
+      "value": "Save your name as the photographer into photo files."
+    },
+    {
+      "key": "settings.chat.camera.world.tooltip",
+      "value": "Save the world name where the photo was taken into photo files."
+    },
+    {
+      "key": "settings.chat.raycast.size.tooltip",
+      "value": "Thickness of the pointer line used to interact with menus."
+    },
+    {
+      "key": "settings.developer.showGizmos.tooltip",
+      "value": "Show debug visual markers in the world for diagnostics."
+    },
+    {
+      "key": "settings.developer.skeletonLines.tooltip",
+      "value": "Draw lines along avatar bones to visualize the skeleton."
+    },
+    {
+      "key": "settings.developer.calibrationSpheres.tooltip",
+      "value": "Show spheres marking body calibration points."
+    },
+    {
+      "key": "settings.developer.jiggleVisuals.tooltip",
+      "value": "Show debug visuals for jiggle physics on avatars."
+    },
+    {
+      "key": "settings.developer.trackerGizmos.tooltip",
+      "value": "Show markers at the position of each tracking device."
+    },
+    {
+      "key": "settings.developer.linkedTrackerLines.tooltip",
+      "value": "Draw lines connecting trackers to the body parts they drive."
+    },
+    {
+      "key": "settings.developer.eyeGazeGizmo.tooltip",
+      "value": "Show a marker indicating where your eyes are looking."
+    },
+    {
+      "key": "settings.developer.ikColliders.tooltip",
+      "value": "Show the collision shapes used by inverse kinematics."
+    },
+    {
+      "key": "settings.general.networking.jitterBufferOverride.tooltip",
+      "value": "Manually set the network jitter buffer instead of automatic."
+    },
+    {
+      "key": "settings.general.networking.jitterBuffer.tooltip",
+      "value": "How many packets to buffer to smooth out network jitter."
+    },
+    {
+      "key": "settings.developer.recorder.countdown.tooltip",
+      "value": "Seconds to wait before avatar recording begins."
+    },
+    {
+      "key": "settings.developer.recorder.autoStop.tooltip",
+      "value": "Automatically stop recording after a set length of time."
+    },
+    {
+      "key": "settings.developer.recorder.maxDuration.tooltip",
+      "value": "Maximum length in seconds before recording stops automatically."
+    },
+    {
+      "key": "settings.developer.recorder.start.tooltip",
+      "value": "Start or stop recording your avatar's movement."
+    },
+    {
+      "key": "settings.developer.voiceRange.enable.tooltip",
+      "value": "Show a visual indicator of your voice broadcast range."
+    },
+    {
+      "key": "settings.developer.enableStatistics.tooltip",
+      "value": "Display a live performance statistics overlay."
+    },
+    {
+      "key": "settings.developer.streamingMeta.tooltip",
+      "value": "Expose live metadata over a local port for streaming tools."
+    },
+    {
+      "key": "settings.developer.streamingMetaPort.tooltip",
+      "value": "Network port used to serve streaming metadata."
+    },
+    {
+      "key": "settings.developer.disableLogging.tooltip",
+      "value": "Stop writing diagnostic log messages."
+    },
+    {
+      "key": "settings.developer.logTagFilter.tooltip",
+      "value": "Only show log messages from the selected category."
+    },
+    {
+      "key": "settings.developer.logLevelFilter.tooltip",
+      "value": "Only show logs at or above the chosen severity level."
+    },
+    {
+      "key": "settings.developer.shaderPrewarm.tooltip",
+      "value": "Compile shaders ahead of time to reduce in-world stutter."
+    },
+    {
+      "key": "settings.developer.materialCorrection.tooltip",
+      "value": "Automatically fix incompatible avatar materials on load."
+    },
+    {
+      "key": "settings.developer.buildInfo.tooltip",
+      "value": "Show app version and build details on this page."
+    },
+    {
+      "key": "settings.developer.console.tooltip",
+      "value": "Show the in-app developer console on this page."
+    },
+    {
+      "key": "settings.developer.euroFilter.tooltip",
+      "value": "Show controls for tuning the network smoothing filter."
+    },
+    {
+      "key": "settings.developer.netStats.tooltip",
+      "value": "Show detailed network statistics on this page."
+    },
+    {
+      "key": "settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip",
+      "value": "Hide audio lip sync for players who use face tracking."
+    },
+    {
+      "key": "settings.developer.audioDebug.enable.tooltip",
+      "value": "Show debugging information about remote players' audio."
+    },
+    {
+      "key": "settings.developer.audioDebug.source.tooltip",
+      "value": "Show details about each remote player's audio source."
+    },
+    {
+      "key": "settings.developer.audioDebug.volumeChain.tooltip",
+      "value": "Show the chain of volume adjustments applied to remote audio."
+    },
+    {
+      "key": "settings.developer.audioDebug.ringBuffer.tooltip",
+      "value": "Show the state of the incoming audio ring buffer."
+    },
+    {
+      "key": "settings.developer.audioDebug.jitter.tooltip",
+      "value": "Show audio network jitter measurements for remote players."
+    },
+    {
+      "key": "settings.developer.audioDebug.silence.tooltip",
+      "value": "Show when remote players' audio is detected as silent."
+    },
+    {
+      "key": "settings.developer.audioDebug.viseme.tooltip",
+      "value": "Show viseme and mouth-shape data driven by remote audio."
+    },
+    {
+      "key": "settings.developer.avatarDataDebug.enable.tooltip",
+      "value": "Show debugging information about remote avatar data."
+    },
+    {
+      "key": "settings.developer.avatarDataDebug.receive.tooltip",
+      "value": "Show incoming avatar data as it is received."
+    },
+    {
+      "key": "settings.developer.avatarDataDebug.staging.tooltip",
+      "value": "Show avatar data waiting in the staging buffer."
+    },
+    {
+      "key": "settings.developer.avatarDataDebug.interp.tooltip",
+      "value": "Show how remote avatar movement is interpolated between updates."
+    },
+    {
+      "key": "settings.developer.avatarDataDebug.meta.tooltip",
+      "value": "Show metadata attached to remote avatar updates."
+    },
+    {
+      "key": "settings.developer.debugFaceTracking.tooltip",
+      "value": "Show diagnostic information for face tracking."
+    },
+    {
+      "key": "settings.developer.debugEyeTracking.tooltip",
+      "value": "Show diagnostic information for eye tracking."
+    },
+    {
+      "key": "settings.developer.textureStats.tooltip",
+      "value": "Show texture memory statistics for the current avatar."
+    },
+    {
+      "key": "settings.developer.assignedTrackers.tooltip",
+      "value": "Show which body roles your trackers are currently assigned to."
+    },
+    {
+      "key": "settings.developer.exceptionNotifications.tooltip",
+      "value": "Show an on-screen popup when an exception occurs."
+    },
+    {
+      "key": "settings.developer.errorNotifications.tooltip",
+      "value": "Show an on-screen popup when an error is logged."
+    },
+    {
+      "key": "calibration.calibrate.tooltip",
+      "value": "Start full-body calibration; pull both triggers while standing in a T-pose."
+    },
+    {
+      "key": "calibration.decreaseHeight.tooltip",
+      "value": "Lower your avatar's height by a small step for a better fit."
+    },
+    {
+      "key": "calibration.increaseHeight.tooltip",
+      "value": "Raise your avatar's height by a small step for a better fit."
+    },
+    {
+      "key": "calibration.pitchLabel.tooltip",
+      "value": "Use a look up, down, and forward sequence for more accurate height calibration."
+    },
+    {
+      "key": "calibration.bodyTrackingSettings.tooltip",
+      "value": "Open the body tracking settings to adjust full-body tracking options."
+    },
+    {
+      "key": "settings.bodyTracking.seatedMode.tooltip",
+      "value": "Choose whether your avatar is scaled for a standing or seated play space."
+    },
+    {
+      "key": "settings.bodyTracking.ikMode.tooltip",
+      "value": "Choose whether avatar size is matched by your eye height or arm span."
+    },
+    {
+      "key": "settings.bodyTracking.spineLockMode.tooltip",
+      "value": "Sets which point, head or hips, anchors your spine while the rest follows."
+    },
+    {
+      "key": "settings.bodyTracking.customScale.tooltip",
+      "value": "Override automatic sizing and set your avatar's height by hand."
+    },
+    {
+      "key": "settings.bodyTracking.avatarHeightScale.tooltip",
+      "value": "Manually set your avatar's height when custom scale is turned on."
+    },
+    {
+      "key": "settings.bodyTracking.advanced.tooltip",
+      "value": "Show advanced body tracking and tuning options for power users."
+    },
+    {
+      "key": "settings.bodyTracking.fbt.tooltip",
+      "value": "Use full-body trackers to drive your hips, legs, and feet."
+    },
+    {
+      "key": "settings.bodyTracking.osc.tooltip",
+      "value": "Allow external apps to send tracking and avatar data over OSC."
+    },
+    {
+      "key": "settings.bodyTracking.faceTracking.title.tooltip",
+      "value": "Drive your avatar's facial expressions from supported face tracking hardware."
+    },
+    {
+      "key": "settings.bodyTracking.eyeTracking.title.tooltip",
+      "value": "Move your avatar's eyes to match where you are looking."
+    },
+    {
+      "key": "settings.bodyTracking.footIk.tooltip",
+      "value": "Plant your avatar's feet on the ground and on steps automatically."
+    },
+    {
+      "key": "settings.bodyTracking.disableAnimFbt.tooltip",
+      "value": "Turn off built-in animations while full-body tracking is active."
+    },
+    {
+      "key": "settings.bodyTracking.collisionsEnabled.tooltip",
+      "value": "Let your avatar's body push against and collide with the world."
+    },
+    {
+      "key": "settings.bodyTracking.protectElbow.title.tooltip",
+      "value": "Keep elbows from bending the wrong way during arm collisions."
+    },
+    {
+      "key": "settings.bodyTracking.handCapsule.title.tooltip",
+      "value": "Use a capsule shape instead of a point for hand collisions."
+    },
+    {
+      "key": "settings.bodyTracking.chestRadius.title.tooltip",
+      "value": "Size of the chest collision shape used against the world."
+    },
+    {
+      "key": "settings.bodyTracking.collisionSkin.title.tooltip",
+      "value": "Extra padding kept around body colliders to prevent clipping."
+    },
+    {
+      "key": "settings.bodyTracking.handRadius.title.tooltip",
+      "value": "Size of the collision shape around each hand."
+    },
+    {
+      "key": "settings.bodyTracking.handSkin.title.tooltip",
+      "value": "Extra padding kept around the hand colliders to prevent clipping."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSolve.title.tooltip",
+      "value": "Let shoulders rotate and shift naturally as your arms move."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderElevation.title.tooltip",
+      "value": "How much your shoulders lift when you reach upward."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderProtraction.title.tooltip",
+      "value": "How much your shoulders roll forward when you reach ahead."
+    },
+    {
+      "key": "settings.bodyTracking.lowerArmTwist.title.tooltip",
+      "value": "How much forearm twist is shared down toward the wrist."
+    },
+    {
+      "key": "settings.bodyTracking.upperArmTwist.title.tooltip",
+      "value": "How much upper arm twist is shared toward the shoulder."
+    },
+    {
+      "key": "settings.bodyTracking.maxBendDeg.title.tooltip",
+      "value": "Largest angle the spine is allowed to bend, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.struggleStart.title.tooltip",
+      "value": "How far you can reach before the body starts to strain."
+    },
+    {
+      "key": "settings.bodyTracking.struggleEnd.title.tooltip",
+      "value": "The reach distance at which the body is fully stretched."
+    },
+    {
+      "key": "settings.bodyTracking.maxChestDelta.title.tooltip",
+      "value": "Largest angle the chest may twist away from the hips."
+    },
+    {
+      "key": "settings.bodyTracking.maxHipDelta.title.tooltip",
+      "value": "Largest angle the hips may twist away from the chest."
+    },
+    {
+      "key": "settings.bodyTracking.spineBendPitch.title.tooltip",
+      "value": "How much forward and backward lean the lower spine handles."
+    },
+    {
+      "key": "settings.bodyTracking.spineBendYaw.title.tooltip",
+      "value": "How much side-to-side turning the lower spine handles."
+    },
+    {
+      "key": "settings.bodyTracking.spineBendRoll.title.tooltip",
+      "value": "How much sideways tilting the lower spine handles."
+    },
+    {
+      "key": "settings.bodyTracking.upperChestBendPitch.title.tooltip",
+      "value": "How much forward and backward lean the upper chest handles."
+    },
+    {
+      "key": "settings.bodyTracking.upperChestBendYaw.title.tooltip",
+      "value": "How much side-to-side turning the upper chest handles."
+    },
+    {
+      "key": "settings.bodyTracking.upperChestBendRoll.title.tooltip",
+      "value": "How much sideways tilting the upper chest handles."
+    },
+    {
+      "key": "settings.bodyTracking.spineSquishBoost.title.tooltip",
+      "value": "How much the spine compresses when you crouch or bend down."
+    },
+    {
+      "key": "settings.bodyTracking.spineMaxForward.title.tooltip",
+      "value": "Largest forward lean the spine is allowed, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.spineMaxBackward.title.tooltip",
+      "value": "Largest backward lean the spine is allowed, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.spineMaxLateral.title.tooltip",
+      "value": "Largest sideways lean the spine is allowed, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.neckMaxCone.title.tooltip",
+      "value": "Largest angle the neck may tilt away from upright, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.hipHingeStart.title.tooltip",
+      "value": "Lean angle at which your hips begin to hinge forward."
+    },
+    {
+      "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip",
+      "value": "Extra hip hinge added at full forward lean, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip",
+      "value": "How far your body shifts backward as you crouch down."
+    },
+    {
+      "key": "settings.bodyTracking.swingSmoothRate.title.tooltip",
+      "value": "How quickly body swing motion settles; higher reacts faster."
+    },
+    {
+      "key": "settings.bodyTracking.chestSpringHz.title.tooltip",
+      "value": "Stiffness of the springy chest motion; higher feels tighter."
+    },
+    {
+      "key": "settings.bodyTracking.chestSpringDamping.title.tooltip",
+      "value": "How quickly chest spring bounce settles instead of wobbling."
+    },
+    {
+      "key": "settings.bodyTracking.spineCcdRelax.title.tooltip",
+      "value": "How loosely the spine solves; lower makes it follow more strictly."
+    },
+    {
+      "key": "settings.bodyTracking.chestArmSwingFactor.title.tooltip",
+      "value": "How much your chest turns along with arm swings."
+    },
+    {
+      "key": "settings.bodyTracking.chestArmSwingMax.title.tooltip",
+      "value": "Largest chest turn allowed from arm swing, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisPitchGain.title.tooltip",
+      "value": "How much the lower back curves as you lean forward."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisBase.title.tooltip",
+      "value": "Resting amount of lower-back curve while standing upright."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisNeckShare.title.tooltip",
+      "value": "How much of the back curve is carried up into the neck."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisMaxHeadPitch.title.tooltip",
+      "value": "Largest head tilt that feeds into back curve, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeStart.title.tooltip",
+      "value": "Lean angle where extreme back-curve shaping begins."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeFull.title.tooltip",
+      "value": "Lean angle where extreme back-curve shaping reaches full strength."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeRollForward.title.tooltip",
+      "value": "Extra forward roll applied during extreme back curves, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeRollBackward.title.tooltip",
+      "value": "Extra backward roll applied during extreme back curves, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsHoriz.title.tooltip",
+      "value": "Sideways hip shift allowed during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestHoriz.title.tooltip",
+      "value": "Sideways chest shift allowed during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsDown.title.tooltip",
+      "value": "Downward hip shift allowed during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestDown.title.tooltip",
+      "value": "Downward chest shift allowed during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsDownLookUp.title.tooltip",
+      "value": "Downward hip shift while looking up during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestDownLookUp.title.tooltip",
+      "value": "Downward chest shift while looking up during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.vspineChestPitchFrac.title.tooltip",
+      "value": "How much forward lean the virtual chest takes without a torso tracker."
+    },
+    {
+      "key": "settings.bodyTracking.vspineChestRollFrac.title.tooltip",
+      "value": "How much sideways tilt the virtual chest takes without a torso tracker."
+    },
+    {
+      "key": "settings.bodyTracking.vspineSpinePitchFrac.title.tooltip",
+      "value": "How much forward lean the virtual spine takes without a torso tracker."
+    },
+    {
+      "key": "settings.bodyTracking.vspineSpineRollFrac.title.tooltip",
+      "value": "How much sideways tilt the virtual spine takes without a torso tracker."
+    },
+    {
+      "key": "settings.bodyTracking.vspineNeckRotationSpeed.title.tooltip",
+      "value": "How quickly the virtual neck follows your head movement."
+    },
+    {
+      "key": "settings.bodyTracking.vspineChestRotationSpeed.title.tooltip",
+      "value": "How quickly the virtual chest follows your movement."
+    },
+    {
+      "key": "settings.bodyTracking.vspineSpineRotationSpeed.title.tooltip",
+      "value": "How quickly the virtual spine follows your movement."
+    },
+    {
+      "key": "settings.bodyTracking.vspineHipsRotationSpeed.title.tooltip",
+      "value": "How quickly the virtual hips follow your movement."
+    },
+    {
+      "key": "settings.bodyTracking.vspineHipsForwardBias.title.tooltip",
+      "value": "Shifts the virtual hips forward or backward from their default spot."
+    },
+    {
+      "key": "settings.bodyTracking.vspineTorsoYawDeadzone.title.tooltip",
+      "value": "How far you can turn your head before the torso follows."
+    },
+    {
+      "key": "settings.bodyTracking.vspineTorsoYawBlend.title.tooltip",
+      "value": "How quickly the torso turns to catch up with your head."
+    },
+    {
+      "key": "settings.bodyTracking.vspineTorsoYawPlayInVR.title.tooltip",
+      "value": "Apply virtual torso turning while playing in VR."
+    },
+    {
+      "key": "settings.bodyTracking.smoothingStrength.title.tooltip",
+      "value": "Overall amount of motion smoothing applied to tracking."
+    },
+    {
+      "key": "settings.bodyTracking.posSmoothingHz.title.tooltip",
+      "value": "How responsive position smoothing is; higher reacts faster."
+    },
+    {
+      "key": "settings.bodyTracking.rotSmoothingHz.title.tooltip",
+      "value": "How responsive rotation smoothing is; higher reacts faster."
+    },
+    {
+      "key": "settings.bodyTracking.minCutoff.title.tooltip",
+      "value": "Base smoothing level when you are holding still."
+    },
+    {
+      "key": "settings.bodyTracking.beta.title.tooltip",
+      "value": "How much smoothing eases off as you move faster."
+    },
+    {
+      "key": "settings.bodyTracking.derivativeCutoff.title.tooltip",
+      "value": "Smoothing applied to motion speed to steady the filter."
+    },
+    {
+      "key": "settings.bodyTracking.anat.diffStiffness.title.tooltip",
+      "value": "Vary spine stiffness along its length for more natural bending."
+    },
+    {
+      "key": "settings.bodyTracking.anat.shoulderSlide.title.tooltip",
+      "value": "Let the shoulder blades slide as your arms reach around."
+    },
+    {
+      "key": "settings.bodyTracking.anat.cervicalLordosis.title.tooltip",
+      "value": "Add a natural forward curve to the neck."
+    },
+    {
+      "key": "settings.bodyTracking.anat.pelvicTwistRouting.title.tooltip",
+      "value": "Route pelvic twist through the spine for more lifelike turning."
+    },
+    {
+      "key": "settings.bodyTracking.debugInfo.tooltip",
+      "value": "Show live body tracking measurements for troubleshooting."
+    },
+    {
+      "key": "settings.bodyTracking.refreshDebug.tooltip",
+      "value": "Update the displayed tracking measurements with the latest values."
+    },
+    {
+      "key": "settings.ik.title.bone.tooltip",
+      "value": "Pick which bone's smoothing and calibration settings to edit below."
+    },
+    {
+      "key": "settings.ik.title.useForCalibration.tooltip",
+      "value": "Allow trackers to be assigned to this bone during full-body calibration."
+    },
+    {
+      "key": "settings.ik.title.smoothPosition.tooltip",
+      "value": "Smooth this bone's position over time to reduce jitter."
+    },
+    {
+      "key": "settings.ik.title.smoothRotation.tooltip",
+      "value": "Smooth this bone's rotation over time to reduce wobble."
+    },
+    {
+      "key": "settings.ik.title.euroFilteringPosition.tooltip",
+      "value": "Keep this bone's position steady at rest with little lag in motion."
+    },
+    {
+      "key": "settings.ik.title.euroFilteringRotation.tooltip",
+      "value": "Reduce this bone's rotation wobble while staying responsive."
+    },
+    {
+      "key": "settings.bodyTracking.calibSphereScale.tooltip",
+      "value": "Resize this bone's calibration sphere so trackers attach more easily."
+    },
+    {
+      "key": "trackerLinking.connectorTrackers.tooltip",
+      "value": "Show the per-tracker list so you can link trackers and assign body roles."
+    },
+    {
+      "key": "trackerLinking.advanced.tooltip",
+      "value": "Reveal the advanced sliders that fine-tune how paired trackers blend together."
+    },
+    {
+      "key": "trackerLinking.identifyLabel.tooltip",
+      "value": "Flash a colored marker on this tracker so you can tell which device it is."
+    },
+    {
+      "key": "trackerLinking.linkLabel.tooltip",
+      "value": "Pair this tracker with another so the two average into one steadier point."
+    },
+    {
+      "key": "trackerLinking.roleOverrideLabel.tooltip",
+      "value": "Force this tracker onto a specific body part instead of auto-detecting it."
+    },
+    {
+      "key": "trackerLinking.tuning.surprisePenalty.tooltip",
+      "value": "How strongly a glitching tracker loses influence when its motion looks wrong."
+    },
+    {
+      "key": "trackerLinking.tuning.surpriseClamp.tooltip",
+      "value": "Upper limit on the surprise reading before the motion baseline stops updating."
+    },
+    {
+      "key": "trackerLinking.tuning.emaFloor.tooltip",
+      "value": "Smallest motion amount used in calculations, preventing errors from a perfectly still tracker."
+    },
+    {
+      "key": "trackerLinking.tuning.maxCorrection.tooltip",
+      "value": "How firmly paired trackers are nudged back together toward their shared point."
+    },
+    {
+      "key": "trackerLinking.tuning.softSnapHalfLife.tooltip",
+      "value": "Error distance at which the gentle pairing correction reaches half its strength."
+    },
+    {
+      "key": "trackerLinking.tuning.lockstepTolerance.tooltip",
+      "value": "How far paired trackers may drift apart before they are pulled together."
+    },
+    {
+      "key": "trackerLinking.tuning.emaAlpha.tooltip",
+      "value": "How quickly the tracker's motion baseline reacts to new movement."
+    },
+    {
+      "key": "trackerLinking.tuning.distanceEmaAlpha.tooltip",
+      "value": "How quickly the resting distance between paired trackers is re-learned."
+    },
+    {
+      "key": "trackerLinking.tuning.weightSmoothing.tooltip",
+      "value": "Trade reactivity against stability when blending paired trackers into one point."
+    },
+    {
+      "key": "trackerLinking.tuning.rotationHalfLife.tooltip",
+      "value": "How much the paired tracker's rotation is smoothed to reduce jitter."
+    },
+    {
+      "key": "settings.nameplates.show.tooltip",
+      "value": "Display floating name labels above other players in the world."
+    },
+    {
+      "key": "settings.nameplates.menuOnly.tooltip",
+      "value": "Only show other players' nameplates while your menu is open."
+    },
+    {
+      "key": "settings.nameplates.hoverMenuOnly.tooltip",
+      "value": "Only show a player's nameplate while you are pointing at them."
+    },
+    {
+      "key": "settings.nameplates.size.tooltip",
+      "value": "Scale of other players' nameplates, from half to double size."
+    },
+    {
+      "key": "settings.nameplates.transparency.tooltip",
+      "value": "How see-through other players' nameplates appear, from solid to invisible."
+    },
+    {
+      "key": "settings.general.hearingRange.tooltip",
+      "value": "Maximum distance at which you can hear other players speak."
+    },
+    {
+      "key": "settings.remoteAudio.coneOfInfluence.tooltip",
+      "value": "Width of the forward cone in which players stay at full volume."
+    },
+    {
+      "key": "settings.remoteAudio.maxDampening.tooltip",
+      "value": "How much quieter players outside your hearing cone become."
+    },
+    {
+      "key": "settings.remoteAudio.bufferedFrames.tooltip",
+      "value": "Voice frames buffered before playback; higher resists network jitter but adds delay."
+    },
+    {
+      "key": "settings.remoteAudio.clipBuffer.tooltip",
+      "value": "Size of the per-player audio buffer; higher is smoother but adds latency."
+    },
+    {
+      "key": "settings.general.limitAudio.tooltip",
+      "value": "Cap how many remote players can play audio at once to save performance."
+    },
+    {
+      "key": "settings.general.maxAudio.tooltip",
+      "value": "Maximum number of remote players allowed to play audio simultaneously."
+    },
+    {
+      "key": "settings.remoteAudio.minDistance.tooltip",
+      "value": "Distance within which a player's voice stays at full volume."
+    },
+    {
+      "key": "settings.remoteAudio.rolloffMode.tooltip",
+      "value": "How a player's volume fades as they move further away."
+    },
+    {
+      "key": "settings.remoteAudio.curvePreset.tooltip",
+      "value": "Preset shape for how voice volume falls off with distance."
+    },
+    {
+      "key": "settings.remoteAudio.volume25.tooltip",
+      "value": "Volume level at one quarter of the hearing distance."
+    },
+    {
+      "key": "settings.remoteAudio.volume50.tooltip",
+      "value": "Volume level at the halfway point of the hearing distance."
+    },
+    {
+      "key": "settings.remoteAudio.volume75.tooltip",
+      "value": "Volume level at three quarters of the hearing distance."
+    },
+    {
+      "key": "settings.remoteAudio.spatialBlend.tooltip",
+      "value": "Blend between flat stereo and fully 3D positioned voices."
+    },
+    {
+      "key": "settings.remoteAudio.directBinaural.tooltip",
+      "value": "Use head-related audio so voices sound like they come from real directions."
+    },
+    {
+      "key": "settings.remoteAudio.hrtfInterpolation.tooltip",
+      "value": "Quality of directional audio blending; bilinear is smoother but costs more."
+    },
+    {
+      "key": "settings.remoteAudio.distanceAttenuation.tooltip",
+      "value": "Let Steam Audio quieten voices based on real distance."
+    },
+    {
+      "key": "settings.remoteAudio.attenuationMode.tooltip",
+      "value": "Choose curve-based or physics-based distance volume falloff."
+    },
+    {
+      "key": "settings.remoteAudio.airAbsorption.tooltip",
+      "value": "Simulate how air muffles distant voices, especially higher frequencies."
+    },
+    {
+      "key": "settings.remoteAudio.airAbsorptionMode.tooltip",
+      "value": "Use automatic air muffling or your own custom frequency amounts."
+    },
+    {
+      "key": "settings.remoteAudio.airLow.tooltip",
+      "value": "How much low frequencies are absorbed by the air."
+    },
+    {
+      "key": "settings.remoteAudio.airMid.tooltip",
+      "value": "How much mid frequencies are absorbed by the air."
+    },
+    {
+      "key": "settings.remoteAudio.airHigh.tooltip",
+      "value": "How much high frequencies are absorbed by the air."
+    },
+    {
+      "key": "settings.remoteAudio.directivity.toggle.tooltip",
+      "value": "Make voices project more from the front, like a real mouth."
+    },
+    {
+      "key": "settings.remoteAudio.dipoleWeight.tooltip",
+      "value": "How strongly a voice is focused toward the direction it faces."
+    },
+    {
+      "key": "settings.remoteAudio.dipolePower.tooltip",
+      "value": "How sharply a voice narrows toward its facing direction."
+    },
+    {
+      "key": "settings.remoteAudio.occlusion.toggle.tooltip",
+      "value": "Muffle voices when walls or objects block the path to you."
+    },
+    {
+      "key": "settings.remoteAudio.occlusionType.tooltip",
+      "value": "Choose simple ray or fuller volumetric blocking for muffled voices."
+    },
+    {
+      "key": "settings.remoteAudio.occlusionRadius.tooltip",
+      "value": "Size of the voice source used when testing for blocking objects."
+    },
+    {
+      "key": "settings.remoteAudio.occlusionSamples.tooltip",
+      "value": "Number of rays used to test blocking; higher is more accurate but slower."
+    },
+    {
+      "key": "settings.remoteAudio.transmission.toggle.tooltip",
+      "value": "Let some sound pass through walls instead of being fully blocked."
+    },
+    {
+      "key": "settings.remoteAudio.transmissionType.tooltip",
+      "value": "Whether sound passing through walls keeps the same tone or changes."
+    },
+    {
+      "key": "settings.remoteAudio.transmissionSurfaces.tooltip",
+      "value": "How many walls sound can pass through before being silenced."
+    },
+    {
+      "key": "settings.remoteAudio.limitLipSync.tooltip",
+      "value": "Cap how many players get neural lip sync to save performance."
+    },
+    {
+      "key": "settings.remoteAudio.lipSyncSlots.tooltip",
+      "value": "Maximum number of players whose mouths animate to their voice at once."
+    },
+    {
+      "key": "ui.advanced.tooltip",
+      "value": "Show advanced settings with extra options for fine tuning."
+    },
+    {
+      "key": "settings.network.euro.minCutoff.tooltip",
+      "value": "Lowest smoothing applied to network movement; smaller values steady slow motion but add a little lag."
+    },
+    {
+      "key": "settings.network.euro.beta.tooltip",
+      "value": "How quickly smoothing eases off during fast movement to reduce lag."
+    },
+    {
+      "key": "settings.network.euro.derivativeCutoff.tooltip",
+      "value": "Smoothing applied to speed changes, helping suppress jitter during quick direction shifts."
+    },
+    {
+      "key": "settings.perf.sessionBypass.toggle.tooltip",
+      "value": "Temporarily ignore every avatar performance limit for this session."
+    },
+    {
+      "key": "settings.perf.triangles.toggle.tooltip",
+      "value": "Limit how many triangles another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.triangles.slider.tooltip",
+      "value": "Maximum triangle count allowed before an avatar is restricted."
+    },
+    {
+      "key": "settings.perf.boundsSize.toggle.tooltip",
+      "value": "Limit how large another player's avatar bounding box may be."
+    },
+    {
+      "key": "settings.perf.boundsSize.slider.tooltip",
+      "value": "Largest avatar size in meters before it is restricted."
+    },
+    {
+      "key": "settings.perf.bones.toggle.tooltip",
+      "value": "Limit how many skeleton bones another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.bones.slider.tooltip",
+      "value": "Maximum number of bones allowed before an avatar is restricted."
+    },
+    {
+      "key": "settings.perf.skinnedMeshes.toggle.tooltip",
+      "value": "Limit how many skinned meshes another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.skinnedMeshes.slider.tooltip",
+      "value": "Maximum number of skinned meshes allowed per avatar."
+    },
+    {
+      "key": "settings.perf.basicMeshes.toggle.tooltip",
+      "value": "Limit how many static meshes another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.basicMeshes.slider.tooltip",
+      "value": "Maximum number of static meshes allowed per avatar."
+    },
+    {
+      "key": "settings.perf.materialSlots.toggle.tooltip",
+      "value": "Limit how many material slots another player's avatar may use."
+    },
+    {
+      "key": "settings.perf.materialSlots.slider.tooltip",
+      "value": "Maximum number of material slots allowed per avatar."
+    },
+    {
+      "key": "settings.perf.textureMemory.toggle.tooltip",
+      "value": "Limit how much texture memory another player's avatar may use."
+    },
+    {
+      "key": "settings.perf.textureMemory.slider.tooltip",
+      "value": "Maximum texture memory in megabytes allowed per avatar."
+    },
+    {
+      "key": "settings.perf.jiggleBones.toggle.tooltip",
+      "value": "Limit how many jiggle physics bones another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.jiggleBones.slider.tooltip",
+      "value": "Maximum number of jiggle physics bones allowed per avatar."
+    },
+    {
+      "key": "settings.perf.colliders.toggle.tooltip",
+      "value": "Limit how many physics colliders another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.colliders.slider.tooltip",
+      "value": "Maximum number of physics colliders allowed per avatar."
+    },
+    {
+      "key": "settings.perf.cloth.toggle.tooltip",
+      "value": "Limit how many cloth simulations another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.cloth.slider.tooltip",
+      "value": "Maximum number of cloth simulations allowed per avatar."
+    },
+    {
+      "key": "settings.perf.particleSystems.toggle.tooltip",
+      "value": "Limit how many particle systems another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.particleSystems.slider.tooltip",
+      "value": "Maximum number of particle systems allowed per avatar."
+    },
+    {
+      "key": "settings.perf.trailRenderers.toggle.tooltip",
+      "value": "Limit how many trail renderers another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.trailRenderers.slider.tooltip",
+      "value": "Maximum number of trail renderers allowed per avatar."
+    },
+    {
+      "key": "settings.perf.lineRenderers.toggle.tooltip",
+      "value": "Limit how many line renderers another player's avatar may have."
+    },
+    {
+      "key": "settings.perf.lineRenderers.slider.tooltip",
+      "value": "Maximum number of line renderers allowed per avatar."
+    },
+    {
+      "key": "settings.perf.animators.toggle.tooltip",
+      "value": "Limit how many animators another player's avatar may run."
+    },
+    {
+      "key": "settings.perf.animators.slider.tooltip",
+      "value": "Maximum number of animators allowed per avatar."
+    },
+    {
+      "key": "settings.perf.cilboxBehaviours.toggle.tooltip",
+      "value": "Limit how many avatar scripts another player's avatar may run."
+    },
+    {
+      "key": "settings.perf.cilboxBehaviours.slider.tooltip",
+      "value": "Maximum number of avatar scripts allowed per avatar."
+    },
+    {
+      "key": "settings.controls.dominantHand.tooltip",
+      "value": "Choose which hand is treated as your main interaction hand."
+    },
+    {
+      "key": "settings.controls.invertMouse.tooltip",
+      "value": "Flip vertical mouse look so moving up looks down."
+    },
+    {
+      "key": "settings.controls.mouseSensitivity.tooltip",
+      "value": "How quickly the camera turns when you move the mouse."
+    },
+    {
+      "key": "settings.controls.snapTurn.tooltip",
+      "value": "Turn in fixed steps instead of rotating smoothly to reduce motion sickness."
+    },
+    {
+      "key": "settings.controls.snapTurnAngle.tooltip",
+      "value": "How many degrees you rotate with each snap turn."
+    },
+    {
+      "key": "settings.controls.smoothTurnSpeed.tooltip",
+      "value": "How fast the view rotates when using smooth turning."
+    },
+    {
+      "key": "settings.controls.radialDeadZone.tooltip",
+      "value": "Ignore tiny thumbstick movement near the center to prevent drift."
+    },
+    {
+      "key": "settings.controls.xDeadZoneMin.tooltip",
+      "value": "Minimum sideways thumbstick movement needed before horizontal input registers."
+    },
+    {
+      "key": "settings.controls.xGateFullY.tooltip",
+      "value": "Extra horizontal deadzone applied when pushing the stick fully up or down."
+    },
+    {
+      "key": "settings.controls.gateCurve.tooltip",
+      "value": "Shapes how sharply the horizontal comfort gate ramps in."
+    },
+    {
+      "key": "settings.controls.lookYDeadZone.tooltip",
+      "value": "Ignore small up and down thumbstick movement to steady vertical look."
+    },
+    {
+      "key": "settings.controls.action.tooltip",
+      "value": "Pick an action to edit which tracked roles trigger it."
+    },
+    {
+      "key": "settings.platform.switchTo.tooltip",
+      "value": "Switch between Desktop, SteamVR, and OpenXR play modes."
+    },
+    {
+      "key": "settings.platform.swapMode.title.tooltip",
+      "value": "Choose whether unplugging your headset shuts down or auto-switches to desktop."
+    },
+    {
+      "key": "settings.uiStyle.colorPicker.tooltip",
+      "value": "Pick the color used for this part of the menu interface."
+    },
+    {
+      "key": "settings.uiStyle.hue.tooltip",
+      "value": "Drag to choose the base color shade around the color wheel."
+    },
+    {
+      "key": "settings.uiStyle.hex.tooltip",
+      "value": "Enter an exact color as an eight-digit hex code with transparency."
+    },
+    {
+      "key": "settings.perf.contentTags.blockFormat.tooltip",
+      "value": "Hide content and avatars that carry this tag from your view."
+    },
+    {
+      "key": "settings.perf.contentTags.custom.addLabel.tooltip",
+      "value": "Type your own tag to block, then press Enter to add it."
+    },
+    {
+      "key": "settings.perf.contentTags.custom.addButton.tooltip",
+      "value": "Add the typed tag to your personal block list."
+    },
+    {
+      "key": "settings.storage.avatarDownloadSize.tooltip",
+      "value": "Largest avatar file size allowed to download before it is rejected."
+    },
+    {
+      "key": "settings.storage.maxDownloads.tooltip",
+      "value": "How many avatars can download from the network at the same time."
+    },
+    {
+      "key": "settings.storage.maxDiscLoads.tooltip",
+      "value": "How many cached avatars can load from disk at the same time."
+    },
+    {
+      "key": "settings.storage.maxAddressables.tooltip",
+      "value": "How many avatars can be built into the scene at the same time."
+    },
+    {
+      "key": "settings.storage.maxCacheSize.tooltip",
+      "value": "Maximum disk space, in gigabytes, used to cache downloaded avatars, worlds, and props."
+    },
+    {
+      "key": "settings.storage.loadButton.tooltip",
+      "value": "Scan your cache and list every stored avatar file and its size."
+    },
+    {
+      "key": "settings.storage.clearAll.tooltip",
+      "value": "Delete every cached avatar file to free up disk space."
+    },
+    {
+      "key": "settings.trustedUrls.add.field.tooltip",
+      "value": "Type a secure https web address you want to mark as trusted."
+    },
+    {
+      "key": "settings.trustedUrls.add.button.tooltip",
+      "value": "Add the entered address to your list of trusted URLs."
+    },
+    {
+      "key": "settings.trustedUrls.clearAll.tooltip",
+      "value": "Remove every address from your trusted URL list at once."
+    },
+    {
+      "key": "settings.console.collapse.tooltip",
+      "value": "Group repeated identical log messages into a single collapsed line with a count."
+    },
+    {
+      "key": "settings.console.liveUpdates.tooltip",
+      "value": "Keep the console refreshing automatically as new log messages arrive."
+    },
+    {
+      "key": "settings.console.filter.tooltip",
+      "value": "Choose which log types to show: all, errors, warnings, or regular logs."
+    },
+    {
+      "key": "settings.console.clearLogs.tooltip",
+      "value": "Erase all messages currently shown in the console."
+    },
+    {
+      "key": "settings.console.copyLogs.tooltip",
+      "value": "Copy every console log message to your clipboard as plain text."
+    },
+    {
+      "key": "settings.console.openCrashReport.tooltip",
+      "value": "Open the folder for the most recent crash report on your computer."
+    },
+    {
+      "key": "settings.console.openLogsFolder.tooltip",
+      "value": "Open the folder where log files are saved on your computer."
+    },
+    {
+      "key": "settings.console.openCrashFolder.tooltip",
+      "value": "Open the folder where all crash reports are stored on your computer."
+    },
+    {
+      "key": "settings.admin.title.showShoutOnMenuBar.tooltip",
+      "value": "Show the Shout option on your menu bar's microphone mode button."
+    },
+    {
+      "key": "settings.admin.title.lockAvatars.tooltip",
+      "value": "Stop everyone except admins from loading avatars on this server."
+    },
+    {
+      "key": "settings.admin.title.lockProps.tooltip",
+      "value": "Stop everyone except admins from loading props on this server."
+    },
+    {
+      "key": "settings.admin.title.lockWorlds.tooltip",
+      "value": "Stop everyone except admins from loading worlds on this server."
+    },
+    {
+      "key": "settings.admin.title.lockServerSharing.tooltip",
+      "value": "Stop non-admin players from sharing saved server entries with others."
+    },
+    {
+      "key": "settings.admin.title.headlessAudioOff.tooltip",
+      "value": "Mute audio coming from headless clients connected to this server."
+    },
+    {
+      "key": "settings.admin.title.disallowHeadless.tooltip",
+      "value": "Kick existing headless clients and block any new ones from joining."
+    },
+    {
+      "key": "settings.admin.title.disableThirdPersonCamera.tooltip",
+      "value": "Turn off the desktop third-person camera for every connected player."
+    },
+    {
+      "key": "settings.admin.title.stripAdditionalAvatarData.tooltip",
+      "value": "Remove blendshapes and custom parameters from every player's avatar sync."
+    },
+    {
+      "key": "settings.admin.opusFecLoss.tooltip",
+      "value": "How much extra voice data is sent to recover from packet loss."
+    },
+    {
+      "key": "settings.admin.maxMicrophoneRange.tooltip",
+      "value": "Cap how far any player's voice can transmit, in metres."
+    },
+    {
+      "key": "settings.admin.maxHearingRange.tooltip",
+      "value": "Cap how far any player can hear others, in metres."
+    },
+    {
+      "key": "settings.admin.title.disallowTaggingPeople.tooltip",
+      "value": "Stop photos from embedding the names and outlines of tagged people."
+    },
+    {
+      "key": "settings.admin.title.disallowPerPersonDetails.tooltip",
+      "value": "Stop photos from embedding each person's name, platform, and position."
+    },
+    {
+      "key": "settings.admin.title.disallowCameraSettingsExif.tooltip",
+      "value": "Stop photos from embedding camera settings like focal length and ISO."
+    },
+    {
+      "key": "settings.admin.title.disallowCaptureInfo.tooltip",
+      "value": "Stop photos from embedding the app version and capture date."
+    },
+    {
+      "key": "settings.admin.title.disallowPhotographer.tooltip",
+      "value": "Stop photos from embedding the photographer's name and identifier."
+    },
+    {
+      "key": "settings.admin.title.disallowWorldViewpoint.tooltip",
+      "value": "Stop photos from embedding the world name and camera viewpoint."
+    },
+    {
+      "key": "settings.admin.title.serverName.tooltip",
+      "value": "The public server name shown to players in the server list."
+    },
+    {
+      "key": "settings.admin.title.applyServerName.tooltip",
+      "value": "Save the typed server name and apply it on the server."
+    },
+    {
+      "key": "settings.admin.title.motd.tooltip",
+      "value": "A short message of the day displayed next to the server name."
+    },
+    {
+      "key": "settings.admin.title.applyMotd.tooltip",
+      "value": "Save the typed message of the day and apply it on the server."
+    },
+    {
+      "key": "settings.admin.title.whitelistOnly.tooltip",
+      "value": "Allow only whitelisted players to connect to this server."
+    },
+    {
+      "key": "settings.admin.title.whitelistUuid.tooltip",
+      "value": "The player identifier to add to or remove from the whitelist."
+    },
+    {
+      "key": "settings.admin.title.addToWhitelist.tooltip",
+      "value": "Add the entered player identifier to the server whitelist."
+    },
+    {
+      "key": "settings.admin.title.removeFromWhitelist.tooltip",
+      "value": "Remove the entered player identifier from the server whitelist."
+    },
+    {
+      "key": "settings.admin.title.requestAllLogs.tooltip",
+      "value": "Download the server's logs and crash reports to your device."
+    },
+    {
+      "key": "settings.admin.title.beeUrl.tooltip",
+      "value": "The download link for the content the server will offer everyone."
+    },
+    {
+      "key": "settings.admin.title.password.tooltip",
+      "value": "An optional password to unlock encrypted content bundles."
+    },
+    {
+      "key": "settings.admin.title.type.tooltip",
+      "value": "Which library tab this default entry will appear under."
+    },
+    {
+      "key": "settings.admin.title.addToServerDefaults.tooltip",
+      "value": "Add this entry to the server's defaults offered to every player."
+    },
+    {
+      "key": "settings.admin.title.removeFromServerDefaults.tooltip",
+      "value": "Remove matching entries from the server's default library for everyone."
+    },
+    {
+      "key": "ui.search.label.tooltip",
+      "value": "Filter the player list by typing part of a player's name."
+    },
+    {
+      "key": "settings.admin.refreshPlayers.tooltip",
+      "value": "Rebuild the player list to show everyone currently connected."
+    },
+    {
+      "key": "settings.admin.autoRefresh.tooltip",
+      "value": "Automatically update the player list whenever someone joins or leaves."
+    },
+    {
+      "key": "settings.admin.uuidTarget.tooltip",
+      "value": "The unique ID of the player that moderation actions will target."
+    },
+    {
+      "key": "settings.admin.reason.tooltip",
+      "value": "Optional reason or message text sent along with the chosen action."
+    },
+    {
+      "key": "settings.admin.teleportTo.tooltip",
+      "value": "Teleport yourself to the selected player's current location."
+    },
+    {
+      "key": "settings.admin.teleportAll.tooltip",
+      "value": "Teleport every player in the world to the selected target."
+    },
+    {
+      "key": "settings.admin.teleportHere.tooltip",
+      "value": "Teleport the selected player to where you are standing."
+    },
+    {
+      "key": "settings.admin.banUuid.tooltip",
+      "value": "Permanently remove this player and block them from rejoining."
+    },
+    {
+      "key": "settings.admin.kickUuid.tooltip",
+      "value": "Disconnect this player from the server; they may rejoin later."
+    },
+    {
+      "key": "settings.admin.ipBanUuid.tooltip",
+      "value": "Ban this player by network address, affecting all accounts on that connection."
+    },
+    {
+      "key": "settings.admin.unbanUuid.tooltip",
+      "value": "Lift an existing ban so this player can connect again."
+    },
+    {
+      "key": "settings.admin.sendMessageUuid.tooltip",
+      "value": "Send the reason text as a private message to the target player."
+    },
+    {
+      "key": "settings.admin.sendAll.tooltip",
+      "value": "Broadcast the reason text as a message to every player."
+    },
+    {
+      "key": "menu.individualPlayer.shout.enable.tooltip",
+      "value": "Let this player's voice broadcast to everyone without distance falloff."
+    },
+    {
+      "key": "menu.individualPlayer.shout.disable.tooltip",
+      "value": "Return this player's voice to normal distance-based spatial audio."
+    },
+    {
+      "key": "settings.permissions.refresh.tooltip",
+      "value": "Fetch the latest permission groups and user assignments from the server."
+    },
+    {
+      "key": "menu.individualPlayer.groupName.tooltip",
+      "value": "Name of the permission group to create or delete."
+    },
+    {
+      "key": "settings.permissions.createGroup.tooltip",
+      "value": "Create a new permission group using the name entered above."
+    },
+    {
+      "key": "settings.permissions.deleteGroup.tooltip",
+      "value": "Permanently delete the named permission group from the server."
+    },
+    {
+      "key": "settings.permissions.userUuid.tooltip",
+      "value": "Unique ID of the player you want to assign to a group."
+    },
+    {
+      "key": "settings.permissions.targetGroup.tooltip",
+      "value": "Name of the group to add the player to or remove them from."
+    },
+    {
+      "key": "settings.permissions.addUserToGroup.tooltip",
+      "value": "Add the specified player to the chosen permission group."
+    },
+    {
+      "key": "settings.permissions.removeUserFromGroup.tooltip",
+      "value": "Remove the specified player from the chosen permission group."
+    },
+    {
+      "key": "settings.permissions.nodeGroup.tooltip",
+      "value": "Name of the group whose permission nodes you want to change."
+    },
+    {
+      "key": "menu.individualPlayer.permissionNode.tooltip",
+      "value": "The permission node to add to or remove from the group."
+    },
+    {
+      "key": "settings.permissions.addNodeToGroup.tooltip",
+      "value": "Grant the specified permission node to the chosen group."
+    },
+    {
+      "key": "settings.permissions.removeNodeFromGroup.tooltip",
+      "value": "Revoke the specified permission node from the chosen group."
+    },
+    {
+      "key": "settings.permissions.childGroup.tooltip",
+      "value": "Name of the group that will inherit from a parent group."
+    },
+    {
+      "key": "settings.permissions.parentGroup.tooltip",
+      "value": "Name of the parent group whose permissions are inherited."
+    },
+    {
+      "key": "settings.permissions.addParentToGroup.tooltip",
+      "value": "Make the child group inherit permissions from the parent group."
+    },
+    {
+      "key": "settings.permissions.removeParentFromGroup.tooltip",
+      "value": "Stop the child group from inheriting from the parent group."
+    },
+    {
       "key": "menu.main.title",
       "value": "Main Menu"
     },
@@ -1777,14 +3441,6 @@
     {
       "key": "settings.general.language.description",
       "value": "Reopen the menu to apply a language change."
-    },
-    {
-      "key": "settings.general.language.help_translate.title",
-      "value": "Please help us translate!"
-    },
-    {
-      "key": "settings.general.language.help_translate.description",
-      "value": "Language files live in Packages/com.basis.framework/BasisUI/Localization/Languages. Copy en.json, rename the copy to your locale code (for example fr.json or ja.json), translate the values, and open a pull request at github.com/BasisVR/Basis."
     },
     {
       "key": "settings.general.networking.title",

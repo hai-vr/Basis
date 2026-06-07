@@ -19,12 +19,12 @@ public static class SettingsProviderStorage
         PanelElementDescriptor downloadGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         downloadGroup.SetTitle(BasisLocalization.Get("settings.storage.downloadLimits.title"));
-        downloadGroup.SetDescription(BasisLocalization.Get("settings.storage.downloadLimits.description"));
 
         PanelSlider avatarDownloadSize = PanelSlider.CreateEntryAndBind(
             downloadGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.avatarDownloadSize"), 5, 1024, false, 0, ValueDisplayMode.MemorySize),
             BasisSettingsDefaults.AvatarDownloadSize);
+        avatarDownloadSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.avatarDownloadSize.tooltip"));
 
         // Concurrency gates for avatar loading. Three separate gates because the
         // network / disc / in-memory paths each have a different bottleneck. Tuning
@@ -34,32 +34,35 @@ public static class SettingsProviderStorage
             downloadGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxDownloads"), 1, 32, true, 0, ValueDisplayMode.Raw),
             BasisSettingsDefaults.MaxConcurrentAvatarDownloads);
+        maxDownloads.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxDownloads.tooltip"));
 
         PanelSlider maxDiscLoads = PanelSlider.CreateEntryAndBind(
             downloadGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxDiscLoads"), 1, 64, true, 0, ValueDisplayMode.Raw),
             BasisSettingsDefaults.MaxConcurrentAvatarDiscLoads);
+        maxDiscLoads.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxDiscLoads.tooltip"));
 
         PanelSlider maxAddressables = PanelSlider.CreateEntryAndBind(
             downloadGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxAddressables"), 1, 128, true, 0, ValueDisplayMode.Raw),
             BasisSettingsDefaults.MaxConcurrentAvatarAddressables);
+        maxAddressables.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxAddressables.tooltip"));
 
         // Cache size limit slider (lightweight, no file I/O)
         PanelElementDescriptor limitGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         limitGroup.SetTitle(BasisLocalization.Get("settings.storage.cache.title"));
-        limitGroup.SetDescription(BasisLocalization.Get("settings.storage.cache.description"));
 
         PanelSlider cacheSizeSlider = PanelSlider.CreateEntryAndBind(
             limitGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxCacheSize"), 1, 512, true, 0, ValueDisplayMode.Raw),
             BasisSettingsDefaults.CacheMaxSizeGB);
+        cacheSizeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxCacheSize.tooltip"));
 
         // Button to load and display all storage data on demand
         PanelButton loadDataButton = PanelButton.CreateNew(container);
         loadDataButton.Descriptor.SetTitle(BasisLocalization.Get("settings.storage.loadButton"));
-        loadDataButton.Descriptor.SetDescription(BasisLocalization.Get("settings.storage.loadButton.description"));
+        loadDataButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.loadButton.tooltip"));
         loadDataButton.OnClicked += () =>
         {
             // Remove the load button itself
@@ -102,7 +105,7 @@ public static class SettingsProviderStorage
         // Clear all cache button
         PanelButton clearAllButton = PanelButton.CreateNew(container);
         clearAllButton.Descriptor.SetTitle(BasisLocalization.Get("settings.storage.clearAll"));
-        clearAllButton.Descriptor.SetDescription(BasisLocalization.Get("settings.storage.clearAll.description"));
+        clearAllButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.clearAll.tooltip"));
         clearAllButton.OnClicked += () =>
         {
             BasisMainMenu.Instance.OpenDialogue(
@@ -125,7 +128,6 @@ public static class SettingsProviderStorage
             PanelElementDescriptor filesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             filesGroup.SetTitle(BasisLocalization.Get("settings.storage.storedBeeFiles"));
-            filesGroup.SetDescription(BasisLocalization.Get("settings.storage.storedBeeFiles.description"));
 
             foreach (var file in storedFiles)
             {

@@ -9,18 +9,18 @@ public static class SettingsProviderTrustedUrls
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         infoGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.title"));
-        infoGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.description"));
 
         PanelElementDescriptor addGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         addGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.title"));
-        addGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.add.description"));
 
         PanelTextField addField = PanelTextField.CreateNewEntry(addGroup.ContentParent);
         addField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.field"));
+        addField.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.add.field.tooltip"));
 
         PanelButton addButton = PanelButton.CreateNew(addGroup.ContentParent);
         addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.button"));
+        addButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.add.button.tooltip"));
         addButton.OnClicked += () =>
         {
             string candidate = addField.Value?.Trim();
@@ -55,7 +55,7 @@ public static class SettingsProviderTrustedUrls
 
         PanelButton clearAllButton = PanelButton.CreateNew(container);
         clearAllButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.clearAll"));
-        clearAllButton.Descriptor.SetDescription(BasisLocalization.Get("settings.trustedUrls.clearAll.description"));
+        clearAllButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.clearAll.tooltip"));
         clearAllButton.OnClicked += () =>
         {
             BasisMainMenu.Instance.OpenDialogue(
@@ -75,7 +75,6 @@ public static class SettingsProviderTrustedUrls
         PanelElementDescriptor urlGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         urlGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.list.title"));
-        urlGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.list.description"));
 
         string removeHint = BasisLocalization.Get("settings.trustedUrls.clickToRemove");
         foreach (string url in urls)

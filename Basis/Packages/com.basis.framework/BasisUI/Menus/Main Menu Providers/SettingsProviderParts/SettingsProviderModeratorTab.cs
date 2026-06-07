@@ -24,7 +24,6 @@ namespace Basis.BasisUI
 
             descriptor.SetIcon(AddressableAssets.Sprites.Settings);
             descriptor.SetTitle(BasisLocalization.Get("settings.moderator.title"));
-            descriptor.SetDescription(BasisLocalization.Get("settings.moderator.description"));
 
             RectTransform container = descriptor.ContentParent;
 
@@ -32,40 +31,38 @@ namespace Basis.BasisUI
             PanelElementDescriptor playersGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             playersGroup.SetTitle(BasisLocalization.Get("menu.provider.players"));
-            playersGroup.SetDescription(BasisLocalization.Get("settings.admin.players.description"));
 
             ModeratorTabController controller = tab.gameObject.AddComponent<ModeratorTabController>();
             controller.PlayerListParent = playersGroup.ContentParent;
 
             PanelTextField playerSearch = PanelTextField.CreateNewEntry(playersGroup.ContentParent);
             playerSearch.Descriptor.SetTitle(BasisLocalization.Get("ui.search.label"));
-            playerSearch.Descriptor.SetDescription(BasisLocalization.Get("menu.players.search.byName"));
+            playerSearch.Descriptor.SetTooltip(BasisLocalization.Get("ui.search.label.tooltip"));
             playerSearch.OnValueChanged += controller.OnSearchChanged;
             controller.SearchField = playerSearch;
 
             PanelButton refreshPlayers = PanelButton.CreateNew(playersGroup.ContentParent);
             refreshPlayers.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.refreshPlayers"));
-            refreshPlayers.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.refreshPlayers.description"));
+            refreshPlayers.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.refreshPlayers.tooltip"));
             refreshPlayers.OnClicked += controller.RebuildPlayerList;
 
             PanelToggle autoRefreshToggle = PanelToggle.CreateNewEntry(playersGroup.ContentParent);
             autoRefreshToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.autoRefresh"));
-            autoRefreshToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.autoRefresh.description"));
+            autoRefreshToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.autoRefresh.tooltip"));
             autoRefreshToggle.AssignBinding(BasisSettingsDefaults.AdminAutoRefreshPlayerList);
 
             // --- Target group ---
             PanelElementDescriptor targetGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             targetGroup.SetTitle(BasisLocalization.Get("settings.admin.target"));
-            targetGroup.SetDescription(BasisLocalization.Get("settings.admin.target.description"));
 
             PanelTextField uuidField = PanelTextField.CreateNewEntry(targetGroup.ContentParent);
             uuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.uuidTarget"));
-            uuidField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.uuidTarget.description"));
+            uuidField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.uuidTarget.tooltip"));
 
             PanelTextField reasonField = PanelTextField.CreateNewEntry(targetGroup.ContentParent);
             reasonField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.reason"));
-            reasonField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.reason.description"));
+            reasonField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.reason.tooltip"));
 
             TMP_InputField reasonInput = reasonField.GetComponentInChildren<TMP_InputField>(true);
             if (reasonInput)
@@ -81,12 +78,11 @@ namespace Basis.BasisUI
             PanelElementDescriptor actionsGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             actionsGroup.SetTitle(BasisLocalization.Get("settings.admin.actions"));
-            actionsGroup.SetDescription(BasisLocalization.Get("settings.admin.actions.description"));
 
             // Teleport
             PanelButton teleportToSelected = PanelButton.CreateNew(actionsGroup.ContentParent);
             teleportToSelected.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.teleportTo"));
-            teleportToSelected.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.teleportTo.description"));
+            teleportToSelected.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.teleportTo.tooltip"));
             GuardedClick(teleportToSelected, "Teleport to player?",
                 "Teleport you to the selected player's location?", "Teleport",
                 () =>
@@ -98,7 +94,7 @@ namespace Basis.BasisUI
 
             PanelButton teleportAll = PanelButton.CreateNew(actionsGroup.ContentParent);
             teleportAll.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.teleportAll"));
-            teleportAll.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.teleportAll.description"));
+            teleportAll.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.teleportAll.tooltip"));
             GuardedClick(teleportAll, "Teleport everyone?",
                 "This will teleport ALL players to the selected target's location. Continue?", "Teleport",
                 () =>
@@ -110,7 +106,7 @@ namespace Basis.BasisUI
 
             PanelButton teleportHere = PanelButton.CreateNew(actionsGroup.ContentParent);
             teleportHere.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.teleportHere"));
-            teleportHere.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.teleportHere.description"));
+            teleportHere.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.teleportHere.tooltip"));
             GuardedClick(teleportHere, "Teleport player to you?",
                 "Teleport the selected player to your location?", "Teleport",
                 () =>
@@ -123,7 +119,7 @@ namespace Basis.BasisUI
             // Moderation
             PanelButton ban = PanelButton.CreateNew(actionsGroup.ContentParent);
             ban.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.banUuid"));
-            ban.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.banUuid.description"));
+            ban.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.banUuid.tooltip"));
             GuardedClick(ban, "Ban player?",
                 "Ban the player with this UUID? This may be irreversible depending on server policy.", "Ban",
                 () =>
@@ -135,7 +131,7 @@ namespace Basis.BasisUI
 
             PanelButton kick = PanelButton.CreateNew(actionsGroup.ContentParent);
             kick.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.kickUuid"));
-            kick.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.kickUuid.description"));
+            kick.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.kickUuid.tooltip"));
             GuardedClick(kick, "Kick player?",
                 "Kick the player with this UUID?", "Kick",
                 () =>
@@ -147,7 +143,7 @@ namespace Basis.BasisUI
 
             PanelButton ipBan = PanelButton.CreateNew(actionsGroup.ContentParent);
             ipBan.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.ipBanUuid"));
-            ipBan.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.ipBanUuid.description"));
+            ipBan.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.ipBanUuid.tooltip"));
             GuardedClick(ipBan, "IP ban player?",
                 "IP-ban the player with this UUID? This can affect multiple accounts on the same connection.", "IP Ban",
                 () =>
@@ -159,7 +155,7 @@ namespace Basis.BasisUI
 
             PanelButton unban = PanelButton.CreateNew(actionsGroup.ContentParent);
             unban.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.unbanUuid"));
-            unban.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.unbanUuid.description"));
+            unban.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.unbanUuid.tooltip"));
             GuardedClick(unban, "Unban player?",
                 "Remove the ban for this UUID?", "Unban",
                 () =>
@@ -172,7 +168,7 @@ namespace Basis.BasisUI
             // Messaging
             PanelButton sendMessage = PanelButton.CreateNew(actionsGroup.ContentParent);
             sendMessage.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.sendMessageUuid"));
-            sendMessage.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.sendMessageUuid.description"));
+            sendMessage.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.sendMessageUuid.tooltip"));
             GuardedClick(sendMessage, "Send message?",
                 "Send this message to the target player?", "Send",
                 () =>
@@ -187,7 +183,7 @@ namespace Basis.BasisUI
 
             PanelButton sendAll = PanelButton.CreateNew(actionsGroup.ContentParent);
             sendAll.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.sendAll"));
-            sendAll.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.sendAll.description"));
+            sendAll.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.sendAll.tooltip"));
             GuardedClick(sendAll, "Broadcast message?",
                 "Send this message to ALL players?", "Broadcast",
                 () =>
@@ -200,7 +196,7 @@ namespace Basis.BasisUI
             // Shout
             PanelButton enableShout = PanelButton.CreateNew(actionsGroup.ContentParent);
             enableShout.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.shout.enable"));
-            enableShout.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.enableShout.description"));
+            enableShout.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.shout.enable.tooltip"));
             GuardedClick(enableShout, "Enable shout mode?",
                 "Enable non-spatialized broadcast voice for this player?", "Enable",
                 () =>
@@ -212,7 +208,7 @@ namespace Basis.BasisUI
 
             PanelButton disableShout = PanelButton.CreateNew(actionsGroup.ContentParent);
             disableShout.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.shout.disable"));
-            disableShout.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.disableShout.description"));
+            disableShout.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.shout.disable.tooltip"));
             GuardedClick(disableShout, "Disable shout mode?",
                 "Disable non-spatialized broadcast voice for this player?", "Disable",
                 () =>

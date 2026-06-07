@@ -1,4 +1,4 @@
-using Basis.Scripts.Device_Management;
+﻿using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Network.Core;
@@ -267,7 +267,6 @@ namespace Basis.BasisUI
 
             PanelButton reset = PanelButton.CreateNew(parent);
             reset.Descriptor.SetTitle(BasisLocalization.Get("ui.resetPage.title", pageName));
-            reset.Descriptor.SetDescription(BasisLocalization.Get("ui.resetPage.description"));
             reset.OnClicked += () =>
             {
                 BasisMainMenu.Instance.OpenDialogue(
@@ -374,7 +373,7 @@ namespace Basis.BasisUI
             PanelToggle toggleDisableSeats = PanelToggle.CreateNewEntry(interactionsGroup);
             toggleDisableSeats.AssignBinding(BasisSettingsDefaults.DisableSeats);
             toggleDisableSeats.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableSeats"));
-            toggleDisableSeats.Descriptor.SetDescription(BasisLocalization.Get("settings.general.disableSeats.description"));
+            toggleDisableSeats.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableSeats.tooltip"));
 
             // HUD overlays — heads-up display elements rendered over the scene.
             PanelElementDescriptor hudGroup =
@@ -384,17 +383,17 @@ namespace Basis.BasisUI
             PanelToggle toggleDesktopReticle = PanelToggle.CreateNewEntry(hudGroup);
             toggleDesktopReticle.AssignBinding(BasisSettingsDefaults.DesktopReticle);
             toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
-            toggleDesktopReticle.Descriptor.SetDescription(BasisLocalization.Get("settings.general.desktopReticle.description"));
+            toggleDesktopReticle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.desktopReticle.tooltip"));
 
             PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(hudGroup);
             toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
             toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
-            toggleAvatarPreview.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreview.description"));
+            toggleAvatarPreview.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreview.tooltip"));
 
             PanelToggle toggleAvatarPreviewMirror = PanelToggle.CreateNewEntry(hudGroup);
             toggleAvatarPreviewMirror.AssignBinding(BasisSettingsDefaults.AvatarPreviewMirror);
             toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
-            toggleAvatarPreviewMirror.Descriptor.SetDescription(BasisLocalization.Get("settings.general.avatarPreviewMirror.description"));
+            toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
 
             toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Value);
             toggleAvatarPreview.OnValueChanged += (val) =>
@@ -414,12 +413,12 @@ namespace Basis.BasisUI
                 PanelToggle toggleThirdPerson = PanelToggle.CreateNewEntry(cameraGroup);
                 toggleThirdPerson.AssignBinding(BasisSettingsDefaults.EnableThirdPersonCamera);
                 toggleThirdPerson.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
-                toggleThirdPerson.Descriptor.SetDescription(BasisLocalization.Get("settings.general.thirdPerson.description"));
+                toggleThirdPerson.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.tooltip"));
 
                 PanelToggle toggleAudioFromHead = PanelToggle.CreateNewEntry(cameraGroup);
                 toggleAudioFromHead.AssignBinding(BasisSettingsDefaults.AudioListenerFollowsHead);
                 toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
-                toggleAudioFromHead.Descriptor.SetDescription(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.description"));
+                toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
 
                 toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Value);
                 toggleThirdPerson.OnValueChanged += (val) =>
@@ -447,10 +446,10 @@ namespace Basis.BasisUI
             PanelElementDescriptor languageGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             languageGroup.SetTitle(BasisLocalization.Get("settings.general.language.title"));
-            languageGroup.SetDescription(BasisLocalization.Get("settings.general.language.description"));
 
             PanelDropdown dropdownLanguage = PanelDropdown.CreateNewEntry(languageGroup);
             dropdownLanguage.Descriptor.SetTitle(BasisLocalization.Get("settings.general.language.title"));
+            dropdownLanguage.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.language.title.tooltip"));
 
             var languages = BasisLocalization.Available;
             var displayNames = new List<string>(languages.Count);
@@ -485,20 +484,14 @@ namespace Basis.BasisUI
                 }
             };
 
-            PanelElementDescriptor helpTranslateGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            helpTranslateGroup.SetTitle(BasisLocalization.Get("settings.general.language.help_translate.title"));
-            helpTranslateGroup.SetDescription(BasisLocalization.Get("settings.general.language.help_translate.description"));
-
             // NETWORKING GROUP
             PanelElementDescriptor networkingGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
-            networkingGroup.SetDescription(BasisLocalization.Get("settings.general.networking.description"));
 
             PanelToggle toggleDirectConnections = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
             toggleDirectConnections.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.directConnections"));
-            toggleDirectConnections.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.directConnections.description"));
+            toggleDirectConnections.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.directConnections.tooltip"));
             toggleDirectConnections.SetValueWithoutNotify(!BasisSettingsDefaults.DisableDirectConnections.RawValue);
 
             PanelSlider sliderP2PRate = PanelSlider.CreateEntryAndBind(
@@ -508,6 +501,7 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"),
                     BasisP2PManager.MinAvatarSyncHz, BasisP2PManager.MaxAvatarSyncHz, true, 0, ValueDisplayMode.Hz),
                 BasisSettingsDefaults.P2PAvatarSyncRate);
+            sliderP2PRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.tooltip"));
 
             PanelElementDescriptor p2pRateWarning = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
@@ -646,44 +640,48 @@ namespace Basis.BasisUI
             PanelElementDescriptor mixerGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             mixerGroup.SetTitle(BasisLocalization.Get("settings.audio.mixer.title"));
-            mixerGroup.SetDescription(BasisLocalization.Get("settings.audio.mixer.description"));
 
             PanelSlider sliderMainVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.mainVolume")),
                 BasisSettingsDefaults.MainVolume);
             sliderMainVolume.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.masterVolume"));
-            sliderMainVolume.Descriptor.SetDescription(BasisLocalization.Get("settings.audio.masterVolume.description"));
+            sliderMainVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.masterVolume.tooltip"));
             sliderMainVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyMainVolume);
 
             PanelSlider sliderMenuVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.menuVolume")),
                 BasisSettingsDefaults.MenuVolume);
+            sliderMenuVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.menuVolume.tooltip"));
             sliderMenuVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyMenuVolume);
 
             PanelSlider sliderWorldVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.worldVolume")),
                 BasisSettingsDefaults.WorldVolume);
+            sliderWorldVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.worldVolume.tooltip"));
             sliderWorldVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyWorldVolume);
 
             PanelSlider sliderVoiceVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.voiceVolume")),
                 BasisSettingsDefaults.VoiceVolume);
+            sliderVoiceVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.voiceVolume.tooltip"));
             sliderVoiceVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyVoiceVolume);
 
             PanelSlider sliderAvatarVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.avatarVolume")),
                 BasisSettingsDefaults.AvatarVolume);
+            sliderAvatarVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.avatarVolume.tooltip"));
             sliderAvatarVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyAvatarVolume);
 
             PanelSlider sliderPropVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.audio.propVolume")),
                 BasisSettingsDefaults.PropVolume);
+            sliderPropVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.propVolume.tooltip"));
             sliderPropVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyPropVolume);
 
             // Remote Players (Spatial Audio) — also hosts Hearing Range and the
@@ -735,13 +733,13 @@ namespace Basis.BasisUI
             PanelElementDescriptor microphoneGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             microphoneGroup.SetTitle(BasisLocalization.Get("settings.microphone.group.title"));
-            microphoneGroup.SetDescription(BasisLocalization.Get("settings.microphone.group.description"));
 
             // Microphone Volume (0..1)
             sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
                microphoneGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.volume"), 0, 1, false, 4, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.MicrophoneVolume);
+            sliderMicrophoneVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.volume.tooltip"));
             sliderMicrophoneVolume.SetValueWithoutNotify(snap.Volume01);
 
             void MicrophoneVolumeChanged(float value)
@@ -761,6 +759,7 @@ namespace Basis.BasisUI
             // Microphone Selection (device list)
             dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneSelection.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.selection"));
+            dropdownMicrophoneSelection.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.selection.tooltip"));
             dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices?.ToList() ?? new List<string>());
             dropdownMicrophoneSelection.SetValueWithoutNotify(snap.Microphone);
 
@@ -778,17 +777,21 @@ namespace Basis.BasisUI
                 microphoneGroup,
                 PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.microphoneRange"), BasisNetworkModeration.ServerMaxMicrophoneRangeMeters),
                 BasisSettingsDefaults.MicrophoneRange);
+            sliderMicrophoneRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.microphoneRange.tooltip"));
 
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
             toggleMicrophoneDenoiser.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.denoiser"));
+            toggleMicrophoneDenoiser.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.tooltip"));
             toggleMicrophoneDenoiser.AssignBinding(BasisSettingsDefaults.MicrophoneDenoiser);
 
             PanelToggle toggleAGC = PanelToggle.CreateNewEntry(microphoneGroup);
             toggleAGC.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.agc"));
+            toggleAGC.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.tooltip"));
             toggleAGC.AssignBinding(BasisSettingsDefaults.UseAutomaticGain);
 
             PanelDropdown dropdownMicrophoneMode = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneMode.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.mode"));
+            dropdownMicrophoneMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.mode.tooltip"));
             dropdownMicrophoneMode.AssignLocalizedEntries(
                 new List<string> { "On Activation", "Push To Talk" },
                 new List<string> { "settings.microphone.mode.onActivation", "settings.microphone.mode.pushToTalk" });
@@ -796,6 +799,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownMicrophoneIcon = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneIcon.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.icon"));
+            dropdownMicrophoneIcon.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.icon.tooltip"));
             dropdownMicrophoneIcon.AssignLocalizedEntries(
                 new List<string> { "AlwaysVisible", "ActivityDetection", "Hidden" },
                 new List<string> { "settings.microphone.icon.alwaysVisible", "settings.microphone.icon.activityDetection", "settings.microphone.icon.hidden" });
@@ -803,6 +807,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownMicStartBehavior = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicStartBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.startBehavior"));
+            dropdownMicStartBehavior.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.startBehavior.tooltip"));
             dropdownMicStartBehavior.AssignLocalizedEntries(
                 new List<string>
                 {
@@ -816,10 +821,10 @@ namespace Basis.BasisUI
             PanelElementDescriptor muteBehaviorGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             muteBehaviorGroup.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior.title"));
-            muteBehaviorGroup.SetDescription(BasisLocalization.Get("settings.microphone.muteBehavior.description"));
 
             PanelDropdown dropdownMicMuteBehavior = PanelDropdown.CreateNewEntry(muteBehaviorGroup);
             dropdownMicMuteBehavior.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.muteBehavior"));
+            dropdownMicMuteBehavior.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.muteBehavior.tooltip"));
             dropdownMicMuteBehavior.AssignLocalizedEntries(
                 new List<string>
                 {
@@ -835,18 +840,19 @@ namespace Basis.BasisUI
             PanelElementDescriptor limiterGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             limiterGroup.SetTitle(BasisLocalization.Get("settings.microphone.limiter.title"));
-            limiterGroup.SetDescription(BasisLocalization.Get("settings.microphone.limiter.description"));
 
             sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
                limiterGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.limiter.threshold"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.LimitThreshold);
+            sliderLimitThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.limiter.threshold.tooltip"));
             sliderLimitThreshold.SetValueWithoutNotify(snap.LimitThreshold);
 
             sliderLimitKnee = PanelSlider.CreateEntryAndBind(
                limiterGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.limiter.knee"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.LimitKnee);
+            sliderLimitKnee.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.limiter.knee.tooltip"));
             sliderLimitKnee.SetValueWithoutNotify(snap.LimitKnee);
 
             void LimitThresholdChanged(float v)
@@ -872,18 +878,19 @@ namespace Basis.BasisUI
             PanelElementDescriptor denoiseGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             denoiseGroup.SetTitle(BasisLocalization.Get("settings.microphone.denoiser.title"));
-            denoiseGroup.SetDescription(BasisLocalization.Get("settings.microphone.denoiser.description"));
 
             sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
                denoiseGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.denoiser.wet"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.DenoiseWet);
+            sliderDenoiseWet.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.wet.tooltip"));
             sliderDenoiseWet.SetValueWithoutNotify(snap.DenoiseWet);
 
             sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
                denoiseGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.denoiser.makeup"), -12f, 24f, false, 2, ValueDisplayMode.Raw),
                BasisSettingsDefaults.DenoiseMakeupDb);
+            sliderDenoiseMakeup.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.makeup.tooltip"));
             sliderDenoiseMakeup.SetValueWithoutNotify(snap.DenoiseMakeupDb);
 
             void DenoiseWetChanged(float v)
@@ -909,30 +916,33 @@ namespace Basis.BasisUI
             PanelElementDescriptor agcGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             agcGroup.SetTitle(BasisLocalization.Get("settings.microphone.agc.title"));
-            agcGroup.SetDescription(BasisLocalization.Get("settings.microphone.agc.description"));
 
             sliderAgcTarget = PanelSlider.CreateEntryAndBind(
                agcGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.targetRms"), 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
                BasisSettingsDefaults.AgcTargetRms);
+            sliderAgcTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.targetRms.tooltip"));
             sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
 
             sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
                agcGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.maxGain"), 0f, 36f, false, 1, ValueDisplayMode.Raw),
                BasisSettingsDefaults.AgcMaxGainDb);
+            sliderAgcMaxGain.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.maxGain.tooltip"));
             sliderAgcMaxGain.SetValueWithoutNotify(snap.AgcMaxGainDb);
 
             sliderAgcAttack = PanelSlider.CreateEntryAndBind(
                agcGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.attack"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.AgcAttack);
+            sliderAgcAttack.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.attack.tooltip"));
             sliderAgcAttack.SetValueWithoutNotify(snap.AgcAttack);
 
             sliderAgcRelease = PanelSlider.CreateEntryAndBind(
                agcGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.release"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.AgcRelease);
+            sliderAgcRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.release.tooltip"));
             sliderAgcRelease.SetValueWithoutNotify(snap.AgcRelease);
 
             void AgcTargetChanged(float v)
@@ -977,28 +987,31 @@ namespace Basis.BasisUI
             PanelElementDescriptor noiseGateGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             noiseGateGroup.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.title"));
-            noiseGateGroup.SetDescription(BasisLocalization.Get("settings.microphone.noiseGate.description"));
 
             PanelToggle toggleNoiseGate = PanelToggle.CreateNewEntry(noiseGateGroup);
             toggleNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.enable"));
+            toggleNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.enable.tooltip"));
             toggleNoiseGate.AssignBinding(BasisSettingsDefaults.UseNoiseGate);
 
             sliderNoiseGateThreshold = PanelSlider.CreateEntryAndBind(
                noiseGateGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.threshold"), 0f, 0.5f, false, 4, ValueDisplayMode.Raw),
                BasisSettingsDefaults.NoiseGateThreshold);
+            sliderNoiseGateThreshold.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.threshold.tooltip"));
             sliderNoiseGateThreshold.SetValueWithoutNotify(snap.NoiseGateThreshold);
 
             sliderNoiseGateAttack = PanelSlider.CreateEntryAndBind(
                noiseGateGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.attack"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.NoiseGateAttack);
+            sliderNoiseGateAttack.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.attack.tooltip"));
             sliderNoiseGateAttack.SetValueWithoutNotify(snap.NoiseGateAttack);
 
             sliderNoiseGateRelease = PanelSlider.CreateEntryAndBind(
                noiseGateGroup,
                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.noiseGate.release"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                BasisSettingsDefaults.NoiseGateRelease);
+            sliderNoiseGateRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.release.tooltip"));
             sliderNoiseGateRelease.SetValueWithoutNotify(snap.NoiseGateRelease);
 
             void NoiseGateThresholdChanged(float v)
@@ -1034,17 +1047,18 @@ namespace Basis.BasisUI
             PanelElementDescriptor micIconGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             micIconGroup.SetTitle(BasisLocalization.Get("settings.microphone.iconPosition.title"));
-            micIconGroup.SetDescription(BasisLocalization.Get("settings.microphone.iconPosition.description"));
 
             PanelSlider sliderMicIconOffsetX = PanelSlider.CreateEntryAndBind(
                 micIconGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.horizontal"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.MicrophoneIconOffsetX);
+            sliderMicIconOffsetX.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.horizontal.tooltip"));
 
             PanelSlider sliderMicIconOffsetY = PanelSlider.CreateEntryAndBind(
                 micIconGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.iconPosition.vertical"), -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.MicrophoneIconOffsetY);
+            sliderMicIconOffsetY.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.iconPosition.vertical.tooltip"));
 
             // Hide advanced groups by default
             limiterGroup.SetActive(false);
@@ -1179,7 +1193,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor qualityGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             qualityGroup.SetTitle(BasisLocalization.Get("settings.graphics.quality.title"));
-            qualityGroup.SetDescription(BasisLocalization.Get("settings.graphics.quality.description"));
 
             // Avatar visibility limits (relocated from General). Lives at the
             // top of the quality group so users see distance/limit controls
@@ -1188,10 +1201,11 @@ namespace Basis.BasisUI
                 qualityGroup,
                 PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
                 BasisSettingsDefaults.AvatarRange);
+            sliderAvatarRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarRange.tooltip"));
 
             PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(qualityGroup);
             toggleAvatarDistance.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDistance"));
-            toggleAvatarDistance.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDistance.description"));
+            toggleAvatarDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDistance.tooltip"));
             bool avatarDistOn = !string.Equals(BasisSettingsDefaults.VisualState.RawValue, "off", StringComparison.OrdinalIgnoreCase);
             toggleAvatarDistance.SetValueWithoutNotify(avatarDistOn);
             toggleAvatarDistance.OnValueChanged += (val) =>
@@ -1202,11 +1216,13 @@ namespace Basis.BasisUI
             PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(qualityGroup);
             toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
             toggleLimitAvatars.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAvatars"));
+            toggleLimitAvatars.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.limitAvatars.tooltip"));
 
             PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
                 qualityGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAvatars"), 0, 250, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.MaxVisibleAvatars);
+            sliderMaxVisibleAvatars.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.maxAvatars.tooltip"));
 
             sliderMaxVisibleAvatars.Descriptor.SetActive(toggleLimitAvatars.Value);
             toggleLimitAvatars.OnValueChanged += (val) =>
@@ -1218,12 +1234,13 @@ namespace Basis.BasisUI
             PanelToggle toggleViewCone = PanelToggle.CreateNewEntry(qualityGroup);
             toggleViewCone.AssignBinding(BasisSettingsDefaults.UseViewConeAvatars);
             toggleViewCone.Descriptor.SetTitle(BasisLocalization.Get("settings.general.viewCone"));
-            toggleViewCone.Descriptor.SetDescription(BasisLocalization.Get("settings.general.viewCone.description"));
+            toggleViewCone.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.viewCone.tooltip"));
 
             PanelSlider sliderViewConeAngle = PanelSlider.CreateEntryAndBind(
                 qualityGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.viewConeAngle"), 30, 360, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.ViewConeAngle);
+            sliderViewConeAngle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.viewConeAngle.tooltip"));
 
             sliderViewConeAngle.Descriptor.SetActive(toggleViewCone.Value);
             toggleViewCone.OnValueChanged += (val) =>
@@ -1234,6 +1251,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.qualityLevel"));
+            dropdownQualityLevel.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.qualityLevel.tooltip"));
             dropdownQualityLevel.AssignLocalizedEntries(
                 new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" },
                 new List<string> { "settings.graphics.quality.veryLow", "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high", "settings.graphics.quality.ultra" });
@@ -1241,6 +1259,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownShadowQuality = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownShadowQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.shadowQuality"));
+            dropdownShadowQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.shadowQuality.tooltip"));
             dropdownShadowQuality.AssignLocalizedEntries(
                 new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" },
                 new List<string> { "settings.graphics.quality.veryLow", "settings.graphics.quality.low", "settings.graphics.quality.medium", "settings.graphics.quality.high", "settings.graphics.quality.ultra" });
@@ -1248,6 +1267,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownAntialiasing = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownAntialiasing.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.antialiasing"));
+            dropdownAntialiasing.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.antialiasing.tooltip"));
             dropdownAntialiasing.AssignLocalizedEntries(
                 new List<string> { "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR"/*,"STP"*/ },
                 new List<string> { "ui.option.off", "settings.graphics.aa.msaa2x", "settings.graphics.aa.msaa4x", "settings.graphics.aa.msaa8x", "settings.graphics.aa.linear", "settings.graphics.aa.point", "settings.graphics.aa.fsr" });
@@ -1255,7 +1275,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownVSync.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.verticalSync"));
-            dropdownVSync.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.verticalSync.description"));
+            dropdownVSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.verticalSync.tooltip"));
             dropdownVSync.AssignLocalizedEntries(
                 new List<string> { "On", "Capped", "Off", "Half" },
                 new List<string> { "ui.option.on", "settings.graphics.vsync.capped", "ui.option.off", "settings.graphics.vsync.half" });
@@ -1263,7 +1283,7 @@ namespace Basis.BasisUI
 
             PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
             fpsCapField.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.frameRateCap"));
-            fpsCapField.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.frameRateCap.description"));
+            fpsCapField.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.frameRateCap.tooltip"));
             fpsCapField.AssignBinding(BasisSettingsDefaults.VSyncCapFps);
 
             TMP_InputField fpsInput = fpsCapField._inputField;
@@ -1284,15 +1304,16 @@ namespace Basis.BasisUI
             PanelElementDescriptor renderingGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             renderingGroup.SetTitle(BasisLocalization.Get("settings.graphics.rendering.title"));
-            renderingGroup.SetDescription(BasisLocalization.Get("settings.graphics.rendering.description"));
 
             PanelDropdown dropdownMemoryAllocation = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownMemoryAllocation.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.memoryAllocation"));
+            dropdownMemoryAllocation.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.memoryAllocation.tooltip"));
             dropdownMemoryAllocation.AssignEntries(new List<string> { "Dynamic", "256", "512", "1024", "2048", "4096", "8192" });
             dropdownMemoryAllocation.AssignBinding(BasisSettingsDefaults.MemoryAllocation);
 
             dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.resolution"));
+            dropdownResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.resolution.tooltip"));
             uniqueResolutions = new List<Vector2Int>();
             resolutionOptions = new List<string>();
 
@@ -1318,6 +1339,7 @@ namespace Basis.BasisUI
             List<string> screenModeOptions = new List<string> { "Fullscreen", "Borderless Window", "Windowed" };
 
             dropdownScreenMode.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.screenMode"));
+            dropdownScreenMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.screenMode.tooltip"));
             dropdownScreenMode.AssignLocalizedEntries(
                 screenModeOptions,
                 new List<string> { "settings.graphics.screenMode.fullscreen", "settings.graphics.screenMode.borderless", "settings.graphics.screenMode.windowed" });
@@ -1332,10 +1354,11 @@ namespace Basis.BasisUI
             PanelToggle toggleMirrorOverride = PanelToggle.CreateNewEntry(mirrorGroup.ContentParent);
             toggleMirrorOverride.AssignBinding(BasisSettingsDefaults.UseMirrorQualityOverride);
             toggleMirrorOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.mirrorQuality.override"));
-            toggleMirrorOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.mirrorQuality.override.description"));
+            toggleMirrorOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.mirrorQuality.override.tooltip"));
 
             PanelDropdown dropdownMirrorQuality = PanelDropdown.CreateNewEntry(mirrorGroup.ContentParent);
             dropdownMirrorQuality.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.mirrorResolution"));
+            dropdownMirrorQuality.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.mirrorResolution.tooltip"));
             dropdownMirrorQuality.AssignEntries(new List<string> { "256", "512", "1024", "2048", "4096", "8192" });
             dropdownMirrorQuality.AssignBinding(BasisSettingsDefaults.MirrorQuality);
 
@@ -1355,7 +1378,7 @@ namespace Basis.BasisUI
             PanelToggle toggleBloomOverride = PanelToggle.CreateNewEntry(bloomGroup.ContentParent);
             toggleBloomOverride.AssignBinding(BasisSettingsDefaults.UseBloomOverride);
             toggleBloomOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.bloom.override"));
-            toggleBloomOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.bloom.override.description"));
+            toggleBloomOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.bloom.override.tooltip"));
 
             PanelSlider sliderBloomIntensity = PanelSlider.CreateEntryAndBind(
                 bloomGroup.ContentParent,
@@ -1365,6 +1388,7 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.BLOOM_INTENSITY_MAX,
                     false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.BloomIntensity);
+            sliderBloomIntensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.bloom.intensity.tooltip"));
 
             sliderBloomIntensity.Descriptor.SetActive(toggleBloomOverride.Value);
             toggleBloomOverride.OnValueChanged += (val) =>
@@ -1382,17 +1406,19 @@ namespace Basis.BasisUI
             PanelToggle toggleCameraClipOverride = PanelToggle.CreateNewEntry(cameraClipGroup.ContentParent);
             toggleCameraClipOverride.AssignBinding(BasisSettingsDefaults.UseCameraClipOverride);
             toggleCameraClipOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.cameraClip.override"));
-            toggleCameraClipOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.cameraClip.override.description"));
+            toggleCameraClipOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.cameraClip.override.tooltip"));
 
             PanelSlider sliderCameraNear = PanelSlider.CreateEntryAndBind(
                 cameraClipGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.graphics.cameraClip.near"), 0.001f, 0.1f, false, 3, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.CameraClipNear);
+            sliderCameraNear.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.cameraClip.near.tooltip"));
 
             PanelSlider sliderCameraFar = PanelSlider.CreateEntryAndBind(
                 cameraClipGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.graphics.cameraClip.far"), 10f, 5000f, true, 0, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.CameraClipFar);
+            sliderCameraFar.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.cameraClip.far.tooltip"));
 
             sliderCameraNear.Descriptor.SetActive(toggleCameraClipOverride.Value);
             sliderCameraFar.Descriptor.SetActive(toggleCameraClipOverride.Value);
@@ -1407,17 +1433,16 @@ namespace Basis.BasisUI
             PanelElementDescriptor poseLodGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             poseLodGroup.SetTitle(BasisLocalization.Get("settings.graphics.poseLod.title"));
-            poseLodGroup.SetDescription(BasisLocalization.Get("settings.graphics.poseLod.bias.description"));
 
             PanelSlider sliderPoseLod = PanelSlider.CreateEntryAndBind(
                 poseLodGroup.ContentParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.graphics.poseLod.bias"), 0, 5, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.PoseLOD);
+            sliderPoseLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.poseLod.bias.tooltip"));
 
             PanelElementDescriptor advancedGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             advancedGroup.SetTitle(BasisLocalization.Get("ui.advanced"));
-            advancedGroup.SetDescription(BasisLocalization.Get("settings.graphics.advanced.description"));
 
             PanelToggle toggleAdvanced = PanelToggle.CreateNewEntry(advancedGroup.ContentParent);
             toggleAdvanced.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.advanced.showAdvanced"));
@@ -1427,9 +1452,11 @@ namespace Basis.BasisUI
                 advancedGroup.ContentParent,
                 new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.renderScale"), "", 0, 1.5f, false, 3, ValueDisplayMode.percentageFromZero),
                 BasisSettingsDefaults.RenderResolution);
+            sliderRenderResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.renderScale.tooltip"));
 
             PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(advancedGroup.ContentParent);
             dropdownHDR.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.hdrSupport"));
+            dropdownHDR.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.hdrSupport.tooltip"));
             dropdownHDR.AssignLocalizedEntries(
                 new List<string> { "Off", "32bit", "64bit" },
                 new List<string> { "ui.option.off", "settings.graphics.hdr.32bit", "settings.graphics.hdr.64bit" });
@@ -1441,6 +1468,7 @@ namespace Basis.BasisUI
                     "",
                     0, 1, false, 1, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.FoveatedRendering);
+            sliderFoveatedRendering.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.foveated.tooltip"));
 
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1448,6 +1476,7 @@ namespace Basis.BasisUI
                     "",
                     BasisSettingsDefaults.FOV_MIN, BasisSettingsDefaults.FOV_MAX, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.FieldOfView);
+            sliderFieldOfView.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fov.tooltip"));
 
             PanelSlider sliderMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1455,6 +1484,7 @@ namespace Basis.BasisUI
                     "",
                     0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AvatarMeshLOD);
+            sliderMeshLOD.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarLod.tooltip"));
 
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1462,11 +1492,12 @@ namespace Basis.BasisUI
                     "",
                     0, 100, true, 0, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.GlobalMeshLOD);
+            sliderGlobalMeshLOD.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.worldLod.tooltip"));
 
             PanelToggle toggleLocalHeadBlendShapes = PanelToggle.CreateNewEntry(advancedGroup.ContentParent);
             toggleLocalHeadBlendShapes.AssignBinding(BasisSettingsDefaults.LocalHeadBlendShapes);
             toggleLocalHeadBlendShapes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.localHeadBlendShapes"));
-            toggleLocalHeadBlendShapes.Descriptor.SetDescription(BasisLocalization.Get("settings.graphics.localHeadBlendShapes.description"));
+            toggleLocalHeadBlendShapes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.localHeadBlendShapes.tooltip"));
 
             sliderRenderResolution.Descriptor.SetActive(false);
             dropdownHDR.Descriptor.SetActive(false);
@@ -1597,28 +1628,29 @@ namespace Basis.BasisUI
 
             PanelElementDescriptor notificationGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             notificationGroup.SetTitle(BasisLocalization.Get("settings.chat.notifications.title"));
-            notificationGroup.SetDescription(BasisLocalization.Get("settings.chat.notifications.description"));
 
             PanelToggle toggleJoinNotifications = PanelToggle.CreateNewEntry(notificationGroup);
             toggleJoinNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.joinNotifications"));
+            toggleJoinNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.joinNotifications.tooltip"));
             toggleJoinNotifications.AssignBinding(BasisSettingsDefaults.JoinNotifications);
 
             PanelToggle toggleLeaveNotifications = PanelToggle.CreateNewEntry(notificationGroup);
             toggleLeaveNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.leaveNotifications"));
+            toggleLeaveNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.leaveNotifications.tooltip"));
             toggleLeaveNotifications.AssignBinding(BasisSettingsDefaults.LeaveNotifications);
 
             PanelElementDescriptor chatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             chatGroup.SetTitle(BasisLocalization.Get("settings.tab.chat"));
-            chatGroup.SetDescription(BasisLocalization.Get("settings.chat.group.description"));
 
             PanelToggle toggleChatDisabled = PanelToggle.CreateNewEntry(chatGroup);
             toggleChatDisabled.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.disable"));
-            toggleChatDisabled.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.disable.description"));
+            toggleChatDisabled.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.disable.tooltip"));
             toggleChatDisabled.AssignBinding(BasisSettingsDefaults.ChatDisabled);
 
             PanelTextField chatTextField = PanelTextField.CreateNewEntry(chatGroup);
             _chatTextField = chatTextField;
             chatTextField.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.message"));
+            chatTextField.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.message.tooltip"));
             chatTextField.SetValueWithoutNotify(string.Empty);
             chatTextField._inputField.characterLimit = BasisChatSanitizer.MaxMessageCharacters;
             chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
@@ -1630,6 +1662,7 @@ namespace Basis.BasisUI
                 chatGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.chat.textSize"), 0.5f, 3f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.ChatSize);
+            sliderChatSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.textSize.tooltip"));
 
             bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue;
             chatTextField.Descriptor.SetActive(chatEnabled);
@@ -1672,11 +1705,10 @@ namespace Basis.BasisUI
 
             PanelElementDescriptor cameraGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             cameraGroup.SetTitle(BasisLocalization.Get("settings.chat.camera.title"));
-            cameraGroup.SetDescription(BasisLocalization.Get("settings.chat.camera.description"));
 
             PanelDropdown dropdownPhotoMetadata = PanelDropdown.CreateNewEntry(cameraGroup);
             dropdownPhotoMetadata.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photoMetadata"));
-            dropdownPhotoMetadata.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photoMetadata.description"));
+            dropdownPhotoMetadata.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.photoMetadata.tooltip"));
             dropdownPhotoMetadata.AssignLocalizedEntries(
                 new List<string>
                 {
@@ -1689,27 +1721,27 @@ namespace Basis.BasisUI
 
             PanelToggle togglePhotoPersonDetails = PanelToggle.CreateNewEntry(cameraGroup);
             togglePhotoPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.personDetails"));
-            togglePhotoPersonDetails.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.personDetails.description"));
+            togglePhotoPersonDetails.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.personDetails.tooltip"));
             togglePhotoPersonDetails.AssignBinding(BasisSettingsDefaults.PhotoEmbedPersonDetails);
 
             PanelToggle togglePhotoCameraSettings = PanelToggle.CreateNewEntry(cameraGroup);
             togglePhotoCameraSettings.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.cameraSettings"));
-            togglePhotoCameraSettings.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.cameraSettings.description"));
+            togglePhotoCameraSettings.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.cameraSettings.tooltip"));
             togglePhotoCameraSettings.AssignBinding(BasisSettingsDefaults.PhotoEmbedCameraSettings);
 
             PanelToggle togglePhotoCaptureInfo = PanelToggle.CreateNewEntry(cameraGroup);
             togglePhotoCaptureInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.captureInfo"));
-            togglePhotoCaptureInfo.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.captureInfo.description"));
+            togglePhotoCaptureInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.captureInfo.tooltip"));
             togglePhotoCaptureInfo.AssignBinding(BasisSettingsDefaults.PhotoEmbedCaptureInfo);
 
             PanelToggle togglePhotoPhotographer = PanelToggle.CreateNewEntry(cameraGroup);
             togglePhotoPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.photographer"));
-            togglePhotoPhotographer.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.photographer.description"));
+            togglePhotoPhotographer.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.photographer.tooltip"));
             togglePhotoPhotographer.AssignBinding(BasisSettingsDefaults.PhotoEmbedPhotographer);
 
             PanelToggle togglePhotoWorld = PanelToggle.CreateNewEntry(cameraGroup);
             togglePhotoWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.camera.world"));
-            togglePhotoWorld.Descriptor.SetDescription(BasisLocalization.Get("settings.chat.camera.world.description"));
+            togglePhotoWorld.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.camera.world.tooltip"));
             togglePhotoWorld.AssignBinding(BasisSettingsDefaults.PhotoEmbedWorld);
 
             // Nameplates live in the same tab — formerly its own page, merged here so
@@ -1729,12 +1761,12 @@ namespace Basis.BasisUI
             PanelElementDescriptor raycastGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, container);
             raycastGroup.SetTitle(BasisLocalization.Get("settings.chat.raycast.title"));
-            raycastGroup.SetDescription(BasisLocalization.Get("settings.chat.raycast.description"));
 
             PanelSlider sliderRaycastSize = PanelSlider.CreateEntryAndBind(
                 raycastGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.chat.raycast.size"), 0.25f, 4f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RaycastLineWidth);
+            sliderRaycastSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.raycast.size.tooltip"));
             sliderRaycastSize.SliderComponent.onValueChanged.AddListener(Basis.Scripts.UI.BasisRaycastLineCustomization.PreviewWidth);
 
             Color raycastColorInit = Basis.Scripts.UI.BasisRaycastLineCustomization.ParseColor(BasisSettingsDefaults.RaycastLineColor.RawValue)
@@ -1832,46 +1864,45 @@ namespace Basis.BasisUI
             PanelElementDescriptor gizmosGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             gizmosGroup.SetTitle(BasisLocalization.Get("settings.developer.gizmos.title"));
-            gizmosGroup.SetDescription(BasisLocalization.Get("settings.developer.gizmos.description"));
 
             PanelToggle toggleShowGizmos = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleShowGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.showGizmos"));
-            toggleShowGizmos.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.showGizmos.description"));
+            toggleShowGizmos.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.showGizmos.tooltip"));
             toggleShowGizmos.AssignBinding(BasisSettingsDefaults.ShowGizmos);
 
             PanelToggle toggleSkeletonLines = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleSkeletonLines.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.skeletonLines"));
-            toggleSkeletonLines.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.skeletonLines.description"));
+            toggleSkeletonLines.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.skeletonLines.tooltip"));
             toggleSkeletonLines.AssignBinding(BasisSettingsDefaults.GizmoSkeletonLines);
 
             PanelToggle toggleCalibrationSpheres = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleCalibrationSpheres.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationSpheres"));
-            toggleCalibrationSpheres.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.calibrationSpheres.description"));
+            toggleCalibrationSpheres.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationSpheres.tooltip"));
             toggleCalibrationSpheres.AssignBinding(BasisSettingsDefaults.GizmoCalibrationSpheres);
 
             PanelToggle toggleJiggleVisuals = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleJiggleVisuals.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.jiggleVisuals"));
-            toggleJiggleVisuals.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.jiggleVisuals.description"));
+            toggleJiggleVisuals.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.jiggleVisuals.tooltip"));
             toggleJiggleVisuals.AssignBinding(BasisSettingsDefaults.GizmoJiggleVisuals);
 
             PanelToggle toggleTrackerGizmos = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleTrackerGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.trackerGizmos"));
-            toggleTrackerGizmos.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.trackerGizmos.description"));
+            toggleTrackerGizmos.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.trackerGizmos.tooltip"));
             toggleTrackerGizmos.AssignBinding(BasisSettingsDefaults.TrackerGizmos);
 
             PanelToggle toggleLinkedTrackerLines = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleLinkedTrackerLines.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.linkedTrackerLines"));
-            toggleLinkedTrackerLines.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.linkedTrackerLines.description"));
+            toggleLinkedTrackerLines.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.linkedTrackerLines.tooltip"));
             toggleLinkedTrackerLines.AssignBinding(BasisSettingsDefaults.LinkedTrackerLines);
 
             PanelToggle toggleEyeGazeGizmo = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleEyeGazeGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeGazeGizmo"));
-            toggleEyeGazeGizmo.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.eyeGazeGizmo.description"));
+            toggleEyeGazeGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeGazeGizmo.tooltip"));
             toggleEyeGazeGizmo.AssignBinding(BasisSettingsDefaults.GizmoEyeGaze);
 
             PanelToggle toggleIKColliders = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleIKColliders.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.ikColliders"));
-            toggleIKColliders.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.ikColliders.description"));
+            toggleIKColliders.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ikColliders.tooltip"));
             toggleIKColliders.AssignBinding(BasisSettingsDefaults.GizmoIKColliders);
 
             // Hide sub-toggles when the master is off — they're meaningless without it
@@ -1898,7 +1929,7 @@ namespace Basis.BasisUI
             PanelToggle toggleJitterBufferOverride = PanelToggle.CreateNewEntry(networkGroup.ContentParent);
             toggleJitterBufferOverride.AssignBinding(BasisSettingsDefaults.NetworkJitterBufferOverride);
             toggleJitterBufferOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.jitterBufferOverride"));
-            toggleJitterBufferOverride.Descriptor.SetDescription(BasisLocalization.Get("settings.general.networking.jitterBufferOverride.description"));
+            toggleJitterBufferOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.jitterBufferOverride.tooltip"));
 
             PanelSlider sliderJitterBuffer = PanelSlider.CreateEntryAndBind(
                 networkGroup.ContentParent,
@@ -1907,6 +1938,7 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("settings.general.networking.jitterBuffer.description"),
                     0, 6, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.NetworkJitterBufferDepth);
+            sliderJitterBuffer.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.jitterBuffer.tooltip"));
 
             sliderJitterBuffer.Descriptor.SetActive(toggleJitterBufferOverride.Value);
             toggleJitterBufferOverride.OnValueChanged += (val) =>
@@ -1919,11 +1951,10 @@ namespace Basis.BasisUI
             PanelElementDescriptor recorderGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             recorderGroup.SetTitle(BasisLocalization.Get("settings.developer.recorder.title"));
-            recorderGroup.SetDescription(BasisLocalization.Get("settings.developer.recorder.description"));
 
             PanelTextField recorderCountdownField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
             recorderCountdownField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.countdown"));
-            recorderCountdownField.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.recorder.countdown.description"));
+            recorderCountdownField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.countdown.tooltip"));
             recorderCountdownField.AssignBinding(BasisSettingsDefaults.RecorderCountdownSeconds);
             if (recorderCountdownField._inputField != null)
             {
@@ -1934,12 +1965,12 @@ namespace Basis.BasisUI
 
             PanelToggle recorderAutoStopToggle = PanelToggle.CreateNewEntry(recorderGroup.ContentParent);
             recorderAutoStopToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.autoStop"));
-            recorderAutoStopToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.recorder.autoStop.description"));
+            recorderAutoStopToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.autoStop.tooltip"));
             recorderAutoStopToggle.AssignBinding(BasisSettingsDefaults.RecorderAutoStop);
 
             PanelTextField recorderDurationField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
             recorderDurationField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.maxDuration"));
-            recorderDurationField.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.recorder.maxDuration.description"));
+            recorderDurationField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.maxDuration.tooltip"));
             recorderDurationField.AssignBinding(BasisSettingsDefaults.RecorderMaxDurationSeconds);
             if (recorderDurationField._inputField != null)
             {
@@ -1961,6 +1992,7 @@ namespace Basis.BasisUI
 
             PanelButton recorderButton = PanelButton.CreateNew(recorderGroup.ContentParent);
             recorderButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.start"));
+            recorderButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.start.tooltip"));
             recorderButton.OnClicked += () =>
             {
                 if (BasisAvatarRecorderDriver.IsBusy)
@@ -1985,11 +2017,10 @@ namespace Basis.BasisUI
             PanelElementDescriptor voiceRangeGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             voiceRangeGroup.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.title"));
-            voiceRangeGroup.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.description"));
 
             PanelToggle voiceRangeToggle = PanelToggle.CreateNewEntry(voiceRangeGroup.ContentParent);
             voiceRangeToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.enable"));
-            voiceRangeToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.enable.description"));
+            voiceRangeToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.voiceRange.enable.tooltip"));
             voiceRangeToggle.AssignBinding(BasisSettingsDefaults.ShowVoiceRange);
 
             PanelElementDescriptor voiceRangeStatusField =
@@ -2017,7 +2048,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor didGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             didGroup.SetTitle(BasisLocalization.Get("settings.developer.didKey.title"));
-            didGroup.SetDescription(BasisLocalization.Get("settings.developer.didKey.description"));
 
             PanelPasswordField didField = PanelPasswordField.CreateNewEntry(didGroup.ContentParent);
             didField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.didKey.field"));
@@ -2035,21 +2065,20 @@ namespace Basis.BasisUI
             PanelElementDescriptor debugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             debugGroup.SetTitle(BasisLocalization.Get("settings.developer.visualHelpers.title"));
-            debugGroup.SetDescription(BasisLocalization.Get("settings.developer.visualHelpers.description"));
 
             PanelToggle toggleStatistics = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleStatistics.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.enableStatistics"));
-            toggleStatistics.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.enableStatistics.description"));
+            toggleStatistics.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.enableStatistics.tooltip"));
             toggleStatistics.AssignBinding(BasisSettingsDefaults.EnableStatistics);
 
             PanelToggle toggleStreamingMeta = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleStreamingMeta.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.streamingMeta"));
-            toggleStreamingMeta.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.streamingMeta.description"));
+            toggleStreamingMeta.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.streamingMeta.tooltip"));
             toggleStreamingMeta.AssignBinding(BasisSettingsDefaults.EnableStreamingMeta);
 
             PanelTextField streamingMetaPortField = PanelTextField.CreateNewEntry(debugGroup.ContentParent);
             streamingMetaPortField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.streamingMetaPort"));
-            streamingMetaPortField.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.streamingMetaPort.description"));
+            streamingMetaPortField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.streamingMetaPort.tooltip"));
             streamingMetaPortField.AssignBinding(BasisSettingsDefaults.StreamingMetaPort);
 
             TMP_InputField streamingMetaPortInput = streamingMetaPortField._inputField;
@@ -2069,12 +2098,12 @@ namespace Basis.BasisUI
 
             PanelToggle toggleDisableLogging = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleDisableLogging.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.disableLogging"));
-            toggleDisableLogging.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.disableLogging.description"));
+            toggleDisableLogging.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.disableLogging.tooltip"));
             toggleDisableLogging.AssignBinding(BasisSettingsDefaults.DisableLogging);
 
             PanelDropdown dropdownLogTagFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
             dropdownLogTagFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logTagFilter"));
-            dropdownLogTagFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logTagFilter.description"));
+            dropdownLogTagFilter.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.logTagFilter.tooltip"));
             List<string> tagEntries = new List<string> { BasisSettingsDefaults.DebugLogFilterAll };
             tagEntries.AddRange(Enum.GetNames(typeof(BasisDebug.LogTag)));
             dropdownLogTagFilter.AssignEntries(tagEntries);
@@ -2082,7 +2111,7 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownLogLevelFilter = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
             dropdownLogLevelFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.logLevelFilter"));
-            dropdownLogLevelFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.logLevelFilter.description"));
+            dropdownLogLevelFilter.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.logLevelFilter.tooltip"));
             dropdownLogLevelFilter.AssignLocalizedEntries(
                 new List<string>
                 {
@@ -2096,46 +2125,45 @@ namespace Basis.BasisUI
             PanelElementDescriptor shaderGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             shaderGroup.SetTitle(BasisLocalization.Get("settings.developer.shaders.title"));
-            shaderGroup.SetDescription(BasisLocalization.Get("settings.developer.shaders.description"));
 
             PanelToggle togglePrewarm = PanelToggle.CreateNewEntry(shaderGroup.ContentParent);
             togglePrewarm.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.shaderPrewarm"));
-            togglePrewarm.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.shaderPrewarm.description"));
+            togglePrewarm.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.shaderPrewarm.tooltip"));
             togglePrewarm.AssignBinding(BasisSettingsDefaults.EnableShaderPrewarm);
 
             PanelToggle toggleMaterialCorrection = PanelToggle.CreateNewEntry(shaderGroup.ContentParent);
             toggleMaterialCorrection.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.materialCorrection"));
-            toggleMaterialCorrection.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.materialCorrection.description"));
+            toggleMaterialCorrection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.materialCorrection.tooltip"));
             toggleMaterialCorrection.AssignBinding(BasisSettingsDefaults.EnableMaterialCorrection);
 
             // ---- Section Visibility Toggles ----
             PanelElementDescriptor sectionTogglesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             sectionTogglesGroup.SetTitle(BasisLocalization.Get("settings.developer.sections.title"));
-            sectionTogglesGroup.SetDescription(BasisLocalization.Get("settings.developer.sections.description"));
 
             PanelToggle toggleBuildInfo = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleBuildInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.buildInfo"));
-            toggleBuildInfo.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.buildInfo.description"));
+            toggleBuildInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.buildInfo.tooltip"));
             toggleBuildInfo.AssignBinding(BasisSettingsDefaults.DevShowBuildInfo);
 
             PanelToggle toggleConsole = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleConsole.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.console"));
-            toggleConsole.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.console.description"));
+            toggleConsole.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.console.tooltip"));
             toggleConsole.AssignBinding(BasisSettingsDefaults.DevShowConsole);
 
             PanelToggle toggleEuroFilter = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleEuroFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.euroFilter"));
-            toggleEuroFilter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.euroFilter.description"));
+            toggleEuroFilter.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.euroFilter.tooltip"));
             toggleEuroFilter.AssignBinding(BasisSettingsDefaults.DevShowEuroFilter);
 
             PanelToggle toggleNetStats = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleNetStats.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.netStats"));
-            toggleNetStats.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.netStats.description"));
+            toggleNetStats.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.netStats.tooltip"));
             toggleNetStats.AssignBinding(BasisSettingsDefaults.DevShowNetStats);
 
             PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
+            toggleFaceTrackLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip"));
             toggleFaceTrackLipSync.Descriptor.SetDescription("On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined.");
             toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
 
@@ -2143,41 +2171,40 @@ namespace Basis.BasisUI
             PanelElementDescriptor audioDebugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             audioDebugGroup.SetTitle(BasisLocalization.Get("settings.developer.remoteAudioDebug.title"));
-            audioDebugGroup.SetDescription(BasisLocalization.Get("settings.developer.remoteAudioDebug.description"));
 
             PanelToggle toggleAudioDebug = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleAudioDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDebug.enable"));
-            toggleAudioDebug.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.enable.description"));
+            toggleAudioDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.enable.tooltip"));
             toggleAudioDebug.AssignBinding(BasisSettingsDefaults.AudioDebugEnabled);
 
             PanelToggle toggleAudioSource = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleAudioSource.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.source"));
-            toggleAudioSource.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.source.description"));
+            toggleAudioSource.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.source.tooltip"));
             toggleAudioSource.AssignBinding(BasisSettingsDefaults.AudioDebugShowSource);
 
             PanelToggle toggleVolumeChain = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleVolumeChain.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.volumeChain"));
-            toggleVolumeChain.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.volumeChain.description"));
+            toggleVolumeChain.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.volumeChain.tooltip"));
             toggleVolumeChain.AssignBinding(BasisSettingsDefaults.AudioDebugShowVolume);
 
             PanelToggle toggleRingBuffer = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleRingBuffer.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDebug.ringBuffer"));
-            toggleRingBuffer.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.ringBuffer.description"));
+            toggleRingBuffer.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.ringBuffer.tooltip"));
             toggleRingBuffer.AssignBinding(BasisSettingsDefaults.AudioDebugShowRingBuffer);
 
             PanelToggle toggleJitter = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleJitter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDebug.jitter"));
-            toggleJitter.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.jitter.description"));
+            toggleJitter.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.jitter.tooltip"));
             toggleJitter.AssignBinding(BasisSettingsDefaults.AudioDebugShowJitter);
 
             PanelToggle toggleSilence = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleSilence.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.silence"));
-            toggleSilence.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.silence.description"));
+            toggleSilence.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.silence.tooltip"));
             toggleSilence.AssignBinding(BasisSettingsDefaults.AudioDebugShowSilence);
 
             PanelToggle toggleViseme = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
             toggleViseme.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.viseme"));
-            toggleViseme.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.audioDebug.viseme.description"));
+            toggleViseme.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.viseme.tooltip"));
             toggleViseme.AssignBinding(BasisSettingsDefaults.AudioDebugShowViseme);
 
             // Hide per-section sub-toggles when the master is off — same pattern
@@ -2201,31 +2228,30 @@ namespace Basis.BasisUI
             PanelElementDescriptor avatarDataDebugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             avatarDataDebugGroup.SetTitle(BasisLocalization.Get("settings.developer.remoteAvatarDebug.title"));
-            avatarDataDebugGroup.SetDescription(BasisLocalization.Get("settings.developer.remoteAvatarDebug.description"));
 
             PanelToggle toggleAvatarDataDebug = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
             toggleAvatarDataDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDataDebug.enable"));
-            toggleAvatarDataDebug.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.enable.description"));
+            toggleAvatarDataDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.enable.tooltip"));
             toggleAvatarDataDebug.AssignBinding(BasisSettingsDefaults.AvatarDataDebugEnabled);
 
             PanelToggle toggleAvatarReceive = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
             toggleAvatarReceive.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.receive"));
-            toggleAvatarReceive.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.receive.description"));
+            toggleAvatarReceive.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.receive.tooltip"));
             toggleAvatarReceive.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowReceive);
 
             PanelToggle toggleAvatarStaging = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
             toggleAvatarStaging.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.staging"));
-            toggleAvatarStaging.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.staging.description"));
+            toggleAvatarStaging.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.staging.tooltip"));
             toggleAvatarStaging.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowStaging);
 
             PanelToggle toggleAvatarInterp = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
             toggleAvatarInterp.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.interp"));
-            toggleAvatarInterp.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.interp.description"));
+            toggleAvatarInterp.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.interp.tooltip"));
             toggleAvatarInterp.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowInterp);
 
             PanelToggle toggleAvatarMeta = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
             toggleAvatarMeta.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.meta"));
-            toggleAvatarMeta.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.avatarDataDebug.meta.description"));
+            toggleAvatarMeta.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.meta.tooltip"));
             toggleAvatarMeta.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowMeta);
 
             void RefreshAvatarDataDebugSubVisibility(bool masterOn)
@@ -2246,26 +2272,25 @@ namespace Basis.BasisUI
             PanelElementDescriptor avatarDebugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             avatarDebugGroup.SetTitle(BasisLocalization.Get("settings.developer.avatarDebug.title"));
-            avatarDebugGroup.SetDescription(BasisLocalization.Get("settings.developer.avatarDebug.description"));
 
             PanelToggle toggleDebugFace = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
             toggleDebugFace.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
-            toggleDebugFace.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.debugFaceTracking.description"));
+            toggleDebugFace.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.debugFaceTracking.tooltip"));
             toggleDebugFace.AssignBinding(BasisSettingsDefaults.DevDebugFaceTracking);
 
             PanelToggle toggleDebugEye = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
             toggleDebugEye.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
-            toggleDebugEye.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.debugEyeTracking.description"));
+            toggleDebugEye.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.debugEyeTracking.tooltip"));
             toggleDebugEye.AssignBinding(BasisSettingsDefaults.DevDebugEyeTracking);
 
             PanelToggle toggleTextureStats = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
             toggleTextureStats.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.textureStats"));
-            toggleTextureStats.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.textureStats.description"));
+            toggleTextureStats.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.textureStats.tooltip"));
             toggleTextureStats.AssignBinding(BasisSettingsDefaults.AvatarShowTextureStats);
 
             PanelToggle toggleAssignedTrackers = PanelToggle.CreateNewEntry(avatarDebugGroup.ContentParent);
             toggleAssignedTrackers.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.assignedTrackers"));
-            toggleAssignedTrackers.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.assignedTrackers.description"));
+            toggleAssignedTrackers.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.assignedTrackers.tooltip"));
             toggleAssignedTrackers.AssignBinding(BasisSettingsDefaults.AvatarShowTrackerRoles);
 
             // ---- Collapsible sections (toggled by section visibility) ----
@@ -2291,7 +2316,6 @@ namespace Basis.BasisUI
             {
                 infoGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
                 infoGroup.SetTitle(BasisLocalization.Get("settings.developer.buildInfo"));
-                infoGroup.SetDescription(BasisLocalization.Get("settings.developer.buildInfo.section.description"));
                 CreateBuildInfoSection(infoGroup.ContentParent);
             }
             if (BasisSettingsDefaults.DevShowBuildInfo.RawValue) CreateBuildInfo();
@@ -2411,16 +2435,15 @@ namespace Basis.BasisUI
             PanelElementDescriptor notificationGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             notificationGroup.SetTitle(BasisLocalization.Get("settings.developer.notifications.title"));
-            notificationGroup.SetDescription(BasisLocalization.Get("settings.developer.notifications.description"));
 
             PanelToggle toggleExceptionNotifications = PanelToggle.CreateNewEntry(notificationGroup.ContentParent);
             toggleExceptionNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.exceptionNotifications"));
-            toggleExceptionNotifications.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.exceptionNotifications.description"));
+            toggleExceptionNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.exceptionNotifications.tooltip"));
             toggleExceptionNotifications.AssignBinding(BasisSettingsDefaults.ExceptionNotifications);
 
             PanelToggle toggleErrorNotifications = PanelToggle.CreateNewEntry(notificationGroup.ContentParent);
             toggleErrorNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.errorNotifications"));
-            toggleErrorNotifications.Descriptor.SetDescription(BasisLocalization.Get("settings.developer.errorNotifications.description"));
+            toggleErrorNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.errorNotifications.tooltip"));
             toggleErrorNotifications.AssignBinding(BasisSettingsDefaults.ErrorNotifications);
 
             // One reset button for this whole page

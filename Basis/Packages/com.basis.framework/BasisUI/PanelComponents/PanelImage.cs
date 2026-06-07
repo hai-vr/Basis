@@ -6,19 +6,21 @@ using static UnityEngine.Rendering.DebugUI;
 
 namespace Basis.BasisUI
 {
-    public class PanelImage : PanelComponent, IPointerEnterHandler, IPointerExitHandler
+    public class PanelImage : PanelComponent
     {
         private bool _isHovered;
 
-        public void OnPointerEnter(PointerEventData eventData)
+        public override void OnPointerEnter(PointerEventData eventData)
         {
+            base.OnPointerEnter(eventData);
             if (_isHovered) return;
             _isHovered = true;
             UIAnimations.HoverLift(transform);
         }
 
-        public void OnPointerExit(PointerEventData eventData)
+        public override void OnPointerExit(PointerEventData eventData)
         {
+            base.OnPointerExit(eventData);
             if (!_isHovered) return;
             _isHovered = false;
             UIAnimations.HoverReset(transform);

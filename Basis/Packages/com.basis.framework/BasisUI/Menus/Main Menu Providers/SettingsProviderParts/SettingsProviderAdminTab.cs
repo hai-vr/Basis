@@ -29,7 +29,6 @@ namespace Basis.BasisUI
 
             descriptor.SetIcon(AddressableAssets.Sprites.Settings);
             descriptor.SetTitle(BasisLocalization.Get("settings.admin.title"));
-            descriptor.SetDescription(BasisLocalization.Get("settings.admin.description"));
 
             RectTransform container = descriptor.ContentParent;
 
@@ -43,6 +42,7 @@ namespace Basis.BasisUI
 
             PanelToggle shoutOnMenuBarToggle = PanelToggle.CreateNewEntry(shoutGroup.ContentParent);
             shoutOnMenuBarToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar"));
+            shoutOnMenuBarToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar.tooltip"));
             shoutOnMenuBarToggle.Descriptor.SetDescription("Adds the Shout option to the mic-mode button on your main menu bar. Off by default, so the button stays hidden until you enable it here.");
             shoutOnMenuBarToggle.AssignBinding(BasisSettingsDefaults.ShoutShowOnMenuBar);
 
@@ -54,36 +54,42 @@ namespace Basis.BasisUI
 
             PanelToggle avatarLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             avatarLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockAvatars"));
+            avatarLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockAvatars.tooltip"));
             avatarLock.Descriptor.SetDescription("Prevents all non-admin avatar loading over the network.");
             avatarLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAvatarsLocked);
             avatarLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAvatars();
 
             PanelToggle propLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             propLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockProps"));
+            propLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockProps.tooltip"));
             propLock.Descriptor.SetDescription("Prevents all non-admin prop loading over the network.");
             propLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPropsLocked);
             propLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleProps();
 
             PanelToggle worldLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             worldLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockWorlds"));
+            worldLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockWorlds.tooltip"));
             worldLock.Descriptor.SetDescription("Prevents all non-admin world loading over the network.");
             worldLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalWorldsLocked);
             worldLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleWorlds();
 
             PanelToggle serverShareLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             serverShareLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockServerSharing"));
+            serverShareLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockServerSharing.tooltip"));
             serverShareLock.Descriptor.SetDescription("Prevents non-admin players from sharing saved-server entries through the content-share system.");
             serverShareLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalServersLocked);
             serverShareLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleServers();
 
             PanelToggle headlessAudioToggle = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             headlessAudioToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.headlessAudioOff"));
+            headlessAudioToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.headlessAudioOff.tooltip"));
             headlessAudioToggle.Descriptor.SetDescription("Silences headless BasisAudioClipPlayer clients over the network.");
             headlessAudioToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessAudioOff);
             headlessAudioToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessAudio(value);
 
             PanelToggle disallowHeadlessToggle = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             disallowHeadlessToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowHeadless"));
+            disallowHeadlessToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowHeadless.tooltip"));
             disallowHeadlessToggle.Descriptor.SetDescription("Disconnects connected headless clients and blocks new headless clients while enabled.");
             disallowHeadlessToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessDisallowed);
             disallowHeadlessToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessDisallow(value);
@@ -93,29 +99,34 @@ namespace Basis.BasisUI
             // GlobalGetLockState payload back to every connected client.
             PanelToggle thirdPersonLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             thirdPersonLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera"));
+            thirdPersonLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera.tooltip"));
             thirdPersonLock.Descriptor.SetDescription("Disables the desktop third-person camera for all connected players. Snaps anyone currently in third-person back to first-person.");
             thirdPersonLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalThirdPersonDisabled);
             thirdPersonLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleThirdPerson();
 
             PanelToggle additionalAvatarDataLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
             additionalAvatarDataLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData"));
+            additionalAvatarDataLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData.tooltip"));
             additionalAvatarDataLock.Descriptor.SetDescription("Strips additional avatar data (blendshapes, custom-behaviour params) from every player's network broadcast. Muscle, position, and rotation still sync normally.");
             additionalAvatarDataLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAdditionalAvatarDataLock);
             additionalAvatarDataLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAdditionalAvatarDataLock();
 
             PanelSlider opusPacketLossSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
             opusPacketLossSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.admin.opusFecLoss")));
+            opusPacketLossSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFecLoss.tooltip"));
             opusPacketLossSlider.Descriptor.SetDescription("Sets OPUS_SET_PACKET_LOSS_PERC on every client's voice encoder. Higher = more bitrate spent on redundant FEC data, better recovery under packet loss.");
             opusPacketLossSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusPacketLossPercent);
             opusPacketLossSlider.OnValueChanged += value => BasisNetworkModeration.SetGlobalOpusPacketLoss(Mathf.RoundToInt(value));
 
             PanelSlider maxMicrophoneRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
             maxMicrophoneRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxMicrophoneRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
+            maxMicrophoneRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxMicrophoneRange.tooltip"));
             maxMicrophoneRangeSlider.Descriptor.SetDescription("Maximum microphone (voice transmit) range in metres any client may set. Each client's Microphone Range slider and effective range is clamped to this.");
             maxMicrophoneRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxMicrophoneRangeMeters);
 
             PanelSlider maxHearingRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
             maxHearingRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxHearingRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
+            maxHearingRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxHearingRange.tooltip"));
             maxHearingRangeSlider.Descriptor.SetDescription("Maximum hearing (audio receive) range in metres any client may set. Each client's Hearing Range slider and effective range is clamped to this.");
             maxHearingRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxHearingRangeMeters);
 
@@ -151,26 +162,32 @@ namespace Basis.BasisUI
 
             PanelToggle camTagPeople = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
             camTagPeople.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowTaggingPeople"));
+            camTagPeople.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowTaggingPeople.tooltip"));
             camTagPeople.Descriptor.SetDescription("Blocks embedding the names and boxes of people in photos.");
 
             PanelToggle camPersonDetails = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
             camPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowPerPersonDetails"));
+            camPersonDetails.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowPerPersonDetails.tooltip"));
             camPersonDetails.Descriptor.SetDescription("Blocks embedding avatar name, UUID, platform, distance and 3D position per person.");
 
             PanelToggle camExif = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
             camExif.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowCameraSettingsExif"));
+            camExif.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowCameraSettingsExif.tooltip"));
             camExif.Descriptor.SetDescription("Blocks embedding focal length, f-stop, shutter, ISO.");
 
             PanelToggle camCapture = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
             camCapture.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowCaptureInfo"));
+            camCapture.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowCaptureInfo.tooltip"));
             camCapture.Descriptor.SetDescription("Blocks embedding app/version and capture date.");
 
             PanelToggle camPhotographer = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
             camPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowPhotographer"));
+            camPhotographer.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowPhotographer.tooltip"));
             camPhotographer.Descriptor.SetDescription("Blocks embedding the photographer's name and UUID.");
 
             PanelToggle camWorld = PanelToggle.CreateNewEntry(cameraPolicyGroup.ContentParent);
             camWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowWorldViewpoint"));
+            camWorld.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowWorldViewpoint.tooltip"));
             camWorld.Descriptor.SetDescription("Blocks embedding the world name and camera position/rotation.");
 
             byte BuildCameraMask()
@@ -213,10 +230,12 @@ namespace Basis.BasisUI
 
             PanelTextField serverNameField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
             serverNameField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.serverName"));
+            serverNameField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.serverName.tooltip"));
             serverNameField.Descriptor.SetDescription("Public name returned to clients in the server list.");
 
             PanelButton applyServerName = PanelButton.CreateNew(serverGroup.ContentParent);
             applyServerName.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyServerName"));
+            applyServerName.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.applyServerName.tooltip"));
             applyServerName.OnClicked += () =>
             {
                 BasisNetworkModeration.SetServerName(serverNameField.Value ?? string.Empty);
@@ -224,6 +243,7 @@ namespace Basis.BasisUI
 
             PanelTextField serverMotdField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
             serverMotdField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.motd"));
+            serverMotdField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.motd.tooltip"));
             serverMotdField.Descriptor.SetDescription("Short message of the day shown next to the server name. Leave blank to clear.");
 
             TMP_InputField motdInput = serverMotdField.GetComponentInChildren<TMP_InputField>(true);
@@ -235,6 +255,7 @@ namespace Basis.BasisUI
 
             PanelButton applyServerMotd = PanelButton.CreateNew(serverGroup.ContentParent);
             applyServerMotd.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyMotd"));
+            applyServerMotd.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.applyMotd.tooltip"));
             applyServerMotd.OnClicked += () =>
             {
                 BasisNetworkModeration.SetServerMotd(serverMotdField.Value ?? string.Empty);
@@ -248,6 +269,7 @@ namespace Basis.BasisUI
 
             PanelToggle whitelistToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
             whitelistToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.whitelistOnly"));
+            whitelistToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.whitelistOnly.tooltip"));
             whitelistToggle.Descriptor.SetDescription("When on, only UUIDs in BasisWhiteList.txt may connect. Setting persists to config.xml.");
             whitelistToggle.OnValueChanged += value =>
             {
@@ -257,10 +279,12 @@ namespace Basis.BasisUI
 
             PanelTextField whitelistUuidField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
             whitelistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.whitelistUuid"));
+            whitelistUuidField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.whitelistUuid.tooltip"));
             whitelistUuidField.Descriptor.SetDescription("Player UUID to add or remove from BasisWhiteList.txt.");
 
             PanelButton addWhitelistButton = PanelButton.CreateNew(serverGroup.ContentParent);
             addWhitelistButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.addToWhitelist"));
+            addWhitelistButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.addToWhitelist.tooltip"));
             addWhitelistButton.OnClicked += () =>
             {
                 string uuid = whitelistUuidField.Value?.Trim();
@@ -270,6 +294,7 @@ namespace Basis.BasisUI
 
             PanelButton removeWhitelistButton = PanelButton.CreateNew(serverGroup.ContentParent);
             removeWhitelistButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.removeFromWhitelist"));
+            removeWhitelistButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.removeFromWhitelist.tooltip"));
             removeWhitelistButton.OnClicked += () =>
             {
                 string uuid = whitelistUuidField.Value?.Trim();
@@ -285,6 +310,7 @@ namespace Basis.BasisUI
 
             PanelButton requestLogsButton = PanelButton.CreateNew(logsGroup.ContentParent);
             requestLogsButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.requestAllLogs"));
+            requestLogsButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.requestAllLogs.tooltip"));
             requestLogsButton.Descriptor.SetDescription("Asks the server to bundle and send every log and crash report. Requires the basis.admin.logs permission.");
             requestLogsButton.OnClicked += () => BasisNetworkModeration.RequestAllLogs();
 
@@ -345,20 +371,24 @@ namespace Basis.BasisUI
 
             PanelTextField urlField = PanelTextField.CreateNewEntry(group.ContentParent);
             urlField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.beeUrl"));
+            urlField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.beeUrl.tooltip"));
             urlField.Descriptor.SetDescription("Direct URL to the .bee file the server should hand out. Pasting a url#password share string will be split automatically.");
 
             PanelTextField passwordField = PanelTextField.CreateNewEntry(group.ContentParent);
             passwordField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.password"));
+            passwordField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.password.tooltip"));
             passwordField.Descriptor.SetDescription("Optional unlock password for encrypted bundles. Leave blank if none, or if the URL already carries a #password fragment.");
 
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
             modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.type"));
+            modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.type.tooltip"));
             modeDropdown.Descriptor.SetDescription("Which library tab the entry will appear in. Auto-detected from the BEE metadata when possible; this dropdown is only used as a fallback for legacy bundles.");
             modeDropdown.AssignEntries(new List<string>(DefaultLibraryModeNames));
             modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[0]);
 
             PanelButton addButton = PanelButton.CreateNew(group.ContentParent);
             addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.addToServerDefaults"));
+            addButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.addToServerDefaults.tooltip"));
             addButton.Descriptor.SetDescription("Persist this entry on the server and push it to every connected client.");
             addButton.OnClicked += async () =>
             {
@@ -412,6 +442,7 @@ namespace Basis.BasisUI
 
             PanelButton removeButton = PanelButton.CreateNew(group.ContentParent);
             removeButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.removeFromServerDefaults"));
+            removeButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.removeFromServerDefaults.tooltip"));
             removeButton.Descriptor.SetDescription("Drop every default-library entry whose URL matches the BEE URL field above. Entry is deleted on disk and removed from every connected client.");
             removeButton.OnClicked += () =>
             {

@@ -23,11 +23,10 @@ namespace Basis.BasisUI
             PanelElementDescriptor statusGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             statusGroup.SetTitle(BasisLocalization.Get("settings.permissions.status"));
-            statusGroup.SetDescription(BasisLocalization.Get("settings.permissions.status.description"));
 
             PanelButton refreshBtn = PanelButton.CreateNew(statusGroup.ContentParent);
             refreshBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.refresh"));
-            refreshBtn.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.refresh.description"));
+            refreshBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.refresh.tooltip"));
             refreshBtn.OnClicked += () => BasisNetworkModeration.RequestPermissions();
 
             controller.StatusGroup = statusGroup;
@@ -36,7 +35,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor groupsGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             groupsGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.groups"));
-            groupsGroup.SetDescription(BasisLocalization.Get("settings.permissions.groups.description"));
             controller.GroupsParent = groupsGroup.ContentParent;
             controller.GroupsGroup = groupsGroup;
 
@@ -44,7 +42,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor usersGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             usersGroup.SetTitle(BasisLocalization.Get("settings.permissions.users"));
-            usersGroup.SetDescription(BasisLocalization.Get("settings.permissions.users.description"));
             controller.UsersParent = usersGroup.ContentParent;
             controller.UsersGroup = usersGroup;
 
@@ -52,15 +49,15 @@ namespace Basis.BasisUI
             PanelElementDescriptor adminGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             adminGroup.SetTitle(BasisLocalization.Get("settings.permissions.adminActions"));
-            adminGroup.SetDescription(BasisLocalization.Get("settings.permissions.adminActions.description"));
 
             PanelTextField newGroupField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             newGroupField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.groupName"));
-            newGroupField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.groupName.description"));
+            newGroupField.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.groupName.tooltip"));
             controller.GroupNameField = newGroupField;
 
             PanelButton createGroupBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             createGroupBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.createGroup"));
+            createGroupBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.createGroup.tooltip"));
             createGroupBtn.OnClicked += () =>
             {
                 string name = controller.GetGroupNameText();
@@ -73,6 +70,7 @@ namespace Basis.BasisUI
 
             PanelButton deleteGroupBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             deleteGroupBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.deleteGroup"));
+            deleteGroupBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.deleteGroup.tooltip"));
             deleteGroupBtn.OnClicked += () =>
             {
                 string name = controller.GetGroupNameText();
@@ -100,16 +98,17 @@ namespace Basis.BasisUI
             // Assign user to group
             PanelTextField assignUuidField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             assignUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.userUuid"));
-            assignUuidField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.userUuid.description"));
+            assignUuidField.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.userUuid.tooltip"));
             controller.AssignUuidField = assignUuidField;
 
             PanelTextField assignGroupField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             assignGroupField.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.targetGroup"));
-            assignGroupField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.targetGroup.description"));
+            assignGroupField.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.targetGroup.tooltip"));
             controller.AssignGroupField = assignGroupField;
 
             PanelButton addToGroupBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             addToGroupBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.addUserToGroup"));
+            addToGroupBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.addUserToGroup.tooltip"));
             addToGroupBtn.OnClicked += () =>
             {
                 string uuid = controller.GetAssignUuidText();
@@ -123,6 +122,7 @@ namespace Basis.BasisUI
 
             PanelButton removeFromGroupBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             removeFromGroupBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.removeUserFromGroup"));
+            removeFromGroupBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.removeUserFromGroup.tooltip"));
             removeFromGroupBtn.OnClicked += () =>
             {
                 string uuid = controller.GetAssignUuidText();
@@ -137,16 +137,17 @@ namespace Basis.BasisUI
             // Add/remove node from group
             PanelTextField nodeGroupField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             nodeGroupField.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.nodeGroup"));
-            nodeGroupField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.nodeGroup.description"));
+            nodeGroupField.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.nodeGroup.tooltip"));
             controller.NodeGroupField = nodeGroupField;
 
             PanelTextField nodeValueField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             nodeValueField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.permissionNode"));
-            nodeValueField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.permissionNode.description"));
+            nodeValueField.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.permissionNode.tooltip"));
             controller.NodeValueField = nodeValueField;
 
             PanelButton addNodeBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             addNodeBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.addNodeToGroup"));
+            addNodeBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.addNodeToGroup.tooltip"));
             addNodeBtn.OnClicked += () =>
             {
                 string group = controller.GetNodeGroupText();
@@ -160,6 +161,7 @@ namespace Basis.BasisUI
 
             PanelButton removeNodeBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             removeNodeBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.removeNodeFromGroup"));
+            removeNodeBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.removeNodeFromGroup.tooltip"));
             removeNodeBtn.OnClicked += () =>
             {
                 string group = controller.GetNodeGroupText();
@@ -174,16 +176,17 @@ namespace Basis.BasisUI
             // Add/remove parent from group
             PanelTextField parentGroupField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             parentGroupField.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.childGroup"));
-            parentGroupField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.childGroup.description"));
+            parentGroupField.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.childGroup.tooltip"));
             controller.ParentGroupField = parentGroupField;
 
             PanelTextField parentNameField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             parentNameField.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.parentGroup"));
-            parentNameField.Descriptor.SetDescription(BasisLocalization.Get("settings.permissions.parentGroup.description"));
+            parentNameField.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.parentGroup.tooltip"));
             controller.ParentNameField = parentNameField;
 
             PanelButton addParentBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             addParentBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.addParentToGroup"));
+            addParentBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.addParentToGroup.tooltip"));
             addParentBtn.OnClicked += () =>
             {
                 string child = controller.GetParentGroupText();
@@ -197,6 +200,7 @@ namespace Basis.BasisUI
 
             PanelButton removeParentBtn = PanelButton.CreateNew(adminGroup.ContentParent);
             removeParentBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.removeParentFromGroup"));
+            removeParentBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.permissions.removeParentFromGroup.tooltip"));
             removeParentBtn.OnClicked += () =>
             {
                 string child = controller.GetParentGroupText();

@@ -24,31 +24,37 @@ public static class SettingsProviderControllerConfig
         {
             PanelDropdown dropdownDominantHand = PanelDropdown.CreateNewEntry(group);
             dropdownDominantHand.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.dominantHand"));
+            dropdownDominantHand.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.dominantHand.tooltip"));
             dropdownDominantHand.AssignEntries(new List<string> { BasisDominantHand.Right, BasisDominantHand.Left });
             dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
 
             PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(group);
             toggleInvertMouse.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.invertMouse"));
+            toggleInvertMouse.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.invertMouse.tooltip"));
             toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
 
             PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.mouseSensitivity"), 0, 2f, false, 2, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.mousesensitivty);
+            mousesensitivty.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.mouseSensitivity.tooltip"));
 
             PanelToggle snapturntoggle = PanelToggle.CreateNewEntry(group);
             snapturntoggle.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.snapTurn"));
+            snapturntoggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurn.tooltip"));
             snapturntoggle.AssignBinding(BasisSettingsDefaults.usesnapturn);
 
             sliderSnapTurnAngleRef = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.snapTurnAngle"), 0, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
+            sliderSnapTurnAngleRef.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurnAngle.tooltip"));
 
             sliderSmoothTurnSpeedRef = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.smoothTurnSpeed"), 50, 400, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.SmoothTurnSpeed);
+            sliderSmoothTurnSpeedRef.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.smoothTurnSpeed.tooltip"));
 
             snapturntoggle.OnValueChanged += isOn =>
             {
@@ -72,6 +78,7 @@ public static class SettingsProviderControllerConfig
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.radialDeadZone"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.ControllerDeadZone);
+            controllerDeadZoneSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.radialDeadZone.tooltip"));
             controllerDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
         });
 
@@ -84,16 +91,19 @@ public static class SettingsProviderControllerConfig
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.xDeadZoneMin"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Basexdeadzone);
+            minHorizontalDeadZoneSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.xDeadZoneMin.tooltip"));
 
             PanelSlider horizontalGateStrengthSlider = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.xGateFullY"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Extraxdeadzoneatfully);
+            horizontalGateStrengthSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.xGateFullY.tooltip"));
 
             PanelSlider wingCurveSlider = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.gateCurve"), 0f, 3f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Wingexponent);
+            wingCurveSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.gateCurve.tooltip"));
 
             minHorizontalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
             horizontalGateStrengthSlider.OnValueChanged += _ => UpdatePreview();
@@ -108,6 +118,7 @@ public static class SettingsProviderControllerConfig
                 group,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.lookYDeadZone"), 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Ydeadzone);
+            verticalDeadZoneSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.lookYDeadZone.tooltip"));
             verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
         });
 
@@ -173,6 +184,7 @@ public static class SettingsProviderControllerConfig
 
         PanelDropdown actionDropdown = PanelDropdown.CreateNewEntry(selectorGroup.ContentParent);
         actionDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.action"));
+        actionDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.action.tooltip"));
         actionDropdown.AssignEntries(actionNames);
 
         var rolesGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);

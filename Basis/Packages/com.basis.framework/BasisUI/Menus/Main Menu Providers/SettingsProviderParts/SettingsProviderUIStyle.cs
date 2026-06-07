@@ -142,6 +142,7 @@ public static class SettingsProviderUIStyle
         PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group, parent);
         group.SetTitle(title);
+        group.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.colorPicker.tooltip"));
 
         RectTransform content = group.ContentParent;
 
@@ -157,10 +158,12 @@ public static class SettingsProviderUIStyle
         PanelSlider hueSlider = PanelSlider.CreateNew(content);
         hueSlider.SetSliderSettings(new PanelSlider.SliderSettings(
             Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hue"), "", 0, 360, true, 0, ValueDisplayMode.Degrees));
+        hueSlider.Descriptor.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hue.tooltip"));
         hueSlider.SetValueWithoutNotify(Mathf.RoundToInt(h * 360));
 
         PanelTextField hexField = PanelTextField.CreateNewEntry(content);
         hexField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hex"));
+        hexField.Descriptor.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hex.tooltip"));
         hexField.AssignBinding(binding);
         if (hexField._inputField != null)
         {

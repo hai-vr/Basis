@@ -75,6 +75,7 @@ namespace Basis.BasisUI
             Button = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             Button.OnClicked += Calibrate;
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
+            Button.Descriptor.SetTooltip(BasisLocalization.Get("calibration.calibrate.tooltip"));
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             HeightDescription.SetTitle(BasisLocalization.Get("calibration.additionalHeight"));
@@ -86,25 +87,28 @@ namespace Basis.BasisUI
             var MinusButton = PanelButton.CreateNew(Description.ContentParent);
             MinusButton.OnClicked += DecreasePlayerSize;
             MinusButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.decreaseHeight"));
+            MinusButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.decreaseHeight.tooltip"));
 
             var PlusButton = PanelButton.CreateNew(Description.ContentParent);
             PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.increaseHeight"));
+            PlusButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.increaseHeight.tooltip"));
 
             // Pitch calibration toggle
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             _pitchToggleButton.OnClicked += TogglePitchCalibration;
+            _pitchToggleButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.pitchLabel.tooltip"));
             UpdatePitchToggleLabel();
 
             // Navigate to Body Tracking settings
             var bodyTrackingSettingsButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             bodyTrackingSettingsButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.bodyTrackingSettings"));
+            bodyTrackingSettingsButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.bodyTrackingSettings.tooltip"));
             bodyTrackingSettingsButton.OnClicked += () => SettingsProvider.OpenBodyTrackingTab();
 
             // Reset Calibration (restores defaults for calibration-only state, including hidden pitch data)
             var resetButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             resetButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.reset"));
-            resetButton.Descriptor.SetDescription(BasisLocalization.Get("calibration.resetDescription"));
             resetButton.OnClicked += PromptResetCalibration;
         }
 
