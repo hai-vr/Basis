@@ -223,6 +223,11 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// </summary>
     private void UpdateCamera()
     {
+        if (this == null)
+        {
+            return;
+        }
+
         bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
         CheckCameraOrientation();
 

@@ -491,9 +491,22 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static void GenerateTextFactory(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
         {
+            BakeNameMesh(remotePlayer.DisplayName, namePlate.Filter, namePlate.Renderer);
+        }
+
+        /// <summary>
+        /// Bakes a display name into a combined rounded-quad + text mesh and assigns it to
+        /// the given filter/renderer. Shared by the remote player nameplate and any other
+        /// consumer that wants a standalone name label. Returns false if the baking assets
+        /// aren't loaded yet so the caller can retry.
+        /// </summary>
+        public static bool BakeNameMesh(string displayName, MeshFilter filter, MeshRenderer renderer)
+        {
+            if (Text == null || filter == null || renderer == null) return false;
+
             Text.gameObject.SetActive(true);
             Text.fontSize = BakeFontSize;
-            Text.text = remotePlayer.DisplayName;
+            Text.text = displayName;
             Text.ForceMeshUpdate();
 
             const float horizontalPadding = 2f;
@@ -548,11 +561,12 @@ namespace Basis.Scripts.UI.NamePlate
             Mesh combinedMesh = new Mesh { name = CombinedNameplateMeshName };
             combinedMesh.CombineMeshes(combine, false);
 
-            namePlate.Filter.sharedMesh = combinedMesh;
-            namePlate.Renderer.sharedMaterials = materials;
+            filter.sharedMesh = combinedMesh;
+            renderer.sharedMaterials = materials;
 
             Object.Destroy(plateMesh);
             Text.gameObject.SetActive(false);
+            return true;
         }
 
         /// <summary>

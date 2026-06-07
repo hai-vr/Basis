@@ -207,7 +207,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (HandHeld != null)
         {
             HandHeld.ReleaseUILock(); // we should release locks if for whatever reason we get destroyed
-            await HandHeld.SaveSettings();
         
         }
         
@@ -217,6 +216,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         OnPickupUse.RemoveListener( OnPickupUseCapture );
 
         base.OnDestroy();
+
+        if (HandHeld != null)
+        {
+            await HandHeld.SaveSettings();
+        }
     }
 
     /// <summary>

@@ -1,7 +1,10 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.UI.NamePlate;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,14 +14,17 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.Jobs;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using static SerializableBasis;
 
 /// <summary>
 /// Client-side manager for networked PIP cameras.
 /// Fully static - driven by BasisLocalPlayer.AfterSimulateOnLate via Simulate().
-/// Uses Unity Jobs (Burst-compiled IJobParallelFor) for smoothing remote camera transforms.
-/// Spawns/destroys the remote PIP prefab via Addressables.
+/// Smoothing (IJobParallelFor) plus camera and owner-nameplate transform writes
+/// (IJobParallelForTransform) all run Burst-compiled off the main thread. Each spawned
+/// camera and nameplate is an independent scene root so the transform writes spread
+/// across worker threads instead of serializing on a shared hierarchy.
 /// </summary>
 public static class BasisNetworkPIPCameraDriver
 {
@@ -45,24 +51,29 @@ public static class BasisNetworkPIPCameraDriver
     private static AsyncOperationHandle<GameObject> prefabHandle;
     private static GameObject loadedPrefab;
 
-    // Mapping from playerID -> index in NativeArrays
+    // Dense per-camera SoA. Index i is shared across all of these plus the two
+    // TransformAccessArrays and denseToPlayerId; swap-back removal keeps them aligned.
+    private static NativeList<float3> currentPositions;
+    private static NativeList<float3> targetPositions;
+    private static NativeList<quaternion> currentRotations;
+    private static NativeList<quaternion> targetRotations;
+    private static NativeList<float> nameplateHeights;
+    private static TransformAccessArray cameraTransforms;
+    private static TransformAccessArray namePlateTransforms;
+    private static readonly List<ushort> denseToPlayerId = new();
     private static readonly Dictionary<ushort, int> playerIdToIndex = new();
-    private static readonly Dictionary<int, ushort> indexToPlayerId = new();
-    private static readonly HashSet<ushort> activeRemotePIPs = new();
+    private static JobHandle pipHandle;
 
-    // Job data
-    private static NativeArray<float3> currentPositions;
-    private static NativeArray<float3> targetPositions;
-    private static NativeArray<quaternion> currentRotations;
-    private static NativeArray<quaternion> targetRotations;
-    private static NativeArray<byte> activeFlags;
-    private static JobHandle smoothHandle;
-
-    // Transform references and spawned instances for active PIP models
-    private static readonly Dictionary<ushort, Transform> pipTransforms = new();
+    // Spawned objects and owner-name tag state, keyed by playerID for managed cleanup/baking.
     private static readonly Dictionary<ushort, GameObject> pipInstances = new();
+    private static readonly Dictionary<ushort, RemotePipNamePlate> pipNamePlates = new();
+    private static readonly List<ushort> pendingNameBakes = new();
 
-    private const int MaxPIPCameras = 256;
+    private const float NamePlateScale = 0.015f;
+    private const float NamePlateMargin = 0.04f;
+    private const float NamePlateHalfHeight = 4.5f * NamePlateScale;
+
+    private const int InitialCapacity = 16;
     private const float LerpSpeed = 12f;
 
     /// <summary>
@@ -71,31 +82,22 @@ public static class BasisNetworkPIPCameraDriver
     private const int SimulatePriority = 203;
 
     private static bool initialized;
-    private static int nextFreeIndex;
-    private static readonly Queue<int> recycledIndices = new();
 
     /// <summary>
-    /// Initialize native arrays and subscribe to the simulation loop.
+    /// Initialize native containers and subscribe to the simulation loop.
     /// Called from BasisNetworkLifeCycle.Initialize().
     /// </summary>
     public static void Create()
     {
         if (initialized) return;
 
-        currentPositions = new NativeArray<float3>(MaxPIPCameras, Allocator.Persistent);
-        targetPositions = new NativeArray<float3>(MaxPIPCameras, Allocator.Persistent);
-        currentRotations = new NativeArray<quaternion>(MaxPIPCameras, Allocator.Persistent);
-        targetRotations = new NativeArray<quaternion>(MaxPIPCameras, Allocator.Persistent);
-        activeFlags = new NativeArray<byte>(MaxPIPCameras, Allocator.Persistent);
-
-        // Initialize rotations to identity
-        for (int i = 0; i < MaxPIPCameras; i++)
-        {
-            currentRotations[i] = quaternion.identity;
-            targetRotations[i] = quaternion.identity;
-        }
-
-        nextFreeIndex = 0;
+        currentPositions = new NativeList<float3>(InitialCapacity, Allocator.Persistent);
+        targetPositions = new NativeList<float3>(InitialCapacity, Allocator.Persistent);
+        currentRotations = new NativeList<quaternion>(InitialCapacity, Allocator.Persistent);
+        targetRotations = new NativeList<quaternion>(InitialCapacity, Allocator.Persistent);
+        nameplateHeights = new NativeList<float>(InitialCapacity, Allocator.Persistent);
+        cameraTransforms = new TransformAccessArray(InitialCapacity);
+        namePlateTransforms = new TransformAccessArray(InitialCapacity);
 
         // Preload the remote PIP prefab
         prefabHandle = Addressables.LoadAssetAsync<GameObject>(RemotePIPPrefabPath);
@@ -106,7 +108,7 @@ public static class BasisNetworkPIPCameraDriver
     }
 
     /// <summary>
-    /// Dispose native arrays and unsubscribe from the simulation loop.
+    /// Dispose native containers and unsubscribe from the simulation loop.
     /// Called from BasisNetworkLifeCycle shutdown path.
     /// </summary>
     public static void Shutdown()
@@ -115,7 +117,23 @@ public static class BasisNetworkPIPCameraDriver
 
         BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(SimulatePriority, Simulate);
 
-        smoothHandle.Complete();
+        pipHandle.Complete();
+
+        // Destroy owner-name tags (baked mesh + GameObject)
+        foreach (var kvp in pipNamePlates)
+        {
+            RemotePipNamePlate plate = kvp.Value;
+            if (plate == null) continue;
+            if (plate.Filter != null && plate.Filter.sharedMesh != null)
+            {
+                UnityEngine.Object.Destroy(plate.Filter.sharedMesh);
+            }
+            if (plate.Root != null)
+            {
+                UnityEngine.Object.Destroy(plate.Root);
+            }
+        }
+        pipNamePlates.Clear();
 
         // Destroy all spawned PIP instances
         foreach (var kvp in pipInstances)
@@ -138,54 +156,69 @@ public static class BasisNetworkPIPCameraDriver
         if (targetPositions.IsCreated) targetPositions.Dispose();
         if (currentRotations.IsCreated) currentRotations.Dispose();
         if (targetRotations.IsCreated) targetRotations.Dispose();
-        if (activeFlags.IsCreated) activeFlags.Dispose();
+        if (nameplateHeights.IsCreated) nameplateHeights.Dispose();
+        if (cameraTransforms.isCreated) cameraTransforms.Dispose();
+        if (namePlateTransforms.isCreated) namePlateTransforms.Dispose();
 
         playerIdToIndex.Clear();
-        indexToPlayerId.Clear();
-        activeRemotePIPs.Clear();
-        pipTransforms.Clear();
-        recycledIndices.Clear();
-        nextFreeIndex = 0;
+        denseToPlayerId.Clear();
+        pendingNameBakes.Clear();
 
         initialized = false;
     }
 
     /// <summary>
     /// Per-frame simulation driven by BasisLocalPlayer.AfterSimulateOnLate.
-    /// Completes the previous frame's job, applies transforms, schedules next job.
+    /// Smooths toward the latest network targets and writes the camera + nameplate
+    /// transforms via parallel jobs, completing them before the frame renders.
     /// </summary>
     private static void Simulate()
     {
-        if (!initialized || activeRemotePIPs.Count == 0) return;
+        if (!initialized) return;
 
-        smoothHandle.Complete();
+        pipHandle.Complete();
 
-        // Apply smoothed positions and rotations to transforms
-        foreach (var kvp in pipTransforms)
-        {
-            if (playerIdToIndex.TryGetValue(kvp.Key, out int index))
-            {
-                float3 pos = currentPositions[index];
-                quaternion rot = currentRotations[index];
-                kvp.Value.SetPositionAndRotation(
-                    new Vector3(pos.x, pos.y, pos.z),
-                    new Quaternion(rot.value.x, rot.value.y, rot.value.z, rot.value.w)
-                );
-            }
-        }
+        int count = currentPositions.Length;
+        if (count == 0) return;
 
-        // Schedule next frame's smoothing job
-        var job = new PIPSmoothJob
+        ProcessPendingNameBakes();
+
+        Vector3 viewer = BasisLocalCameraDriver.Position;
+
+        // Capture the array views once so we don't re-check-out the lists while jobs are pending.
+        NativeArray<float3> curPos = currentPositions.AsArray();
+        NativeArray<float3> tgtPos = targetPositions.AsArray();
+        NativeArray<quaternion> curRot = currentRotations.AsArray();
+        NativeArray<quaternion> tgtRot = targetRotations.AsArray();
+        NativeArray<float> heights = nameplateHeights.AsArray();
+
+        JobHandle smoothHandle = new PIPSmoothJob
         {
             DeltaTime = Time.deltaTime,
             LerpSpeed = LerpSpeed,
-            CurrentPositions = currentPositions,
-            TargetPositions = targetPositions,
-            CurrentRotations = currentRotations,
-            TargetRotations = targetRotations,
-            ActiveFlags = activeFlags,
-        };
-        smoothHandle = job.Schedule(MaxPIPCameras, 32);
+            CurrentPositions = curPos,
+            TargetPositions = tgtPos,
+            CurrentRotations = curRot,
+            TargetRotations = tgtRot,
+        }.Schedule(count, 32);
+
+        // Camera and nameplate are independent scene roots, so these two transform
+        // writes touch disjoint hierarchies and run fully in parallel after smoothing.
+        JobHandle cameraHandle = new PIPCameraApplyJob
+        {
+            Positions = curPos,
+            Rotations = curRot,
+        }.Schedule(cameraTransforms, smoothHandle);
+
+        JobHandle namePlateHandle = new PIPNamePlateApplyJob
+        {
+            ViewerPosition = new float3(viewer.x, viewer.y, viewer.z),
+            CameraPositions = curPos,
+            Heights = heights,
+        }.Schedule(namePlateTransforms, smoothHandle);
+
+        pipHandle = JobHandle.CombineDependencies(cameraHandle, namePlateHandle);
+        pipHandle.Complete();
     }
 
     /// <summary>
@@ -195,34 +228,20 @@ public static class BasisNetworkPIPCameraDriver
     {
         if (!initialized) return;
 
-        smoothHandle.Complete();
+        pipHandle.Complete();
 
         if (msg.IsActive)
         {
-            int index = GetOrAllocateIndex(msg.PlayerID);
             float3 pos = new float3(msg.PositionX, msg.PositionY, msg.PositionZ);
             quaternion rot = new quaternion(msg.RotationX, msg.RotationY, msg.RotationZ, msg.RotationW);
-            currentPositions[index] = pos;
-            targetPositions[index] = pos;
-            currentRotations[index] = rot;
-            targetRotations[index] = rot;
-            activeFlags[index] = 1;
-            activeRemotePIPs.Add(msg.PlayerID);
 
-            SpawnRemotePIP(msg.PlayerID, pos, rot);
+            AddRemotePIP(msg.PlayerID, pos, rot);
 
             OnRemotePIPCreated?.Invoke(msg.PlayerID, pos, rot);
         }
         else
         {
-            if (playerIdToIndex.TryGetValue(msg.PlayerID, out int index))
-            {
-                activeFlags[index] = 0;
-                FreeIndex(msg.PlayerID, index);
-            }
-            activeRemotePIPs.Remove(msg.PlayerID);
-
-            DestroyRemotePIP(msg.PlayerID);
+            RemoveRemotePIP(msg.PlayerID);
 
             OnRemotePIPDestroyed?.Invoke(msg.PlayerID);
         }
@@ -237,7 +256,7 @@ public static class BasisNetworkPIPCameraDriver
 
         if (playerIdToIndex.TryGetValue(msg.PlayerID, out int index))
         {
-            smoothHandle.Complete();
+            pipHandle.Complete();
             targetPositions[index] = new float3(msg.PositionX, msg.PositionY, msg.PositionZ);
             targetRotations[index] = new quaternion(msg.RotationX, msg.RotationY, msg.RotationZ, msg.RotationW);
         }
@@ -291,9 +310,9 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static bool TryGetPIPPosition(ushort playerId, out Vector3 position)
     {
-        if (pipTransforms.TryGetValue(playerId, out Transform t) && t != null)
+        if (pipInstances.TryGetValue(playerId, out GameObject instance) && instance != null)
         {
-            position = t.position;
+            position = instance.transform.position;
             return true;
         }
         position = Vector3.zero;
@@ -377,26 +396,21 @@ public static class BasisNetworkPIPCameraDriver
     {
         if (!initialized) return;
 
-        if (activeRemotePIPs.Contains(playerId))
+        if (pipInstances.ContainsKey(playerId))
         {
-            smoothHandle.Complete();
-            if (playerIdToIndex.TryGetValue(playerId, out int index))
-            {
-                activeFlags[index] = 0;
-                FreeIndex(playerId, index);
-            }
-            activeRemotePIPs.Remove(playerId);
-
-            DestroyRemotePIP(playerId);
+            pipHandle.Complete();
+            RemoveRemotePIP(playerId);
 
             OnRemotePIPDestroyed?.Invoke(playerId);
         }
     }
 
     /// <summary>
-    /// Spawn the remote PIP prefab instance for a player.
+    /// Spawn a remote PIP camera and its owner-name tag, appending them to the dense SoA
+    /// and transform arrays. Both objects are independent scene roots (DontDestroyOnLoad)
+    /// so their per-frame transform writes spread across worker threads.
     /// </summary>
-    private static void SpawnRemotePIP(ushort playerId, float3 position, quaternion rotation)
+    private static void AddRemotePIP(ushort playerId, float3 position, quaternion rotation)
     {
         if (loadedPrefab == null)
         {
@@ -404,31 +418,109 @@ public static class BasisNetworkPIPCameraDriver
             return;
         }
 
-        // Destroy any existing instance for this player
-        DestroyRemotePIP(playerId);
+        // Replace any existing camera for this player
+        if (playerIdToIndex.ContainsKey(playerId))
+        {
+            RemoveRemotePIP(playerId);
+        }
 
         Vector3 pos = new Vector3(position.x, position.y, position.z);
         Quaternion rot = new Quaternion(rotation.value.x, rotation.value.y, rotation.value.z, rotation.value.w);
 
         GameObject instance = UnityEngine.Object.Instantiate(loadedPrefab, pos, rot);
-        instance.transform.parent = BasisDeviceManagement.Instance.transform;
+        UnityEngine.Object.DontDestroyOnLoad(instance);
 
-        // Apply rotation offset from the metadata component
         if (instance.TryGetComponent<BasisCameraRemotePip>(out BasisCameraRemotePip pipMeta))
         {
             pipMeta.PlayerID = playerId;
         }
 
+        float height = ComputeNamePlateHeight(instance, pos);
+
+        GameObject plateGo = new GameObject("OwnerNamePlate");
+        UnityEngine.Object.DontDestroyOnLoad(plateGo);
+        plateGo.transform.localScale = new Vector3(NamePlateScale, NamePlateScale, NamePlateScale);
+        plateGo.transform.position = new Vector3(pos.x, pos.y + height, pos.z);
+
+        MeshFilter filter = plateGo.AddComponent<MeshFilter>();
+        MeshRenderer renderer = plateGo.AddComponent<MeshRenderer>();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+
+        int index = currentPositions.Length;
+        currentPositions.Add(position);
+        targetPositions.Add(position);
+        currentRotations.Add(rotation);
+        targetRotations.Add(rotation);
+        nameplateHeights.Add(height);
+        cameraTransforms.Add(instance.transform);
+        namePlateTransforms.Add(plateGo.transform);
+        denseToPlayerId.Add(playerId);
+        playerIdToIndex[playerId] = index;
+
         pipInstances[playerId] = instance;
-        pipTransforms[playerId] = instance.transform;
+
+        RemotePipNamePlate plate = new RemotePipNamePlate
+        {
+            Root = plateGo,
+            Filter = filter,
+            Renderer = renderer,
+        };
+        pipNamePlates[playerId] = plate;
+
+        if (TryResolveDisplayName(playerId, out string displayName) &&
+            BasisRemoteNamePlateDriver.BakeNameMesh(displayName, filter, renderer))
+        {
+            plate.Baked = true;
+        }
+        else
+        {
+            pendingNameBakes.Add(playerId);
+        }
     }
 
     /// <summary>
-    /// Destroy the remote PIP prefab instance for a player.
+    /// Remove a remote PIP camera and its owner-name tag, swap-back compacting the dense
+    /// SoA and transform arrays. Caller must have completed in-flight jobs first.
     /// </summary>
-    private static void DestroyRemotePIP(ushort playerId)
+    private static void RemoveRemotePIP(ushort playerId)
     {
-        pipTransforms.Remove(playerId);
+        if (playerIdToIndex.TryGetValue(playerId, out int idx))
+        {
+            int last = currentPositions.Length - 1;
+
+            currentPositions.RemoveAtSwapBack(idx);
+            targetPositions.RemoveAtSwapBack(idx);
+            currentRotations.RemoveAtSwapBack(idx);
+            targetRotations.RemoveAtSwapBack(idx);
+            nameplateHeights.RemoveAtSwapBack(idx);
+            cameraTransforms.RemoveAtSwapBack(idx);
+            namePlateTransforms.RemoveAtSwapBack(idx);
+
+            if (idx != last)
+            {
+                ushort movedPlayer = denseToPlayerId[last];
+                denseToPlayerId[idx] = movedPlayer;
+                playerIdToIndex[movedPlayer] = idx;
+            }
+            denseToPlayerId.RemoveAt(last);
+            playerIdToIndex.Remove(playerId);
+        }
+
+        pendingNameBakes.Remove(playerId);
+
+        if (pipNamePlates.TryGetValue(playerId, out RemotePipNamePlate plate))
+        {
+            pipNamePlates.Remove(playerId);
+            if (plate.Filter != null && plate.Filter.sharedMesh != null)
+            {
+                UnityEngine.Object.Destroy(plate.Filter.sharedMesh);
+            }
+            if (plate.Root != null)
+            {
+                UnityEngine.Object.Destroy(plate.Root);
+            }
+        }
 
         if (pipInstances.TryGetValue(playerId, out GameObject instance))
         {
@@ -440,22 +532,80 @@ public static class BasisNetworkPIPCameraDriver
         }
     }
 
-    private static int GetOrAllocateIndex(ushort playerId)
+    /// <summary>
+    /// Bakes any owner-name tags whose display name wasn't known at spawn, once it resolves.
+    /// Drained on the main thread (TMP baking) before scheduling the transform jobs.
+    /// </summary>
+    private static void ProcessPendingNameBakes()
     {
-        if (playerIdToIndex.TryGetValue(playerId, out int existing))
-            return existing;
+        for (int i = pendingNameBakes.Count - 1; i >= 0; i--)
+        {
+            ushort playerId = pendingNameBakes[i];
+            if (!pipNamePlates.TryGetValue(playerId, out RemotePipNamePlate plate) || plate.Baked)
+            {
+                pendingNameBakes.RemoveAt(i);
+                continue;
+            }
 
-        int index = recycledIndices.Count > 0 ? recycledIndices.Dequeue() : nextFreeIndex++;
-        playerIdToIndex[playerId] = index;
-        indexToPlayerId[index] = playerId;
-        return index;
+            if (TryResolveDisplayName(playerId, out string displayName) &&
+                BasisRemoteNamePlateDriver.BakeNameMesh(displayName, plate.Filter, plate.Renderer))
+            {
+                plate.Baked = true;
+                pendingNameBakes.RemoveAt(i);
+            }
+        }
     }
 
-    private static void FreeIndex(ushort playerId, int index)
+    private static float ComputeNamePlateHeight(GameObject cameraInstance, Vector3 cameraPosition)
     {
-        playerIdToIndex.Remove(playerId);
-        indexToPlayerId.Remove(index);
-        recycledIndices.Enqueue(index);
+        if (TryGetModelWorldBounds(cameraInstance, out Bounds bounds))
+        {
+            float clearance = Vector3.Distance(bounds.center, cameraPosition) + bounds.extents.magnitude;
+            return clearance + NamePlateMargin + NamePlateHalfHeight;
+        }
+        return 0.25f;
+    }
+
+    private static bool TryGetModelWorldBounds(GameObject root, out Bounds bounds)
+    {
+        bounds = default;
+        MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>();
+        bool any = false;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            MeshRenderer r = renderers[i];
+            if (r == null) continue;
+            if (!any)
+            {
+                bounds = r.bounds;
+                any = true;
+            }
+            else
+            {
+                bounds.Encapsulate(r.bounds);
+            }
+        }
+        return any;
+    }
+
+    private static bool TryResolveDisplayName(ushort playerId, out string displayName)
+    {
+        if (BasisNetworkPlayer.GetPlayerById(playerId, out BasisNetworkPlayer networkPlayer) &&
+            networkPlayer != null && networkPlayer.Player != null)
+        {
+            displayName = networkPlayer.Player.DisplayName;
+            return !string.IsNullOrEmpty(displayName);
+        }
+        displayName = string.Empty;
+        return false;
+    }
+
+    private sealed class RemotePipNamePlate
+    {
+        public GameObject Root;
+        public MeshFilter Filter;
+        public MeshRenderer Renderer;
+        public bool Baked;
     }
 
     [BurstCompile(FloatMode = FloatMode.Fast)]
@@ -468,13 +618,9 @@ public static class BasisNetworkPIPCameraDriver
         [ReadOnly] public NativeArray<float3> TargetPositions;
         public NativeArray<quaternion> CurrentRotations;
         [ReadOnly] public NativeArray<quaternion> TargetRotations;
-        [ReadOnly] public NativeArray<byte> ActiveFlags;
 
         public void Execute(int index)
         {
-            if (ActiveFlags[index] == 0)
-                return;
-
             float t = math.saturate(DeltaTime * LerpSpeed);
 
             CurrentPositions[index] = math.lerp(
@@ -488,6 +634,41 @@ public static class BasisNetworkPIPCameraDriver
                 TargetRotations[index],
                 t
             );
+        }
+    }
+
+    [BurstCompile(FloatMode = FloatMode.Fast)]
+    struct PIPCameraApplyJob : IJobParallelForTransform
+    {
+        [ReadOnly] public NativeArray<float3> Positions;
+        [ReadOnly] public NativeArray<quaternion> Rotations;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            transform.SetPositionAndRotation(Positions[index], Rotations[index]);
+        }
+    }
+
+    [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+    struct PIPNamePlateApplyJob : IJobParallelForTransform
+    {
+        /// <summary>Local viewer (camera) world position used to bill-board the tag (yaw-only).</summary>
+        public float3 ViewerPosition;
+
+        [ReadOnly] public NativeArray<float3> CameraPositions;
+        [ReadOnly] public NativeArray<float> Heights;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            float3 cam = CameraPositions[index];
+            float3 platePos = new float3(cam.x, cam.y + Heights[index], cam.z);
+
+            float3 toViewer = ViewerPosition - platePos;
+            float2 xz = new float2(toViewer.x, toViewer.z);
+            float yaw = math.lengthsq(xz) > 1e-12f ? math.atan2(xz.x, xz.y) : 0f;
+            quaternion rot = quaternion.RotateY(yaw);
+
+            transform.SetPositionAndRotation(platePos, rot);
         }
     }
 }
