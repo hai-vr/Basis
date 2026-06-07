@@ -143,6 +143,9 @@ namespace Basis.BasisUI
                 player.OnChatMessageReceived?.Invoke(string.Empty);
             }
             player.OnNamePlateActiveStateShouldRefresh?.Invoke();
+#if !UNITY_SERVER
+            BasisNetworkPIPCameraDriver.RefreshPipNamePlateVisibilityFromPlayerState();
+#endif
 
             // Mirror the block onto the other side so they also can't see/hear us
             // (session-scoped temp block).

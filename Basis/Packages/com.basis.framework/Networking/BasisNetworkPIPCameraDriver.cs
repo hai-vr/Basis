@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
@@ -71,7 +72,8 @@ public static class BasisNetworkPIPCameraDriver
 
     private const float NamePlateScale = 0.015f;
     private const float NamePlateMargin = 0.04f;
-    private const float NamePlateHalfHeight = 4.5f * NamePlateScale;
+    private const float NamePlateMeshHalfHeight = 4.5f;
+    private const string NamePlateLayerName = "UI";
 
     private const int InitialCapacity = 16;
     private const float LerpSpeed = 12f;
@@ -82,6 +84,8 @@ public static class BasisNetworkPIPCameraDriver
     private const int SimulatePriority = 203;
 
     private static bool initialized;
+    private static bool lastPipMenuOpenState;
+    private static float nextDisplayNameRefreshTime;
 
     /// <summary>
     /// Initialize native containers and subscribe to the simulation loop.
@@ -104,6 +108,7 @@ public static class BasisNetworkPIPCameraDriver
         loadedPrefab = prefabHandle.WaitForCompletion();
 
         BasisLocalPlayer.AfterSimulateOnLate.AddAction(SimulatePriority, Simulate);
+        lastPipMenuOpenState = BasisMainMenu.Instance != null;
         initialized = true;
     }
 
@@ -119,31 +124,7 @@ public static class BasisNetworkPIPCameraDriver
 
         pipHandle.Complete();
 
-        // Destroy owner-name tags (baked mesh + GameObject)
-        foreach (var kvp in pipNamePlates)
-        {
-            RemotePipNamePlate plate = kvp.Value;
-            if (plate == null) continue;
-            if (plate.Filter != null && plate.Filter.sharedMesh != null)
-            {
-                UnityEngine.Object.Destroy(plate.Filter.sharedMesh);
-            }
-            if (plate.Root != null)
-            {
-                UnityEngine.Object.Destroy(plate.Root);
-            }
-        }
-        pipNamePlates.Clear();
-
-        // Destroy all spawned PIP instances
-        foreach (var kvp in pipInstances)
-        {
-            if (kvp.Value != null)
-            {
-                UnityEngine.Object.Destroy(kvp.Value);
-            }
-        }
-        pipInstances.Clear();
+        ClearRemotePIPsInternal();
 
         // Release the loaded prefab
         if (prefabHandle.IsValid())
@@ -167,6 +148,52 @@ public static class BasisNetworkPIPCameraDriver
         initialized = false;
     }
 
+    public static void ClearRemotePIPs()
+    {
+        if (!initialized) return;
+
+        pipHandle.Complete();
+        ClearRemotePIPsInternal();
+    }
+
+    public static void ApplyPipNamePlateSettingsFromUI()
+    {
+        if (!initialized) return;
+
+        pipHandle.Complete();
+
+        float scale = GetNamePlateScale();
+        foreach (var kvp in pipNamePlates)
+        {
+            RemotePipNamePlate plate = kvp.Value;
+            if (plate == null || plate.Root == null) continue;
+
+            plate.Root.transform.localScale = new Vector3(scale, scale, scale);
+        }
+
+        for (int i = 0; i < denseToPlayerId.Count; i++)
+        {
+            ushort playerId = denseToPlayerId[i];
+            if (!pipInstances.TryGetValue(playerId, out GameObject instance) || instance == null)
+            {
+                continue;
+            }
+
+            nameplateHeights[i] = ComputeNamePlateHeight(instance, instance.transform.position);
+        }
+
+        RefreshPipNamePlateVisibility();
+        EnqueueAllNameBakes();
+    }
+
+    public static void RefreshPipNamePlateVisibilityFromPlayerState()
+    {
+        if (!initialized) return;
+
+        pipHandle.Complete();
+        RefreshPipNamePlateVisibility();
+    }
+
     /// <summary>
     /// Per-frame simulation driven by BasisLocalPlayer.AfterSimulateOnLate.
     /// Smooths toward the latest network targets and writes the camera + nameplate
@@ -182,6 +209,8 @@ public static class BasisNetworkPIPCameraDriver
         if (count == 0) return;
 
         ProcessPendingNameBakes();
+        RefreshResolvedDisplayNames();
+        RefreshPipNamePlateVisibilityOnMenuTransition();
 
         Vector3 viewer = BasisLocalCameraDriver.Position;
 
@@ -438,8 +467,14 @@ public static class BasisNetworkPIPCameraDriver
         float height = ComputeNamePlateHeight(instance, pos);
 
         GameObject plateGo = new GameObject("OwnerNamePlate");
+        int layer = LayerMask.NameToLayer(NamePlateLayerName);
+        if (layer >= 0)
+        {
+            plateGo.layer = layer;
+        }
         UnityEngine.Object.DontDestroyOnLoad(plateGo);
-        plateGo.transform.localScale = new Vector3(NamePlateScale, NamePlateScale, NamePlateScale);
+        float scale = GetNamePlateScale();
+        plateGo.transform.localScale = new Vector3(scale, scale, scale);
         plateGo.transform.position = new Vector3(pos.x, pos.y + height, pos.z);
 
         MeshFilter filter = plateGo.AddComponent<MeshFilter>();
@@ -468,15 +503,8 @@ public static class BasisNetworkPIPCameraDriver
         };
         pipNamePlates[playerId] = plate;
 
-        if (TryResolveDisplayName(playerId, out string displayName) &&
-            BasisRemoteNamePlateDriver.BakeNameMesh(displayName, filter, renderer))
-        {
-            plate.Baked = true;
-        }
-        else
-        {
-            pendingNameBakes.Add(playerId);
-        }
+        EnqueueNameBake(playerId);
+        RefreshPipNamePlateVisibility(playerId, plate);
     }
 
     /// <summary>
@@ -538,7 +566,9 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     private static void ProcessPendingNameBakes()
     {
-        for (int i = pendingNameBakes.Count - 1; i >= 0; i--)
+        int budget = BasisRemoteNamePlateDriver.MaxBakesPerFrame;
+
+        for (int i = pendingNameBakes.Count - 1; i >= 0 && budget > 0; i--)
         {
             ushort playerId = pendingNameBakes[i];
             if (!pipNamePlates.TryGetValue(playerId, out RemotePipNamePlate plate) || plate.Baked)
@@ -548,12 +578,99 @@ public static class BasisNetworkPIPCameraDriver
             }
 
             if (TryResolveDisplayName(playerId, out string displayName) &&
-                BasisRemoteNamePlateDriver.BakeNameMesh(displayName, plate.Filter, plate.Renderer))
+                BakePipNamePlate(plate, displayName))
             {
+                plate.DisplayName = displayName;
                 plate.Baked = true;
                 pendingNameBakes.RemoveAt(i);
+                budget--;
             }
         }
+    }
+
+    private static void RefreshResolvedDisplayNames()
+    {
+        if (Time.unscaledTime < nextDisplayNameRefreshTime) return;
+        nextDisplayNameRefreshTime = Time.unscaledTime + 1f;
+
+        int budget = BasisRemoteNamePlateDriver.MaxBakesPerFrame;
+        foreach (var kvp in pipNamePlates)
+        {
+            if (budget <= 0) break;
+
+            ushort playerId = kvp.Key;
+            RemotePipNamePlate plate = kvp.Value;
+            if (plate == null || plate.Filter == null || plate.Renderer == null) continue;
+            if (!TryResolveDisplayName(playerId, out string displayName)) continue;
+            if (plate.DisplayName == displayName) continue;
+
+            if (BakePipNamePlate(plate, displayName))
+            {
+                plate.DisplayName = displayName;
+                plate.Baked = true;
+                budget--;
+            }
+        }
+    }
+
+    private static bool BakePipNamePlate(RemotePipNamePlate plate, string displayName)
+    {
+        if (plate == null || plate.Filter == null || plate.Renderer == null) return false;
+
+        if (plate.Filter.sharedMesh != null)
+        {
+            UnityEngine.Object.Destroy(plate.Filter.sharedMesh);
+            plate.Filter.sharedMesh = null;
+        }
+
+        return BasisRemoteNamePlateDriver.BakeNameMesh(displayName, plate.Filter, plate.Renderer);
+    }
+
+    private static void ClearRemotePIPsInternal()
+    {
+        foreach (var kvp in pipNamePlates)
+        {
+            RemotePipNamePlate plate = kvp.Value;
+            if (plate == null) continue;
+            if (plate.Filter != null && plate.Filter.sharedMesh != null)
+            {
+                UnityEngine.Object.Destroy(plate.Filter.sharedMesh);
+            }
+            if (plate.Root != null)
+            {
+                UnityEngine.Object.Destroy(plate.Root);
+            }
+        }
+        pipNamePlates.Clear();
+
+        foreach (var kvp in pipInstances)
+        {
+            if (kvp.Value != null)
+            {
+                UnityEngine.Object.Destroy(kvp.Value);
+            }
+        }
+        pipInstances.Clear();
+
+        currentPositions.Clear();
+        targetPositions.Clear();
+        currentRotations.Clear();
+        targetRotations.Clear();
+        nameplateHeights.Clear();
+
+        for (int i = cameraTransforms.length - 1; i >= 0; i--)
+        {
+            cameraTransforms.RemoveAtSwapBack(i);
+        }
+
+        for (int i = namePlateTransforms.length - 1; i >= 0; i--)
+        {
+            namePlateTransforms.RemoveAtSwapBack(i);
+        }
+
+        playerIdToIndex.Clear();
+        denseToPlayerId.Clear();
+        pendingNameBakes.Clear();
     }
 
     private static float ComputeNamePlateHeight(GameObject cameraInstance, Vector3 cameraPosition)
@@ -561,9 +678,19 @@ public static class BasisNetworkPIPCameraDriver
         if (TryGetModelWorldBounds(cameraInstance, out Bounds bounds))
         {
             float clearance = Vector3.Distance(bounds.center, cameraPosition) + bounds.extents.magnitude;
-            return clearance + NamePlateMargin + NamePlateHalfHeight;
+            return clearance + NamePlateMargin + GetNamePlateHalfHeight();
         }
         return 0.25f;
+    }
+
+    private static float GetNamePlateScale()
+    {
+        return NamePlateScale * BasisRemoteNamePlateDriver.NamePlateSize;
+    }
+
+    private static float GetNamePlateHalfHeight()
+    {
+        return NamePlateMeshHalfHeight * GetNamePlateScale();
     }
 
     private static bool TryGetModelWorldBounds(GameObject root, out Bounds bounds)
@@ -600,12 +727,92 @@ public static class BasisNetworkPIPCameraDriver
         return false;
     }
 
+    private static bool ShouldPipNamePlateBeActive(ushort playerId)
+    {
+        if (!BasisRemoteNamePlateDriver.NamePlateEnabled)
+        {
+            return false;
+        }
+
+        if (BasisRemoteNamePlateDriver.NamePlateMenuOnly && BasisMainMenu.Instance == null)
+        {
+            return false;
+        }
+
+        if (BasisNetworkPlayer.GetPlayerById(playerId, out BasisNetworkPlayer networkPlayer) &&
+            networkPlayer != null &&
+            networkPlayer.Player is BasisRemotePlayer remotePlayer &&
+            remotePlayer.IsEffectivelyBlocked)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void RefreshPipNamePlateVisibility()
+    {
+        foreach (var kvp in pipNamePlates)
+        {
+            RefreshPipNamePlateVisibility(kvp.Key, kvp.Value);
+        }
+    }
+
+    private static void RefreshPipNamePlateVisibility(ushort playerId, RemotePipNamePlate plate)
+    {
+        if (plate == null || plate.Root == null) return;
+
+        bool active = ShouldPipNamePlateBeActive(playerId);
+        if (plate.Root.activeSelf != active)
+        {
+            plate.Root.SetActive(active);
+        }
+    }
+
+    private static void RefreshPipNamePlateVisibilityOnMenuTransition()
+    {
+        if (!BasisRemoteNamePlateDriver.NamePlateMenuOnly || !BasisRemoteNamePlateDriver.NamePlateEnabled)
+        {
+            return;
+        }
+
+        bool menuOpen = BasisMainMenu.Instance != null;
+        if (menuOpen == lastPipMenuOpenState)
+        {
+            return;
+        }
+
+        lastPipMenuOpenState = menuOpen;
+        RefreshPipNamePlateVisibility();
+    }
+
+    private static void EnqueueNameBake(ushort playerId)
+    {
+        if (!pendingNameBakes.Contains(playerId))
+        {
+            pendingNameBakes.Add(playerId);
+        }
+    }
+
+    private static void EnqueueAllNameBakes()
+    {
+        foreach (var kvp in pipNamePlates)
+        {
+            RemotePipNamePlate plate = kvp.Value;
+            if (plate == null) continue;
+
+            plate.Baked = false;
+            EnqueueNameBake(kvp.Key);
+        }
+    }
+
     private sealed class RemotePipNamePlate
     {
         public GameObject Root;
         public MeshFilter Filter;
         public MeshRenderer Renderer;
         public bool Baked;
+        public string DisplayName;
     }
 
     [BurstCompile(FloatMode = FloatMode.Fast)]
