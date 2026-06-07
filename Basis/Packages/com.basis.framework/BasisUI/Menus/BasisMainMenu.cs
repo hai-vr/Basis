@@ -31,6 +31,9 @@ namespace Basis.BasisUI
 
         private TextMeshProUGUI _tooltipLabel;
         private CanvasGroup _tooltipCanvasGroup;
+        private Image _tooltipEdge;
+        private Color _tooltipEdgeColor;
+        private UiStyleImage _tooltipBackgroundStyle;
         private TweenCanvasGroupAlpha _tooltipTween;
         private const float TooltipFadeDuration = 0.15f;
 
@@ -132,6 +135,7 @@ namespace Basis.BasisUI
                 edge.fillCenter = sourceEdgeImage.fillCenter;
                 edge.pixelsPerUnitMultiplier = sourceEdgeImage.pixelsPerUnitMultiplier;
                 edge.raycastTarget = false;
+                _tooltipEdge = edge;
             }
 
             // Background: solid themed panel, drawn over the Edge so the Edge rims it. Uses the menu
@@ -163,10 +167,11 @@ namespace Basis.BasisUI
             // Ui Style Image keeps the panel coloured by the active theme.
             UiStyleImage backgroundStyle = backgroundObject.AddComponent<UiStyleImage>();
             backgroundStyle.SetStyle(sourceStyle ? sourceStyle.ColorStyle : "Background");
+            _tooltipBackgroundStyle = backgroundStyle;
 
-            // No Mask here on purpose: a UI Mask fights the CanvasGroup fade and flashes the
-            // masked graphic white mid-transition. The rounded look comes from the Circle 512
-            // sprite itself, and the centered tooltip text never overflows, so clipping isn't needed.
+            // Mask children (overlay + text) to the rounded panel shape, like the menu Background.
+            Mask backgroundMask = backgroundObject.AddComponent<Mask>();
+            backgroundMask.showMaskGraphic = true;
 
             // "Background Image" overlay (BasisImageBackground), layered behind the text.
             if (sourceBackgroundImage)
@@ -190,6 +195,7 @@ namespace Basis.BasisUI
                 backgroundImage.type = sourceBackgroundImage.type;
                 backgroundImage.preserveAspect = sourceBackgroundImage.preserveAspect;
                 backgroundImage.raycastTarget = false;
+                _tooltipOverlay = backgroundImage;
             }
 
             // Content holder inside the masked Background, padded like the menu panels.
@@ -251,6 +257,11 @@ namespace Basis.BasisUI
 
             menu.KillTooltipTween();
             menu._tooltipCanvasGroup.gameObject.SetActive(true);
+            if (menu._tooltipEdge != null) menu._tooltipEdge.enabled = true;
+            if (menu._tooltipOverlay != null) menu._tooltipOverlay.enabled = true;
+            // Restore the themed background colour (HideTooltip blacks it out during the fade).
+            if (menu._tooltipBackgroundStyle != null) menu._tooltipBackgroundStyle.ApplyActiveStyle();
+            menu._tooltipLabel.enabled = true;
             menu._tooltipLabel.text = text;
             menu._tooltipTween = menu._tooltipCanvasGroup
                 .TweenAlpha(TooltipFadeDuration, menu._tooltipCanvasGroup.alpha, 1f)
@@ -270,6 +281,15 @@ namespace Basis.BasisUI
             }
 
             menu.KillTooltipTween();
+            // Hide the outline + overlay before fading: their sprites flash white through the alpha lerp.
+            if (menu._tooltipEdge != null) menu._tooltipEdge.enabled = false;
+            if (menu._tooltipOverlay != null) menu._tooltipOverlay.enabled = false;
+            // Black out the masked background so it can't flash white as the alpha lerps to 0.
+            if (menu._tooltipBackgroundStyle != null && menu._tooltipBackgroundStyle.Image != null)
+            {
+                menu._tooltipBackgroundStyle.Image.color = Color.black;
+            }
+            if (menu._tooltipLabel != null) menu._tooltipLabel.enabled = false;
             CanvasGroup tooltipGroup = menu._tooltipCanvasGroup;
             menu._tooltipTween = tooltipGroup
                 .TweenAlpha(TooltipFadeDuration, tooltipGroup.alpha, 0f)
