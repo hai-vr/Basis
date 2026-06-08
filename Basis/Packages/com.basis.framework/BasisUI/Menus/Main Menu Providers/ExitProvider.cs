@@ -38,11 +38,11 @@ namespace Basis.BasisUI
             BasisMainMenu.Instance.OpenDialogue(
                 BasisLocalization.Get("menu.exit.dialog.title"),
                 BasisLocalization.Get("menu.exit.dialog.body"),
-                BasisLocalization.Get("menu.exit.dialog.confirm"),
                 BasisLocalization.Get("ui.cancel"),
+                BasisLocalization.Get("menu.exit.dialog.confirm"),
                 value =>
                 {
-                    if (!value) return;
+                    if (value) return;
 #if UNITY_EDITOR
                     EditorApplication.isPlaying = false;
 #else
