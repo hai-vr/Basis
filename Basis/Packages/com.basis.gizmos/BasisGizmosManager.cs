@@ -8,6 +8,7 @@ public static class BasisGizmoManager
 {
     public static Dictionary<int, BasisGizmos> Gizmos = new Dictionary<int, BasisGizmos>();
     public static Dictionary<int, BasisLineGizmos> GizmosLine = new Dictionary<int, BasisLineGizmos>();
+    public static Dictionary<int, BasisTextGizmos> GizmosText = new Dictionary<int, BasisTextGizmos>();
     private static int _nextID = 0; // Counter for unique IDs.
 
     public static string MaterialGizmo = "GizmoMaterial";
@@ -295,6 +296,107 @@ public static class BasisGizmoManager
     }
 
     /// <summary>
+    /// Creates a world-space text label. Built in code (no prefab); the TMP component
+    /// picks up the project's default font. Drive it each frame with
+    /// <see cref="UpdateTextGizmo"/> (which billboards + recolors only on change).
+    /// </summary>
+    public static bool CreateTextGizmo(string GizmoName, out int linkedID, Vector3 position, string text, Color color)
+    {
+        TryCreateParent();
+        linkedID = CreateNewID();
+
+        GameObject go = new GameObject(GizmoName);
+        go.transform.SetParent(Parent.transform, false);
+        go.transform.position = position;
+
+        TMPro.TextMeshPro tmp = go.AddComponent<TMPro.TextMeshPro>();
+        tmp.alignment = TMPro.TextAlignmentOptions.Center;
+        tmp.enableAutoSizing = false;
+        tmp.fontSize = 36;
+        tmp.color = color;
+        tmp.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
+        tmp.overflowMode = TMPro.TextOverflowModes.Overflow;
+        tmp.raycastTarget = false;
+        tmp.isOrthographic = false;
+        tmp.text = text;
+        if (tmp.TryGetComponent(out RectTransform rt))
+        {
+            rt.sizeDelta = new Vector2(8f, 2f);
+        }
+
+        BasisTextGizmos holder = go.AddComponent<BasisTextGizmos>();
+        holder.Text = tmp;
+        holder.Initialize(text, color);
+        GizmosText[linkedID] = holder;
+
+        BasisDebug.Log($"Created TextGizmo with ID {linkedID}", BasisDebug.LogTag.Gizmo);
+        return true;
+    }
+
+    /// <summary>
+    /// Updates a text label's pose, scale, text and color in one call. Text and color
+    /// are only re-applied when they actually changed, so a static label costs just a
+    /// transform write (cheap billboard) per frame. <paramref name="rotation"/> is
+    /// typically a billboard facing the listener camera.
+    /// </summary>
+    public static bool UpdateTextGizmo(int linkedID, Vector3 position, Quaternion rotation, float scale, string text, Color color)
+    {
+        if (!GizmosText.TryGetValue(linkedID, out BasisTextGizmos gizmo) || gizmo == null)
+        {
+            return false;
+        }
+        gizmo.Apply(position, rotation, scale);
+        gizmo.SetText(text);
+        gizmo.SetColor(color);
+        return true;
+    }
+
+    /// <summary>
+    /// Rotation that faces a world point toward a camera, upright. Shared by every
+    /// gizmo system that billboards a text label so the math lives in one place.
+    /// </summary>
+    public static Quaternion BillboardRotation(Vector3 worldPos, Vector3 cameraPos)
+    {
+        Vector3 dir = worldPos - cameraPos;
+        if (dir.sqrMagnitude < 1e-6f)
+        {
+            dir = Vector3.forward;
+        }
+        return Quaternion.LookRotation(dir, Vector3.up);
+    }
+
+    /// <summary>
+    /// Recolors an existing gizmo (sphere or line) in place. Sphere gizmos own an
+    /// Instantiated material so mutating its color is safe; line gizmos carry color
+    /// as per-renderer vertex colors (startColor/endColor), independent of the shared
+    /// line material. Use for gizmos whose color encodes a live value each frame
+    /// (e.g. audio gain) — cheaper and alloc-free compared to SetLineGizmoGradient.
+    /// </summary>
+    public static bool UpdateGizmoColor(int linkedID, Color color)
+    {
+        if (Gizmos.TryGetValue(linkedID, out BasisGizmos gizmo) && gizmo != null)
+        {
+            if (gizmo.MeshRenderer != null && gizmo.MeshRenderer.sharedMaterial != null)
+            {
+                gizmo.MeshRenderer.sharedMaterial.color = color;
+            }
+            return true;
+        }
+        if (GizmosLine.TryGetValue(linkedID, out BasisLineGizmos lineGizmo) && lineGizmo != null && lineGizmo.LineRenderer != null)
+        {
+            lineGizmo.LineRenderer.startColor = color;
+            lineGizmo.LineRenderer.endColor = color;
+            return true;
+        }
+        if (GizmosText.TryGetValue(linkedID, out BasisTextGizmos textGizmo) && textGizmo != null)
+        {
+            textGizmo.SetColor(color);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Toggles a gizmo's GameObject visibility without destroying it. Used by
     /// sub-toggles that hide/show subsets of gizmos under the master ShowGizmos.
     /// </summary>
@@ -308,6 +410,11 @@ public static class BasisGizmoManager
         if (GizmosLine.TryGetValue(linkedID, out BasisLineGizmos lineGizmo) && lineGizmo != null)
         {
             lineGizmo.gameObject.SetActive(active);
+            return;
+        }
+        if (GizmosText.TryGetValue(linkedID, out BasisTextGizmos textGizmo) && textGizmo != null)
+        {
+            textGizmo.gameObject.SetActive(active);
         }
     }
 
@@ -325,6 +432,11 @@ public static class BasisGizmoManager
         {
             UnityEngine.Object.Destroy(lineGizmo.gameObject);
             BasisDebug.Log($"Destroyed LineGizmo with ID {linkedID}", BasisDebug.LogTag.Gizmo);
+        }
+        else if (GizmosText.Remove(linkedID, out BasisTextGizmos textGizmo))
+        {
+            UnityEngine.Object.Destroy(textGizmo.gameObject);
+            BasisDebug.Log($"Destroyed TextGizmo with ID {linkedID}", BasisDebug.LogTag.Gizmo);
         }
         else
         {

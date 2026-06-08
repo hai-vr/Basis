@@ -4,9 +4,9 @@ namespace Basis
     {
         private float accumulator;
 
-        public bool AllowThisFrame(float deltaTime, float targetHz)
+        public bool AllowThisFrame(float deltaTime, float targetHz, bool limitEnabled)
         {
-            if (targetHz <= 0f)
+            if (!limitEnabled || targetHz <= 0f)
             {
                 accumulator = 0f;
                 return true;

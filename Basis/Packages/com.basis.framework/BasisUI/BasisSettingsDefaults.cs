@@ -232,6 +232,20 @@ namespace Basis.BasisUI
         // pose action, and the line in your face is noisy.
         public static BasisSettingsBinding<bool> GizmoEyeGaze = new("gizmoeyegaze", new BasisPlatformDefault<bool>(false));
 
+        // Spatial-voice debug gizmos (see BasisAudioGizmos). All off by default.
+        // Direction: per-speaker arrow along the Steam Audio source-forward (dipole)
+        // axis, coloured by net loudness reaching you — the visual test for the
+        // "facing me but quiet" directivity mis-alignment.
+        public static BasisSettingsBinding<bool> GizmoAudioDirection = new("gizmoaudiodirection", new BasisPlatformDefault<bool>(false));
+        // Ranges: the listener hearing-distance sphere + per-speaker full-volume ring.
+        public static BasisSettingsBinding<bool> GizmoAudioRanges = new("gizmoaudioranges", new BasisPlatformDefault<bool>(false));
+        // ListenerCone: the directional-dampening cone projected from the listener.
+        public static BasisSettingsBinding<bool> GizmoAudioListenerCone = new("gizmoaudiolistenercone", new BasisPlatformDefault<bool>(false));
+        // Labels: billboarded world-text labels on whichever gizmos are visible —
+        // tracker roles, linked-pair ids, IK collider names, and the audio gizmos
+        // (speaker name + gain %, hearing distance, cone angle). One switch for all.
+        public static BasisSettingsBinding<bool> GizmoLabels = new("gizmolabels", new BasisPlatformDefault<bool>(false));
+
         // Yellow line gizmo drawn between the two physical trackers of every
         // active linked pair. Off by default; toggled separately from
         // TrackerGizmos so a user debugging the pairing system can see only
@@ -325,9 +339,13 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> AvatarPreviewMirror = new("avatarpreviewmirror", new BasisPlatformDefault<bool>(true));
 
-        public static BasisSettingsBinding<float> HandHeldCameraRenderHz = new("handheldcamerarenderhz", new BasisPlatformDefault<float>(0));
+        public static BasisSettingsBinding<bool> LimitHandHeldCameraRate = new("limithandheldcamerarate", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<float> AvatarPreviewRenderHz = new("avatarpreviewrenderhz", new BasisPlatformDefault<float>(0));
+        public static BasisSettingsBinding<float> HandHeldCameraRenderHz = new("handheldcamerarenderhz_v2", new BasisPlatformDefault<float>(30));
+
+        public static BasisSettingsBinding<bool> LimitAvatarPreviewRate = new("limitavatarpreviewrate", new BasisPlatformDefault<bool>(false));
+
+        public static BasisSettingsBinding<float> AvatarPreviewRenderHz = new("avatarpreviewrenderhz_v2", new BasisPlatformDefault<float>(30));
 
         public static BasisSettingsBinding<bool> DesktopReticle = new("desktopreticle", new BasisPlatformDefault<bool>(false));
 
@@ -1299,6 +1317,10 @@ namespace Basis.BasisUI
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
             GizmoIKColliders.LoadBindingValue();
+            GizmoAudioDirection.LoadBindingValue();
+            GizmoAudioRanges.LoadBindingValue();
+            GizmoAudioListenerCone.LoadBindingValue();
+            GizmoLabels.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
@@ -1416,7 +1438,9 @@ namespace Basis.BasisUI
             // UI
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
+            LimitHandHeldCameraRate.LoadBindingValue();
             HandHeldCameraRenderHz.LoadBindingValue();
+            LimitAvatarPreviewRate.LoadBindingValue();
             AvatarPreviewRenderHz.LoadBindingValue();
             DesktopReticle.LoadBindingValue();
             EnableThirdPersonCamera.LoadBindingValue();

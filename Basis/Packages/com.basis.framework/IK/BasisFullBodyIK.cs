@@ -1918,72 +1918,24 @@ w20, w54;
                 return;
             }
 
-            Vector3 handTargetPos = handTargetPosProp.Get(stream);
-            Vector3 shoulderPos = shoulderHandle.GetPosition(stream);
-
-            // Get chest orientation for reference frame
-            Quaternion chestRot = HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity;
-
-            // Compute hand direction relative to shoulder in chest space
-            Vector3 shoulderToHand = handTargetPos - shoulderPos;
-            float reachLen = shoulderToHand.magnitude;
-            if (reachLen < k_Epsilon || tposeArmLength < k_Epsilon)
-                return;
-
-            // Normalize reach ratio (0 = at rest, 1 = fully extended)
-            float rawReachRatio = Mathf.Clamp01(reachLen / (tposeArmLength * 1.1f));
-
-            // HVR-IK inspired: don't engage shoulder rotation until hand is at 70% of arm length
-            // This prevents premature shoulder movement for close-to-body motions
-            const float shoulderEngageThreshold = 0.7f;
-            float reachRatio;
-            if (rawReachRatio < shoulderEngageThreshold)
-            {
-                reachRatio = 0f;
-            }
-            else
-            {
-                // Remap 0.7-1.0 range to 0.0-1.0 with smooth start
-                float t = (rawReachRatio - shoulderEngageThreshold) / (1f - shoulderEngageThreshold);
-                reachRatio = t * t; // quadratic ease-in for natural engagement
-            }
-
-            // Transform hand direction into chest-local space
-            Quaternion invChest = Quaternion.Inverse(chestRot);
-            Vector3 localHandDir = invChest * shoulderToHand.normalized;
-
-            // Elevation: how much the hand is above shoulder level (local Y)
-            float elevationFactor = shoulderElevationFactor.Get(stream);
-            float elevation = Mathf.Clamp01(localHandDir.y) * reachRatio * elevationFactor;
-
-            // Protraction: how much the hand is in front (local Z)
-            float protractionFactor = shoulderProtractionFactor.Get(stream);
-            float protraction = Mathf.Clamp01(localHandDir.z) * reachRatio * protractionFactor;
-
-            // Cross-body: hand reaching to opposite side (local X)
-            float crossBody = isLeft ? Mathf.Clamp01(-localHandDir.x) : Mathf.Clamp01(localHandDir.x);
-            float crossBodyContrib = crossBody * reachRatio * protractionFactor * 0.5f;
-
-            // Build shoulder rotation adjustment
-            // Elevation rotates around chest-local Z (raises shoulder)
-            // Protraction rotates around chest-local Y (pulls shoulder forward)
-            float elevAngle = elevation * 30f; // max 30 degrees elevation
-            float protAngle = (protraction + crossBodyContrib) * 20f; // max 20 degrees protraction
-
-            Quaternion elevRot = Quaternion.AngleAxis(isLeft ? elevAngle : -elevAngle, Vector3.forward);
-            Quaternion protRot = Quaternion.AngleAxis(isLeft ? -protAngle : protAngle, Vector3.up);
-
-            // Apply in chest space
-            Quaternion baseRot = tposeShoulderRot;
-            Quaternion adjustedRot = chestRot * (invChest * baseRot) * elevRot * protRot;
-
-            // Blend between tracker rotation and computed rotation
             Quaternion trackerRot = V4ToQuat(isLeft ? TargetRotationLeftShoulder.Get(stream) : TargetRotationRightShoulder.Get(stream));
-            Quaternion trackerFinal = trackerRot * (isLeft ? targetOffsetLeftShoulder : targetOffsetRightShoulder);
 
-            // Blend: at low reach, trust tracker more; at high reach, trust computed more
-            float computedWeight = Mathf.Clamp01(reachRatio * 1.5f);
-            shoulderHandle.SetRotation(stream, Quaternion.Slerp(trackerFinal, adjustedRot, computedWeight * (elevation + protraction + crossBodyContrib)));
+            BasisShoulderSolveInput input;
+            input.ShoulderPos = shoulderHandle.GetPosition(stream);
+            input.HandTargetPos = handTargetPosProp.Get(stream);
+            input.ChestRot = HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity;
+            input.TposeShoulderRot = tposeShoulderRot;
+            input.TposeArmLength = tposeArmLength;
+            input.ElevationFactor = shoulderElevationFactor.Get(stream);
+            input.ProtractionFactor = shoulderProtractionFactor.Get(stream);
+            input.TrackerFinal = trackerRot * (isLeft ? targetOffsetLeftShoulder : targetOffsetRightShoulder);
+            input.IsLeft = isLeft;
+
+            BasisShoulderSolveCore.Solve(input, out BasisShoulderSolveResult result);
+            if (result.Apply)
+            {
+                shoulderHandle.SetRotation(stream, result.ShoulderRotation);
+            }
         }
         static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
         {
@@ -2136,102 +2088,28 @@ w20, w54;
         }
         public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
-            Vector3 aPosition = root.GetPosition(stream);
-            Vector3 bPosition = mid.GetPosition(stream);
-            Vector3 cPosition = tip.GetPosition(stream);
+            // Geometry lives in BasisArmSolveCore so the offline sweep harness solves the
+            // exact same elbow math. The core returns incremental deltas; apply them through
+            // the stream in the original order (identity steps are exact no-ops).
+            BasisArmSolveInput input;
+            input.Shoulder = root.GetPosition(stream);
+            input.Elbow = mid.GetPosition(stream);
+            input.Hand = tip.GetPosition(stream);
+            input.RootRotation = root.GetRotation(stream);
+            input.MidRotation = mid.GetRotation(stream);
+            input.TargetPosition = target.translation;
+            input.TargetRotation = target.rotation;
+            input.HintPosition = hint.translation;
+            input.HintWeight = hintWeight;
+            input.TargetOffset = targetOffset;
+            input.PlayerUp = playerUp.Get(stream);
 
-            Vector3 targetPos = target.translation;
-            Quaternion targetRot = target.rotation;
+            BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
 
-            Vector3 tPosition = targetPos;
-            Quaternion tRotation = targetRot * targetOffset;
-
-            // Segment vectors
-            Vector3 ab = bPosition - aPosition;
-            Vector3 bc = cPosition - bPosition;
-            Vector3 ac = cPosition - aPosition;
-
-            float abLen = ab.magnitude;
-            float bcLen = bc.magnitude;
-            float totalLen = abLen + bcLen;
-
-            // Original target vector
-            Vector3 atCorrected = tPosition - aPosition;
-            float acLen = ac.magnitude;
-
-            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            //Vector3 atCorrected = correctedTargetPos - aPosition;
-            float atCorrectedLen = atCorrected.magnitude;
-
-            float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
-            // -------------------------------------------------------------
-
-            // Prefer current bend plane; fallbacks to hint / at if collinear.
-            Vector3 axis = Vector3.Cross(ab, bc);
-            if (axis.sqrMagnitude < k_SqrEpsilon)
-            {
-                axis = hintWeight ? Vector3.Cross(hint.translation - aPosition, bc) : Vector3.zero;
-                if (axis.sqrMagnitude < k_SqrEpsilon)
-                {
-                    axis = Vector3.Cross(atCorrected, bc); // use corrected
-                }
-
-                if (axis.sqrMagnitude < k_SqrEpsilon)
-                {
-                    axis = playerUp.Get(stream);
-                }
-            }
-            axis = axis.normalized;
-
-            float a = 0.5f * (oldAbcAngle - newAbcAngle);
-            float sin = Mathf.Sin(a);
-            float cos = Mathf.Cos(a);
-            Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
-            mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
-
-            // Re-evaluate after rotating mid
-            cPosition = tip.GetPosition(stream);
-            ac = cPosition - aPosition;
-
-            // --- IMPORTANT: rotate root towards *corrected* direction, not raw tPosition ---
-            if (atCorrectedLen > k_Epsilon)
-            {
-                Quaternion rootDelta = QuaternionExt.FromToRotation(ac, atCorrected);
-                root.SetRotation(stream, rootDelta * root.GetRotation(stream));
-            }
-            if (hintWeight)
-            {
-                float acSqrMag = ac.sqrMagnitude;
-                if (acSqrMag > 0f)
-                {
-                    bPosition = mid.GetPosition(stream);
-                    cPosition = tip.GetPosition(stream);
-                    ab = bPosition - aPosition;
-                    ac = cPosition - aPosition;
-
-                    Vector3 acNorm = ac / Mathf.Sqrt(acSqrMag);
-                    Vector3 ah = hint.translation - aPosition;
-                    Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
-                    Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-
-                    // Near full extension the elbow sits on the shoulder->hand axis, so ahProj collapses
-                    // and FromToRotation spins on tracker noise. Fade the hint out as SolveTwoBone does.
-                    float reachRatio = (totalLen > k_Epsilon) ? (atCorrectedLen / totalLen) : 0f;
-                    float hintFade = (reachRatio > 0.9f) ? 1f - Mathf.Clamp01((reachRatio - 0.9f) / 0.1f) : 1f;
-                    if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
-                    {
-                        Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
-                        if (hintFade < 1f)
-                        {
-                            hintR = Quaternion.Slerp(Quaternion.identity, hintR, hintFade);
-                        }
-                        hintR = QuaternionExt.NormalizeSafe(hintR);
-                        root.SetRotation(stream, hintR * root.GetRotation(stream));
-                    }
-                }
-            }
-
-            tip.SetRotation(stream, tRotation);
+            mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
+            root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
+            root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
+            tip.SetRotation(stream, result.TipRotation);
         }
         /// <summary>
         /// Computes arm bend direction using the 3D lookup table.
@@ -2532,110 +2410,25 @@ w20, w54;
         /// <param name="targetOffset">The offset applied to the target transform.</param>
         public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal)
         {
-            Vector3 aPosition = root.GetPosition(stream);
-            Vector3 bPosition = mid.GetPosition(stream);
-            Vector3 cPosition = tip.GetPosition(stream);
+            BasisLegSolveInput input;
+            input.Root = root.GetPosition(stream);
+            input.Mid = mid.GetPosition(stream);
+            input.Tip = tip.GetPosition(stream);
+            input.RootRotation = root.GetRotation(stream);
+            input.MidRotation = mid.GetRotation(stream);
+            input.TargetPosition = target.translation;
+            input.TargetRotation = target.rotation;
+            input.HintPosition = hint.translation;
+            input.HintWeight = hintWeight;
+            input.TargetOffset = targetOffset;
+            input.BendNormal = BendNormal;
 
-            Vector3 targetPos = target.translation;
-            Quaternion targetRot = target.rotation;
+            BasisLegSolveCore.Solve(input, out BasisLegSolveResult result);
 
-            Vector3 tPosition = targetPos;
-            Quaternion tRotation = targetRot * targetOffset;
-
-            bool hasHint = hintWeight > 0f;
-
-            // Segment vectors
-            Vector3 ab = bPosition - aPosition;
-            Vector3 bc = cPosition - bPosition;
-            Vector3 ac = cPosition - aPosition;
-
-            float abLen = ab.magnitude;
-            float bcLen = bc.magnitude;
-            float acLen = ac.magnitude;
-
-            float maxReach = abLen + bcLen;
-            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            Vector3 atCorrected = tPosition - aPosition;
-            float atCorrectedLen = atCorrected.magnitude;
-
-            float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
-
-            Vector3 axis;
-            if (hasHint)
-            {
-                axis = Vector3.Cross(hint.translation - aPosition, bc);
-
-                if (axis.sqrMagnitude < k_SqrEpsilon)
-                {
-                    axis = Vector3.Cross(atCorrected, bc);
-                }
-
-                if (axis.sqrMagnitude < k_SqrEpsilon)
-                {
-                    axis = BendNormal;
-                }
-            }
-            else
-            {
-                axis = BendNormal;
-            }
-
-            // Near full extension the cross products above become unreliable.
-            // Blend toward BendNormal which is always stable (derived from hips rotation).
-            float extensionRatio = (maxReach > k_Epsilon) ? (atCorrectedLen / maxReach) : 0f;
-            if (extensionRatio > 0.9f)
-            {
-                float blend = Mathf.Clamp01((extensionRatio - 0.9f) / 0.1f);
-                axis = Vector3.Slerp(axis.normalized, BendNormal.normalized, blend);
-            }
-
-            axis = Vector3.Normalize(axis);
-
-            float a = 0.5f * (oldAbcAngle - newAbcAngle);
-            float sin = Mathf.Sin(a);
-            float cos = Mathf.Cos(a);
-            Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
-            mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
-
-            // Re-evaluate after rotating mid
-            cPosition = tip.GetPosition(stream);
-            ac = cPosition - aPosition;
-
-            if (atCorrectedLen > k_Epsilon)
-            {
-                root.SetRotation(stream, QuaternionExt.FromToRotation(ac, atCorrected) * root.GetRotation(stream));
-            }
-
-            if (hasHint)
-            {
-                float acSqrMag = ac.sqrMagnitude;
-                if (acSqrMag > 0f)
-                {
-                    bPosition = mid.GetPosition(stream);
-                    cPosition = tip.GetPosition(stream);
-                    ab = bPosition - aPosition;
-                    ac = cPosition - aPosition;
-
-                    Vector3 acNorm = ac / Mathf.Sqrt(acSqrMag);
-                    Vector3 ah = hint.translation - aPosition;
-                    Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
-                    Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-
-                    if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
-                    {
-                        // Scale hint rotation by weight — matches Unity's TwoBoneIK approach.
-                        // At weight 1: full hint influence. At partial: proportionally less.
-                        Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
-                        hintR.x *= hintWeight;
-                        hintR.y *= hintWeight;
-                        hintR.z *= hintWeight;
-                        hintR = QuaternionExt.NormalizeSafe(hintR);
-                        root.SetRotation(stream, hintR * root.GetRotation(stream));
-                    }
-                }
-            }
-
-            tip.SetRotation(stream, tRotation);
+            mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
+            root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
+            root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
+            tip.SetRotation(stream, result.TipRotation);
         }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
         public void SolveLegs(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, FloatProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)

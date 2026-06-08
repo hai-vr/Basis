@@ -1915,6 +1915,26 @@ namespace Basis.BasisUI
             toggleIKColliders.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ikColliders.tooltip"));
             toggleIKColliders.AssignBinding(BasisSettingsDefaults.GizmoIKColliders);
 
+            PanelToggle toggleAudioDirection = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleAudioDirection.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDirection"));
+            toggleAudioDirection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDirection.tooltip"));
+            toggleAudioDirection.AssignBinding(BasisSettingsDefaults.GizmoAudioDirection);
+
+            PanelToggle toggleAudioRanges = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleAudioRanges.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioRanges"));
+            toggleAudioRanges.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioRanges.tooltip"));
+            toggleAudioRanges.AssignBinding(BasisSettingsDefaults.GizmoAudioRanges);
+
+            PanelToggle toggleAudioCone = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleAudioCone.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioListenerCone"));
+            toggleAudioCone.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioListenerCone.tooltip"));
+            toggleAudioCone.AssignBinding(BasisSettingsDefaults.GizmoAudioListenerCone);
+
+            PanelToggle toggleGizmoLabels = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
+            toggleGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoLabels.tooltip"));
+            toggleGizmoLabels.AssignBinding(BasisSettingsDefaults.GizmoLabels);
+
             // Hide sub-toggles when the master is off — they're meaningless without it
             // and shouldn't clutter the page.
             void RefreshGizmoSubVisibility(bool masterOn)
@@ -1926,6 +1946,10 @@ namespace Basis.BasisUI
                 toggleLinkedTrackerLines.Descriptor.SetActive(masterOn);
                 toggleEyeGazeGizmo.Descriptor.SetActive(masterOn);
                 toggleIKColliders.Descriptor.SetActive(masterOn);
+                toggleAudioDirection.Descriptor.SetActive(masterOn);
+                toggleAudioRanges.Descriptor.SetActive(masterOn);
+                toggleAudioCone.Descriptor.SetActive(masterOn);
+                toggleGizmoLabels.Descriptor.SetActive(masterOn);
                 gizmosGroup.ForceRebuild();
             }
             RefreshGizmoSubVisibility(toggleShowGizmos.Value);
@@ -2154,21 +2178,31 @@ namespace Basis.BasisUI
             cameraRateGroup.SetTitle(BasisLocalization.Get("settings.developer.cameraRates.title"));
             cameraRateGroup.SetDescription(BasisLocalization.Get("settings.developer.cameraRates.description"));
 
+            PanelToggle toggleHandHeldRate = PanelToggle.CreateNewEntry(cameraRateGroup.ContentParent);
+            toggleHandHeldRate.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.handheldCameraRate.limit"));
+            toggleHandHeldRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handheldCameraRate.limit.tooltip"));
+            toggleHandHeldRate.AssignBinding(BasisSettingsDefaults.LimitHandHeldCameraRate);
+
             PanelSlider sliderHandHeldRate = PanelSlider.CreateEntryAndBind(
                 cameraRateGroup.ContentParent,
                 new PanelSlider.SliderSettings(
                     BasisLocalization.Get("settings.developer.handheldCameraRate"),
                     BasisLocalization.Get("settings.developer.handheldCameraRate.description"),
-                    0, 120, true, 0, ValueDisplayMode.Hz),
+                    1, 120, true, 0, ValueDisplayMode.Hz),
                 BasisSettingsDefaults.HandHeldCameraRenderHz);
             sliderHandHeldRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handheldCameraRate.tooltip"));
+
+            PanelToggle toggleAvatarPreviewRate = PanelToggle.CreateNewEntry(cameraRateGroup.ContentParent);
+            toggleAvatarPreviewRate.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarPreviewRate.limit"));
+            toggleAvatarPreviewRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarPreviewRate.limit.tooltip"));
+            toggleAvatarPreviewRate.AssignBinding(BasisSettingsDefaults.LimitAvatarPreviewRate);
 
             PanelSlider sliderAvatarPreviewRate = PanelSlider.CreateEntryAndBind(
                 cameraRateGroup.ContentParent,
                 new PanelSlider.SliderSettings(
                     BasisLocalization.Get("settings.developer.avatarPreviewRate"),
                     BasisLocalization.Get("settings.developer.avatarPreviewRate.description"),
-                    0, 120, true, 0, ValueDisplayMode.Hz),
+                    1, 120, true, 0, ValueDisplayMode.Hz),
                 BasisSettingsDefaults.AvatarPreviewRenderHz);
             sliderAvatarPreviewRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarPreviewRate.tooltip"));
 
@@ -2521,6 +2555,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
             BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
             BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioDirection.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
+            BasisSettingsDefaults.GizmoLabels.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
             BasisSettingsDefaults.ShowVoiceRange.ResetToDefault();
@@ -2534,7 +2572,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
+            BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
             BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
+            BasisSettingsDefaults.LimitAvatarPreviewRate.ResetToDefault();
             BasisSettingsDefaults.AvatarPreviewRenderHz.ResetToDefault();
             BasisSettingsDefaults.NetEuroMinCutoff.ResetToDefault();
             BasisSettingsDefaults.NetEuroBeta.ResetToDefault();

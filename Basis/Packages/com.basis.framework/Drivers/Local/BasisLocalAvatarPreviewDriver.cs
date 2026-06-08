@@ -247,7 +247,8 @@ namespace Basis.Scripts.Drivers
             }
 
             PreviewCamera.enabled = renderRateLimiter.AllowThisFrame(
-                Time.unscaledDeltaTime, BasisSettingsDefaults.AvatarPreviewRenderHz.RawValue);
+                Time.unscaledDeltaTime, BasisSettingsDefaults.AvatarPreviewRenderHz.RawValue,
+                BasisSettingsDefaults.LimitAvatarPreviewRate.RawValue);
         }
 
         /// <summary>

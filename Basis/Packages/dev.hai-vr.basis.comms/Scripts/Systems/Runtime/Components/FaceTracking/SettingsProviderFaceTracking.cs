@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
@@ -156,6 +158,7 @@ namespace HVR.Basis.Comms
             menuGroup.SetTitle("Vixxy");
             menuGroup.SetDescription("Trigger effects on this avatar.");
 
+            var resetters = new List<Action>();
             foreach (var menuItem in menuItems)
             {
                 var control = menuItem.control;
@@ -163,23 +166,31 @@ namespace HVR.Basis.Comms
 
                 if (menuItem.presentation == HVRVixxyControlPresentation.Slider)
                 {
-                    BuildSlider(menuGroup, control, menuItem);
+                    resetters.Add(BuildSlider(menuGroup, control, menuItem));
                 }
                 else
                 {
                     if (!control.HasThreeOrMoreChoices)
                     {
-                        BuildToggle(menuGroup, menuItem, control);
+                        resetters.Add(BuildToggle(menuGroup, menuItem, control));
                     }
                     else
                     {
-                        BuildDropdown(control, menuGroup, menuItem);
+                        resetters.Add(BuildDropdown(control, menuGroup, menuItem));
                     }
                 }
             }
+
+            var resetButton = PanelButton.CreateNew(container);
+            resetButton.Descriptor.SetTitle("Reset to Default");
+            resetButton.Descriptor.SetDescription("Restore all customization on this avatar to its defaults.");
+            resetButton.OnClicked += () =>
+            {
+                foreach (var reset in resetters) reset();
+            };
         }
 
-        private static void BuildToggle(PanelElementDescriptor menuGroup, HVRVixxyMenuItem menuItem, HVRVixxyControl control)
+        private static Action BuildToggle(PanelElementDescriptor menuGroup, HVRVixxyMenuItem menuItem, HVRVixxyControl control)
         {
             var toggle = PanelToggle.CreateNewEntry(menuGroup.ContentParent);
             toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
@@ -191,9 +202,17 @@ namespace HVR.Basis.Comms
                 toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
             };
             toggle.SetValueWithoutNotify(!Mathf.Approximately(menuItem.GetValue(), control.Min()));
+
+            return () =>
+            {
+                menuItem.ApplyValue(control.defaultValue);
+                toggle.SetValueWithoutNotify(!Mathf.Approximately(control.defaultValue, control.Min()));
+                toggle.Descriptor.SetTitle(menuItem.ResolveTitle());
+                toggle.Descriptor.SetDescription(menuItem.ResolveDescription());
+            };
         }
 
-        private static void BuildSlider(PanelElementDescriptor menuGroup, HVRVixxyControl control, HVRVixxyMenuItem menuItem)
+        private static Action BuildSlider(PanelElementDescriptor menuGroup, HVRVixxyControl control, HVRVixxyMenuItem menuItem)
         {
             var slider = PanelSlider.CreateNew(menuGroup.ContentParent);
             slider.SetSliderSettings(new PanelSlider.SliderSettings
@@ -214,9 +233,17 @@ namespace HVR.Basis.Comms
             slider.SliderComponent.onValueChanged.AddListener(WhenValueChanged);
             slider.OnValueChanged += WhenValueChanged;
             slider.SetValueWithoutNotify(menuItem.GetValue());
+
+            return () =>
+            {
+                menuItem.ApplyValue(control.defaultValue);
+                slider.SetValueWithoutNotify(control.defaultValue);
+                slider.Descriptor.SetTitle(menuItem.ResolveTitle());
+                slider.Descriptor.SetDescription(menuItem.ResolveDescription());
+            };
         }
 
-        private static void BuildDropdown(HVRVixxyControl control, PanelElementDescriptor menuGroup, HVRVixxyMenuItem menuItem)
+        private static Action BuildDropdown(HVRVixxyControl control, PanelElementDescriptor menuGroup, HVRVixxyMenuItem menuItem)
         {
             var choiceStrings = control.choices.Select((choice, i) =>
             {
@@ -233,13 +260,25 @@ namespace HVR.Basis.Comms
                 menuItem.ApplyValue(valueForThatChoice);
                 dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
             };
-            var currentValue = (int)menuItem.GetValue();
-            var matchingChoice = control.choices.FirstOrDefault(choice => Mathf.Approximately(choice.value, currentValue));
-            var currentChoice = matchingChoice != null ? control.choices.ToList().IndexOf(matchingChoice) : -1;
-            if (currentChoice >= 0 && currentChoice < choiceStrings.Count)
+
+            void SelectByValue(float value)
             {
-                dropdown.SetValueWithoutNotify(choiceStrings[currentChoice]);
+                var asIndex = (int)value;
+                var matchingChoice = control.choices.FirstOrDefault(choice => Mathf.Approximately(choice.value, asIndex));
+                var choiceIndex = matchingChoice != null ? control.choices.ToList().IndexOf(matchingChoice) : -1;
+                if (choiceIndex >= 0 && choiceIndex < choiceStrings.Count)
+                {
+                    dropdown.SetValueWithoutNotify(choiceStrings[choiceIndex]);
+                }
             }
+            SelectByValue(menuItem.GetValue());
+
+            return () =>
+            {
+                menuItem.ApplyValue(control.defaultValue);
+                SelectByValue(control.defaultValue);
+                dropdown.Descriptor.SetTitle(menuItem.ResolveTitle());
+            };
         }
     }
 }

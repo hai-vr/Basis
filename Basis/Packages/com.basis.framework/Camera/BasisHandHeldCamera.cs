@@ -766,7 +766,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             return;
         }
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(
-            Time.unscaledDeltaTime, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue);
+            Time.unscaledDeltaTime, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue,
+            BasisSettingsDefaults.LimitHandHeldCameraRate.RawValue);
     }
 
     /// <summary>

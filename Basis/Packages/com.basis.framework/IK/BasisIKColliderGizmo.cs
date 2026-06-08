@@ -43,6 +43,13 @@ namespace Basis.Scripts.Debugging
         private static readonly int[] _lineIds = new int[LinesPerCapsule * CapsuleCount];
         private static readonly int[] _pointSphereIds = new int[2] { -1, -1 };
 
+        // One text label per capsule (its name), created lazily when the shared
+        // Gizmo Labels toggle is on. -1 = not created.
+        private static readonly int[] _labelIds = new int[CapsuleCount];
+        private static readonly string[] CapsuleNames =
+            { "Hips", "Spine", "Chest", "LeftHand", "RightHand", "LeftUpperArm", "RightUpperArm" };
+        private const float LabelScale = 0.02f;
+
         // Shared scratch buffer for cap-ring positions. SetPositions copies in, so
         // reusing this between caps is safe — no aliasing concerns.
         private static readonly Vector3[] _capBuffer = new Vector3[CapSegments];
@@ -51,13 +58,14 @@ namespace Basis.Scripts.Debugging
         private static bool _visible;
         private static bool _registered;
 
-        public static void Tick(bool shouldShow, BasisFullBodyIK constraint)
+        public static void Tick(bool shouldShow, BasisFullBodyIK constraint, bool showLabels, Vector3 cameraPos)
         {
             EnsureMasterToggleHook();
 
             if (!shouldShow || constraint == null)
             {
                 SetVisible(false);
+                DestroyLabels();
                 return;
             }
 
@@ -65,6 +73,7 @@ namespace Basis.Scripts.Debugging
             if (data.chest == null || data.neck == null)
             {
                 SetVisible(false);
+                DestroyLabels();
                 return;
             }
 
@@ -108,7 +117,72 @@ namespace Basis.Scripts.Debugging
             UpdateBoneCapsule(LeftUpperArmBase, data.leftUpperArm, data.leftLowerArm, upperArmR, playerUp);
             UpdateBoneCapsule(RightUpperArmBase, data.RightUpperArm, data.RightLowerArm, upperArmR, playerUp);
 
+            UpdateLabels(showLabels, cameraPos, data);
+
             _visible = true;
+        }
+
+        private static void UpdateLabels(bool showLabels, Vector3 cameraPos, BasisFullBodyData data)
+        {
+            for (int i = 0; i < CapsuleCount; i++)
+            {
+                if (showLabels && TryCapsuleMidpoint(data, i, out Vector3 mid))
+                {
+                    Color color = LabelColor(i);
+                    if (_labelIds[i] <= 0)
+                    {
+                        BasisGizmoManager.CreateTextGizmo($"IKLabel_{CapsuleNames[i]}", out _labelIds[i], mid, CapsuleNames[i], color);
+                    }
+                    Quaternion rot = BasisGizmoManager.BillboardRotation(mid, cameraPos);
+                    BasisGizmoManager.UpdateTextGizmo(_labelIds[i], mid, rot, LabelScale, CapsuleNames[i], color);
+                    BasisGizmoManager.SetGizmoActive(_labelIds[i], true);
+                }
+                else if (_labelIds[i] > 0)
+                {
+                    BasisGizmoManager.DestroyGizmo(_labelIds[i]);
+                    _labelIds[i] = -1;
+                }
+            }
+        }
+
+        private static Color LabelColor(int idx)
+        {
+            if (idx < 3) return TorsoColor;
+            return idx < 5 ? HandColor : UpperArmColor;
+        }
+
+        private static bool TryCapsuleMidpoint(BasisFullBodyData data, int idx, out Vector3 mid)
+        {
+            Transform a = null, b = null;
+            switch (idx)
+            {
+                case 0: a = data.hips; b = data.spine; break;
+                case 1: a = data.spine; b = data.chest; break;
+                case 2: a = data.chest; b = data.neck; break;
+                case 3: a = data.LeftHand; b = data.leftLowerArm; break;
+                case 4: a = data.RightHand; b = data.RightLowerArm; break;
+                case 5: a = data.leftUpperArm; b = data.leftLowerArm; break;
+                case 6: a = data.RightUpperArm; b = data.RightLowerArm; break;
+            }
+            if (a == null || b == null)
+            {
+                mid = default;
+                return false;
+            }
+            mid = (a.position + b.position) * 0.5f;
+            return true;
+        }
+
+        private static void DestroyLabels()
+        {
+            for (int i = 0; i < _labelIds.Length; i++)
+            {
+                if (_labelIds[i] > 0)
+                {
+                    BasisGizmoManager.DestroyGizmo(_labelIds[i]);
+                    _labelIds[i] = -1;
+                }
+            }
         }
 
         public static void Shutdown()
@@ -123,6 +197,7 @@ namespace Basis.Scripts.Debugging
             }
             BasisGizmoManager.DestroyGizmo(_pointSphereIds[0]);
             BasisGizmoManager.DestroyGizmo(_pointSphereIds[1]);
+            DestroyLabels();
             ResetState();
         }
 
@@ -284,6 +359,10 @@ namespace Basis.Scripts.Debugging
             }
             _pointSphereIds[0] = -1;
             _pointSphereIds[1] = -1;
+            for (int i = 0; i < _labelIds.Length; i++)
+            {
+                _labelIds[i] = -1;
+            }
             _created = false;
             _visible = false;
         }

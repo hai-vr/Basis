@@ -6,6 +6,7 @@ using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Pairing;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 
 public class SMModuleDebugOptions : BasisSettingsBase
@@ -17,6 +18,14 @@ public class SMModuleDebugOptions : BasisSettingsBase
     public static bool UseLinkedTrackerLines = false;
     public static bool UseEyeGazeGizmo = false;
     public static bool UseIKColliders = false;
+
+    // Single shared switch for billboarded text labels on every gizmo system
+    // (tracker roles, linked-pair ids, IK collider names, and the audio gizmos,
+    // whose BasisAudioGizmos.ShowLabels mirror is set from the same handler).
+    public static bool UseGizmoLabels = false;
+
+    // Audio-debug gizmos (see BasisAudioGizmos). Off by default; the static bools
+    // that gate the per-frame work live on BasisAudioGizmos itself.
 
     // Sub-toggles under ShowGizmos. Default true so the master switch alone restores
     // the pre-split behavior (lines + spheres + jiggle render) for users who never
@@ -34,6 +43,10 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_LINKED_TRACKER_LINES => BasisSettingsDefaults.LinkedTrackerLines.BindingKey;      // "linkedtrackerlines"
     private static string K_GIZMO_EYE_GAZE => BasisSettingsDefaults.GizmoEyeGaze.BindingKey;                  // "gizmoeyegaze"
     private static string K_GIZMO_IK_COLLIDERS => BasisSettingsDefaults.GizmoIKColliders.BindingKey;          // "gizmoikcolliders"
+    private static string K_GIZMO_AUDIO_DIRECTION => BasisSettingsDefaults.GizmoAudioDirection.BindingKey;    // "gizmoaudiodirection"
+    private static string K_GIZMO_AUDIO_RANGES => BasisSettingsDefaults.GizmoAudioRanges.BindingKey;          // "gizmoaudioranges"
+    private static string K_GIZMO_AUDIO_CONE => BasisSettingsDefaults.GizmoAudioListenerCone.BindingKey;      // "gizmoaudiolistenercone"
+    private static string K_GIZMO_LABELS => BasisSettingsDefaults.GizmoLabels.BindingKey;                      // "gizmolabels"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -41,6 +54,16 @@ public class SMModuleDebugOptions : BasisSettingsBase
 
     // Tracker → line gizmo ID, one segment from tracker pose to driven bone.
     private readonly Dictionary<BasisInput, int> _trackerLines = new Dictionary<BasisInput, int>();
+
+    // Tracker → text-label gizmo ID (the tracker's role name). Gated by UseGizmoLabels.
+    private readonly Dictionary<BasisInput, int> _trackerLabels = new Dictionary<BasisInput, int>();
+
+    // Virtual midpoint → text-label gizmo ID (the merged pair identifier).
+    private readonly Dictionary<BasisVirtualMidpointInput, int> _linkLabels = new Dictionary<BasisVirtualMidpointInput, int>();
+
+    // Listener-camera position cached each frame so labels billboard toward the viewer.
+    private static Vector3 _camPos;
+    private const float LabelScale = 0.02f;
 
     // Virtual midpoint → line gizmo ID, one yellow segment from PartnerA to
     // PartnerB so the user can see at a glance which physical trackers are
@@ -73,6 +96,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisGizmoManager.OnUseGizmosChanged -= OnUseGizmosChanged;
         ClearTrackerGizmos();
         ClearLinkLines();
+        BasisAudioGizmos.Shutdown();
         base.OnDestroy();
     }
 
@@ -146,6 +170,38 @@ public class SMModuleDebugOptions : BasisSettingsBase
             {
                 BasisIKColliderGizmo.Shutdown();
             }
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_AUDIO_DIRECTION)
+        {
+            bool.TryParse(optionValue, out BasisAudioGizmos.ShowDirection);
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_AUDIO_RANGES)
+        {
+            bool.TryParse(optionValue, out BasisAudioGizmos.ShowRanges);
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_AUDIO_CONE)
+        {
+            bool.TryParse(optionValue, out BasisAudioGizmos.ShowListenerCone);
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_LABELS)
+        {
+            if (bool.TryParse(optionValue, out UseGizmoLabels))
+            {
+                BasisAudioGizmos.ShowLabels = UseGizmoLabels;
+                if (!UseGizmoLabels)
+                {
+                    ClearMap(_trackerLabels);
+                    ClearLinkLabels();
+                }
+            }
         }
     }
 
@@ -190,8 +246,17 @@ public class SMModuleDebugOptions : BasisSettingsBase
                 }
             }
 
+            foreach (BasisTextGizmos textGizmo in BasisGizmoManager.GizmosText.Values)
+            {
+                if (textGizmo != null)
+                {
+                    GameObject.Destroy(textGizmo.gameObject);
+                }
+            }
+
             BasisGizmoManager.Gizmos.Clear();
             BasisGizmoManager.GizmosLine.Clear();
+            BasisGizmoManager.GizmosText.Clear();
         }
     }
 
@@ -257,7 +322,9 @@ public class SMModuleDebugOptions : BasisSettingsBase
         {
             _trackerGizmos.Clear();
             _trackerLines.Clear();
+            _trackerLabels.Clear();
             _linkLines.Clear();
+            _linkLabels.Clear();
         }
     }
 
@@ -292,6 +359,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
             scale = 1f;
         }
 
+        _camPos = BasisLocalCameraDriver.Position;
+
         if (UseTrackerGizmos)
         {
             UpdateTrackerGizmos(devices, scale);
@@ -308,8 +377,29 @@ public class SMModuleDebugOptions : BasisSettingsBase
             var ik = player != null && player.LocalRigDriver != null
                 ? player.LocalRigDriver.BasisFullIKConstraint
                 : null;
-            BasisIKColliderGizmo.Tick(ik != null, ik);
+            BasisIKColliderGizmo.Tick(ik != null, ik, UseGizmoLabels, _camPos);
         }
+
+        BasisAudioGizmos.Tick(scale);
+    }
+
+    /// <summary>
+    /// Lazily creates / updates a billboarded text label keyed by <paramref name="key"/>.
+    /// Shared by tracker and link labels; the gizmo diffs text/colour internally so a
+    /// steady label costs only the billboard transform write.
+    /// </summary>
+    private static void UpdateLabel<T>(Dictionary<T, int> map, T key, string gizmoName, string text, Vector3 position, Color color, float scale)
+    {
+        Quaternion rot = BasisGizmoManager.BillboardRotation(position, _camPos);
+        if (!map.TryGetValue(key, out int id) || id <= 0)
+        {
+            if (!BasisGizmoManager.CreateTextGizmo(gizmoName, out id, position, text, color))
+            {
+                return;
+            }
+            map[key] = id;
+        }
+        BasisGizmoManager.UpdateTextGizmo(id, position, rot, LabelScale * scale, text, color);
     }
 
     private void UpdateTrackerGizmos(BasisObservableList<BasisInput> devices, float scale)
@@ -339,6 +429,18 @@ public class SMModuleDebugOptions : BasisSettingsBase
                 BasisGizmoManager.UpdateSphereGizmo(sphereId, trackerPos, size);
             }
 
+            if (UseGizmoLabels)
+            {
+                string role = input.TryGetRole(out BasisBoneTrackedRole r) ? r.ToString() : "Tracker";
+                Vector3 labelPos = trackerPos + Vector3.up * (TrackerGizmoBaseSize * 1.6f * scale);
+                UpdateLabel(_trackerLabels, input, $"TrackerLabel_{role}", role, labelPos, TrackerGizmoColor, scale);
+            }
+            else if (_trackerLabels.TryGetValue(input, out int staleLabel))
+            {
+                BasisGizmoManager.DestroyGizmo(staleLabel);
+                _trackerLabels.Remove(input);
+            }
+
             if (!input.HasControl || input.Control == null)
             {
                 // No driven bone — drop any line we previously had for this tracker.
@@ -365,10 +467,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
 
         // Drop entries whose tracker disappeared or got unassigned this frame.
-        if (_trackerGizmos.Count > 0 || _trackerLines.Count > 0)
+        if (_trackerGizmos.Count > 0 || _trackerLines.Count > 0 || _trackerLabels.Count > 0)
         {
             PruneStale(_trackerGizmos, devices);
             PruneStale(_trackerLines, devices);
+            PruneStale(_trackerLabels, devices);
         }
     }
 
@@ -389,6 +492,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
                     BasisGizmoManager.DestroyGizmo(orphanId);
                     _linkLines.Remove(virt);
                 }
+                if (_linkLabels.TryGetValue(virt, out int orphanLabel))
+                {
+                    BasisGizmoManager.DestroyGizmo(orphanLabel);
+                    _linkLabels.Remove(virt);
+                }
                 continue;
             }
 
@@ -406,9 +514,20 @@ public class SMModuleDebugOptions : BasisSettingsBase
             {
                 BasisGizmoManager.UpdateLineGizmo(lineId, aPos, bPos);
             }
+
+            if (UseGizmoLabels)
+            {
+                string role = virt.TryGetRole(out BasisBoneTrackedRole vr) ? vr.ToString() : "Pair";
+                UpdateLabel(_linkLabels, virt, $"LinkLabel_{role}", $"Linked {role}", (aPos + bPos) * 0.5f, LinkedTrackerLineColor, scale);
+            }
+            else if (_linkLabels.TryGetValue(virt, out int staleLabel))
+            {
+                BasisGizmoManager.DestroyGizmo(staleLabel);
+                _linkLabels.Remove(virt);
+            }
         }
 
-        if (_linkLines.Count > 0)
+        if (_linkLines.Count > 0 || _linkLabels.Count > 0)
         {
             PruneStaleLinkLines(devices);
         }
@@ -502,6 +621,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
                 BasisGizmoManager.DestroyGizmo(id);
                 _linkLines.Remove(virt);
             }
+            if (_linkLabels.TryGetValue(virt, out int labelId))
+            {
+                BasisGizmoManager.DestroyGizmo(labelId);
+                _linkLabels.Remove(virt);
+            }
         }
     }
 
@@ -509,19 +633,33 @@ public class SMModuleDebugOptions : BasisSettingsBase
     {
         ClearMap(_trackerGizmos);
         ClearMap(_trackerLines);
+        ClearMap(_trackerLabels);
     }
 
     private void ClearLinkLines()
     {
-        if (_linkLines.Count == 0)
+        if (_linkLines.Count > 0)
+        {
+            foreach (KeyValuePair<BasisVirtualMidpointInput, int> kvp in _linkLines)
+            {
+                BasisGizmoManager.DestroyGizmo(kvp.Value);
+            }
+            _linkLines.Clear();
+        }
+        ClearLinkLabels();
+    }
+
+    private void ClearLinkLabels()
+    {
+        if (_linkLabels.Count == 0)
         {
             return;
         }
-        foreach (KeyValuePair<BasisVirtualMidpointInput, int> kvp in _linkLines)
+        foreach (KeyValuePair<BasisVirtualMidpointInput, int> kvp in _linkLabels)
         {
             BasisGizmoManager.DestroyGizmo(kvp.Value);
         }
-        _linkLines.Clear();
+        _linkLabels.Clear();
     }
 
     private static void ClearMap(Dictionary<BasisInput, int> map)

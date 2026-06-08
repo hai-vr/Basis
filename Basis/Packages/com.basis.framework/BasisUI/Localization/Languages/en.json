@@ -351,6 +351,22 @@
       "value": "Show the collision shapes used by inverse kinematics."
     },
     {
+      "key": "settings.developer.audioDirection.tooltip",
+      "value": "Show which way each voice points, coloured by how loud it reaches you."
+    },
+    {
+      "key": "settings.developer.audioRanges.tooltip",
+      "value": "Show your hearing-distance sphere and each speaker's full-volume range."
+    },
+    {
+      "key": "settings.developer.audioListenerCone.tooltip",
+      "value": "Show the cone where remote voices play at full volume before dampening."
+    },
+    {
+      "key": "settings.developer.gizmoLabels.tooltip",
+      "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
+    },
+    {
       "key": "settings.general.networking.jitterBufferOverride.tooltip",
       "value": "Manually set the network jitter buffer instead of automatic."
     },
@@ -5471,6 +5487,38 @@
       "value": "Draws the chest and hand collision capsules used by the IK solver to prevent the hands and arms from intersecting the torso. Useful when tuning ChestRadius, HandRadius, and CollisionSkin on the FullBodyIK constraint."
     },
     {
+      "key": "settings.developer.audioDirection",
+      "value": "Audio Direction"
+    },
+    {
+      "key": "settings.developer.audioDirection.description",
+      "value": "Per-speaker arrow along the spatial-audio source-forward (directivity) axis, coloured green-to-red by the net loudness that actually reaches you. If someone faces you but their arrow is red, the voice dipole is attenuating them."
+    },
+    {
+      "key": "settings.developer.audioRanges",
+      "value": "Audio Ranges"
+    },
+    {
+      "key": "settings.developer.audioRanges.description",
+      "value": "Wireframe sphere of your hearing distance, plus a green full-volume ring at each speaker's minimum distance."
+    },
+    {
+      "key": "settings.developer.audioListenerCone",
+      "value": "Audio Listener Cone"
+    },
+    {
+      "key": "settings.developer.audioListenerCone.description",
+      "value": "The directional-dampening cone projected from your head. Speakers inside the wedge play at full volume; outside it they are damped toward the max-dampening amount."
+    },
+    {
+      "key": "settings.developer.gizmoLabels",
+      "value": "Gizmo Labels"
+    },
+    {
+      "key": "settings.developer.gizmoLabels.description",
+      "value": "Billboarded text labels on whichever gizmos are currently shown: tracker roles, linked-pair names, IK collider names, and the audio gizmos (speaker name with net loudness %, hearing distance, voice-cone angle)."
+    },
+    {
       "key": "settings.developer.avatarDistance",
       "value": "Avatar Distance"
     },
@@ -5540,7 +5588,15 @@
     },
     {
       "key": "settings.developer.cameraRates.description",
-      "value": "Cap how often the off-screen capture cameras render to relieve main-thread contention. 0 = uncapped (renders every frame)."
+      "value": "Cap how often the off-screen capture cameras render to relieve main-thread contention. Turn off a limit to render every frame."
+    },
+    {
+      "key": "settings.developer.handheldCameraRate.limit",
+      "value": "Limit Handheld Camera Rate"
+    },
+    {
+      "key": "settings.developer.handheldCameraRate.limit.tooltip",
+      "value": "On: cap the handheld camera's render rate to the value below. Off: render every frame."
     },
     {
       "key": "settings.developer.handheldCameraRate",
@@ -5548,11 +5604,19 @@
     },
     {
       "key": "settings.developer.handheldCameraRate.description",
-      "value": "Maximum render rate for the handheld camera preview. 0 = uncapped. Ignored while the camera is overriding the desktop view."
+      "value": "Maximum render rate for the handheld camera preview when the limit is enabled. Ignored while the camera is overriding the desktop view."
     },
     {
       "key": "settings.developer.handheldCameraRate.tooltip",
-      "value": "Throttle the handheld camera's render rate. 0 renders every frame."
+      "value": "Throttle the handheld camera's render rate. Only applies while the limit toggle is on."
+    },
+    {
+      "key": "settings.developer.avatarPreviewRate.limit",
+      "value": "Limit Avatar Preview Rate"
+    },
+    {
+      "key": "settings.developer.avatarPreviewRate.limit.tooltip",
+      "value": "On: cap the avatar preview's render rate to the value below. Off: render every frame."
     },
     {
       "key": "settings.developer.avatarPreviewRate",
@@ -5560,11 +5624,11 @@
     },
     {
       "key": "settings.developer.avatarPreviewRate.description",
-      "value": "Maximum render rate for the on-screen avatar preview. 0 = uncapped."
+      "value": "Maximum render rate for the on-screen avatar preview when the limit is enabled."
     },
     {
       "key": "settings.developer.avatarPreviewRate.tooltip",
-      "value": "Throttle the avatar preview's render rate. 0 renders every frame."
+      "value": "Throttle the avatar preview's render rate. Only applies while the limit toggle is on."
     },
     {
       "key": "settings.developer.logTagFilter",
