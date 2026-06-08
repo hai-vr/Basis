@@ -107,6 +107,7 @@ namespace Basis.BasisUI
 
             private Color _baseColor = Color.white;
             private bool _captured;
+            private bool _pulsing;
 
             private void Update()
             {
@@ -120,17 +121,25 @@ namespace Basis.BasisUI
                 if (BasisNotificationCenter.PendingCount > 0)
                 {
                     float t = (Mathf.Sin(Time.unscaledTime * Speed) + 1f) * 0.5f;
-                    Target.color = Color.Lerp(_baseColor, PulseColor, t);
+                    // SetColor is a render-only update; Graphic.color calls SetVerticesDirty and
+                    // would rebuild + rebatch the whole hotbar canvas every frame while pending.
+                    Target.canvasRenderer.SetColor(Color.Lerp(_baseColor, PulseColor, t));
+                    _pulsing = true;
                 }
-                else if (Target.color != _baseColor)
+                else if (_pulsing)
                 {
-                    Target.color = _baseColor;
+                    Target.canvasRenderer.SetColor(_baseColor);
+                    _pulsing = false;
                 }
             }
 
             private void OnDisable()
             {
-                if (Target != null && _captured) Target.color = _baseColor;
+                if (Target != null && _captured)
+                {
+                    Target.canvasRenderer.SetColor(_baseColor);
+                    _pulsing = false;
+                }
             }
         }
 

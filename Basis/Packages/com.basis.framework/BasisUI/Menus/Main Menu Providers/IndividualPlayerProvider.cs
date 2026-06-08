@@ -448,6 +448,7 @@ namespace Basis.BasisUI
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             audioGroup.SetTitle(BasisLocalization.Get("settings.tab.audio"));
             audioGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audio.description"));
+            audioGroup.IsolateAsCanvas();
 
             string indivdualusersettingsvolume = "indivdualusersettingsvolume";
             BasisSettingsBinding<float> Binding = new BasisSettingsBinding<float>(indivdualusersettingsvolume);
@@ -963,6 +964,8 @@ namespace Basis.BasisUI
             bufferField.SetTitle(BasisLocalization.Get("menu.individualPlayer.bufferState"));
             bufferField.SetDescription("...");
 
+            networkGroup.IsolateAsCanvas();
+
             // ---- Admin moderation section (only visible to admins) ----
             if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView))
             {
@@ -1174,10 +1177,13 @@ namespace Basis.BasisUI
             debugField.SetTitle(BasisLocalization.Get("menu.individualPlayer.transmission"));
             debugField.SetDescription(BasisLocalization.Get("menu.individualPlayer.waitingForData"));
 
+            debugGroup.IsolateAsCanvas();
+
             // ---- Audio Debug Section ----
             var audioDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             audioDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug"));
             audioDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audioDebug.description"));
+            audioDebugGroup.IsolateAsCanvas();
 
             // Toggle to show/hide the audio debug fields for this player
             PanelToggle audioDebugToggle = PanelToggle.CreateNewEntry(audioDebugGroup.ContentParent);
@@ -1293,6 +1299,7 @@ namespace Basis.BasisUI
             var avatarDataDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             avatarDataDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug"));
             avatarDataDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.description"));
+            avatarDataDebugGroup.IsolateAsCanvas();
 
             PanelToggle avatarDataDebugToggle = PanelToggle.CreateNewEntry(avatarDataDebugGroup.ContentParent);
             avatarDataDebugToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.showAvatarDataDebug"));

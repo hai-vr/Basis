@@ -105,6 +105,8 @@ namespace Basis.BasisUI
             metaField.SetTitle(BasisLocalization.Get("settings.network.serverMetadata"));
             metaField.SetDescription("...");
 
+            netGroup.IsolateAsCanvas();
+
             // Create a holder GO for the updater MonoBehaviour
             var holderGO = new GameObject("NetworkStatsUpdater");
             holderGO.transform.SetParent(netGroup.transform, false);

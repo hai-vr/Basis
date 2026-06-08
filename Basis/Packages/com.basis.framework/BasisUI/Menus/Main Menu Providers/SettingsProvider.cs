@@ -1961,6 +1961,7 @@ namespace Basis.BasisUI
             PanelElementDescriptor recorderGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             recorderGroup.SetTitle(BasisLocalization.Get("settings.developer.recorder.title"));
+            recorderGroup.IsolateAsCanvas();
 
             PanelTextField recorderCountdownField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
             recorderCountdownField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.countdown"));
@@ -2027,6 +2028,7 @@ namespace Basis.BasisUI
             PanelElementDescriptor voiceRangeGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             voiceRangeGroup.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.title"));
+            voiceRangeGroup.IsolateAsCanvas();
 
             PanelToggle voiceRangeToggle = PanelToggle.CreateNewEntry(voiceRangeGroup.ContentParent);
             voiceRangeToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.enable"));

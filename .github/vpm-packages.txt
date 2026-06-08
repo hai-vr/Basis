@@ -18,6 +18,12 @@ com.basis.shim
 com.basis.textmeshpro
 com.basis.visualtrackers
 com.basis.examples
+com.basis.addon.snapcontrols
+com.basis.integration.audiolink
+com.basis.mediapipe
+com.basis.mediaplayer
+com.basis.pooltable
+com.basis.provider.servers
 
 # Re-distributed (sometimes tweaked) MIT/Apache/BSD
 # deps used by sdk, server, openlipsync, framework, hvr-comms.
@@ -37,6 +43,13 @@ com.llealloo.audiolink
 com.xiph.rnnoise
 com.cnlohr.cilbox
 dev.hai-vr.basis.comms
+
+# MediaPipe face/hand tracking (homuler, MIT) - used by com.basis.mediapipe.
+com.github.homuler.mediapipe
+
+# HVR NDMF hook + license-review tooling (Hai, MIT).
+dev.hai-vr.basis.ndmf
+dev.hai-vr.hvr.license-review
 
 # VR / spatial-audio (Apache 2.0 / BSD-3).
 com.steam.steamaudio

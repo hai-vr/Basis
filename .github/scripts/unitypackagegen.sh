@@ -26,25 +26,30 @@ if [[ "$1" == "full" ]]; then
 
   # Need this for framework (But only framework)
   SUBFOLDERS+=":Packages/com.avionblock.opussharp:
+              Packages/com.basis.addon.snapcontrols:
               Packages/com.basis.common:
               Packages/com.basis.eventdriver:
               Packages/com.basis.examples:
               Packages/com.basis.framework:
               Packages/com.basis.framework.editor:
               Packages/com.basis.gizmos:
+              Packages/com.basis.integration.audiolink:
+              Packages/com.basis.mediapipe:
+              Packages/com.basis.mediaplayer:
               Packages/com.basis.openlipsync:
               Packages/com.basis.openvr:
               Packages/com.basis.openxr:
+              Packages/com.basis.pooltable:
               Packages/com.basis.profilerintergration:
+              Packages/com.basis.provider.servers:
               Packages/com.basis.settings:
               Packages/com.basis.shim:
               Packages/com.basis.textmeshpro:
               Packages/com.basis.vehicles:
               Packages/com.basis.visualtrackers:
-              Packages/com.basis.zeromessenger:
               Packages/com.cnlohr.cilbox:
               Packages/com.cqf.urpvolumetricfog:
-              Packages/com.hecomi.ulipsync:
+              Packages/com.github.homuler.mediapipe:
               Packages/com.llealloo.audiolink:
               Packages/com.steam.steamaudio:
               Packages/com.steam.steamvr:
@@ -54,7 +59,8 @@ if [[ "$1" == "full" ]]; then
               Packages/com.unity.xr.openxr:
               Packages/com.xiph.rnnoise:
               Packages/dev.hai-vr.basis.comms:
-              Packages/HVRBasisNDMF:
+              Packages/dev.hai-vr.basis.ndmf:
+              Packages/dev.hai-vr.hvr.license-review:
               Packages/nuget.meamod.dns:
               Assets/AddressableAssetsData:
               Assets/Basis:

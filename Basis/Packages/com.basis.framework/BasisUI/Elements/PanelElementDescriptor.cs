@@ -347,6 +347,27 @@ namespace Basis.BasisUI
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         }
+
+        /// <summary>
+        /// Promotes this descriptor's subtree onto its own nested <see cref="Canvas"/> so geometry
+        /// changes inside it (live stats, meters) only re-batch this group, not the whole open menu.
+        /// Pair with <see cref="FreezeLayoutSize"/> on the live fields: freeze stops the per-tick
+        /// reflow, the nested canvas stops the per-tick batch rebuild reaching the root canvas.
+        /// Inherits the parent canvas's shader channels so TMP renders identically; Basis input is
+        /// collider + per-canvas GraphicRegistry based, so nested children stay interactive without
+        /// an extra GraphicRaycaster.
+        /// </summary>
+        public void IsolateAsCanvas()
+        {
+            if (TryGetComponent(out Canvas _)) return;
+
+            Canvas parentCanvas = GetComponentInParent<Canvas>();
+            Canvas canvas = gameObject.AddComponent<Canvas>();
+            if (parentCanvas != null)
+            {
+                canvas.additionalShaderChannels = parentCanvas.additionalShaderChannels;
+            }
+        }
 #if UNITY_EDITOR
         protected override void OnValidate()
         {

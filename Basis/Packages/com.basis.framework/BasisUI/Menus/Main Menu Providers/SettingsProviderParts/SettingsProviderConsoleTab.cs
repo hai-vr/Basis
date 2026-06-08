@@ -133,6 +133,8 @@ namespace Basis.BasisUI
 
             EnsureSingleText(outputGroup.ContentParent);
 
+            outputGroup.IsolateAsCanvas();
+
             // Attach updater for live log refresh
             if (controlsGroup.GetComponent<ConsoleTabUpdater>() == null)
                 controlsGroup.gameObject.AddComponent<ConsoleTabUpdater>();
