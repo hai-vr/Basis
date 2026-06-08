@@ -384,11 +384,11 @@
     },
     {
       "key": "settings.developer.streamingMeta.tooltip",
-      "value": "Expose live metadata over a local port for streaming tools."
+      "value": "Exposes FPS and CCU on a loopback-only web server at http://127.0.0.1:[port]/overlay.html (drop that URL into an OBS Browser Source). Raw JSON is available at /stats.json. Off by default — only binds to localhost, never the LAN."
     },
     {
       "key": "settings.developer.streamingMetaPort.tooltip",
-      "value": "Network port used to serve streaming metadata."
+      "value": "TCP port the loopback listener binds to on 127.0.0.1. Default 9080. Changes apply immediately while the listener is enabled. Invalid values fall back to 9080."
     },
     {
       "key": "settings.developer.disableLogging.tooltip",

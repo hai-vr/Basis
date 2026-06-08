@@ -35,6 +35,32 @@ namespace Basis.Streaming
             instance = go.AddComponent<BasisStreamingMetaRuntime>();
         }
 
+        /// <summary>
+        /// Re-applies the persisted <see cref="BasisSettingsDefaults.EnableStreamingMeta"/>
+        /// value once settings have been loaded from disk. Called by
+        /// <see cref="BasisSettingsDefaults.LoadAll"/>.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="Bootstrap"/> runs at <see cref="RuntimeInitializeLoadType.AfterSceneLoad"/>,
+        /// which is before <see cref="BasisSettingsDefaults.LoadAll"/> populates the bindings, so
+        /// the initial <see cref="OnEnable"/> read sees the construction-time default (off) and
+        /// <see cref="BasisSettingsBinding{T}.LoadBindingValue"/> writes the loaded value without
+        /// firing <c>OnChanged</c>. Without this re-apply the listener would only come up after a
+        /// manual toggle — not on startup when the user already had it enabled.
+        /// </remarks>
+        public static void ApplyFromSettings()
+        {
+            if (instance == null)
+            {
+                // AfterSceneLoad normally creates the instance before LoadAll runs; if the
+                // ordering ever differs, create it now and let OnEnable apply the loaded value.
+                Bootstrap();
+                return;
+            }
+
+            instance.ApplyCurrentSetting();
+        }
+
         private void OnEnable()
         {
             if (!subscribed)

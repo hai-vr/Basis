@@ -1,6 +1,7 @@
 using System;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.Settings;
+using Basis.Streaming;
 
 namespace Basis.BasisUI
 {
@@ -1316,6 +1317,11 @@ namespace Basis.BasisUI
             DebugLogLevelFilter.OnChanged += ApplyDebugLogLevelFilter;
             EnableStreamingMeta.LoadBindingValue();
             StreamingMetaPort.LoadBindingValue();
+            // Bindings are now populated from disk. The streaming runtime bootstraps at
+            // AfterSceneLoad — before this runs — so its initial read saw the default (off),
+            // and LoadBindingValue does not fire OnChanged. Re-apply so the listener comes up
+            // on startup when the user already had it enabled, not only after a manual toggle.
+            BasisStreamingMetaRuntime.ApplyFromSettings();
             MemoryAllocation.LoadBindingValue();
             VisualState.LoadBindingValue();
             FoveatedRendering.LoadBindingValue();
