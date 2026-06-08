@@ -45,6 +45,7 @@ namespace Basis.Scripts.Drivers
         private readonly Vector3[] frustumCorners = new Vector3[4];
         private bool initialized;
         private bool active;
+        private Basis.BasisRenderRateLimiter renderRateLimiter;
 
         /// <summary>
         /// Stores the driver reference and reads the saved setting.
@@ -239,6 +240,9 @@ namespace Basis.Scripts.Drivers
                 Vector3 displayCameraLocal = new Vector3(halfW - displayWidth * 0.5f, -halfH + displayHeight * 0.5f, 1f);
                 displayGO.transform.localPosition = displayCameraLocal - parentOfUIGO.transform.localPosition;
             }
+
+            PreviewCamera.enabled = renderRateLimiter.AllowThisFrame(
+                Time.unscaledDeltaTime, BasisSettingsDefaults.AvatarPreviewRenderHz.RawValue);
         }
 
         /// <summary>

@@ -58,6 +58,12 @@ namespace HVR.Vixxy.Editor
 
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.presentation)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.icon)));
+
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.remember)));
+            if (my.remember == HVRVixxyRememberScope.RememberInThisTag)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(HVRVixxyMenuItem.rememberTag)));
+            }
             EditorGUILayout.Separator();
 
             return false;

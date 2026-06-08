@@ -1736,7 +1736,11 @@ w20, w54;
             if (HandleHead.IsValid(stream))
             {
                 HandleHead.SetPosition(stream, targetPositionHead.Get(stream));
-                HandleHead.SetRotation(stream, headRot);
+                // headRot is the gaze-space target (used for the pitch/lordosis math above). The bone
+                // pin must include the calibrated head offset, exactly like SolveSequentialSpineIK's
+                // finalHeadRot — otherwise this pass overwrites the spine solve and drops the offset,
+                // flipping the head on rigs whose bone bind differs from the gaze frame.
+                HandleHead.SetRotation(stream, headRot * targetOffsetHead);
             }
         }
         // Anatomy: shoulder slide. Shoulders don't fully follow chest twist past ~30° because the

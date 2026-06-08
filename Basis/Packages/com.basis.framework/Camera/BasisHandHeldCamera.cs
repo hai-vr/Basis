@@ -1,4 +1,5 @@
 using Basis;
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
@@ -589,8 +590,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         StartCoroutine(TakeScreenshot(format, renderFormat));
     }
     bool IsOverridingDesktopView = false;
+    private BasisRenderRateLimiter renderRateLimiter;
     public void LateUpdate()
     {
+        ApplyRenderRateLimit();
+
         if (IsOverridingDesktopView)
         {
             actualMaterial.mainTexture = CopyCameraColorToStaticRTFeature.OutputRT;
@@ -748,6 +752,21 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
                 BasisDebug.LogError($"failed to remove item = {myLoadedNetId} from registry");
             }
         }
+    }
+
+    /// <summary>
+    /// Gates the capture camera to the developer render-rate override (0 = uncapped); never throttles the desktop-override output.
+    /// </summary>
+    private void ApplyRenderRateLimit()
+    {
+        if (!LastVisibilityState) return;
+        if (IsOverridingDesktopView)
+        {
+            captureCamera.enabled = true;
+            return;
+        }
+        captureCamera.enabled = renderRateLimiter.AllowThisFrame(
+            Time.unscaledDeltaTime, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue);
     }
 
     /// <summary>

@@ -2148,6 +2148,30 @@ namespace Basis.BasisUI
             toggleMaterialCorrection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.materialCorrection.tooltip"));
             toggleMaterialCorrection.AssignBinding(BasisSettingsDefaults.EnableMaterialCorrection);
 
+            // ---- Camera Render Rates ----
+            PanelElementDescriptor cameraRateGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            cameraRateGroup.SetTitle(BasisLocalization.Get("settings.developer.cameraRates.title"));
+            cameraRateGroup.SetDescription(BasisLocalization.Get("settings.developer.cameraRates.description"));
+
+            PanelSlider sliderHandHeldRate = PanelSlider.CreateEntryAndBind(
+                cameraRateGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.handheldCameraRate"),
+                    BasisLocalization.Get("settings.developer.handheldCameraRate.description"),
+                    0, 120, true, 0, ValueDisplayMode.Hz),
+                BasisSettingsDefaults.HandHeldCameraRenderHz);
+            sliderHandHeldRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handheldCameraRate.tooltip"));
+
+            PanelSlider sliderAvatarPreviewRate = PanelSlider.CreateEntryAndBind(
+                cameraRateGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.avatarPreviewRate"),
+                    BasisLocalization.Get("settings.developer.avatarPreviewRate.description"),
+                    0, 120, true, 0, ValueDisplayMode.Hz),
+                BasisSettingsDefaults.AvatarPreviewRenderHz);
+            sliderAvatarPreviewRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarPreviewRate.tooltip"));
+
             // ---- Section Visibility Toggles ----
             PanelElementDescriptor sectionTogglesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2172,6 +2196,11 @@ namespace Basis.BasisUI
             toggleNetStats.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.netStats"));
             toggleNetStats.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.netStats.tooltip"));
             toggleNetStats.AssignBinding(BasisSettingsDefaults.DevShowNetStats);
+
+            PanelToggle toggleCalibrationCsv = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
+            toggleCalibrationCsv.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationCsv"));
+            toggleCalibrationCsv.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationCsv.tooltip"));
+            toggleCalibrationCsv.AssignBinding(BasisSettingsDefaults.DumpCalibrationCsv);
 
             PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
@@ -2502,8 +2531,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DevShowConsole.ResetToDefault();
             BasisSettingsDefaults.DevShowEuroFilter.ResetToDefault();
             BasisSettingsDefaults.DevShowNetStats.ResetToDefault();
+            BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
+            BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
+            BasisSettingsDefaults.AvatarPreviewRenderHz.ResetToDefault();
             BasisSettingsDefaults.NetEuroMinCutoff.ResetToDefault();
             BasisSettingsDefaults.NetEuroBeta.ResetToDefault();
             BasisSettingsDefaults.NetEuroDerivativeCutoff.ResetToDefault();

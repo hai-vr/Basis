@@ -273,6 +273,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
 
+        // When on, the local avatar calibration pipeline dumps every stage's scales/positions/
+        // rotation eulers + offsets to a CSV under persistentDataPath/CalibrationDebug. Read once
+        // at the start of each calibration; leave off in normal play.
+        public static BasisSettingsBinding<bool> DumpCalibrationCsv = new("devdumpcalibrationcsv", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> EnableShaderPrewarm = new("enableshaderprewarm", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> EnableMaterialCorrection = new("enablematerialcorrection", new BasisPlatformDefault<bool>(false));
 
@@ -319,6 +324,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> AvatarPreview = new("avatarpreview", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> AvatarPreviewMirror = new("avatarpreviewmirror", new BasisPlatformDefault<bool>(true));
+
+        public static BasisSettingsBinding<float> HandHeldCameraRenderHz = new("handheldcamerarenderhz", new BasisPlatformDefault<float>(0));
+
+        public static BasisSettingsBinding<float> AvatarPreviewRenderHz = new("avatarpreviewrenderhz", new BasisPlatformDefault<float>(0));
 
         public static BasisSettingsBinding<bool> DesktopReticle = new("desktopreticle", new BasisPlatformDefault<bool>(false));
 
@@ -1407,6 +1416,8 @@ namespace Basis.BasisUI
             // UI
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
+            HandHeldCameraRenderHz.LoadBindingValue();
+            AvatarPreviewRenderHz.LoadBindingValue();
             DesktopReticle.LoadBindingValue();
             EnableThirdPersonCamera.LoadBindingValue();
             AudioListenerFollowsHead.LoadBindingValue();

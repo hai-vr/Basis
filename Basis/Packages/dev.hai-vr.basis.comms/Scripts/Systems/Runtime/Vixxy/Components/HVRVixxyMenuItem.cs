@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Basis.Scripts.BasisSdk.Players;
 using HVR.Basis.Comms;
 using UnityEngine;
 
@@ -15,8 +16,8 @@ namespace HVR.Vixxy
 
         [SerializeField] internal HVRVixxyControl control;
 
-        // [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberAcrossAvatars;
-        // [SerializeField] internal string rememberTag = "";
+        [SerializeField] internal HVRVixxyRememberScope remember = HVRVixxyRememberScope.RememberInThisAvatar;
+        [SerializeField] internal string rememberTag = "";
 
         private float _value;
         private HVRAvatarComms _comms;
@@ -54,6 +55,37 @@ namespace HVR.Vixxy
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
             if (!isWearer) return;
+            if (control == null) return;
+
+            if (TryResolvePersistenceKey(out var key) && HVRVixxyPersistentStore.TryGet(key, out var saved))
+            {
+                _value = saved;
+                var addressId = control.IsInitialized ? control.AddressId : HVRAddress.AddressToId(control.CalculateAddress());
+                _comms.VariableStore.SubmitOrDefineDefaultValue(addressId, saved);
+            }
+        }
+
+        private bool TryResolvePersistenceKey(out string key)
+        {
+            key = null;
+            if (control == null) return false;
+
+            switch (remember)
+            {
+                case HVRVixxyRememberScope.RememberInThisAvatar:
+                    if (string.IsNullOrEmpty(BasisLocalPlayer.CurrentAvatarUniqueID)) return false;
+                    key = $"avatar:{BasisLocalPlayer.CurrentAvatarUniqueID}|{control.Address}";
+                    return true;
+                case HVRVixxyRememberScope.RememberInThisTag:
+                    if (string.IsNullOrEmpty(rememberTag)) return false;
+                    key = $"tag:{rememberTag}";
+                    return true;
+                case HVRVixxyRememberScope.RememberAcrossAvatars:
+                    key = $"global:{control.Address}";
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public string ResolveTitle()
@@ -110,6 +142,11 @@ namespace HVR.Vixxy
             {
                 var actualAddress = control.IsInitialized ? control.AddressId : HVRAddress.AddressToId(control.CalculateAddress());
                 _comms.VariableStore.SubmitOrDefineDefaultValue(actualAddress, _value);
+
+                if (TryResolvePersistenceKey(out var key))
+                {
+                    HVRVixxyPersistentStore.Set(key, _value, control.defaultValue);
+                }
             }
         }
 

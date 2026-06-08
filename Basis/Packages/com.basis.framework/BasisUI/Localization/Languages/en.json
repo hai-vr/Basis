@@ -5535,6 +5535,38 @@
       "value": "Replace broken or unsupported shaders with the URP fallback shader. Off by default; mainly needed during graphics API changes."
     },
     {
+      "key": "settings.developer.cameraRates.title",
+      "value": "Camera Render Rates"
+    },
+    {
+      "key": "settings.developer.cameraRates.description",
+      "value": "Cap how often the off-screen capture cameras render to relieve main-thread contention. 0 = uncapped (renders every frame)."
+    },
+    {
+      "key": "settings.developer.handheldCameraRate",
+      "value": "Handheld Camera Rate"
+    },
+    {
+      "key": "settings.developer.handheldCameraRate.description",
+      "value": "Maximum render rate for the handheld camera preview. 0 = uncapped. Ignored while the camera is overriding the desktop view."
+    },
+    {
+      "key": "settings.developer.handheldCameraRate.tooltip",
+      "value": "Throttle the handheld camera's render rate. 0 renders every frame."
+    },
+    {
+      "key": "settings.developer.avatarPreviewRate",
+      "value": "Avatar Preview Rate"
+    },
+    {
+      "key": "settings.developer.avatarPreviewRate.description",
+      "value": "Maximum render rate for the on-screen avatar preview. 0 = uncapped."
+    },
+    {
+      "key": "settings.developer.avatarPreviewRate.tooltip",
+      "value": "Throttle the avatar preview's render rate. 0 renders every frame."
+    },
+    {
       "key": "settings.developer.logTagFilter",
       "value": "Log Tag Filter"
     },
@@ -5593,6 +5625,14 @@
     {
       "key": "settings.developer.netStats.description",
       "value": "Show live connection and bandwidth diagnostics."
+    },
+    {
+      "key": "settings.developer.calibrationCsv",
+      "value": "Dump Calibration CSV"
+    },
+    {
+      "key": "settings.developer.calibrationCsv.tooltip",
+      "value": "Write a CSV of every calibration stage (scales, positions, rotation eulers and offsets) to persistentDataPath/CalibrationDebug on the next avatar calibration. Use to debug flipped/inverted bones."
     },
     {
       "key": "settings.developer.remoteAudioDebug.title",

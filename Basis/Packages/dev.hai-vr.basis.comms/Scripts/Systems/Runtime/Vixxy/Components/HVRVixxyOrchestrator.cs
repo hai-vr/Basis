@@ -114,6 +114,7 @@ namespace HVR.Vixxy
             }
             Simulate();
             Apply();
+            HVRVixxyPersistentStore.Tick();
         }
 
         private readonly HashSet<IHVRVixxyActuator> L_actuatorsWithFiltersToCheckNextTick = new(); // is field due to PR guidelines
@@ -391,6 +392,7 @@ namespace HVR.Vixxy
             {
                 _builtInAddressesNullable.Destroy();
             }
+            HVRVixxyPersistentStore.FlushNow();
         }
     }
 

@@ -147,6 +147,46 @@ public static class BasisAnimationRiggingHelper
         data.ChestPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
         data.ChestRotation = chest.rotation;
 
+        // Developer diagnostics: dump the calibrated offsets + the runtime targets and the avatar
+        // root they were captured against. The offsets here are absolute world rotations of the
+        // bind bones, so the avatar's spawn orientation (AnimatorRoot) leaks into them — this is
+        // the data needed to confirm the flipped/inverted-head root cause.
+        if (BasisCalibrationDebugRecorder.Enabled)
+        {
+            Transform animRoot = player?.BasisAvatar?.Animator != null ? player.BasisAvatar.Animator.transform : null;
+            BasisCalibrationDebugRecorder.Bone("Offsets", "AnimatorRoot", animRoot);
+
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationHead", "offset", data.m_CalibratedRotationHead);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibrationLeftFootRotation", "offset", data.M_CalibrationLeftFootRotation);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibrationRightFootRotation", "offset", data.M_CalibrationRightFootRotation);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationChest", "offset", data.m_CalibratedRotationChest);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationNeck", "offset", data.m_CalibratedRotationNeck);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationLeftToe", "offset", data.m_CalibratedRotationLeftToe);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationRightToe", "offset", data.m_CalibratedRotationRightToe);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationLeftShoulder", "offset", data.m_CalibratedRotationLeftShoulder);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationRightShoulder", "offset", data.m_CalibratedRotationRightShoulder);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationLeftHand", "offset", data.m_CalibratedRotationLeftHand);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationRightHand", "offset", data.m_CalibratedRotationRightHand);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "OffsetRotationHips", "offset", data.OffsetRotationHips);
+
+            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetHead", "target", data.PositionHead, data.RotationHead, Vector3.one);
+            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetHips", "target", data.PositionHips, data.RotationHips, Vector3.one);
+            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetLeftHand", "target", data.PositionLeftHand, data.RotationLeftHand, Vector3.one);
+            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetRightHand", "target", data.PositionRightHand, data.RotationRightHand, Vector3.one);
+            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetLeftFoot", "target", data.LeftFootPosition, data.LeftFootRotation, Vector3.one);
+            BasisCalibrationDebugRecorder.Pose("Offsets", "TargetRightFoot", "target", data.RightFootPosition, data.RightFootRotation, Vector3.one);
+
+            // Bone-control rest frames: the root-relative quantities the bone sim actually composes
+            // at runtime (OutgoingWorld = ParentRotation * OutGoing). Comparing TposeLocal against
+            // the absolute CalibratedRotation offsets above pins the absolute-vs-relative mismatch.
+            RecordControlRest("head.ctrl", BasisLocalBoneDriver.HeadControl);
+            RecordControlRest("hips.ctrl", BasisLocalBoneDriver.HipsControl);
+            RecordControlRest("chest.ctrl", BasisLocalBoneDriver.ChestControl);
+            RecordControlRest("neck.ctrl", BasisLocalBoneDriver.NeckControl);
+            RecordControlRest("leftFoot.ctrl", BasisLocalBoneDriver.LeftFootControl);
+            RecordControlRest("rightFoot.ctrl", BasisLocalBoneDriver.RightFootControl);
+        }
+
         data.CollisionsEnabled = true;
         data.UseHandCapsule = true;
         data.ProtectElbow = true;
@@ -168,6 +208,24 @@ public static class BasisAnimationRiggingHelper
         GeneratedRequiredTransforms(player, Mapping.leftHand);
         GeneratedRequiredTransforms(player, Mapping.rightHand);
     }
+
+    /// <summary>
+    /// Records a bone control's rest frames (local + world outgoing, T-pose local/scaled, and the
+    /// inverse-offset-from-bone) for the calibration CSV. No-op unless the developer toggle is on.
+    /// </summary>
+    private static void RecordControlRest(string label, Basis.Scripts.TransformBinders.BoneControl.BasisLocalBoneControl c)
+    {
+        if (c == null)
+        {
+            return;
+        }
+        BasisCalibrationDebugRecorder.Pose("Offsets", label + ".OutGoing", "local", c.OutGoingData.position, c.OutGoingData.rotation, Vector3.one);
+        BasisCalibrationDebugRecorder.Pose("Offsets", label + ".OutgoingWorld", "world", c.OutgoingWorldData.position, c.OutgoingWorldData.rotation, Vector3.one);
+        BasisCalibrationDebugRecorder.Pose("Offsets", label + ".TposeLocal", "local", c.TposeLocal.position, c.TposeLocal.rotation, Vector3.one);
+        BasisCalibrationDebugRecorder.Pose("Offsets", label + ".TposeLocalScaled", "local", c.TposeLocalScaled.position, c.TposeLocalScaled.rotation, Vector3.one);
+        BasisCalibrationDebugRecorder.Pose("Offsets", label + ".InverseOffsetFromBone", "local", c.InverseOffsetFromBone.position, c.InverseOffsetFromBone.rotation, Vector3.one);
+    }
+
     private static (bool valid, Vector3 pos) GetLM(Transform[] arr, int i)
     {
         if (arr != null && i >= 0 && i < arr.Length && arr[i] != null)

@@ -10,7 +10,15 @@ namespace Basis.BasisUI
     /// static helper do it for you) and supply a row factory plus a bind delegate.
     /// Only enough rows to cover the viewport (+ a small buffer) are ever created,
     /// and scrolling rebinds existing rows to new data indices instead of
-    /// instantiating new ones.
+    /// instantiating new ones. Because only the visible window exists, the active
+    /// RectMask2D culls a handful of graphics per frame instead of all N rows
+    /// (ClipperRegistry.Cull), and batch rebuilds stay bounded.
+    ///
+    /// Rows may be uniform height (default, O(1) layout) or variable height: pass a
+    /// per-index height function to the SetDataSource overload. Heights must be known
+    /// up front (fixed per item, or measured once and cached) — a cumulative-offset
+    /// table is built so the first visible row is found by binary search and the
+    /// scrollbar maps exactly.
     ///
     /// Typical usage:
     ///   var descriptor = PanelElementDescriptor.CreateNew(ScrollViewVertical, parent);
@@ -32,16 +40,50 @@ namespace Basis.BasisUI
 
         private int _totalCount;
         private int _topRow = int.MinValue;
+        private int _activeCount;
         private bool _dataBound;
 
         private Func<RectTransform, RectTransform> _createRow;
         private Action<RectTransform, int> _bindRow;
+        private Func<int, float> _rowHeightFn;
+
+        // Cumulative top offset of each row: _offsets[i] is row i's top in content
+        // space, _offsets[_totalCount] is the total content height. Rebuilt whenever
+        // the data source changes. For uniform rows this is just i * stride, but
+        // keeping one table means a single code path handles both cases.
+        private float[] _offsets = Array.Empty<float>();
+
+        // Optional fixed block of non-recycled content pinned above the rows (e.g. a
+        // panel's search/sort controls that live in the same scroll content). Rows are
+        // sized and offset to leave room for it; it scrolls with the content.
+        private float _headerHeight;
 
         private readonly List<RectTransform> _rowPool = new List<RectTransform>();
 
         public ScrollRect Scroll => _scroll;
         public int Count => _totalCount;
         public float RowStride => _rowHeight + _spacing;
+
+        /// <summary>
+        /// Height reserved above the recycled rows for fixed content sharing the scroll
+        /// content. Set after AttachTo; the content is resized and rows shift down to
+        /// leave room. Zero (default) means rows start at the top.
+        /// </summary>
+        public float HeaderHeight
+        {
+            get => _headerHeight;
+            set
+            {
+                float h = value > 0f ? value : 0f;
+                if (_headerHeight == h) return;
+                _headerHeight = h;
+                if (_dataBound)
+                {
+                    ApplyContentSize();
+                    UpdateVisibleRows(true);
+                }
+            }
+        }
 
         /// <summary>
         /// Attach (or retrieve an existing) PanelVirtualScrollList to the GameObject
@@ -85,7 +127,7 @@ namespace Basis.BasisUI
                 if (list._content.TryGetComponent(out LayoutGroup group)) group.enabled = false;
                 if (list._content.TryGetComponent(out ContentSizeFitter fitter)) fitter.enabled = false;
 
-                // Anchor content to the top so row y = -index * stride is correct.
+                // Anchor content to the top so row y = -offset is correct.
                 list._content.anchorMin = new Vector2(0f, 1f);
                 list._content.anchorMax = new Vector2(1f, 1f);
                 list._content.pivot = new Vector2(0.5f, 1f);
@@ -126,34 +168,68 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
-        /// Set or replace the data source. Creates the pool if needed, clamps content
-        /// size, and refreshes visible rows. Safe to call repeatedly as the data
-        /// count changes — only the delta is applied.
+        /// Set or replace the data source with uniform row heights. Creates the pool
+        /// if needed, sizes the content, and refreshes visible rows.
         /// </summary>
         public void SetDataSource(int count, Func<RectTransform, RectTransform> createRow, Action<RectTransform, int> bindRow)
+            => SetDataSource(count, createRow, bindRow, null);
+
+        /// <summary>
+        /// Variable-height data source. <paramref name="rowHeight"/> returns the pixel
+        /// height of row i and must be stable for a given data set (fixed per item, or
+        /// measured once and cached). Pass null to fall back to the uniform height set
+        /// at AttachTo.
+        /// </summary>
+        public void SetDataSource(int count, Func<RectTransform, RectTransform> createRow, Action<RectTransform, int> bindRow, Func<int, float> rowHeight)
         {
             _createRow = createRow;
             _bindRow = bindRow;
+            _rowHeightFn = rowHeight;
             _totalCount = Mathf.Max(0, count);
             _dataBound = true;
 
-            if (_content != null)
-            {
-                float contentHeight = _totalCount > 0
-                    ? (_totalCount * RowStride) - _spacing
-                    : 0f;
-                Vector2 size = _content.sizeDelta;
-                size.y = Mathf.Max(0f, contentHeight);
-                _content.sizeDelta = size;
-            }
+            RebuildOffsets();
+            ApplyContentSize();
 
             _topRow = int.MinValue; // force rebind
+            _activeCount = 0;
             UpdateVisibleRows(true);
         }
 
+        private void ApplyContentSize()
+        {
+            if (_content == null) return;
+            Vector2 size = _content.sizeDelta;
+            size.y = (_totalCount > 0 ? _offsets[_totalCount] : 0f) + _headerHeight;
+            _content.sizeDelta = size;
+        }
+
+        private void RebuildOffsets()
+        {
+            if (_offsets.Length < _totalCount + 1)
+            {
+                _offsets = new float[_totalCount + 1];
+            }
+
+            float y = 0f;
+            for (int i = 0; i < _totalCount; i++)
+            {
+                _offsets[i] = y;
+                y += RowHeightAt(i);
+                if (i < _totalCount - 1) y += _spacing;
+            }
+            _offsets[_totalCount] = y;
+        }
+
+        private float RowHeightAt(int i)
+        {
+            float h = _rowHeightFn != null ? _rowHeightFn(i) : _rowHeight;
+            return h > 0f ? h : 0f;
+        }
+
         /// <summary>
-        /// Update the data count without changing row factories. Cheaper than
-        /// SetDataSource when only the count is changing.
+        /// Update the data count without changing factories or the height function.
+        /// Cheaper to call than re-passing the delegates when only the count changed.
         /// </summary>
         public void Refresh(int newCount)
         {
@@ -162,21 +238,22 @@ namespace Basis.BasisUI
                 BasisDebug.LogError("PanelVirtualScrollList.Refresh: no data source configured — call SetDataSource first.");
                 return;
             }
-            SetDataSource(newCount, _createRow, _bindRow);
+            SetDataSource(newCount, _createRow, _bindRow, _rowHeightFn);
         }
 
         /// <summary>
-        /// Rebind every currently-visible row against its data index. Use when
-        /// the underlying data changed but the count did not.
+        /// Rebind every currently-visible row against its data index. Use when the
+        /// underlying data changed but neither the count nor the ordering did
+        /// (e.g. a periodic text refresh of the on-screen rows).
         /// </summary>
         public void RebindVisible()
         {
             if (!_dataBound || _bindRow == null) return;
-            for (int i = 0; i < _rowPool.Count; i++)
+            for (int j = 0; j < _activeCount && j < _rowPool.Count; j++)
             {
-                RectTransform row = _rowPool[i];
+                RectTransform row = _rowPool[j];
                 if (row == null || !row.gameObject.activeSelf) continue;
-                int dataIndex = _topRow + i;
+                int dataIndex = _topRow + j;
                 if (dataIndex < 0 || dataIndex >= _totalCount) continue;
                 _bindRow(row, dataIndex);
             }
@@ -190,14 +267,31 @@ namespace Basis.BasisUI
             }
             _rowPool.Clear();
             _topRow = int.MinValue;
+            _activeCount = 0;
             _totalCount = 0;
             _dataBound = false;
-            if (_content != null)
+            ApplyContentSize();
+        }
+
+        // Largest index i in [0, _totalCount-1] with _offsets[i] <= y (y >= 0).
+        // _offsets is strictly increasing in i (plus spacing), so binary search.
+        private int IndexAtOffset(float y)
+        {
+            int lo = 0, hi = _totalCount - 1, result = 0;
+            while (lo <= hi)
             {
-                Vector2 size = _content.sizeDelta;
-                size.y = 0f;
-                _content.sizeDelta = size;
+                int mid = (lo + hi) >> 1;
+                if (_offsets[mid] <= y)
+                {
+                    result = mid;
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid - 1;
+                }
             }
+            return result;
         }
 
         private void UpdateVisibleRows(bool force)
@@ -211,22 +305,31 @@ namespace Basis.BasisUI
                 {
                     if (_rowPool[i] != null) _rowPool[i].gameObject.SetActive(false);
                 }
+                _topRow = int.MinValue;
+                _activeCount = 0;
                 return;
             }
 
-            float stride = RowStride;
             float viewportHeight = _viewport.rect.height;
-            if (viewportHeight <= 0f) viewportHeight = stride * 4f; // pre-layout fallback
-
-            int visibleRows = Mathf.CeilToInt(viewportHeight / stride) + (_rowBuffer * 2);
-            visibleRows = Mathf.Min(visibleRows, _totalCount);
+            if (viewportHeight <= 0f) viewportHeight = RowStride * 4f; // pre-layout fallback
 
             float scrollY = Mathf.Max(0f, _content.anchoredPosition.y);
-            int newTopRow = Mathf.FloorToInt(scrollY / stride) - _rowBuffer;
-            newTopRow = Mathf.Clamp(newTopRow, 0, Mathf.Max(0, _totalCount - visibleRows));
+
+            // Translate the viewport into row space — the header occupies [0, _headerHeight)
+            // of the content, so row 0's top is at _headerHeight.
+            float rowTop = scrollY - _headerHeight;
+            float rowBottom = scrollY + viewportHeight - _headerHeight;
+
+            int first = IndexAtOffset(Mathf.Max(0f, rowTop)) - _rowBuffer;
+            first = Mathf.Clamp(first, 0, _totalCount - 1);
+
+            int last = IndexAtOffset(Mathf.Max(0f, rowBottom)) + _rowBuffer;
+            last = Mathf.Clamp(last, first, _totalCount - 1);
+
+            int needed = last - first + 1;
 
             bool poolChanged = false;
-            while (_rowPool.Count < visibleRows)
+            while (_rowPool.Count < needed)
             {
                 RectTransform row = _createRow(_content);
                 if (row == null) break;
@@ -238,17 +341,18 @@ namespace Basis.BasisUI
                 poolChanged = true;
             }
 
-            if (!force && !poolChanged && newTopRow == _topRow) return;
+            if (!force && !poolChanged && first == _topRow && needed == _activeCount) return;
 
-            _topRow = newTopRow;
+            _topRow = first;
+            _activeCount = needed;
 
-            for (int i = 0; i < _rowPool.Count; i++)
+            for (int j = 0; j < _rowPool.Count; j++)
             {
-                RectTransform row = _rowPool[i];
+                RectTransform row = _rowPool[j];
                 if (row == null) continue;
 
-                int dataIndex = _topRow + i;
-                if (dataIndex >= _totalCount || i >= visibleRows)
+                int dataIndex = first + j;
+                if (j >= needed || dataIndex >= _totalCount)
                 {
                     if (row.gameObject.activeSelf) row.gameObject.SetActive(false);
                     continue;
@@ -256,9 +360,16 @@ namespace Basis.BasisUI
 
                 if (!row.gameObject.activeSelf) row.gameObject.SetActive(true);
 
+                // Pin the row to its slot: full width (sizeDelta.x = 0 against stretched
+                // anchors) and its own height, top-aligned at the cumulative offset.
+                Vector2 size = row.sizeDelta;
+                size.x = 0f;
+                size.y = RowHeightAt(dataIndex);
+                row.sizeDelta = size;
+
                 Vector2 anchored = row.anchoredPosition;
                 anchored.x = 0f;
-                anchored.y = -dataIndex * stride;
+                anchored.y = -(_headerHeight + _offsets[dataIndex]);
                 row.anchoredPosition = anchored;
 
                 _bindRow(row, dataIndex);

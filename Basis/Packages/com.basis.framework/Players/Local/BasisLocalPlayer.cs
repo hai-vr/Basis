@@ -44,6 +44,11 @@ namespace Basis.Scripts.BasisSdk.Players
         public static string LoadFileNameAndExtension = "LastUsedAvatar.BAS";
 
         /// <summary>
+        /// Stable identifier of the avatar currently worn, used to key per-avatar persisted state.
+        /// </summary>
+        public static string CurrentAvatarUniqueID;
+
+        /// <summary>
         /// Guards registration of global/local events to avoid duplicate subscriptions.
         /// </summary>
         public static bool HasEvents = false;
@@ -347,9 +352,10 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="BasisLoadableBundle">Bundle describing the avatar to load.</param>
         public async Task CreateAvatar(byte LoadMode, BasisLoadableBundle BasisLoadableBundle)
         {
+            CurrentAvatarUniqueID = BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
             await BasisAvatarFactory.LoadAvatarLocal(this, LoadMode, BasisLoadableBundle, this.transform.position, Quaternion.identity);
             OnLocalAvatarChanged?.Invoke();
-            BasisDataStore.SaveAvatar(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, LoadMode, LoadFileNameAndExtension);
+            BasisDataStore.SaveAvatar(CurrentAvatarUniqueID, LoadMode, LoadFileNameAndExtension);
         }
 
         /// <summary>

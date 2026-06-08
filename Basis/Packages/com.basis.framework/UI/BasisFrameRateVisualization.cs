@@ -21,6 +21,24 @@ public class BasisFrameRateVisualization : MonoBehaviour
     private float _redrawTimer;
 
     private bool _cascadeFrozen;
+    private bool _canvasIsolated;
+
+    /// <summary>
+    /// Puts the live label on its own nested Canvas so the 10 Hz SetCharArray only
+    /// re-batches this one text, not the whole settings panel header + tab bar it
+    /// shares a canvas with. Inherits the parent canvas's shader channels so TMP
+    /// renders identically.
+    /// </summary>
+    private void IsolateLabelCanvas()
+    {
+        if (_canvasIsolated || fpsText == null) return;
+        _canvasIsolated = true;
+
+        if (fpsText.TryGetComponent(out Canvas _)) return;
+        Canvas parent = fpsText.GetComponentInParent<Canvas>();
+        Canvas canvas = fpsText.gameObject.AddComponent<Canvas>();
+        if (parent != null) canvas.additionalShaderChannels = parent.additionalShaderChannels;
+    }
 
     /// <summary>
     /// The panel Title label lives inside Title → Title Content → Panel Element Base,
@@ -129,8 +147,10 @@ public class BasisFrameRateVisualization : MonoBehaviour
         fpsText.SetCharArray(buffer, 0, idx);
 
         // First tick with real content is present — freeze the ancestor CSF
-        // chain so subsequent ticks don't cascade layout rebuilds.
+        // chain so subsequent ticks don't cascade layout rebuilds, and pull the
+        // label onto its own canvas so the redraw doesn't rebatch the whole panel.
         FreezeAncestorCascade();
+        IsolateLabelCanvas();
     }
 
     // -------- Helpers (no GC) --------

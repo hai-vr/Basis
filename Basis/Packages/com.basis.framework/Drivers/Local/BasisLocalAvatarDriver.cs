@@ -101,6 +101,9 @@ namespace Basis.Scripts.Drivers
         {
             Instance = this;
             BasisDebug.Log("InitialLocalCalibration");
+            BasisCalibrationDebugRecorder.Begin(SafeAvatarLabel(player));
+            RecordCalibrationMeta(player);
+            RecordCalibrationStage("Spawn", player);
             if (HasTPoseEvent == false)
             {
                 TposeStateChange += player.LocalRigDriver.OnTPose;
@@ -164,6 +167,10 @@ namespace Basis.Scripts.Drivers
 
             Calibration(player);
 
+            // Mapping is freshly re-detected and the avatar is in T-pose but still at its spawn
+            // orientation here — this is the frame the offset capture reads from.
+            RecordCalibrationStage("TPose", player);
+
             // Capture T-pose bone rotations for network compression (while still in T-pose)
             Networking.NetworkedAvatar.BasisNetworkAvatarCompressor.CaptureTPose();
 
@@ -217,6 +224,8 @@ namespace Basis.Scripts.Drivers
             StoredRolesTransforms = BasisAvatarIKStageCalibration.GetAllRolesAsTransform();
             player.AvatarTransform.parent = player.transform;
             player.AvatarTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            // Root is now normalized to identity; offsets captured above were taken before this.
+            RecordCalibrationStage("PostZero", player);
             player.LocalRigDriver.BuildBuilder();
 
             IsNormalHead = true;
@@ -227,6 +236,12 @@ namespace Basis.Scripts.Drivers
             }
             BasisHeightDriver.ApplyScaleAndHeight();
 
+            RecordCalibrationStage("Final", player);
+            BasisCalibrationDebugRecorder.Flush();
+            // Sample the first frames of the live head solve so the observed result can be compared
+            // against the predicted target * offset. Writes a separate runtime_* CSV.
+            BasisCalibrationDebugRecorder.RuntimeBegin(SafeAvatarLabel(player));
+            RecordCalibrationMeta(player);
         }
         /// <summary>
         /// Restores the head scale to its cached normal value if currently hidden/zeroed.
@@ -667,6 +682,87 @@ namespace Basis.Scripts.Drivers
                 BasisDebug.LogError("Can't Find Bone " + LockToBoneRole);
             }
             BaseBoneDriver.CreateRotationalLock(AssignedToAddToBone, LockToBone);
+        }
+
+        /// <summary>
+        /// Null-safe label for the calibration debug session: prefers the avatar GameObject name,
+        /// falls back to the player display name, then a constant. Never throws.
+        /// </summary>
+        private static string SafeAvatarLabel(BasisLocalPlayer player)
+        {
+            if (player == null)
+            {
+                return "avatar";
+            }
+            string name = null;
+            BasisAvatar avatar = player.BasisAvatar;
+            if (avatar != null)
+            {
+                name = avatar.name;
+            }
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = player.DisplayName;
+            }
+            return string.IsNullOrWhiteSpace(name) ? "avatar" : name;
+        }
+
+        /// <summary>
+        /// Records the avatar name and identity as metadata rows. Null-safe; no-op unless recording.
+        /// </summary>
+        private static void RecordCalibrationMeta(BasisLocalPlayer player)
+        {
+            if (BasisCalibrationDebugRecorder.Enabled == false)
+            {
+                return;
+            }
+            BasisAvatar avatar = player != null ? player.BasisAvatar : null;
+            BasisCalibrationDebugRecorder.Meta("avatarName", avatar != null ? avatar.name : "(none)");
+            BasisCalibrationDebugRecorder.Meta("displayName", player != null ? player.DisplayName : "(none)");
+            BasisCalibrationDebugRecorder.Meta("isFallbackAvatar", player != null ? player.IsConsideredFallBackAvatar.ToString() : "?");
+        }
+
+        /// <summary>
+        /// Records the avatar root and every mapped humanoid bone (world + local pose) for the
+        /// given calibration stage. No-op unless the "Dump Calibration CSV" developer toggle is on.
+        /// </summary>
+        /// <param name="stage">Pipeline stage label (e.g. "Spawn", "TPose", "PostZero").</param>
+        /// <param name="player">Local player whose avatar root is recorded alongside the mapping.</param>
+        private static void RecordCalibrationStage(string stage, BasisLocalPlayer player)
+        {
+            if (BasisCalibrationDebugRecorder.Enabled == false)
+            {
+                return;
+            }
+            Transform animRoot = player?.BasisAvatar?.Animator != null ? player.BasisAvatar.Animator.transform : null;
+            BasisCalibrationDebugRecorder.Bone(stage, "AnimatorRoot", animRoot);
+            if (player != null)
+            {
+                BasisCalibrationDebugRecorder.Bone(stage, "PlayerRoot", player.transform);
+            }
+            BasisCalibrationDebugRecorder.Bone(stage, "Mapping.AnimatorRoot", Mapping.AnimatorRoot);
+            BasisCalibrationDebugRecorder.Bone(stage, "Hips", Mapping.Hips);
+            BasisCalibrationDebugRecorder.Bone(stage, "spine", Mapping.spine);
+            BasisCalibrationDebugRecorder.Bone(stage, "chest", Mapping.chest);
+            BasisCalibrationDebugRecorder.Bone(stage, "Upperchest", Mapping.Upperchest);
+            BasisCalibrationDebugRecorder.Bone(stage, "neck", Mapping.neck);
+            BasisCalibrationDebugRecorder.Bone(stage, "head", Mapping.head);
+            BasisCalibrationDebugRecorder.Bone(stage, "leftShoulder", Mapping.leftShoulder);
+            BasisCalibrationDebugRecorder.Bone(stage, "leftUpperArm", Mapping.leftUpperArm);
+            BasisCalibrationDebugRecorder.Bone(stage, "leftLowerArm", Mapping.leftLowerArm);
+            BasisCalibrationDebugRecorder.Bone(stage, "leftHand", Mapping.leftHand);
+            BasisCalibrationDebugRecorder.Bone(stage, "RightShoulder", Mapping.RightShoulder);
+            BasisCalibrationDebugRecorder.Bone(stage, "RightUpperArm", Mapping.RightUpperArm);
+            BasisCalibrationDebugRecorder.Bone(stage, "RightLowerArm", Mapping.RightLowerArm);
+            BasisCalibrationDebugRecorder.Bone(stage, "rightHand", Mapping.rightHand);
+            BasisCalibrationDebugRecorder.Bone(stage, "LeftUpperLeg", Mapping.LeftUpperLeg);
+            BasisCalibrationDebugRecorder.Bone(stage, "LeftLowerLeg", Mapping.LeftLowerLeg);
+            BasisCalibrationDebugRecorder.Bone(stage, "leftFoot", Mapping.leftFoot);
+            BasisCalibrationDebugRecorder.Bone(stage, "leftToe", Mapping.leftToe);
+            BasisCalibrationDebugRecorder.Bone(stage, "RightUpperLeg", Mapping.RightUpperLeg);
+            BasisCalibrationDebugRecorder.Bone(stage, "RightLowerLeg", Mapping.RightLowerLeg);
+            BasisCalibrationDebugRecorder.Bone(stage, "rightFoot", Mapping.rightFoot);
+            BasisCalibrationDebugRecorder.Bone(stage, "rightToe", Mapping.rightToe);
         }
 
         /// <summary>

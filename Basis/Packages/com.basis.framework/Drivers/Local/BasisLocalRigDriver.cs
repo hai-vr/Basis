@@ -662,6 +662,19 @@ namespace Basis.Scripts.Drivers
             BasisFullIKConstraint.data = data;
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
+
+            // Developer diagnostics: after the graph solves, sample the live head/hips/feet solve
+            // (target fed to IK, calibrated offset, predicted product, observed bone pose) plus the
+            // live avatar roots, so the runtime flip can be observed rather than only predicted.
+            if (BasisCalibrationDebugRecorder.RuntimeActive)
+            {
+                BasisCalibrationDebugRecorder.RuntimeBone("head", BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation, data.m_CalibratedRotationHead, BasisLocalAvatarDriver.Mapping.head);
+                BasisCalibrationDebugRecorder.RuntimeBone("hips", BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation, data.OffsetRotationHips, BasisLocalAvatarDriver.Mapping.Hips);
+                BasisCalibrationDebugRecorder.RuntimeBone("leftFoot", BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation, data.M_CalibrationLeftFootRotation, BasisLocalAvatarDriver.Mapping.leftFoot);
+                BasisCalibrationDebugRecorder.RuntimeBone("rightFoot", BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation, data.M_CalibrationRightFootRotation, BasisLocalAvatarDriver.Mapping.rightFoot);
+                Transform animRoot = localPlayer?.BasisAvatar?.Animator != null ? localPlayer.BasisAvatar.Animator.transform : null;
+                BasisCalibrationDebugRecorder.RuntimeEndFrame(localPlayer != null ? localPlayer.transform : null, animRoot);
+            }
         }
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)

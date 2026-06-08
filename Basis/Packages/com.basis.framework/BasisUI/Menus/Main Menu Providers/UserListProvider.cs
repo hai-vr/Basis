@@ -11,7 +11,7 @@ using UnityEngine.UI;
 namespace Basis.BasisUI
 {
     /// <summary>
-    /// Main menu provider that displays a searchable grid of all connected players.
+    /// Main menu provider that displays a searchable list of all connected players.
     /// Supports filtering by Name and UUID via dropdown.
     /// Clicking a remote player opens their IndividualPlayerProvider panel.
     /// </summary>
@@ -85,8 +85,8 @@ namespace Basis.BasisUI
             var headerGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, root);
 
-            // Player buttons go into root after the header (vertical scroll handles them)
-            // Attach controller — fields must be assigned before Initialize()
+            // Player rows are virtualized into the same scroll content below the
+            // controls — fields must be assigned before Initialize().
             _controller = panel.gameObject.AddComponent<UserListController>();
             _controller.GridParent = root;
             _controller.HeaderGroup = headerGroup;
@@ -138,19 +138,14 @@ namespace Basis.BasisUI
         private enum SortMode { Default, Distance, Name, Platform, JoinTime }
         private enum DirectionFilter { All, InFront, Behind }
 
-        private struct PlayerEntry
-        {
-            public BasisNetworkPlayer NetPlayer;
-            public PanelButton Button;
-            // Inline mute/highlight/block row that lives as a sibling immediately after
-            // the player button in GridParent. Null for the local player (no actions apply).
-            public RectTransform ActionRow;
-        }
-
         /// <summary>
-        /// Manages the player grid, search/filter, sort, direction filter, and
-        /// join/leave events. Player buttons share their parent with the search
-        /// and sort controls, so reordering is offset past <see cref="_firstPlayerSiblingIndex"/>.
+        /// Manages the player list, search/filter, sort, direction filter, and
+        /// join/leave events. Backed by a <see cref="PanelVirtualScrollList"/>: the
+        /// filtered + sorted player order is the data source, and only the on-screen
+        /// rows exist as buttons, so the list scales to thousands of players without
+        /// the per-frame ClipperRegistry/batch cost of one button per player. The
+        /// search/sort controls share the scroll content above the rows (reserved via
+        /// the list's HeaderHeight) and scroll with them, as before.
         /// </summary>
         private sealed class UserListController : MonoBehaviour
         {
@@ -162,28 +157,36 @@ namespace Basis.BasisUI
             public PanelDropdown DirectionDropdown;
             public PanelElementDescriptor TabDescriptor;
 
-            private readonly Dictionary<ushort, PlayerEntry> _entries = new();
+            // Fixed row height: a title plus up to two lines of description
+            // (platform • pinned • distance • direction • joined-ago). Tune in-editor
+            // if the button style's natural height differs.
+            private const float RowHeight = 110f;
+
+            private PanelVirtualScrollList _list;
+
+            // Current filtered + sorted player order — the virtual list's data source.
+            private readonly List<BasisNetworkPlayer> _ordered = new();
+
             private SearchMode _searchMode = SearchMode.Name;
             private SortMode _sortMode = SortMode.Default;
             private DirectionFilter _directionFilter = DirectionFilter.All;
             private string _lastQuery = string.Empty;
 
-            // Reused buffer for sort comparisons \u2014 avoids per-tick allocation.
-            private readonly List<BasisNetworkPlayer> _orderBuffer = new();
-
-            // Sibling index of the first player button. Captured once after the
-            // controls (search field, dropdowns, header) have been placed so
-            // SetSiblingIndex calls when reordering don't disturb the controls.
-            private int _firstPlayerSiblingIndex;
-
             // Periodic refresh of distance, direction label, and "joined Xs ago"
             // text. Players move continuously but the player list is a low-detail
-            // surface \u2014 0.5s feels live without rebuilding text every frame.
+            // surface — 0.5s feels live without rebuilding text every frame.
             private float _refreshTimer;
             private const float RefreshInterval = 0.5f;
 
             public void Initialize()
             {
+                // The controls were just added to the scroll content; lay them out and
+                // total their height so the virtual list reserves that space for them.
+                float headerHeight = MeasureHeaderHeight();
+
+                _list = PanelVirtualScrollList.AttachTo(GridParent, RowHeight);
+                if (_list != null) _list.HeaderHeight = headerHeight;
+
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft += OnRemoteLeft;
                 PinnedPlayers.Changed += OnPinsChanged;
@@ -193,11 +196,8 @@ namespace Basis.BasisUI
                 SortDropdown.OnValueChanged += OnSortChanged;
                 DirectionDropdown.OnValueChanged += OnDirectionChanged;
 
-                // All controls have already been added to GridParent at this point;
-                // any subsequent children are player buttons.
-                _firstPlayerSiblingIndex = GridParent != null ? GridParent.childCount : 0;
-
-                RebuildFullList();
+                UpdateSearchHint();
+                Rebuild();
             }
 
             private void OnDestroy()
@@ -205,7 +205,35 @@ namespace Basis.BasisUI
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemoteLeft;
                 PinnedPlayers.Changed -= OnPinsChanged;
-                ClearAllEntries();
+            }
+
+            // Sum the laid-out heights of the control children currently in GridParent
+            // (no player rows exist yet at Initialize time). Done before AttachTo
+            // disables the content's layout group, which freezes the controls in place.
+            private float MeasureHeaderHeight()
+            {
+                if (GridParent == null) return 0f;
+
+                LayoutRebuilder.ForceRebuildLayoutImmediate(GridParent);
+
+                float spacing = 0f, pad = 0f;
+                if (GridParent.TryGetComponent(out VerticalLayoutGroup vlg))
+                {
+                    spacing = vlg.spacing;
+                    pad = vlg.padding.top + vlg.padding.bottom;
+                }
+
+                float total = pad;
+                int n = GridParent.childCount;
+                for (int i = 0; i < n; i++)
+                {
+                    if (GridParent.GetChild(i) is RectTransform c)
+                    {
+                        total += c.rect.height;
+                        if (i < n - 1) total += spacing;
+                    }
+                }
+                return total;
             }
 
             private void Update()
@@ -214,49 +242,29 @@ namespace Basis.BasisUI
                 if (_refreshTimer < RefreshInterval) return;
                 _refreshTimer = 0f;
 
-                RefreshDescriptions();
-
-                if (_sortMode == SortMode.Distance || _sortMode == SortMode.JoinTime)
+                // Distance sort order and the direction filter depend on positions that
+                // drift every frame, so re-evaluate the ordering. Otherwise the order is
+                // stable and only the visible rows' text (distance, joined-ago) needs a
+                // refresh — cheap, since only the on-screen rows exist.
+                if (_sortMode == SortMode.Distance || _directionFilter != DirectionFilter.All)
                 {
-                    ReorderButtons();
+                    Rebuild();
                 }
-
-                if (_directionFilter != DirectionFilter.All)
+                else
                 {
-                    ApplyFilter();
+                    _list?.RebindVisible();
                 }
             }
 
-            private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
-            {
-                AddPlayerEntry(netPlayer);
-                ReorderButtons();
-                ApplyFilter();
-                UpdateHeader();
-                TabDescriptor.ForceRebuild();
-            }
-
-            private void OnPinsChanged()
-            {
-                // Pin status feeds the comparator; just resort, no rebuild needed.
-                RefreshDescriptions();
-                ReorderButtons();
-                TabDescriptor.ForceRebuild();
-            }
-
-            private void OnRemoteLeft(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
-            {
-                RemovePlayerEntry(netPlayer.playerId);
-                UpdateHeader();
-                TabDescriptor.ForceRebuild();
-            }
+            private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _) => Rebuild();
+            private void OnRemoteLeft(BasisNetworkPlayer netPlayer, BasisRemotePlayer _) => Rebuild();
+            private void OnPinsChanged() => Rebuild();
 
             private void OnModeChanged(string value)
             {
                 _searchMode = value == "UUID" ? SearchMode.UUID : SearchMode.Name;
                 UpdateSearchHint();
-                ApplyFilter();
-                TabDescriptor.ForceRebuild();
+                Rebuild();
             }
 
             private void OnSortChanged(string value)
@@ -269,9 +277,7 @@ namespace Basis.BasisUI
                     "Join Time" => SortMode.JoinTime,
                     _ => SortMode.Default,
                 };
-                ReorderButtons();
-                RefreshDescriptions();
-                TabDescriptor.ForceRebuild();
+                Rebuild();
             }
 
             private void OnDirectionChanged(string value)
@@ -282,8 +288,13 @@ namespace Basis.BasisUI
                     "Behind" => DirectionFilter.Behind,
                     _ => DirectionFilter.All,
                 };
-                ApplyFilter();
-                TabDescriptor.ForceRebuild();
+                Rebuild();
+            }
+
+            private void OnSearchChanged(string query)
+            {
+                _lastQuery = query ?? string.Empty;
+                Rebuild();
             }
 
             private void UpdateSearchHint()
@@ -294,22 +305,119 @@ namespace Basis.BasisUI
                         : "menu.players.search.byName"));
             }
 
-            private void OnSearchChanged(string query)
+            // ---- Data source ----
+
+            private void Rebuild()
             {
-                _lastQuery = query ?? string.Empty;
-                ApplyFilter();
-                TabDescriptor.ForceRebuild();
+                RebuildOrdered();
+                _list?.SetDataSource(_ordered.Count, CreateRow, BindRow);
+                UpdateHeader();
+            }
+
+            private void RebuildOrdered()
+            {
+                _ordered.Clear();
+
+                string query = _lastQuery.Trim();
+                bool hasQuery = query.Length > 0;
+                string queryLower = hasQuery ? query.ToLowerInvariant() : string.Empty;
+
+                bool hasCamera = BasisLocalCameraDriver.HasInstance;
+                Vector3 localPos = hasCamera ? BasisLocalCameraDriver.Position : Vector3.zero;
+                Vector3 forward = hasCamera ? BasisLocalCameraDriver.Forward() : Vector3.zero;
+                forward.y = 0f;
+                bool forwardValid = forward.sqrMagnitude > 0.0001f;
+                if (forwardValid) forward.Normalize();
+
+                foreach (BasisNetworkPlayer netPlayer in BasisNetworkPlayers.Players.Values)
+                {
+                    if (netPlayer == null) continue;
+                    if (!PassesFilter(netPlayer, hasQuery, queryLower, forwardValid, forward, localPos)) continue;
+                    _ordered.Add(netPlayer);
+                }
+
+                _ordered.Sort(CompareForCurrentSort);
+            }
+
+            private bool PassesFilter(BasisNetworkPlayer netPlayer, bool hasQuery, string queryLower, bool forwardValid, Vector3 forward, Vector3 localPos)
+            {
+                if (hasQuery)
+                {
+                    if (_searchMode == SearchMode.UUID)
+                    {
+                        string uuid = netPlayer.Player != null ? netPlayer.Player.UUID ?? "" : "";
+                        if (!uuid.ToLowerInvariant().Contains(queryLower)) return false;
+                    }
+                    else
+                    {
+                        string n = netPlayer.SafeDisplayName ?? "";
+                        if (!n.ToLowerInvariant().Contains(queryLower)) return false;
+                    }
+                }
+
+                // Direction filter: skip the local player (no direction relative to
+                // itself) and skip when the camera isn't ready yet, otherwise a
+                // freshly-opened menu would briefly hide everyone.
+                if (_directionFilter != DirectionFilter.All)
+                {
+                    IBasisPlayer p = netPlayer.Player;
+                    bool isLocal = p != null && p.IsLocal;
+                    if (!isLocal && p != null && forwardValid)
+                    {
+                        Vector3 toRemote = GetRemotePosition(p) - localPos;
+                        toRemote.y = 0f;
+                        if (toRemote.sqrMagnitude > 0.0001f)
+                        {
+                            toRemote.Normalize();
+                            float dot = Vector3.Dot(forward, toRemote);
+                            bool show = _directionFilter == DirectionFilter.InFront ? dot > 0f : dot <= 0f;
+                            if (!show) return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+            private RectTransform CreateRow(RectTransform content)
+            {
+                PanelButton btn = PanelButton.CreateNew(content);
+                if (!btn.TryGetComponent(out CanvasGroup _))
+                {
+                    btn.gameObject.AddComponent<CanvasGroup>();
+                }
+                return (RectTransform)btn.transform;
+            }
+
+            private void BindRow(RectTransform row, int index)
+            {
+                if (index < 0 || index >= _ordered.Count) return;
+                BasisNetworkPlayer netPlayer = _ordered[index];
+                if (netPlayer == null) return;
+
+                PanelButton btn = row.GetComponent<PanelButton>();
+                if (btn == null) return;
+
+                IBasisPlayer player = netPlayer.Player;
+                bool isLocal = player != null && player.IsLocal;
+                string name = netPlayer.SafeDisplayName;
+                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
+
+                btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
+                btn.Descriptor.SetDescription(BuildDescription(netPlayer));
+
+                if (btn.ButtonComponent != null) btn.ButtonComponent.interactable = !isLocal;
+                if (btn.TryGetComponent(out CanvasGroup cg)) cg.alpha = isLocal ? 0.4f : 1f;
+
+                // OnClicked is a plain assignable field, so replacing it per bind is
+                // safe on a recycled button — no handler stacking.
+                btn.OnClicked = () => OnPlayerClicked(netPlayer);
             }
 
             private void UpdateHeader()
             {
                 int total = BasisNetworkPlayers.Players.Count;
-                int visible = 0;
-                foreach (var kvp in _entries)
-                {
-                    if (kvp.Value.Button != null && kvp.Value.Button.gameObject.activeSelf)
-                        visible++;
-                }
+                int visible = _ordered.Count;
 
                 bool hasFilter = !string.IsNullOrEmpty(_lastQuery) || _directionFilter != DirectionFilter.All;
                 if (visible < total && hasFilter)
@@ -318,159 +426,6 @@ namespace Basis.BasisUI
                     HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header", total));
 
                 HeaderGroup.SetDescription(BasisLocalization.Get("menu.players.header.description"));
-            }
-
-            private void ClearAllEntries()
-            {
-                foreach (var kvp in _entries)
-                {
-                    if (kvp.Value.Button != null) kvp.Value.Button.ReleaseInstance();
-                    if (kvp.Value.ActionRow != null) Destroy(kvp.Value.ActionRow.gameObject);
-                }
-                _entries.Clear();
-            }
-
-            private void RebuildFullList()
-            {
-                ClearAllEntries();
-                foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
-                {
-                    AddPlayerEntry(player);
-                }
-                UpdateSearchHint();
-                ReorderButtons();
-                ApplyFilter();
-                UpdateHeader();
-            }
-
-            private void AddPlayerEntry(BasisNetworkPlayer netPlayer)
-            {
-                if (_entries.ContainsKey(netPlayer.playerId)) return;
-                if (!GridParent) return;
-
-                PanelButton btn = PanelButton.CreateNew(GridParent);
-
-                bool isLocal = netPlayer.Player != null && netPlayer.Player.IsLocal;
-                string name = netPlayer.SafeDisplayName;
-                if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
-
-                btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
-                btn.Descriptor.SetDescription(BuildDescription(netPlayer));
-
-                RectTransform actionRow = null;
-                if (isLocal)
-                {
-                    btn.ButtonComponent.interactable = false;
-                    if (!btn.TryGetComponent(out CanvasGroup canvasGroup))
-                        canvasGroup = btn.gameObject.AddComponent<CanvasGroup>();
-                    canvasGroup.alpha = 0.4f;
-                }
-                // Inline Mute / Highlight / Block row disabled pending layout pass — the
-                // per-player IndividualPlayerProvider panel still exposes these actions.
-                // To re-enable, uncomment the branch below and revisit the row's sizing.
-                // else if (netPlayer.Player is BasisRemotePlayer remote)
-                // {
-                //     actionRow = BuildActionRow(GridParent, netPlayer, remote);
-                // }
-
-                btn.OnClicked += () => OnPlayerClicked(netPlayer);
-
-                _entries[netPlayer.playerId] = new PlayerEntry
-                {
-                    NetPlayer = netPlayer,
-                    Button = btn,
-                    ActionRow = actionRow,
-                };
-            }
-
-            /// <summary>
-            /// Builds an inline Mute / Highlight / Block row that sits as a sibling of the
-            /// player button in <paramref name="parent"/>. Delegates all three actions to the
-            /// shared static helpers on <see cref="IndividualPlayerProvider"/> so the row
-            /// stays in lockstep with the per-player panel (including the block confirmation
-            /// dialog).
-            /// </summary>
-            private static RectTransform BuildActionRow(RectTransform parent, BasisNetworkPlayer netPlayer, BasisRemotePlayer remote)
-            {
-                var rowGO = new GameObject("PlayerRowActions", typeof(RectTransform));
-                var rowRect = (RectTransform)rowGO.transform;
-                rowRect.SetParent(parent, false);
-
-                // Stretch across the parent's width so the row matches the player button above it.
-                rowRect.anchorMin = new Vector2(0f, 1f);
-                rowRect.anchorMax = new Vector2(1f, 1f);
-                rowRect.pivot = new Vector2(0.5f, 1f);
-
-                var hlg = rowGO.AddComponent<HorizontalLayoutGroup>();
-                hlg.childForceExpandWidth = true;
-                hlg.childForceExpandHeight = false;
-                hlg.childControlWidth = true;
-                hlg.childControlHeight = true;
-                hlg.spacing = 8f;
-                hlg.padding = new RectOffset(8, 8, 4, 8);
-
-                // Make the row size to its tallest child so the parent's vertical layout
-                // gives it a real preferred height instead of treating it as zero-height.
-                var rowFitter = rowGO.AddComponent<ContentSizeFitter>();
-                rowFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-                // Some VerticalLayoutGroups force a child width; this LayoutElement
-                // ensures the row participates in width allocation regardless.
-                var rowLayout = rowGO.AddComponent<LayoutElement>();
-                rowLayout.flexibleWidth = 1f;
-
-                // ---- Mute ----
-                PanelButton muteBtn = PanelButton.CreateNew(rowRect);
-                muteBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.mute"));
-                muteBtn.OnClicked += async () =>
-                {
-                    bool nowMuted = await IndividualPlayerProvider.ToggleMute(remote);
-                    muteBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        nowMuted ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
-                };
-                _ = InitMuteLabelAsync(muteBtn, remote);
-
-                // ---- Highlight ----
-                PanelButton highlightBtn = PanelButton.CreateNew(rowRect);
-                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
-                highlightBtn.OnClicked += () =>
-                {
-                    // SetHighlight already toggles when called on the same target.
-                    IndividualPlayerProvider.SetHighlight(netPlayer);
-                };
-
-                // ---- Block ----
-                PanelButton blockBtn = PanelButton.CreateNew(rowRect);
-                blockBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                    remote.IsBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
-                blockBtn.OnClicked += async () =>
-                {
-                    bool nowBlocked = await IndividualPlayerProvider.ToggleBlockWithConfirmation(remote);
-                    blockBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        nowBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
-                };
-
-                return rowRect;
-            }
-
-            private static async System.Threading.Tasks.Task InitMuteLabelAsync(PanelButton muteBtn, BasisRemotePlayer remote)
-            {
-                bool muted = await IndividualPlayerProvider.IsMutedAsync(remote);
-                if (muteBtn != null)
-                {
-                    muteBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        muted ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
-                }
-            }
-
-            private void RemovePlayerEntry(ushort playerId)
-            {
-                if (_entries.TryGetValue(playerId, out PlayerEntry entry))
-                {
-                    if (entry.Button != null) entry.Button.ReleaseInstance();
-                    if (entry.ActionRow != null) Destroy(entry.ActionRow.gameObject);
-                    _entries.Remove(playerId);
-                }
             }
 
             // ---- Description ----
@@ -515,7 +470,7 @@ namespace Basis.BasisUI
                     parts.Add(FormatJoinedAgo(netPlayer.JoinTime));
                 }
 
-                return string.Join(" \u2022 ", parts);
+                return string.Join(" • ", parts);
             }
 
             private static string ComputeDirectionLabel(Vector3 localPos, Vector3 remotePos)
@@ -555,17 +510,7 @@ namespace Basis.BasisUI
                 return BasisLocalization.Get("menu.players.joinedAgoHours", hours, minutes);
             }
 
-            private void RefreshDescriptions()
-            {
-                foreach (var kvp in _entries)
-                {
-                    var entry = kvp.Value;
-                    if (entry.Button == null || entry.NetPlayer == null) continue;
-                    entry.Button.Descriptor.SetDescription(BuildDescription(entry.NetPlayer));
-                }
-            }
-
-            // ---- Sorting / Reordering ----
+            // ---- Sorting ----
 
             private static float DistanceTo(IBasisPlayer p)
             {
@@ -575,7 +520,7 @@ namespace Basis.BasisUI
 
             private int CompareForCurrentSort(BasisNetworkPlayer a, BasisNetworkPlayer b)
             {
-                // Pinned players group above unpinned ones in every sort mode \u2014
+                // Pinned players group above unpinned ones in every sort mode —
                 // the pin is intended as a "keep this person at the top" signal,
                 // so secondary sorting only orders within each group.
                 bool aPinned = a.Player != null && PinnedPlayers.IsPinned(a.Player.UUID);
@@ -609,103 +554,13 @@ namespace Basis.BasisUI
                             StringComparison.OrdinalIgnoreCase);
                     }
                     case SortMode.JoinTime:
-                        // Most recent arrival first \u2014 common ask is "who just joined?"
+                        // Most recent arrival first — common ask is "who just joined?"
                         return b.JoinTime.CompareTo(a.JoinTime);
                     default:
                         // Default: oldest-first arrival order, mirrors the previous
                         // pinned-then-append behavior for users who liked it.
                         return a.JoinTime.CompareTo(b.JoinTime);
                 }
-            }
-
-            private void ReorderButtons()
-            {
-                if (GridParent == null) return;
-
-                _orderBuffer.Clear();
-                foreach (var kvp in _entries)
-                {
-                    if (kvp.Value.NetPlayer != null) _orderBuffer.Add(kvp.Value.NetPlayer);
-                }
-                _orderBuffer.Sort(CompareForCurrentSort);
-
-                // Place the player button followed by its action row, so each player
-                // occupies up to two consecutive sibling slots in GridParent.
-                int sibling = _firstPlayerSiblingIndex;
-                for (int i = 0; i < _orderBuffer.Count; i++)
-                {
-                    if (_entries.TryGetValue(_orderBuffer[i].playerId, out PlayerEntry entry))
-                    {
-                        if (entry.Button != null)
-                            entry.Button.transform.SetSiblingIndex(sibling++);
-                        if (entry.ActionRow != null)
-                            entry.ActionRow.SetSiblingIndex(sibling++);
-                    }
-                }
-            }
-
-            // ---- Filter / Search ----
-
-            private void ApplyFilter()
-            {
-                string query = _lastQuery.Trim();
-                bool hasQuery = query.Length > 0;
-                string queryLower = hasQuery ? query.ToLowerInvariant() : string.Empty;
-
-                bool hasCamera = BasisLocalCameraDriver.HasInstance;
-                Vector3 localPos = hasCamera ? BasisLocalCameraDriver.Position : Vector3.zero;
-                Vector3 forward = hasCamera ? BasisLocalCameraDriver.Forward() : Vector3.zero;
-                forward.y = 0f;
-                bool forwardValid = forward.sqrMagnitude > 0.0001f;
-                if (forwardValid) forward.Normalize();
-
-                foreach (var kvp in _entries)
-                {
-                    PlayerEntry entry = kvp.Value;
-                    if (entry.Button == null || entry.NetPlayer == null) continue;
-
-                    bool show = true;
-
-                    if (hasQuery)
-                    {
-                        if (_searchMode == SearchMode.UUID)
-                        {
-                            string uuid = entry.NetPlayer.Player != null
-                                ? entry.NetPlayer.Player.UUID ?? "" : "";
-                            show = uuid.ToLowerInvariant().Contains(queryLower);
-                        }
-                        else
-                        {
-                            string n = entry.NetPlayer.SafeDisplayName ?? "";
-                            show = n.ToLowerInvariant().Contains(queryLower);
-                        }
-                    }
-
-                    // Direction filter: skip the local player (no direction relative
-                    // to itself) and skip when the camera isn't ready yet, otherwise
-                    // a freshly-opened menu would briefly hide everyone.
-                    if (show && _directionFilter != DirectionFilter.All)
-                    {
-                        IBasisPlayer p = entry.NetPlayer.Player;
-                        bool isLocal = p != null && p.IsLocal;
-                        if (!isLocal && p != null && forwardValid)
-                        {
-                            Vector3 toRemote = GetRemotePosition(p) - localPos;
-                            toRemote.y = 0f;
-                            if (toRemote.sqrMagnitude > 0.0001f)
-                            {
-                                toRemote.Normalize();
-                                float dot = Vector3.Dot(forward, toRemote);
-                                show = _directionFilter == DirectionFilter.InFront ? dot > 0f : dot <= 0f;
-                            }
-                        }
-                    }
-
-                    entry.Button.gameObject.SetActive(show);
-                    if (entry.ActionRow != null) entry.ActionRow.gameObject.SetActive(show);
-                }
-
-                UpdateHeader();
             }
 
             // ---- Click handling ----
