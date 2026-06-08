@@ -67,7 +67,6 @@ namespace HVR.Vixxy
 
             var saved = 0f;
             var found = TryResolvePersistenceKey(out var key) && HVRVixxyPersistentStore.TryGet(key, out saved);
-            BasisDebug.Log($"[VixxyPersist] restore key='{key}' found={found} obj={gameObject.name}");
             if (found)
             {
                 _value = saved;

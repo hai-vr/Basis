@@ -212,7 +212,12 @@ namespace Basis.Scripts.Drivers
             if (halfFovTan < 1e-4f) halfFovTan = 1e-4f;
             float cameraDistance = (verticalSpan * 0.5f) / halfFovTan;
 
-            Vector3 cameraPos = frameCenter + BasisLocalCameraDriver.HeadForward() * cameraDistance;
+            Vector3 forward = BasisLocalCameraDriver.HeadForward();
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-6f) forward = Vector3.forward;
+            forward.Normalize();
+
+            Vector3 cameraPos = frameCenter + forward * cameraDistance;
 
             PreviewCamera.transform.SetPositionAndRotation(
                 cameraPos,

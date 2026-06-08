@@ -90,7 +90,6 @@ namespace HVR.Basis.Comms
                     root.entries.Add(new Entry { key = pair.Key, value = pair.Value.ToString(CultureInfo.InvariantCulture) });
                 }
                 File.WriteAllText(FilePath, JsonUtility.ToJson(root));
-                BasisDebug.Log($"[VixxyPersist] flushed {root.entries.Count} entr(ies) to {FilePath}");
             }
             catch (Exception e)
             {
