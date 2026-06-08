@@ -66,6 +66,7 @@ namespace Basis.BasisUI
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
+            panel.OnInstanceReleased += CancelActiveCalibration;
 
             RectTransform container = panel.Descriptor.ContentParent;
 
@@ -184,12 +185,11 @@ namespace Basis.BasisUI
 
         public void Calibrate()
         {
-            if (BasisLocalAvatarDriver.CurrentlyTposing)
+            var localplayer = BasisLocalPlayer.Instance;
+            if (localplayer == null)
             {
                 return;
             }
-
-            var localplayer = BasisLocalPlayer.Instance;
             BasisUINeedsVisibleTrackers.Add(localplayer);
             // kept because you had it (even if unused)
             var localBoneDriver = localplayer.LocalBoneDriver;
@@ -258,6 +258,32 @@ namespace Basis.BasisUI
             _rightHand = null;
         }
 
+        private void CancelActiveCalibration()
+        {
+            UnsubscribeAll();
+            _pitchStep = PitchCalibrationStep.None;
+            _leftPressed = false;
+            _rightPressed = false;
+
+            if (BasisLocalPlayer.Instance == null)
+            {
+                return;
+            }
+
+            if (!_calibrated && BasisLocalAvatarDriver.CurrentlyTposing)
+            {
+                BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
+                BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
+            }
+
+            BasisUINeedsVisibleTrackers.Remove(BasisLocalPlayer.Instance);
+
+            if (Button != null && !Button.IsReleased)
+            {
+                Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
+            }
+        }
+
         private void OnTriggerChanged(BasisInput device)
         {
             // The calibration panel (and its Button) can be released while trigger
@@ -266,7 +292,7 @@ namespace Basis.BasisUI
             // dereference a destroyed Button.
             if (Button == null || Button.IsReleased)
             {
-                UnsubscribeAll();
+                CancelActiveCalibration();
                 return;
             }
 

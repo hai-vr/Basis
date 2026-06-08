@@ -2,6 +2,18 @@
   "code": "nl",
   "nativeName": "Nederlands",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "Menurand"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "Witte menurand"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "Gebruik een witte panelrand in plaats van de standaard donkere rand."
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "Voorkom dat je gaat zitten op stoelen en zitplaatsen in de wereld." },
     { "key": "settings.general.desktopReticle.tooltip", "value": "Toon een klein richtpunt in het midden van het scherm op desktop." },
     { "key": "settings.general.avatarPreview.tooltip", "value": "Toon een kleine voorvertoning van je avatar terwijl je in het menu bent." },

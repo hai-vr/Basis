@@ -2,6 +2,18 @@
   "code": "de",
   "nativeName": "Deutsch",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "Menürand"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "Weißer Menürand"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "Einen weißen Panel-Rand anstelle des standardmäßigen dunklen Rands verwenden."
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "Verhindert, dass du dich in Sitze und Stühle in der Welt setzt." },
     { "key": "settings.general.desktopReticle.tooltip", "value": "Zeigt am Desktop einen kleinen Zielpunkt in der Bildschirmmitte an." },
     { "key": "settings.general.avatarPreview.tooltip", "value": "Zeigt eine kleine Vorschau deines Avatars, während du im Menü bist." },

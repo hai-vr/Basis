@@ -3951,6 +3951,18 @@
       "value": "Raycast Line Colour"
     },
     {
+      "key": "settings.chat.menuEdge.title",
+      "value": "Menu Edge"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "White Menu Edge"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "Use a white panel edge instead of the default dark edge."
+    },
+    {
       "key": "settings.chat.pickup.highlightColor",
       "value": "Pickup Highlight Colour"
     },

@@ -411,11 +411,15 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
                 audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
                 audioSource.loop = true;
+                audioSource.enabled = true;
                 audioSource.Play();
                 audioSource.maxDistance = MaxDistance;
             }
-            // Seed the state cache to match what we just configured above. AudioSource
-            // is enabled by default on a newly attached component, and we just called Play().
+            else if (!audioSource.enabled)
+            {
+                audioSource.enabled = true;
+                audioSource.Play();
+            }
             _audioEnabled = true;
             _audioPlaying = true;
             HasAudioSource = true;

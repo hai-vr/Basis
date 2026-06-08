@@ -122,7 +122,7 @@ namespace Basis.Scripts.Vehicles.Main
             Vector3 angularInput = GetAngularInput(actualControlScheme);
             Vector3 linearInput = GetLinearInput(actualControlScheme);
             _pilotedVehicleBody.AngularActivation = angularInput;
-            bool throttleZero = BasisVehiclePilotSeatInputActions.Instance.ThrottleZero.ReadValue<bool>();
+            bool throttleZero = BasisVehiclePilotSeatInputActions.Instance.ThrottleZero.IsPressed();
             if (throttleZero)
             {
                 _pilotedVehicleBody.LinearActivation = Vector3.zero;

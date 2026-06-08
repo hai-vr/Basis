@@ -2,6 +2,18 @@
   "code": "ru",
   "nativeName": "Русский",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "Край меню"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "Белый край меню"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "Использовать белый край панели вместо тёмного края по умолчанию."
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "Запретить себе садиться на сиденья и стулья по всему миру." },
     { "key": "settings.general.desktopReticle.tooltip", "value": "Показывать небольшую точку прицела в центре экрана на рабочем столе." },
     { "key": "settings.general.avatarPreview.tooltip", "value": "Показывать небольшой предпросмотр вашего аватара, пока вы в меню." },

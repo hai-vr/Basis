@@ -2,6 +2,18 @@
   "code": "hi",
   "nativeName": "हिन्दी",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "मेनू किनारा"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "सफ़ेद मेनू किनारा"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "डिफ़ॉल्ट गहरे किनारे के बजाय सफ़ेद पैनल किनारे का उपयोग करें।"
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "दुनिया भर की सीटों और कुर्सियों पर बैठने से खुद को रोकें।" },
     { "key": "settings.general.desktopReticle.tooltip", "value": "डेस्कटॉप पर स्क्रीन के केंद्र में एक छोटा निशाना बिंदु दिखाएँ।" },
     { "key": "settings.general.avatarPreview.tooltip", "value": "मेनू में रहते हुए अपने अवतार का एक छोटा पूर्वावलोकन दिखाएँ।" },

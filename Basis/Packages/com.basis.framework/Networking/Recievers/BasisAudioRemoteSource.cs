@@ -83,6 +83,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 audioSource.Stop();
                 audioSource.clip = null;
+                audioSource.enabled = true;
             }
 
             if (pool.Count < MaxPoolSize && poolRoot != null)

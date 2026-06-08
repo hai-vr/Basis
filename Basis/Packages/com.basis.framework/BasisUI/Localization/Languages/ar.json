@@ -2,6 +2,18 @@
   "code": "ar",
   "nativeName": "العربية",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "حافة القائمة"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "حافة قائمة بيضاء"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "استخدم حافة لوحة بيضاء بدلاً من الحافة الداكنة الافتراضية."
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "يمنعك من الجلوس على المقاعد والكراسي الموجودة في العالم." },
     { "key": "settings.general.desktopReticle.tooltip", "value": "إظهار نقطة تصويب صغيرة في منتصف الشاشة في وضع سطح المكتب." },
     { "key": "settings.general.avatarPreview.tooltip", "value": "إظهار معاينة صغيرة لأفاتارك أثناء وجودك في القائمة." },

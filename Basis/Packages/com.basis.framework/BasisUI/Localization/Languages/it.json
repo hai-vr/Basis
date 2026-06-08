@@ -2,6 +2,18 @@
   "code": "it",
   "nativeName": "Italiano",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "Bordo del menu"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "Bordo del menu bianco"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "Usa un bordo del pannello bianco invece del bordo scuro predefinito."
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "Impedisce di sederti sui sedili e sulle sedie presenti nel mondo." },
     { "key": "settings.general.desktopReticle.tooltip", "value": "Mostra un piccolo punto di mira al centro dello schermo in modalità desktop." },
     { "key": "settings.general.avatarPreview.tooltip", "value": "Mostra una piccola anteprima del tuo avatar mentre sei nel menu." },

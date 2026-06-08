@@ -2,6 +2,18 @@
   "code": "zh",
   "nativeName": "中文（繁體）",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "菜单边缘"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "白色菜单边缘"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "使用白色面板边缘代替默认的深色边缘。"
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "阻止自己坐到世界各处的座位和椅子上。" },
     { "key": "settings.general.desktopReticle.tooltip", "value": "在桌面模式下于屏幕中央显示一个小的瞄准点。" },
     { "key": "settings.general.avatarPreview.tooltip", "value": "在菜单中显示你虚拟形象的小预览。" },

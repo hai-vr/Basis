@@ -29,14 +29,14 @@ namespace HVR.Basis.Comms
 
         public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod)
         {
-            if (!_networkReady) return;
+            if (!_networkReady || _comms == null) return;
 
             _comms.WhenNetworkMessageReceived(index, remoteUser, buffer, deliveryMethod);
         }
 
         public override void OnNetworkMessageServerReductionSystem(byte[] buffer)
         {
-            if (!_networkReady) return;
+            if (!_networkReady || _comms == null) return;
 
             _comms.WhenNetworkMessageServerReductionSystem(index, buffer);
         }

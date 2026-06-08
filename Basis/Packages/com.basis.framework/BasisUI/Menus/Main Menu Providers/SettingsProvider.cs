@@ -1789,6 +1789,16 @@ namespace Basis.BasisUI
                 BasisLocalization.Get("settings.chat.pickup.lineColor"),
                 BasisSettingsDefaults.PickupLineColor, pickupLineColorInit,
                 c => Basis.Scripts.UI.BasisRaycastLineCustomization.PreviewInteractionLineColor(c));
+
+            PanelElementDescriptor edgeGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, container);
+            edgeGroup.SetTitle(BasisLocalization.Get("settings.chat.menuEdge.title"));
+
+            PanelToggle toggleWhiteEdge = PanelToggle.CreateNewEntry(edgeGroup);
+            toggleWhiteEdge.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.menuEdge.white"));
+            toggleWhiteEdge.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.menuEdge.white.tooltip"));
+            toggleWhiteEdge.AssignBinding(BasisSettingsDefaults.MenuEdgeWhite);
+            toggleWhiteEdge.OnValueChanged += (val) => SettingsProviderUIStyle.ApplyEdgeColor(val);
         }
 
         private static void ResetChatDefaults()

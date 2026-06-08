@@ -2,6 +2,18 @@
   "code": "fr",
   "nativeName": "Français",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "Bordure du menu"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "Bordure de menu blanche"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "Utiliser une bordure de panneau blanche au lieu de la bordure sombre par défaut."
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "Vous empêche de vous asseoir sur les sièges et les chaises placés dans le monde." },
     { "key": "settings.general.desktopReticle.tooltip", "value": "Affiche un petit point de visée au centre de l'écran en mode bureau." },
     { "key": "settings.general.avatarPreview.tooltip", "value": "Affiche un petit aperçu de votre avatar lorsque le menu est ouvert." },

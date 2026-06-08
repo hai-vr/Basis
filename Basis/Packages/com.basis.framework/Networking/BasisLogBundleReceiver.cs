@@ -249,10 +249,27 @@ public static class BasisLogBundleReceiver
     private static string SafeCombine(string destDir, string entryPath)
     {
         if (string.IsNullOrEmpty(entryPath)) return null;
-        string combined = Path.GetFullPath(Path.Combine(destDir, entryPath.Replace('\\', '/')));
+        string relative = SanitizePathSegments(entryPath);
+        if (string.IsNullOrEmpty(relative)) return null;
+        string combined = Path.GetFullPath(Path.Combine(destDir, relative));
         string root = Path.GetFullPath(destDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if (!combined.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return null;
         return combined;
+    }
+
+    // Replace OS-invalid characters in each path segment so entries the server stored under another
+    // OS still write locally (e.g. crash reports named "did:key:..." are illegal paths on Windows).
+    private static string SanitizePathSegments(string entryPath)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        string[] parts = entryPath.Replace('\\', '/').Split('/');
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (parts[i].Length == 0 || parts[i] == "." || parts[i] == "..") continue;
+            foreach (char c in invalid)
+                parts[i] = parts[i].Replace(c, '_');
+        }
+        return string.Join("/", parts);
     }
 
     private static void Reset()

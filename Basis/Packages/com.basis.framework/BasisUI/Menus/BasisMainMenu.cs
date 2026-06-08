@@ -136,6 +136,7 @@ namespace Basis.BasisUI
                 edge.pixelsPerUnitMultiplier = sourceEdgeImage.pixelsPerUnitMultiplier;
                 edge.raycastTarget = false;
                 _tooltipEdge = edge;
+                _tooltipEdgeColor = edge.color;
             }
 
             // Background: solid themed panel, drawn over the Edge so the Edge rims it. Uses the menu
@@ -195,7 +196,6 @@ namespace Basis.BasisUI
                 backgroundImage.type = sourceBackgroundImage.type;
                 backgroundImage.preserveAspect = sourceBackgroundImage.preserveAspect;
                 backgroundImage.raycastTarget = false;
-                _tooltipOverlay = backgroundImage;
             }
 
             // Content holder inside the masked Background, padded like the menu panels.
@@ -257,9 +257,7 @@ namespace Basis.BasisUI
 
             menu.KillTooltipTween();
             menu._tooltipCanvasGroup.gameObject.SetActive(true);
-            if (menu._tooltipEdge != null) menu._tooltipEdge.enabled = true;
-            if (menu._tooltipOverlay != null) menu._tooltipOverlay.enabled = true;
-            // Restore the themed background colour (HideTooltip blacks it out during the fade).
+            if (menu._tooltipEdge != null) menu._tooltipEdge.color = menu._tooltipEdgeColor;
             if (menu._tooltipBackgroundStyle != null) menu._tooltipBackgroundStyle.ApplyActiveStyle();
             menu._tooltipLabel.enabled = true;
             menu._tooltipLabel.text = text;
@@ -281,10 +279,7 @@ namespace Basis.BasisUI
             }
 
             menu.KillTooltipTween();
-            // Hide the outline + overlay before fading: their sprites flash white through the alpha lerp.
-            if (menu._tooltipEdge != null) menu._tooltipEdge.enabled = false;
-            if (menu._tooltipOverlay != null) menu._tooltipOverlay.enabled = false;
-            // Black out the masked background so it can't flash white as the alpha lerps to 0.
+            if (menu._tooltipEdge != null) menu._tooltipEdge.color = new Color(0f, 0f, 0f, menu._tooltipEdgeColor.a);
             if (menu._tooltipBackgroundStyle != null && menu._tooltipBackgroundStyle.Image != null)
             {
                 menu._tooltipBackgroundStyle.Image.color = Color.black;

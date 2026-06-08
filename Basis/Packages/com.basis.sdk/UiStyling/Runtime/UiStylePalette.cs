@@ -22,6 +22,7 @@ namespace Basis.BasisUI.Styling
         CautionColor,
         DangerColor,
         Scrollbar,
+        EdgeColor,
     }
 
     [CreateAssetMenu(fileName = "Style Palette", menuName = "BasisUI/Style Palette")]
@@ -45,6 +46,7 @@ namespace Basis.BasisUI.Styling
         public Color CautionColor = new Color(1f, 0.82f, 0.34f, 0.99f);
         public Color DangerColor = new Color(0.97f, 0.34f, 0.34f);
         public Color Scrollbar = new Color(0.62f, 0.63f, 0.64f);
+        public Color EdgeColor = new Color(0f, 0f, 0f, 0.14901961f);
 
 
         [ContextMenu("Set as Active Palette")]
@@ -79,6 +81,7 @@ namespace Basis.BasisUI.Styling
                 case UiPaletteStyle.CautionColor: return CautionColor;
                 case UiPaletteStyle.DangerColor: return DangerColor;
                 case UiPaletteStyle.Scrollbar: return Scrollbar;
+                case UiPaletteStyle.EdgeColor: return EdgeColor;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(style), style, null);
             }

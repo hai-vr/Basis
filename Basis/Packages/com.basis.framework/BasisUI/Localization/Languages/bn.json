@@ -2,6 +2,18 @@
   "code": "bn",
   "nativeName": "বাংলা",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "মেনু প্রান্ত"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "সাদা মেনু প্রান্ত"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "ডিফল্ট গাঢ় প্রান্তের পরিবর্তে একটি সাদা প্যানেল প্রান্ত ব্যবহার করুন।"
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "বিশ্বজুড়ে আসন ও চেয়ারে নিজেকে বসা থেকে বিরত রাখুন।" },
     { "key": "settings.general.desktopReticle.tooltip", "value": "ডেস্কটপে স্ক্রিনের কেন্দ্রে একটি ছোট লক্ষ্যবিন্দু দেখান।" },
     { "key": "settings.general.avatarPreview.tooltip", "value": "মেনুতে থাকাকালীন আপনার অবতারের একটি ছোট প্রিভিউ দেখান।" },

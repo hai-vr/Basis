@@ -2,6 +2,18 @@
   "code": "ja",
   "nativeName": "日本語",
   "entries": [
+    {
+      "key": "settings.chat.menuEdge.title",
+      "value": "メニューの縁"
+    },
+    {
+      "key": "settings.chat.menuEdge.white",
+      "value": "白いメニューの縁"
+    },
+    {
+      "key": "settings.chat.menuEdge.white.tooltip",
+      "value": "デフォルトの暗い縁の代わりに白いパネルの縁を使用します。"
+    },
     { "key": "settings.general.disableSeats.tooltip", "value": "ワールド内の座席や椅子に座らないようにします。" },
     { "key": "settings.general.desktopReticle.tooltip", "value": "デスクトップで画面中央に小さな照準ドットを表示します。" },
     { "key": "settings.general.avatarPreview.tooltip", "value": "メニュー表示中に自分のアバターの小さなプレビューを表示します。" },

@@ -1164,6 +1164,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> UIPaletteCaution = new("ui_palette_caution", new BasisPlatformDefault<string>(""));
         public static BasisSettingsBinding<string> UIPaletteDanger = new("ui_palette_danger", new BasisPlatformDefault<string>(""));
         public static BasisSettingsBinding<string> UIPaletteScrollbar = new("ui_palette_scrollbar", new BasisPlatformDefault<string>(""));
+        public static BasisSettingsBinding<bool> MenuEdgeWhite = new("menu_edge_white", new BasisPlatformDefault<bool>(false));
 
         // ---------------- MIRROR ----------------
         public static BasisSettingsBinding<bool> UseMirrorQualityOverride = new("usemirrorqualityoverride", new BasisPlatformDefault<bool>(false));
@@ -1700,6 +1701,7 @@ namespace Basis.BasisUI
             UIPaletteCaution.LoadBindingValue();
             UIPaletteDanger.LoadBindingValue();
             UIPaletteScrollbar.LoadBindingValue();
+            MenuEdgeWhite.LoadBindingValue();
 
             RaycastLineWidth.LoadBindingValue();
             RaycastLineColor.LoadBindingValue();
