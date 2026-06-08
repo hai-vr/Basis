@@ -1397,11 +1397,15 @@ w20, w54;
             float bendRollDeg = (Mathf.Atan2(-targetDirN.x, targetDirN.y) - Mathf.Atan2(-chestDirN.x, chestDirN.y)) * Mathf.Rad2Deg;
             Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
 
-            // Twist comes from head facing yaw in hips-local frame. Extracted from the head's
-            // forward vector projected onto the hips-local horizontal plane — robust at look-up/down
-            // where Quaternion.eulerAngles gimbal-locks and emits a phantom ±180° roll/yaw split
-            // that, even after the ±maxLat clamp, twists the spine sideways for no real reason.
-            Quaternion headRotLocal = invHips * V4ToQuat(targetRotationHead.Get(stream));
+            // Twist comes from head facing yaw, measured against the body's FACING (not the raw hips
+            // bone frame). The hips bone world rotation carries the calibrated bind; on rigs whose
+            // bind is yawed (~180° on some UGC avatars) the head-forward lands at z<0 in hips-local,
+            // putting atan2 on its branch cut so looking left/right across center snapped the spine
+            // twist ±360°. Removing the captured hips bind (offsetRotationHips) puts forward at +z so
+            // atan2 stays continuous. No-op when the bind ≈ identity. Forward-vector extraction also
+            // dodges the eulerAngles gimbal-lock that emits a phantom ±180° roll/yaw split at look-up/down.
+            Quaternion hipsBind = V4ToQuat(offsetRotationHips.Get(stream));
+            Quaternion headRotLocal = (hipsBind * invHips) * V4ToQuat(targetRotationHead.Get(stream));
             Vector3 headFwdLocal = headRotLocal * Vector3.forward;
             float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
             float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;

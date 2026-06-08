@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using Basis.Scripts.BasisSdk.Players;
 using HVR.Basis.Comms;
 using UnityEngine;
@@ -50,14 +51,24 @@ namespace HVR.Vixxy
             control = TryResolveActualControl(out var actualControl) ? actualControl : null;
 
             _value = control != null ? control.defaultValue : 0f;
+
+            if (control != null && isActiveAndEnabled) StartCoroutine(RestoreNextFrame());
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
             if (!isWearer) return;
-            if (control == null) return;
+        }
 
-            if (TryResolvePersistenceKey(out var key) && HVRVixxyPersistentStore.TryGet(key, out var saved))
+        private IEnumerator RestoreNextFrame()
+        {
+            yield return null;
+            if (control == null) yield break;
+
+            var saved = 0f;
+            var found = TryResolvePersistenceKey(out var key) && HVRVixxyPersistentStore.TryGet(key, out saved);
+            BasisDebug.Log($"[VixxyPersist] restore key='{key}' found={found} obj={gameObject.name}");
+            if (found)
             {
                 _value = saved;
                 var addressId = control.IsInitialized ? control.AddressId : HVRAddress.AddressToId(control.CalculateAddress());
@@ -70,18 +81,20 @@ namespace HVR.Vixxy
             key = null;
             if (control == null) return false;
 
+            var address = control.IsInitialized ? control.Address : control.CalculateAddress();
+
             switch (remember)
             {
                 case HVRVixxyRememberScope.RememberInThisAvatar:
                     if (string.IsNullOrEmpty(BasisLocalPlayer.CurrentAvatarUniqueID)) return false;
-                    key = $"avatar:{BasisLocalPlayer.CurrentAvatarUniqueID}|{control.Address}";
+                    key = $"avatar:{BasisLocalPlayer.CurrentAvatarUniqueID}|{address}";
                     return true;
                 case HVRVixxyRememberScope.RememberInThisTag:
                     if (string.IsNullOrEmpty(rememberTag)) return false;
                     key = $"tag:{rememberTag}";
                     return true;
                 case HVRVixxyRememberScope.RememberAcrossAvatars:
-                    key = $"global:{control.Address}";
+                    key = $"global:{address}";
                     return true;
                 default:
                     return false;
