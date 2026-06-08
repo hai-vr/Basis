@@ -1951,6 +1951,14 @@
       "value": "Exit Basis"
     },
     {
+      "key": "menu.exit.dialog.reboot",
+      "value": "Reboot and Reconnect"
+    },
+    {
+      "key": "menu.exit.dialog.restart",
+      "value": "Restart"
+    },
+    {
       "key": "calibration.calibrate",
       "value": "Calibrate"
     },

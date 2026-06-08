@@ -316,24 +316,29 @@ namespace Basis.Scripts.Networking.Receivers
         // cross the managed/native boundary (and isPlaying queries the FMOD channel),
         // so polling them every receiver every tick costs ~µs per receiver. We mirror
         // the state here and only touch the Unity API on transitions.
-        private bool _audioEnabled;
+        private volatile bool _audioEnabled;
         private bool _audioPlaying;
 
         /// <summary>
-        /// Main-thread only: updates AudioSource enabled/playing state after decode.
+        /// True when a main-thread <see cref="ApplyAudioState"/> is owed: the source's
+        /// enabled state disagrees with whether real audio is queued. Safe to read off-thread.
+        /// </summary>
+        public bool NeedsAudioStateApply => HasAudioSource && VoiceBuffer.HasRealAudio != _audioEnabled;
+
+        /// <summary>
+        /// Main-thread only: reconciles AudioSource enabled/playing with the decoded queue.
+        /// No-op when already in the right state.
         /// </summary>
         public void ApplyAudioState()
         {
-            if (_lastDrainDecoded && HasAudioSource)
+            if (!HasAudioSource) return;
+            if (VoiceBuffer.HasRealAudio)
             {
-                if (VoiceBuffer.HasRealAudio)
-                {
-                    EnableAndEnsurePlaying();
-                }
-                else
-                {
-                    DisableAudio();
-                }
+                EnableAndEnsurePlaying();
+            }
+            else
+            {
+                DisableAudio();
             }
         }
 

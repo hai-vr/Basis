@@ -1,6 +1,7 @@
 using System;
 using Basis.BTween;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -31,7 +32,11 @@ namespace Basis.BasisUI
 
         public PanelButton AcceptButton;
         public PanelButton DeclineButton;
+        public PanelButton AlternateButton;
         public Action<bool> Callback;
+
+        public string Alternate;
+        public Action AlternateCallback;
 
 
         private bool _resolved;
@@ -59,6 +64,65 @@ namespace Basis.BasisUI
                 accepted ? BasisNotificationStatus.Accepted : BasisNotificationStatus.Denied);
             Callback?.Invoke(accepted);
             ReleaseInstance();
+        }
+
+        /// <summary>
+        /// Adds a third button to the dialogue between Accept and Decline. Choosing it
+        /// resolves the dialogue and invokes <paramref name="onChosen"/> instead of the
+        /// binary accept/decline callback. The button is created at runtime so existing
+        /// two-button callers are unaffected.
+        /// </summary>
+        public void EnableAlternate(string label, Action onChosen)
+        {
+            if (string.IsNullOrEmpty(label) || onChosen == null) return;
+            if (AcceptButton == null || DeclineButton == null) return;
+
+            Alternate = label;
+            AlternateCallback = onChosen;
+
+            AlternateButton = PanelButton.CreateNew(AcceptButton.rectTransform.parent);
+            AlternateButton.Descriptor.SetTitle(label);
+            AlternateButton.rectTransform.SetSiblingIndex(DeclineButton.rectTransform.GetSiblingIndex());
+            MatchButtonMetrics(AcceptButton, AlternateButton);
+            AlternateButton.OnClicked += ResolveAlternate;
+        }
+
+        private void ResolveAlternate()
+        {
+            _resolved = true;
+            BasisNotificationCenter.LogResolved(
+                Title,
+                Description,
+                AddressableAssets.Sprites.Information,
+                BasisNotificationStatus.Accepted);
+            AlternateCallback?.Invoke();
+            ReleaseInstance();
+        }
+
+        private static void MatchButtonMetrics(PanelButton template, PanelButton target)
+        {
+            target.rectTransform.sizeDelta = new Vector2(
+                target.rectTransform.sizeDelta.x, template.rectTransform.sizeDelta.y);
+
+            LayoutElement from = template.GetComponent<LayoutElement>();
+            LayoutElement to = target.Layout;
+            if (to == null) return;
+
+            if (from != null)
+            {
+                to.minWidth = from.minWidth;
+                to.preferredWidth = from.preferredWidth;
+                to.flexibleWidth = from.flexibleWidth;
+                to.minHeight = from.minHeight;
+                to.preferredHeight = from.preferredHeight;
+                to.flexibleHeight = from.flexibleHeight;
+            }
+            else
+            {
+                to.minWidth = 0f;
+                to.flexibleWidth = 1f;
+                to.preferredHeight = template.rectTransform.sizeDelta.y;
+            }
         }
 
         private void CaptureIfUnresolved()

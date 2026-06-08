@@ -3,6 +3,7 @@
 using UnityEditor;
 #endif
 
+using Basis.Scripts.Networking;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -49,6 +50,16 @@ namespace Basis.BasisUI
 #endif
 
                 });
+
+            if (BasisAppRelaunch.IsSupported && BasisMainMenu.Instance.Dialogue != null)
+            {
+                string label = BasisLocalization.Get(BasisNetworkConnection.LocalPlayerIsConnected
+                    ? "menu.exit.dialog.reboot"
+                    : "menu.exit.dialog.restart");
+                BasisMainMenu.Instance.Dialogue.EnableAlternate(
+                    label,
+                    () => BasisAppRelaunch.RebootAndReconnect());
+            }
         }
     }
 }

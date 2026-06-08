@@ -29,6 +29,13 @@ namespace Basis.Scripts.Command_Line_Args
                 ForcedDeviceManager = arg.Substring(ForceFlag.Length);
                 return;
             }
+#if UNITY_EDITOR
+            if (Basis.Scripts.Networking.BasisAppRelaunch.TryConsumeEditorForcedMode(out string editorForcedMode))
+            {
+                ForcedDeviceManager = editorForcedMode;
+                return;
+            }
+#endif
             ForcedDeviceManager = string.Empty;
         }
 
