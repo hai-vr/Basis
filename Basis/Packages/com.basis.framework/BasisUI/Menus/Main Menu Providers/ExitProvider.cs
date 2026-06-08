@@ -38,11 +38,11 @@ namespace Basis.BasisUI
             BasisMainMenu.Instance.OpenDialogue(
                 BasisLocalization.Get("menu.exit.dialog.title"),
                 BasisLocalization.Get("menu.exit.dialog.body"),
-                BasisLocalization.Get("ui.cancel"),
                 BasisLocalization.Get("menu.exit.dialog.confirm"),
+                BasisLocalization.Get("ui.cancel"),
                 value =>
                 {
-                    if (value) return;
+                    if (!value) return;
 #if UNITY_EDITOR
                     EditorApplication.isPlaying = false;
 #else
@@ -51,7 +51,10 @@ namespace Basis.BasisUI
 
                 });
 
-            if (BasisAppRelaunch.IsSupported && BasisMainMenu.Instance.Dialogue != null)
+            if (BasisMainMenu.Instance.Dialogue == null) return;
+            BasisMainMenu.Instance.Dialogue.CaptureOnClose = false;
+
+            if (BasisAppRelaunch.IsSupported)
             {
                 string label = BasisLocalization.Get(BasisNetworkConnection.LocalPlayerIsConnected
                     ? "menu.exit.dialog.reboot"

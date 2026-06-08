@@ -30,6 +30,12 @@ namespace Basis.BasisUI
 
         public bool BlocksOtherActions;
 
+        /// <summary>
+        /// When false, closing the dialogue cancels it (invokes the deny callback)
+        /// instead of parking it in the notification center.
+        /// </summary>
+        public bool CaptureOnClose = true;
+
         public PanelButton AcceptButton;
         public PanelButton DeclineButton;
         public PanelButton AlternateButton;
@@ -129,6 +135,12 @@ namespace Basis.BasisUI
         {
             if (_resolved) return;
             _resolved = true;
+
+            if (!CaptureOnClose)
+            {
+                Callback?.Invoke(false);
+                return;
+            }
 
             // Snapshot the dialogue contents so the captured entry can rebuild the
             // exact same prompt with its original callback still attached.
