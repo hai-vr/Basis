@@ -173,7 +173,7 @@ namespace Basis.Scripts.Networking
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void RegisterCommandLineAutoConnect()
         {
-            if (!TryGetCommandLineConnection(out ServerDirectoryEntry target)) return;
+            if (!TryGetBootstrapConnection(out ServerDirectoryEntry target)) return;
 
             void Trigger()
             {
@@ -186,7 +186,7 @@ namespace Basis.Scripts.Networking
                 if (string.IsNullOrEmpty(userName))
                 {
                     BasisDebug.LogWarning(
-                        $"--connection arg ignored: no saved username yet. Set one via the Servers panel and relaunch.");
+                        $"Auto-connect skipped: no saved username yet. Set one via the Servers panel and reconnect.");
                     return;
                 }
 
@@ -195,6 +195,18 @@ namespace Basis.Scripts.Networking
 
             if (BasisNetworkManagement.IsInitialized) Trigger();
             else BasisNetworkManagement.OnIstanceCreated += Trigger;
+        }
+
+        private static bool TryGetBootstrapConnection(out ServerDirectoryEntry entry)
+        {
+            if (TryGetCommandLineConnection(out entry)) return true;
+#if UNITY_EDITOR
+            if (BasisAppRelaunch.TryConsumeEditorConnection(out string editorConnection)
+                && BuildEntryFromConnectionString(editorConnection, out entry))
+                return true;
+#endif
+            entry = null;
+            return false;
         }
 
         private static bool TryGetCommandLineConnection(out ServerDirectoryEntry entry)
@@ -211,31 +223,39 @@ namespace Basis.Scripts.Networking
                 if (!arg.StartsWith(ConnectionArgPrefix, StringComparison.OrdinalIgnoreCase)) continue;
 
                 string value = arg.Substring(ConnectionArgPrefix.Length);
-                if (!LNLConnectionTargetParser.TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
+                if (!BuildEntryFromConnectionString(value, out entry))
                 {
                     BasisDebug.LogWarning($"--connection arg could not be parsed: {arg}");
                     return false;
                 }
-
-                ConnectionTarget target = new ConnectionTarget(BasisNetworkStackRegistry.DefaultId, $"{addr}:{port}");
-                target.Set(ConnectionTarget.Keys.Address, addr);
-                target.Set(ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                target.Set(ConnectionTarget.Keys.Password, password ?? string.Empty);
-
-                entry = new ServerDirectoryEntry
-                {
-                    Id = CommandLineEntryId,
-                    SourceId = SavedServersDirectorySource.Id,
-                    DisplayName = string.Empty,
-                    Target = target,
-                    HasPassword = !string.IsNullOrEmpty(password),
-                    Password = password ?? string.Empty,
-                    CanEdit = false,
-                    CanRemove = false,
-                };
                 return true;
             }
             return false;
+        }
+
+        private static bool BuildEntryFromConnectionString(string value, out ServerDirectoryEntry entry)
+        {
+            entry = null;
+            if (!LNLConnectionTargetParser.TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
+                return false;
+
+            ConnectionTarget target = new ConnectionTarget(BasisNetworkStackRegistry.DefaultId, $"{addr}:{port}");
+            target.Set(ConnectionTarget.Keys.Address, addr);
+            target.Set(ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            target.Set(ConnectionTarget.Keys.Password, password ?? string.Empty);
+
+            entry = new ServerDirectoryEntry
+            {
+                Id = CommandLineEntryId,
+                SourceId = SavedServersDirectorySource.Id,
+                DisplayName = string.Empty,
+                Target = target,
+                HasPassword = !string.IsNullOrEmpty(password),
+                Password = password ?? string.Empty,
+                CanEdit = false,
+                CanRemove = false,
+            };
+            return true;
         }
     }
 }

@@ -2584,7 +2584,10 @@ spiperf.End();
 			MonoBehaviour [] allBehavioursThatNeedCilboxing = CilboxUtil.GetAllBehavioursThatNeedCilboxing(scene);
 			Debug.Log( $"Postprocessing scene. Cilbox scripts to do: {allBehavioursThatNeedCilboxing.Length}" );
 			if( allBehavioursThatNeedCilboxing.Length == 0 )
-					return;
+			{
+				perf.End();
+				return;
+			}
 
 
 			Dictionary< String, Serializee > assemblyMetadata = new Dictionary< String, Serializee >();

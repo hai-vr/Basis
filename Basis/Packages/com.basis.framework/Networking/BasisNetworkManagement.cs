@@ -172,8 +172,8 @@ namespace Basis.Scripts.Networking
         {
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 2)
         };
-        // Indices of receivers that decoded audio this tick. Filled during compute so the
-        // main-thread AudioSource apply scales with active talkers, not total player count.
+        // Indices of receivers that owe a main-thread AudioSource apply this tick. Filled
+        // during compute so the apply scales with state changes, not total player count.
         static int[] s_decodedIndices = Array.Empty<int>();
         static int s_decodedCount;
         // Pipelined compute: Phase 2 runs as a background task started at the tail of the frame
@@ -188,8 +188,7 @@ namespace Basis.Scripts.Networking
         {
             var rec = s_parallelSnapshot[i];
             rec.ComputeData(s_parallelDeltaTime);
-            var audio = rec.AudioReceiverModule;
-            if (audio._lastDrainDecoded && audio.HasAudioSource)
+            if (rec.AudioReceiverModule.NeedsAudioStateApply)
             {
                 s_decodedIndices[Interlocked.Increment(ref s_decodedCount) - 1] = i;
             }
@@ -269,8 +268,7 @@ namespace Basis.Scripts.Networking
                 {
                     var rec = snapshot[i];
                     rec.ComputeData(UnscaledDeltaTime);
-                    var audio = rec.AudioReceiverModule;
-                    if (audio._lastDrainDecoded && audio.HasAudioSource)
+                    if (rec.AudioReceiverModule.NeedsAudioStateApply)
                     {
                         s_decodedIndices[s_decodedCount++] = i;
                     }

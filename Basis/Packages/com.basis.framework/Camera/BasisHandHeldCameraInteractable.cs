@@ -223,7 +223,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// </summary>
     private void UpdateCamera()
     {
-        if (this == null)
+        if (this == null || HHC == null)
         {
             return;
         }

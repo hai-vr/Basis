@@ -86,6 +86,10 @@ namespace Basis.BasisUI
         private static protected bool IsProtected = false; // we use this to determine if the user is admin for admin related queries on the library provider
         public static BasisMenuPanel panel;
 
+        // The library panel can be released mid-refresh (user closes the menu) while we await
+        // key/metadata loads; its controls are destroyed with it, so bail before touching them.
+        private static bool PanelAlive => panel != null && !panel.IsReleased;
+
         // references to the search query elements
         private static PanelTextField searchField; // reference to the search field
         private static PanelDropdown dateSorting; // reference to the date sorting dropdown
@@ -476,7 +480,8 @@ namespace Basis.BasisUI
 
             // Ensure keys are loaded
             await BasisDataStoreItemKeys.LoadKeys();
-        
+            if (!PanelAlive) return;
+
             if(clearSearch)
             {
                 _currentSearchQuery = "";
@@ -540,6 +545,7 @@ namespace Basis.BasisUI
                     {
                         BasisDebug.LogError(ex);
                     }
+                    if (!PanelAlive) return;
 
                     // Apply search filter if present
                     if (!string.IsNullOrWhiteSpace(_currentSearchQuery))

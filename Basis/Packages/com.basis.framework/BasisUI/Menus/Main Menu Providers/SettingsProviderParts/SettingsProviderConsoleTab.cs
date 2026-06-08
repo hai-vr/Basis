@@ -69,6 +69,7 @@ namespace Basis.BasisUI
 
             PanelToggle collapseToggle = PanelToggle.CreateNewEntry(controlsGroup.ContentParent);
             collapseToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.console.collapse"));
+            collapseToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.collapse.tooltip"));
             collapseToggle.SetValueWithoutNotify(_showCollapsedLogs);
             collapseToggle.OnValueChanged += v =>
             {
@@ -78,6 +79,7 @@ namespace Basis.BasisUI
 
             PanelToggle updatingToggle = PanelToggle.CreateNewEntry(controlsGroup.ContentParent);
             updatingToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.console.liveUpdates"));
+            updatingToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.liveUpdates.tooltip"));
             updatingToggle.SetValueWithoutNotify(_isUpdating);
             updatingToggle.OnValueChanged += v =>
             {
@@ -87,12 +89,14 @@ namespace Basis.BasisUI
 
             PanelDropdown filterDropdown = PanelDropdown.CreateNewEntry(controlsGroup.ContentParent);
             filterDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.console.filter"));
+            filterDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.filter.tooltip"));
             filterDropdown.AssignEntries(new List<string> { "All", "Errors", "Warnings", "Logs" });
             filterDropdown.DropdownComponent.SetValueWithoutNotify(GetFilterIndex());
             filterDropdown.DropdownComponent.onValueChanged.AddListener(OnFilterChanged);
 
             PanelButton clearBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             clearBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.clearLogs"));
+            clearBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.clearLogs.tooltip"));
             clearBtn.OnClicked += () =>
             {
                 BasisLogManager.ClearLogs();
@@ -102,18 +106,22 @@ namespace Basis.BasisUI
 
             PanelButton copyBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             copyBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.copyLogs"));
+            copyBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.copyLogs.tooltip"));
             copyBtn.OnClicked += () => GUIUtility.systemCopyBuffer = BasisLogManager.GetAllLogsPlainText();
 
             PanelButton crashBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             crashBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openCrashReport"));
+            crashBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.openCrashReport.tooltip"));
             crashBtn.OnClicked += OpenLatestCrashReportFolder;
 
             PanelButton logsFolderBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             logsFolderBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openLogsFolder"));
+            logsFolderBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.openLogsFolder.tooltip"));
             logsFolderBtn.OnClicked += OpenLogsFolder;
 
             PanelButton crashFolderBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             crashFolderBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openCrashFolder"));
+            crashFolderBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.openCrashFolder.tooltip"));
             crashFolderBtn.OnClicked += OpenCrashReportsFolder;
 
             // -----------------------

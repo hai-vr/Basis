@@ -148,15 +148,21 @@ namespace Basis.Scripts.Avatar
 
             Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
 
-            ClassifyAndAssignTrackersFromTPose();
+            try
+            {
+                ClassifyAndAssignTrackersFromTPose();
 
-            // IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
-            BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
+                // IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
+                BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 
-            ComputeHints(storedRoleTransforms);
+                ComputeHints(storedRoleTransforms);
+            }
+            finally
+            {
+                BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
+                BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
+            }
 
-            BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
-            BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
             BasisLocalPlayer.Instance.LocalAnimatorDriver.AssignHipsFBTracker();
 
             // Refresh the per-role calibration spheres so they re-anchor to the

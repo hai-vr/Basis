@@ -21,14 +21,14 @@ namespace Basis.BasisUI
             {
                 Title = title,
                 PanelSize = new Vector2(1500, 1020),
-                PanelPosition = default,
+                PanelPosition = new Vector3(0, 30),
             };
 
             public static PanelData Toolbar(string title) => new()
             {
                 Title = title,
                 PanelSize = new Vector2(1500, 200),
-                PanelPosition = new Vector3(0, -630),
+                PanelPosition = new Vector3(0, -600),
             };
         }
 

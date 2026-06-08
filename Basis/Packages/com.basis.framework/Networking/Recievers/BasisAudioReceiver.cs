@@ -316,24 +316,29 @@ namespace Basis.Scripts.Networking.Receivers
         // cross the managed/native boundary (and isPlaying queries the FMOD channel),
         // so polling them every receiver every tick costs ~µs per receiver. We mirror
         // the state here and only touch the Unity API on transitions.
-        private bool _audioEnabled;
+        private volatile bool _audioEnabled;
         private bool _audioPlaying;
 
         /// <summary>
-        /// Main-thread only: updates AudioSource enabled/playing state after decode.
+        /// True when a main-thread <see cref="ApplyAudioState"/> is owed: the source's
+        /// enabled state disagrees with whether real audio is queued. Safe to read off-thread.
+        /// </summary>
+        public bool NeedsAudioStateApply => HasAudioSource && VoiceBuffer.HasRealAudio != _audioEnabled;
+
+        /// <summary>
+        /// Main-thread only: reconciles AudioSource enabled/playing with the decoded queue.
+        /// No-op when already in the right state.
         /// </summary>
         public void ApplyAudioState()
         {
-            if (_lastDrainDecoded && HasAudioSource)
+            if (!HasAudioSource) return;
+            if (VoiceBuffer.HasRealAudio)
             {
-                if (VoiceBuffer.HasRealAudio)
-                {
-                    EnableAndEnsurePlaying();
-                }
-                else
-                {
-                    DisableAudio();
-                }
+                EnableAndEnsurePlaying();
+            }
+            else
+            {
+                DisableAudio();
             }
         }
 
@@ -411,11 +416,15 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
                 audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
                 audioSource.loop = true;
+                audioSource.enabled = true;
                 audioSource.Play();
                 audioSource.maxDistance = MaxDistance;
             }
-            // Seed the state cache to match what we just configured above. AudioSource
-            // is enabled by default on a newly attached component, and we just called Play().
+            else if (!audioSource.enabled)
+            {
+                audioSource.enabled = true;
+                audioSource.Play();
+            }
             _audioEnabled = true;
             _audioPlaying = true;
             HasAudioSource = true;

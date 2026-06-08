@@ -9,6 +9,15 @@ public static class SettingsProviderUIStyle
 {
     private static readonly Dictionary<UiPaletteStyle, Color> OriginalPaletteColors = new();
 
+    public static readonly Color EdgeColorBlack = new(0f, 0f, 0f, 0.14901961f);
+    public static readonly Color EdgeColorWhite = new(1f, 1f, 1f, 0.14901961f);
+
+    public static void ApplyEdgeColor(bool white)
+    {
+        SetPaletteColor(UiPaletteStyle.EdgeColor, white ? EdgeColorWhite : EdgeColorBlack);
+        UiStyleSettings.UpdateAllStyleComponents();
+    }
+
     [RuntimeInitializeOnLoadMethod]
     private static void Init()
     {
@@ -49,6 +58,8 @@ public static class SettingsProviderUIStyle
         ApplyColorBinding(UiPaletteStyle.CautionColor, BasisSettingsDefaults.UIPaletteCaution);
         ApplyColorBinding(UiPaletteStyle.DangerColor, BasisSettingsDefaults.UIPaletteDanger);
         ApplyColorBinding(UiPaletteStyle.Scrollbar, BasisSettingsDefaults.UIPaletteScrollbar);
+
+        SetPaletteColor(UiPaletteStyle.EdgeColor, BasisSettingsDefaults.MenuEdgeWhite.RawValue ? EdgeColorWhite : EdgeColorBlack);
 
         UiStyleSettings.UpdateAllStyleComponents();
     }
@@ -142,6 +153,7 @@ public static class SettingsProviderUIStyle
         PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group, parent);
         group.SetTitle(title);
+        group.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.colorPicker.tooltip"));
 
         RectTransform content = group.ContentParent;
 
@@ -157,10 +169,12 @@ public static class SettingsProviderUIStyle
         PanelSlider hueSlider = PanelSlider.CreateNew(content);
         hueSlider.SetSliderSettings(new PanelSlider.SliderSettings(
             Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hue"), "", 0, 360, true, 0, ValueDisplayMode.Degrees));
+        hueSlider.Descriptor.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hue.tooltip"));
         hueSlider.SetValueWithoutNotify(Mathf.RoundToInt(h * 360));
 
         PanelTextField hexField = PanelTextField.CreateNewEntry(content);
         hexField.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hex"));
+        hexField.Descriptor.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.hex.tooltip"));
         hexField.AssignBinding(binding);
         if (hexField._inputField != null)
         {
@@ -238,6 +252,7 @@ public static class SettingsProviderUIStyle
             case UiPaletteStyle.CautionColor: palette.CautionColor = color; break;
             case UiPaletteStyle.DangerColor: palette.DangerColor = color; break;
             case UiPaletteStyle.Scrollbar: palette.Scrollbar = color; break;
+            case UiPaletteStyle.EdgeColor: palette.EdgeColor = color; break;
         }
     }
 
@@ -265,6 +280,7 @@ public static class SettingsProviderUIStyle
         BasisSettingsDefaults.UIPaletteCaution.ResetToDefault();
         BasisSettingsDefaults.UIPaletteDanger.ResetToDefault();
         BasisSettingsDefaults.UIPaletteScrollbar.ResetToDefault();
+        BasisSettingsDefaults.MenuEdgeWhite.ResetToDefault();
 
         UiStyleSettings.UpdateAllStyleComponents();
     }

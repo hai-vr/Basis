@@ -22,7 +22,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor descriptor = tab.Descriptor;
 
             descriptor.SetTitle(BasisLocalization.Get("settings.nameplates.title"));
-            descriptor.SetDescription(BasisLocalization.Get("settings.nameplates.description"));
 
             RectTransform container = descriptor.ContentParent;
             BuildNamePlateContent(container);
@@ -44,29 +43,33 @@ namespace Basis.BasisUI
             PanelElementDescriptor nameplateGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             nameplateGroup.SetTitle(BasisLocalization.Get("settings.nameplates.title"));
-            nameplateGroup.SetDescription(BasisLocalization.Get("settings.nameplates.description"));
 
             PanelToggle toggleEnabled = PanelToggle.CreateNewEntry(nameplateGroup);
             toggleEnabled.Descriptor.SetTitle(BasisLocalization.Get("settings.nameplates.show"));
+            toggleEnabled.Descriptor.SetTooltip(BasisLocalization.Get("settings.nameplates.show.tooltip"));
             toggleEnabled.AssignBinding(BasisSettingsDefaults.NPEnabled);
 
             PanelToggle toggleMenuOnly = PanelToggle.CreateNewEntry(nameplateGroup);
             toggleMenuOnly.Descriptor.SetTitle(BasisLocalization.Get("settings.nameplates.menuOnly"));
+            toggleMenuOnly.Descriptor.SetTooltip(BasisLocalization.Get("settings.nameplates.menuOnly.tooltip"));
             toggleMenuOnly.AssignBinding(BasisSettingsDefaults.NPMenuOnly);
 
             PanelToggle toggleHoverMenuOnly = PanelToggle.CreateNewEntry(nameplateGroup);
             toggleHoverMenuOnly.Descriptor.SetTitle(BasisLocalization.Get("settings.nameplates.hoverMenuOnly"));
+            toggleHoverMenuOnly.Descriptor.SetTooltip(BasisLocalization.Get("settings.nameplates.hoverMenuOnly.tooltip"));
             toggleHoverMenuOnly.AssignBinding(BasisSettingsDefaults.NPHoverMenuOnly);
 
             PanelSlider sliderSize = PanelSlider.CreateEntryAndBind(
                 nameplateGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.nameplates.size"), 0.5f, 2f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.NPSize);
+            sliderSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.nameplates.size.tooltip"));
 
             PanelSlider sliderTransparency = PanelSlider.CreateEntryAndBind(
                 nameplateGroup,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.nameplates.transparency"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.NPTransparency);
+            sliderTransparency.Descriptor.SetTooltip(BasisLocalization.Get("settings.nameplates.transparency.tooltip"));
 
             // Hide appearance settings when nameplates are disabled
             bool isEnabled = BasisSettingsDefaults.NPEnabled.RawValue;

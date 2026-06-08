@@ -43,7 +43,6 @@ public static class SettingsProviderContentTags
         PanelElementDescriptor group =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         group.SetTitle(BasisLocalization.Get("settings.perf.contentTags.title"));
-        group.SetDescription(BasisLocalization.Get("settings.perf.contentTags.description"));
 
         // Preset toggles: each one's checked state is "is this preset on the user's
         // blocklist". Order matches BasisContentTagPresets so the SDK inspector and
@@ -53,6 +52,7 @@ public static class SettingsProviderContentTags
             string preset = BasisContentTagPresets.All[i];
             PanelToggle toggle = PanelToggle.CreateNewEntry(group.ContentParent);
             toggle.Descriptor.SetTitle(string.Format(BasisLocalization.Get("settings.perf.contentTags.blockFormat"), preset));
+            toggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.contentTags.blockFormat.tooltip"));
             toggle.SetValueWithoutNotify(IsBlocked(preset));
             toggle.OnValueChanged += on => OnPresetToggle(preset, on);
             _presetRows[preset] = toggle;
@@ -64,7 +64,6 @@ public static class SettingsProviderContentTags
         PanelElementDescriptor customGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         customGroup.SetTitle(BasisLocalization.Get("settings.perf.contentTags.custom.title"));
-        customGroup.SetDescription(BasisLocalization.Get("settings.perf.contentTags.custom.description"));
 
         _customListContainer = customGroup.ContentParent;
 
@@ -82,10 +81,12 @@ public static class SettingsProviderContentTags
         // works (and for non-keyboard input on standalone VR).
         PanelTextField input = PanelTextField.CreateNewEntry(customGroup.ContentParent);
         input.Descriptor.SetTitle(BasisLocalization.Get("settings.perf.contentTags.custom.addLabel"));
+        input.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.contentTags.custom.addLabel.tooltip"));
         input.OnValueChanged += value => CommitCustomEntry(input, value);
 
         PanelButton addButton = PanelButton.CreateNew(customGroup.ContentParent);
         addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.perf.contentTags.custom.addButton"));
+        addButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.contentTags.custom.addButton.tooltip"));
         addButton.OnClicked = () => CommitCustomEntry(input, input.Value);
 
         ForceLayout();
@@ -152,6 +153,7 @@ public static class SettingsProviderContentTags
 
         PanelToggle row = PanelToggle.CreateNewEntry(_customListContainer);
         row.Descriptor.SetTitle(string.Format(BasisLocalization.Get("settings.perf.contentTags.blockFormat"), tag));
+        row.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.contentTags.blockFormat.tooltip"));
         row.SetValueWithoutNotify(true);
         row.OnValueChanged += on =>
         {

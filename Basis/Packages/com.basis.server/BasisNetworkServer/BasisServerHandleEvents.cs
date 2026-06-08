@@ -713,21 +713,35 @@ namespace BasisServerHandle
         public static void NotifyExistingClients(ServerReadyMessage serverSideSyncPlayerMessage, NetPeer authClient)
         {
             NetDataWriter Writer = NetworkServer.RentWriter();
-            serverSideSyncPlayerMessage.Serialize(Writer);
-            NetPeer[] peers = NetworkServer.PeerSnapshot;
-            //  BNL.LogError("Writing Data with size Size " + Writer.Length);
-            if (NetworkServer.CheckValidated(Writer))
+            try
             {
+                serverSideSyncPlayerMessage.Serialize(Writer);
+                if (!NetworkServer.CheckValidated(Writer))
+                {
+                    return;
+                }
+                NetPeer[] peers = NetworkServer.PeerSnapshot;
                 foreach (NetPeer client in peers)
                 {
-                    if (client != authClient)
+                    if (client == authClient)
+                    {
+                        continue;
+                    }
+                    try
                     {
                         client.Send(Writer, BasisNetworkCommons.CreateRemotePlayerChannel, DeliveryMethod.ReliableOrdered);
                         BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.CreateRemotePlayerChannel, Writer.Length);
                     }
+                    catch (Exception ex)
+                    {
+                        BNL.LogError($"Failed to notify peer {client?.Id} of new player {authClient.Id}: {ex.Message}");
+                    }
                 }
             }
-            NetworkServer.ReturnWriter(Writer);
+            finally
+            {
+                NetworkServer.ReturnWriter(Writer);
+            }
         }
         /// <summary>
         /// send everyone to the new client

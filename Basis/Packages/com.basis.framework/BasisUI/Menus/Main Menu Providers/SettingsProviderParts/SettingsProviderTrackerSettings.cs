@@ -104,7 +104,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor headerGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             headerGroup.SetTitle(BasisLocalization.Get("trackerLinking.header.title"));
-            headerGroup.SetDescription(BasisLocalization.Get("trackerLinking.header.description"));
 
             // Connector trackers toggle — hides the per-tracker list (linking +
             // role override dropdowns) so a configured player doesn't have to
@@ -112,7 +111,7 @@ namespace Basis.BasisUI
             // the advanced toggle below; user touches it once to set things up.
             PanelToggle connectorToggle = PanelToggle.CreateNewEntry(tabRoot);
             connectorToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.connectorTrackers"));
-            connectorToggle.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.connectorTrackers.description"));
+            connectorToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.connectorTrackers.tooltip"));
             connectorToggle.AssignBinding(BasisSettingsDefaults.TrackerLinkingConnectorVisible);
 
             // Advanced toggle — hides the tuning sliders behind an opt-in so
@@ -120,7 +119,7 @@ namespace Basis.BasisUI
             // trackers. Same pattern as SettingsProviderIK's advancedToggle.
             PanelToggle advancedToggle = PanelToggle.CreateNewEntry(tabRoot);
             advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.advanced"));
-            advancedToggle.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.advanced.description"));
+            advancedToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.advanced.tooltip"));
             advancedToggle.AssignBinding(BasisSettingsDefaults.TrackerLinkingAdvancedVisible);
 
             // Static tuning group — bound to BasisSettingsDefaults bindings, so values
@@ -128,7 +127,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor tuningGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             tuningGroup.SetTitle(BasisLocalization.Get("trackerLinking.tuning.title"));
-            tuningGroup.SetDescription(BasisLocalization.Get("trackerLinking.tuning.description"));
             BuildTuningSliders(tuningGroup.ContentParent);
 
             // Dynamic per-tracker section — updates on device/pair/override changes.
@@ -332,7 +330,6 @@ namespace Basis.BasisUI
                 PanelElementDescriptor empty = PanelElementDescriptor.CreateNew(
                     PanelElementDescriptor.ElementStyles.Group, state.TrackersContainer);
                 empty.SetTitle(BasisLocalization.Get("trackerLinking.noTrackers.title"));
-                empty.SetDescription(BasisLocalization.Get("trackerLinking.noTrackers.description"));
                 return;
             }
 
@@ -368,7 +365,7 @@ namespace Basis.BasisUI
             group.SetDescription(BuildEntryDescription(input));
 
             PanelButton identifyButton = PanelButton.CreateNew(group.ContentParent);
-            identifyButton.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.identifyDescription"));
+            identifyButton.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.identifyLabel.tooltip"));
             if (identifyButton.ButtonStyling != null)
             {
                 identifyButton.ButtonStyling.ShowIndicator(false);
@@ -379,7 +376,7 @@ namespace Basis.BasisUI
 
             PanelDropdown linkDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
             linkDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.linkLabel"));
-            linkDropdown.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.linkDescription"));
+            linkDropdown.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.linkLabel.tooltip"));
 
             List<string> linkEntries = new List<string>(allIds.Count) { UnlinkedLabel };
             for (int i = 0; i < allIds.Count; i++)
@@ -407,7 +404,7 @@ namespace Basis.BasisUI
 
             PanelDropdown roleDropdown = PanelDropdown.CreateNewEntry(group.ContentParent);
             roleDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.roleOverrideLabel"));
-            roleDropdown.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.roleOverrideDescription"));
+            roleDropdown.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.roleOverrideLabel.tooltip"));
 
             List<string> roleEntries = BuildRoleEntries();
             roleDropdown.AssignEntries(roleEntries);
@@ -531,7 +528,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingSurprisePenalty);
             if (penalty != null)
             {
-                penalty.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.surprisePenalty.description"));
+                penalty.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.surprisePenalty.tooltip"));
             }
 
             // Surprise clamp: above this, the velocity baseline freezes.
@@ -541,7 +538,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingSurpriseClamp);
             if (clamp != null)
             {
-                clamp.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.surpriseClamp.description"));
+                clamp.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.surpriseClamp.tooltip"));
             }
 
             // EMA floor (in meters/frame) — guard against divide-by-zero on a
@@ -552,7 +549,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingEmaFloor);
             if (floor != null)
             {
-                floor.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.emaFloor.description"));
+                floor.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.emaFloor.tooltip"));
             }
 
             // Soft-snap correction cap.
@@ -562,7 +559,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingMaxCorrectionStrength);
             if (maxCorrection != null)
             {
-                maxCorrection.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.maxCorrection.description"));
+                maxCorrection.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.maxCorrection.tooltip"));
             }
 
             // Soft-snap half-life (in meters of error).
@@ -572,7 +569,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingSoftSnapHalfLife);
             if (halfLife != null)
             {
-                halfLife.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.softSnapHalfLife.description"));
+                halfLife.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.softSnapHalfLife.tooltip"));
             }
 
             // Lockstep tolerance (in meters of error).
@@ -582,7 +579,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingLockstepTolerance);
             if (lockstep != null)
             {
-                lockstep.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.lockstepTolerance.description"));
+                lockstep.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.lockstepTolerance.tooltip"));
             }
 
             // Velocity-baseline EMA alpha.
@@ -592,7 +589,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingEmaAlpha);
             if (emaAlpha != null)
             {
-                emaAlpha.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.emaAlpha.description"));
+                emaAlpha.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.emaAlpha.tooltip"));
             }
 
             // Rest-distance EMA alpha.
@@ -602,7 +599,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingDistanceEmaAlpha);
             if (distEmaAlpha != null)
             {
-                distEmaAlpha.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.distanceEmaAlpha.description"));
+                distEmaAlpha.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.distanceEmaAlpha.tooltip"));
             }
 
             // Weight smoothing — how fast the per-tracker confidence weights
@@ -614,7 +611,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingWeightSmoothing);
             if (weightSmoothing != null)
             {
-                weightSmoothing.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.weightSmoothing.description"));
+                weightSmoothing.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.weightSmoothing.tooltip"));
             }
 
             // Rotation low-pass half-life (seconds).
@@ -624,7 +621,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PairingRotationHalfLife);
             if (rotationHalfLife != null)
             {
-                rotationHalfLife.Descriptor.SetDescription(BasisLocalization.Get("trackerLinking.tuning.rotationHalfLife.description"));
+                rotationHalfLife.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.rotationHalfLife.tooltip"));
             }
         }
 

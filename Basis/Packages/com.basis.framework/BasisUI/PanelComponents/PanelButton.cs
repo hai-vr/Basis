@@ -7,19 +7,21 @@ using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
-    public class PanelButton : PanelComponent, IPointerEnterHandler, IPointerExitHandler
+    public class PanelButton : PanelComponent
     {
         private bool _isHovered;
 
-        public void OnPointerEnter(PointerEventData eventData)
+        public override void OnPointerEnter(PointerEventData eventData)
         {
+            base.OnPointerEnter(eventData);
             if (_isHovered) return;
             _isHovered = true;
             UIAnimations.HoverLift(transform);
         }
 
-        public void OnPointerExit(PointerEventData eventData)
+        public override void OnPointerExit(PointerEventData eventData)
         {
+            base.OnPointerExit(eventData);
             if (!_isHovered) return;
             _isHovered = false;
             UIAnimations.HoverReset(transform);

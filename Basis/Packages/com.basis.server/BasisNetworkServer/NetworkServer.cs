@@ -33,11 +33,17 @@ public static class NetworkServer
     public static BasisNetworkServer.Security.BasisWhiteList Whitelist;
     // Cached snapshot rebuilt on connect/disconnect — avoids ToArray() alloc on every broadcast.
     private static volatile NetPeer[] _peerSnapshot = Array.Empty<NetPeer>();
+    // Guards the read-then-publish: OnNetworkAccepted runs on parallel DID-auth continuations, so
+    // concurrent joins could otherwise lost-update _peerSnapshot to a stale array that drops a peer.
+    private static readonly object _peerSnapshotLock = new object();
     public static NetPeer[] PeerSnapshot => _peerSnapshot;
 
     public static void RebuildPeerSnapshot()
     {
-        _peerSnapshot = AuthenticatedPeers.Values.ToArray();
+        lock (_peerSnapshotLock)
+        {
+            _peerSnapshot = AuthenticatedPeers.Values.ToArray();
+        }
     }
 
     // Centralized NetDataWriter pool — single source of truth for all server code.

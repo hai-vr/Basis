@@ -30,10 +30,10 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             BasisPickupInteractable.CanHoverInjected.Add(CanHover);
             BasisPickupInteractable.CanInteractInjected.Add(CanInteract);
             BasisPickupInteractable.OnInteractStartEvent.AddListener(OnInteractStartEvent);
-        }
-        if (BasisPickupInteractable.RigidRef != null)
-        {
-            BasisPickupInteractable.RigidRef.isKinematic = false;
+            if (BasisPickupInteractable.RigidRef != null)
+            {
+                BasisPickupInteractable.RigidRef.isKinematic = false;
+            }
         }
         if (buffer == null || buffer.Length < BasisPositionRotationScale.Size)
         {
