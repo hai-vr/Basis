@@ -524,11 +524,11 @@
     },
     {
       "key": "calibration.decreaseHeight.tooltip",
-      "value": "Lower your avatar's height by a small step for a better fit."
+      "value": "Nudge your standing height down a little. Adjusts how tall you stand after calibration; it does not resize the avatar."
     },
     {
       "key": "calibration.increaseHeight.tooltip",
-      "value": "Raise your avatar's height by a small step for a better fit."
+      "value": "Nudge your standing height up a little. Adjusts how tall you stand after calibration; it does not resize the avatar."
     },
     {
       "key": "calibration.pitchLabel.tooltip",
@@ -537,6 +537,10 @@
     {
       "key": "calibration.bodyTrackingSettings.tooltip",
       "value": "Open the body tracking settings to adjust full-body tracking options."
+    },
+    {
+      "key": "calibration.customScale.tooltip",
+      "value": "Turn on to set your avatar's size by hand with the slider, instead of auto-sizing it from calibration."
     },
     {
       "key": "settings.bodyTracking.seatedMode.tooltip",

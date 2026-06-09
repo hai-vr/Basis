@@ -41,7 +41,7 @@ namespace Basis.BasisUI
             // Toggle: clicking the active tab closes it.
             if (BasisMainMenu.ActiveMenuTitle == Title)
             {
-                BasisMainMenu.Instance.ActiveMenu.ReleaseInstance();
+                BasisMainMenu.CloseActivePanel();
                 return;
             }
 

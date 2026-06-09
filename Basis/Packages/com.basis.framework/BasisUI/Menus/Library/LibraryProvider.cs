@@ -118,7 +118,11 @@ namespace Basis.BasisUI
 
         public override async void RunAction()
         {
-            if (BasisMainMenu.ActiveMenuTitle == Title) return;
+            if (BasisMainMenu.ActiveMenuTitle == Title)
+            {
+                BasisMainMenu.CloseActivePanel();
+                return;
+            }
 
             // ensure admin hooks are here
             BasisNetworkManagement.OnlocalPermissionsChanged -= ProtectionValidation;

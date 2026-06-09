@@ -406,7 +406,7 @@ namespace Basis.BasisUI
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
             {
-                BasisMainMenu.Instance.ActiveMenu.ReleaseInstance();
+                BasisMainMenu.CloseActivePanel();
                 return;
             }
 

@@ -53,7 +53,7 @@ namespace Basis.BasisUI
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
             {
-                BasisMainMenu.Instance.ActiveMenu.ReleaseInstance();
+                BasisMainMenu.CloseActivePanel();
                 return;
             }
 
@@ -61,7 +61,7 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(440, 720),
+                    PanelSize = new Vector2(440, 820),
                     PanelPosition = new Vector3(530, -150, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
@@ -95,6 +95,28 @@ namespace Basis.BasisUI
             PlusButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.increaseHeight"));
             PlusButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.increaseHeight.tooltip"));
 
+            // Avatar scale
+            var customScaleToggle = PanelToggle.CreateNewEntry(container);
+            customScaleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.customScale"));
+            customScaleToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.customScale.tooltip"));
+            customScaleToggle.AssignBinding(BasisSettingsDefaults.CustomScale);
+
+            var avatarScaleSlider = PanelSlider.CreateAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale"), 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.SelectedScale);
+            if (avatarScaleSlider != null)
+            {
+                avatarScaleSlider.Descriptor.SetTooltip(FormatScaleMeters(avatarScaleSlider.Value));
+                avatarScaleSlider.OnValueChanged += value => avatarScaleSlider.Descriptor.SetTooltip(FormatScaleMeters(value));
+                avatarScaleSlider.gameObject.SetActive(BasisSettingsDefaults.CustomScale.RawValue);
+                customScaleToggle.OnValueChanged += visible =>
+                {
+                    avatarScaleSlider.gameObject.SetActive(visible);
+                    layout.ForceRebuild();
+                };
+            }
+
             // Pitch calibration toggle
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             _pitchToggleButton.OnClicked += TogglePitchCalibration;
@@ -110,6 +132,7 @@ namespace Basis.BasisUI
             // Reset Calibration (restores defaults for calibration-only state, including hidden pitch data)
             var resetButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             resetButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.reset"));
+            resetButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.resetDescription"));
             resetButton.OnClicked += PromptResetCalibration;
         }
 
@@ -167,6 +190,8 @@ namespace Basis.BasisUI
             HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
             BasisHeightDriver.ApplyScaleAndHeight();
         }
+
+        private static string FormatScaleMeters(float meters) => meters.ToString("0.##") + " m";
 
         private void TogglePitchCalibration()
         {

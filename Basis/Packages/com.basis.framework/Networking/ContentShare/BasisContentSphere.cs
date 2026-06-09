@@ -40,6 +40,7 @@ public class BasisContentSphere : BasisInteractableObject
     public static float BobPhaseClock = 1.5f;
     public static float BobPhaseOffset = 0.05f;
     public static float RotationSpeed = 30f;
+    public static int MaxTitleNameLength = 24;
     public Texture2D texture;
     public void Initialize(string sphereNetID, string contentURL, string unlockPassword, ContentShareType contentType, ushort creatorPlayerID, string creatorUUID, string creatorDisplayName)
     {
@@ -65,6 +66,11 @@ public class BasisContentSphere : BasisInteractableObject
             _ = LoadMetadataImageAsync(_metaLoadCts.Token);
             Label.text = GetContentTypeName();
         }
+
+        if (Label != null)
+        {
+            BasisContentSphereBillboardDriver.Register(Label.transform);
+        }
     }
 
     private void ApplyServerLabel()
@@ -74,7 +80,7 @@ public class BasisContentSphere : BasisInteractableObject
         {
             display = $"{addr}:{port}";
         }
-        if (Label != null) Label.text = $"{GetContentTypeName()}\n{display}";
+        if (Label != null) Label.text = $"{GetContentTypeName()}\n{ClampName(display)}";
 
         if (Renderer != null)
         {
@@ -138,7 +144,7 @@ public class BasisContentSphere : BasisInteractableObject
                 string bundleName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription?.AssetBundleName;
                 if (!string.IsNullOrEmpty(bundleName) && Label != null)
                 {
-                    Label.text = $"{GetContentTypeName()}\n{bundleName}";
+                    Label.text = $"{GetContentTypeName()}\n{ClampName(bundleName)}";
                 }
             }
             else
@@ -164,11 +170,24 @@ public class BasisContentSphere : BasisInteractableObject
     }
     public override void OnDestroy()
     {
+        if (Label != null)
+        {
+            BasisContentSphereBillboardDriver.Unregister(Label.transform);
+        }
         GameObject.Destroy(texture);
         _metaLoadCts?.Cancel();
         _metaLoadCts?.Dispose();
         base.OnDestroy();
 
+    }
+
+    private static string ClampName(string value)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= MaxTitleNameLength)
+        {
+            return value;
+        }
+        return value.Substring(0, MaxTitleNameLength).TrimEnd() + "...";
     }
     /// <summary>
     /// Constructs a BasisLoadableBundle from this sphere's metadata.
