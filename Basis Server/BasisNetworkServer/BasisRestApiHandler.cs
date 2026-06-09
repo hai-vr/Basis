@@ -23,7 +23,7 @@ namespace Basis.Network.Server
             _apiKey  = config.ApiKey;
             _keyHash = string.IsNullOrEmpty(_apiKey)
                 ? Array.Empty<byte>()
-                : SHA256.HashData(Encoding.UTF8.GetBytes(_apiKey));
+                : HashBytes(Encoding.UTF8.GetBytes(_apiKey));
             _listener.Prefixes.Add($"http://{config.ApiHost}:{config.ApiPort}/");
             _listener.Start();
             _ = ListenLoopAsync(_cts.Token);
@@ -88,8 +88,14 @@ namespace Basis.Network.Server
             if (string.IsNullOrEmpty(_apiKey)) return false;
             var auth = req.Headers["Authorization"];
             if (auth == null || !auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return false;
-            var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(auth["Bearer ".Length..]));
+            var tokenHash = HashBytes(Encoding.UTF8.GetBytes(auth.Substring("Bearer ".Length)));
             return CryptographicOperations.FixedTimeEquals(_keyHash, tokenHash);
+        }
+
+        private static byte[] HashBytes(byte[] data)
+        {
+            using var sha = SHA256.Create();
+            return sha.ComputeHash(data);
         }
 
         public void Dispose()

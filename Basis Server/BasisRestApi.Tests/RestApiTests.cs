@@ -247,12 +247,48 @@ namespace BasisRestApi.Tests
             Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
         }
 
+        [Fact]
+        public async Task LoadWorld_PasswordEmbeddedInUrl_Returns200AndStoresCleanUrl()
+        {
+            const string cleanUrl = "https://example.com/world.bee";
+            var res = await PostJson("/api/worlds", """{"url":"https://example.com/world.bee#secretpassword"}""");
+
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            string netId = JsonDocument.Parse(await res.Content.ReadAsStringAsync())
+                .RootElement.GetProperty("netId").GetString()!;
+
+            Assert.True(BasisNetworkResourceManagement.UshortNetworkDatabase.TryGetValue(netId, out var r));
+            Assert.Equal(cleanUrl, r!.CombinedURL);
+            Assert.Equal("secretpassword", r.UnlockPassword);
+        }
+
+        [Fact]
+        public async Task LoadWorld_ExplicitPasswordOverridesEmbedded()
+        {
+            var res = await PostJson("/api/worlds",
+                """{"url":"https://example.com/world.bee#embedded","password":"explicit"}""");
+
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            string netId = JsonDocument.Parse(await res.Content.ReadAsStringAsync())
+                .RootElement.GetProperty("netId").GetString()!;
+
+            Assert.True(BasisNetworkResourceManagement.UshortNetworkDatabase.TryGetValue(netId, out var r));
+            Assert.Equal("explicit", r!.UnlockPassword);
+        }
+
         // ── POST /api/worlds/switch ───────────────────────────────────────────
 
         [Fact]
         public async Task SwitchWorld_MissingUrl_Returns400()
         {
             var res = await PostJson("/api/worlds/switch", """{"password":"pass"}""");
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        }
+
+        [Fact]
+        public async Task SwitchWorld_MissingPasswordNoFragment_Returns400()
+        {
+            var res = await PostJson("/api/worlds/switch", """{"url":"https://example.com/next.bee"}""");
             Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         }
 
@@ -268,6 +304,60 @@ namespace BasisRestApi.Tests
 
             string netId = doc.RootElement.GetProperty("netId").GetString()!;
             Assert.True(BasisNetworkResourceManagement.UshortNetworkDatabase.ContainsKey(netId));
+        }
+
+        [Fact]
+        public async Task SwitchWorld_PasswordEmbeddedInUrl_Returns200AndStoresCleanUrl()
+        {
+            const string cleanUrl = "https://beefile.io/7ec036b1a8fdd4e7f439339be9cbf54d";
+            const string password = "MGFmZWU0Y2ZlMjExMzlkY2Y5MDJlMjQ3NTc1ZDhiODAwODk3ZjZiZWM4NWVmMzkyODA5YTk3NDRhMjE3NTQzZQ==";
+            var res = await PostJson("/api/worlds/switch",
+                $$"""{"url":"{{cleanUrl}}#{{password}}"}""");
+
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            string netId = JsonDocument.Parse(await res.Content.ReadAsStringAsync())
+                .RootElement.GetProperty("netId").GetString()!;
+
+            Assert.True(BasisNetworkResourceManagement.UshortNetworkDatabase.TryGetValue(netId, out var r));
+            Assert.Equal(cleanUrl, r!.CombinedURL);
+            // Fragment passwords are base64-encoded; server decodes them before storing.
+            string decoded = Encoding.UTF8.GetString(Convert.FromBase64String(password));
+            Assert.Equal(decoded, r.UnlockPassword);
+        }
+
+        [Fact]
+        public async Task SwitchWorld_InvalidDelay_Returns400()
+        {
+            var res = await PostJson("/api/worlds/switch",
+                """{"url":"https://example.com/next.bee","password":"pass","delay":-1}""");
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        }
+
+        [Fact]
+        public async Task SwitchWorld_DelayTooLarge_Returns400()
+        {
+            var res = await PostJson("/api/worlds/switch",
+                """{"url":"https://example.com/next.bee","password":"pass","delay":301}""");
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        }
+
+        [Fact]
+        public async Task SwitchWorld_WithDelay_NetIdReturnedImmediatelyLoadDeferred()
+        {
+            // delay > 0: announce is sent first (cross-channel ordering), load starts after delay
+            var res = await PostJson("/api/worlds/switch",
+                """{"url":"https://example.com/next.bee","password":"pass","delay":1,"announceMessage":"Loading in 1s"}""");
+
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            string netId = JsonDocument.Parse(await res.Content.ReadAsStringAsync())
+                .RootElement.GetProperty("netId").GetString()!;
+
+            Assert.False(BasisNetworkResourceManagement.UshortNetworkDatabase.ContainsKey(netId),
+                "load should not be in DB until delay expires");
+
+            await Task.Delay(TimeSpan.FromMilliseconds(1500));
+            Assert.True(BasisNetworkResourceManagement.UshortNetworkDatabase.ContainsKey(netId),
+                "load should be in DB after delay expires");
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

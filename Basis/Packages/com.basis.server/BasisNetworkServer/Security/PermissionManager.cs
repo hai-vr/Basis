@@ -1085,6 +1085,11 @@ namespace BasisPermissions
                 _playerMeta.TryRemove(uuid, out _);
             }
 
+            public static bool TryGetPlayerMeta(string uuid, out ClientMetaDataMessage meta)
+            {
+                return _playerMeta.TryGetValue(uuid, out meta);
+            }
+
             public static void EvictPermissionCache(string uuid)
             {
                 Manager.EvictUserCache(uuid);
