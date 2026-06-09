@@ -10,6 +10,7 @@ public partial class BasisProjectSetup : EditorWindow
     private bool AreRequiredModulesOkForCurrentSelection()
     {
         if (!_hasWin.HasValue || !_hasLinux.HasValue || !_hasAndroid.HasValue ||
+            !_hasMac.HasValue || !_hasIOS.HasValue ||
             !_hasIl2cppStandalone.HasValue || !_hasIl2cppAndroid.HasValue)
             return false;
 
@@ -30,6 +31,12 @@ public partial class BasisProjectSetup : EditorWindow
             case PlatformChoice.Android:
                 return _hasAndroid == true && _hasIl2cppAndroid == true;
 
+            case PlatformChoice.Mac:
+                return _hasMac == true && _hasIl2cppStandalone == true;
+
+            case PlatformChoice.IOS:
+                return _hasIOS == true;
+
             default:
                 return false;
         }
@@ -47,6 +54,18 @@ public partial class BasisProjectSetup : EditorWindow
             case PlatformChoice.Android:
                 group = BuildTargetGroup.Android;
                 target = BuildTarget.Android;
+                desiredQuality = QUALITY_ANDROID;
+                break;
+
+            case PlatformChoice.Mac:
+                group = BuildTargetGroup.Standalone;
+                target = BuildTarget.StandaloneOSX;
+                desiredQuality = QUALITY_DESKTOP;
+                break;
+
+            case PlatformChoice.IOS:
+                group = BuildTargetGroup.iOS;
+                target = BuildTarget.iOS;
                 desiredQuality = QUALITY_ANDROID;
                 break;
 
@@ -123,6 +142,8 @@ public partial class BasisProjectSetup : EditorWindow
         _hasWin = BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
         _hasLinux = BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneLinux64);
         _hasAndroid = BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android);
+        _hasMac = BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneOSX);
+        _hasIOS = BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.iOS, BuildTarget.iOS);
 
         _hasIl2cppStandalone = SupportsIl2cpp(BuildTargetGroup.Standalone);
         _hasIl2cppAndroid = SupportsIl2cpp(BuildTargetGroup.Android);
@@ -144,11 +165,16 @@ public partial class BasisProjectSetup : EditorWindow
         GUILayout.FlexibleSpace();
         if (GUILayout.Button(Tr("projectSetup.buildModules.recheck", "Re-check"))) RecheckBuildModulesAndBackends();
         EditorGUILayout.EndHorizontal();
+        EditorGUILayout.BeginHorizontal();
+        DrawBadge(Tr("projectSetup.platformQuality.mac", "macOS"), _hasMac == true);
+        DrawBadge(Tr("projectSetup.platformQuality.ios", "iOS"), _hasIOS == true);
+        GUILayout.FlexibleSpace();
+        EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space(2);
         EditorGUILayout.LabelField(Tr("projectSetup.buildModules.il2cppAvailability", "IL2CPP Availability:"), EditorStyles.miniBoldLabel);
         EditorGUILayout.BeginHorizontal();
-        DrawBadge(Tr("projectSetup.buildModules.il2cppStandalone", "Standalone (Win/Linux)"), _hasIl2cppStandalone == true);
+        DrawBadge(Tr("projectSetup.buildModules.il2cppStandalone", "Standalone (Win/Linux/macOS)"), _hasIl2cppStandalone == true);
         DrawBadge(Tr("projectSetup.status.androidPlain", "Android"), _hasIl2cppAndroid == true);
         GUILayout.FlexibleSpace();
         EditorGUILayout.EndHorizontal();

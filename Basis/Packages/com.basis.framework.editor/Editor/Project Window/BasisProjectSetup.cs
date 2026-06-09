@@ -15,7 +15,7 @@ public partial class BasisProjectSetup : EditorWindow
 {
     // ─────────────────────────── Enums & constants ───────────────────────────
 
-    private enum PlatformChoice { Windows, Linux, Android }
+    private enum PlatformChoice { Windows, Linux, Android, Mac, IOS }
     private enum FirstRunKind { None = 0, Avatar = 1, World = 2, Project = 3 }
     private enum Tab { Funding, BuildModules, PlatformQuality, PlayXR, Docs, Scenes }
 
@@ -84,6 +84,8 @@ public partial class BasisProjectSetup : EditorWindow
     private bool? _hasWin;
     private bool? _hasLinux;
     private bool? _hasAndroid;
+    private bool? _hasMac;
+    private bool? _hasIOS;
 
     private bool? _hasIl2cppStandalone;
     private bool? _hasIl2cppAndroid;
@@ -414,34 +416,33 @@ public partial class BasisProjectSetup : EditorWindow
                 DrawPlatformRadio(PlatformChoice.Windows, Tr("projectSetup.platformQuality.windows", "Windows"));
                 DrawPlatformRadio(PlatformChoice.Linux, Tr("projectSetup.platformQuality.linux", "Linux"));
                 DrawPlatformRadio(PlatformChoice.Android, Tr("projectSetup.platformQuality.android", "Android (Quest)"));
+                DrawPlatformRadio(PlatformChoice.Mac, Tr("projectSetup.platformQuality.mac", "macOS"));
+                DrawPlatformRadio(PlatformChoice.IOS, Tr("projectSetup.platformQuality.ios", "iOS"));
             }
 
             _enforceIl2cpp = EditorGUILayout.ToggleLeft(
                 Tr("projectSetup.platformQuality.enforceIl2cpp", "Enforce IL2CPP scripting backend when applying"), _enforceIl2cpp);
 
-            EditorGUILayout.HelpBox(Tr("projectSetup.platformQuality.qualityHelp", "Quality presets: 1 = Desktop (Windows/Linux), 2 = Android/Quest"), MessageType.None);
+            EditorGUILayout.HelpBox(Tr("projectSetup.platformQuality.qualityHelp", "Quality presets: Desktop (Windows/Linux/macOS), mobile tier for Android/Quest and iOS."), MessageType.None);
+
+            bool selectedModuleInstalled = PlatformModuleInstalled(_choice) == true;
+            if (!selectedModuleInstalled)
+            {
+                EditorGUILayout.HelpBox(
+                    string.Format(Tr("projectSetup.platformQuality.selectedNotInstalled",
+                        "{0} Build Support isn’t installed. Pick an installed platform, or add the module via Unity Hub before switching."), PlatformDisplayName(_choice)),
+                    MessageType.Warning);
+            }
 
             bool modulesOk = AreRequiredModulesOkForCurrentSelection();
-            using (new EditorGUI.DisabledScope(!modulesOk && _enforceIl2cpp))
+            bool blockApply = !selectedModuleInstalled || (!modulesOk && _enforceIl2cpp);
+            using (new EditorGUI.DisabledScope(blockApply))
             {
-                string label = modulesOk
-                    ? Tr("projectSetup.platformQuality.applyButton", "Apply & Switch Platform")
-                    : Tr("projectSetup.platformQuality.applyButtonMissing", "Apply & Switch Platform (modules missing)");
+                string label = blockApply
+                    ? Tr("projectSetup.platformQuality.applyButtonMissing", "Apply & Switch Platform (modules missing)")
+                    : Tr("projectSetup.platformQuality.applyButton", "Apply & Switch Platform");
                 if (GUILayout.Button(label))
-                {
-                    if (!modulesOk && _enforceIl2cpp)
-                    {
-                        EditorUtility.DisplayDialog(
-                            Tr("projectSetup.platformQuality.missingDialogTitle", "Missing Modules / IL2CPP"),
-                            Tr("projectSetup.platformQuality.missingDialogBody",
-                                "Required build modules or IL2CPP are missing for the current selection. See the warnings above."),
-                            Tr("projectSetup.platformQuality.gotIt", "Got it"));
-                    }
-                    else
-                    {
-                        ApplyPlatformAndQuality(_choice, _enforceIl2cpp);
-                    }
-                }
+                    ApplyPlatformAndQuality(_choice, _enforceIl2cpp);
             }
         });
     }
@@ -945,8 +946,43 @@ public class ListenForLocalSpawn : MonoBehaviour
 
     private void DrawPlatformRadio(PlatformChoice value, string label)
     {
+        bool installed = PlatformModuleInstalled(value) == true;
         bool isSelected = _choice == value;
-        if (GUILayout.Toggle(isSelected, label, EditorStyles.radioButton)) _choice = value;
+        var content = installed
+            ? new GUIContent(label)
+            : new GUIContent(label, string.Format(Tr("projectSetup.platformQuality.installModuleTooltip",
+                "{0} Build Support isn’t installed. Add it via Unity Hub (⋮ → Add Modules)."), label));
+        using (new EditorGUI.DisabledScope(!installed))
+        {
+            if (GUILayout.Toggle(isSelected, content, EditorStyles.radioButton) && installed)
+                _choice = value;
+        }
+    }
+
+    private bool? PlatformModuleInstalled(PlatformChoice value)
+    {
+        switch (value)
+        {
+            case PlatformChoice.Windows: return _hasWin;
+            case PlatformChoice.Linux: return _hasLinux;
+            case PlatformChoice.Android: return _hasAndroid;
+            case PlatformChoice.Mac: return _hasMac;
+            case PlatformChoice.IOS: return _hasIOS;
+            default: return null;
+        }
+    }
+
+    private string PlatformDisplayName(PlatformChoice value)
+    {
+        switch (value)
+        {
+            case PlatformChoice.Windows: return Tr("projectSetup.platformQuality.windows", "Windows");
+            case PlatformChoice.Linux: return Tr("projectSetup.platformQuality.linux", "Linux");
+            case PlatformChoice.Android: return Tr("projectSetup.platformQuality.android", "Android (Quest)");
+            case PlatformChoice.Mac: return Tr("projectSetup.platformQuality.mac", "macOS");
+            case PlatformChoice.IOS: return Tr("projectSetup.platformQuality.ios", "iOS");
+            default: return value.ToString();
+        }
     }
 
     private void DrawInitialSceneAndBuildSetup()
@@ -986,6 +1022,11 @@ public class ListenForLocalSpawn : MonoBehaviour
             DrawChip(Tr("projectSetup.platformQuality.windows", "Windows"), _hasWin, editorModuleTip);
             DrawChip(Tr("projectSetup.platformQuality.linux", "Linux"), _hasLinux, editorModuleTip);
             DrawChip(Tr("projectSetup.status.androidPlain", "Android"), _hasAndroid, editorModuleTip);
+        }
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            DrawChip(Tr("projectSetup.platformQuality.mac", "macOS"), _hasMac, editorModuleTip);
+            DrawChip(Tr("projectSetup.platformQuality.ios", "iOS"), _hasIOS, editorModuleTip);
         }
         using (new EditorGUILayout.HorizontalScope())
         {
