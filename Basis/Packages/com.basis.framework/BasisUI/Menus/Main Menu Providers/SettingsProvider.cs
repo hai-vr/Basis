@@ -69,6 +69,7 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new SettingsProvider());
 #if !BASIS_DISABLE_MICROPHONE
             SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
+            SMDMicrophone.OnMicrophoneDevicesChanged += RefreshMicrophoneDeviceEntries;
 #endif
             ApplyOpenLipSyncMaxSlots();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyOpenLipSyncMaxSlots;
@@ -1136,6 +1137,13 @@ namespace Basis.BasisUI
         /// <summary>
         /// allows us to get up to date information directly from the microphone
         /// </summary>
+        public static void RefreshMicrophoneDeviceEntries()
+        {
+            if (dropdownMicrophoneSelection == null) return;
+            dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices?.ToList() ?? new List<string>());
+            dropdownMicrophoneSelection.SetValueWithoutNotify(SMDMicrophone.Current.Microphone);
+        }
+
         public static void SyncUiFromSnapshot(SMDMicrophone.MicSettings s)
         {
             if (BasisMainMenu.ActiveMenuTitle == SettingsProvider.StaticTitle)
@@ -1919,11 +1927,6 @@ namespace Basis.BasisUI
             toggleIKColliders.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ikColliders.tooltip"));
             toggleIKColliders.AssignBinding(BasisSettingsDefaults.GizmoIKColliders);
 
-            PanelToggle toggleAudioDirection = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
-            toggleAudioDirection.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDirection"));
-            toggleAudioDirection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDirection.tooltip"));
-            toggleAudioDirection.AssignBinding(BasisSettingsDefaults.GizmoAudioDirection);
-
             PanelToggle toggleAudioRanges = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleAudioRanges.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioRanges"));
             toggleAudioRanges.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioRanges.tooltip"));
@@ -1933,6 +1936,11 @@ namespace Basis.BasisUI
             toggleAudioCone.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioListenerCone"));
             toggleAudioCone.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioListenerCone.tooltip"));
             toggleAudioCone.AssignBinding(BasisSettingsDefaults.GizmoAudioListenerCone);
+
+            PanelToggle toggleAudioLevels = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
+            toggleAudioLevels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioLevels"));
+            toggleAudioLevels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioLevels.tooltip"));
+            toggleAudioLevels.AssignBinding(BasisSettingsDefaults.GizmoAudioLevels);
 
             PanelToggle toggleGizmoLabels = PanelToggle.CreateNewEntry(gizmosGroup.ContentParent);
             toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
@@ -1950,9 +1958,9 @@ namespace Basis.BasisUI
                 toggleLinkedTrackerLines.Descriptor.SetActive(masterOn);
                 toggleEyeGazeGizmo.Descriptor.SetActive(masterOn);
                 toggleIKColliders.Descriptor.SetActive(masterOn);
-                toggleAudioDirection.Descriptor.SetActive(masterOn);
                 toggleAudioRanges.Descriptor.SetActive(masterOn);
                 toggleAudioCone.Descriptor.SetActive(masterOn);
+                toggleAudioLevels.Descriptor.SetActive(masterOn);
                 toggleGizmoLabels.Descriptor.SetActive(masterOn);
                 gizmosGroup.ForceRebuild();
             }
@@ -2559,9 +2567,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
             BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
             BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
-            BasisSettingsDefaults.GizmoAudioDirection.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();

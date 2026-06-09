@@ -129,6 +129,45 @@ namespace SteamAudio
             }
         }
 
+        public static int GetHRTFIndexByName(string name)
+        {
+            string[] names = (Singleton != null) ? Singleton.hrtfNames : null;
+            if (names == null || string.IsNullOrEmpty(name))
+            {
+                return 0;
+            }
+            for (int i = 0; i < names.Length; i++)
+            {
+                if (string.Equals(names[i], name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+            return 0;
+        }
+
+        public static bool SetActiveHRTF(int index)
+        {
+            if (Singleton == null || Singleton.mHRTFs == null)
+            {
+                return false;
+            }
+            if (index < 0 || index >= Singleton.mHRTFs.Length || Singleton.mHRTFs[index] == null)
+            {
+                return false;
+            }
+            if (index == Singleton.currentHRTF)
+            {
+                return true;
+            }
+            Singleton.currentHRTF = index;
+            if (Singleton.mAudioEngineState != null)
+            {
+                Singleton.mAudioEngineState.SetHRTF(Singleton.mHRTFs[index].Get());
+            }
+            return true;
+        }
+
         public static IntPtr EmbreeDevice
         {
             get

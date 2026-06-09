@@ -43,9 +43,9 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_LINKED_TRACKER_LINES => BasisSettingsDefaults.LinkedTrackerLines.BindingKey;      // "linkedtrackerlines"
     private static string K_GIZMO_EYE_GAZE => BasisSettingsDefaults.GizmoEyeGaze.BindingKey;                  // "gizmoeyegaze"
     private static string K_GIZMO_IK_COLLIDERS => BasisSettingsDefaults.GizmoIKColliders.BindingKey;          // "gizmoikcolliders"
-    private static string K_GIZMO_AUDIO_DIRECTION => BasisSettingsDefaults.GizmoAudioDirection.BindingKey;    // "gizmoaudiodirection"
     private static string K_GIZMO_AUDIO_RANGES => BasisSettingsDefaults.GizmoAudioRanges.BindingKey;          // "gizmoaudioranges"
     private static string K_GIZMO_AUDIO_CONE => BasisSettingsDefaults.GizmoAudioListenerCone.BindingKey;      // "gizmoaudiolistenercone"
+    private static string K_GIZMO_AUDIO_LEVELS => BasisSettingsDefaults.GizmoAudioLevels.BindingKey;          // "gizmoaudiolevels"
     private static string K_GIZMO_LABELS => BasisSettingsDefaults.GizmoLabels.BindingKey;                      // "gizmolabels"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
@@ -173,12 +173,6 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
-        if (matchedSettingName == K_GIZMO_AUDIO_DIRECTION)
-        {
-            bool.TryParse(optionValue, out BasisAudioGizmos.ShowDirection);
-            return;
-        }
-
         if (matchedSettingName == K_GIZMO_AUDIO_RANGES)
         {
             bool.TryParse(optionValue, out BasisAudioGizmos.ShowRanges);
@@ -188,6 +182,12 @@ public class SMModuleDebugOptions : BasisSettingsBase
         if (matchedSettingName == K_GIZMO_AUDIO_CONE)
         {
             bool.TryParse(optionValue, out BasisAudioGizmos.ShowListenerCone);
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_AUDIO_LEVELS)
+        {
+            bool.TryParse(optionValue, out BasisAudioGizmos.ShowLevels);
             return;
         }
 

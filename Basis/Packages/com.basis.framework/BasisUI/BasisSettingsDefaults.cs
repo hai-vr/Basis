@@ -233,14 +233,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> GizmoEyeGaze = new("gizmoeyegaze", new BasisPlatformDefault<bool>(false));
 
         // Spatial-voice debug gizmos (see BasisAudioGizmos). All off by default.
-        // Direction: per-speaker arrow along the Steam Audio source-forward (dipole)
-        // axis, coloured by net loudness reaching you — the visual test for the
-        // "facing me but quiet" directivity mis-alignment.
-        public static BasisSettingsBinding<bool> GizmoAudioDirection = new("gizmoaudiodirection", new BasisPlatformDefault<bool>(false));
         // Ranges: the listener hearing-distance sphere + per-speaker full-volume ring.
         public static BasisSettingsBinding<bool> GizmoAudioRanges = new("gizmoaudioranges", new BasisPlatformDefault<bool>(false));
         // ListenerCone: the directional-dampening cone projected from the listener.
         public static BasisSettingsBinding<bool> GizmoAudioListenerCone = new("gizmoaudiolistenercone", new BasisPlatformDefault<bool>(false));
+        // Levels: per-speaker loudness meter (raw output vs. what survives) plus a
+        // breakdown of every factor reducing the voice before it reaches you.
+        public static BasisSettingsBinding<bool> GizmoAudioLevels = new("gizmoaudiolevels", new BasisPlatformDefault<bool>(false));
         // Labels: billboarded world-text labels on whichever gizmos are visible —
         // tracker roles, linked-pair ids, IK collider names, and the audio gizmos
         // (speaker name + gain %, hearing distance, cone angle). One switch for all.
@@ -890,7 +889,8 @@ namespace Basis.BasisUI
         // Steam Audio - HRTF
         public static BasisSettingsBinding<bool> RADirectBinaural = new("ra_directbinaural", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> RAPerspectiveCorrection = new("ra_perspectivecorrection", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<string> RAInterpolation = new("ra_interpolation", new BasisPlatformDefault<string>("nearest"));
+        public static BasisSettingsBinding<string> RAInterpolation = new("ra_interpolation_v2", new BasisPlatformDefault<string>("Bilinear"));
+        public static BasisSettingsBinding<string> RAHrtfProfile = new("ra_hrtfprofile", new BasisPlatformDefault<string>("Default"));
 
         // Steam Audio - Propagation
         public static BasisSettingsBinding<bool> RADistanceAttenuation = new("ra_distanceattenuation", new BasisPlatformDefault<bool>(true));
@@ -1326,9 +1326,9 @@ namespace Basis.BasisUI
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
             GizmoIKColliders.LoadBindingValue();
-            GizmoAudioDirection.LoadBindingValue();
             GizmoAudioRanges.LoadBindingValue();
             GizmoAudioListenerCone.LoadBindingValue();
+            GizmoAudioLevels.LoadBindingValue();
             GizmoLabels.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
@@ -1702,6 +1702,7 @@ namespace Basis.BasisUI
             RADirectBinaural.LoadBindingValue();
             RAPerspectiveCorrection.LoadBindingValue();
             RAInterpolation.LoadBindingValue();
+            RAHrtfProfile.LoadBindingValue();
             RADistanceAttenuation.LoadBindingValue();
             RAAirAbsorption.LoadBindingValue();
             RADirectivity.LoadBindingValue();

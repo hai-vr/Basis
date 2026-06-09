@@ -19,30 +19,46 @@ public class BasisMicrophoneSelection : MonoBehaviour
         Dropdown.onValueChanged.AddListener(ApplyChanges);
         Volume.onValueChanged.AddListener(VolumeChanged);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+        SMDMicrophone.OnMicrophoneDevicesChanged += RefreshDeviceOptions;
         GenerateUI();
     }
 
     public void OnDestroy()
     {
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
+        SMDMicrophone.OnMicrophoneDevicesChanged -= RefreshDeviceOptions;
     }
 
     public void GenerateUI()
     {
         SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+        RebuildOptions();
+        Volume.value = SMDMicrophone.Current.Volume01;
+        UpdateMicrophoneVolumeText(SMDMicrophone.Current.Volume01);
+    }
+
+    private void RefreshDeviceOptions()
+    {
+        RebuildOptions();
+    }
+
+    private void RebuildOptions()
+    {
         Dropdown.ClearOptions();
         List<TMP_Dropdown.OptionData> TmpOptions = new List<TMP_Dropdown.OptionData>();
 
-        foreach (string device in SMDMicrophone.MicrophoneDevices)
+        string[] devices = SMDMicrophone.MicrophoneDevices;
+        if (devices != null)
         {
-            TMP_Dropdown.OptionData option = new TMP_Dropdown.OptionData(device);
-            TmpOptions.Add(option);
+            foreach (string device in devices)
+            {
+                TmpOptions.Add(new TMP_Dropdown.OptionData(device));
+            }
         }
 
         Dropdown.AddOptions(TmpOptions);
-        Dropdown.value = MicrophoneToValue(SMDMicrophone.Current.Microphone);
-        Volume.value = SMDMicrophone.Current.Volume01;
-        UpdateMicrophoneVolumeText(SMDMicrophone.Current.Volume01);
+        Dropdown.SetValueWithoutNotify(MicrophoneToValue(SMDMicrophone.Current.Microphone));
+        Dropdown.RefreshShownValue();
     }
 
     public int MicrophoneToValue(string Active)

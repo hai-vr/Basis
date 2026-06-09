@@ -34,6 +34,17 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] resampledSegment;
         public volatile bool HasAudioSource = false;
         public volatile float DirectionalDampeningMultiplier = 1f;
+
+        // ── Debug metering (audio-thread writer, main-thread reader) ──
+        // Peak amplitude of the decoded voice, sampled per audio callback for the
+        // BasisAudioGizmos level meter. This is the raw signal BEFORE any per-sample
+        // attenuation — i.e. how loud this speaker actually is — so the gizmo can show
+        // their output against everything that reduces it. Decays toward 0 between
+        // utterances so the meter falls back to silence. Single writer + single reader,
+        // and a stale frame is harmless for an overlay, so no sync beyond volatile.
+        public volatile float SourcePeak;
+        private const float MeterReleaseFactor = 0.90f;
+
         public BasisNetworkReceiver BasisNetworkReceiver;
         public static float[] silentData;
         public static int outputSampleRate;
@@ -103,6 +114,9 @@ namespace Basis.Scripts.Networking.Receivers
         // Per-player volume, applied in the audio thread with smoothing instead of
         // via the Opus decoder's SetGain CTL (which changed state mid-stream).
         private volatile float _perPlayerVolume = 1f;
+
+        /// <summary>Current per-player volume (your slider × block/mute), 0..1. Read by the audio debug gizmos.</summary>
+        public float PerPlayerVolume => _perPlayerVolume;
 
         // ==================== Packet arrival ====================
 
@@ -324,6 +338,13 @@ namespace Basis.Scripts.Networking.Receivers
         /// enabled state disagrees with whether real audio is queued. Safe to read off-thread.
         /// </summary>
         public bool NeedsAudioStateApply => HasAudioSource && VoiceBuffer.HasRealAudio != _audioEnabled;
+
+        /// <summary>
+        /// True while the voice source is enabled (and so OnAudioFilterRead is running
+        /// the level meter). Read by debug gizmos to zero a meter that would otherwise
+        /// freeze at its last value once the source is disabled between utterances.
+        /// </summary>
+        public bool IsAudioActive => HasAudioSource && _audioEnabled;
 
         /// <summary>
         /// Main-thread only: reconciles AudioSource enabled/playing with the decoded queue.
@@ -658,6 +679,9 @@ namespace Basis.Scripts.Networking.Receivers
 
             if (VoiceBuffer.IsEmpty)
             {
+                // No signal this callback — bleed the level meter toward silence.
+                SourcePeak *= MeterReleaseFactor;
+
                 // Fade the last produced sample down toward zero over ~2 ms instead
                 // of an abrupt step to silence. Once the envelope hits 0 the output
                 // is just zero (no click).
@@ -863,6 +887,7 @@ namespace Basis.Scripts.Networking.Receivers
 
             int idx = 0;
             float lastWritten = 0f;
+            float blockPeak = 0f;
             for (int f = 0; f < frames; f++)
             {
                 if (env < 1f)
@@ -870,12 +895,20 @@ namespace Basis.Scripts.Networking.Receivers
                     env += FadeRampPerSample;
                     if (env > 1f) env = 1f;
                 }
-                float sample = FastClamp(source[f] * gain * env);
+                float raw = source[f];
+                float absRaw = raw < 0f ? -raw : raw;
+                if (absRaw > blockPeak) blockPeak = absRaw;
+                float sample = FastClamp(raw * gain * env);
                 for (int c = 0; c < channels; c++)
                     data[idx++] = sample;
                 lastWritten = sample;
                 gain += gainStep;
             }
+
+            // Peak meter: instant attack to this callback's loudest sample, otherwise
+            // decay. Captures the raw signal level (pre-gain) so the gizmo shows how
+            // loud the speaker is independent of the attenuation applied to them.
+            SourcePeak = blockPeak > SourcePeak ? blockPeak : SourcePeak * MeterReleaseFactor;
 
             _lastGain = targetGain;
             _fadeEnvelope = env;

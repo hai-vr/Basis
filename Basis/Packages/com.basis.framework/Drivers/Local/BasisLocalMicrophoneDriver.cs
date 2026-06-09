@@ -52,6 +52,14 @@ public static class BasisLocalMicrophoneDriver
     public static bool IsInitialize = false;
     public static string MicrophoneDevice = null;
 
+    private const float DeviceScanIntervalSeconds = 1f;
+    private static float _deviceScanTimer;
+    private static string[] _knownDevices;
+
+    private const float RecoveryBackoffMaxSeconds = 15f;
+    private static float _recoveryBackoffUntil;
+    private static float _recoveryBackoffSeconds;
+
     /// <summary>Linear amplitude multiplier (from dB mapping in ChangeMicrophoneVolume).</summary>
     public static float Volume = 1f;
 
@@ -166,6 +174,8 @@ public static class BasisLocalMicrophoneDriver
 
             // Load emits one change event; ApplyMicSettings reacts.
             SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+            _knownDevices = SMDMicrophone.MicrophoneDevices;
+            _deviceScanTimer = 0f;
 
             StartProcessingThread();
             IsInitialize = true;
@@ -273,7 +283,7 @@ public static class BasisLocalMicrophoneDriver
         IsPaused = !IsPaused;
     }
 
-    public static void ResetMicrophones(string newMicrophone)
+    public static bool ResetMicrophones(string newMicrophone)
     {
         lock (processingLock)
         {
@@ -282,12 +292,12 @@ public static class BasisLocalMicrophoneDriver
             if (string.IsNullOrEmpty(newMicrophone))
             {
                 BasisDebug.LogError("Microphone was empty or null");
-                return;
+                return false;
             }
             if (Microphone.devices.Length == 0)
             {
                 BasisDebug.LogError("No Microphones found!");
-                return;
+                return false;
             }
             if (!Microphone.devices.Contains(newMicrophone))
             {
@@ -306,12 +316,20 @@ public static class BasisLocalMicrophoneDriver
                 BasisDebug.Log("Microphone Is Paused");
                 ClearStateAfterStop();
                 MicrophoneDevice = null;
-                return;
+                return false;
             }
 
             BasisDebug.Log("Starting Microphone: " + newMicrophone);
 
-            Microphone.GetDeviceCaps(newMicrophone, out minFreq, out maxFreq);
+            try
+            {
+                Microphone.GetDeviceCaps(newMicrophone, out minFreq, out maxFreq);
+            }
+            catch
+            {
+                minFreq = 0;
+                maxFreq = 0;
+            }
             if (minFreq == 0 && maxFreq == 0)
             {
                 minFreq = 48000;
@@ -320,7 +338,26 @@ public static class BasisLocalMicrophoneDriver
 
             LocalOpusSettings.SetDeviceAudioConfig(maxFreq);
 
-            clip = Microphone.Start(newMicrophone,true, LocalOpusSettings.RecordingFullLength, LocalOpusSettings.MicrophoneSampleRate);
+            try
+            {
+                clip = Microphone.Start(newMicrophone, true, LocalOpusSettings.RecordingFullLength, LocalOpusSettings.MicrophoneSampleRate);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogWarningOnce($"Microphone.Start threw for '{newMicrophone}': {ex.Message}");
+                clip = null;
+            }
+
+            if (clip == null || !Microphone.IsRecording(newMicrophone))
+            {
+                BasisDebug.LogWarningOnce($"Microphone '{newMicrophone}' failed to start; will retry with backoff.");
+                if (Microphone.IsRecording(newMicrophone)) Microphone.End(newMicrophone);
+                clip = null;
+                MicrophoneIsStarted = false;
+                MicrophoneDevice = null;
+                ClearStateAfterStop();
+                return false;
+            }
 
             head = 0;
             position = 0;
@@ -371,6 +408,7 @@ public static class BasisLocalMicrophoneDriver
             ChangeMicrophoneVolume(SMDMicrophone.Current.Volume01);
 
             MicrophoneDevice = newMicrophone;
+            return true;
         }
     }
 
@@ -450,8 +488,78 @@ public static class BasisLocalMicrophoneDriver
         VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
     }
 
+    private static void PollDeviceChanges()
+    {
+        if (!IsInitialize) return;
+
+        _deviceScanTimer += Time.unscaledDeltaTime;
+        if (_deviceScanTimer < DeviceScanIntervalSeconds) return;
+        _deviceScanTimer = 0f;
+
+        string[] devices = Microphone.devices;
+
+        if (!DeviceListsMatch(_knownDevices, devices))
+        {
+            _knownDevices = devices;
+            SMDMicrophone.SetDeviceList(devices);
+            _recoveryBackoffUntil = 0f;
+            _recoveryBackoffSeconds = 0f;
+        }
+
+        bool micShouldRun = !IsPaused || IsSuppressMuteMode;
+        if (!micShouldRun) return;
+
+        string preferred = SMDMicrophone.Current.Microphone;
+
+        string target;
+        if (!string.IsNullOrEmpty(preferred) && Array.IndexOf(devices, preferred) >= 0)
+            target = preferred;
+        else if (!string.IsNullOrEmpty(MicrophoneDevice) && Array.IndexOf(devices, MicrophoneDevice) >= 0)
+            target = MicrophoneDevice;
+        else if (devices.Length > 0)
+            target = devices[0];
+        else
+        {
+            StopSelectedMicrophone();
+            return;
+        }
+
+        bool needsRestart =
+            !MicrophoneIsStarted ||
+            !string.Equals(MicrophoneDevice, target, StringComparison.Ordinal) ||
+            !Microphone.IsRecording(target);
+
+        if (!needsRestart) return;
+
+        if (Time.unscaledTime < _recoveryBackoffUntil) return;
+
+        if (ResetMicrophones(target))
+        {
+            _recoveryBackoffUntil = 0f;
+            _recoveryBackoffSeconds = 0f;
+        }
+        else
+        {
+            _recoveryBackoffSeconds = Mathf.Clamp(_recoveryBackoffSeconds <= 0f ? 2f : _recoveryBackoffSeconds * 2f, 2f, RecoveryBackoffMaxSeconds);
+            _recoveryBackoffUntil = Time.unscaledTime + _recoveryBackoffSeconds;
+        }
+    }
+
+    private static bool DeviceListsMatch(string[] a, string[] b)
+    {
+        if (a == null || b == null) return a == b;
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (!string.Equals(a[i], b[i], StringComparison.Ordinal)) return false;
+        }
+        return true;
+    }
+
     public static void MicrophoneUpdate()
     {
+        PollDeviceChanges();
+
         if (!MicrophoneIsStarted || string.IsNullOrEmpty(MicrophoneDevice) || clip == null) return;
 
         int currentPosition = Microphone.GetPosition(MicrophoneDevice);

@@ -351,16 +351,16 @@
       "value": "Show the collision shapes used by inverse kinematics."
     },
     {
-      "key": "settings.developer.audioDirection.tooltip",
-      "value": "Show which way each voice points, coloured by how loud it reaches you."
-    },
-    {
       "key": "settings.developer.audioRanges.tooltip",
       "value": "Show your hearing-distance sphere and each speaker's full-volume range."
     },
     {
       "key": "settings.developer.audioListenerCone.tooltip",
       "value": "Show the cone where remote voices play at full volume before dampening."
+    },
+    {
+      "key": "settings.developer.audioLevels.tooltip",
+      "value": "Show each speaker's loudness meter and a breakdown of what's reducing their voice."
     },
     {
       "key": "settings.developer.gizmoLabels.tooltip",
@@ -5315,6 +5315,14 @@
       "value": "HRTF Interpolation"
     },
     {
+      "key": "settings.remoteAudio.hrtfProfile",
+      "value": "HRTF Profile"
+    },
+    {
+      "key": "settings.remoteAudio.hrtfProfile.tooltip",
+      "value": "Head-related transfer function used for 3D voice. \"Default\" is Steam Audio's built-in generic profile, which has weak above/below cues. Import a .sofa file to add profiles with stronger elevation response."
+    },
+    {
       "key": "settings.remoteAudio.propagation",
       "value": "Sound Propagation"
     },
@@ -5495,14 +5503,6 @@
       "value": "Draws the chest and hand collision capsules used by the IK solver to prevent the hands and arms from intersecting the torso. Useful when tuning ChestRadius, HandRadius, and CollisionSkin on the FullBodyIK constraint."
     },
     {
-      "key": "settings.developer.audioDirection",
-      "value": "Audio Direction"
-    },
-    {
-      "key": "settings.developer.audioDirection.description",
-      "value": "Per-speaker arrow along the spatial-audio source-forward (directivity) axis, coloured green-to-red by the net loudness that actually reaches you. If someone faces you but their arrow is red, the voice dipole is attenuating them."
-    },
-    {
       "key": "settings.developer.audioRanges",
       "value": "Audio Ranges"
     },
@@ -5517,6 +5517,14 @@
     {
       "key": "settings.developer.audioListenerCone.description",
       "value": "The directional-dampening cone projected from your head. Speakers inside the wedge play at full volume; outside it they are damped toward the max-dampening amount."
+    },
+    {
+      "key": "settings.developer.audioLevels",
+      "value": "Audio Levels"
+    },
+    {
+      "key": "settings.developer.audioLevels.description",
+      "value": "Per-speaker loudness meter on the voice-direction arrow: a bright fill rises to how loud they actually are, coloured green-to-red by how much of it survives to reach you, under a fixed dim headroom up to full scale. With Gizmo Labels on, a readout breaks down every factor reducing the voice — your per-player volume, distance rolloff, directivity (their facing), occlusion, the listener cone, and the global main volume."
     },
     {
       "key": "settings.developer.gizmoLabels",

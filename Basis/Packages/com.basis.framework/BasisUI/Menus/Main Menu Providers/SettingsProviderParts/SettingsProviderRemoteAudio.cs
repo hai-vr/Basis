@@ -22,6 +22,7 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyRemoteAudioToAll;
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJitterBufferDepth;
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyClipBufferScalar;
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyHrtfProfile;
         }
 
         // Last applied jitter depth, so we only force a (disruptive) buffer reset
@@ -285,14 +286,23 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
                 new List<string> { "Nearest", "Bilinear" },
                 new List<string> { "settings.remoteAudio.interp.nearest", "settings.remoteAudio.interp.bilinear" });
             dropdownInterpolation.AssignBinding(BasisSettingsDefaults.RAInterpolation);
+
+            PanelDropdown dropdownHrtfProfile = PanelDropdown.CreateNewEntry(hrtfGroup);
+            dropdownHrtfProfile.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtfProfile"));
+            dropdownHrtfProfile.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.hrtfProfile.tooltip"));
+            dropdownHrtfProfile.AssignEntries(GetHrtfProfileEntries());
+            dropdownHrtfProfile.AssignBinding(BasisSettingsDefaults.RAHrtfProfile);
+
             // HRTF sub-settings only visible when Direct Binaural is enabled
             bool binauralOn = BasisSettingsDefaults.RADirectBinaural.RawValue;
             //togglePerspectiveCorrection.Descriptor.SetActive(binauralOn);
             dropdownInterpolation.Descriptor.SetActive(binauralOn);
+            dropdownHrtfProfile.Descriptor.SetActive(binauralOn);
             toggleDirectBinaural.OnValueChanged += (val) =>
             {
                 //togglePerspectiveCorrection.Descriptor.SetActive(val);
                 dropdownInterpolation.Descriptor.SetActive(val);
+                dropdownHrtfProfile.Descriptor.SetActive(val);
                 hrtfGroup.ForceRebuild();
             };
 
@@ -612,6 +622,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             BasisSettingsDefaults.RADirectBinaural.ResetToDefault();
             BasisSettingsDefaults.RAPerspectiveCorrection.ResetToDefault();
             BasisSettingsDefaults.RAInterpolation.ResetToDefault();
+            BasisSettingsDefaults.RAHrtfProfile.ResetToDefault();
 
             // Propagation
             BasisSettingsDefaults.RADistanceAttenuation.ResetToDefault();
@@ -738,6 +749,42 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
                 BasisDebug.LogError("Missing SteamAudio");
             }
 #endif
+
+            ApplyHrtfProfile();
+        }
+
+        /// <summary>
+        /// Applies the user-selected HRTF profile to the Steam Audio listener.
+        /// </summary>
+        public static void ApplyHrtfProfile()
+        {
+#if STEAMAUDIO_ENABLED
+            int index = SteamAudioManager.GetHRTFIndexByName(BasisSettingsDefaults.RAHrtfProfile.RawValue);
+            SteamAudioManager.SetActiveHRTF(index);
+#endif
+        }
+
+        private static List<string> GetHrtfProfileEntries()
+        {
+#if STEAMAUDIO_ENABLED
+            string[] names = (SteamAudioManager.Singleton != null) ? SteamAudioManager.Singleton.hrtfNames : null;
+            if (names != null && names.Length > 0)
+            {
+                List<string> list = new List<string>(names.Length);
+                for (int i = 0; i < names.Length; i++)
+                {
+                    if (!string.IsNullOrEmpty(names[i]))
+                    {
+                        list.Add(names[i]);
+                    }
+                }
+                if (list.Count > 0)
+                {
+                    return list;
+                }
+            }
+#endif
+            return new List<string> { "Default" };
         }
 
         private static AudioRolloffMode ParseRolloffMode(string value)

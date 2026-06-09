@@ -10,25 +10,29 @@ using UnityEngine;
 /// frame from <see cref="SMModuleDebugOptions"/> (under the master ShowGizmos gate)
 /// so it appears live in VR/desktop, not just the editor scene view.
 ///
-/// Three independent sub-toggles:
-///  • Direction  — per speaker: an arrow along the Steam Audio source-forward axis
-///                 (the directivity dipole axis), coloured by the net loudness that
-///                 reaches the local listener (dipole × occlusion × listener-cone
-///                 dampening). Red = the speaker is being attenuated for you. This
-///                 is the direct visual test for the "facing me but quiet" dipole
-///                 mis-alignment.
+/// Three sub-toggles:
 ///  • Ranges     — the local listener's hearing-distance sphere (wireframe), plus a
 ///                 per-speaker full-volume ring at the AudioSource minDistance.
 ///  • ListenerCone — the directional-dampening cone (RAListenerConeAngle) projected
 ///                 from the listener: inside the wedge a source plays at full volume,
 ///                 outside it is damped toward RAListenerDampenAmount.
+///  • Levels       — per speaker: an arrow along the Steam Audio source-forward
+///                 (directivity dipole) axis with a vertical loudness meter on its tip.
+///                 The arrow + meter fill are tinted green→red by the net loudness that
+///                 reaches you, so a red arrow on someone facing you is the "facing me
+///                 but quiet" test. The meter fill rises to the speaker's live output
+///                 ("max volume") under a fixed dim headroom up to full scale, and the
+///                 label breaks every attenuation factor out as a ×multiplier —
+///                 per-player volume, distance rolloff, directivity, occlusion, listener
+///                 cone, and global main volume — so you can read off what makes someone
+///                 quiet.
 /// </summary>
 public static class BasisAudioGizmos
 {
     // Mirrored from settings by SMModuleDebugOptions.
-    public static bool ShowDirection;
     public static bool ShowRanges;
     public static bool ShowListenerCone;
+    public static bool ShowLevels;
     public static bool ShowLabels;
 
     private const int RingSegments = 28;
@@ -41,6 +45,9 @@ public static class BasisAudioGizmos
     private const float ConeApexOffset = 0.6f;
     private const float LabelBaseScale = 0.025f;
     private const float LabelBaseHeight = 0.12f;    // lift above the anchor point
+    private const float LevelBarHeight = 0.4f;      // metres of bar for a full-scale (1.0) peak
+    private const float LevelBarBaseOffset = 0.18f; // lift the bar base above the mouth/source
+    private const float LevelBarWidth = 0.02f;      // base, before avatar-scale
 
     private static readonly Color HearingColor = new Color(0.25f, 0.7f, 1f, 1f);
     private static readonly Color MinDistanceColor = new Color(0.3f, 0.95f, 0.4f, 1f);
@@ -48,15 +55,24 @@ public static class BasisAudioGizmos
     private static readonly Color GainLow = new Color(0.95f, 0.2f, 0.15f, 1f);
     private static readonly Color GainMid = new Color(0.95f, 0.85f, 0.2f, 1f);
     private static readonly Color GainHigh = new Color(0.3f, 0.9f, 0.35f, 1f);
+    // Dim headroom segment above the level fill, up to full scale.
+    private static readonly Color LevelHeadroomColor = new Color(0.35f, 0.1f, 0.1f, 1f);
 
     private struct SpeakerGizmos
     {
+        public int MinRing;
+
+        // Directivity arrow (mouth → source-forward tip) and its endpoint sphere.
         public int ArrowLine;
         public int TipSphere;
-        public int MinRing;
-        public int Label;
-        public int LastPct;     // cached so the label string only rebuilds on change
-        public string LabelText;
+
+        // Level meter: a bright fill that rises with the speaker's level plus a fixed
+        // dim headroom segment up to full scale, and the breakdown label.
+        public int LevelFill;
+        public int LevelHeadroom;
+        public int LevelLabel;
+        public int LastNetPct;  // cached so the breakdown string only rebuilds on change
+        public string LevelText;
     }
 
     private static readonly Dictionary<ushort, SpeakerGizmos> _speakers = new Dictionary<ushort, SpeakerGizmos>();
@@ -78,6 +94,9 @@ public static class BasisAudioGizmos
     private static readonly Vector3[] _ringScratch = new Vector3[RingSegments];
     private static readonly Vector3[] _coneScratch = new Vector3[9];
 
+    // Reused for the (throttled) breakdown label so a rebuild doesn't allocate a builder.
+    private static readonly System.Text.StringBuilder _levelText = new System.Text.StringBuilder(160);
+
     private static bool _hooked;
 
     /// <summary>Per-frame entry point. <paramref name="scale"/> is the local avatar scale.</summary>
@@ -85,7 +104,7 @@ public static class BasisAudioGizmos
     {
         EnsureMasterHook();
 
-        if (!ShowDirection && !ShowRanges && !ShowListenerCone)
+        if (!ShowRanges && !ShowListenerCone && !ShowLevels)
         {
             Shutdown();
             return;
@@ -258,35 +277,6 @@ public static class BasisAudioGizmos
 
             _speakers.TryGetValue(id, out SpeakerGizmos g);
 
-            // Only the direction arrow (and its label) need the gain, and computing it
-            // probes the SteamAudioSource — skip it when the arrow is off.
-            float net = 0f;
-            Color gain = default;
-
-            if (ShowDirection)
-            {
-                net = NetLoudness(audio);
-                gain = GainColor(net);
-
-                if (g.ArrowLine <= 0)
-                {
-                    BasisGizmoManager.CreateLineGizmo($"AudioDir_{id}", out g.ArrowLine, pos, tip, width, gain);
-                    BasisGizmoManager.CreateSphereGizmo($"AudioDirTip_{id}", out g.TipSphere, tip, tipSize, gain);
-                }
-                else
-                {
-                    BasisGizmoManager.UpdateLineGizmo(g.ArrowLine, pos, tip);
-                    BasisGizmoManager.UpdateGizmoColor(g.ArrowLine, gain);
-                    BasisGizmoManager.UpdateSphereGizmo(g.TipSphere, tip, Vector3.one * tipSize);
-                    BasisGizmoManager.UpdateGizmoColor(g.TipSphere, gain);
-                }
-            }
-            else if (g.ArrowLine > 0)
-            {
-                DestroyId(ref g.ArrowLine);
-                DestroyId(ref g.TipSphere);
-            }
-
             if (ShowRanges)
             {
                 float minDist = audio.audioSource != null ? audio.audioSource.minDistance : 0.5f;
@@ -305,24 +295,17 @@ public static class BasisAudioGizmos
                 DestroyId(ref g.MinRing);
             }
 
-            // Label rides the direction arrow: speaker name + net loudness %. The
-            // string only rebuilds when the rounded % changes, so a steady speaker
-            // costs nothing but a billboard transform write.
-            if (ShowLabels && ShowDirection)
+            if (ShowLevels)
             {
-                int pct = Mathf.RoundToInt(net * 100f);
-                if (g.Label <= 0 || pct != g.LastPct || g.LabelText == null)
-                {
-                    g.LastPct = pct;
-                    string name = receiver.displayName;
-                    g.LabelText = string.IsNullOrEmpty(name) ? $"{pct}%" : $"{name}  {pct}%";
-                }
-                Vector3 anchor = tip + Vector3.up * (LabelBaseHeight * scale);
-                UpdateLabel(ref g.Label, $"AudioLabel_{id}", anchor, g.LabelText, gain, scale);
+                UpdateSpeakerLevel(ref g, receiver, audio, pos, tip, tipSize, width, scale);
             }
-            else if (g.Label > 0)
+            else if (g.ArrowLine > 0 || g.LevelFill > 0 || g.LevelHeadroom > 0 || g.LevelLabel > 0)
             {
-                DestroyId(ref g.Label);
+                DestroyId(ref g.ArrowLine);
+                DestroyId(ref g.TipSphere);
+                DestroyId(ref g.LevelFill);
+                DestroyId(ref g.LevelHeadroom);
+                DestroyId(ref g.LevelLabel);
             }
 
             _speakers[id] = g;
@@ -352,22 +335,149 @@ public static class BasisAudioGizmos
         return BasisGizmoManager.BillboardRotation(worldPos, _camPos);
     }
 
+    // ── Per-speaker directivity arrow + level meter + breakdown ─────────────
+
     /// <summary>
-    /// Net Basis/Steam-Audio gain reaching the listener: the dipole directivity term
-    /// (the suspect for "facing me but quiet") × occlusion × the listener-cone
-    /// dampening. AudioSource.volume itself is pinned to 1 — attenuation lives in the
-    /// per-sample gain and the spatializer — so this is the meaningful loudness proxy.
+    /// Draws the directivity arrow (mouth → source-forward tip) and, on its tip, the
+    /// vertical loudness meter: a bright fill rising to the speaker's live output level
+    /// under a fixed dim headroom segment. The arrow and fill share a green→red tint by
+    /// the net loudness reaching you, and — when labels are on — a per-factor breakdown
+    /// of everything attenuating this voice is shown above the bar.
     /// </summary>
-    private static float NetLoudness(BasisAudioReceiver audio)
+    private static void UpdateSpeakerLevel(ref SpeakerGizmos g, BasisNetworkReceiver receiver, BasisAudioReceiver audio, Vector3 pos, Vector3 tip, float tipSize, float lineWidth, float scale)
     {
-        float net = Mathf.Clamp01(audio.DirectionalDampeningMultiplier);
+        // A disabled source stops running OnAudioFilterRead, so SourcePeak freezes —
+        // treat a non-active source as silent so the meter falls to zero.
+        float source = audio.IsAudioActive ? Mathf.Clamp01(audio.SourcePeak) : 0f;
+
+        // Every multiplier that chips away at the voice between the speaker and you.
+        float slider = Mathf.Clamp01(audio.PerPlayerVolume);
+        float cone = Mathf.Clamp01(audio.DirectionalDampeningMultiplier);
+        float main = Mathf.Clamp01(SMModuleAudio.ActiveMainVolume);
+        float dist = DistanceAttenuation(audio.audioSource);
+        float dir = 1f, occ = 1f;
 #if STEAMAUDIO_ENABLED
         if (audio.audioSource != null && audio.audioSource.TryGetComponent<SteamAudio.SteamAudioSource>(out var sa))
         {
-            net *= Mathf.Clamp01(sa.directivityValue) * Mathf.Clamp01(sa.occlusionValue);
+            dir = Mathf.Clamp01(sa.directivityValue);
+            occ = Mathf.Clamp01(sa.occlusionValue);
         }
 #endif
-        return net;
+        float netGain = slider * cone * main * dist * dir * occ;
+        float net = source * netGain;
+        Color fillColor = GainColor(netGain);
+
+        // Directivity arrow along the source-forward axis, anchored at the tip the meter
+        // rises from, so the bar sits in front of the face rather than inside the head.
+        if (g.ArrowLine <= 0)
+        {
+            BasisGizmoManager.CreateLineGizmo($"AudioDir_{receiver.playerId}", out g.ArrowLine, pos, tip, lineWidth, fillColor);
+            BasisGizmoManager.CreateSphereGizmo($"AudioDirTip_{receiver.playerId}", out g.TipSphere, tip, tipSize, fillColor);
+        }
+        else
+        {
+            BasisGizmoManager.UpdateLineGizmo(g.ArrowLine, pos, tip);
+            BasisGizmoManager.UpdateGizmoColor(g.ArrowLine, fillColor);
+            BasisGizmoManager.UpdateSphereGizmo(g.TipSphere, tip, Vector3.one * tipSize);
+            BasisGizmoManager.UpdateGizmoColor(g.TipSphere, fillColor);
+        }
+
+        // Bright fill rises from the base to the speaker's live level; the dim headroom
+        // segment fills the rest up to a FIXED full-scale ceiling. Only the junction
+        // (the level) moves — the ceiling stays put, so the bar reads as a meter rather
+        // than a floating background. Fill is tinted by net gain: green = reaches you,
+        // red = heavily attenuated.
+        float full = LevelBarHeight * scale;
+        float width = LevelBarWidth * scale;
+        Vector3 basePos = tip + Vector3.up * (LevelBarBaseOffset * scale);
+        Vector3 levelTop = basePos + Vector3.up * (full * source);
+        Vector3 fullTop = basePos + Vector3.up * full;
+
+        if (g.LevelFill <= 0)
+        {
+            BasisGizmoManager.CreateLineGizmo($"AudioLevelFill_{receiver.playerId}", out g.LevelFill, basePos, levelTop, width, fillColor);
+            BasisGizmoManager.CreateLineGizmo($"AudioLevelHeadroom_{receiver.playerId}", out g.LevelHeadroom, levelTop, fullTop, width * 0.5f, LevelHeadroomColor);
+        }
+        else
+        {
+            BasisGizmoManager.UpdateLineGizmo(g.LevelFill, basePos, levelTop);
+            BasisGizmoManager.UpdateGizmoColor(g.LevelFill, fillColor);
+            BasisGizmoManager.UpdateLineGizmo(g.LevelHeadroom, levelTop, fullTop);
+        }
+
+        if (ShowLabels)
+        {
+            int netPct = Mathf.RoundToInt(net * 100f);
+            if (g.LevelLabel <= 0 || netPct != g.LastNetPct || g.LevelText == null)
+            {
+                g.LastNetPct = netPct;
+                g.LevelText = BuildLevelText(receiver.displayName, source, net, slider, dist, dir, occ, cone, main);
+            }
+            // Anchor at the bar's fixed full-scale top, not the live sourceTop, so the
+            // label doesn't bounce with the meter as the speaker's level changes.
+            Vector3 labelPos = basePos + Vector3.up * (LevelBarHeight * scale + LabelBaseHeight * scale);
+            UpdateLabel(ref g.LevelLabel, $"AudioLevelLabel_{receiver.playerId}", labelPos, g.LevelText, fillColor, scale);
+        }
+        else if (g.LevelLabel > 0)
+        {
+            DestroyId(ref g.LevelLabel);
+        }
+    }
+
+    /// <summary>
+    /// Approximates the Unity AudioSource 3D distance attenuation reaching the listener.
+    /// The per-sample gain handles cone/main/per-player volume, but distance rolloff is
+    /// applied by Unity after OnAudioFilterRead, so it isn't in SourcePeak — fold it in
+    /// here so the meter and breakdown reflect what you actually hear.
+    /// </summary>
+    private static float DistanceAttenuation(AudioSource src)
+    {
+        if (src == null)
+        {
+            return 1f;
+        }
+        float min = src.minDistance;
+        float max = src.maxDistance;
+        float d = Vector3.Distance(src.transform.position, _camPos);
+        if (d <= min || max <= min)
+        {
+            return 1f;
+        }
+        switch (src.rolloffMode)
+        {
+            case AudioRolloffMode.Linear:
+                return Mathf.Clamp01((max - d) / (max - min));
+            case AudioRolloffMode.Custom:
+                float t = Mathf.Clamp01((d - min) / (max - min));
+                return Mathf.Clamp01(src.GetCustomCurve(AudioSourceCurveType.CustomRolloff).Evaluate(t));
+            default: // Logarithmic — Unity's default; never reaches 0.
+                return Mathf.Clamp01(min / d);
+        }
+    }
+
+    private static string BuildLevelText(string name, float source, float net, float slider, float dist, float dir, float occ, float cone, float main)
+    {
+        _levelText.Clear();
+        if (!string.IsNullOrEmpty(name))
+        {
+            _levelText.Append(name).Append('\n');
+        }
+        _levelText.Append("Src ").Append(Mathf.RoundToInt(source * 100f))
+                  .Append("%  Net ").Append(Mathf.RoundToInt(net * 100f)).Append("%\n");
+        AppendFactor("Slider", slider);
+        AppendFactor("Dist", dist);
+#if STEAMAUDIO_ENABLED
+        AppendFactor("Facing", dir);
+        AppendFactor("Occlude", occ);
+#endif
+        AppendFactor("Cone", cone);
+        AppendFactor("Main", main);
+        return _levelText.ToString();
+    }
+
+    private static void AppendFactor(string label, float value)
+    {
+        _levelText.Append(label).Append(" x").Append(value.ToString("0.00")).Append('\n');
     }
 
     // ── Geometry helpers ────────────────────────────────────────────────────
@@ -464,7 +574,9 @@ public static class BasisAudioGizmos
         if (g.ArrowLine > 0) BasisGizmoManager.DestroyGizmo(g.ArrowLine);
         if (g.TipSphere > 0) BasisGizmoManager.DestroyGizmo(g.TipSphere);
         if (g.MinRing > 0) BasisGizmoManager.DestroyGizmo(g.MinRing);
-        if (g.Label > 0) BasisGizmoManager.DestroyGizmo(g.Label);
+        if (g.LevelFill > 0) BasisGizmoManager.DestroyGizmo(g.LevelFill);
+        if (g.LevelHeadroom > 0) BasisGizmoManager.DestroyGizmo(g.LevelHeadroom);
+        if (g.LevelLabel > 0) BasisGizmoManager.DestroyGizmo(g.LevelLabel);
     }
 
     private static void PruneStaleSpeakers()

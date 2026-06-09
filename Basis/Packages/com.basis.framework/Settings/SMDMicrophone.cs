@@ -9,6 +9,14 @@ public class SMDMicrophone : BasisSettingsBase
 {
     public static string[] MicrophoneDevices;
 
+    public static event Action OnMicrophoneDevicesChanged;
+
+    public static void SetDeviceList(string[] devices)
+    {
+        MicrophoneDevices = devices ?? Array.Empty<string>();
+        OnMicrophoneDevicesChanged?.Invoke();
+    }
+
     public enum BasisMicrophoneMode { OnActivation = 0, PushToTalk = 1 }
 
     [Serializable]
@@ -106,22 +114,9 @@ public class SMDMicrophone : BasisSettingsBase
         s.NoiseGateAttack = Mathf.Clamp01(s.NoiseGateAttack);
         s.NoiseGateRelease = Mathf.Clamp01(s.NoiseGateRelease);
 
-        // Validate mic exists
-        if (MicrophoneDevices != null && MicrophoneDevices.Length > 0)
+        if (string.IsNullOrEmpty(s.Microphone) && MicrophoneDevices != null && MicrophoneDevices.Length > 0)
         {
-            if (string.IsNullOrEmpty(s.Microphone))
-                s.Microphone = MicrophoneDevices[0];
-
-            bool exists = false;
-            foreach (var d in MicrophoneDevices)
-            {
-                if (d == s.Microphone) { exists = true; break; }
-            }
-            if (!exists) s.Microphone = MicrophoneDevices[0];
-        }
-        else
-        {
-            s.Microphone = "";
+            s.Microphone = MicrophoneDevices[0];
         }
     }
 
