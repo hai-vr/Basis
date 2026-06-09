@@ -292,6 +292,7 @@ namespace Basis.EventDriver
             ProfileBegin(PROF_NAMEPLATE_SCHEDULE);
             BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);
             ProfileEnd(PROF_NAMEPLATE_SCHEDULE);
+            BasisContentSphereBillboardDriver.ScheduleSimulate();
 #if STEAMAUDIO_ENABLED
             SteamAudioManager.Schedule();
 #endif
@@ -356,6 +357,7 @@ namespace Basis.EventDriver
             ProfileBegin(PROF_NAMEPLATE_COMPLETE);
             BasisRemoteNamePlateDriver.CompleteNamePlates();
             ProfileEnd(PROF_NAMEPLATE_COMPLETE);
+            BasisContentSphereBillboardDriver.Complete();
 
             BasisJoinLeaveNotification.Simulate(TimeAsDouble);
             IndividualPlayerProvider.SimulateBeacon(DeltaTime);
@@ -429,6 +431,7 @@ namespace Basis.EventDriver
             BasisLocalMicrophoneDriver.StopProcessingThread();
 #endif
             BasisRemoteNamePlateDriver.Dispose();
+            BasisContentSphereBillboardDriver.Dispose();
         }
 
         /// <summary>
