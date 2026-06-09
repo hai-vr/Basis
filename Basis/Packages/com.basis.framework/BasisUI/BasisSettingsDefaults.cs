@@ -1057,6 +1057,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsDownLookUp = new("fbiklordosisextremehipsdownlookup", new BasisPlatformDefault<float>(0.0005f));
         public static BasisSettingsBinding<float> FBIKLordosisExtremeChestDownLookUp = new("fbiklordosisextremechestdownlookup", new BasisPlatformDefault<float>(0.001f));
 
+        // Arm vs height ratio (arm-distance IK mode): when enabled, the player's arm span is
+        // derived from eye height * ratio instead of the T-pose measurement, so reach can be
+        // dialed in per avatar (fixes "stubby arms"). Ratio is arm span / eye height (~1.0).
+        public static BasisSettingsBinding<bool> FBIKArmHeightRatioEnabled = new("fbikarmheightratioenabled", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKArmHeightRatio = new("fbikarmheightratio", new BasisPlatformDefault<float>(1.05f));
+
         // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
         // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
         // spine carry when no chest tracker is present. Yaw fractions are derived from bone-length

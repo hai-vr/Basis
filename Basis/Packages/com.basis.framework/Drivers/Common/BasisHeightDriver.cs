@@ -146,6 +146,13 @@ public static class BasisHeightDriver
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
         BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
         BasisLocalHeightCalculator.CalculatePlayerArmSpan();
+
+        if (Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatioEnabled.RawValue)
+        {
+            float ratio = Mathf.Max(0.1f, Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatio.RawValue);
+            PlayerArmSpan = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters) * ratio;
+        }
+
         BasisLocalHeightCalculator.ValidateEyeToArmSizesPlayer();
 
         // Optional safety: sanitize captured values in case calculator produced junk.

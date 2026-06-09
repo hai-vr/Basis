@@ -6943,6 +6943,14 @@
       "value": "Avatar Height Scale"
     },
     {
+      "key": "settings.bodyTracking.armHeightRatio",
+      "value": "Arm vs Height Ratio"
+    },
+    {
+      "key": "settings.bodyTracking.armHeightRatio.tooltip",
+      "value": "Derives your arm span from eye height x ratio so your reach matches the avatar's (fixes stubby arms). Requires IK Mode = Arm Distance. Re-calibrate to apply."
+    },
+    {
       "key": "settings.bodyTracking.calibSphereScale",
       "value": "Calibration Sphere Scale"
     },

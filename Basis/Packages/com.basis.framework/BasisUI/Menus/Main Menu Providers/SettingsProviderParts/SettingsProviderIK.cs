@@ -130,6 +130,31 @@ public static class SettingsProviderIK
             };
         }
 
+        var armRatioToggle = PanelToggle.CreateNewEntry(ikParent);
+        armRatioToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.armHeightRatio"));
+        armRatioToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.armHeightRatio.tooltip"));
+        armRatioToggle.AssignBinding(BasisSettingsDefaults.FBIKArmHeightRatioEnabled);
+
+        var armRatioSlider = PanelSlider.CreateAndBind(
+            ikParent,
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.armHeightRatio"), 0.7f, 1.3f, false, 2, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKArmHeightRatio);
+
+        if (armRatioSlider != null)
+        {
+            armRatioSlider.Descriptor.SetDescription(
+                "Sets your arm span as a ratio of your eye height so your reach matches the avatar's " +
+                "(fixes stubby arms). Requires IK Mode = Arm Distance. Higher = longer reach. Re-calibrate to apply.");
+            armRatioSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.armHeightRatio.tooltip"));
+            armRatioSlider.gameObject.SetActive(BasisSettingsDefaults.FBIKArmHeightRatioEnabled.RawValue);
+            armRatioToggle.OnValueChanged += visible =>
+            {
+                armRatioSlider.gameObject.SetActive(visible);
+                tabDesc.ForceRebuild();
+                ikGroup.ForceRebuild();
+            };
+        }
+
         dropdownIKMode.OnValueChanged += _ => EvaluateInteractables();
         dropdownSeatedMode.OnValueChanged += _ => EvaluateInteractables();
         EvaluateInteractables();
