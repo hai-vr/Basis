@@ -29,12 +29,20 @@ namespace Basis.BasisUI
         {
             get
             {
-                if (Entries == null || Entries.Count == -1)
+                if (Entries == null || Entries.Count == 0)
                 {
                     return -1;
                 }
 
-                return Entries.IndexOf(Value);
+                for (int i = 0; i < Entries.Count; i++)
+                {
+                    if (string.Equals(Entries[i], Value, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        return i;
+                    }
+                }
+
+                return -1;
             }
         }
 

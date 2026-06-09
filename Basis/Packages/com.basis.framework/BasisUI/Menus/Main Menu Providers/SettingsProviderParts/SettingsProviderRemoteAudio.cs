@@ -602,6 +602,10 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
         public static void ResetRemoteAudioToDefaults()
         {
+            // Voice Buffer
+            BasisSettingsDefaults.RAJitterBufferDepth.ResetToDefault();
+            BasisSettingsDefaults.RAClipBufferScalar.ResetToDefault();
+
             // AudioSource
             BasisSettingsDefaults.RAMinDistance.ResetToDefault();
             BasisSettingsDefaults.RARolloffMode.ResetToDefault();
@@ -658,6 +662,8 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             BasisSettingsDefaults.RAApplyHRTFToReflections.ResetToDefault();
 
             ApplyRemoteAudioToAll();
+            ApplyJitterBufferDepth();
+            ApplyClipBufferScalar();
         }
 
         /// <summary>

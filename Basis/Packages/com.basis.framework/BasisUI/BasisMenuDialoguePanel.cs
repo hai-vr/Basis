@@ -88,6 +88,9 @@ namespace Basis.BasisUI
 
             AlternateButton = PanelButton.CreateNew(AcceptButton.rectTransform.parent);
             AlternateButton.Descriptor.SetTitle(label);
+            // The accent-blue standard style, matching the Accept/Decline button family
+            // instead of the neutral grey the base button prefab ships with.
+            AlternateButton.ButtonStyling.SetStyle("Button Standard");
             AlternateButton.rectTransform.SetSiblingIndex(DeclineButton.rectTransform.GetSiblingIndex());
             MatchButtonMetrics(AcceptButton, AlternateButton);
             AlternateButton.OnClicked += ResolveAlternate;

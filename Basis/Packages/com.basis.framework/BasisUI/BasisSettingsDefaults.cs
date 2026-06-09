@@ -151,6 +151,7 @@ namespace Basis.BasisUI
         {
             windows = "Ultra",
             android = "Very Low",
+            ios = "Very Low",
             linux = "Ultra",
             other = "Ultra"
         });
@@ -159,6 +160,7 @@ namespace Basis.BasisUI
         {
             windows = "Ultra",
             android = "Very Low",
+            ios = "Very Low",
             linux = "Ultra",
             other = "Ultra"
         });
@@ -167,6 +169,7 @@ namespace Basis.BasisUI
         {
             windows = "64bit",
             android = "Off",
+            ios = "Off",
             linux = "64bit",
             other = "64bit"
         });
@@ -204,6 +207,7 @@ namespace Basis.BasisUI
         {
             windows = true,
             android = false,
+            ios = false,
             linux = false,
             other = false
         });
@@ -329,7 +333,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> MemoryAllocation = new("memoryallocation", new BasisPlatformDefault<string>
         {
             windows = "Dynamic",
-            android = "Dnamic",
+            android = "Dynamic",
+            ios = "Dynamic",
             linux = "Dynamic",
             other = "Dynamic"
         });
@@ -493,6 +498,7 @@ namespace Basis.BasisUI
         {
             windows = 0.05f,
             android = 0.1f,
+            ios = 0.1f,
             linux = 0.05f,
             other = 0.05f
         });
@@ -501,6 +507,7 @@ namespace Basis.BasisUI
         {
             windows = 0,
             android = 30,
+            ios = 30,
             linux = 0,
             other = 0
         });
@@ -521,6 +528,7 @@ namespace Basis.BasisUI
         {
             windows = "On",
             android = "On",
+            ios = "On",
             linux = "Capped",
             other = "On"
         });
@@ -541,6 +549,7 @@ namespace Basis.BasisUI
         {
             windows = true,
             android = true,
+            ios = true,
             linux = true,
             other = true
         });
@@ -875,6 +884,7 @@ namespace Basis.BasisUI
         {
             windows = "120",
             android = "60",
+            ios = "60",
             linux = "120",
             other = "120"
         });
@@ -903,14 +913,28 @@ namespace Basis.BasisUI
 
         // Steam Audio - Occlusion
         public static BasisSettingsBinding<bool> RAOcclusion = new("ra_occlusion", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<string> RAOcclusionType = new("ra_occlusiontype", new BasisPlatformDefault<string>("volumetric"));
+        public static BasisSettingsBinding<string> RAOcclusionType = new("ra_occlusiontype_v2", new BasisPlatformDefault<string>("volumetric"));
         public static BasisSettingsBinding<float> RAOcclusionRadius = new("ra_occlusionradius", new BasisPlatformDefault<float>(0.15f));
-        public static BasisSettingsBinding<float> RAOcclusionSamples = new("ra_occlusionsamples", new BasisPlatformDefault<float>(16f));
+        public static BasisSettingsBinding<float> RAOcclusionSamples = new("ra_occlusionsamples_v2", new BasisPlatformDefault<float>
+        {
+            windows = 32f,
+            android = 16f,
+            linux = 32f,
+            ios = 16f,
+            other = 32f
+        });
 
         // Steam Audio - Transmission
         public static BasisSettingsBinding<bool> RATransmission = new("ra_transmission", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<string> RATransmissionType = new("ra_transmissiontype", new BasisPlatformDefault<string>("frequency dependent"));
-        public static BasisSettingsBinding<float> RAMaxTransmissionSurfaces = new("ra_maxtransmissionsurfaces", new BasisPlatformDefault<float>(4f));
+        public static BasisSettingsBinding<float> RAMaxTransmissionSurfaces = new("ra_maxtransmissionsurfaces_v2", new BasisPlatformDefault<float>
+        {
+            windows = 2f,
+            android = 1f,
+            linux = 2f,
+            ios = 1f,
+            other = 2f
+        });
 
         // AudioSource - Rolloff
         public static BasisSettingsBinding<string> RARolloffMode = new("ra_rolloffmode", new BasisPlatformDefault<string>("custom"));
