@@ -23,6 +23,7 @@ using UnityEngine.ResourceManagement.ResourceProviders;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreAvatarKeys;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
 using Basis.Scripts.Settings;
+using Basis.Scripts.BasisSdk.Players;
 namespace Basis.Scripts.Device_Management
 {
     /// <summary>
@@ -759,6 +760,7 @@ namespace Basis.Scripts.Device_Management
             {
                 OnInitializationCompleted += RunAfterInitialized;
                 BasisSettingsDefaults.EnableFBT.OnChanged += OnEnableFBTChanged;
+                BasisLocalPlayer.AfterSimulateOnRender.AddAction(98, ApplyAllDeviceMovement);
                 HasEvents = true;
             }
         }
@@ -772,7 +774,29 @@ namespace Basis.Scripts.Device_Management
             {
                 OnInitializationCompleted -= RunAfterInitialized;
                 BasisSettingsDefaults.EnableFBT.OnChanged -= OnEnableFBTChanged;
+                BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(98, ApplyAllDeviceMovement);
                 HasEvents = false;
+            }
+        }
+
+        /// <summary>
+        /// Applies every active device's latched pose to its transform in a single
+        /// pass after simulation, replacing the per-device AfterSimulateOnRender hook.
+        /// Serial by design: the device set is small and all share BasisLocalPlayer as
+        /// their root, so a jobified TransformAccessArray write would serialize on one
+        /// worker anyway and only add scheduling/sync overhead.
+        /// </summary>
+        private void ApplyAllDeviceMovement()
+        {
+            BasisObservableList<BasisInput> devices = AllInputDevices;
+            int count = devices.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                BasisInput device = devices[Index];
+                if (device != null && device.HasEvents)
+                {
+                    device.ApplyFinalMovement();
+                }
             }
         }
 

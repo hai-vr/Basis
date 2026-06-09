@@ -310,6 +310,15 @@ public static class BasisGizmoManager
         go.transform.position = position;
 
         TMPro.TextMeshPro tmp = go.AddComponent<TMPro.TextMeshPro>();
+
+        // AddComponent does NOT reliably assign a font at runtime — without one the
+        // mesh is empty and the label is invisible. Assign the default explicitly.
+        TMPro.TMP_FontAsset font = GetGizmoFont();
+        if (font != null)
+        {
+            tmp.font = font;
+        }
+
         tmp.alignment = TMPro.TextAlignmentOptions.Center;
         tmp.enableAutoSizing = false;
         tmp.fontSize = 36;
@@ -324,6 +333,15 @@ public static class BasisGizmoManager
             rt.sizeDelta = new Vector2(8f, 2f);
         }
 
+        // Like the sphere/line gizmos, labels must draw ON TOP of the avatar/world
+        // rather than be depth-occluded inside the body. TMP's default material
+        // depth-tests; swap this instance to the Overlay variant (ZTest Always).
+        Shader overlay = GetTextOverlayShader();
+        if (overlay != null && tmp.fontMaterial != null)
+        {
+            tmp.fontMaterial.shader = overlay;
+        }
+
         BasisTextGizmos holder = go.AddComponent<BasisTextGizmos>();
         holder.Text = tmp;
         holder.Initialize(text, color);
@@ -331,6 +349,45 @@ public static class BasisGizmoManager
 
         BasisDebug.Log($"Created TextGizmo with ID {linkedID}", BasisDebug.LogTag.Gizmo);
         return true;
+    }
+
+    private static TMPro.TMP_FontAsset _gizmoFont;
+    private static bool _gizmoFontResolved;
+    private static Shader _textOverlayShader;
+    private static bool _textOverlayResolved;
+
+    private static TMPro.TMP_FontAsset GetGizmoFont()
+    {
+        if (_gizmoFontResolved)
+        {
+            return _gizmoFont;
+        }
+        _gizmoFont = TMPro.TMP_Settings.defaultFontAsset;
+        if (_gizmoFont == null)
+        {
+            _gizmoFont = Resources.Load<TMPro.TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        }
+        if (_gizmoFont == null)
+        {
+            _gizmoFont = Resources.Load<TMPro.TMP_FontAsset>("LiberationSans SDF");
+        }
+        if (_gizmoFont == null)
+        {
+            BasisDebug.LogError("TextGizmo: no TMP font asset found — labels will be invisible. Import TMP Essentials / set a default font asset.", BasisDebug.LogTag.Gizmo);
+        }
+        _gizmoFontResolved = true;
+        return _gizmoFont;
+    }
+
+    private static Shader GetTextOverlayShader()
+    {
+        if (_textOverlayResolved)
+        {
+            return _textOverlayShader;
+        }
+        _textOverlayShader = Shader.Find("TextMeshPro/Distance Field Overlay");
+        _textOverlayResolved = true;
+        return _textOverlayShader;
     }
 
     /// <summary>

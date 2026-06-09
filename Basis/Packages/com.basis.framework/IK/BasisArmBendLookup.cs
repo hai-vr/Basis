@@ -55,9 +55,9 @@ namespace UnityEngine.Animations.Rigging
                 float inwardness = Mathf.Clamp01(-x);
                 bendDir = Vector3.Lerp(bendDir, new Vector3(1f, -0.5f, 0f), inwardness * 0.4f);
 
-                // When hand is behind, elbow goes up
+                // When hand is behind, the elbow stays down and swings outward/back (never up, which chicken-wings)
                 float behindness = Mathf.Clamp01(-z);
-                bendDir = Vector3.Lerp(bendDir, new Vector3(0f, 1f, 0f), behindness * 0.5f);
+                bendDir = Vector3.Lerp(bendDir, new Vector3(0.4f, -0.75f, -0.55f), behindness * 0.7f);
 
                 // When hand is below, elbow goes backward
                 float downness = Mathf.Clamp01(-y);

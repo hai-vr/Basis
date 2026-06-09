@@ -1626,22 +1626,6 @@ w20, w54;
                 return;
             }
 
-            float baseDeg = lordosisBaseDeg.Get(stream);
-            float neckShare = Mathf.Clamp01(lordosisNeckShare.Get(stream));
-            float maxHeadPitchDeg = lordosisMaxHeadPitchDeg.Get(stream);
-            float extremeStartDeg = lordosisExtremeStartDeg.Get(stream);
-            float extremeFullDeg = lordosisExtremeFullDeg.Get(stream);
-            float extremeRollForwardMaxDeg = lordosisExtremeRollForwardMaxDeg.Get(stream);
-            float extremeRollBackwardMaxDeg = lordosisExtremeRollBackwardMaxDeg.Get(stream);
-            float extremeHipsHorizontalMax = lordosisExtremeHipsHorizontalMax.Get(stream);
-            float extremeChestHorizontalMax = lordosisExtremeChestHorizontalMax.Get(stream);
-            float extremeHipsDownMax = lordosisExtremeHipsDownMax.Get(stream);
-            float extremeChestDownMax = lordosisExtremeChestDownMax.Get(stream);
-            float extremeHipsDownLookUp = lordosisExtremeHipsDownLookUp.Get(stream);
-            float extremeChestDownLookUp = lordosisExtremeChestDownLookUp.Get(stream);
-
-            float gain = Mathf.Max(0f, lordosisPitchGainDeg.Get(stream));
-
             Vector3 referenceUp;
             if (HandleChest.IsValid(stream))
             {
@@ -1653,98 +1637,67 @@ w20, w54;
                 referenceUp = up.sqrMagnitude < k_SqrEpsilon ? Vector3.up : up.normalized;
             }
 
-            Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
-            {
-                Vector3 hf = headRot * Vector3.forward;
-                float horizMag = Mathf.Sqrt(hf.x * hf.x + hf.z * hf.z);
-                float pitchDeg = (horizMag > 1e-6f) ? Mathf.Atan2(-hf.y, horizMag) * Mathf.Rad2Deg : (hf.y < 0f ? 90f : -90f);
-                float clampedDeg = Mathf.Clamp(pitchDeg, -maxHeadPitchDeg, maxHeadPitchDeg);
-                if (clampedDeg != pitchDeg)
-                {
-                    Vector3 yawForward = (horizMag > 1e-6f) ? new Vector3(hf.x, 0f, hf.z) / horizMag: Vector3.forward;
-                    Vector3 yawRight = Vector3.Cross(Vector3.up, yawForward);
-                    Quaternion correction = Quaternion.AngleAxis(-(pitchDeg - clampedDeg), yawRight);
-                    headRot = correction * headRot;
-                }
-            }
-            Vector3 headForward = headRot * Vector3.forward;
-            float pitchSigned = Vector3.Dot(headForward, referenceUp);
-            float lookUpFrac = Mathf.Clamp01(pitchSigned);
-            float lookDownFrac = Mathf.Clamp01(-pitchSigned);
+            BasisCervicalInput input;
+            input.BaseDeg = lordosisBaseDeg.Get(stream);
+            input.NeckShare = Mathf.Clamp01(lordosisNeckShare.Get(stream));
+            input.MaxHeadPitchDeg = lordosisMaxHeadPitchDeg.Get(stream);
+            input.ExtremeStartDeg = lordosisExtremeStartDeg.Get(stream);
+            input.ExtremeFullDeg = lordosisExtremeFullDeg.Get(stream);
+            input.ExtremeRollForwardMaxDeg = lordosisExtremeRollForwardMaxDeg.Get(stream);
+            input.ExtremeRollBackwardMaxDeg = lordosisExtremeRollBackwardMaxDeg.Get(stream);
+            input.ExtremeHipsHorizontalMax = lordosisExtremeHipsHorizontalMax.Get(stream);
+            input.ExtremeChestHorizontalMax = lordosisExtremeChestHorizontalMax.Get(stream);
+            input.ExtremeHipsDownMax = lordosisExtremeHipsDownMax.Get(stream);
+            input.ExtremeChestDownMax = lordosisExtremeChestDownMax.Get(stream);
+            input.ExtremeHipsDownLookUp = lordosisExtremeHipsDownLookUp.Get(stream);
+            input.ExtremeChestDownLookUp = lordosisExtremeChestDownLookUp.Get(stream);
+            input.PitchGainDeg = Mathf.Max(0f, lordosisPitchGainDeg.Get(stream));
+            input.ReferenceUp = referenceUp;
+            input.HeadTargetRot = V4ToQuat(targetRotationHead.Get(stream));
+            input.HasUpperChest = HandleUpperChest.IsValid(stream);
 
-            float pitchAbsDeg = Mathf.Asin(Mathf.Min(Mathf.Abs(pitchSigned), 1f)) * Mathf.Rad2Deg;
-            float extremeFrac = Mathf.Clamp01((pitchAbsDeg - extremeStartDeg) / Mathf.Max(1e-3f, extremeFullDeg - extremeStartDeg));
-
-            float signedPitch = lookDownFrac - lookUpFrac;
-            float signedBalance = -signedPitch;
-
-            float lordosisDeg = baseDeg * (1f - Mathf.Abs(signedPitch)) + gain * signedPitch;
-
-            bool hasUpperChest = HandleUpperChest.IsValid(stream);
-            float neckDeg = hasUpperChest ? lordosisDeg * neckShare : lordosisDeg;
-            float upperChestLordosisDeg = hasUpperChest ? lordosisDeg * (1f - neckShare) : 0f;
-            float extremeRollMag = signedPitch >= 0f ? extremeRollForwardMaxDeg : extremeRollBackwardMaxDeg;
-            float extremeRollDeg = extremeFrac * signedPitch * extremeRollMag;
-
-            if (Mathf.Abs(lordosisDeg) < 0.01f && extremeFrac <= 0f)
+            BasisCervicalSolveCore.Solve(input, out BasisCervicalResult result);
+            if (result.EarlyOut)
             {
                 return;
             }
 
-            ReadWriteTransformHandle bendHandle = hasUpperChest ? HandleUpperChest : HandleChest;
-            if (bendHandle.IsValid(stream))
+            ReadWriteTransformHandle bendHandle = input.HasUpperChest ? HandleUpperChest : HandleChest;
+            if (bendHandle.IsValid(stream) && result.BhDeg != 0f)
             {
                 Quaternion bhRot = bendHandle.GetRotation(stream);
-                float bhDeg = upperChestLordosisDeg + extremeRollDeg;
-                if (bhDeg != 0f)
-                {
-                    Quaternion bhDelta = Quaternion.AngleAxis(bhDeg, bhRot * Vector3.right);
-                    bendHandle.SetRotation(stream, bhDelta * bhRot);
-                }
+                bendHandle.SetRotation(stream, Quaternion.AngleAxis(result.BhDeg, bhRot * Vector3.right) * bhRot);
             }
 
-            if (extremeFrac > 0f)
+            if (result.HasExtreme)
             {
                 Quaternion refRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
                 Vector3 refForward = refRot * Vector3.forward;
                 Vector3 refDown = -(refRot * Vector3.up);
 
-                float horizCoeff = extremeFrac * signedBalance;
-                float hipsDown = extremeFrac * (lookDownFrac * extremeHipsDownMax + lookUpFrac * extremeHipsDownLookUp);
-                float chestDown = extremeFrac * (lookDownFrac * extremeChestDownMax + lookUpFrac * extremeChestDownLookUp);
-
                 if (HandleHips.IsValid(stream))
                 {
-                    Vector3 hipsOffset = refForward * (horizCoeff * extremeHipsHorizontalMax)
-                                       + refDown * hipsDown;
-                    Vector3 hipsPos = HandleHips.GetPosition(stream);
-                    HandleHips.SetPosition(stream, hipsPos + hipsOffset);
+                    Vector3 hipsOffset = refForward * result.HipsForwardAmount + refDown * result.HipsDownAmount;
+                    HandleHips.SetPosition(stream, HandleHips.GetPosition(stream) + hipsOffset);
                 }
 
                 if (HandleChest.IsValid(stream))
                 {
-                    Vector3 chestOffset = refForward * (horizCoeff * extremeChestHorizontalMax)
-                                        + refDown * chestDown;
-                    Vector3 chestPos = HandleChest.GetPosition(stream);
-                    HandleChest.SetPosition(stream, chestPos + chestOffset);
+                    Vector3 chestOffset = refForward * result.ChestForwardAmount + refDown * result.ChestDownAmount;
+                    HandleChest.SetPosition(stream, HandleChest.GetPosition(stream) + chestOffset);
                 }
             }
 
-            if (neckDeg != 0f)
+            if (result.NeckDeg != 0f)
             {
                 Quaternion neckRotCurrent = HandleNeck.GetRotation(stream);
-                Quaternion neckDelta = Quaternion.AngleAxis(neckDeg, neckRotCurrent * Vector3.right);
-                HandleNeck.SetRotation(stream, neckDelta * neckRotCurrent);
+                HandleNeck.SetRotation(stream, Quaternion.AngleAxis(result.NeckDeg, neckRotCurrent * Vector3.right) * neckRotCurrent);
             }
 
             if (HandleHead.IsValid(stream))
             {
                 HandleHead.SetPosition(stream, targetPositionHead.Get(stream));
-                // headRot is the gaze-space target (used for the pitch/lordosis math above). The bone
-                // pin must include the calibrated head offset, exactly like SolveSequentialSpineIK's
-                // finalHeadRot — otherwise this pass overwrites the spine solve and drops the offset,
-                // flipping the head on rigs whose bone bind differs from the gaze frame.
-                HandleHead.SetRotation(stream, headRot * targetOffsetHead);
+                HandleHead.SetRotation(stream, result.HeadRotClamped * targetOffsetHead);
             }
         }
         // Anatomy: shoulder slide. Shoulders don't fully follow chest twist past ~30° because the
@@ -1854,47 +1807,19 @@ w20, w54;
             if (!parent.IsValid(stream) || !child.IsValid(stream))
                 return;
 
-            Quaternion parentRot = parent.GetRotation(stream);
-            Quaternion childRot = child.GetRotation(stream);
+            BasisTwistSolveInput input;
+            input.ParentRotation = parent.GetRotation(stream);
+            input.ChildRotation = child.GetRotation(stream);
+            input.ParentToChild = child.GetPosition(stream) - parent.GetPosition(stream);
+            input.Fraction = fraction;
 
-            // Bone-local longitudinal axis: direction from parent origin to child origin in
-            // parent's local frame. This adapts to whatever axis the rig uses (X, Y, or Z).
-            Vector3 worldDir = child.GetPosition(stream) - parent.GetPosition(stream);
-            if (worldDir.sqrMagnitude < k_SqrEpsilon)
+            BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult result);
+            if (result.Apply)
             {
-                return;
+                twist.SetRotation(stream, result.TwistWorldRotation);
             }
-
-            Vector3 axis = (Quaternion.Inverse(parentRot) * worldDir).normalized;
-            if (axis.sqrMagnitude < k_SqrEpsilon)
-            {
-                return;
-            }
-
-            // Child's rotation in parent-local space, then twist component around `axis`.
-            Quaternion childLocal = Quaternion.Inverse(parentRot) * childRot;
-            Quaternion twistOnly = ExtractTwist(childLocal, axis);
-            Quaternion partialTwist = Quaternion.Slerp(Quaternion.identity, twistOnly, Mathf.Clamp01(fraction));
-
-            // Twist bone is a child of `parent`, so its world rotation is parent * partial.
-            twist.SetRotation(stream, parentRot * partialTwist);
         }
-        // Swing-twist decomposition: extracts the rotation of `q` around `axis` (unit vector).
-        // q = swing * twist, where twist's axis is parallel to `axis`.
-        static Quaternion ExtractTwist(Quaternion q, Vector3 axis)
-        {
-            Vector3 ra = new Vector3(q.x, q.y, q.z);
-            Vector3 p = Vector3.Project(ra, axis);
-            Quaternion twist = new Quaternion(p.x, p.y, p.z, q.w);
-            float magSq = twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
-            if (magSq < k_SqrEpsilon)
-            {
-                return Quaternion.identity;
-            }
-
-            float invMag = 1f / Mathf.Sqrt(magSq);
-            return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
-        }
+        static Quaternion ExtractTwist(Quaternion q, Vector3 axis) => BasisTwistSolveCore.ExtractTwist(q, axis);
         static Vector3 SignedEuler(Vector3 e)
         {
             return new Vector3(

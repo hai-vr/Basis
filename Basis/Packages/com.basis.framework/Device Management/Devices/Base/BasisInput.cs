@@ -205,7 +205,6 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 BasisLocalPlayer.Instance.OnLatePollData += LatePollData;
                 BasisLocalPlayer.Instance.OnRenderPollData += RenderPollData;
-                BasisLocalPlayer.AfterSimulateOnRender.AddAction(98, ApplyFinalMovement);
                 HasEvents = true;
             }
             else
@@ -438,7 +437,6 @@ namespace Basis.Scripts.Device_Management.Devices
                 //deassign
                 BasisLocalPlayer.Instance.OnLatePollData -= LatePollData;
                 BasisLocalPlayer.Instance.OnRenderPollData -= RenderPollData;
-                BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
             }
         }

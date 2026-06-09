@@ -49,12 +49,13 @@ namespace Basis.IK.Debugging
             _cfg.MaxFrac = EditorGUILayout.Vector3Field("Max Frac", _cfg.MaxFrac);
             _cfg.Steps = EditorGUILayout.Vector3IntField("Steps (X,Y,Z)", _cfg.Steps);
             int pts = Mathf.Max(1, _cfg.Steps.x) * Mathf.Max(1, _cfg.Steps.y) * Mathf.Max(1, _cfg.Steps.z);
-            EditorGUILayout.LabelField("Points", pts + "  (" + (pts * 2) + " rows)");
+            EditorGUILayout.LabelField("Points", pts + "  (" + (pts * 3) + " rows: nohint/hint/lookup)");
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Elbow Hint (pole)", EditorStyles.boldLabel);
-            _cfg.HintDir = EditorGUILayout.Vector3Field("Hint Dir", _cfg.HintDir);
-            _cfg.HintDistanceFrac = EditorGUILayout.Slider("Hint Distance Frac", _cfg.HintDistanceFrac, 0f, 1f);
+            EditorGUILayout.LabelField("Elbow Tracker (hint pole)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("modes: nohint=raw, hint=WITH tracker, lookup=WITHOUT (production)", EditorStyles.miniLabel);
+            _cfg.HintDir = EditorGUILayout.Vector3Field("Tracker Pole Dir", _cfg.HintDir);
+            _cfg.HintDistanceFrac = EditorGUILayout.Slider("Tracker Distance Frac", _cfg.HintDistanceFrac, 0f, 1f);
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Output", EditorStyles.boldLabel);
@@ -88,7 +89,9 @@ namespace Basis.IK.Debugging
                 {
                     EditorGUILayout.HelpBox(
                         $"Wrote {_last.Rows} rows ({_last.Points} points, {_last.ReachablePoints} reachable).\n" +
-                        $"Mean elbow swivel shift hint vs no-hint: {_last.MeanSwivelShiftDeg:F1}°  (max {_last.MaxSwivelShiftDeg:F1}°)\n" +
+                        $"LOOKUP (no tracker): mean |swivel| {_last.LookupMeanAbsSwivelDeg:F1}°, elbow-up (chicken-wing) at {_last.LookupElbowUpCount} targets\n" +
+                        $"TRACKER jitter: mean {_last.TrackerMeanSensDegPerCm:F1}°/cm, max {_last.TrackerMaxSensDegPerCm:F0}°/cm; jittery (>20°/cm) at {_last.TrackerJitteryCount}\n" +
+                        $"TRACKER follow: mean align err {_last.TrackerMeanAlignErrDeg:F1}° (0=perfect), max {_last.TrackerMaxAlignErrDeg:F0}°; faded-out (reach>0.9) at {_last.TrackerFadedCount}\n" +
                         _last.Path, MessageType.None);
                     EditorGUILayout.BeginHorizontal();
                     if (GUILayout.Button("Reveal CSV"))

@@ -152,10 +152,8 @@ namespace Basis.IK.Debugging
                                 SolveShoulderOn(sShoulders[1], sChest, arms[1], false);
                             }
 
-                            for (int a = 0; a < arms.Length; a++)
-                            {
-                                SolveArmOn(arms[a], cfg.HintMode);
-                            }
+                            SolveArmOn(arms[0], cfg.HintMode);
+                            SolveArmOn(arms[1], cfg.HintMode);
                             Vector3 hipsRight = sHips != null ? sHips.right : Vector3.right;
                             for (int l = 0; l < legs.Length; l++)
                             {

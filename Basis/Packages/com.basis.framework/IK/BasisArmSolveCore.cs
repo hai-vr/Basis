@@ -36,7 +36,9 @@ namespace UnityEngine.Animations.Rigging
         public float TargetDistance;
         public float ReachRatio;
         public float ElbowAngleDeg;
-        public float HintFade;
+        public float HintFade;       // 0..1 tracker/hint influence actually used (0 at full extension = tracker ignored)
+        public float HintProjMag;    // |hint projected onto swing plane|; small = unstable, tiny tracker error swings the elbow
+        public float ArmProjMag;     // |elbow projected onto swing plane|; small = elbow near-straight (pole ill-defined)
         public byte AxisSource;     // 0 bend-plane, 1 hint, 2 shoulder->target, 3 playerUp
         public float HandError;
     }
@@ -123,6 +125,8 @@ namespace UnityEngine.Animations.Rigging
             Quaternion hintR = Quaternion.identity;
             bool hintApplied = false;
             float hintFade = 0f;
+            float hintProjMag = 0f;
+            float armProjMag = 0f;
             if (i.HintWeight)
             {
                 // Original keeps the pre-root |ac|^2 here; rootDelta is a pure rotation so the
@@ -137,11 +141,15 @@ namespace UnityEngine.Animations.Rigging
                     Vector3 ah = i.HintPosition - aPosition;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
+                    hintProjMag = ahProj.magnitude;
+                    armProjMag = abProj.magnitude;
 
-                    // Near full extension the elbow sits on the shoulder->hand axis, so ahProj
-                    // collapses and FromToRotation spins on tracker noise. Fade the hint out.
-                    float reachRatio = (totalLen > k_Epsilon) ? (atCorrectedLen / totalLen) : 0f;
-                    hintFade = (reachRatio > 0.9f) ? 1f - Mathf.Clamp01((reachRatio - 0.9f) / 0.1f) : 1f;
+                    // Fade only when the pole genuinely collapses onto the shoulder->hand axis
+                    // (where tracker noise spins FromToRotation), keyed on the projection magnitude
+                    // itself, not raw extension. Extension alone doesn't collapse a well-placed
+                    // tracker, and fading on it discarded follow on 21% of the workspace.
+                    float projNorm = (totalLen > k_Epsilon) ? ahProj.magnitude / totalLen : 0f;
+                    hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
                     if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
                         hintR = QuaternionExt.FromToRotation(abProj, ahProj);
@@ -177,6 +185,8 @@ namespace UnityEngine.Animations.Rigging
             r.ReachRatio = (totalLen > k_Epsilon) ? atCorrectedLen / totalLen : 0f;
             r.ElbowAngleDeg = AngleDeg(aPosition - bPosition, cPosition - bPosition);
             r.HintFade = hintFade;
+            r.HintProjMag = hintProjMag;
+            r.ArmProjMag = armProjMag;
             r.AxisSource = axisSource;
             r.HandError = (cPosition - tPosition).magnitude;
         }
