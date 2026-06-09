@@ -129,25 +129,70 @@ namespace Basis.Scripts.Networking
                 return false;
             }
 
+            string arguments = BuildArguments();
+            string workingDirectory = System.IO.Path.GetDirectoryName(executable) ?? string.Empty;
+
+#if UNITY_STANDALONE_WIN
+            if (TryStartWindowsNative(executable, arguments, workingDirectory))
+            {
+                Application.Quit();
+                return true;
+            }
+#endif
+
+            if (TryStartManaged(executable, arguments, workingDirectory))
+            {
+                Application.Quit();
+                return true;
+            }
+
+            return false;
+        }
+
+#if UNITY_STANDALONE_WIN
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        private static extern System.IntPtr ShellExecuteW(System.IntPtr hwnd, string lpOperation, string lpFile, string lpParameters, string lpDirectory, int nShowCmd);
+
+        private const int SW_SHOWNORMAL = 1;
+
+        private static bool TryStartWindowsNative(string executable, string arguments, string workingDirectory)
+        {
+            try
+            {
+                System.IntPtr result = ShellExecuteW(System.IntPtr.Zero, "open", executable, arguments, workingDirectory, SW_SHOWNORMAL);
+                if (result.ToInt64() > 32) return true;
+
+                int lastError = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                BasisDebug.LogWarning($"Reboot and Reconnect ShellExecuteW returned {result.ToInt64()} (Win32 error {lastError}); falling back to managed launch.");
+                return false;
+            }
+            catch (System.Exception ex)
+            {
+                BasisDebug.LogWarning($"Reboot and Reconnect ShellExecuteW threw; falling back to managed launch: {ex}");
+                return false;
+            }
+        }
+#endif
+
+        private static bool TryStartManaged(string executable, string arguments, string workingDirectory)
+        {
             try
             {
                 System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = executable,
-                    Arguments = BuildArguments(),
+                    Arguments = arguments,
                     UseShellExecute = false,
-                    WorkingDirectory = System.IO.Path.GetDirectoryName(executable) ?? string.Empty,
+                    WorkingDirectory = workingDirectory,
                 };
                 System.Diagnostics.Process.Start(startInfo);
+                return true;
             }
             catch (System.Exception ex)
             {
                 BasisDebug.LogError($"Reboot and Reconnect failed to launch a new instance: {ex}");
                 return false;
             }
-
-            Application.Quit();
-            return true;
         }
 
         private static string ResolveExecutablePath()

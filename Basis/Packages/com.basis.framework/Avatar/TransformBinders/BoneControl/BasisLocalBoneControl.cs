@@ -74,6 +74,10 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         /// <summary>Scaled T-pose local-space reference (calibration data, not job-accessed).</summary>
         [SerializeField] public BasisCalibratedCoords TposeLocalScaled = new BasisCalibratedCoords();
 
+        /// <summary>Horizontal tracker→bone distance captured at calibration (metres). Encodes mount
+        /// lever length so consumers can adapt how much of the tracker's raw tilt to trust.</summary>
+        public float CalibratedHorizontalLever;
+
         // ===== Native-backed pose: lives in Owner's store at Index, reached via raw pointer =====
 
         /// <summary>Incoming (tracker or virtual) local-space pose.</summary>

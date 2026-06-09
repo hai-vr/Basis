@@ -514,6 +514,15 @@ public static class SettingsProviderIK
                 moveBodyBack.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip"));
             }
 
+            var hipTiltStabilization = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.hipTiltStabilization.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKHipTiltStabilization);
+            if (hipTiltStabilization != null)
+            {
+                hipTiltStabilization.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.hipTiltStabilization.title.tooltip"));
+            }
+
             var swingSmooth = PanelSlider.CreateAndBind(
                 dynamicsParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.swingSmoothRate.title"), 0f, 3600f, false, 0, ValueDisplayMode.Raw),
@@ -1041,6 +1050,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKStruggleEnd.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxHipDelta.ResetToDefault();
+        BasisSettingsDefaults.FBIKHipTiltStabilization.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendRoll.ResetToDefault();

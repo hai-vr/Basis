@@ -13,6 +13,7 @@ namespace UnityEngine.Animations.Rigging
         public bool HintWeight;
         public Quaternion TargetOffset;
         public Vector3 PlayerUp;
+        public float HintMaxStepDeg;   // max elbow-swivel change this solve; float.MaxValue = unclamped (offline)
     }
 
     public struct BasisArmSolveResult
@@ -144,10 +145,9 @@ namespace UnityEngine.Animations.Rigging
                     hintProjMag = ahProj.magnitude;
                     armProjMag = abProj.magnitude;
 
-                    // Fade only when the pole genuinely collapses onto the shoulder->hand axis
-                    // (where tracker noise spins FromToRotation), keyed on the projection magnitude
-                    // itself, not raw extension. Extension alone doesn't collapse a well-placed
-                    // tracker, and fading on it discarded follow on 21% of the workspace.
+                    // Fade only when the pole genuinely collapses onto the shoulder->hand axis,
+                    // keyed on the projection magnitude itself, not raw extension (which discarded
+                    // tracker follow on 21% of the workspace).
                     float projNorm = (totalLen > k_Epsilon) ? ahProj.magnitude / totalLen : 0f;
                     hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
                     if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
@@ -158,6 +158,16 @@ namespace UnityEngine.Animations.Rigging
                             hintR = Quaternion.Slerp(Quaternion.identity, hintR, hintFade);
                         }
                         hintR = QuaternionExt.NormalizeSafe(hintR);
+
+                        // Rate-limit the swivel so the elbow eases toward the pole instead of
+                        // snapping ~180 deg when the hint crosses to the opposite side of the
+                        // current elbow (the long-standing pole flip). Reach is unaffected; this
+                        // only bounds the swivel rotation. Offline callers pass MaxValue (no clamp).
+                        float hintAngle = 2f * Mathf.Acos(Mathf.Clamp(Mathf.Abs(hintR.w), 0f, 1f)) * Mathf.Rad2Deg;
+                        if (hintAngle > i.HintMaxStepDeg && hintAngle > k_Epsilon)
+                        {
+                            hintR = Quaternion.Slerp(Quaternion.identity, hintR, i.HintMaxStepDeg / hintAngle);
+                        }
 
                         rootRot = hintR * rootRot;
                         bPosition = aPosition + hintR * (bPosition - aPosition);

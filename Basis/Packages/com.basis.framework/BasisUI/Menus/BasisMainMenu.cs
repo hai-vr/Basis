@@ -404,5 +404,22 @@ namespace Basis.BasisUI
 
             return Instance.ActiveMenu;
         }
+
+        public static void CloseActivePanel()
+        {
+            if (!Instance || !Instance.ActiveMenu)
+            {
+                return;
+            }
+
+            if (Instance.ActiveProvider != null)
+            {
+                Instance.ActiveProvider.OnReleaseEvent();
+            }
+
+            Instance.ActiveMenu.ReleaseInstance();
+            Instance.ActiveMenu = null;
+            Instance.ActiveProvider = null;
+        }
     }
 }

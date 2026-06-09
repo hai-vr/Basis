@@ -76,8 +76,8 @@ public partial class BasisLocalFootDriver
     [SerializeField, Range(0.02f, 0.2f)]
     private float stepTriggerMul = 0.08f;
     [Tooltip("Stride scale as fraction of avg leg length.")]
-    [SerializeField, Range(0.02f, 0.15f)]
-    private float strideScaleMul = 0.06f;
+    [SerializeField, Range(0.02f, 0.25f)]
+    private float strideScaleMul = 0.12f;
     [Tooltip("Step height as fraction of avg shin length.")]
     [SerializeField, Range(0.05f, 0.4f)]
     private float stepHeightMul = 0.18f;
@@ -244,6 +244,13 @@ public partial class BasisLocalFootDriver
     public Quaternion RightFootRotation => right.currentRot;
     public Vector3 LeftKneeHint => left.kneeHint;
     public Vector3 RightKneeHint => right.kneeHint;
+    public Vector3 LeftPlantedPos => left.plantedPos;
+    public Vector3 RightPlantedPos => right.plantedPos;
+    public float LeftStepTimer => left.stepTimer;
+    public float RightStepTimer => right.stepTimer;
+    public bool LastGroundHit { get; private set; }
+    public float LastGroundUp { get; private set; }
+    public float HipsUp { get; private set; }
 
     // ───────── Per-foot ─────────
 
@@ -297,7 +304,10 @@ public partial class BasisLocalFootDriver
         right.shinLen = rightShinLen;
         right.legLength = rightLegLen;
 
-        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) + 0.3f;
+        // Generous margin so the hips-down raycast still finds the floor when the hips sit
+        // elevated above leg reach (certain height/scale calibrations); a short range misses
+        // and the fallback floats the feet up with the body.
+        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) + 1.0f;
 
         Matrix4x4 ltw = BasisLocalPlayer.localToWorldMatrix;
         cachedPlayerUp = ltw.MultiplyVector(Vector3.up).normalized;
@@ -622,7 +632,7 @@ public partial class BasisLocalFootDriver
 
         stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, 0.04f, 0.18f);
 
-        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, 0.02f, 0.12f);
+        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, 0.02f, 0.22f);
 
         stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, 0.03f, 0.20f);
 
@@ -670,7 +680,10 @@ public partial class BasisLocalFootDriver
         right.thighLen = rightThighLen;
         right.shinLen = rightShinLen;
         right.legLength = rightLegLen;
-        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) + 0.3f;
+        // Generous margin so the hips-down raycast still finds the floor when the hips sit
+        // elevated above leg reach (certain height/scale calibrations); a short range misses
+        // and the fallback floats the feet up with the body.
+        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) + 1.0f;
         _paramsDirty = true;
 
         // Sync leg lengths to native foot state
@@ -743,6 +756,9 @@ public partial class BasisLocalFootDriver
         var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
         var chestCtrl = BasisLocalBoneDriver.ChestControl;
         bool groundHit = Physics.Raycast(hips.position, -cachedPlayerUp, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore);
+        LastGroundHit = groundHit;
+        LastGroundUp = groundHit ? Vector3.Dot(ch.point, cachedPlayerUp) : float.NaN;
+        HipsUp = Vector3.Dot(hips.position, cachedPlayerUp);
 
         // ── 2. Pack input (write in place; no job is in flight here) ──
         ref BasisFootSimInput inputSlot = ref UnsafeUtility.ArrayElementAsRef<BasisFootSimInput>(_nativeInput.GetUnsafePtr(), 0);

@@ -289,6 +289,7 @@ namespace Basis.IK.Debugging
             input.HintWeight = hintOn;
             input.TargetOffset = Quaternion.identity;
             input.PlayerUp = Vector3.up;
+            input.HintMaxStepDeg = float.MaxValue;
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
             return r;
         }

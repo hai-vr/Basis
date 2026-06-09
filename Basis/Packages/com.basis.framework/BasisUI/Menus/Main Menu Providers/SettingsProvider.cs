@@ -138,7 +138,11 @@ namespace Basis.BasisUI
 
         public override void RunAction()
         {
-            if (BasisMainMenu.ActiveMenuTitle == Title) return;
+            if (BasisMainMenu.ActiveMenuTitle == Title)
+            {
+                BasisMainMenu.CloseActivePanel();
+                return;
+            }
 
             BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),

@@ -711,6 +711,14 @@
       "value": "How far your body shifts backward as you crouch down."
     },
     {
+      "key": "settings.bodyTracking.hipTiltStabilization.title",
+      "value": "Hip Tilt Stabilization"
+    },
+    {
+      "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip",
+      "value": "Reduces wobble from a hip tracker worn on the front or belly by keeping its yaw and borrowing lean from your torso. Side-of-hip mounts are auto-exempt. 0 = off."
+    },
+    {
       "key": "settings.bodyTracking.swingSmoothRate.title.tooltip",
       "value": "How quickly body swing motion settles; higher reacts faster."
     },
@@ -1968,7 +1976,7 @@
     },
     {
       "key": "menu.exit.dialog.reboot",
-      "value": "Reboot and Reconnect"
+      "value": "Restart and Reconnect"
     },
     {
       "key": "menu.exit.dialog.restart",

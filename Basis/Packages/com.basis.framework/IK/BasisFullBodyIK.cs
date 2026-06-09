@@ -2028,6 +2028,7 @@ w20, w54;
             input.HintWeight = hintWeight;
             input.TargetOffset = targetOffset;
             input.PlayerUp = playerUp.Get(stream);
+            input.HintMaxStepDeg = 540f * stream.deltaTime;
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
 

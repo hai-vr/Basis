@@ -990,6 +990,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKStruggleEnd = new("fbikstruggleend", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> FBIKMaxChestDelta = new("fbikmaxchestdelta", new BasisPlatformDefault<float>(90f));
         public static BasisSettingsBinding<float> FBIKMaxHipDelta = new("fbikmaxhipdelta", new BasisPlatformDefault<float>(90f));
+        // Master strength for adaptive hip-tilt stabilization (0 = use the hip tracker's raw pitch/roll
+        // as-is; 1 = fully stabilize long-lever/front mounts). Side mounts are auto-exempt by lever.
+        public static BasisSettingsBinding<float> FBIKHipTiltStabilization = new("fbikhiptiltstabilization", new BasisPlatformDefault<float>(1f));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1606,6 +1609,7 @@ namespace Basis.BasisUI
             FBIKStruggleEnd.LoadBindingValue();
             FBIKMaxChestDelta.LoadBindingValue();
             FBIKMaxHipDelta.LoadBindingValue();
+            FBIKHipTiltStabilization.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();

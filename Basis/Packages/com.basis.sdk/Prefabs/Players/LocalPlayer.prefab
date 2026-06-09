@@ -560,7 +560,7 @@ MonoBehaviour:
     raySphereRadiusMul: 0.3
     footHeightOffsetMul: 0.2
     stepTriggerMul: 0.08
-    strideScaleMul: 0.06
+    strideScaleMul: 0.12
     stepHeightMul: 0.18
     stepDurSlowMul: 0.3
     stepDurFastMul: 0.18

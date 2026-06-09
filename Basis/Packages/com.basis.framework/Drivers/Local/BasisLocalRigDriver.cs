@@ -564,6 +564,17 @@ namespace Basis.Scripts.Drivers
                 data.ChestPosition = chestPos;
                 data.ChestRotation = chestRot;
 
+                // Adaptive hip-tilt stabilization. A belt tracker's yaw is reliable at any mount
+                // point, but its pitch/roll get contaminated by soft tissue and flexion — worst on a
+                // long forward (front-of-body) lever, negligible on a short lateral (side) one. Trust
+                // the raw tilt in proportion to the calibrated lever; where we distrust it, keep the
+                // tracker's yaw and borrow pitch/roll from the torso so intentional bends survive.
+                if (hipsHaveTracker && BasisLocalBoneDriver.HipsControl != null)
+                {
+                    hipsRot = StabilizeHipTilt(hipsRot, chestRot, BasisLocalBoneDriver.HipsControl.CalibratedHorizontalLever);
+                    data.RotationHips = hipsRot;
+                }
+
                 // ── LEFT LOWER LEG ──
                 if (leftLLHasTracker)
                 {
@@ -677,6 +688,46 @@ namespace Basis.Scripts.Drivers
             }
         }
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
+        // Lever lengths (metres) bracketing the trust ramp for hip-tilt stabilization. At or below
+        // Near (a side-of-hip / iliac-crest mount) the tracker's raw pitch/roll is fully trusted; at
+        // or above Far (a front-of-belly mount) it is fully replaced by the torso-derived tilt.
+        private const float HipTiltLeverNear = 0.14f;
+        private const float HipTiltLeverFar = 0.22f;
+        // Fraction of the chest's lean the stabilized pelvis borrows when raw tilt is distrusted.
+        private const float HipTiltLeanShare = 0.5f;
+
+        private static Quaternion StabilizeHipTilt(Quaternion hipsWorld, Quaternion chestWorld, float lever)
+        {
+            float strength = Basis.BasisUI.BasisSettingsDefaults.FBIKHipTiltStabilization.RawValue;
+            if (strength <= 0f)
+            {
+                return hipsWorld;
+            }
+
+            float trust = Mathf.Clamp01(Mathf.InverseLerp(HipTiltLeverFar, HipTiltLeverNear, lever));
+            float blend = (1f - trust) * strength;
+            if (blend <= 0.0001f)
+            {
+                return hipsWorld;
+            }
+
+            Vector3 up = Vector3.up;
+            Vector3 fwdFlat = Vector3.ProjectOnPlane(hipsWorld * Vector3.forward, up);
+            if (fwdFlat.sqrMagnitude < 1e-6f)
+            {
+                fwdFlat = Vector3.ProjectOnPlane(hipsWorld * Vector3.up, up);
+                if (fwdFlat.sqrMagnitude < 1e-6f)
+                {
+                    return hipsWorld;
+                }
+            }
+
+            Quaternion hipYaw = Quaternion.LookRotation(fwdFlat.normalized, up);
+            Quaternion lean = Quaternion.Slerp(Quaternion.identity, Quaternion.FromToRotation(up, chestWorld * Vector3.up), HipTiltLeanShare);
+            Quaternion hipStable = lean * hipYaw;
+            return Quaternion.Slerp(hipsWorld, hipStable, blend);
+        }
+
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
             if (BasisHintBiasStore.TryGet(hintRole, out var localOffset))

@@ -252,7 +252,7 @@ namespace Basis.Scripts.Drivers
         /// <param name="parentMatrix">Parent transform matrix that seeds world-space computation.</param>
         public void Simulate(float deltaTime, Matrix4x4 parentMatrix)
         {
-            RunSimulation(parentMatrix, deltaTime, seedLastRunFromOutgoing: false);
+            RunSimulation(parentMatrix, deltaTime, seedLastRunFromOutgoing: false, instantSnap: false);
             // Gizmo drawing intentionally deferred to AfterSimulateOnRender —
             // running it here would read bone Transform.position before Unity's
             // Animator has updated bones for this frame, leaving the spheres a
@@ -266,14 +266,14 @@ namespace Basis.Scripts.Drivers
         /// <param name="parentMatrix">Parent transform matrix for world calculations.</param>
         public void SimulateWithoutLerp(Matrix4x4 parentMatrix)
         {
-            RunSimulation(parentMatrix, Time.deltaTime, seedLastRunFromOutgoing: true);
+            RunSimulation(parentMatrix, Time.deltaTime, seedLastRunFromOutgoing: true, instantSnap: true);
             if (SMModuleDebugOptions.UseGizmos)
             {
                 DrawGizmos();
             }
         }
 
-        private void RunSimulation(Matrix4x4 parentMatrix, float deltaTime, bool seedLastRunFromOutgoing)
+        private void RunSimulation(Matrix4x4 parentMatrix, float deltaTime, bool seedLastRunFromOutgoing, bool instantSnap)
         {
             if (ControlsLength == 0)
             {
@@ -293,12 +293,13 @@ namespace Basis.Scripts.Drivers
 
             float4x4 parentMatrix44 = parentMatrix;
             quaternion parentRot = parentMatrix.rotation;
+            byte snap = instantSnap ? (byte)1 : (byte)0;
 
             // Schedule: spine first; limb chains depend on spine; "other" depends on spine.
             JobHandle spineHandle = default;
             if (_spineChainIndices.IsCreated && _spineChainIndices.Length > 0)
             {
-                spineHandle = MakeJob(_spineChainIndices, parentMatrix44, parentRot, deltaTime).Schedule();
+                spineHandle = MakeJob(_spineChainIndices, parentMatrix44, parentRot, deltaTime, snap).Schedule();
             }
 
             JobHandle leftArmHandle = default;
@@ -309,23 +310,23 @@ namespace Basis.Scripts.Drivers
 
             if (_leftArmChainIndices.IsCreated && _leftArmChainIndices.Length > 0)
             {
-                leftArmHandle = MakeJob(_leftArmChainIndices, parentMatrix44, parentRot, deltaTime).Schedule(spineHandle);
+                leftArmHandle = MakeJob(_leftArmChainIndices, parentMatrix44, parentRot, deltaTime, snap).Schedule(spineHandle);
             }
             if (_rightArmChainIndices.IsCreated && _rightArmChainIndices.Length > 0)
             {
-                rightArmHandle = MakeJob(_rightArmChainIndices, parentMatrix44, parentRot, deltaTime).Schedule(spineHandle);
+                rightArmHandle = MakeJob(_rightArmChainIndices, parentMatrix44, parentRot, deltaTime, snap).Schedule(spineHandle);
             }
             if (_leftLegChainIndices.IsCreated && _leftLegChainIndices.Length > 0)
             {
-                leftLegHandle = MakeJob(_leftLegChainIndices, parentMatrix44, parentRot, deltaTime).Schedule(spineHandle);
+                leftLegHandle = MakeJob(_leftLegChainIndices, parentMatrix44, parentRot, deltaTime, snap).Schedule(spineHandle);
             }
             if (_rightLegChainIndices.IsCreated && _rightLegChainIndices.Length > 0)
             {
-                rightLegHandle = MakeJob(_rightLegChainIndices, parentMatrix44, parentRot, deltaTime).Schedule(spineHandle);
+                rightLegHandle = MakeJob(_rightLegChainIndices, parentMatrix44, parentRot, deltaTime, snap).Schedule(spineHandle);
             }
             if (_otherChainIndices.IsCreated && _otherChainIndices.Length > 0)
             {
-                otherHandle = MakeJob(_otherChainIndices, parentMatrix44, parentRot, deltaTime).Schedule(spineHandle);
+                otherHandle = MakeJob(_otherChainIndices, parentMatrix44, parentRot, deltaTime, snap).Schedule(spineHandle);
             }
 
             JobHandle armsCombined = JobHandle.CombineDependencies(leftArmHandle, rightArmHandle);
@@ -342,7 +343,7 @@ namespace Basis.Scripts.Drivers
             worldHandle.Complete();
         }
 
-        private BasisBoneSimChainJob MakeJob(NativeArray<int> chain, float4x4 parentMatrix44, quaternion parentRot, float deltaTime)
+        private BasisBoneSimChainJob MakeJob(NativeArray<int> chain, float4x4 parentMatrix44, quaternion parentRot, float deltaTime, byte instantSnap)
         {
             return new BasisBoneSimChainJob
             {
@@ -352,6 +353,7 @@ namespace Basis.Scripts.Drivers
                 ParentMatrix = parentMatrix44,
                 ParentRotation = parentRot,
                 DeltaTime = deltaTime,
+                InstantSnap = instantSnap,
             };
         }
 

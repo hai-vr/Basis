@@ -65,14 +65,15 @@ namespace Basis.Scripts.Drivers
         public float4x4 ParentMatrix;
         public quaternion ParentRotation;
         public float DeltaTime;
+        public byte InstantSnap;
 
         public void Execute()
         {
             int len = ChainIndices.Length;
             // Loop-invariant: the lerp constants are const and DeltaTime is per-job. trackersmooth (25)
             // saturates to 1 — math.lerp/slerp don't clamp like the original Vector3.Lerp/Slerp did.
-            float ts = math.saturate(BasisLocalBoneControl.trackersmooth);
-            float posLerpFactor = math.clamp(BasisLocalBoneControl.PositionLerpAmount * DeltaTime, 0f, 1f);
+            float ts = InstantSnap != 0 ? 1f : math.saturate(BasisLocalBoneControl.trackersmooth);
+            float posLerpFactor = InstantSnap != 0 ? 1f : math.clamp(BasisLocalBoneControl.PositionLerpAmount * DeltaTime, 0f, 1f);
             for (int k = 0; k < len; k++)
             {
                 int i = ChainIndices[k];
@@ -103,9 +104,11 @@ namespace Basis.Scripts.Drivers
                 {
                     BasisBoneSimState targetState = States[input.TargetIndex];
 
-                    state.OutgoingRotation = ApplyLerpToQuaternion(
-                        state.LastRunRotation,
-                        targetState.OutgoingRotation);
+                    state.OutgoingRotation = InstantSnap != 0
+                        ? targetState.OutgoingRotation
+                        : ApplyLerpToQuaternion(
+                            state.LastRunRotation,
+                            targetState.OutgoingRotation);
 
                     float3 customDirection = math.mul(targetState.OutgoingRotation, input.ScaledOffset);
                     float3 targetPosition = targetState.OutgoingPosition + customDirection;

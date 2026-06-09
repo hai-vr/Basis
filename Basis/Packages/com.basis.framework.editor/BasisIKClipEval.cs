@@ -242,6 +242,7 @@ namespace Basis.IK.Debugging
             input.HintWeight = hasHint;
             input.TargetOffset = Quaternion.identity;
             input.PlayerUp = Vector3.up;
+            input.HintMaxStepDeg = float.MaxValue;
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
             ApplyDeltas(limb, r.MidDelta, r.RootDelta, r.HintDelta, r.TipRotation);

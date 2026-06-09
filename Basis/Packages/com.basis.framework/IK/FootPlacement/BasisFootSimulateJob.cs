@@ -175,11 +175,14 @@ public struct BasisFootSimulateJob : IJob
         right.kneeHint = math.lerp(right.kneeHint, rightKneeTarget, kneeAlpha);
 
         // ── Final side enforcement ──
+        // Only on stepping feet (anti-cross while in flight). A planted foot is world-locked;
+        // enforcing side on it hard-snaps it sideways when the body drifts (a visible pop), and
+        // the plant->ideal step trigger already re-steps a plant that has drifted too far.
         float leftFootUp = GetUpComponent(left.currentPos, up);
         float3 hipsGround3 = ProjectOntoUpPlane(hp, up) + up * leftFootUp;
         float footMinSide = halfStance * p.footSideEnforceFraction;
-        EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
-        EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
+        if (left.phase == 1) EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
+        if (right.phase == 1) EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
 
         // ── Hip bob ──
         var outp = output[0];
