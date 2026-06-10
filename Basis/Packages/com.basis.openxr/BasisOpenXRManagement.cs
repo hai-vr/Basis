@@ -238,6 +238,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             for (int Index = 0; Index < trackerscount; Index++)
             {
                 BasisOpenxrDeviceTrackedInfo device = Trackers[Index];
+                if (device.State.action == null) continue;
                 device.IsActive = device.State.action.ReadValue<int>();
                 if (device.IsActive != 0)
                 {
