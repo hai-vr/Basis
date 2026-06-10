@@ -252,7 +252,7 @@ namespace Basis.Scripts.Networking
             {
 #if UNITY_STANDALONE_WIN
                 // Application.dataPath = "C:\path\to\Basis Unity_Data" — strip suffix, add .exe
-                string dataPath = Application.dataPath;
+                string dataPath = Application.dataPath.Replace('/', '\\');
                 if (!dataPath.EndsWith("_Data", StringComparison.OrdinalIgnoreCase)) return;
                 string exePath = dataPath.Substring(0, dataPath.Length - 5) + ".exe";
                 RegisterWindowsScheme(exePath);
