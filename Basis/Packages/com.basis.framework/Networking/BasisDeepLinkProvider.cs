@@ -266,19 +266,33 @@ namespace Basis.Scripts.Networking
 #endif
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int RegCreateKeyExW(IntPtr hKey, string subKey, int reserved, string lpClass,
+            int options, int samDesired, IntPtr secAttr, out IntPtr result, out int disposition);
+
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int RegSetValueExW(IntPtr hKey, string valueName, int reserved, int type,
+            string data, int cbData);
+
+        [System.Runtime.InteropServices.DllImport("advapi32.dll")]
+        private static extern int RegCloseKey(IntPtr hKey);
+
         private static void RegisterWindowsScheme(string exePath)
         {
-            using (Microsoft.Win32.RegistryKey key =
-                Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\basisvr"))
-            {
-                key.SetValue("", "URL:BasisVR Protocol");
-                key.SetValue("URL Protocol", "");
-            }
-            using (Microsoft.Win32.RegistryKey key =
-                Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\basisvr\shell\open\command"))
-            {
-                key.SetValue("", $"\"{exePath}\" \"%1\"");
-            }
+            IntPtr hkcu = new IntPtr(unchecked((int)0x80000001));
+            const int KEY_ALL_ACCESS = 0xF003F;
+            const int REG_SZ = 1;
+
+            RegCreateKeyExW(hkcu, @"Software\Classes\basisvr", 0, null, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key1, out _);
+            string proto = "URL:BasisVR Protocol";
+            RegSetValueExW(key1, "", 0, REG_SZ, proto, (proto.Length + 1) * 2);
+            RegSetValueExW(key1, "URL Protocol", 0, REG_SZ, "", 2);
+            RegCloseKey(key1);
+
+            RegCreateKeyExW(hkcu, @"Software\Classes\basisvr\shell\open\command", 0, null, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key2, out _);
+            string cmd = $"\"{exePath}\" \"%1\"";
+            RegSetValueExW(key2, "", 0, REG_SZ, cmd, (cmd.Length + 1) * 2);
+            RegCloseKey(key2);
         }
 #endif
 
