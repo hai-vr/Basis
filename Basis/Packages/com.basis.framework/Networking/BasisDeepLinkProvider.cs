@@ -267,7 +267,7 @@ namespace Basis.Scripts.Networking
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-        private static extern int RegCreateKeyExW(IntPtr hKey, string subKey, int reserved, string lpClass,
+        private static extern int RegCreateKeyExW(IntPtr hKey, string subKey, int reserved, IntPtr lpClass,
             int options, int samDesired, IntPtr secAttr, out IntPtr result, out int disposition);
 
         [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
@@ -283,16 +283,20 @@ namespace Basis.Scripts.Networking
             const int KEY_ALL_ACCESS = 0xF003F;
             const int REG_SZ = 1;
 
-            RegCreateKeyExW(hkcu, @"Software\Classes\basisvr", 0, null, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key1, out _);
+            int ret1 = RegCreateKeyExW(hkcu, @"Software\Classes\basisvr", 0, IntPtr.Zero, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key1, out _);
+            if (ret1 != 0) { BasisDebug.LogError($"[BasisDeepLink] RegCreateKeyExW(basisvr) failed: {ret1}"); return; }
             string proto = "URL:BasisVR Protocol";
             RegSetValueExW(key1, "", 0, REG_SZ, proto, (proto.Length + 1) * 2);
             RegSetValueExW(key1, "URL Protocol", 0, REG_SZ, "", 2);
             RegCloseKey(key1);
 
-            RegCreateKeyExW(hkcu, @"Software\Classes\basisvr\shell\open\command", 0, null, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key2, out _);
+            int ret2 = RegCreateKeyExW(hkcu, @"Software\Classes\basisvr\shell\open\command", 0, IntPtr.Zero, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key2, out _);
+            if (ret2 != 0) { BasisDebug.LogError($"[BasisDeepLink] RegCreateKeyExW(command) failed: {ret2}"); return; }
             string cmd = $"\"{exePath}\" \"%1\"";
             RegSetValueExW(key2, "", 0, REG_SZ, cmd, (cmd.Length + 1) * 2);
             RegCloseKey(key2);
+
+            BasisDebug.Log($"[BasisDeepLink] Registered basisvr:// → {cmd}");
         }
 #endif
 
