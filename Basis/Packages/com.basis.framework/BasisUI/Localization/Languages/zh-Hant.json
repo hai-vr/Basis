@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "你臀部開始向前彎折時的傾斜角度。" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "在完全前傾時額外增加的臀部彎折（以度為單位）。" },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "你蹲下時身體向後位移的幅度。" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "髖部傾斜穩定" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "透過保持其偏航並從軀幹借用前傾，減少佩戴在前側或腹部的髖部追蹤器的晃動。安裝在髖部側面的追蹤器自動豁免。0 = 關閉。" },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "身體擺動動作沉穩下來的速度；越高反應越快。" },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "彈性胸部動作的剛度；越高感覺越緊實。" },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "胸部彈簧彈跳沉穩下來而不持續晃動的速度。" },

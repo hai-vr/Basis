@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Neigungswinkel, bei dem deine Hüfte beginnt, nach vorne zu klappen." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Zusätzliches Hüftklappen bei voller Vorwärtsneigung, in Grad." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "Wie weit sich dein Körper nach hinten verschiebt, wenn du dich duckst." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Hüftneigungs-Stabilisierung" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Reduziert das Wackeln eines vorn oder am Bauch getragenen Hüft-Trackers, indem seine Gierdrehung beibehalten und die Neigung von deinem Oberkörper übernommen wird. An der Hüftseite montierte Tracker sind automatisch ausgenommen. 0 = aus." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "Wie schnell sich die Schwungbewegung des Körpers beruhigt; höher reagiert schneller." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Steifigkeit der federnden Brustbewegung; höher fühlt sich straffer an." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "Wie schnell sich das Brustfedern beruhigt, statt zu schwingen." },

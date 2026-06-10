@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Angle d'inclinaison auquel vos hanches commencent à pivoter vers l'avant." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Pivotement de hanche supplémentaire ajouté à pleine inclinaison avant, en degrés." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "De combien votre corps recule lorsque vous vous accroupissez." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Stabilisation de l'inclinaison des hanches" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Réduit le tremblement d'un tracker de hanche porté à l'avant ou sur le ventre en conservant son lacet et en empruntant l'inclinaison à ton torse. Les montages sur le côté de la hanche sont exemptés automatiquement. 0 = désactivé." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "À quelle vitesse le balancement du corps se stabilise ; plus élevé réagit plus vite." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Rigidité du mouvement élastique de la poitrine ; plus élevé paraît plus tendu." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "À quelle vitesse le rebond élastique de la poitrine se stabilise au lieu d'osciller." },

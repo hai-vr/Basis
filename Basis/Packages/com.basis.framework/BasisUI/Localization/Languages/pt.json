@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Ângulo de inclinação no qual seus quadris começam a se dobrar para frente." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Dobra de quadril extra adicionada na inclinação máxima para frente, em graus." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "Quanto seu corpo se desloca para trás conforme você se agacha." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Estabilização da inclinação do quadril" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Reduz a oscilação de um tracker de quadril usado na frente ou na barriga, mantendo a guinada dele e emprestando a inclinação do seu torso. Montagens na lateral do quadril são isentas automaticamente. 0 = desativado." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "Com que rapidez o movimento de balanço do corpo se estabiliza; maior reage mais rápido." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Rigidez do movimento elástico do peito; maior parece mais firme." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "Com que rapidez o salto elástico do peito se estabiliza em vez de oscilar." },

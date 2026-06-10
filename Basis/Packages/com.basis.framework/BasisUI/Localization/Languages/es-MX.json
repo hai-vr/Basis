@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Ángulo de inclinación al que tus caderas empiezan a bascular hacia adelante." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Basculación de cadera extra añadida con inclinación total hacia adelante, en grados." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "Qué tanto se desplaza tu cuerpo hacia atrás al agacharte." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Estabilización de inclinación de cadera" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Reduce el bamboleo de un tracker de cadera colocado en la parte delantera o el vientre manteniendo su giro horizontal y tomando la inclinación de tu torso. Los montajes en el costado de la cadera quedan exentos automáticamente. 0 = desactivado." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "Qué tan rápido se asienta el movimiento de balanceo del cuerpo; más alto reacciona más rápido." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Rigidez del movimiento elástico del pecho; más alto se siente más firme." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "Qué tan rápido se asienta el rebote elástico del pecho en vez de oscilar." },

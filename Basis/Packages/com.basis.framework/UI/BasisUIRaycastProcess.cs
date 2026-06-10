@@ -1,6 +1,8 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.TransformBinders.BoneControl;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -17,6 +19,10 @@ namespace Basis.Scripts.UI
         public List<BasisInput> Inputs;
         public bool HasEvent = false;
         public const float TriggerReleaseThreshold = 0.5f;
+
+        public const float SliderJoystickDeadzone = 0.2f;
+        public const float SliderJoystickRangePerSecond = 0.6f;
+        private PanelSlider _joystickDrivenSlider;
 
         private static bool IsTriggerDown(BasisInput input, bool wasDown)
         {
@@ -37,6 +43,12 @@ namespace Basis.Scripts.UI
 
         public void OnDeInitialize()
         {
+            if (_joystickDrivenSlider != null)
+            {
+                _joystickDrivenSlider.EndExternalDrive();
+                _joystickDrivenSlider = null;
+            }
+
             if (HasEvent && BasisDeviceManagement != null)
             {
                 BasisDeviceManagement.AllInputDevices.OnListChanged -= AllInputDevices;
@@ -145,6 +157,8 @@ namespace Basis.Scripts.UI
                 }
             }
 
+            DriveHoveredSliderFromJoystick(snapshot, DevicesCount);
+
             if (!HasTarget && EffectiveMouseAction)
             {
                 EventSystem.current.SetSelectedGameObject(null, null);
@@ -169,6 +183,97 @@ namespace Basis.Scripts.UI
                     }
                 }
             }
+        }
+
+        // Right controller stick (Y) adjusts whichever PanelSlider any pointer is hovering.
+        // Reading the stick from the right hand only keeps the left stick free for locomotion.
+        private void DriveHoveredSliderFromJoystick(List<BasisInput> snapshot, int DevicesCount)
+        {
+            float axisY = 0f;
+            PanelSlider rightHovered = null;
+            PanelSlider anyHovered = null;
+
+            for (int Index = 0; Index < DevicesCount; Index++)
+            {
+                BasisInput input = snapshot[Index];
+                if (input == null)
+                {
+                    continue;
+                }
+
+                bool isRightHand = input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.RightHand;
+                if (isRightHand)
+                {
+                    axisY = input.CurrentInputState.Primary2DAxisDeadZoned.y;
+                }
+
+                if (TryGetHoveredSlider(input, out PanelSlider hovered))
+                {
+                    if (isRightHand)
+                    {
+                        rightHovered = hovered;
+                    }
+                    else if (anyHovered == null)
+                    {
+                        anyHovered = hovered;
+                    }
+                }
+            }
+
+            PanelSlider target = rightHovered != null ? rightHovered : anyHovered;
+            bool active = target != null && Mathf.Abs(axisY) >= SliderJoystickDeadzone;
+
+            // Commit the previous slider when the stick releases or the pointer moves to another one.
+            if (_joystickDrivenSlider != null && (!active || _joystickDrivenSlider != target))
+            {
+                _joystickDrivenSlider.EndExternalDrive();
+                _joystickDrivenSlider = null;
+            }
+
+            if (!active)
+            {
+                return;
+            }
+
+            float range = target.SliderComponent.maxValue - target.SliderComponent.minValue;
+            if (range <= 0f)
+            {
+                return;
+            }
+
+            float delta = axisY * SliderJoystickRangePerSecond * range * Time.unscaledDeltaTime;
+            target.DriveExternalDelta(delta);
+            _joystickDrivenSlider = target;
+        }
+
+        private static bool TryGetHoveredSlider(BasisInput input, out PanelSlider slider)
+        {
+            slider = null;
+            if (!input.HasRaycaster)
+            {
+                return false;
+            }
+
+            BasisUIRaycast raycast = input.BasisUIRaycast;
+            if (raycast == null || !raycast.WasCorrectLayer || !raycast.HadRaycastUITarget)
+            {
+                return false;
+            }
+
+            List<BasisRaycastUIHitData> hits = raycast.SortedGraphics;
+            if (hits == null || hits.Count == 0)
+            {
+                return false;
+            }
+
+            var graphic = hits[0].graphic;
+            if (graphic == null)
+            {
+                return false;
+            }
+
+            slider = graphic.GetComponentInParent<PanelSlider>();
+            return slider != null;
         }
 
         private const string CursorPos = "_CursorPos";

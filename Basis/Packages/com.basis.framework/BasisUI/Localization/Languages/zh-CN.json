@@ -192,8 +192,6 @@
     {"key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "你的髋部开始向前折叠时的倾斜角度。"},
     {"key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "在完全前倾时额外增加的髋部折叠（度）。"},
     {"key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "你蹲下时身体向后移动的距离。"},
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "髋部倾斜稳定" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "通过保持其偏航并从躯干借用前倾，减少佩戴在前侧或腹部的髋部追踪器的晃动。安装在髋部侧面的追踪器自动豁免。0 = 关闭。" },
     {"key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "身体摆动动作平息的速度；越高反应越快。"},
     {"key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "弹性胸部运动的刚度；越高感觉越紧绷。"},
     {"key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "胸部弹簧弹跳平息而非晃动的速度。"},

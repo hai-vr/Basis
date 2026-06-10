@@ -310,7 +310,6 @@ namespace Basis.Scripts.Device_Management.Devices
             BasisInverseOffsetData.InitialControlRotation = Control.OutgoingWorldData.rotation;
 
             Vector3 Offset = Control.OutgoingWorldData.position - BasisInverseOffsetData.TrackerPosition;
-            Control.CalibratedHorizontalLever = Vector3.ProjectOnPlane(Offset, Vector3.up).magnitude;
             Control.SetInverseOffset(
                 BasisInverseOffsetData.InitialInverseTrackRotation * (Offset),
                 BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation);

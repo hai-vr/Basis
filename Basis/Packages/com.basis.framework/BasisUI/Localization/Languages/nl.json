@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Leunhoek waarbij je heupen naar voren beginnen te scharnieren." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Extra heupscharnier toegevoegd bij volledige voorwaartse leuning, in graden." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "Hoe ver je lichaam naar achteren verschuift terwijl je hurkt." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Heupkantelstabilisatie" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Vermindert het wiebelen van een heuptracker die op de voorkant of buik wordt gedragen door de gier ervan te behouden en de helling van je romp te lenen. Trackers aan de zijkant van de heup zijn automatisch uitgezonderd. 0 = uit." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "Hoe snel zwaaibeweging van het lichaam tot rust komt; hoger reageert sneller." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Stijfheid van de verende borstbeweging; hoger voelt strakker aan." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "Hoe snel de veerbeweging van de borst tot rust komt in plaats van te wiebelen." },

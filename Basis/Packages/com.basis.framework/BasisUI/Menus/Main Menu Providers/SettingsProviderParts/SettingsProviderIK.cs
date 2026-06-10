@@ -131,31 +131,6 @@ public static class SettingsProviderIK
             };
         }
 
-        var armRatioToggle = PanelToggle.CreateNewEntry(ikParent);
-        armRatioToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.armHeightRatio"));
-        armRatioToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.armHeightRatio.tooltip"));
-        armRatioToggle.AssignBinding(BasisSettingsDefaults.FBIKArmHeightRatioEnabled);
-
-        var armRatioSlider = PanelSlider.CreateAndBind(
-            ikParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.armHeightRatio"), 0.7f, 1.3f, false, 2, ValueDisplayMode.Raw),
-            BasisSettingsDefaults.FBIKArmHeightRatio);
-
-        if (armRatioSlider != null)
-        {
-            armRatioSlider.Descriptor.SetDescription(
-                "Sets your arm span as a ratio of your eye height so your reach matches the avatar's " +
-                "(fixes stubby arms). Requires IK Mode = Arm Distance. Higher = longer reach. Re-calibrate to apply.");
-            armRatioSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.armHeightRatio.tooltip"));
-            armRatioSlider.gameObject.SetActive(BasisSettingsDefaults.FBIKArmHeightRatioEnabled.RawValue);
-            armRatioToggle.OnValueChanged += visible =>
-            {
-                armRatioSlider.gameObject.SetActive(visible);
-                tabDesc.ForceRebuild();
-                ikGroup.ForceRebuild();
-            };
-        }
-
         dropdownIKMode.OnValueChanged += _ => EvaluateInteractables();
         dropdownSeatedMode.OnValueChanged += _ => EvaluateInteractables();
         EvaluateInteractables();
@@ -590,15 +565,6 @@ public static class SettingsProviderIK
             if (moveBodyBack != null)
             {
                 moveBodyBack.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip"));
-            }
-
-            var hipTiltStabilization = PanelSlider.CreateAndBind(
-                dynamicsParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.hipTiltStabilization.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.FBIKHipTiltStabilization);
-            if (hipTiltStabilization != null)
-            {
-                hipTiltStabilization.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.hipTiltStabilization.title.tooltip"));
             }
 
             var swingSmooth = PanelSlider.CreateAndBind(
@@ -1136,7 +1102,6 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKStruggleEnd.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxHipDelta.ResetToDefault();
-        BasisSettingsDefaults.FBIKHipTiltStabilization.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendRoll.ResetToDefault();

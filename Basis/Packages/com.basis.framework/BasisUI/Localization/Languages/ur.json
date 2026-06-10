@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "وہ جھکاؤ زاویہ جس پر آپ کے کولہے آگے قبضے کی طرح مڑنا شروع کرتے ہیں۔" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "مکمل آگے جھکاؤ پر شامل کیا گیا اضافی کولہے کا قبضہ، ڈگری میں۔" },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "جب آپ نیچے جھکتے ہیں تو آپ کا جسم کتنا پیچھے کھسکتا ہے۔" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "کولہے کے جھکاؤ کی استحکام" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "سامنے یا پیٹ پر پہنے گئے ہپ ٹریکر کے ہلنے کو کم کرتا ہے—اس کے یاؤ کو برقرار رکھ کر اور آپ کے دھڑ سے جھکاؤ ادھار لے کر۔ کولہے کے پہلو پر لگے ٹریکر خودکار طور پر مستثنیٰ ہیں۔ 0 = بند۔" },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "جسم کی جھولنے کی حرکت کتنی جلدی ٹھہرتی ہے؛ زیادہ تیز رد عمل دیتا ہے۔" },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "لچکدار سینے کی حرکت کی سختی؛ زیادہ زیادہ کسا ہوا محسوس ہوتا ہے۔" },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "سینے کی اسپرنگ کا اچھال ڈگمگانے کے بجائے کتنی جلدی ٹھہرتا ہے۔" },

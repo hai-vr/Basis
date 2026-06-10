@@ -61,8 +61,8 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(440, 820),
-                    PanelPosition = new Vector3(530, -150, 0),
+                    PanelSize = new Vector2(600, 1025),
+                    PanelPosition = new Vector3(450, 25, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
@@ -82,6 +82,10 @@ namespace Basis.BasisUI
             HeightDescription.SetTitle(BasisLocalization.Get("calibration.additionalHeight"));
             HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
 
+            var nudgeHeightToggle = PanelToggle.CreateNewEntry(container);
+            nudgeHeightToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.nudgeStandingHeight"));
+            nudgeHeightToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.nudgeStandingHeight.tooltip"));
+
             var Description = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             Description.SetTitle(BasisLocalization.Get("calibration.pullTriggers"));
 
@@ -94,6 +98,14 @@ namespace Basis.BasisUI
             PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.increaseHeight"));
             PlusButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.increaseHeight.tooltip"));
+
+            Description.gameObject.SetActive(false);
+            nudgeHeightToggle.SetValueWithoutNotify(false);
+            nudgeHeightToggle.OnValueChanged += visible =>
+            {
+                Description.gameObject.SetActive(visible);
+                layout.ForceRebuild();
+            };
 
             // Avatar scale
             var customScaleToggle = PanelToggle.CreateNewEntry(container);
@@ -119,7 +131,7 @@ namespace Basis.BasisUI
 
             // Playspace Mover quick enable (full options live under Body Tracking settings)
             var playspaceMoverToggle = PanelToggle.CreateNewEntry(container);
-            playspaceMoverToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable"));
+            playspaceMoverToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.title"));
             playspaceMoverToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable.tooltip"));
             playspaceMoverToggle.AssignBinding(BasisSettingsDefaults.EnablePlayspaceMover);
 

@@ -148,6 +148,103 @@ namespace Basis.IK.Debugging
             return s;
         }
 
+        public struct BasisHeadTrajectorySummary
+        {
+            public bool Ok;
+            public string Path;
+            public BasisTrajectoryResult[] Results;
+            public float WorstPopDeg;
+            public float WorstRoughDeg;
+            public string Error;
+        }
+
+        // Per-frame trajectory scan of the cervical solve along a continuous head-pitch nod. Measures
+        // whether the neck / upper-chest bend (which roots the arm chain) jitters as pitch moves -- a
+        // jittery head bend propagates down the spine into the shoulder and reads as arm jitter. Pops =
+        // discontinuities crossed on a smooth nod; rough/zigzag = sensitivity to head-tracking pitch
+        // noise. noiseDeg is in DEGREES of head pitch (not metres).
+        public static BasisHeadTrajectorySummary RunTrajectories(BasisHeadSweepConfig cfg, float noiseDeg, string path)
+        {
+            var summary = new BasisHeadTrajectorySummary { Ok = false, Path = path };
+
+            BasisCervicalResult SolveAt(float pitch)
+            {
+                Quaternion headRot = Quaternion.AngleAxis(cfg.Yaw, Vector3.up) * Quaternion.AngleAxis(pitch, Vector3.right);
+                BasisCervicalInput input;
+                input.BaseDeg = cfg.BaseDeg;
+                input.NeckShare = cfg.NeckShare;
+                input.MaxHeadPitchDeg = cfg.MaxHeadPitchDeg;
+                input.ExtremeStartDeg = cfg.ExtremeStartDeg;
+                input.ExtremeFullDeg = cfg.ExtremeFullDeg;
+                input.ExtremeRollForwardMaxDeg = cfg.ExtremeRollForwardMaxDeg;
+                input.ExtremeRollBackwardMaxDeg = cfg.ExtremeRollBackwardMaxDeg;
+                input.ExtremeHipsHorizontalMax = cfg.ExtremeHipsHorizontalMax;
+                input.ExtremeChestHorizontalMax = cfg.ExtremeChestHorizontalMax;
+                input.ExtremeHipsDownMax = cfg.ExtremeHipsDownMax;
+                input.ExtremeChestDownMax = cfg.ExtremeChestDownMax;
+                input.ExtremeHipsDownLookUp = cfg.ExtremeHipsDownLookUp;
+                input.ExtremeChestDownLookUp = cfg.ExtremeChestDownLookUp;
+                input.PitchGainDeg = Mathf.Max(0f, cfg.PitchGainDeg);
+                input.ReferenceUp = Vector3.up;
+                input.HeadTargetRot = headRot;
+                input.HasUpperChest = cfg.HasUpperChest;
+                BasisCervicalSolveCore.Solve(input, out BasisCervicalResult r);
+                return r;
+            }
+
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                // Continuous nod from a look-down to an extreme look-up: covers the extreme-region onset
+                // and the head-pitch clamp, where any kink would live.
+                Vector3[] nod = BasisIKTrajectoryScan.Line(new Vector3(-60f, 0f, 0f), new Vector3(90f, 0f, 0f), 200);
+
+                var results = new BasisTrajectoryResult[3];
+                results[0] = BasisIKTrajectoryScan.Scan("neck-deg", nod, v => SolveAt(v.x).NeckDeg, noiseDeg, 31);
+                results[1] = BasisIKTrajectoryScan.Scan("upperchest-deg", nod, v => SolveAt(v.x).UpperChestLordosisDeg, noiseDeg, 32);
+                results[2] = BasisIKTrajectoryScan.Scan("extreme-roll-deg", nod, v => SolveAt(v.x).ExtremeRollDeg, noiseDeg, 33);
+
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisHeadTrajectory " + System.DateTime.UtcNow.ToString("o") +
+                                " yaw=" + F(cfg.Yaw) + " noiseDeg=" + F(noiseDeg) + " hasUpperChest=" + cfg.HasUpperChest);
+                    w.WriteLine("step,pitch_deg,neck_deg,upperchest_deg,lordosis_deg,extreme_roll_deg,extreme_frac,chest_fwd_m,chest_down_m");
+                    var sb = new StringBuilder(160);
+                    for (int s = 0; s < nod.Length; s++)
+                    {
+                        float pitch = nod[s].x;
+                        BasisCervicalResult r = SolveAt(pitch);
+                        sb.Clear();
+                        sb.Append(s).Append(',');
+                        Append(sb, pitch);
+                        Append(sb, r.NeckDeg); Append(sb, r.UpperChestLordosisDeg); Append(sb, r.LordosisDeg);
+                        Append(sb, r.ExtremeRollDeg); Append(sb, r.ExtremeFrac);
+                        Append(sb, r.ChestForwardAmount); sb.Append(F(r.ChestDownAmount));
+                        w.WriteLine(sb.ToString());
+                    }
+                }
+
+                float worstPop = 0f, worstRough = 0f;
+                for (int i = 0; i < results.Length; i++)
+                {
+                    if (results[i].CleanMaxJumpDeg > worstPop) worstPop = results[i].CleanMaxJumpDeg;
+                    if (results[i].NoisyRoughDeg > worstRough) worstRough = results[i].NoisyRoughDeg;
+                }
+                summary.Ok = true;
+                summary.Results = results;
+                summary.WorstPopDeg = worstPop;
+                summary.WorstRoughDeg = worstRough;
+            }
+            catch (System.Exception e)
+            {
+                summary.Ok = false;
+                summary.Error = e.Message;
+            }
+            return summary;
+        }
+
         static void Append(StringBuilder sb, float v) { sb.Append(F(v)).Append(','); }
 
         static string F(float v)

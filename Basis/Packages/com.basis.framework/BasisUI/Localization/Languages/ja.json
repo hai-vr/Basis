@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "腰が前方へ折れ曲がり始める傾斜角度。" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "完全な前傾時に追加される腰の折れ曲がり(度)。" },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "しゃがむときに身体がどれだけ後方へずれるか。" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "腰の傾き安定化" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "前面や腹に装着した腰トラッカーのぶれを、そのヨーを保ちつつ胴体から傾きを借りることで軽減します。腰の側面に取り付けたものは自動的に対象外です。0 = オフ。" },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "身体のスイング動作がどれだけ素早く落ち着くか。高いほど反応が速くなります。" },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "弾むような胸の動きの硬さ。高いほどタイトに感じます。" },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "胸のばねの跳ね返りが揺れ続けずにどれだけ素早く落ち着くか。" },

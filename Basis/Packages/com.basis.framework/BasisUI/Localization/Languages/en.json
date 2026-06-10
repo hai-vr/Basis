@@ -715,14 +715,6 @@
       "value": "How far your body shifts backward as you crouch down."
     },
     {
-      "key": "settings.bodyTracking.hipTiltStabilization.title",
-      "value": "Hip Tilt Stabilization"
-    },
-    {
-      "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip",
-      "value": "Reduces wobble from a hip tracker worn on the front or belly by keeping its yaw and borrowing lean from your torso. Side-of-hip mounts are auto-exempt. 0 = off."
-    },
-    {
       "key": "settings.bodyTracking.swingSmoothRate.title.tooltip",
       "value": "How quickly body swing motion settles; higher reacts faster."
     },
@@ -2009,6 +2001,14 @@
     {
       "key": "calibration.increaseHeight",
       "value": "Increase Height"
+    },
+    {
+      "key": "calibration.nudgeStandingHeight",
+      "value": "Nudge Standing Height"
+    },
+    {
+      "key": "calibration.nudgeStandingHeight.tooltip",
+      "value": "Manually raise or lower your calibrated standing height in small steps."
     },
     {
       "key": "calibration.bodyTrackingSettings",

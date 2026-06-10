@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Angolo di inclinazione al quale le tue anche iniziano a cernierare in avanti." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Cerniera delle anche aggiuntiva applicata alla massima inclinazione in avanti, in gradi." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "Quanto il tuo corpo si sposta all'indietro mentre ti accovacci." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Stabilizzazione dell'inclinazione del bacino" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Riduce l'oscillazione di un tracker dell'anca indossato sul davanti o sulla pancia mantenendone l'imbardata e prendendo l'inclinazione dal tuo busto. I montaggi sul lato dell'anca sono esentati automaticamente. 0 = disattivato." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "Quanto velocemente il movimento di swing del corpo si assesta; più alto reagisce più rapidamente." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Rigidità del movimento elastico del torace; più alto risulta più teso." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "Quanto velocemente il rimbalzo della molla del torace si assesta invece di oscillare." },

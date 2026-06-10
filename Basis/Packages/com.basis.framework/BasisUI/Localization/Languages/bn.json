@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "যে ঝোঁক কোণে আপনার কোমর সামনে কব্জার মতো বাঁকা হওয়া শুরু করে।" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "সম্পূর্ণ সামনে ঝোঁকে যোগ করা অতিরিক্ত হিপ হিঞ্জ, ডিগ্রিতে।" },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "আপনি বসার সাথে আপনার শরীর কতদূর পিছনে সরে যায়।" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "হিপ টিল্ট স্থিতিশীলকরণ" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "সামনে বা পেটে পরা হিপ ট্র্যাকার থেকে দোলা কমায়—এর ইয়াও ধরে রেখে এবং আপনার ধড় থেকে হেলান ধার করে। হিপের পাশে লাগানো ট্র্যাকার স্বয়ংক্রিয়ভাবে অব্যাহতি পায়। 0 = বন্ধ।" },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "শরীরের দোলন গতি কত দ্রুত স্থির হয়; উচ্চতর দ্রুত প্রতিক্রিয়া জানায়।" },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "স্প্রিংয়ের মতো বুকের গতির দৃঢ়তা; উচ্চতর আরও আঁটসাঁট অনুভব হয়।" },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "বুকের স্প্রিং বাউন্স দোলার বদলে কত দ্রুত স্থির হয়।" },

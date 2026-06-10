@@ -134,6 +134,8 @@ namespace Basis.BasisUI
         private TweenGraphicColor _fillColorTween;
         private TweenScale _labelPunchTween;
         private bool _isDragging;
+        private bool _externalDriving;
+        private float _externalDriveValue;
 
 
         public static PanelSlider CreateNew(Component parent)
@@ -199,9 +201,19 @@ namespace Basis.BasisUI
         public void OnPointerDown(PointerEventData eventData)
         {
             if (!Application.isPlaying) return;
-            _isDragging = true;
+            BeginDragVisual();
+        }
 
-            // Scale up handle on grab
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            if (!Application.isPlaying) return;
+            EndDragVisual();
+        }
+
+        // Scale up handle on grab
+        private void BeginDragVisual()
+        {
+            _isDragging = true;
             if (_handleRect != null)
             {
                 if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
@@ -210,18 +222,39 @@ namespace Basis.BasisUI
             }
         }
 
-        public void OnPointerUp(PointerEventData eventData)
+        // Scale down handle on release
+        private void EndDragVisual()
         {
-            if (!Application.isPlaying) return;
             _isDragging = false;
-
-            // Scale down handle on release
             if (_handleRect != null)
             {
                 if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
                 _handleScaleTween = _handleRect.TweenScale(0.2f, _handleRect.localScale, Vector3.one)
                     .SetEase(Easing.OutBack);
             }
+        }
+
+        public void DriveExternalDelta(float delta)
+        {
+            if (!Application.isPlaying || SliderComponent == null) return;
+
+            if (!_externalDriving)
+            {
+                _externalDriving = true;
+                _externalDriveValue = SliderComponent.value;
+                BeginDragVisual();
+            }
+
+            _externalDriveValue = Mathf.Clamp(_externalDriveValue + delta, SliderComponent.minValue, SliderComponent.maxValue);
+            SliderComponent.value = _externalDriveValue;
+        }
+
+        public void EndExternalDrive()
+        {
+            if (!_externalDriving) return;
+            _externalDriving = false;
+            EndDragVisual();
+            OnSliderConfirmed();
         }
 
         // Applies visually, does not write to settings.

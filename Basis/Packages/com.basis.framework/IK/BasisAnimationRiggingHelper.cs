@@ -51,10 +51,10 @@ public static class BasisAnimationRiggingHelper
         data.LeftToe = Mapping.leftToe;
         data.RightToe = Mapping.rightToe;
         // Head
-        data.m_CalibratedRotationHead = Mapping.Hashead ? Mapping.head.rotation : Quaternion.identity;
+        data.m_CalibratedRotationHead = Mapping.Hashead ? Quaternion.Inverse(BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation) * Mapping.head.rotation : Quaternion.identity;
         // Feet
-        data.M_CalibrationLeftFootRotation = Mapping.Hashead ? Mapping.leftFoot.rotation : Quaternion.identity;
-        data.M_CalibrationRightFootRotation = Mapping.Hashead ? Mapping.rightFoot.rotation : Quaternion.identity;
+        data.M_CalibrationLeftFootRotation = Mapping.Hashead ? Quaternion.Inverse(BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation) * Mapping.leftFoot.rotation : Quaternion.identity;
+        data.M_CalibrationRightFootRotation = Mapping.Hashead ? Quaternion.Inverse(BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation) * Mapping.rightFoot.rotation : Quaternion.identity;
 
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
@@ -85,16 +85,16 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftHand = Quaternion.Inverse(leftLandmarkBind) * leftBoneBind;
         data.m_CalibratedRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
-        data.m_CalibratedRotationChest = Mapping.Haschest ? Mapping.chest.rotation : Quaternion.identity;
+        data.m_CalibratedRotationChest = Mapping.Haschest ? Quaternion.Inverse(BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation) * Mapping.chest.rotation : Quaternion.identity;
         data.m_CalibratedRotationNeck = Mapping.Hasneck ? Mapping.neck.rotation : Quaternion.identity;
-        data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? Mapping.leftToe.rotation : Quaternion.identity;
-        data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? Mapping.rightToe.rotation : Quaternion.identity;
+        data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? Quaternion.Inverse(BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData.rotation) * Mapping.leftToe.rotation : Quaternion.identity;
+        data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? Quaternion.Inverse(BasisLocalBoneDriver.RightToeControl.OutgoingWorldData.rotation) * Mapping.rightToe.rotation : Quaternion.identity;
 
 
-        data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? Mapping.leftShoulder.rotation : Quaternion.identity;
-        data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? Mapping.RightShoulder.rotation : Quaternion.identity;
+        data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? Quaternion.Inverse(BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation) * Mapping.leftShoulder.rotation : Quaternion.identity;
+        data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? Quaternion.Inverse(BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation) * Mapping.RightShoulder.rotation : Quaternion.identity;
         // Hips reference rotation
-        data.OffsetRotationHips = Mapping.HasHips ? Mapping.Hips.rotation : Quaternion.identity;
+        data.OffsetRotationHips = Mapping.HasHips ? Quaternion.Inverse(BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation) * Mapping.Hips.rotation : Quaternion.identity;
         // Head
         data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
         data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;

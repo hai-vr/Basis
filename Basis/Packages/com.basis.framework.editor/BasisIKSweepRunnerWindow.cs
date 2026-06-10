@@ -114,6 +114,15 @@ namespace Basis.IK.Debugging
                     Record("Elbow Protect · traj", s.Ok, $"worstPop={s.WorstPopDeg:F0} worstRough={s.WorstRoughDeg:F2}", p);
                 }
                 catch (System.Exception e) { Record("Elbow Protect · traj", false, e.Message, null); }
+
+                try
+                {
+                    // Head pitch-noise is in DEGREES, so it uses a fixed ~0.3 deg HMD-noise rather than the metres slider.
+                    string p = TrajPath("BasisHeadTrajectory.csv");
+                    var s = BasisHeadSweep.RunTrajectories(BasisHeadSweepConfig.Default(), 0.3f, p);
+                    Record("Head · traj", s.Ok, $"worstPop={s.WorstPopDeg:F1} worstRough={s.WorstRoughDeg:F2}", p);
+                }
+                catch (System.Exception e) { Record("Head · traj", false, e.Message, null); }
             }
         }
 

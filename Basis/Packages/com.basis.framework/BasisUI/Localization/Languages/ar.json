@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "زاوية الميل التي يبدأ عندها الورك بالانثناء للأمام." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "انثناء ورك إضافي يُضاف عند الميل الكامل للأمام، بالدرجات." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "إلى أي مدى ينزاح جسمك للخلف عندما تنحني للأسفل." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "تثبيت ميل الورك" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "يقلّل الاهتزاز من متتبع ورك يُرتدى على الأمام أو البطن بالحفاظ على دورانه الأفقي واستعارة الميل من جذعك. تُعفى تلقائيًا التركيبات على جانب الورك. 0 = إيقاف." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "مدى سرعة استقرار حركة تأرجح الجسم؛ الأعلى يتفاعل أسرع." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "صلابة حركة الصدر النابضة؛ الأعلى يبدو أكثر إحكاماً." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "مدى سرعة استقرار ارتداد نابض الصدر بدلاً من الاهتزاز." },

@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "वह झुकाव कोण जिस पर आपके कूल्हे आगे मुड़ना शुरू करते हैं।" },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "पूर्ण आगे झुकाव पर जोड़ा गया अतिरिक्त कूल्हा मोड़, डिग्री में।" },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "जब आप नीचे झुकते हैं तो आपका शरीर कितना पीछे खिसकता है।" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "हिप टिल्ट स्थिरीकरण" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "सामने या पेट पर पहने हिप ट्रैकर के डगमगाने को कम करता है—इसके याव को बनाए रखकर और आपके धड़ से झुकाव उधार लेकर। हिप के किनारे लगे ट्रैकर अपने आप छूट जाते हैं। 0 = बंद।" },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "शरीर झूलने की गति कितनी जल्दी स्थिर होती है; उच्चतर तेज़ी से प्रतिक्रिया करता है।" },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "स्प्रिंगी छाती गति की कठोरता; उच्चतर अधिक कसा हुआ महसूस होता है।" },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "छाती स्प्रिंग उछाल कितनी जल्दी डगमगाने के बजाय स्थिर होता है।" },

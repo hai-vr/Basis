@@ -192,8 +192,6 @@
     { "key": "settings.bodyTracking.hipHingeStart.title.tooltip", "value": "Угол наклона, при котором ваши бёдра начинают сгибаться вперёд." },
     { "key": "settings.bodyTracking.hipHingeMaxAdd.title.tooltip", "value": "Дополнительный сгиб бёдер при полном наклоне вперёд, в градусах." },
     { "key": "settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip", "value": "Насколько далеко ваше тело смещается назад, когда вы приседаете." },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title", "value": "Стабилизация наклона бёдер" },
-    { "key": "settings.bodyTracking.hipTiltStabilization.title.tooltip", "value": "Уменьшает дрожание трекера бедра, надетого спереди или на живот, сохраняя его рыскание и заимствуя наклон у торса. Крепления сбоку бедра исключаются автоматически. 0 = выкл." },
     { "key": "settings.bodyTracking.swingSmoothRate.title.tooltip", "value": "Как быстро успокаивается раскачивание тела; выше — реагирует быстрее." },
     { "key": "settings.bodyTracking.chestSpringHz.title.tooltip", "value": "Жёсткость пружинистого движения груди; выше — ощущается туже." },
     { "key": "settings.bodyTracking.chestSpringDamping.title.tooltip", "value": "Как быстро затухает отскок пружины груди, а не раскачивается." },
