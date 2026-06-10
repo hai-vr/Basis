@@ -157,7 +157,7 @@ namespace Basis.Scripts.UI
                 }
             }
 
-            DriveHoveredSliderFromJoystick(snapshot, DevicesCount);
+            DriveActiveSliderFromJoystick(snapshot, DevicesCount);
 
             if (!HasTarget && EffectiveMouseAction)
             {
@@ -185,42 +185,31 @@ namespace Basis.Scripts.UI
             }
         }
 
-        // Right controller stick (Y) adjusts whichever PanelSlider any pointer is hovering.
-        // Reading the stick from the right hand only keeps the left stick free for locomotion.
-        private void DriveHoveredSliderFromJoystick(List<BasisInput> snapshot, int DevicesCount)
+        // Right controller stick (Y) adjusts the slider the pointer is on. Reading the stick from
+        // the right hand only keeps the left stick free for locomotion. The target comes from the
+        // panel's own hover/selection, so it resolves even when the slider is inside a scroll view.
+        private void DriveActiveSliderFromJoystick(List<BasisInput> snapshot, int DevicesCount)
         {
-            float axisY = 0f;
-            PanelSlider rightHovered = null;
-            PanelSlider anyHovered = null;
-
-            for (int Index = 0; Index < DevicesCount; Index++)
+            PanelSlider target = ResolveActiveSlider();
+            if (target != null && target.SliderComponent == null)
             {
-                BasisInput input = snapshot[Index];
-                if (input == null)
-                {
-                    continue;
-                }
+                target = null;
+            }
 
-                bool isRightHand = input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.RightHand;
-                if (isRightHand)
+            float axisY = 0f;
+            if (target != null)
+            {
+                for (int Index = 0; Index < DevicesCount; Index++)
                 {
-                    axisY = input.CurrentInputState.Primary2DAxisDeadZoned.y;
-                }
-
-                if (TryGetHoveredSlider(input, out PanelSlider hovered))
-                {
-                    if (isRightHand)
+                    BasisInput input = snapshot[Index];
+                    if (input != null && input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.RightHand)
                     {
-                        rightHovered = hovered;
-                    }
-                    else if (anyHovered == null)
-                    {
-                        anyHovered = hovered;
+                        axisY = input.CurrentInputState.Primary2DAxisRaw.y;
+                        break;
                     }
                 }
             }
 
-            PanelSlider target = rightHovered != null ? rightHovered : anyHovered;
             bool active = target != null && Mathf.Abs(axisY) >= SliderJoystickDeadzone;
 
             // Commit the previous slider when the stick releases or the pointer moves to another one.
@@ -246,34 +235,26 @@ namespace Basis.Scripts.UI
             _joystickDrivenSlider = target;
         }
 
-        private static bool TryGetHoveredSlider(BasisInput input, out PanelSlider slider)
+        // Prefer the panel under the pointer; fall back to the clicked/selected one so a slider
+        // can still be dialed after the pointer drifts off it (common inside a scroll view).
+        private static PanelSlider ResolveActiveSlider()
         {
-            slider = null;
-            if (!input.HasRaycaster)
+            if (PanelComponent.CurrentHovered is PanelSlider hovered && hovered != null)
             {
-                return false;
+                return hovered;
             }
 
-            BasisUIRaycast raycast = input.BasisUIRaycast;
-            if (raycast == null || !raycast.WasCorrectLayer || !raycast.HadRaycastUITarget)
+            EventSystem eventSystem = EventSystem.current;
+            if (eventSystem != null && eventSystem.currentSelectedGameObject != null)
             {
-                return false;
+                PanelSlider selected = eventSystem.currentSelectedGameObject.GetComponentInParent<PanelSlider>();
+                if (selected != null)
+                {
+                    return selected;
+                }
             }
 
-            List<BasisRaycastUIHitData> hits = raycast.SortedGraphics;
-            if (hits == null || hits.Count == 0)
-            {
-                return false;
-            }
-
-            var graphic = hits[0].graphic;
-            if (graphic == null)
-            {
-                return false;
-            }
-
-            slider = graphic.GetComponentInParent<PanelSlider>();
-            return slider != null;
+            return null;
         }
 
         private const string CursorPos = "_CursorPos";
