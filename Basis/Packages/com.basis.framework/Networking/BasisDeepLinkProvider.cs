@@ -3,6 +3,7 @@ using Basis.Network.Core;
 using Basis.Scripts.Common;
 using System;
 using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -39,7 +40,10 @@ namespace Basis.Scripts.Networking
         private static void Initialize()
         {
             Application.deepLinkActivated += OnDeepLinkActivated;
-#if (UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX) && !UNITY_EDITOR
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            if (!InitializeSingleInstance()) return;
+            RegisterPlatformUrlScheme();
+#elif UNITY_STANDALONE_LINUX && !UNITY_EDITOR
             RegisterPlatformUrlScheme();
 #endif
         }
@@ -270,6 +274,114 @@ namespace Basis.Scripts.Networking
 #endif
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+        // ── Single-instance + warm-start via named mutex + named pipe ──────────
+        // Application.deepLinkActivated never fires on Win32 standalone. When a
+        // basisvr:// link is clicked while the app is already running, Windows
+        // launches a second instance. That second instance detects the mutex,
+        // pipes the URL to the primary instance, and quits immediately.
+
+        private const string MutexName  = "BasisVR_DeepLink_Instance";
+        private const string PipeName   = @"\\.\pipe\basisvr_deeplink";
+        private const int    PipeBufSz  = 2048;
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateMutexW(IntPtr attr, bool owner, string name);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr h);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateNamedPipeW(string name, uint openMode, uint pipeMode,
+            uint maxInstances, uint outBuf, uint inBuf, uint timeout, IntPtr security);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool ConnectNamedPipe(IntPtr pipe, IntPtr overlapped);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool ReadFile(IntPtr file, byte[] buf, uint toRead, out uint read, IntPtr overlapped);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security,
+            uint creation, uint flags, IntPtr tmpl);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool WriteFile(IntPtr file, byte[] buf, uint toWrite, out uint written, IntPtr overlapped);
+
+        // Returns true if this is the primary instance, false if secondary (caller should return immediately).
+        private static bool InitializeSingleInstance()
+        {
+            const int ERROR_ALREADY_EXISTS = 183;
+            CreateMutexW(IntPtr.Zero, true, MutexName);
+            bool alreadyRunning = System.Runtime.InteropServices.Marshal.GetLastWin32Error() == ERROR_ALREADY_EXISTS;
+
+            if (alreadyRunning)
+            {
+                // Forward URL to primary instance, then quit this second instance.
+                string url = GetCliDeepLinkUrl();
+                if (!string.IsNullOrEmpty(url))
+                {
+                    byte[] data = System.Text.Encoding.UTF8.GetBytes(url);
+                    IntPtr pipe = CreateFileW(PipeName, 0x40000000u /*GENERIC_WRITE*/, 0,
+                        IntPtr.Zero, 3u /*OPEN_EXISTING*/, 0, IntPtr.Zero);
+                    if (pipe != new IntPtr(-1))
+                    {
+                        WriteFile(pipe, data, (uint)data.Length, out _, IntPtr.Zero);
+                        CloseHandle(pipe);
+                    }
+                }
+                Application.Quit();
+                return false;
+            }
+
+            // Primary instance — listen for URLs forwarded by future second instances.
+            Thread t = new Thread(PipeServerLoop) { IsBackground = true, Name = "BasisVR_PipeServer" };
+            t.Start();
+            return true;
+        }
+
+        private static void PipeServerLoop()
+        {
+            const uint PIPE_ACCESS_INBOUND = 0x1;
+            const uint PIPE_TYPE_BYTE      = 0x0;
+            const uint PIPE_WAIT           = 0x0;
+            IntPtr invalid = new IntPtr(-1);
+
+            while (true)
+            {
+                IntPtr pipe = CreateNamedPipeW(PipeName, PIPE_ACCESS_INBOUND,
+                    PIPE_TYPE_BYTE | PIPE_WAIT, 1, 0, PipeBufSz, 0, IntPtr.Zero);
+                if (pipe == invalid) break;
+
+                if (!ConnectNamedPipe(pipe, IntPtr.Zero)) { CloseHandle(pipe); continue; }
+
+                byte[] buf = new byte[PipeBufSz];
+                if (ReadFile(pipe, buf, (uint)buf.Length, out uint read, IntPtr.Zero) && read > 0)
+                {
+                    string url = System.Text.Encoding.UTF8.GetString(buf, 0, (int)read);
+                    Basis.Scripts.Device_Management.BasisDeviceManagement.mainThreadActions
+                        .Enqueue(() => OnDeepLinkActivated(url));
+                }
+
+                CloseHandle(pipe);
+            }
+        }
+
+        private static string GetCliDeepLinkUrl()
+        {
+            try
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                if (args == null) return null;
+                foreach (string arg in args)
+                    if (!string.IsNullOrEmpty(arg) && arg.StartsWith(Scheme, StringComparison.OrdinalIgnoreCase))
+                        return arg;
+            }
+            catch { }
+            return null;
+        }
+
+        // ── Registry URL scheme registration ──────────────────────────────────
+
         [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int RegCreateKeyExW(IntPtr hKey, string subKey, int reserved, IntPtr lpClass,
             int options, int samDesired, IntPtr secAttr, out IntPtr result, out int disposition);
