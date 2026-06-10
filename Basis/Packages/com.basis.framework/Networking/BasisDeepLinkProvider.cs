@@ -250,11 +250,15 @@ namespace Basis.Scripts.Networking
         {
             try
             {
-                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (string.IsNullOrEmpty(exePath)) return;
 #if UNITY_STANDALONE_WIN
+                // Application.dataPath = "C:\path\to\Basis Unity_Data" — strip suffix, add .exe
+                string dataPath = Application.dataPath;
+                if (!dataPath.EndsWith("_Data", StringComparison.OrdinalIgnoreCase)) return;
+                string exePath = dataPath.Substring(0, dataPath.Length - 5) + ".exe";
                 RegisterWindowsScheme(exePath);
 #elif UNITY_STANDALONE_LINUX
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrEmpty(exePath)) return;
                 RegisterLinuxScheme(exePath);
 #endif
             }
