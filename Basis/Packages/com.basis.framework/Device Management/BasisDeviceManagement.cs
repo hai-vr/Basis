@@ -269,8 +269,7 @@ namespace Basis.Scripts.Device_Management
             int Count = BaseTypes.Length;
             for (int Index = 0; Index < Count; Index++)
             {
-               BaseTypes[Index].Simulate();
-                //if a null happens here thats a failure of how you added / removed something
+               BaseTypes[Index]?.Simulate();
             }
         }
 
