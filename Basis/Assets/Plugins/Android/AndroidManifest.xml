@@ -7,6 +7,12 @@
         <category android:name="android.intent.category.LAUNCHER" />
         <category android:name="com.oculus.intent.category.VR" />
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="basisvr" />
+      </intent-filter>
       <meta-data android:name="com.oculus.vr.focusaware" android:value="true" />
     </activity>
     <meta-data android:name="unityplayer.SkipPermissionsDialog" android:value="false" />
