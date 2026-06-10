@@ -2204,13 +2204,11 @@ w20, w54;
             root.SetRotation(stream, swing * root.GetRotation(stream));
         }
         // Temporal continuity for a 3-bone chain's mid-joint swing around the root→tip axis.
-        // Rate-limits the elbow/knee swing the WHOLE time a torso-collision push is engaged (collided
-        // != 0), not just at the transition -- so steady motion through a sensitive engaged pose (an
-        // idle animation nudging the hand in the contact zone) eases instead of jittering, capped at
-        // rateDegPerSec. Free-air motion (collided == 0) is accepted instantly so non-collision
-        // reaching never lags, and a tip-target teleport re-seeds so a deliberate fast reach is
-        // instant too. Keys off persistent state + the target — never the bone it overwrites, which
-        // would oscillate.
+        // Engages ONLY when SolveHand's torso-collision tag changes (the push starts, ends, or flips
+        // side) and rate-limits the elbow/knee swing until that pop has eased in; free-air reaching
+        // and pole flips are accepted instantly. Carries the stored swing with root→tip motion and
+        // re-seeds when the tip target teleports. Keys off persistent state + the target — never the
+        // bone it overwrites, which would oscillate.
         void ApplySwingContinuity(AnimationStream stream, int slot, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3 targetPos, float rateDegPerSec, float dt)
         {
             if (!swingContinuityInit.IsCreated || !root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
@@ -2252,7 +2250,7 @@ w20, w54;
             float chainLen = (b - a).magnitude + (c - b).magnitude;
             float teleThresh = 0.6f * chainLen;
             bool teleport = seeded && (targetPos - swingLastTarget[slot]).sqrMagnitude > teleThresh * teleThresh;
-            if (rateDegPerSec <= 0f || !seeded || teleport || (collided == 0 && !armed && !collisionChanged))
+            if (rateDegPerSec <= 0f || !seeded || teleport || (!armed && !collisionChanged))
             {
                 swingLastDir[slot] = currentDir;
                 swingLastAxis[slot] = axis;
@@ -2470,10 +2468,8 @@ w20, w54;
                 epi.HandSkin = handSkin.Get(stream);
                 epi.PlayerUp = playerUp.Get(stream);
                 // Pin the elbow to a DOWN-redirected target (DownBias) with a soft smoothstep
-                // engagement gate (DepthScaleRange). Full pin both sides (1,1) holds a stable target ->
-                // jitter-free; DownBias kills the chicken-wing without un-pinning. Chosen by the offline
-                // engaged-region jitter sweep: beats the old binary snap on chicken-wing AND jitter.
-                // Restore legacy with SameSideBlend=0.5, DepthScaleRange=0f, DownBias=0f.
+                // engagement gate (DepthScaleRange); full pin both sides (1,1) holds a stable target.
+                // Set SameSideBlend=0.5, DepthScaleRange=0f, DownBias=0f to restore the legacy snap.
                 epi.SameSideBlend = 1f;
                 epi.WrongSideBlend = 1f;
                 epi.DepthScaleRange = 0.04f;
