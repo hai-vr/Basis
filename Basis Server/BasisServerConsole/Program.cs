@@ -9,6 +9,9 @@ namespace Basis
     class Program
     {
         public static BasisNetworkHealthCheck Check;
+#if !UNITY_2017_1_OR_NEWER
+        public static BasisRestApiHandler Api;
+#endif
         public static bool isRunning = true;
         private static ManualResetEventSlim shutdownEvent = new ManualResetEventSlim(false);
         public static void Main(string[] args)
@@ -40,6 +43,10 @@ namespace Basis
 
             BNL.Log("Server Booting");
             Check = new BasisNetworkHealthCheck(config);
+#if !UNITY_2017_1_OR_NEWER
+            if (config.ApiEnabled && !string.IsNullOrEmpty(config.ApiKey))
+                Api = new BasisRestApiHandler(config);
+#endif
 
             NetworkServer.StartServer(config);
             
@@ -80,6 +87,9 @@ namespace Basis
                 BNL.Log("Shutting down server...");
                 isRunning = false;
                 shutdownEvent.Set(); // Signal the main thread to exit
+#if !UNITY_2017_1_OR_NEWER
+                Api?.Dispose();
+#endif
                 BasisPersistentDatabase.Shutdown();
                 BasisServerReductionSystemEvents.Shutdown();
                 if (config.EnableStatistics) BasisStatistics.StopWorkerThread();
