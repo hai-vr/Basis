@@ -296,4 +296,12 @@ public static class BasisNetworkGenericMessages
         }
        // Basis.BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(UnLoadResource.LoadedNetID, out var data);
     }
+    public static Task ModifyResourceMessage(NetPacketReader reader, DeliveryMethod Method)
+    {
+        ModifyResource modifyResource = new ModifyResource();
+        modifyResource.Deserialize(reader);
+        // Apply the server-authoritative static/locked state to the registry record + live object.
+        Basis.BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(modifyResource.LoadedNetID, modifyResource.Static);
+        return Task.CompletedTask;
+    }
 }

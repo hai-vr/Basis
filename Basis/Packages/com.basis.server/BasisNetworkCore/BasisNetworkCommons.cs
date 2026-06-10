@@ -102,6 +102,13 @@ namespace Basis.Network.Core
         public const byte PreloadReadyChannel = 27;
         /// <summary>Server tells all clients to spawn a previously preloaded resource.</summary>
         public const byte SpawnPreloadedChannel = 28;
+        /// <summary>
+        /// Modify an already-spawned resource's flags (e.g. Static). Client→server request;
+        /// the server authorizes (item creator or moderator) then rebroadcasts to all clients.
+        /// Id is 55 (not contiguous with the other resource channels) because 29-54 were
+        /// already taken when this was added.
+        /// </summary>
+        public const byte ModifyResourceChannel = 55;
 
         // ── Content sharing ──────────────────────────────────────────────────
         /// <summary>Drop content spheres</summary>

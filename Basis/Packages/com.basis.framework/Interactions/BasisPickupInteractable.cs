@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -11,6 +12,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Collections;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.BasisUI;
 using Unity.Mathematics;
 
 namespace Basis.Scripts.BasisSdk.Interactions
@@ -227,6 +229,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         # endregion
 
+        #region Grid Snap & Rotation Lock
+
+        [Header("Grid Snap & Rotation Lock")]
+        [Tooltip("Snaps the held object's world position to a grid while held.")]
+        public bool enableGridSnap = false;
+        [Tooltip("Grid cell size in meters used when grid snapping.")]
+        public float gridSnapSize = 0.25f;
+        [Tooltip("Snaps the held object's rotation to fixed angular increments while held.")]
+        public bool enableRotationSnap = false;
+        [Tooltip("Rotation increment in degrees used when rotation snapping.")]
+        public float rotationSnapDegrees = 15f;
+
+        #endregion
+
         # region Auto Return
         [Header("Auto Return")]
         [Tooltip("Target world position to move to.")]
@@ -387,6 +403,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <inheritdoc />
         public override bool CanHover(BasisInput input)
         {
+            // Prop pickup disabled in settings blocks grabbing a prop you aren't already holding (you can still drop one).
+            if (BasisSettingsDefaults.DisablePropPickup.RawValue && !Inputs.AnyInteracting()) return false;
             // NOTE: see CanInteract note
             return InteractableEnabled &&
                 (!Inputs.AnyInteracting() || CanSelfStealResolved) &&               // self-steal
@@ -402,6 +420,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <inheritdoc />
         public override bool CanInteract(BasisInput input)
         {
+            // Prop pickup disabled in settings blocks grabbing a prop you aren't already holding (you can still drop one).
+            if (BasisSettingsDefaults.DisablePropPickup.RawValue && !Inputs.AnyInteracting()) return false;
             // NOTE: Injected checks must be called at the end so that we can safely assume that at the time this was invoked, everything was valid.
             //       Important for net sync: pending steal requests shouldn't re-invoke with stale data.
             return InteractableEnabled &&
@@ -419,6 +439,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override bool CanDirectGrab(BasisInput input)
         {
             if (!base.CanDirectGrab(input)) return false;
+            // Prop pickup disabled in settings blocks grabbing a prop you aren't already holding (you can still drop one).
+            if (BasisSettingsDefaults.DisablePropPickup.RawValue && !Inputs.AnyInteracting()) return false;
             if (Inputs.AnyInteracting() && !CanSelfStealResolved) return false;
             return CanInteractInjected.AllTrue(input);
         }
@@ -678,6 +700,27 @@ namespace Basis.Scripts.BasisSdk.Interactions
             _previousRotation = rot;
         }
 
+        private static Vector3 SnapPositionToGrid(Vector3 position, float size)
+        {
+            if (size <= 0f)
+                return position;
+            return new Vector3(
+                Mathf.Round(position.x / size) * size,
+                Mathf.Round(position.y / size) * size,
+                Mathf.Round(position.z / size) * size);
+        }
+
+        private static Quaternion SnapRotationToDegrees(Quaternion rotation, float degrees)
+        {
+            if (degrees <= 0f)
+                return rotation;
+            Vector3 euler = rotation.eulerAngles;
+            euler.x = Mathf.Round(euler.x / degrees) * degrees;
+            euler.y = Mathf.Round(euler.y / degrees) * degrees;
+            euler.z = Mathf.Round(euler.z / degrees) * degrees;
+            return Quaternion.Euler(euler);
+        }
+
         /// <summary>
         /// Normalizes an angle into the [0, 360) range.
         /// </summary>
@@ -811,6 +854,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (InputConstraint.Evaluate(out Vector3 pos, out Quaternion rot))
             {
+                bool forceGridSnap = BasisSettingsDefaults.ForceGridSnap.RawValue;
+                if (enableGridSnap || forceGridSnap)
+                {
+                    pos = SnapPositionToGrid(pos, forceGridSnap ? BasisSettingsDefaults.GridSnapSize.RawValue : gridSnapSize);
+                }
+                if (enableRotationSnap)
+                {
+                    rot = SnapRotationToDegrees(rot, rotationSnapDegrees);
+                }
+
                 if (constrainToAxis != BasisAxisType.None)
                 {
                     transform.GetLocalPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);

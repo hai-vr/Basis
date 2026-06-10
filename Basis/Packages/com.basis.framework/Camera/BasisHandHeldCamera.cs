@@ -102,9 +102,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Pooled CPU-side texture for async GPU readbacks.</summary>
     private Texture2D pooledScreenshot;
 
-    /// <summary>Bitmask for the UI layer toggle in <see cref="Nameplates"/>.</summary>
-    private int uiLayerMask;
-
     /// <summary>Shared “clear to color” material (Unlit/Color).</summary>
     private static Material clearMaterial;
 
@@ -115,11 +112,46 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// while this is greater than zero and restored when the last camera closes.</summary>
     private static int _activeHandHeldCount;
 
+    /// <summary>All handheld cameras currently out, oldest first. <see cref="Active"/> is the most recent.</summary>
+    private static readonly List<BasisHandHeldCamera> _activeCameras = new List<BasisHandHeldCamera>();
+
+    /// <summary>The most recently brought-out handheld camera, or null when none are out.</summary>
+    public static BasisHandHeldCamera Active => _activeCameras.Count > 0 ? _activeCameras[_activeCameras.Count - 1] : null;
+
+    /// <summary>Raised when a handheld camera is brought out or closed (so <see cref="Active"/> may have changed).</summary>
+    public static event Action ActiveChanged;
+
+    /// <summary>Live preview/capture render texture, exposed for the HUD mirror. Swapped while a photo is taken.</summary>
+    public RenderTexture PreviewTexture => renderTexture;
+
+    /// <summary>While true, every handheld camera keeps rendering even when its in-world screen is off-view, so a HUD mirror stays live.</summary>
+    private static bool _livePreviewRequired;
+
+    /// <summary>Sets whether handheld cameras must keep rendering for an off-screen HUD mirror, refreshing any live cameras.</summary>
+    public static void SetLivePreviewRequired(bool required)
+    {
+        if (_livePreviewRequired == required)
+        {
+            return;
+        }
+        _livePreviewRequired = required;
+        for (int i = 0; i < _activeCameras.Count; i++)
+        {
+            _activeCameras[i].RefreshLivePreviewState();
+        }
+    }
+
+    /// <summary>Re-evaluates this camera's render gating after the live-preview requirement changes.</summary>
+    public void RefreshLivePreviewState()
+    {
+        if (Renderer != null)
+        {
+            VisibilityFlag(Renderer.isVisible);
+        }
+    }
+
     /// <summary>Folder where screenshots are written (platform-dependent).</summary>
     private string picturesFolder;
-
-    /// <summary>Whether the UI/nameplates are currently visible in the capture.</summary>
-    private bool showUI = false;
 
     /// <summary>Last visibility state reported by the mesh renderer check.</summary>
     public bool LastVisibilityState = false;
@@ -148,7 +180,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         InitializeVolumetrics();
         InitializeFolders();
         await HandHeld.SaveSettings();
-        SetupUILayerMask();
         SetupClearMaterial();
 
         base.Awake();
@@ -156,6 +187,14 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low);
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
+
+        _activeCameras.Add(this);
+        ActiveChanged?.Invoke();
+        if (_livePreviewRequired)
+        {
+            RefreshLivePreviewState();
+        }
+
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied += SyncBackgroundFromMainCamera;
 
@@ -196,6 +235,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // last camera is gone, so it returns if the user still wants it.
         _activeHandHeldCount = Mathf.Max(0, _activeHandHeldCount - 1);
         ApplyReticleSuppression();
+
+        _activeCameras.Remove(this);
+        ActiveChanged?.Invoke();
 
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
@@ -333,20 +375,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (!Directory.Exists(picturesFolder))
         {
             Directory.CreateDirectory(picturesFolder);
-        }
-    }
-
-    /// <summary>Stores the UI layer bit as a culling mask for toggling nameplates.</summary>
-    private void SetupUILayerMask()
-    {
-        int uiLayer = LayerMask.NameToLayer("UI");
-        if (uiLayer < 0)
-        {
-            BasisDebug.LogError("UI Layer not found.");
-        }
-        else
-        {
-            uiLayerMask = 1 << uiLayer;
         }
     }
 
@@ -535,21 +563,16 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         countdownText.text = ((int)delaySeconds).ToString();
     }
 
-    /// <summary>Toggles UI/nameplates in/out of the capture via the UI layer bit.</summary>
-    public void Nameplates()
+    /// <summary>Returns whether the given layer renders into the capture.</summary>
+    public bool IsLayerVisible(int layer) => (captureCamera.cullingMask & (1 << layer)) != 0;
+
+    /// <summary>Adds or removes a layer from the capture camera's culling mask.</summary>
+    public void SetLayerVisible(int layer, bool visible)
     {
-        if (uiLayerMask == 0)
-        {
-            BasisDebug.LogWarning("UI Layer Mask was not initialized properly.");
-            return;
-        }
-
-        showUI = !showUI;
-
-        if (showUI)
-            captureCamera.cullingMask |= uiLayerMask;
+        if (visible)
+            captureCamera.cullingMask |= (1 << layer);
         else
-            captureCamera.cullingMask &= ~uiLayerMask;
+            captureCamera.cullingMask &= ~(1 << layer);
     }
 
     /// <summary>Immediate photo capture using the current format choice (EXR/PNG).</summary>
@@ -778,7 +801,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (BasisLocalPlayer.Instance == null)
             return;
 
-        bool shouldRender = isVisible || IsOverridingDesktopView;
+        bool shouldRender = isVisible || IsOverridingDesktopView || _livePreviewRequired;
         if (shouldRender == LastVisibilityState)
             return;
 

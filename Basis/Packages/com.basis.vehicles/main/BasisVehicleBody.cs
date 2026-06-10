@@ -62,6 +62,11 @@ namespace Basis.Scripts.Vehicles.Main
         private List<Parts.BasisVehicleWheel> _wheels = new List<Parts.BasisVehicleWheel>();
         private List<Parts.BasisVehiclePart> _otherParts = new List<Parts.BasisVehiclePart>();
         public Rigidbody rb;
+        /// <summary>
+        /// Server-authoritative "locked" state, set by <see cref="Basis.Network.Vehicles.BasisNetworkedVehicle"/>
+        /// when the library Static toggle is on. While true, FixedUpdate applies no forces.
+        /// </summary>
+        public bool IsLocked = false;
         private void Awake()
         {
             if (PilotSeat != null)
@@ -76,6 +81,11 @@ namespace Basis.Scripts.Vehicles.Main
             if (rb == null)
             {
                 BasisDebug.LogError("BasisVehicleBody: No Rigidbody found on the vehicle body.");
+                return;
+            }
+            // A locked (static) vehicle applies no forces — it's frozen for everyone.
+            if (IsLocked)
+            {
                 return;
             }
             Vector3 actualAngular = AngularActivation;

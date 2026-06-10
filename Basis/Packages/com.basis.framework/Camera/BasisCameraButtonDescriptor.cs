@@ -9,4 +9,6 @@ public class BasisCameraButtonDescriptor
     public BasisCameraButtonAction action;
     public Button button;
     public Sprite icon;
+
+    [NonSerialized] public Image statusIndicator;
 }

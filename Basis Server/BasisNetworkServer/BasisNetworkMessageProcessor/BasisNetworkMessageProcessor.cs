@@ -124,6 +124,10 @@ public static class BasisNetworkMessageProcessor
                     reader.Recycle();
                     return;
 
+                case BasisNetworkCommons.ModifyResourceChannel:
+                    BasisServerHandleEvents.HandleModifyResource(reader, peer); // recycles inside
+                    break;
+
                 case BasisNetworkCommons.AdminChannel:
                     BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
                     break;

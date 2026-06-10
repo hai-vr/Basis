@@ -259,6 +259,18 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.ModifyResourceChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(async () =>
+                {
+                    await BasisNetworkGenericMessages.ModifyResourceMessage(Reader, deliveryMethod);
+                    Reader.Recycle();
+                });
+                break;
             case BasisNetworkCommons.ServerLibraryChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {

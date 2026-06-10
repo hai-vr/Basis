@@ -135,6 +135,27 @@ public static class BasisNetworkSpawnItem
         BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.UnloadResourceChannel, DeliveryMethod.ReliableOrdered);
     }
 
+    /// <summary>
+    /// Asks the server to toggle the "static / locked" flag on an already-spawned item.
+    /// The server authorizes (item creator or moderator) and, on success, rebroadcasts the
+    /// change to every client. Mode is 0 for GameObjects, 1 for scenes (matches the spawn record).
+    /// </summary>
+    public static void RequestSetStatic(string LoadedNetID, byte Mode, bool IsStatic)
+    {
+        if (string.IsNullOrEmpty(LoadedNetID))
+        {
+            BasisDebug.Log("Invalid LoadedNetID for static modify request.", BasisDebug.LogTag.Networking);
+            return;
+        }
+
+        ModifyResource modifyResource = new ModifyResource { LoadedNetID = LoadedNetID, Mode = Mode, Static = IsStatic };
+        NetDataWriter writer = new NetDataWriter();
+        modifyResource.Serialize(writer);
+
+        BasisDebug.Log($"Sending static modify request with NetID: {LoadedNetID} Static={IsStatic}", BasisDebug.LogTag.Networking);
+        BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.ModifyResourceChannel, DeliveryMethod.ReliableOrdered);
+    }
+
     public static async Task<Scene> SpawnScene(LocalLoadResource localLoadResource)
     {
         _loadCts.Token.ThrowIfCancellationRequested();
@@ -231,10 +252,15 @@ public static class BasisNetworkSpawnItem
             localLoadResource.UUIDOfCreator,
             localLoadResource.IsAdminLocked, 
             localLoadResource.Persist, 
-            BasisRuntimeSpawnRegistry.SpawnMethod.Network, 
-            loadBundle.BasisBundleConnector, 
+            BasisRuntimeSpawnRegistry.SpawnMethod.Network,
+            loadBundle.BasisBundleConnector,
             out var data
         );
+        // If the server already flagged this item static (e.g. for a late joiner), freeze it now.
+        if (localLoadResource.Static)
+        {
+            BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(localLoadResource.LoadedNetID, true);
+        }
 #if UNITY_SERVER
         BasisHeadlessManagement.StripTextureReferencesFromRoot(reference);
 #endif

@@ -16,7 +16,8 @@ namespace Basis
             Added = 0,
             Removed = 1,
             ClearedUrl = 2,
-            ClearedAll = 3
+            ClearedAll = 3,
+            Modified = 4
         }
 
         public static event Action<RegistryChangeType, SpawnInstance> OnRegistryChanged;
@@ -51,6 +52,7 @@ namespace Basis
             public string UUIDOfCreator; // reference to the creator of the spawn entity
             public bool isProtected; // this determines if the item is admin protected
             public bool Persistent;
+            public bool Static; // server-authoritative "static / locked" flag: pickup disabled + frozen (prop) or locked out (vehicle)
             public DateTime SpawnedUtc;
             public BasisBundleConnector bundleConnector; // metadata for the spawned entity, assume it to be null when not present.
         }
@@ -287,6 +289,33 @@ namespace Basis
             instance = null;
             if (string.IsNullOrWhiteSpace(loadedNetId)) return false;
             return _byNetId.TryGetValue(loadedNetId, out instance) && instance != null;
+        }
+
+        /// <summary>
+        /// Applies the server-authoritative "static / locked" state to a spawned item: updates the
+        /// stored record (so the library UI reflects it) and applies the freeze/lock to the live
+        /// object via any <see cref="IBasisStaticLockable"/> components (pickup prop or vehicle).
+        /// Main-thread only (touches GameObjects).
+        /// </summary>
+        public static void SetStaticByLoadedNetId(string loadedNetId, bool isStatic)
+        {
+            if (string.IsNullOrWhiteSpace(loadedNetId)) return;
+
+            _byNetId.TryGetValue(loadedNetId, out SpawnInstance instance);
+            if (instance != null)
+            {
+                instance.Static = isStatic;
+            }
+
+            if (SpawnedGameobjects.TryGetValue(loadedNetId, out GameObject go) && go != null)
+            {
+                BasisSpawnedStaticState.Apply(go, isStatic);
+            }
+
+            if (instance != null)
+            {
+                RaiseChanged(RegistryChangeType.Modified, instance);
+            }
         }
 
         /// <summary>

@@ -956,6 +956,14 @@ namespace BasisServerHandle
             BasisNetworkResourceManagement.UnloadResource(UnLoadResource, Peer);
             //we need to convert the string int a  ushort.
         }
+        public static void HandleModifyResource(NetPacketReader Reader, NetPeer Peer)
+        {
+            ModifyResource modifyResource = new ModifyResource();
+            modifyResource.Deserialize(Reader);
+            Reader.Recycle();
+            // Authorization (creator or moderator) is enforced inside SetStatic.
+            BasisNetworkResourceManagement.SetStatic(modifyResource, Peer);
+        }
         #endregion
         public static void HandleStoreDatabase(NetPacketReader reader, NetPeer peer)
         {

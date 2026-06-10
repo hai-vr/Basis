@@ -6,10 +6,15 @@ using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Network.Core;
 using UnityEngine;
-public class BasisObjectSyncNetworking : BasisNetworkBehaviour
+public class BasisObjectSyncNetworking : BasisNetworkBehaviour, IBasisStaticLockable
 {
     public BasisPickupInteractable BasisPickupInteractable;
     public bool CanNetworkSteal = true;
+    /// <summary>
+    /// Server-authoritative "static" flag. When true the prop can't be hovered or grabbed by anyone
+    /// and is frozen (kinematic) in place. Set via the library Static toggle; applied through SetStatic.
+    /// </summary>
+    public bool IsStatic = false;
     [SerializeField]
     BasisPositionRotationScale LocalLastData = new BasisPositionRotationScale();
     [SerializeField]
@@ -62,6 +67,11 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
 
     private bool CanHover(BasisInput input)
     {
+        // A static (locked) prop can't be grabbed by anyone.
+        if (IsStatic)
+        {
+            return false;
+        }
         // Allow hover if we aren't connected
         if (!BasisNetworkConnection.LocalPlayerIsConnected)
         {
@@ -71,6 +81,11 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
     }
     private bool CanInteract(BasisInput input)
     {
+        // A static (locked) prop can't be grabbed by anyone.
+        if (IsStatic)
+        {
+            return false;
+        }
         // Allow interact if we aren't connected or if we own it locally
         if (IsOwnedLocallyOnClient)
         {
@@ -104,6 +119,19 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             BasisPickupInteractable.RigidRef.isKinematic = state;
         }
     }
+    /// <summary>
+    /// Apply or release the server-authoritative static / locked state (<see cref="IBasisStaticLockable"/>).
+    /// ControlState performs the actual freeze (drop + kinematic) or the restore when toggled off.
+    /// </summary>
+    public void SetStatic(bool isStatic)
+    {
+        if (IsStatic == isStatic)
+        {
+            return;
+        }
+        IsStatic = isStatic;
+        ControlState();
+    }
     public override void OnOwnershipTransfer(BasisNetworkPlayer NetIdNewOwner)
     {
         ControlState();
@@ -121,6 +149,19 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             }
         }
         #endif
+        // A static prop is frozen for everyone: drop it, stop syncing, and keep it kinematic no
+        // matter who owns it. Toggling static off falls through to the normal logic below.
+        if (IsStatic)
+        {
+            BasisObjectSyncDriver.RemoveLocalOwner(this);
+            BasisObjectSyncDriver.RemoveRemoteOwner(this);
+            if (BasisPickupInteractable != null)
+            {
+                BasisPickupInteractable.Drop();
+            }
+            SetIsKinematicOnPickup(true);
+            return;
+        }
         //lets always just update the last data so going from here we have some reference of last.
         if (IsOwnedLocallyOnClient)
         {

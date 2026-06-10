@@ -353,6 +353,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> AvatarPreviewMirror = new("avatarpreviewmirror", new BasisPlatformDefault<bool>(true));
 
+        public static BasisSettingsBinding<bool> CameraHud = new("camerahud", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> LimitHandHeldCameraRate = new("limithandheldcamerarate", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<float> HandHeldCameraRenderHz = new("handheldcamerarenderhz_v2", new BasisPlatformDefault<float>(30));
@@ -592,6 +594,9 @@ namespace Basis.BasisUI
 
         // ---------------- INTERACTIONS ----------------
         public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> ForceGridSnap = new("forcegridsnap", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> GridSnapSize = new("gridsnapsize", new BasisPlatformDefault<float>(0.25f));
 
         // ---------------- NOTIFICATIONS ----------------
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
@@ -1484,6 +1489,7 @@ namespace Basis.BasisUI
             // UI
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
+            CameraHud.LoadBindingValue();
             LimitHandHeldCameraRate.LoadBindingValue();
             HandHeldCameraRenderHz.LoadBindingValue();
             LimitAvatarPreviewRate.LoadBindingValue();
@@ -1501,6 +1507,7 @@ namespace Basis.BasisUI
             LimitThreshold.LoadBindingValue();
             LimitKnee.LoadBindingValue();
             DisableSeats.LoadBindingValue();
+            DisablePropPickup.LoadBindingValue();
 
             // Global FBIK parameters
             FBIKMinCutoff.LoadBindingValue();

@@ -183,4 +183,53 @@ public static class BasisNetworkResourceManagement
         );
         NetworkServer.ReturnWriter(writer);
     }
+
+    /// <summary>
+    /// Toggle the server-authoritative "Static" flag on an already-spawned resource.
+    /// Only the item's creator or a moderator (protection permission) may change it.
+    /// On success the new state is stored and rebroadcast to every client (and replayed
+    /// to late joiners via <see cref="SendOutAllResources"/>, which serializes the whole record).
+    /// </summary>
+    public static void SetStatic(ModifyResource modifyResource, NetPeer peer)
+    {
+        if (!UshortNetworkDatabase.TryGetValue(modifyResource.LoadedNetID, out LocalLoadResource resource))
+        {
+            BNL.LogError($"Trying to modify an object that does not exist! ID Provided was [{modifyResource.LoadedNetID}]");
+            return;
+        }
+
+        // Authorize: the item's creator, or a moderator (protection permission), may change static.
+        bool isModerator = PermissionIntegration.HasValidRequirement(peer, PermNodes.protection);
+        bool isCreator = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string requesterUuid)
+            && !string.IsNullOrEmpty(resource.UUIDOfCreator)
+            && requesterUuid == resource.UUIDOfCreator;
+        if (!isModerator && !isCreator)
+        {
+            return;
+        }
+
+        // No-op if nothing changes, to avoid spamming the network.
+        if (resource.Static == modifyResource.Static)
+        {
+            return;
+        }
+
+        // LocalLoadResource is a value type, so mutate a copy and write it back.
+        resource.Static = modifyResource.Static;
+        UshortNetworkDatabase[modifyResource.LoadedNetID] = resource;
+
+        // Normalize the broadcast to the stored mode so every client agrees on routing.
+        modifyResource.Mode = resource.Mode;
+
+        NetDataWriter writer = NetworkServer.RentWriter();
+        modifyResource.Serialize(writer);
+        BNL.Log($"Set Static={modifyResource.Static} on Object {modifyResource.LoadedNetID}");
+        NetworkServer.BroadcastMessageToClients(
+            writer,
+            BasisNetworkCommons.ModifyResourceChannel,
+            NetworkServer.PeerSnapshot,
+            DeliveryMethod.ReliableOrdered
+        );
+        NetworkServer.ReturnWriter(writer);
+    }
 }

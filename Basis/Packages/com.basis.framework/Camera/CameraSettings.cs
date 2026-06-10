@@ -40,6 +40,8 @@ public partial class BasisHandHeldCameraUI
 
         public int exposureIndex = 6;
 
+        public int cullingMask;
+
         public float fov;
         public float focusDistance;
         public float sensorSizeX;

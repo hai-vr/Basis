@@ -19,6 +19,10 @@
       "value": "Flip the avatar preview so it faces you like a mirror."
     },
     {
+      "key": "settings.general.cameraHud.tooltip",
+      "value": "Show a live preview of what your handheld camera sees, pinned to the top-right of your view."
+    },
+    {
       "key": "settings.general.thirdPerson.tooltip",
       "value": "View your avatar from behind with a third-person desktop camera."
     },
@@ -3119,6 +3123,14 @@
       "value": "Created {0} ago by {1}"
     },
     {
+      "key": "library.instantiated.static.tooltip",
+      "value": "Lock this item so no one can pick it up or move it (vehicles can't be driven). Only the item's creator or a moderator can change this."
+    },
+    {
+      "key": "library.instantiated.static.noPermission",
+      "value": "Only the item's creator or a moderator can lock this item."
+    },
+    {
       "key": "library.dialog.add.title",
       "value": "Add New Content"
     },
@@ -3439,6 +3451,18 @@
       "value": "Prevent sitting in seats placed in the world."
     },
     {
+      "key": "settings.general.disablePropPickup",
+      "value": "Disable Prop Pickup"
+    },
+    {
+      "key": "settings.general.disablePropPickup.tooltip",
+      "value": "Stop yourself from picking up props placed around the world."
+    },
+    {
+      "key": "settings.general.disablePropPickup.description",
+      "value": "Prevent picking up props placed in the world."
+    },
+    {
       "key": "settings.general.hud.title",
       "value": "HUD"
     },
@@ -3465,6 +3489,14 @@
     {
       "key": "settings.general.avatarPreviewMirror.description",
       "value": "Flip the avatar preview horizontally so it reads like a mirror."
+    },
+    {
+      "key": "settings.general.cameraHud",
+      "value": "Camera HUD"
+    },
+    {
+      "key": "settings.general.cameraHud.description",
+      "value": "Mirror your handheld camera's view onto your HUD so you can frame shots without looking at the camera screen."
     },
     {
       "key": "settings.general.camera.title",
@@ -5709,6 +5741,34 @@
     {
       "key": "settings.developer.materialCorrection.description",
       "value": "Replace broken or unsupported shaders with the URP fallback shader. Off by default; mainly needed during graphics API changes."
+    },
+    {
+      "key": "settings.developer.gridSnap.title",
+      "value": "Grid Snap"
+    },
+    {
+      "key": "settings.developer.gridSnap.description",
+      "value": "Snap held props to a world-space grid. Forces grid snapping on every pickup locally, overriding each prop's own setting."
+    },
+    {
+      "key": "settings.developer.gridSnap.force",
+      "value": "Force Grid Snap"
+    },
+    {
+      "key": "settings.developer.gridSnap.force.tooltip",
+      "value": "When on, every prop you pick up snaps to the grid while held, even if the prop has grid snap disabled."
+    },
+    {
+      "key": "settings.developer.gridSnap.size",
+      "value": "Grid Snap Size"
+    },
+    {
+      "key": "settings.developer.gridSnap.size.description",
+      "value": "Spacing of the world-space grid used when forcing grid snap, in meters."
+    },
+    {
+      "key": "settings.developer.gridSnap.size.tooltip",
+      "value": "Distance between grid snap points in meters."
     },
     {
       "key": "settings.developer.cameraRates.title",

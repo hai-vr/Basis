@@ -5,7 +5,7 @@ public enum BasisCameraButtonAction
     ResetSettings,
     CloseUI,
     Timer,
-    ToggleNameplates,
+    ToggleLayerDropdown,
     ToggleDesktopOutput,
     ToggleSelfie,
     ToggleAutoLevel,

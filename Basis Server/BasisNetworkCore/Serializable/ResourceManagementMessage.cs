@@ -41,6 +41,11 @@ public static partial class SerializableBasis
 
         public bool Persist;
         /// <summary>
+        /// when true this item is "static": pickup is disabled for everyone and the object is
+        /// frozen in place (vehicles are locked out). Server-authoritative, set via ModifyResource.
+        /// </summary>
+        public bool Static;
+        /// <summary>
         /// this is used to state if the scale should be set or
         /// just use whatever scale it thinks it is.
         /// </summary>
@@ -61,6 +66,7 @@ public static partial class SerializableBasis
             IsAdminLocked = Writer.GetBool();
 
             Persist = Writer.GetBool();
+            Static = Writer.GetBool();
             ModifyScale = Writer.GetBool();
             LoadStrategy = Writer.GetByte();
             if (Mode == 0)
@@ -89,6 +95,7 @@ public static partial class SerializableBasis
             Writer.Put(UUIDOfCreator);
             Writer.Put(IsAdminLocked);
             Writer.Put(Persist);
+            Writer.Put(Static);
             Writer.Put(ModifyScale);
             Writer.Put(LoadStrategy);
             if (Mode == 0)

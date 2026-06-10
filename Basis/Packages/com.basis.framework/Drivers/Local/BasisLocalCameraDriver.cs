@@ -215,6 +215,10 @@ namespace Basis.Scripts.Drivers
         /// <summary>Driver for avatar preview camera and HUD display.</summary>
         [SerializeField]
         public BasisLocalAvatarPreviewDriver avatarPreviewDriver = new BasisLocalAvatarPreviewDriver();
+
+        /// <summary>Driver for the handheld-camera HUD mirror (shows what the active camera sees).</summary>
+        [SerializeField]
+        public BasisLocalCameraHudDriver cameraHudDriver = new BasisLocalCameraHudDriver();
         /// <summary>
         /// World forward vector of the active camera instance, or zero if no instance exists.
         /// Derived from the cached <see cref="Rotation"/> to avoid a native transform PInvoke per call.
@@ -346,6 +350,7 @@ namespace Basis.Scripts.Drivers
 #endif
 
             avatarPreviewDriver.Initialize(this);
+            cameraHudDriver.Initialize(this);
 
 #if STEAMAUDIO_ENABLED
             if (SteamListener != null)
@@ -361,6 +366,7 @@ namespace Basis.Scripts.Drivers
         public void OnDestroy()
         {
             avatarPreviewDriver.Cleanup();
+            cameraHudDriver.Cleanup();
             CameraInstance = null;
 
             ListenerTransform = null;
@@ -412,6 +418,7 @@ namespace Basis.Scripts.Drivers
                 HasEvents = false;
             }
             avatarPreviewDriver.Cleanup();
+            cameraHudDriver.Cleanup();
         }
 
         /// <summary>
@@ -677,6 +684,7 @@ namespace Basis.Scripts.Drivers
                     }
                 }
                 avatarPreviewDriver.Simulate();
+                cameraHudDriver.Simulate();
             }
 
             if (!IsThirdPerson || !BasisDeviceManagement.IsUserInDesktop())

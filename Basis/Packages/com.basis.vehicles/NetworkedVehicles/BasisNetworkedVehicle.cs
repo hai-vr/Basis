@@ -7,8 +7,13 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace Basis.Network.Vehicles
 {
-    public class BasisNetworkedVehicle : BasisNetworkBehaviour
+    public class BasisNetworkedVehicle : BasisNetworkBehaviour, IBasisStaticLockable
     {
+        /// <summary>
+        /// Server-authoritative "locked" state from the library Static toggle. When true the vehicle
+        /// is frozen (kinematic, wheels disabled) and ignores input on every client, so it can't move.
+        /// </summary>
+        public bool IsLocked { get; private set; }
         public BasisVehicleBody BasisVehicleBody;
         public BasisVehiclePilotSeat Seat;
         public BasisSeatSync SeatSync;
@@ -121,7 +126,8 @@ namespace Basis.Network.Vehicles
         {
             Player = player;
             bool isLocal = player != null && player.IsLocal;
-            ToggleItems(isLocal);
+            // A locked vehicle stays frozen even when someone sits in it.
+            ToggleItems(isLocal && !IsLocked);
             BasisDebug.Log($"Player Entered Seat {player.DisplayName}");
             if (isLocal)
             {
@@ -182,6 +188,11 @@ namespace Basis.Network.Vehicles
         }
         public void Simulate()
         {
+            // A locked (static) vehicle is frozen for everyone: stop owner sends and remote interpolation.
+            if (IsLocked)
+            {
+                return;
+            }
             SimulateLocal();
             SimulateRemote();
         }
@@ -497,6 +508,38 @@ namespace Basis.Network.Vehicles
                         wheel.enabled = state;
                     }
                 }
+            }
+        }
+        /// <summary>
+        /// Apply or release the server-authoritative static / locked state (<see cref="IBasisStaticLockable"/>).
+        /// Locking freezes the rigidbody and disables wheels on every client; unlocking restores the normal
+        /// owner/remote state. The Simulate loop is also short-circuited while locked (see Simulate).
+        /// </summary>
+        public void SetStatic(bool isStatic)
+        {
+            if (IsLocked == isStatic)
+            {
+                return;
+            }
+            IsLocked = isStatic;
+            if (BasisVehicleBody != null)
+            {
+                BasisVehicleBody.IsLocked = isStatic;
+            }
+            if (isStatic)
+            {
+                if (Rigidbody != null)
+                {
+                    Rigidbody.linearVelocity = Vector3.zero;
+                    Rigidbody.angularVelocity = Vector3.zero;
+                }
+                ToggleItems(false); // kinematic body, wheels/colliders disabled
+            }
+            else
+            {
+                // Restore: the local pilot drives (dynamic); everyone else stays kinematic.
+                bool isLocalPilot = Player != null && Player.IsLocal;
+                ToggleItems(isLocalPilot);
             }
         }
     }

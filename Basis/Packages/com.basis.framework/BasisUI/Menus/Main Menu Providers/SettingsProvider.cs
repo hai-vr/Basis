@@ -380,6 +380,11 @@ namespace Basis.BasisUI
             toggleDisableSeats.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableSeats"));
             toggleDisableSeats.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableSeats.tooltip"));
 
+            PanelToggle toggleDisablePropPickup = PanelToggle.CreateNewEntry(interactionsGroup);
+            toggleDisablePropPickup.AssignBinding(BasisSettingsDefaults.DisablePropPickup);
+            toggleDisablePropPickup.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disablePropPickup"));
+            toggleDisablePropPickup.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disablePropPickup.tooltip"));
+
             // HUD overlays — heads-up display elements rendered over the scene.
             PanelElementDescriptor hudGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -407,6 +412,11 @@ namespace Basis.BasisUI
                 hudGroup.ForceRebuild();
                 descriptor.ForceRebuild();
             };
+
+            PanelToggle toggleCameraHud = PanelToggle.CreateNewEntry(hudGroup);
+            toggleCameraHud.AssignBinding(BasisSettingsDefaults.CameraHud);
+            toggleCameraHud.Descriptor.SetTitle(BasisLocalization.Get("settings.general.cameraHud"));
+            toggleCameraHud.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.cameraHud.tooltip"));
 
             // Third-person camera is desktop-only; hide the entire group in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
@@ -569,7 +579,9 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.AvatarPreview.ResetToDefault();
             BasisSettingsDefaults.AvatarPreviewMirror.ResetToDefault();
+            BasisSettingsDefaults.CameraHud.ResetToDefault();
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
+            BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
@@ -2184,6 +2196,26 @@ namespace Basis.BasisUI
             toggleMaterialCorrection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.materialCorrection.tooltip"));
             toggleMaterialCorrection.AssignBinding(BasisSettingsDefaults.EnableMaterialCorrection);
 
+            // ---- Grid Snap ----
+            PanelElementDescriptor gridSnapGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            gridSnapGroup.SetTitle(BasisLocalization.Get("settings.developer.gridSnap.title"));
+            gridSnapGroup.SetDescription(BasisLocalization.Get("settings.developer.gridSnap.description"));
+
+            PanelToggle toggleForceGridSnap = PanelToggle.CreateNewEntry(gridSnapGroup.ContentParent);
+            toggleForceGridSnap.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gridSnap.force"));
+            toggleForceGridSnap.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.force.tooltip"));
+            toggleForceGridSnap.AssignBinding(BasisSettingsDefaults.ForceGridSnap);
+
+            PanelSlider sliderGridSnapSize = PanelSlider.CreateEntryAndBind(
+                gridSnapGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.gridSnap.size"),
+                    BasisLocalization.Get("settings.developer.gridSnap.size.description"),
+                    0.05f, 5f, false, 2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.GridSnapSize);
+            sliderGridSnapSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.size.tooltip"));
+
             // ---- Camera Render Rates ----
             PanelElementDescriptor cameraRateGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2584,6 +2616,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
+            BasisSettingsDefaults.ForceGridSnap.ResetToDefault();
+            BasisSettingsDefaults.GridSnapSize.ResetToDefault();
             BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
             BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
             BasisSettingsDefaults.LimitAvatarPreviewRate.ResetToDefault();

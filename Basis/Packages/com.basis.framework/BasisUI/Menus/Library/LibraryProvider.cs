@@ -1820,6 +1820,12 @@ namespace Basis.BasisUI
                     PlacementManager.RemoveSelectionSpawnInstanceID(instance);
 
                     break;
+                case BasisRuntimeSpawnRegistry.RegistryChangeType.Modified:
+
+                    // a per-item flag changed (e.g. Static) — rebuild so the row reflects it
+                    UpdateInstantiatedTab();
+
+                    break;
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.ClearedAll:
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.ClearedUrl:
                     BasisDebug.LogWarning($"LibraryProvider.cs rec -> OnRegistryChanged for changeType = {changeType}, ignoring! if the menu breaks nothing was linked in the menu for this.");
@@ -2033,6 +2039,28 @@ namespace Basis.BasisUI
                     break;
                 }
             };
+
+            // Static (lock) toggle — networked game objects only; applies for everyone (server-authoritative).
+            if (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network && itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.GameObject)
+            {
+                PanelButton staticToggle = PanelButton.CreateNew(ButtonStyles.StandardButton, itemListPanel.TabButtonParent);
+                staticToggle.Descriptor.SetTitle(string.Empty);
+                staticToggle.SetIcon(itemKey.Static ? AddressableAssets.Sprites.Locked : AddressableAssets.Sprites.Unlocked);
+                staticToggle.SetSize(new Vector2(80, 80));
+                staticToggle.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
+                staticToggle.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.static.tooltip"));
+
+                // Only the item's creator or a moderator may change this.
+                bool canToggleStatic = itemKey.UUIDOfCreator == BasisLocalPlayer.Instance.UUID || IsProtected;
+                staticToggle.SetInteractable(canToggleStatic, canToggleStatic ? null : BasisLocalization.Get("library.instantiated.static.noPermission"));
+
+                staticToggle.OnClicked += () =>
+                {
+                    // Mode 0 = GameObject. The server authorizes (creator or moderator) and rebroadcasts;
+                    // the row icon updates when that broadcast arrives (RegistryChangeType.Modified).
+                    BasisNetworkSpawnItem.RequestSetStatic(itemKey.LoadedNetID, 0, !itemKey.Static);
+                };
+            }
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
             removeItem.Descriptor.SetTitle(string.Empty);
