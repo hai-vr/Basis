@@ -67,6 +67,10 @@ public static class BasisExportSourceFiles
             if (rel.Replace('/', '\\').IndexOf(@"Contrib\PersistentKv", StringComparison.OrdinalIgnoreCase) >= 0)
                 continue;
 
+            // Exclude BasisRestApi.Tests
+            if (ContainsPathSegment(rel, "BasisRestApi.Tests"))
+                continue;
+
             Directory.CreateDirectory(Path.Combine(destinationDir, rel));
         }
 
@@ -80,6 +84,10 @@ public static class BasisExportSourceFiles
 
             // Exclude Contrib\PersistentKv subtree
             if (rel.Replace('/', '\\').IndexOf(@"Contrib\PersistentKv", StringComparison.OrdinalIgnoreCase) >= 0)
+                continue;
+
+            // Exclude BasisRestApi.Tests
+            if (ContainsPathSegment(rel, "BasisRestApi.Tests"))
                 continue;
 
             var ext = Path.GetExtension(file);
