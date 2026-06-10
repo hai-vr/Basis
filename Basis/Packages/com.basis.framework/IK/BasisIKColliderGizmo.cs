@@ -124,6 +124,9 @@ namespace Basis.Scripts.Debugging
 
         private static void UpdateLabels(bool showLabels, Vector3 cameraPos, BasisFullBodyData data)
         {
+            // Match the avatar's current height scale so labels grow/shrink with the body
+            // (consistent with the skeleton/tracker labels).
+            float labelScale = LabelScale * Mathf.Max(0.01f, BasisHeightDriver.ScaledToMatchValue);
             for (int i = 0; i < CapsuleCount; i++)
             {
                 if (showLabels && TryCapsuleMidpoint(data, i, out Vector3 mid))
@@ -134,7 +137,7 @@ namespace Basis.Scripts.Debugging
                         BasisGizmoManager.CreateTextGizmo($"IKLabel_{CapsuleNames[i]}", out _labelIds[i], mid, CapsuleNames[i], color);
                     }
                     Quaternion rot = BasisGizmoManager.BillboardRotation(mid, cameraPos);
-                    BasisGizmoManager.UpdateTextGizmo(_labelIds[i], mid, rot, LabelScale, CapsuleNames[i], color);
+                    BasisGizmoManager.UpdateTextGizmo(_labelIds[i], mid, rot, labelScale, CapsuleNames[i], color);
                     BasisGizmoManager.SetGizmoActive(_labelIds[i], true);
                 }
                 else if (_labelIds[i] > 0)

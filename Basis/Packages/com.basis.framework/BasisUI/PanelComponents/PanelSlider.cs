@@ -126,6 +126,8 @@ namespace Basis.BasisUI
 
         public Slider SliderComponent;
 
+        protected override Selectable InteractableTarget => SliderComponent;
+
         private RectTransform _handleRect;
         private Graphic _roundedFrontGraphic;
         private TweenScale _handleScaleTween;

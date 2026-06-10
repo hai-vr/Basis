@@ -232,6 +232,7 @@ namespace Basis.Scripts.Device_Management
             // earlier binding constructor would write "en" as a default and
             // defeat the HasSaveData("language") check.
             Basis.BasisUI.BasisLocalization.Initialize();
+            Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
             BasisSettingsDefaults.LoadAll();
             try
             {

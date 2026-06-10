@@ -37,18 +37,35 @@ namespace Basis.BasisUI
         {
             DialogBox<T> box = new DialogBox<T>
             {
-                _background = PanelElementDescriptor.CreateNew(
-                    strongerOverlay ? PanelElementDescriptor.ElementStyles.OverlayLessOpacity : PanelElementDescriptor.ElementStyles.Overlay,
-                    panel),
                 _title = title,
                 _description = description,
                 _icon = icon,
                 _reopen = reopen,
+                _tcs = new TaskCompletionSource<T>(),
             };
 
-            box._descriptor = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.LibraryEntryOverlay,
-                box._background);
+            if (panel == null || panel.IsReleased)
+            {
+                box.NoteUncreatable();
+                return box;
+            }
+
+            box._background = PanelElementDescriptor.CreateNew(
+                strongerOverlay ? PanelElementDescriptor.ElementStyles.OverlayLessOpacity : PanelElementDescriptor.ElementStyles.Overlay,
+                panel);
+
+            if (box._background != null)
+            {
+                box._descriptor = PanelElementDescriptor.CreateNew(
+                    PanelElementDescriptor.ElementStyles.LibraryEntryOverlay,
+                    box._background);
+            }
+
+            if (box._background == null || box._descriptor == null)
+            {
+                box.NoteUncreatable();
+                return box;
+            }
 
             box._descriptor.rectTransform.localPosition = Vector3.zero;
             box._descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -64,8 +81,6 @@ namespace Basis.BasisUI
 
             if (icon != null)
                 box._descriptor.SetIcon(icon);
-
-            box._tcs = new TaskCompletionSource<T>();
 
             // If the overlay is destroyed without CloseWithResult (e.g. the parent
             // panel is released by a tab switch), complete the awaiting task and route
@@ -114,6 +129,31 @@ namespace Basis.BasisUI
         private void HandlePopped()
         {
             if (_completed) return;
+            NoteToNotificationCenter();
+            _tcs?.TrySetResult(default);
+        }
+
+        private void NoteUncreatable()
+        {
+            if (_descriptor != null)
+            {
+                UnityEngine.Object.Destroy(_descriptor.gameObject);
+                _descriptor = null;
+            }
+
+            if (_background != null)
+            {
+                UnityEngine.Object.Destroy(_background.gameObject);
+                _background = null;
+            }
+
+            NoteToNotificationCenter();
+            _tcs?.TrySetResult(default);
+        }
+
+        private void NoteToNotificationCenter()
+        {
+            if (_completed) return;
             _completed = true;
 
             string title = string.IsNullOrEmpty(_title)
@@ -129,8 +169,6 @@ namespace Basis.BasisUI
             {
                 BasisNotificationCenter.LogResolved(title, _description, icon, BasisNotificationStatus.Dismissed);
             }
-
-            _tcs?.TrySetResult(default);
         }
     }
 }

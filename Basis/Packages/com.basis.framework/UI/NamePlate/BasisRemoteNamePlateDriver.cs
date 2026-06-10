@@ -228,8 +228,18 @@ namespace Basis.Scripts.UI.NamePlate
                         "Noto Sans Devanagari", "Lohit Devanagari" },
             };
 
-            foreach (string[] candidates in scriptCandidates)
-                AddFirstAvailableFallback(primary, candidates, registered);
+            // Embedded Noto leads the table and covers JP, so the OS Japanese
+            // candidates (scriptCandidates[0]) are skipped to avoid a redundant atlas.
+            TMP_FontAsset shippedJapanese = BasisTMPFontFallbacks.GetShippedJapaneseFallback();
+            if (shippedJapanese != null)
+                primary.fallbackFontAssetTable.Add(shippedJapanese);
+
+            for (int s = 0; s < scriptCandidates.Length; s++)
+            {
+                if (s == 0 && shippedJapanese != null)
+                    continue;
+                AddFirstAvailableFallback(primary, scriptCandidates[s], registered);
+            }
         }
 
         private static void AddFirstAvailableFallback(TMP_FontAsset primary, string[] candidates, HashSet<string> registered)

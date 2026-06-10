@@ -117,6 +117,17 @@ namespace Basis.BasisUI
                 };
             }
 
+            // Playspace Mover quick enable (full options live under Body Tracking settings)
+            var playspaceMoverToggle = PanelToggle.CreateNewEntry(container);
+            playspaceMoverToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable"));
+            playspaceMoverToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable.tooltip"));
+            playspaceMoverToggle.AssignBinding(BasisSettingsDefaults.EnablePlayspaceMover);
+
+            var playspaceResetButton = PanelButton.CreateNew(container);
+            playspaceResetButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset"));
+            playspaceResetButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset.tooltip"));
+            playspaceResetButton.OnClicked += BasisLocalPlayspaceMover.ResetOffset;
+
             // Pitch calibration toggle
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             _pitchToggleButton.OnClicked += TogglePitchCalibration;

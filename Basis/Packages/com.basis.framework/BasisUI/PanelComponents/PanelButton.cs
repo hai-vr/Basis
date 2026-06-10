@@ -44,6 +44,8 @@ namespace Basis.BasisUI
 
         public Button ButtonComponent;
         public UiStyleButton ButtonStyling;
+
+        protected override Selectable InteractableTarget => ButtonComponent;
         public Action OnClicked;
         protected bool _iconIsAddressable;
 

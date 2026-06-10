@@ -2450,80 +2450,43 @@ w20, w54;
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
             {
-                Vector3 shoulderPos = root.GetPosition(stream);
-                Vector3 elbowPos = mid.GetPosition(stream);
-                Vector3 handPos = tip.GetPosition(stream);
+                // Geometry lives in BasisElbowProtectCore so the offline sweep harness runs the
+                // exact same penetration test and elbow push. Apply the result through the stream.
+                BasisElbowProtectInput epi;
+                epi.Shoulder = root.GetPosition(stream);
+                epi.Elbow = mid.GetPosition(stream);
+                epi.Hand = tip.GetPosition(stream);
+                epi.HasHips = HandleHips.IsValid(stream);
+                epi.HasSpine = HandleSpine.IsValid(stream);
+                epi.HipsPos = epi.HasHips ? HandleHips.GetPosition(stream) : Vector3.zero;
+                epi.SpinePos = epi.HasSpine ? HandleSpine.GetPosition(stream) : Vector3.zero;
+                epi.ChestPos = chestStart.GetPosition(stream);
+                epi.NeckPos = chestEnd.GetPosition(stream);
+                epi.ChestRadiusBase = chestRadius.Get(stream);
+                epi.CollisionSkin = collisionSkin.Get(stream);
+                epi.HandRadius = handRadius.Get(stream);
+                epi.HandSkin = handSkin.Get(stream);
+                epi.PlayerUp = playerUp.Get(stream);
+                // Pin the elbow to a DOWN-redirected target (DownBias) with a soft smoothstep
+                // engagement gate (DepthScaleRange). Full pin both sides (1,1) holds a stable target ->
+                // jitter-free; DownBias kills the chicken-wing without un-pinning. Chosen by the offline
+                // engaged-region jitter sweep: beats the old binary snap on chicken-wing AND jitter.
+                // Restore legacy with SameSideBlend=0.5, DepthScaleRange=0f, DownBias=0f.
+                epi.SameSideBlend = 1f;
+                epi.WrongSideBlend = 1f;
+                epi.DepthScaleRange = 0.04f;
+                epi.DownBias = 0.7f;
 
-                Vector3 acAxis = handPos - shoulderPos;
-                float acSqr = Vector3.Dot(acAxis, acAxis);
-                if (acSqr > k_Epsilon * k_Epsilon)
+                BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
+                if (epr.Engaged)
                 {
-                    Vector3 acDir = acAxis / Mathf.Sqrt(acSqr);
-                    Vector3 toElbow = elbowPos - shoulderPos;
-                    Vector3 elbowCenter = shoulderPos + acDir * Vector3.Dot(toElbow, acDir);
-                    float elbowRadius = (elbowPos - elbowCenter).magnitude;
-
-                    if (elbowRadius > k_Epsilon)
-                    {
-                        float upperArmR = Mathf.Max(0f, (handRadius.Get(stream) + handSkin.Get(stream)) * 1.2f);
-
-                        float chestRBase = chestRadius.Get(stream);
-                        float skin = collisionSkin.Get(stream);
-                        float chestR = Mathf.Max(0f, chestRBase + skin);
-                        float spineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
-                        float hipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
-
-                        Vector3 pUp = playerUp.Get(stream);
-                        if (pUp.sqrMagnitude < k_Epsilon * k_Epsilon)
-                        {
-                            pUp = Vector3.up;
-                        }
-
-                        Vector3 chestPos = chestStart.GetPosition(stream);
-                        Vector3 neckPos = chestEnd.GetPosition(stream);
-                        float worstPen = 0f;
-                        if (HandleHips.IsValid(stream) && HandleSpine.IsValid(stream))
-                        {
-                            AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
-                                HandleHips.GetPosition(stream), HandleSpine.GetPosition(stream), hipsR, pUp,
-                                ref worstPen);
-                        }
-                        if (HandleSpine.IsValid(stream))
-                        {
-                            AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
-                                HandleSpine.GetPosition(stream), chestPos, spineR, pUp,
-                                ref worstPen);
-                        }
-                        AccumulateWorstTorsoSegment(shoulderPos, elbowPos, upperArmR,
-                            chestPos, neckPos, chestR, pUp,
-                            ref worstPen);
-
-                        if (worstPen > k_Epsilon)
-                        {
-                            Vector3 shoulderClosest = ClosestPointOnSegment(shoulderPos, chestPos, neckPos);
-                            Vector3 shoulderOutDir = shoulderPos - shoulderClosest;
-                            Vector3 shoulderPerp = shoulderOutDir - acDir * Vector3.Dot(shoulderOutDir, acDir);
-                            float shoulderPerpSqr = shoulderPerp.sqrMagnitude;
-
-                            if (shoulderPerpSqr > k_Epsilon * k_Epsilon)
-                            {
-                                Vector3 targetDir = shoulderPerp / Mathf.Sqrt(shoulderPerpSqr);
-                                Vector3 currentDir = (elbowPos - elbowCenter) / elbowRadius;
-                                float sideDot = Vector3.Dot(currentDir, targetDir);
-                                float blend = sideDot < 0f ? 1f : k_ElbowCollisionBlend;
-                                collisionState = sideDot < 0f ? 2 : 1;
-
-                                Vector3 blendedDir = Vector3.Slerp(currentDir, targetDir, blend);
-                                Vector3 desiredElbow = elbowCenter + blendedDir * elbowRadius;
-                                Vector3 preservedHandPos = tip.GetPosition(stream);
-                                Quaternion preservedHandRot = tip.GetRotation(stream);
-                                SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
-                                tip.SetPosition(stream, preservedHandPos);
-                                tip.SetRotation(stream, preservedHandRot);
-                            }
-                        }
-                    }
+                    Vector3 preservedHandPos = tip.GetPosition(stream);
+                    Quaternion preservedHandRot = tip.GetRotation(stream);
+                    SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
+                    tip.SetPosition(stream, preservedHandPos);
+                    tip.SetRotation(stream, preservedHandRot);
                 }
+                collisionState = epr.CollisionState;
             }
 
             if (swingCollided.IsCreated)

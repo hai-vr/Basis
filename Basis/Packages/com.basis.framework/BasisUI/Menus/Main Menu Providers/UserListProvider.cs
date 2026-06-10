@@ -406,7 +406,7 @@ namespace Basis.BasisUI
                 btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
                 btn.Descriptor.SetDescription(BuildDescription(netPlayer));
 
-                if (btn.ButtonComponent != null) btn.ButtonComponent.interactable = !isLocal;
+                btn.SetInteractable(!isLocal, isLocal ? BasisLocalization.Get("menu.players.cannotSelectSelf") : null);
                 if (btn.TryGetComponent(out CanvasGroup cg)) cg.alpha = isLocal ? 0.4f : 1f;
 
                 // OnClicked is a plain assignable field, so replacing it per bind is

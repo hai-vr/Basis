@@ -1266,16 +1266,15 @@ namespace Basis.BasisUI
                 contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
 
                 // disable network type selection
-                if (contentSyncModeDropDown.Descriptor.gameObject.TryGetComponent<PanelDropdown>(out PanelDropdown dropdown))
                 {
-                    if (dropdown.DropdownComponent != null)
-                    {
-                        // only interactable when the player is connected and the item is not embedded
-                        dropdown.DropdownComponent.interactable =
-                            BasisNetworkConnection.LocalPlayerIsConnected &&
-                            !(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable);
-
-                    }
+                    bool netConnected = BasisNetworkConnection.LocalPlayerIsConnected;
+                    bool embeddedAddressable = item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable;
+                    // only interactable when the player is connected and the item is not embedded
+                    contentSyncModeDropDown.SetInteractable(
+                        netConnected && !embeddedAddressable,
+                        !netConnected ? BasisLocalization.Get("library.disabled.notConnected")
+                        : embeddedAddressable ? BasisLocalization.Get("library.disabled.embedded")
+                        : null);
                 }
 
                 // set the default network type
@@ -1312,11 +1311,9 @@ namespace Basis.BasisUI
                 };
 
                 // DISABLE THIS TOGGLE IF THE ITEM IS EMBEDDED
-                if (contentPersistenceToggle.Descriptor.gameObject.TryGetComponent<Toggle>(out Toggle toggle))
-                {
-                    // if the item is embedded dont interact
-                    toggle.interactable = !item.EmbeddedSettings.IsEmbedded;
-                }
+                contentPersistenceToggle.SetInteractable(
+                    !item.EmbeddedSettings.IsEmbedded,
+                    item.EmbeddedSettings.IsEmbedded ? BasisLocalization.Get("library.disabled.embedded") : null);
             }
 
             #endregion
@@ -1337,10 +1334,9 @@ namespace Basis.BasisUI
             // which the server enforces via PermNodes.ConfigurationEditor (non-admins
             // get a "permission denied" reply popped via SendBackMessage).
             bool isServerProvided = BasisServerProvidedItems.IsServerProvided(item);
-            if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
-            {
-                deleteButtonComponent.interactable = !item.EmbeddedSettings.IsEmbedded;
-            }
+            deletePanelButton.SetInteractable(
+                !item.EmbeddedSettings.IsEmbedded,
+                item.EmbeddedSettings.IsEmbedded ? BasisLocalization.Get("library.disabled.embedded") : null);
 
             // upon delete we do these actions
             deletePanelButton.OnClicked += async () =>
@@ -1383,10 +1379,9 @@ namespace Basis.BasisUI
             sharePanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.share"));
             sharePanelButton.Descriptor.SetWidth(150);
             sharePanelButton.Descriptor.SetHeight(60);
-            if (sharePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button shareButtonComponent))
-            {
-                shareButtonComponent.interactable = BasisNetworkConnection.LocalPlayerIsConnected;
-            }
+            sharePanelButton.SetInteractable(
+                BasisNetworkConnection.LocalPlayerIsConnected,
+                BasisNetworkConnection.LocalPlayerIsConnected ? null : BasisLocalization.Get("library.disabled.notConnected"));
             sharePanelButton.OnClicked += async () =>
             {
                 if (!BasisNetworkConnection.LocalPlayerIsConnected) return;
@@ -1426,22 +1421,18 @@ namespace Basis.BasisUI
             {
                 case BundledContentHolder.Mode.Avatar:
                     bool sameAvatar = item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-                    if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
-                    {
-                        // if the item is embedded dont interact
-                        loadButtonComponent.interactable = !sameAvatar;
-                    }
+                    loadPanelButton.SetInteractable(
+                        !sameAvatar,
+                        sameAvatar ? BasisLocalization.Get("library.alreadyInAvatar") : null);
                     loadPanelButton.Descriptor.SetTitle(sameAvatar ? BasisLocalization.Get("library.alreadyInAvatar") : BasisLocalization.Get("library.load"));
                     break;
                 case BundledContentHolder.Mode.World:
                     bool worldAlreadyExists = spawnItemCount > 0;
  
-                    if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
-                    {
-                        // disable the button
-                        loadButtonComponent2.interactable = !worldAlreadyExists;
-                    }
                     // you can only load one instance of a scene
+                    loadPanelButton.SetInteractable(
+                        !worldAlreadyExists,
+                        worldAlreadyExists ? BasisLocalization.Get("library.sceneAlreadyLoaded") : null);
                     loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? BasisLocalization.Get("library.sceneAlreadyLoaded") : BasisLocalization.Get("library.load"));
                     break;
                 case BundledContentHolder.Mode.Prop:
@@ -2053,11 +2044,9 @@ namespace Basis.BasisUI
             if(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network)
             {
                 // determine if we can actually remove this via admin
-                if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
-                {
-                    // if the item is embedded only allow an admin to interact
-                    removeButtonComponent.interactable = !itemKey.isProtected || IsProtected;
-                }
+                // if the item is embedded only allow an admin to interact
+                bool canRemove = !itemKey.isProtected || IsProtected;
+                removeItem.SetInteractable(canRemove, canRemove ? null : BasisLocalization.Get("library.disabled.protected"));
             }
 
             removeItem.OnClicked += async () =>

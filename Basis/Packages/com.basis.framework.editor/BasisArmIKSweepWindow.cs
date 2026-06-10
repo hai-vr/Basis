@@ -11,6 +11,9 @@ namespace Basis.IK.Debugging
         BasisArmIKSweepSummary _last;
         bool _hasResult;
         Vector2 _scroll;
+        float _trajNoise = 0.003f;
+        BasisArmIKSweep.BasisArmIKTrajectorySummary _traj;
+        bool _hasTraj;
 
         [MenuItem("Basis/Debug/IK/Arm IK Sweep")]
         public static void ShowWindow()
@@ -107,6 +110,41 @@ namespace Basis.IK.Debugging
                 else
                 {
                     EditorGUILayout.HelpBox("Sweep failed: " + _last.Error, MessageType.Error);
+                }
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Trajectory Scan (per-frame, between data)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("production lookup path swept along continuous hand motion; pops = pole-flip/discontinuity, rough/zigzag = jitter", EditorStyles.miniLabel);
+            _trajNoise = EditorGUILayout.Slider("Tracking Noise (m)", _trajNoise, 0f, 0.01f);
+            if (GUILayout.Button("Run Trajectory Scan", GUILayout.Height(26)))
+            {
+                string tp = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_path), "BasisArmIKTrajectory.csv");
+                _traj = BasisArmIKSweep.RunTrajectories(_cfg, _trajNoise, tp);
+                _hasTraj = true;
+                if (_traj.Ok) Debug.Log($"[ArmIKTraj] worst pop {_traj.WorstPopDeg:F0} deg, worst rough {_traj.WorstRoughDeg:F2} -> {_traj.Path}");
+                else Debug.LogError($"[ArmIKTraj] failed: {_traj.Error}");
+            }
+            if (_hasTraj)
+            {
+                if (_traj.Ok && _traj.Results != null)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendLine("path:  clean max-jump deg / pops  |  noisy rough deg / zigzag");
+                    foreach (var r in _traj.Results)
+                    {
+                        sb.AppendLine($"{r.Name}:  {r.CleanMaxJumpDeg:F1} / {r.Pops}  |  {r.NoisyRoughDeg:F2} / {r.Zigzags}");
+                    }
+                    sb.Append(_traj.Path);
+                    EditorGUILayout.HelpBox(sb.ToString(), MessageType.None);
+                    if (GUILayout.Button("Reveal Trajectory CSV"))
+                    {
+                        EditorUtility.RevealInFinder(_traj.Path);
+                    }
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("Trajectory scan failed: " + _traj.Error, MessageType.Error);
                 }
             }
 

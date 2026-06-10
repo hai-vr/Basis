@@ -65,11 +65,14 @@ namespace Basis.BasisUI
                     AddressableAssets.Sprites.Information
                 );
 
-                PanelButton closeButton = PanelButton.CreateNew(PanelButton.ButtonStyles.AcceptButton, noticeDialog.Descriptor.ContentParent);
-                closeButton.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("ui.ok"));
-                closeButton.Descriptor.SetWidth(200);
-                closeButton.Descriptor.SetHeight(60);
-                closeButton.OnClicked += () => noticeDialog.CloseWithResult(true);
+                if (noticeDialog.Descriptor != null)
+                {
+                    PanelButton closeButton = PanelButton.CreateNew(PanelButton.ButtonStyles.AcceptButton, noticeDialog.Descriptor.ContentParent);
+                    closeButton.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("ui.ok"));
+                    closeButton.Descriptor.SetWidth(200);
+                    closeButton.Descriptor.SetHeight(60);
+                    closeButton.OnClicked += () => noticeDialog.CloseWithResult(true);
+                }
 
                 await noticeDialog.WaitAsync();
             }

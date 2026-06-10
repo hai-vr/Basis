@@ -2327,6 +2327,10 @@
       "value": "{0} (You)"
     },
     {
+      "key": "menu.players.cannotSelectSelf",
+      "value": "This is you."
+    },
+    {
       "key": "menu.individualPlayer.player",
       "value": "Player"
     },
@@ -3025,6 +3029,18 @@
     {
       "key": "library.alreadyInAvatar",
       "value": "You are already in this avatar"
+    },
+    {
+      "key": "library.disabled.notConnected",
+      "value": "Connect to a server to use this."
+    },
+    {
+      "key": "library.disabled.embedded",
+      "value": "This item is embedded and can't be changed."
+    },
+    {
+      "key": "library.disabled.protected",
+      "value": "This item is protected and can only be removed by an admin."
     },
     {
       "key": "library.load",
@@ -4229,6 +4245,98 @@
     {
       "key": "settings.bodyTracking.disableAnimFbt",
       "value": "Disable Animations in FBT"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.title",
+      "value": "Playspace Mover"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.description",
+      "value": "Grab and drag your play space with your VR controllers."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.enable",
+      "value": "Enable Playspace Mover"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.enable.tooltip",
+      "value": "Hold the chosen controller input to drag yourself through the world. VR only; passes through geometry."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input",
+      "value": "Activation Input"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.tooltip",
+      "value": "Which controller input you hold to grab the play space."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.grip",
+      "value": "Grip"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.trigger",
+      "value": "Trigger"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.primary",
+      "value": "Primary Button"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.input.secondary",
+      "value": "Secondary Button"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand",
+      "value": "Controller"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.tooltip",
+      "value": "Which controller(s) can grab. Both lets you use two hands at once to rotate and scale."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.both",
+      "value": "Both"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.left",
+      "value": "Left"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.hand.right",
+      "value": "Right"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.rotate",
+      "value": "Allow Rotate (two hands)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.rotate.tooltip",
+      "value": "When grabbing with both hands, turn yourself by twisting your hands (yaw only, horizon stays level)."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.scale",
+      "value": "Allow Scale (two hands)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.scale.tooltip",
+      "value": "When grabbing with both hands, resize yourself by spreading or closing your hands."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.rotateInput",
+      "value": "Rotation Input"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.rotateInput.tooltip",
+      "value": "Hold this input on both controllers to rotate (yaw). Use a different input than the activation input so rotate and scale stay separate."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.reset",
+      "value": "Reset Playspace Offset"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.reset.tooltip",
+      "value": "Undo the play space drag and return to where you were. Your normal walking is kept."
     },
     {
       "key": "settings.bodyTracking.debugInfo",
@@ -6789,6 +6897,10 @@
     {
       "key": "settings.bodyTracking.ikMode.armDistance",
       "value": "Arm Distance"
+    },
+    {
+      "key": "settings.bodyTracking.ikMode.disabledSeated",
+      "value": "Disabled in Seated Mode. Switch to Standing Mode to choose Eye Height or Arm Distance."
     },
     {
       "key": "settings.bodyTracking.spineLock.hips",

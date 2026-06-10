@@ -1,6 +1,7 @@
 using Basis.BTween;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -8,6 +9,8 @@ namespace Basis.BasisUI
     {
 
         [SerializeField] public TMP_InputField _inputField;
+
+        protected override Selectable InteractableTarget => _inputField;
         [SerializeField] public TextMeshProUGUI _placeholderLabel;
         [SerializeField] protected string _placeholderText;
         [SerializeField] protected string _defaultValue;

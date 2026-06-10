@@ -32,6 +32,16 @@ namespace Basis.Scripts.Drivers
         private const float FrameBottomFrac = 0.45f;
         private const float FrameTopFrac    = 1.15f;
 
+        // When framing from avatar geometry: the frame bottom sits this fraction of the hip→crown
+        // span below the hips bone, and the frame top this fraction above the crown.
+        private const float HipDropFrac = 0.15f;
+        private const float CrownHeadroomFrac = 0.08f;
+
+        // Hand-immunity cap: the frame top never rises above the head bone by more than this
+        // fraction of the hip→head-bone distance, so a raised arm — which also lands inside the
+        // renderer bounds — can't blow out the shot. Generous for hair/most hats; very tall hats clip.
+        private const float CrownCapRatio = 0.8f;
+
         [System.NonSerialized] public Camera PreviewCamera;
         [System.NonSerialized] public RenderTexture PreviewRT;
 
@@ -196,13 +206,21 @@ namespace Basis.Scripts.Drivers
             {
                 return;
             }
-            Transform head = BasisLocalAvatarDriver.Mapping.head;
-
             Vector3 feetPos = BasisLocalPlayer.Instance.transform.position;
             float playerHeight = BasisHeightDriver.SelectedScaledPlayerHeight;
 
-            float verticalSpan = playerHeight * (FrameTopFrac - FrameBottomFrac);
-            Vector3 frameCenter = feetPos + Vector3.up * (playerHeight * (FrameBottomFrac + FrameTopFrac) * 0.5f);
+            // Frame from just under the hips to just above the crown using the avatar's own
+            // geometry, so the shot fits each avatar's proportions and re-fits when swapped.
+            // Falls back to player-height fractions while the avatar/bones aren't ready yet.
+            if (!TryGetAvatarVerticalFraming(feetPos.y, playerHeight, out float frameBottomY, out float frameTopY))
+            {
+                frameBottomY = feetPos.y + playerHeight * FrameBottomFrac;
+                frameTopY = feetPos.y + playerHeight * FrameTopFrac;
+            }
+
+            float verticalSpan = frameTopY - frameBottomY;
+            Vector3 frameCenter = feetPos;
+            frameCenter.y = (frameBottomY + frameTopY) * 0.5f;
 
             // Distance is bound by the vertical target (hips-to-above-head). Horizontal extent is
             // whatever the texture aspect allows at that distance — with the portrait texture this
@@ -249,6 +267,89 @@ namespace Basis.Scripts.Drivers
             PreviewCamera.enabled = renderRateLimiter.AllowThisFrame(
                 Time.unscaledDeltaTime, BasisSettingsDefaults.AvatarPreviewRenderHz.RawValue,
                 BasisSettingsDefaults.LimitAvatarPreviewRate.RawValue);
+        }
+
+        /// <summary>
+        /// Computes the world-space vertical frame bounds from the avatar's hips bone and the top
+        /// of its renderer bounds (capped to a head-bone-relative ceiling so raised arms don't blow
+        /// the framing out), so tall heads fit and the framing re-fits on avatar swap. Returns false
+        /// when the avatar isn't ready.
+        /// </summary>
+        private bool TryGetAvatarVerticalFraming(float feetY, float playerHeight, out float bottomY, out float topY)
+        {
+            bottomY = 0f;
+            topY = 0f;
+
+            var localPlayer = BasisLocalPlayer.Instance;
+            var avatar = localPlayer != null ? localPlayer.BasisAvatar : null;
+            if (avatar == null)
+            {
+                return false;
+            }
+
+            var renderers = avatar.SkinnedMeshRenderers;
+            if (renderers == null || renderers.Length == 0)
+            {
+                return false;
+            }
+
+            float boundsTop = float.NegativeInfinity;
+            bool foundTop = false;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                float rendererTop = renderer.bounds.max.y;
+                if (rendererTop > boundsTop)
+                {
+                    boundsTop = rendererTop;
+                }
+                foundTop = true;
+            }
+            if (!foundTop)
+            {
+                return false;
+            }
+
+            var mapping = BasisLocalAvatarDriver.Mapping;
+            bool hasHips = mapping != null && mapping.HasHips && mapping.Hips != null;
+            bool hasHead = mapping != null && mapping.Hashead && mapping.head != null;
+            float hipY = hasHips ? mapping.Hips.position.y : feetY + playerHeight * FrameBottomFrac;
+
+            // Renderer bounds give a tight fit to the real crown (hair/ears/hat), but a raised arm
+            // also lands inside them — so clamp the top to one head-height above the head bone.
+            float crownY = boundsTop;
+            if (hasHead && hasHips)
+            {
+                float headY = mapping.head.position.y;
+                float headReference = headY - hipY;
+                if (headReference < 1e-3f)
+                {
+                    headReference = playerHeight * 0.5f;
+                }
+                float ceiling = headY + headReference * CrownCapRatio;
+                if (crownY > ceiling)
+                {
+                    crownY = ceiling;
+                }
+                if (crownY < headY)
+                {
+                    crownY = headY;
+                }
+            }
+
+            float span = crownY - hipY;
+            if (span <= 1e-3f)
+            {
+                return false;
+            }
+
+            bottomY = hipY - span * HipDropFrac;
+            topY = crownY + span * CrownHeadroomFrac;
+            return true;
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.Settings;
 using Basis.Streaming;
@@ -146,6 +147,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> usesnapturn = new("usesnapturn", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<float> SmoothTurnSpeed = new("smoothturnspeed", new BasisPlatformDefault<float>(200f));
+
+        // ---------------- PLAYSPACE MOVER ----------------
+        // VR-only grab-and-drag of the play space. Off by default; opt-in under Body Tracking.
+        public static BasisSettingsBinding<bool> EnablePlayspaceMover = new("enableplayspacemover", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> PlayspaceMoverInput = new("playspacemoverinput", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.InputGrip));
+        public static BasisSettingsBinding<string> PlayspaceMoverRotateInput = new("playspacemoverrotateinput", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.InputTrigger));
+        public static BasisSettingsBinding<string> PlayspaceMoverHand = new("playspacemoverhand", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.HandBoth));
+        public static BasisSettingsBinding<bool> PlayspaceMoverRotate = new("playspacemoverrotate", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceMoverScale = new("playspacemoverscale", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> QualityLevel = new("qualitylevel", new BasisPlatformDefault<string>
         {

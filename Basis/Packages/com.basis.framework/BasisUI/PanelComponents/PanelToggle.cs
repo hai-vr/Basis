@@ -15,6 +15,8 @@ namespace Basis.BasisUI
         public Toggle ToggleComponent;
         public RectTransform ToggleVisual;
 
+        protected override Selectable InteractableTarget => ToggleComponent;
+
         [Header("Visual Elements")]
         public Graphic Background;
         [Min(0)] public float ToggleVisualOffset = 20f;

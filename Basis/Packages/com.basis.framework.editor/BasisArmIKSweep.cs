@@ -235,6 +235,114 @@ namespace Basis.IK.Debugging
             return summary;
         }
 
+        public struct BasisArmIKTrajectorySummary
+        {
+            public bool Ok;
+            public string Path;
+            public BasisTrajectoryResult[] Results;
+            public float WorstPopDeg;
+            public float WorstRoughDeg;
+            public string Error;
+        }
+
+        // Per-frame trajectory scan of the production (lookup-bend, no tracker) elbow swivel along
+        // continuous hand paths -- catches lookup-table discontinuities / pole flips that the per-point
+        // grid steps over. Pops = jumps on smooth motion; rough/zigzag = tracking-noise jitter.
+        public static BasisArmIKTrajectorySummary RunTrajectories(BasisArmIKSweepConfig cfg, float noise, string path)
+        {
+            var summary = new BasisArmIKTrajectorySummary { Ok = false, Path = path };
+            float mirror = cfg.IsLeft ? -1f : 1f;
+            float upper = Mathf.Max(1e-4f, cfg.UpperLength);
+            float lower = Mathf.Max(1e-4f, cfg.LowerLength);
+            float armLen = upper + lower;
+
+            Vector3 shoulder = Vector3.zero;
+            Vector3 elbowDir = Mirror(cfg.RestElbowDir, mirror).normalized;
+            Vector3 forearmDir = Mirror(cfg.RestForearmDir, mirror).normalized;
+            if (elbowDir.sqrMagnitude < 1e-8f) elbowDir = Vector3.down;
+            if (forearmDir.sqrMagnitude < 1e-8f) forearmDir = Vector3.forward;
+            Vector3 restElbow = shoulder + elbowDir * upper;
+            Vector3 restHand = restElbow + forearmDir * lower;
+            bool isLeft = cfg.IsLeft;
+
+            NativeArray<Vector3> table = default;
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                NativeArray<Vector3> tbl = table;
+
+                System.Func<Vector3, float> eval = target =>
+                {
+                    Vector3 lookupBend = ComputeLookupBend(tbl, target - shoulder, armLen, isLeft);
+                    Vector3 hint = shoulder + 0.5f * armLen * lookupBend;
+                    BasisArmSolveResult r = SolveOne(shoulder, restElbow, restHand, target, hint, true);
+                    if (r.ReachRatio > 1f) return float.NaN;
+                    return Swivel(shoulder, r.HandSolved, r.ElbowSolved);
+                };
+
+                Vector3 F3(float fx, float fy, float fz)
+                {
+                    return shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
+                }
+
+                string[] pathNames = { "across", "vertical", "reach-up-across", "circle" };
+                Vector3[][] pathPts =
+                {
+                    BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
+                    BasisIKTrajectoryScan.Line(F3(0.10f, -0.80f, 0.30f), F3(0.10f, 0.70f, 0.30f), 160),
+                    BasisIKTrajectoryScan.Line(F3(0.60f, -0.60f, 0.20f), F3(-0.50f, 0.50f, 0.30f), 160),
+                    BasisIKTrajectoryScan.Circle(F3(0f, -0.10f, 0.40f), new Vector3(mirror, 0f, 0f), new Vector3(0f, 1f, 0f), 0.50f * armLen, 200),
+                };
+
+                var results = new BasisTrajectoryResult[pathNames.Length];
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisArmIKTrajectory " + System.DateTime.UtcNow.ToString("o") +
+                                " side=" + (cfg.IsLeft ? "left" : "right") + " noise=" + F(noise) +
+                                " upper=" + F(upper) + " lower=" + F(lower));
+                    w.WriteLine("path,step,target_x,target_y,target_z,swivel_deg");
+                    var sb = new StringBuilder(128);
+                    for (int pi = 0; pi < pathNames.Length; pi++)
+                    {
+                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 4242 + pi);
+                        Vector3[] pts = pathPts[pi];
+                        for (int s = 0; s < pts.Length; s++)
+                        {
+                            Vector3 t = pts[s];
+                            float sw = eval(t);
+                            sb.Clear();
+                            sb.Append(pathNames[pi]).Append(',').Append(s).Append(',');
+                            sb.Append(F(t.x)).Append(',').Append(F(t.y)).Append(',').Append(F(t.z)).Append(',').Append(F(sw));
+                            w.WriteLine(sb.ToString());
+                        }
+                    }
+                }
+
+                float worstPop = 0f, worstRough = 0f;
+                for (int i = 0; i < results.Length; i++)
+                {
+                    if (results[i].CleanMaxJumpDeg > worstPop) worstPop = results[i].CleanMaxJumpDeg;
+                    if (results[i].NoisyRoughDeg > worstRough) worstRough = results[i].NoisyRoughDeg;
+                }
+                summary.Ok = true;
+                summary.Results = results;
+                summary.WorstPopDeg = worstPop;
+                summary.WorstRoughDeg = worstRough;
+            }
+            catch (System.Exception e)
+            {
+                summary.Ok = false;
+                summary.Error = e.Message;
+            }
+            finally
+            {
+                if (table.IsCreated) table.Dispose();
+            }
+            return summary;
+        }
+
         // Degrees of elbow swivel produced per 1 cm of lateral tracker position error at this pose.
         // High values = a tracker here will look jittery/unstable for tiny tracking noise.
         static float TrackerSensitivity(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hintPos, float baseSwivel)

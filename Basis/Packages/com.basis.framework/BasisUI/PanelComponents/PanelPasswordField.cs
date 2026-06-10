@@ -20,6 +20,8 @@ namespace Basis.BasisUI
         [SerializeField] public LayoutElement LayoutElement;
         [SerializeField] public TMP_InputField _inputField;
         [SerializeField] public TextMeshProUGUI _placeholderField;
+
+        protected override Selectable InteractableTarget => _inputField;
         [SerializeField] protected Toggle _showToggle;
         [SerializeField] protected Image _visibleIcon;
         [SerializeField] protected Image _invisibleIcon;

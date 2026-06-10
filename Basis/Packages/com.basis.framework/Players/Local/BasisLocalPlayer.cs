@@ -451,6 +451,9 @@ namespace Basis.Scripts.BasisSdk.Players
             // now lets move the local player position.
             LocalCharacterDriver.SimulateMovement(DeltaTime);
 
+            // VR play space grab/drag override (no-op unless enabled and a controller input is held).
+            BasisLocalPlayspaceMover.Simulate(this, DeltaTime);
+
             // Apply virtual data (e.g. seat driver) before polling input devices so that
             // localToWorldMatrix reflects the seat-adjusted player position. This ensures
             // bone world positions and raycast origins are correct while seated (#514).

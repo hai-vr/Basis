@@ -1,5 +1,6 @@
 using Basis;
 using Basis.BasisUI;
+using Basis.Scripts.Drivers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -168,6 +169,58 @@ public static class SettingsProviderIK
             AddFBIKTogglesCompact);
 
         SyncMasterEuroFromChildren();
+
+        // ------------------
+        // Playspace Mover
+        // ------------------
+        CreateCollapsibleSection(tabDesc, ikGroup,
+            BasisLocalization.Get("settings.bodyTracking.playspaceMover.title"),
+            BasisLocalization.Get("settings.bodyTracking.playspaceMover.description"), false, moverParent =>
+        {
+            var enableToggle = PanelToggle.CreateNewEntry(moverParent);
+            enableToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable"));
+            enableToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable.tooltip"));
+            enableToggle.AssignBinding(BasisSettingsDefaults.EnablePlayspaceMover);
+
+            var inputDropdown = PanelDropdown.CreateNewEntry(moverParent);
+            inputDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.input"));
+            inputDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.input.tooltip"));
+            inputDropdown.AssignLocalizedEntries(
+                new List<string> { BasisLocalPlayspaceMover.InputGrip, BasisLocalPlayspaceMover.InputTrigger, BasisLocalPlayspaceMover.InputPrimary, BasisLocalPlayspaceMover.InputSecondary },
+                new List<string> { "settings.bodyTracking.playspaceMover.input.grip", "settings.bodyTracking.playspaceMover.input.trigger", "settings.bodyTracking.playspaceMover.input.primary", "settings.bodyTracking.playspaceMover.input.secondary" });
+            inputDropdown.AssignBinding(BasisSettingsDefaults.PlayspaceMoverInput);
+
+            var handDropdown = PanelDropdown.CreateNewEntry(moverParent);
+            handDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.hand"));
+            handDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.hand.tooltip"));
+            handDropdown.AssignLocalizedEntries(
+                new List<string> { BasisLocalPlayspaceMover.HandBoth, BasisLocalPlayspaceMover.HandLeft, BasisLocalPlayspaceMover.HandRight },
+                new List<string> { "settings.bodyTracking.playspaceMover.hand.both", "settings.bodyTracking.playspaceMover.hand.left", "settings.bodyTracking.playspaceMover.hand.right" });
+            handDropdown.AssignBinding(BasisSettingsDefaults.PlayspaceMoverHand);
+
+            var rotateToggle = PanelToggle.CreateNewEntry(moverParent);
+            rotateToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.rotate"));
+            rotateToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.rotate.tooltip"));
+            rotateToggle.AssignBinding(BasisSettingsDefaults.PlayspaceMoverRotate);
+
+            var rotateInputDropdown = PanelDropdown.CreateNewEntry(moverParent);
+            rotateInputDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.rotateInput"));
+            rotateInputDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.rotateInput.tooltip"));
+            rotateInputDropdown.AssignLocalizedEntries(
+                new List<string> { BasisLocalPlayspaceMover.InputGrip, BasisLocalPlayspaceMover.InputTrigger, BasisLocalPlayspaceMover.InputPrimary, BasisLocalPlayspaceMover.InputSecondary },
+                new List<string> { "settings.bodyTracking.playspaceMover.input.grip", "settings.bodyTracking.playspaceMover.input.trigger", "settings.bodyTracking.playspaceMover.input.primary", "settings.bodyTracking.playspaceMover.input.secondary" });
+            rotateInputDropdown.AssignBinding(BasisSettingsDefaults.PlayspaceMoverRotateInput);
+
+            var scaleToggle = PanelToggle.CreateNewEntry(moverParent);
+            scaleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.scale"));
+            scaleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.scale.tooltip"));
+            scaleToggle.AssignBinding(BasisSettingsDefaults.PlayspaceMoverScale);
+
+            var resetButton = PanelButton.CreateNew(moverParent);
+            resetButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset"));
+            resetButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset.tooltip"));
+            resetButton.OnClicked += BasisLocalPlayspaceMover.ResetOffset;
+        });
 
         // ------------------
         // Advanced IK toggle
@@ -1041,6 +1094,14 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.CustomScale.ResetToDefault();
         BasisSettingsDefaults.SelectedScale.ResetToDefault();
 
+        // Playspace Mover
+        BasisSettingsDefaults.EnablePlayspaceMover.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverInput.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverRotateInput.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverHand.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverRotate.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverScale.ResetToDefault();
+
         // Global One Euro / smoothing parameters
         BasisSettingsDefaults.FBIKSmoothingStrength.ResetToDefault();
         BasisSettingsDefaults.FBIKMinCutoff.ResetToDefault();
@@ -1349,12 +1410,10 @@ public static class SettingsProviderIK
             return;
 
         bool isSeated = GetCurrentText(dropdownSeatedMode) == SeatedMode_Seated;
-        SetDropdownInteractable(dropdownIKMode, !isSeated);
+        dropdownIKMode.SetInteractable(!isSeated,
+            isSeated ? BasisLocalization.Get("settings.bodyTracking.ikMode.disabledSeated") : null);
     }
 
     private static string GetCurrentText(PanelDropdown dd)
         => dd.DropdownComponent.options[dd.DropdownComponent.value].text;
-
-    private static void SetDropdownInteractable(PanelDropdown dd, bool interactable)
-        => dd.DropdownComponent.interactable = interactable;
 }

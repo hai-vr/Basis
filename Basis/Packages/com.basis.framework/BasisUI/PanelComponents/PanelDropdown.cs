@@ -19,6 +19,8 @@ namespace Basis.BasisUI
 
         public TMP_Dropdown DropdownComponent;
 
+        protected override Selectable InteractableTarget => DropdownComponent;
+
         private int _previousIndex = -1;
         private TweenScale _selectionPunchTween;
         private TweenCanvasGroupAlpha _listFadeTween;
