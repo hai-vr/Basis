@@ -185,8 +185,7 @@ namespace Basis.Scripts.Networking
                 string userName = BasisDataStore.LoadString(UsernameFileName, string.Empty);
                 if (string.IsNullOrEmpty(userName))
                 {
-                    BasisDebug.LogWarning(
-                        $"Auto-connect skipped: no saved username yet. Set one via the Servers panel and reconnect.");
+                    ReportConnectionError("Set a username before joining a server.");
                     return;
                 }
 
@@ -200,6 +199,7 @@ namespace Basis.Scripts.Networking
         private static bool TryGetBootstrapConnection(out ServerDirectoryEntry entry)
         {
             if (TryGetCommandLineConnection(out entry)) return true;
+            if (BasisDeepLinkProvider.TryConsumeStartupLink(out entry)) return true;
 #if UNITY_EDITOR
             if (BasisAppRelaunch.TryConsumeEditorConnection(out string editorConnection)
                 && BuildEntryFromConnectionString(editorConnection, out entry))
