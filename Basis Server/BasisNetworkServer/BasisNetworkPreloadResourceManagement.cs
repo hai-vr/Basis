@@ -83,6 +83,15 @@ public static class BasisNetworkPreloadResourceManagement
         // Store in the main resource database too
         BasisNetworkResourceManagement.UshortNetworkDatabase.TryAdd(netId, resource);
 
+        // No peers: complete immediately rather than waiting for the 5-minute timeout
+        if (peerCount == 0)
+        {
+            BNL.Log($"PreloadResourceManagement: No peers connected, completing {netId} immediately");
+            session.TimeoutCts.Cancel();
+            BroadcastSpawnSignal(netId);
+            return;
+        }
+
         // Start timeout task
         _ = RunTimeoutAsync(netId, session);
     }
@@ -156,9 +165,11 @@ public static class BasisNetworkPreloadResourceManagement
 
         // Only unload existing scenes when the synchronized resource is itself a scene.
         // Props (Mode == 0) should never cause scene unloads.
+        // Exclude loadedNetId — that is the scene being switched TO; removing it would
+        // race against the SpawnPreloaded signal on the client.
         if (session.Resource.Mode == 1)
         {
-            UnloadAllSceneResources(peerSnapshot);
+            UnloadAllSceneResources(peerSnapshot, loadedNetId);
         }
 
         SpawnPreloadedMessage spawnMsg = new SpawnPreloadedMessage
@@ -178,10 +189,10 @@ public static class BasisNetworkPreloadResourceManagement
     /// Unloads all scene-type resources (Mode == 1) from the server database
     /// and broadcasts unload messages to all clients through the normal unload channel.
     /// </summary>
-    private static void UnloadAllSceneResources(NetPeer[] peerSnapshot)
+    private static void UnloadAllSceneResources(NetPeer[] peerSnapshot, string excludeNetId = null)
     {
         var sceneResources = BasisNetworkResourceManagement.UshortNetworkDatabase.Values
-            .Where(r => r.Mode == 1)
+            .Where(r => r.Mode == 1 && r.LoadedNetID != excludeNetId)
             .ToArray();
 
         if (sceneResources.Length == 0) return;

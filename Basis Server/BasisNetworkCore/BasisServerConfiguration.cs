@@ -104,6 +104,14 @@ public class Configuration
     public bool CrashReportingEnabled = true;
     public float MaxMicrophoneRangeMeters = 25f;
     public float MaxHearingRangeMeters = 25f;
+
+    // ── REST API ──────────────────────────────────────────────────────────────
+    /// <summary>Set to true to enable the REST management API.</summary>
+    public bool ApiEnabled = false;
+    public string ApiHost = "localhost";
+    public ushort ApiPort = 10667;
+    /// <summary>Bearer token required on every API request. Empty string disables the API even if ApiEnabled is true.</summary>
+    public string ApiKey = "";
     /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath.
     /// Also loads per-transport config sidecars from <c>{configDir}/transports/{stackId}.xml</c>.

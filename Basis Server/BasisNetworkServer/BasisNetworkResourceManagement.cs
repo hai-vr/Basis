@@ -130,6 +130,25 @@ public static class BasisNetworkResourceManagement
             BNL.LogError("Already have Object Loaded With " + LocalLoadResource.LoadedNetID);
         }
     }
+    // Server-authoritative path — skips IsAdminLocked peer check because the caller
+    // (REST API, etc.) is already authenticated at a higher level than any game peer.
+    // Returns false if the resource was not found (TryRemove failed atomically).
+    public static bool UnloadResource(UnLoadResource unLoadResource)
+    {
+        if (!UshortNetworkDatabase.TryRemove(unLoadResource.LoadedNetID, out _))
+        {
+            BNL.LogError($"[Server] Trying to unload an object that does not exist: {unLoadResource.LoadedNetID}");
+            return false;
+        }
+
+        NetDataWriter writer = NetworkServer.RentWriter();
+        unLoadResource.Serialize(writer);
+        BNL.Log("Removing Object (server) " + unLoadResource.LoadedNetID);
+        NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.UnloadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+        NetworkServer.ReturnWriter(writer);
+        return true;
+    }
+
     public static void UnloadResource(UnLoadResource unLoadResource, NetPeer peer)
     {
         if (!UshortNetworkDatabase.TryGetValue(unLoadResource.LoadedNetID, out LocalLoadResource resource))

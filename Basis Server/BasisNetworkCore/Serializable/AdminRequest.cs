@@ -118,6 +118,10 @@ namespace BasisNetworkCore.Serializable
             LogBundleBegin,   // server→client: start of a transfer. Payload: [string serverNameSafe][string fileName][bool isCompressed][int payloadBytes][int rawBytes][int totalChunks]
             LogBundleChunk,   // server→client: one ordered chunk. Payload: [int chunkIndex][lenPrefixed bytes]
             LogBundleEnd,     // server→client: end of transfer. Payload: [bool ok][string message]
+
+            // server→client: clear all locally loaded scenes regardless of netId.
+            // No payload. Handles orphaned scenes the server doesn't know about.
+            ClearAllScenes,
         }
     }
 }
