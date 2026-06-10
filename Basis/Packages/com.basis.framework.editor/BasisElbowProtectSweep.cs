@@ -78,7 +78,7 @@ namespace Basis.IK.Debugging
                 SameSideBlend = 1.0f,
                 WrongSideBlend = 1.0f,
                 DepthScaleRange = 0.04f,   // soft engagement gate; matches the shipped live value
-                DownBias = 0.7f,           // aim the pinned elbow down (kills the chicken-wing); 0 = straight out
+                DownBias = 1.0f,           // aim the pinned elbow fully down (kills the chicken-wing); 0 = straight out
 
                 // Reach across and around the body so the upper arm sweeps in and out of the torso.
                 MinFrac = new Vector3(-1.3f, -1.1f, -0.5f),
