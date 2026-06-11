@@ -271,11 +271,28 @@ namespace Basis.BasisUI
             whitelistToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.whitelistOnly"));
             whitelistToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.whitelistOnly.tooltip"));
             whitelistToggle.Descriptor.SetDescription("When on, only UUIDs in BasisWhiteList.txt may connect. Setting persists to config.xml.");
+            whitelistToggle.SetValueWithoutNotify(
+                BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.WhiteList);
             whitelistToggle.OnValueChanged += value =>
             {
                 BasisNetworkModeration.SetWhitelistMode(
                     value ? BasisUserRestrictionMode.WhiteList : BasisUserRestrictionMode.Normal);
             };
+
+            PanelToggle rejoinLockToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
+            rejoinLockToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.rejoinLockOnly"));
+            rejoinLockToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.rejoinLockOnly.tooltip"));
+            rejoinLockToggle.Descriptor.SetDescription("Locks the server to the players connected right now: they can disconnect and rejoin, but nobody new can join. Admins can always join, and a server restart clears it. Turning on Whitelist turns this off. Persists to config.xml.");
+            rejoinLockToggle.SetValueWithoutNotify(
+                BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.RejoinOnly);
+            rejoinLockToggle.OnValueChanged += value =>
+            {
+                BasisNetworkModeration.SetWhitelistMode(
+                    value ? BasisUserRestrictionMode.RejoinOnly : BasisUserRestrictionMode.Normal);
+            };
+
+            controller.WhitelistToggle = whitelistToggle;
+            controller.RejoinLockToggle = rejoinLockToggle;
 
             PanelTextField whitelistUuidField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
             whitelistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.whitelistUuid"));
@@ -501,6 +518,8 @@ namespace Basis.BasisUI
             public PanelToggle AdditionalAvatarDataLockToggle;
             public PanelToggle HeadlessAudioToggle;
             public PanelToggle HeadlessDisallowToggle;
+            public PanelToggle WhitelistToggle;
+            public PanelToggle RejoinLockToggle;
             public PanelSlider OpusPacketLossSlider;
             public PanelSlider MaxMicrophoneRangeSlider;
             public PanelSlider MaxHearingRangeSlider;
@@ -528,6 +547,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnAudioRangeLimitsChanged += OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged += OnGlobalCameraPolicyChanged;
+                BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
+                BasisNetworkModeration.OnGlobalRestrictionModeChanged += OnGlobalRestrictionModeChanged;
             }
 
             private void OnDisable()
@@ -542,6 +563,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
+                BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
             }
 
             private void OnDestroy()
@@ -554,6 +576,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
+                BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -600,6 +623,12 @@ namespace Basis.BasisUI
             private void OnGlobalCameraPolicyChanged(byte mask)
             {
                 ApplyCameraMask?.Invoke(mask);
+            }
+
+            private void OnGlobalRestrictionModeChanged(BasisUserRestrictionMode mode)
+            {
+                if (WhitelistToggle != null) WhitelistToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.WhiteList);
+                if (RejoinLockToggle != null) RejoinLockToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.RejoinOnly);
             }
         }
     }

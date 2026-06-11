@@ -284,6 +284,17 @@ namespace BasisServerHandle
                 return;
             }
 
+            // Rejoin-only lockdown: only UUIDs captured when the mode was enabled may (re)connect.
+            // Config-editor admins always bypass so an admin can't lock themselves out.
+            if (NetworkServer.Configuration.BasisUserRestrictionMode == BasisUserRestrictionMode.RejoinOnly
+                && !BasisRejoinLockManager.IsAllowed(UUID)
+                && !PermissionIntegration.HasValidRequirement(UUID, PermNodes.ConfigurationEditor))
+            {
+                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — server locked to current players (rejoin-only).");
+                RejectWithReason(newPeer, "The server is locked — only players already here may rejoin.");
+                return;
+            }
+
             bool added = NetworkServer.AuthenticatedPeers.TryAdd(PeerId, newPeer);
             if (!added)
             {

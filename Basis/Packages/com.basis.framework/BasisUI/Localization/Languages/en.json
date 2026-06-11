@@ -1527,6 +1527,10 @@
       "value": "Allow only whitelisted players to connect to this server."
     },
     {
+      "key": "settings.admin.title.rejoinLockOnly.tooltip",
+      "value": "Lock the server to the players connected now — they can rejoin, but nobody new can join. Admins can still join; clears on restart."
+    },
+    {
       "key": "settings.admin.title.whitelistUuid.tooltip",
       "value": "The player identifier to add to or remove from the whitelist."
     },
@@ -7261,6 +7265,10 @@
     {
       "key": "settings.admin.title.whitelistOnly",
       "value": "Whitelist Only"
+    },
+    {
+      "key": "settings.admin.title.rejoinLockOnly",
+      "value": "Lockdown — Rejoin Only"
     },
     {
       "key": "settings.admin.title.whitelistUuid",

@@ -8,5 +8,6 @@ namespace BasisNetworkCore.Security
         Normal,
         BlackList,
         WhiteList,
+        RejoinOnly,
     }
 }

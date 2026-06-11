@@ -670,6 +670,16 @@ public static class BasisNetworkModeration
     public static event Action<byte> OnGlobalCameraPolicyChanged;
 
     /// <summary>
+    /// Server-pushed player join restriction mode (Normal / WhiteList / RejoinOnly). Cached from the
+    /// lock-state payload — sent on connect and whenever an admin changes it — so the admin panel
+    /// toggles can reflect the live server state instead of always reading off.
+    /// </summary>
+    public static BasisUserRestrictionMode GlobalUserRestrictionMode { get; private set; } = BasisUserRestrictionMode.Normal;
+
+    /// <summary>Fired when the server-pushed restriction mode changes.</summary>
+    public static event Action<BasisUserRestrictionMode> OnGlobalRestrictionModeChanged;
+
+    /// <summary>
     /// Current headless audio state received from the server.
     /// True means headless clients should keep BasisAudioClipPlayer off.
     /// </summary>
@@ -734,7 +744,21 @@ public static class BasisNetworkModeration
                 OnGlobalCameraPolicyChanged?.Invoke(GlobalCameraDisallowMask);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}", BasisDebug.LogTag.Networking);
+        // BasisUserRestrictionMode appended after CameraMetadataDisallowMask (1 byte). Same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            byte nextRestriction = reader.GetByte();
+            if (Enum.IsDefined(typeof(BasisUserRestrictionMode), nextRestriction))
+            {
+                BasisUserRestrictionMode parsedRestriction = (BasisUserRestrictionMode)nextRestriction;
+                if (parsedRestriction != GlobalUserRestrictionMode)
+                {
+                    GlobalUserRestrictionMode = parsedRestriction;
+                    OnGlobalRestrictionModeChanged?.Invoke(GlobalUserRestrictionMode);
+                }
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 

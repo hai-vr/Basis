@@ -109,6 +109,8 @@ namespace BasisNetworkServer.Security
             writer.Put(AdditionalAvatarDataLock);
             // Appended after AdditionalAvatarDataLock (1 byte) — older clients parsing 6 bools still work.
             writer.Put(CameraMetadataDisallowMask);
+            // Appended after CameraMetadataDisallowMask (1 byte) — older clients that stop reading earlier still parse.
+            writer.Put((byte)NetworkServer.Configuration.BasisUserRestrictionMode);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -130,6 +132,8 @@ namespace BasisNetworkServer.Security
             writer.Put(AdditionalAvatarDataLock);
             // Appended after AdditionalAvatarDataLock (1 byte) — older clients parsing 6 bools still work.
             writer.Put(CameraMetadataDisallowMask);
+            // Appended after CameraMetadataDisallowMask (1 byte) — older clients that stop reading earlier still parse.
+            writer.Put((byte)NetworkServer.Configuration.BasisUserRestrictionMode);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

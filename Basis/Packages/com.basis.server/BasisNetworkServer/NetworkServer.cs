@@ -75,6 +75,11 @@ public static class NetworkServer
         StopServer();
         Configuration = configuration;
 
+        // Rejoin-only lockdown means "the players here right now" — meaningless after a restart, and a
+        // persisted RejoinOnly would boot with an empty snapshot and lock everyone out. Reset to Normal.
+        if (configuration.BasisUserRestrictionMode == BasisNetworkCore.Security.BasisUserRestrictionMode.RejoinOnly)
+            configuration.BasisUserRestrictionMode = BasisNetworkCore.Security.BasisUserRestrictionMode.Normal;
+
         HighQualityLength = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
         InitializePulseSettings();
         InitializeAuth();

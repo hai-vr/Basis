@@ -488,7 +488,15 @@ namespace BasisNetworkServer.Security
                 return $"Unknown restriction mode value {mode}.";
             BasisUserRestrictionMode parsed = (BasisUserRestrictionMode)mode;
             NetworkServer.Configuration.BasisUserRestrictionMode = parsed;
+
+            if (parsed == BasisUserRestrictionMode.RejoinOnly)
+                BasisRejoinLockManager.CaptureCurrentPopulation();
+            else
+                BasisRejoinLockManager.Clear();
+
             SaveConfig();
+            // Restriction mode rides on the lock-state payload; push it so connected clients refresh.
+            BasisGlobalLockManager.BroadcastLockState();
             return $"Restriction mode set to {parsed}.";
         }
 
