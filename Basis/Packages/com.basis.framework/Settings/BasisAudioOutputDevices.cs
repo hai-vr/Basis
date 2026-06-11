@@ -14,6 +14,19 @@ public static class BasisAudioOutputDevices
 #if UNITY_STANDALONE_WIN
     public static bool IsSupported => Application.platform == RuntimePlatform.WindowsPlayer || Application.platform == RuntimePlatform.WindowsEditor;
 
+    private static bool _routedThisSession;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void RegisterRoutingCleanup()
+    {
+        Application.quitting += ClearRoutingOnQuit;
+    }
+
+    private static void ClearRoutingOnQuit()
+    {
+        if (_routedThisSession) SetRoutedDevice(string.Empty);
+    }
+
     private static readonly Guid CLSID_MMDeviceEnumerator = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
     private static readonly Guid IID_IMMDeviceEnumerator = new Guid("A95664D2-9614-4F35-A746-DE8DB63617E6");
     private static readonly Guid IID_AudioPolicyConfig_21H2 = new Guid("ab3d4648-e242-459f-b02f-541c70306324");
@@ -264,6 +277,7 @@ public static class BasisAudioOutputDevices
 
     public static bool SetRoutedDevice(string rawDeviceId)
     {
+        _routedThisSession = !string.IsNullOrEmpty(rawDeviceId);
         IntPtr factory = CreatePolicyConfigFactory();
         if (factory == IntPtr.Zero) return false;
 

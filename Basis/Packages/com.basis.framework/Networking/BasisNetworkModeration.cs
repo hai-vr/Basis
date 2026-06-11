@@ -748,9 +748,9 @@ public static class BasisNetworkModeration
         if (reader.AvailableBytes >= 1)
         {
             byte nextRestriction = reader.GetByte();
-            if (Enum.IsDefined(typeof(BasisUserRestrictionMode), nextRestriction))
+            BasisUserRestrictionMode parsedRestriction = (BasisUserRestrictionMode)nextRestriction;
+            if (Enum.IsDefined(typeof(BasisUserRestrictionMode), parsedRestriction))
             {
-                BasisUserRestrictionMode parsedRestriction = (BasisUserRestrictionMode)nextRestriction;
                 if (parsedRestriction != GlobalUserRestrictionMode)
                 {
                     GlobalUserRestrictionMode = parsedRestriction;
