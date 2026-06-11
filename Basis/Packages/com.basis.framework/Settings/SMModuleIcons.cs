@@ -13,7 +13,6 @@ public class SMModuleIcons : BasisSettingsBase
     // --- Canonical setting keys (from defaults) ---
     private static string K_AVATAR_PREVIEW   => BasisSettingsDefaults.AvatarPreview.BindingKey;
     private static string K_AVATAR_PREVIEW_MIRROR => BasisSettingsDefaults.AvatarPreviewMirror.BindingKey;
-    private static string K_CAMERA_HUD       => BasisSettingsDefaults.CameraHud.BindingKey;
     private static string K_DESKTOP_RETICLE  => BasisSettingsDefaults.DesktopReticle.BindingKey;
 #if !BASIS_DISABLE_MICROPHONE
     private static string K_MICROPHONE_ICON          => BasisSettingsDefaults.MicrophoneIcon.BindingKey;
@@ -37,13 +36,6 @@ public class SMModuleIcons : BasisSettingsBase
         {
             bool mirrored = optionValue == "true";
             BasisLocalCameraDriver.Instance.avatarPreviewDriver.SetMirror(mirrored);
-            return;
-        }
-
-        if (matchedSettingName == K_CAMERA_HUD)
-        {
-            bool enabled = optionValue == "true";
-            BasisLocalCameraDriver.Instance.cameraHudDriver.SetEnabled(enabled);
             return;
         }
 

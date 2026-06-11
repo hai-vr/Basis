@@ -112,44 +112,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// while this is greater than zero and restored when the last camera closes.</summary>
     private static int _activeHandHeldCount;
 
-    /// <summary>All handheld cameras currently out, oldest first. <see cref="Active"/> is the most recent.</summary>
-    private static readonly List<BasisHandHeldCamera> _activeCameras = new List<BasisHandHeldCamera>();
-
-    /// <summary>The most recently brought-out handheld camera, or null when none are out.</summary>
-    public static BasisHandHeldCamera Active => _activeCameras.Count > 0 ? _activeCameras[_activeCameras.Count - 1] : null;
-
-    /// <summary>Raised when a handheld camera is brought out or closed (so <see cref="Active"/> may have changed).</summary>
-    public static event Action ActiveChanged;
-
-    /// <summary>Live preview/capture render texture, exposed for the HUD mirror. Swapped while a photo is taken.</summary>
-    public RenderTexture PreviewTexture => renderTexture;
-
-    /// <summary>While true, every handheld camera keeps rendering even when its in-world screen is off-view, so a HUD mirror stays live.</summary>
-    private static bool _livePreviewRequired;
-
-    /// <summary>Sets whether handheld cameras must keep rendering for an off-screen HUD mirror, refreshing any live cameras.</summary>
-    public static void SetLivePreviewRequired(bool required)
-    {
-        if (_livePreviewRequired == required)
-        {
-            return;
-        }
-        _livePreviewRequired = required;
-        for (int i = 0; i < _activeCameras.Count; i++)
-        {
-            _activeCameras[i].RefreshLivePreviewState();
-        }
-    }
-
-    /// <summary>Re-evaluates this camera's render gating after the live-preview requirement changes.</summary>
-    public void RefreshLivePreviewState()
-    {
-        if (Renderer != null)
-        {
-            VisibilityFlag(Renderer.isVisible);
-        }
-    }
-
     /// <summary>Folder where screenshots are written (platform-dependent).</summary>
     private string picturesFolder;
 
@@ -188,12 +150,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
 
-        _activeCameras.Add(this);
-        ActiveChanged?.Invoke();
-        if (_livePreviewRequired)
-        {
-            RefreshLivePreviewState();
-        }
+        SubscribePreviewScreen();
 
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied += SyncBackgroundFromMainCamera;
@@ -236,8 +193,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         _activeHandHeldCount = Mathf.Max(0, _activeHandHeldCount - 1);
         ApplyReticleSuppression();
 
-        _activeCameras.Remove(this);
-        ActiveChanged?.Invoke();
+        UnsubscribePreviewScreen();
+        DespawnPreviewScreen();
 
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
@@ -624,6 +581,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             actualMaterial.SetTexture("_MainTex", CopyCameraColorToStaticRTFeature.OutputRT);
         }
 
+        UpdatePreviewScreenTexture();
+
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
@@ -660,6 +619,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
 
         VisibilityFlag(Renderer != null && Renderer.isVisible);
+        UpdatePreviewScreen();
     }
 
     /// <summary>UI callback to toggle recording view and apply <see cref="OverrideDesktopOutput"/>.</summary>
@@ -801,7 +761,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (BasisLocalPlayer.Instance == null)
             return;
 
-        bool shouldRender = isVisible || IsOverridingDesktopView || _livePreviewRequired;
+        bool shouldRender = isVisible || IsOverridingDesktopView;
         if (shouldRender == LastVisibilityState)
             return;
 

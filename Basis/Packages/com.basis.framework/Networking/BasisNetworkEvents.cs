@@ -645,6 +645,11 @@ public static class BasisNetworkEvents
     }
     public static void HandleDisconnectionReason(DisconnectInfo disconnectInfo)
     {
+        if (disconnectInfo.Reason == DisconnectReason.DisconnectPeerCalled)
+        {
+            BasisDebug.Log($"Disconnected locally [{disconnectInfo.Reason}]", BasisDebug.LogTag.Networking);
+            return;
+        }
 #if UNITY_SERVER
         bool canShowMenu = !UnityEngine.Application.isBatchMode;
 #endif

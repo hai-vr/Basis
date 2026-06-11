@@ -20,7 +20,7 @@
     },
     {
       "key": "settings.general.cameraHud.tooltip",
-      "value": "In VR, show a live preview of what your handheld camera sees, pinned to the top-right of your view."
+      "value": "VR only: spawns a grabbable, resizable screen by your handheld camera showing its view, while the camera is in direct-to-screen (recording) mode."
     },
     {
       "key": "settings.general.thirdPerson.tooltip",
@@ -3147,6 +3147,54 @@
       "value": "This item is admin-locked; only a moderator can change it."
     },
     {
+      "key": "library.instantiated.select.tooltip",
+      "value": "Highlight this item in the world with a selection outline. Click again to clear it."
+    },
+    {
+      "key": "library.instantiated.teleport.tooltip",
+      "value": "Teleport yourself to this item."
+    },
+    {
+      "key": "library.instantiated.remove.tooltip",
+      "value": "Remove this item."
+    },
+    {
+      "key": "library.instantiated.icon.admin.tooltip",
+      "value": "Protected — only an admin can remove this item."
+    },
+    {
+      "key": "library.instantiated.icon.type.avatar.tooltip",
+      "value": "Avatar"
+    },
+    {
+      "key": "library.instantiated.icon.type.gameObject.tooltip",
+      "value": "Prop / game object"
+    },
+    {
+      "key": "library.instantiated.icon.type.scene.tooltip",
+      "value": "Scene / world"
+    },
+    {
+      "key": "library.instantiated.icon.method.embedded.tooltip",
+      "value": "Embedded — shipped with the build."
+    },
+    {
+      "key": "library.instantiated.icon.method.local.tooltip",
+      "value": "Local — spawned only on your client."
+    },
+    {
+      "key": "library.instantiated.icon.method.network.tooltip",
+      "value": "Networked — spawned for everyone."
+    },
+    {
+      "key": "library.instantiated.icon.persistent.tooltip",
+      "value": "Persistent — stays when the instance empties."
+    },
+    {
+      "key": "library.instantiated.icon.ephemeral.tooltip",
+      "value": "Temporary — removed when the instance empties."
+    },
+    {
       "key": "library.dialog.add.title",
       "value": "Add New Content"
     },
@@ -3508,11 +3556,11 @@
     },
     {
       "key": "settings.general.cameraHud",
-      "value": "Camera HUD"
+      "value": "Camera Preview Screen"
     },
     {
       "key": "settings.general.cameraHud.description",
-      "value": "In VR, mirror your handheld camera's view onto your HUD so you can frame shots without looking at the camera screen."
+      "value": "In VR, spawn a movable, resizable screen next to your handheld camera that shows its view while the camera is in direct-to-screen (recording) mode. Grab with both hands to resize."
     },
     {
       "key": "settings.general.camera.title",
@@ -3625,6 +3673,22 @@
     {
       "key": "settings.audio.mixer.description",
       "value": "Control individual channel volumes."
+    },
+    {
+      "key": "settings.audio.output.title",
+      "value": "Output"
+    },
+    {
+      "key": "settings.audio.outputDevice",
+      "value": "Output Device"
+    },
+    {
+      "key": "settings.audio.outputDevice.tooltip",
+      "value": "Routes this app's audio to a specific playback device without changing your system default. Choose Default to follow the system device."
+    },
+    {
+      "key": "settings.audio.outputDevice.systemDefault",
+      "value": "Default (System Setting)"
     },
     {
       "key": "settings.audio.mainVolume",

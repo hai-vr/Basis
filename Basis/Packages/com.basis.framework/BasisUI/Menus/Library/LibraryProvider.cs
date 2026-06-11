@@ -1894,6 +1894,7 @@ namespace Basis.BasisUI
                 PanelImage adminPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
                 adminPanelImage.SetSize(new Vector2(80, 80));
                 adminPanelImage.SetIcon(AddressableAssets.Sprites.Admin);
+                adminPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.admin.tooltip"));
             }
 
             // create an image for the list entry to show what type of spawn method was used
@@ -1904,12 +1905,15 @@ namespace Basis.BasisUI
             {
                 case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
                     spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Avatars);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.avatar.tooltip"));
                     break;
                 case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
                     spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Items);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.gameObject.tooltip"));
                     break;
                 case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
                     spawnModePanelImage.SetIcon(AddressableAssets.Sprites.World);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.scene.tooltip"));
                     break;
             }
 
@@ -1921,12 +1925,15 @@ namespace Basis.BasisUI
             {
                 case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
                     spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Embedded);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.embedded.tooltip"));
                     break;
                 case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
                     spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Computer);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.local.tooltip"));
                     break;
                 case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
                     spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Network);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.network.tooltip"));
                     break;
             }
 
@@ -1939,9 +1946,11 @@ namespace Basis.BasisUI
             {
                 case true:
                     persistencePanelImage.SetIcon(AddressableAssets.Sprites.Pin);
+                    persistencePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.persistent.tooltip"));
                     break;
                 case false:
                     persistencePanelImage.SetIcon(AddressableAssets.Sprites.HourGlass);
+                    persistencePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.ephemeral.tooltip"));
                     break;
             }
 
@@ -1968,6 +1977,13 @@ namespace Basis.BasisUI
 
             itemTextInfo.Descriptor.SetDescription(BasisLocalization.Get("library.instantiated.createdAgoBy", LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc), createdDisplayName)); // {description}
 
+            // Tooltip surfaces the content's own description when present — never the source URL, which
+            // must not be exposed in the UI. (For items without metadata the visible name is already the
+            // raw URL, so we don't repeat it here either.)
+            if (hasMetaData && !string.IsNullOrEmpty(itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription))
+            {
+                itemTextInfo.Descriptor.SetTooltip(itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription);
+            }
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
@@ -1986,6 +2002,7 @@ namespace Basis.BasisUI
             selectItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
             selectItem.Descriptor.SetActive(!isScene);
+            selectItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.select.tooltip"));
             selectItem.OnClicked += async () =>
             {
                 if(hasSelected)
@@ -2012,6 +2029,7 @@ namespace Basis.BasisUI
             TeleportToItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
 
             TeleportToItem.Descriptor.SetActive(!isScene);
+            TeleportToItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.teleport.tooltip"));
             TeleportToItem.OnClicked += () =>
             {
 
@@ -2101,6 +2119,7 @@ namespace Basis.BasisUI
             removeItem.SetIcon(AddressableAssets.Sprites.Trash);
             removeItem.SetSize(new Vector2(80, 80));
             removeItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
+            removeItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.remove.tooltip"));
 
             // only apply this to items that are spawned on the network
             if(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network)

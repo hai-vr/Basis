@@ -701,6 +701,36 @@ namespace Basis.BasisUI
             sliderPropVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.propVolume.tooltip"));
             sliderPropVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyPropVolume);
 
+            // OUTPUT DEVICE
+            if (BasisAudioOutputDevices.IsSupported)
+            {
+                PanelElementDescriptor outputGroup =
+                    PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                outputGroup.SetTitle(BasisLocalization.Get("settings.audio.output.title"));
+
+                PanelDropdown dropdownOutputDevice = PanelDropdown.CreateNewEntry(outputGroup);
+                dropdownOutputDevice.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.outputDevice"));
+                dropdownOutputDevice.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.outputDevice.tooltip"));
+
+                List<BasisAudioOutputDevices.OutputDevice> outputDevices = BasisAudioOutputDevices.GetDevices();
+                List<string> outputIds = new List<string>(outputDevices.Count + 1) { string.Empty };
+                List<string> outputNames = new List<string>(outputDevices.Count + 1) { BasisLocalization.Get("settings.audio.outputDevice.systemDefault") };
+                for (int i = 0; i < outputDevices.Count; i++)
+                {
+                    outputIds.Add(outputDevices[i].Id);
+                    outputNames.Add(outputDevices[i].Name);
+                }
+                dropdownOutputDevice.AssignEntries(outputIds, outputNames);
+                dropdownOutputDevice.SetValueWithoutNotify(BasisAudioOutputDevices.GetRoutedDeviceId());
+
+                void OutputDeviceChanged(string deviceId)
+                {
+                    if (!BasisAudioOutputDevices.SetRoutedDevice(deviceId))
+                        BasisDebug.LogWarning("Failed to route audio to the selected output device.");
+                }
+                dropdownOutputDevice.OnValueChanged += OutputDeviceChanged;
+            }
+
             // Remote Players (Spatial Audio) — also hosts Hearing Range and the
             // Audio Source cap, since both are "how do I hear other players" controls.
             SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
