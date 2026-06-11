@@ -23,7 +23,7 @@ public partial class BasisHandHeldCamera
     public float previewScreenMinScalePercent = 40f;
 
     /// <summary>Largest the screen can be resized to, as a percent of its spawn size (two-hand gesture).</summary>
-    public float previewScreenMaxScalePercent = 400f;
+    public float previewScreenMaxScalePercent = 1200f;
 
     private GameObject previewScreenGO;
     private Material previewScreenMaterial;
