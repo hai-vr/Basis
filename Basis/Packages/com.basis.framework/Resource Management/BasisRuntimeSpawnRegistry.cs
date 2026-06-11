@@ -53,6 +53,7 @@ namespace Basis
             public bool isProtected; // this determines if the item is admin protected
             public bool Persistent;
             public bool Static; // server-authoritative "static / locked" flag: pickup disabled + frozen (prop) or locked out (vehicle)
+            public bool StaticAdminLocked; // admin tier of the static lock: only a moderator (not the creator) can change it
             public DateTime SpawnedUtc;
             public BasisBundleConnector bundleConnector; // metadata for the spawned entity, assume it to be null when not present.
         }
@@ -297,7 +298,7 @@ namespace Basis
         /// object via any <see cref="IBasisStaticLockable"/> components (pickup prop or vehicle).
         /// Main-thread only (touches GameObjects).
         /// </summary>
-        public static void SetStaticByLoadedNetId(string loadedNetId, bool isStatic)
+        public static void SetStaticByLoadedNetId(string loadedNetId, bool isStatic, bool adminLocked)
         {
             if (string.IsNullOrWhiteSpace(loadedNetId)) return;
 
@@ -305,8 +306,10 @@ namespace Basis
             if (instance != null)
             {
                 instance.Static = isStatic;
+                instance.StaticAdminLocked = adminLocked;
             }
 
+            // The freeze itself is identical for both lock tiers — only the authority to change it differs.
             if (SpawnedGameobjects.TryGetValue(loadedNetId, out GameObject go) && go != null)
             {
                 BasisSpawnedStaticState.Apply(go, isStatic);

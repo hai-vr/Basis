@@ -1,4 +1,5 @@
 using Basis.BasisUI;
+using Basis.Scripts.Device_Management;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -8,6 +9,7 @@ namespace Basis.Scripts.Drivers
     /// top-right of the view, so the wearer can see what the camera sees without looking at
     /// the physical camera screen. Reuses that camera's existing preview render texture (no
     /// extra camera or render pass) and keeps it rendering while shown.
+    /// VR only — in desktop the camera's own screen and recording-view output already cover this.
     /// Off by default; toggled via the CameraHud setting.
     /// </summary>
     [System.Serializable]
@@ -70,15 +72,9 @@ namespace Basis.Scripts.Drivers
 
         private void OnActiveCameraChanged()
         {
-            bool hasCamera = active && BasisHandHeldCamera.Active != null;
-            BasisHandHeldCamera.SetLivePreviewRequired(hasCamera);
-
-            if (hasCamera)
+            if (BasisHandHeldCamera.Active == null)
             {
-                CreateObjects();
-            }
-            else
-            {
+                BasisHandHeldCamera.SetLivePreviewRequired(false);
                 DestroyObjects();
             }
         }
@@ -129,8 +125,13 @@ namespace Basis.Scripts.Drivers
         {
             if (!active) return;
 
-            BasisHandHeldCamera cam = BasisHandHeldCamera.Active;
-            if (cam == null) return;
+            if (!ShouldShow())
+            {
+                Hide();
+                return;
+            }
+
+            BasisHandHeldCamera.SetLivePreviewRequired(true);
 
             if (displayGO == null)
             {
@@ -138,7 +139,7 @@ namespace Basis.Scripts.Drivers
                 if (displayGO == null) return;
             }
 
-            RenderTexture rt = cam.PreviewTexture;
+            RenderTexture rt = BasisHandHeldCamera.Active.PreviewTexture;
             if (rt == null || !rt.IsCreated())
             {
                 if (displayGO.activeSelf) displayGO.SetActive(false);
@@ -165,6 +166,24 @@ namespace Basis.Scripts.Drivers
             float displayWidth = displayHeight * aspect;
             displayGO.transform.localScale = new Vector3(displayWidth, displayHeight, 1f);
             displayGO.transform.localPosition = new Vector3(halfW - displayWidth * 0.5f, halfH - displayHeight * 0.5f, 1f);
+        }
+
+        /// <summary>True only while enabled, a camera is out, and the user is in VR (hidden in desktop/mobile).</summary>
+        private bool ShouldShow()
+        {
+            return active
+                && BasisHandHeldCamera.Active != null
+                && BasisDeviceManagement.IsCurrentModeVR();
+        }
+
+        /// <summary>Hides the sprite and stops forcing the camera to render (desktop mode, or no camera out).</summary>
+        private void Hide()
+        {
+            BasisHandHeldCamera.SetLivePreviewRequired(false);
+            if (displayGO != null && displayGO.activeSelf)
+            {
+                displayGO.SetActive(false);
+            }
         }
 
         /// <summary>Destroys all runtime objects and unsubscribes. Safe to call multiple times.</summary>

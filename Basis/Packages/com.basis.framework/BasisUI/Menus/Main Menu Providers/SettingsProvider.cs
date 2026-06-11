@@ -2216,6 +2216,20 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.GridSnapSize);
             sliderGridSnapSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.size.tooltip"));
 
+            PanelToggle toggleForceRotationSnap = PanelToggle.CreateNewEntry(gridSnapGroup.ContentParent);
+            toggleForceRotationSnap.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gridSnap.forceRotation"));
+            toggleForceRotationSnap.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.forceRotation.tooltip"));
+            toggleForceRotationSnap.AssignBinding(BasisSettingsDefaults.ForceRotationSnap);
+
+            PanelSlider sliderRotationSnapDegrees = PanelSlider.CreateEntryAndBind(
+                gridSnapGroup.ContentParent,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.gridSnap.rotation"),
+                    BasisLocalization.Get("settings.developer.gridSnap.rotation.description"),
+                    1f, 90f, false, 1, ValueDisplayMode.Degrees),
+                BasisSettingsDefaults.RotationSnapDegrees);
+            sliderRotationSnapDegrees.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.rotation.tooltip"));
+
             // ---- Camera Render Rates ----
             PanelElementDescriptor cameraRateGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2618,6 +2632,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
             BasisSettingsDefaults.ForceGridSnap.ResetToDefault();
             BasisSettingsDefaults.GridSnapSize.ResetToDefault();
+            BasisSettingsDefaults.ForceRotationSnap.ResetToDefault();
+            BasisSettingsDefaults.RotationSnapDegrees.ResetToDefault();
             BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
             BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
             BasisSettingsDefaults.LimitAvatarPreviewRate.ResetToDefault();

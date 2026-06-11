@@ -140,7 +140,7 @@ public static class BasisNetworkSpawnItem
     /// The server authorizes (item creator or moderator) and, on success, rebroadcasts the
     /// change to every client. Mode is 0 for GameObjects, 1 for scenes (matches the spawn record).
     /// </summary>
-    public static void RequestSetStatic(string LoadedNetID, byte Mode, bool IsStatic)
+    public static void RequestSetStatic(string LoadedNetID, byte Mode, bool IsStatic, bool AdminLocked)
     {
         if (string.IsNullOrEmpty(LoadedNetID))
         {
@@ -148,11 +148,11 @@ public static class BasisNetworkSpawnItem
             return;
         }
 
-        ModifyResource modifyResource = new ModifyResource { LoadedNetID = LoadedNetID, Mode = Mode, Static = IsStatic };
+        ModifyResource modifyResource = new ModifyResource { LoadedNetID = LoadedNetID, Mode = Mode, Static = IsStatic, StaticAdminLocked = AdminLocked };
         NetDataWriter writer = new NetDataWriter();
         modifyResource.Serialize(writer);
 
-        BasisDebug.Log($"Sending static modify request with NetID: {LoadedNetID} Static={IsStatic}", BasisDebug.LogTag.Networking);
+        BasisDebug.Log($"Sending static modify request with NetID: {LoadedNetID} Static={IsStatic} AdminLocked={AdminLocked}", BasisDebug.LogTag.Networking);
         BasisNetworkConnection.LocalPlayerPeer?.Send(writer, BasisNetworkCommons.ModifyResourceChannel, DeliveryMethod.ReliableOrdered);
     }
 
@@ -259,7 +259,7 @@ public static class BasisNetworkSpawnItem
         // If the server already flagged this item static (e.g. for a late joiner), freeze it now.
         if (localLoadResource.Static)
         {
-            BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(localLoadResource.LoadedNetID, true);
+            BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(localLoadResource.LoadedNetID, localLoadResource.Static, localLoadResource.StaticAdminLocked);
         }
 #if UNITY_SERVER
         BasisHeadlessManagement.StripTextureReferencesFromRoot(reference);

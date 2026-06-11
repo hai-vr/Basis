@@ -859,9 +859,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     pos = SnapPositionToGrid(pos, forceGridSnap ? BasisSettingsDefaults.GridSnapSize.RawValue : gridSnapSize);
                 }
-                if (enableRotationSnap)
+                bool forceRotationSnap = BasisSettingsDefaults.ForceRotationSnap.RawValue;
+                if (enableRotationSnap || forceRotationSnap)
                 {
-                    rot = SnapRotationToDegrees(rot, rotationSnapDegrees);
+                    rot = SnapRotationToDegrees(rot, forceRotationSnap ? BasisSettingsDefaults.RotationSnapDegrees.RawValue : rotationSnapDegrees);
                 }
 
                 if (constrainToAxis != BasisAxisType.None)

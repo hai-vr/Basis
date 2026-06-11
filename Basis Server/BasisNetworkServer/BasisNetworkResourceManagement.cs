@@ -198,32 +198,43 @@ public static class BasisNetworkResourceManagement
             return;
         }
 
-        // Authorize: the item's creator, or a moderator (protection permission), may change static.
+        // Admin-lock implies frozen — a request can't ask for "admin-locked but movable".
+        bool targetAdminLocked = modifyResource.StaticAdminLocked;
+        bool targetStatic = modifyResource.Static || targetAdminLocked;
+
+        // Authorize. Any transition that touches the admin tier (entering OR leaving it) requires a
+        // moderator — the item's creator can't set or clear an admin lock. Plain static toggles
+        // (the non-admin tier) also allow the creator.
+        bool involvesAdminTier = resource.StaticAdminLocked || targetAdminLocked;
         bool isModerator = PermissionIntegration.HasValidRequirement(peer, PermNodes.protection);
         bool isCreator = NetworkServer.AuthIdentity.NetIDToUUID(peer, out string requesterUuid)
             && !string.IsNullOrEmpty(resource.UUIDOfCreator)
             && requesterUuid == resource.UUIDOfCreator;
-        if (!isModerator && !isCreator)
+        bool allowed = involvesAdminTier ? isModerator : (isCreator || isModerator);
+        if (!allowed)
         {
             return;
         }
 
         // No-op if nothing changes, to avoid spamming the network.
-        if (resource.Static == modifyResource.Static)
+        if (resource.Static == targetStatic && resource.StaticAdminLocked == targetAdminLocked)
         {
             return;
         }
 
         // LocalLoadResource is a value type, so mutate a copy and write it back.
-        resource.Static = modifyResource.Static;
+        resource.Static = targetStatic;
+        resource.StaticAdminLocked = targetAdminLocked;
         UshortNetworkDatabase[modifyResource.LoadedNetID] = resource;
 
-        // Normalize the broadcast to the stored mode so every client agrees on routing.
+        // Normalize the broadcast so every client agrees on the resolved state + routing.
+        modifyResource.Static = targetStatic;
+        modifyResource.StaticAdminLocked = targetAdminLocked;
         modifyResource.Mode = resource.Mode;
 
         NetDataWriter writer = NetworkServer.RentWriter();
         modifyResource.Serialize(writer);
-        BNL.Log($"Set Static={modifyResource.Static} on Object {modifyResource.LoadedNetID}");
+        BNL.Log($"Set Static={targetStatic} AdminLocked={targetAdminLocked} on Object {modifyResource.LoadedNetID}");
         NetworkServer.BroadcastMessageToClients(
             writer,
             BasisNetworkCommons.ModifyResourceChannel,

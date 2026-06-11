@@ -20,7 +20,7 @@
     },
     {
       "key": "settings.general.cameraHud.tooltip",
-      "value": "Show a live preview of what your handheld camera sees, pinned to the top-right of your view."
+      "value": "In VR, show a live preview of what your handheld camera sees, pinned to the top-right of your view."
     },
     {
       "key": "settings.general.thirdPerson.tooltip",
@@ -3128,11 +3128,23 @@
     },
     {
       "key": "library.instantiated.static.tooltip",
-      "value": "Lock this item so no one can pick it up or move it (vehicles can't be driven). Only the item's creator or a moderator can change this."
+      "value": "Not locked. Click to lock so no one can pick it up or move it (vehicles can't be driven). Creator or moderators only."
+    },
+    {
+      "key": "library.instantiated.static.lockedTooltip",
+      "value": "Locked — no one can move this item. Click to unlock. Moderators can click to make it admin-locked."
+    },
+    {
+      "key": "library.instantiated.static.adminTooltip",
+      "value": "Admin-locked — no one can move this item, and only a moderator can unlock it. Click to unlock."
     },
     {
       "key": "library.instantiated.static.noPermission",
       "value": "Only the item's creator or a moderator can lock this item."
+    },
+    {
+      "key": "library.instantiated.static.adminOnly",
+      "value": "This item is admin-locked; only a moderator can change it."
     },
     {
       "key": "library.dialog.add.title",
@@ -3500,7 +3512,7 @@
     },
     {
       "key": "settings.general.cameraHud.description",
-      "value": "Mirror your handheld camera's view onto your HUD so you can frame shots without looking at the camera screen."
+      "value": "In VR, mirror your handheld camera's view onto your HUD so you can frame shots without looking at the camera screen."
     },
     {
       "key": "settings.general.camera.title",
@@ -5752,7 +5764,7 @@
     },
     {
       "key": "settings.developer.gridSnap.description",
-      "value": "Snap held props to a world-space grid. Forces grid snapping on every pickup locally, overriding each prop's own setting."
+      "value": "Snap held props to a world-space position grid and to fixed rotation increments. Forces snapping on every pickup locally, overriding each prop's own settings."
     },
     {
       "key": "settings.developer.gridSnap.force",
@@ -5773,6 +5785,26 @@
     {
       "key": "settings.developer.gridSnap.size.tooltip",
       "value": "Distance between grid snap points in meters."
+    },
+    {
+      "key": "settings.developer.gridSnap.forceRotation",
+      "value": "Force Rotation Snap"
+    },
+    {
+      "key": "settings.developer.gridSnap.forceRotation.tooltip",
+      "value": "When on, every prop you pick up snaps its rotation to fixed angle increments while held, even if the prop has rotation snap disabled."
+    },
+    {
+      "key": "settings.developer.gridSnap.rotation",
+      "value": "Rotation Snap Angle"
+    },
+    {
+      "key": "settings.developer.gridSnap.rotation.description",
+      "value": "Angular increment held props snap to when forcing rotation snap, in degrees."
+    },
+    {
+      "key": "settings.developer.gridSnap.rotation.tooltip",
+      "value": "Size of each rotation snap step in degrees."
     },
     {
       "key": "settings.developer.cameraRates.title",

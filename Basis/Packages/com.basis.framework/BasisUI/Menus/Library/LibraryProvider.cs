@@ -2040,25 +2040,59 @@ namespace Basis.BasisUI
                 }
             };
 
-            // Static (lock) toggle — networked game objects only; applies for everyone (server-authoritative).
+            // Static / lock toggle — networked game objects only; applies for everyone (server-authoritative).
+            // Cycles None -> Static (creator or moderator) -> Admin-locked (moderator only) -> None.
             if (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network && itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.GameObject)
             {
+                bool isAdmin = IsProtected;
+                bool isCreator = itemKey.UUIDOfCreator == BasisLocalPlayer.Instance.UUID;
+
+                // Current lock level: 0 = none, 1 = static (creator/mod), 2 = admin-locked (mod only).
+                int lockLevel = itemKey.StaticAdminLocked ? 2 : (itemKey.Static ? 1 : 0);
+
+                // Decide what the next press does and whether the local player is allowed to do it.
+                bool nextStatic;
+                bool nextAdmin;
+                bool canToggle;
+                switch (lockLevel)
+                {
+                    case 0: // none -> static
+                        nextStatic = true; nextAdmin = false;
+                        canToggle = isCreator || isAdmin;
+                        break;
+                    case 1: // static -> admin-lock (moderator) or -> none (creator)
+                        if (isAdmin) { nextStatic = true; nextAdmin = true; canToggle = true; }
+                        else { nextStatic = false; nextAdmin = false; canToggle = isCreator; }
+                        break;
+                    default: // 2: admin-lock -> none (moderator only)
+                        nextStatic = false; nextAdmin = false;
+                        canToggle = isAdmin;
+                        break;
+                }
+
                 PanelButton staticToggle = PanelButton.CreateNew(ButtonStyles.StandardButton, itemListPanel.TabButtonParent);
                 staticToggle.Descriptor.SetTitle(string.Empty);
-                staticToggle.SetIcon(itemKey.Static ? AddressableAssets.Sprites.Locked : AddressableAssets.Sprites.Unlocked);
+                staticToggle.SetIcon(lockLevel == 0 ? AddressableAssets.Sprites.Unlocked
+                                   : lockLevel == 1 ? AddressableAssets.Sprites.Locked
+                                   : AddressableAssets.Sprites.Admin);
                 staticToggle.SetSize(new Vector2(80, 80));
                 staticToggle.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
-                staticToggle.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.static.tooltip"));
+                staticToggle.Descriptor.SetTooltip(BasisLocalization.Get(
+                    lockLevel == 0 ? "library.instantiated.static.tooltip"
+                  : lockLevel == 1 ? "library.instantiated.static.lockedTooltip"
+                  : "library.instantiated.static.adminTooltip"));
 
-                // Only the item's creator or a moderator may change this.
-                bool canToggleStatic = itemKey.UUIDOfCreator == BasisLocalPlayer.Instance.UUID || IsProtected;
-                staticToggle.SetInteractable(canToggleStatic, canToggleStatic ? null : BasisLocalization.Get("library.instantiated.static.noPermission"));
+                // Disabled reason depends on why: an admin-locked item can only be changed by a moderator.
+                string disabledReason = lockLevel == 2
+                    ? BasisLocalization.Get("library.instantiated.static.adminOnly")
+                    : BasisLocalization.Get("library.instantiated.static.noPermission");
+                staticToggle.SetInteractable(canToggle, canToggle ? null : disabledReason);
 
                 staticToggle.OnClicked += () =>
                 {
-                    // Mode 0 = GameObject. The server authorizes (creator or moderator) and rebroadcasts;
-                    // the row icon updates when that broadcast arrives (RegistryChangeType.Modified).
-                    BasisNetworkSpawnItem.RequestSetStatic(itemKey.LoadedNetID, 0, !itemKey.Static);
+                    // Mode 0 = GameObject. The server authorizes per tier and rebroadcasts; the row
+                    // icon updates when that broadcast arrives (RegistryChangeType.Modified).
+                    BasisNetworkSpawnItem.RequestSetStatic(itemKey.LoadedNetID, 0, nextStatic, nextAdmin);
                 };
             }
 

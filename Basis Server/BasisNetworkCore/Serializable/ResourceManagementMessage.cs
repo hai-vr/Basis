@@ -46,6 +46,12 @@ public static partial class SerializableBasis
         /// </summary>
         public bool Static;
         /// <summary>
+        /// when true the static lock is "admin tier": only a moderator (not the item's creator) may
+        /// change or clear it, and it implies <see cref="Static"/> is also true. Distinct from
+        /// <see cref="IsAdminLocked"/>, which is the removal lock.
+        /// </summary>
+        public bool StaticAdminLocked;
+        /// <summary>
         /// this is used to state if the scale should be set or
         /// just use whatever scale it thinks it is.
         /// </summary>
@@ -67,6 +73,7 @@ public static partial class SerializableBasis
 
             Persist = Writer.GetBool();
             Static = Writer.GetBool();
+            StaticAdminLocked = Writer.GetBool();
             ModifyScale = Writer.GetBool();
             LoadStrategy = Writer.GetByte();
             if (Mode == 0)
@@ -96,6 +103,7 @@ public static partial class SerializableBasis
             Writer.Put(IsAdminLocked);
             Writer.Put(Persist);
             Writer.Put(Static);
+            Writer.Put(StaticAdminLocked);
             Writer.Put(ModifyScale);
             Writer.Put(LoadStrategy);
             if (Mode == 0)

@@ -301,7 +301,7 @@ public static class BasisNetworkGenericMessages
         ModifyResource modifyResource = new ModifyResource();
         modifyResource.Deserialize(reader);
         // Apply the server-authoritative static/locked state to the registry record + live object.
-        Basis.BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(modifyResource.LoadedNetID, modifyResource.Static);
+        Basis.BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(modifyResource.LoadedNetID, modifyResource.Static, modifyResource.StaticAdminLocked);
         return Task.CompletedTask;
     }
 }
