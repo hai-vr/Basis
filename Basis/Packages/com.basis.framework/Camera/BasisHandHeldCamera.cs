@@ -726,6 +726,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     private new void OnBootModeChanged(string obj)
     {
         OverrideDesktopOutput();
+        HandHeld.RefreshDesktopOutputButtonVisibility();
         // base.OnBootModeChanged(obj);
     }
 

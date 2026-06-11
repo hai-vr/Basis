@@ -23,8 +23,6 @@ namespace Basis.Scripts.UI
         public const float SliderJoystickDeadzone = 0.2f;
         public const float SliderJoystickRangePerSecond = 0.6f;
         private PanelSlider _joystickDrivenSlider;
-        private PanelSlider _lastLoggedHover;
-        private float _nextAxisLogTime;
 
         private static bool IsTriggerDown(BasisInput input, bool wasDown)
         {
@@ -199,7 +197,6 @@ namespace Basis.Scripts.UI
             }
 
             float axisY = 0f;
-            bool rightHandFound = false;
             if (target != null)
             {
                 for (int Index = 0; Index < DevicesCount; Index++)
@@ -207,25 +204,10 @@ namespace Basis.Scripts.UI
                     BasisInput input = snapshot[Index];
                     if (input != null && input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.RightHand)
                     {
-                        rightHandFound = true;
                         axisY = input.CurrentInputState.Primary2DAxisRaw.y;
                         break;
                     }
                 }
-            }
-
-            // TEMP diagnostic — remove once joystick slider control is confirmed.
-            if (target != _lastLoggedHover)
-            {
-                _lastLoggedHover = target;
-                Debug.Log(target != null
-                    ? $"[SliderJoy] hovering '{target.name}' rightHand={rightHandFound}"
-                    : "[SliderJoy] no slider hovered");
-            }
-            if (target != null && Mathf.Abs(axisY) > 0.05f && Time.unscaledTime >= _nextAxisLogTime)
-            {
-                _nextAxisLogTime = Time.unscaledTime + 0.5f;
-                Debug.Log($"[SliderJoy] '{target.name}' axisY={axisY:F2} rightHand={rightHandFound}");
             }
 
             bool active = target != null && Mathf.Abs(axisY) >= SliderJoystickDeadzone;

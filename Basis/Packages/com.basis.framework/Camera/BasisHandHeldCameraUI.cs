@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Basis.BasisUI;
+using Basis.Scripts.Device_Management;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -132,6 +133,13 @@ public partial class BasisHandHeldCameraUI
         UpdateResolutionSprites();
         SetCapture360State(HHC != null && HHC.capture360Enabled);
         RefreshAllToggleIndicators();
+        RefreshDesktopOutputButtonVisibility();
+    }
+
+    public void RefreshDesktopOutputButtonVisibility()
+    {
+        if (OverrideDesktopOutput != null)
+            OverrideDesktopOutput.gameObject.SetActive(BasisDeviceManagement.IsCurrentModeVR());
     }
 
     private void CachePostProcessingReferences()
