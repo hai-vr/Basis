@@ -2039,7 +2039,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor recorderGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             recorderGroup.SetTitle(BasisLocalization.Get("settings.developer.recorder.title"));
-            recorderGroup.IsolateAsCanvas();
 
             PanelTextField recorderCountdownField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
             recorderCountdownField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.countdown"));
@@ -2078,6 +2077,12 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, recorderGroup.ContentParent);
             recorderStatusField.SetTitle(BasisLocalization.Get("settings.developer.recorder.status.title"));
             recorderStatusField.SetDescription(BasisLocalization.Get("settings.developer.recorder.status.idle"));
+            // Isolate only the read-only status field, not the whole group, so the fields/toggle/
+            // button above stay clickable. Basis's pointer hit-tests each canvas's GraphicRegistry
+            // separately and returns the first canvas hit by sortingOrder; a nested group canvas
+            // (sortingOrder 0, no overrideSorting) gets shadowed by the root canvas, so any control
+            // trapped inside it can't be selected.
+            recorderStatusField.IsolateAsCanvas();
 
             PanelButton recorderButton = PanelButton.CreateNew(recorderGroup.ContentParent);
             recorderButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.start"));
@@ -2106,7 +2111,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor voiceRangeGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             voiceRangeGroup.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.title"));
-            voiceRangeGroup.IsolateAsCanvas();
 
             PanelToggle voiceRangeToggle = PanelToggle.CreateNewEntry(voiceRangeGroup.ContentParent);
             voiceRangeToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.enable"));
@@ -2117,6 +2121,10 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, voiceRangeGroup.ContentParent);
             voiceRangeStatusField.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.status.title"));
             voiceRangeStatusField.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.empty"));
+            // Isolate only this live status field (it re-batches every tick via the updater below),
+            // not the whole group — otherwise the toggle above is trapped on the nested canvas and
+            // the pointer can't select it. See the recorder note above for the hit-test detail.
+            voiceRangeStatusField.IsolateAsCanvas();
 
             void RefreshVoiceRangeVisibility(bool on)
             {

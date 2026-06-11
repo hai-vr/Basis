@@ -51,6 +51,66 @@ namespace BasisNetworkServer.Security
             _ = Task.Run(() => BuildAndSend(peer));
         }
 
+        public static void DeleteAllLogsForPeer(NetPeer peer)
+        {
+            if (peer == null) return;
+
+            if (!NetworkServer.Configuration.HasFileSupport)
+            {
+                BasisPlayerModeration.SendBackMessage(peer, "File support is disabled on this server; there are no logs to delete.");
+                return;
+            }
+
+            // Deletion touches many files; keep it off the network thread.
+            _ = Task.Run(() => DeleteAll(peer));
+        }
+
+        private static void DeleteAll(NetPeer peer)
+        {
+            try
+            {
+                string baseDir = AppContext.BaseDirectory;
+                string logsDir = Path.Combine(baseDir, Configuration.LogsFolderName);
+                string crashDir = Path.Combine(baseDir, "CrashReports");
+
+                int deleted = DeleteDirectoryFiles(logsDir) + DeleteDirectoryFiles(crashDir);
+
+                // The error-report writer dedupes identical reports per user for this server
+                // session; forget that history so fresh occurrences are recorded again.
+                BasisNetworkHandleErrorReport.ClearAllSeen();
+
+                BasisPlayerModeration.SendBackMessage(peer, $"Deleted {deleted} log/crash file(s) from logs/ and CrashReports/.");
+                BNL.Log($"Admin (peer {peer.Id}) deleted {deleted} server log/crash file(s).");
+            }
+            catch (Exception e)
+            {
+                BNL.LogError($"Failed to delete logs: {e.Message}");
+                try { BasisPlayerModeration.SendBackMessage(peer, "Server failed to delete the logs. See server log."); }
+                catch { /* peer may be gone */ }
+            }
+        }
+
+        private static int DeleteDirectoryFiles(string sourceDir)
+        {
+            if (string.IsNullOrEmpty(sourceDir) || !Directory.Exists(sourceDir)) return 0;
+
+            int deleted = 0;
+            foreach (string file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    File.Delete(file);
+                    deleted++;
+                }
+                catch (Exception e)
+                {
+                    // The current day's log file is still open for append and can't be removed while running.
+                    BNL.LogWarning($"Could not delete log file '{file}' (in use?): {e.Message}");
+                }
+            }
+            return deleted;
+        }
+
         private static void BuildAndSend(NetPeer peer)
         {
             try

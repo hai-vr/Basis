@@ -212,6 +212,16 @@ public static class BasisNetworkModeration
         SendAdminRequest(AdminRequestMode.RequestAllLogs);
     }
 
+    /// <summary>
+    /// Admin: ask the server to permanently delete every file under its logs/ and
+    /// CrashReports/ folders — the same set <see cref="RequestAllLogs"/> pulls. The server
+    /// replies with a status message. Server-gated by basis.admin.logs.
+    /// </summary>
+    public static void DeleteAllLogs()
+    {
+        SendAdminRequest(AdminRequestMode.DeleteAllLogs);
+    }
+
     public static void DisplayMessage(string message)
     {
         if (ValidateString(message, nameof(message)))

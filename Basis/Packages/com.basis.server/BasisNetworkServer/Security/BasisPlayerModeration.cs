@@ -374,6 +374,11 @@ namespace BasisNetworkServer.Security
                         BasisServerLogBundleService.SendAllLogsToPeer(peer));
                     break;
 
+                case AdminRequestMode.DeleteAllLogs:
+                    Require(peer, PermNodes.AdminLogs, () =>
+                        BasisServerLogBundleService.DeleteAllLogsForPeer(peer));
+                    break;
+
                 case AdminRequestMode.SetGlobalHeadlessDisallow:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleHeadlessDisallowSet(peer, reader));

@@ -7391,6 +7391,14 @@
       "value": "Request all logs"
     },
     {
+      "key": "settings.admin.title.resetAllLogs",
+      "value": "Reset all logs"
+    },
+    {
+      "key": "settings.admin.title.resetAllLogs.tooltip",
+      "value": "Permanently delete the server's logs and crash reports."
+    },
+    {
       "key": "settings.admin.title.beeUrl",
       "value": "BEE URL"
     },

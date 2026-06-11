@@ -331,6 +331,17 @@ namespace Basis.BasisUI
             requestLogsButton.Descriptor.SetDescription("Asks the server to bundle and send every log and crash report. Requires the basis.admin.logs permission.");
             requestLogsButton.OnClicked += () => BasisNetworkModeration.RequestAllLogs();
 
+            PanelButton resetLogsButton = PanelButton.CreateNew(logsGroup.ContentParent);
+            resetLogsButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.resetAllLogs"));
+            resetLogsButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.resetAllLogs.tooltip"));
+            resetLogsButton.Descriptor.SetDescription("Permanently deletes every server log and crash report. This cannot be undone. Requires the basis.admin.logs permission.");
+            resetLogsButton.OnClicked += () => WithConfirm(
+                BasisLocalization.Get("settings.admin.title.resetAllLogs"),
+                "Permanently delete the server's logs and crash reports? This cannot be undone.",
+                "Delete",
+                "Cancel",
+                () => BasisNetworkModeration.DeleteAllLogs());
+
             // --- Default Library (saved to disk on the server, broadcast to all clients) ---
             BuildDefaultLibrarySection(container);
 

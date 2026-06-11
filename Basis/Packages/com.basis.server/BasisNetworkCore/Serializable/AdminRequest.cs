@@ -122,6 +122,8 @@ namespace BasisNetworkCore.Serializable
             // server→client: clear all locally loaded scenes regardless of netId.
             // No payload. Handles orphaned scenes the server doesn't know about.
             ClearAllScenes,
+
+            DeleteAllLogs,    // client→server (admin): delete every file under logs/ + CrashReports/. Gated by basis.admin.logs. No payload. Server replies with a status Message.
         }
     }
 }

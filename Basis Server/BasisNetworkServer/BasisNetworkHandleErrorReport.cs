@@ -36,6 +36,11 @@ namespace BasisNetworkServer
             SeenPerUser.TryRemove(uuid, out _);
         }
 
+        public static void ClearAllSeen()
+        {
+            SeenPerUser.Clear();
+        }
+
         public static void HandleEvent(NetPacketReader reader, NetPeer peer, byte eventType)
         {
             try
