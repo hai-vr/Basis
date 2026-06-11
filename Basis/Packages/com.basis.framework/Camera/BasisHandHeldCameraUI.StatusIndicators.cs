@@ -26,6 +26,9 @@ public partial class BasisHandHeldCameraUI
             case BasisCameraButtonAction.ToggleSelfie:
                 isOn = selfieBool;
                 return true;
+            case BasisCameraButtonAction.ToggleNameplates:
+                isOn = HHC.ShowUIInCapture;
+                return true;
             case BasisCameraButtonAction.ToggleDesktopOutput:
                 isOn = HHC.enableRecordingView;
                 return true;

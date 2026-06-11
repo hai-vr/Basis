@@ -81,7 +81,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public static PanelToggle BuildRemoteAudioUI(RectTransform container)
+        public static void BuildRemoteAudioUI(RectTransform container)
         {
             // ─────────────── LISTENER DIRECTIONAL DAMPENING (always visible) ───────────────
             PanelElementDescriptor listenerDampenGroup =
@@ -598,8 +598,6 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
                 transmissionGroup.SetActive(val);
                 lipSyncGroup.SetActive(val);
             };
-
-            return advancedToggle;
         }
 
         public static void ResetRemoteAudioToDefaults()

@@ -18,7 +18,7 @@ public partial class BasisHandHeldCameraUI
     public Button ResetButton;
     public Button CloseButton;
     public Button Timer;
-    public Button LayerDropdownButton;
+    public Button Nameplates;
     public Button OverrideDesktopOutput;
     public Button Selfie;
     public Button AutoLevelButton;
@@ -49,8 +49,6 @@ public partial class BasisHandHeldCameraUI
     public Toggle Resolution;
     public GameObject[] ResolutionSprites; // 4 resolution sprites
     private int currentResolutionIndex = 0;
-    private int _authoredCullingMask = -1;
-    private readonly List<(int layer, Toggle toggle)> _layerToggles = new List<(int layer, Toggle toggle)>();
 
     public Toggle Format;
     public bool useEXR => Format != null && Format.isOn;
@@ -65,12 +63,6 @@ public partial class BasisHandHeldCameraUI
     public GameObject DoFManualSprite;
 
     public Toggle Capture360Toggle;
-
-    [Space(10)]
-    public GameObject LayerDropdownPanel;
-    public RectTransform LayerToggleContent;
-    public Toggle LayerToggleTemplate;
-    public TextMeshProUGUI LayerDropdownLabel;
 
     [Space(10)]
     public Slider ExposureSlider;
@@ -120,9 +112,6 @@ public partial class BasisHandHeldCameraUI
     {
         HHC = hhc;
 
-        if (HHC.captureCamera != null)
-            _authoredCullingMask = HHC.captureCamera.cullingMask;
-
         CachePostProcessingReferences();
         SetupSliderRanges();
 
@@ -137,8 +126,6 @@ public partial class BasisHandHeldCameraUI
 
         // Load and apply settings after bindings are in place (but we use SetValueWithoutNotify to prevent spam)
         await LoadSettings();
-
-        BuildLayerDropdown();
 
         InitializeFormatUI();
         SeedInitialSliderValues();
@@ -172,7 +159,7 @@ public partial class BasisHandHeldCameraUI
         AddIf(list, "Timer", Timer, BasisCameraButtonAction.Timer);
 
         // Optional buttons (may be removed in your project)
-        AddIf(list, "LayerDropdown", LayerDropdownButton, BasisCameraButtonAction.ToggleLayerDropdown);
+        AddIf(list, "Nameplates", Nameplates, BasisCameraButtonAction.ToggleNameplates);
         AddIf(list, "OverrideDesktopOutput", OverrideDesktopOutput, BasisCameraButtonAction.ToggleDesktopOutput);
         AddIf(list, "Selfie", Selfie, BasisCameraButtonAction.ToggleSelfie);
         AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
@@ -250,8 +237,8 @@ public partial class BasisHandHeldCameraUI
                 button.onClick.AddListener(HHC.Timer);
                 break;
 
-            case BasisCameraButtonAction.ToggleLayerDropdown:
-                button.onClick.AddListener(ToggleLayerDropdownPanel);
+            case BasisCameraButtonAction.ToggleNameplates:
+                button.onClick.AddListener(HHC.Nameplates);
                 break;
 
             case BasisCameraButtonAction.ToggleDesktopOutput:
@@ -489,102 +476,6 @@ public partial class BasisHandHeldCameraUI
         BasisDebug.Log($"[360] Capture mode is now {(enabled ? "ON" : "OFF")}");
     }
 
-    public void ToggleLayerDropdownPanel()
-    {
-        if (LayerDropdownPanel == null)
-            return;
-
-        bool show = !LayerDropdownPanel.activeSelf;
-        LayerDropdownPanel.SetActive(show);
-
-        if (show && LayerDropdownButton != null)
-            LayerDropdownButton.transform.SetAsLastSibling();
-    }
-
-    private void BuildLayerDropdown()
-    {
-        if (LayerToggleContent == null || LayerToggleTemplate == null)
-            return;
-
-        _layerToggles.Clear();
-        LayerToggleTemplate.gameObject.SetActive(false);
-
-        for (int i = LayerToggleContent.childCount - 1; i >= 0; i--)
-        {
-            Transform child = LayerToggleContent.GetChild(i);
-            if (child == LayerToggleTemplate.transform)
-                continue;
-            if (LayerDropdownLabel != null && child == LayerDropdownLabel.transform)
-                continue;
-            UnityEngine.Object.Destroy(child.gameObject);
-        }
-
-        for (int layer = 0; layer < 32; layer++)
-        {
-            string layerName = LayerMask.LayerToName(layer);
-            if (string.IsNullOrEmpty(layerName))
-                continue;
-
-            Toggle toggle = UnityEngine.Object.Instantiate(LayerToggleTemplate, LayerToggleContent);
-            toggle.gameObject.name = $"Layer {layerName}";
-            toggle.gameObject.SetActive(true);
-
-            TextMeshProUGUI label = toggle.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (label != null)
-                label.text = layerName;
-
-            toggle.SetIsOnWithoutNotify(HHC != null && HHC.IsLayerVisible(layer));
-
-            int captured = layer;
-            toggle.onValueChanged.RemoveAllListeners();
-            toggle.onValueChanged.AddListener(on => OnLayerToggleChanged(captured, on));
-
-            _layerToggles.Add((layer, toggle));
-        }
-
-        if (LayerDropdownPanel != null)
-            LayerDropdownPanel.SetActive(false);
-
-        RefreshLayerDropdownLabel();
-    }
-
-    private void OnLayerToggleChanged(int layer, bool visible)
-    {
-        if (HHC != null)
-            HHC.SetLayerVisible(layer, visible);
-
-        RefreshLayerDropdownLabel();
-    }
-
-    private void RefreshLayerToggleStates()
-    {
-        if (HHC == null)
-            return;
-
-        foreach ((int layer, Toggle toggle) in _layerToggles)
-        {
-            if (toggle != null)
-                toggle.SetIsOnWithoutNotify(HHC.IsLayerVisible(layer));
-        }
-
-        RefreshLayerDropdownLabel();
-    }
-
-    private void RefreshLayerDropdownLabel()
-    {
-        if (LayerDropdownLabel == null)
-            return;
-
-        int count = 0;
-        foreach ((int layer, Toggle toggle) in _layerToggles)
-        {
-            if (HHC != null && HHC.IsLayerVisible(layer))
-                count++;
-        }
-
-        LayerDropdownLabel.text = $"Layers ({count})";
-    }
-
     public void SetDepthMode(DepthMode mode)
     {
         currentDepthMode = mode;
@@ -711,7 +602,6 @@ public partial class BasisHandHeldCameraUI
         {
             resolutionIndex = currentResolutionIndex,
             formatIndex = GetFormatIndex(),
-            cullingMask = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.cullingMask : 0,
             fov = FOVSlider != null ? FOVSlider.value : 40f,
             bloomIntensity = BloomIntensitySlider != null ? BloomIntensitySlider.value : 0.5f,
             bloomThreshold = BloomThresholdSlider != null ? BloomThresholdSlider.value : 0.5f,
@@ -798,9 +688,6 @@ public partial class BasisHandHeldCameraUI
             if (Resolution != null)
                 Resolution.SetIsOnWithoutNotify(false);
 
-            if (HHC.captureCamera != null)
-                HHC.captureCamera.cullingMask = settings.cullingMask != 0 ? settings.cullingMask : _authoredCullingMask;
-
             // Sliders and toggles (no notify)
             SetSliderValue(FOVSlider, settings.fov);
             SetSliderValue(BloomIntensitySlider, settings.bloomIntensity);
@@ -866,8 +753,6 @@ public partial class BasisHandHeldCameraUI
 
             // Update readouts
             RefreshAllReadouts();
-
-            RefreshLayerToggleStates();
 
             // Ensure format UI reflects toggle
             if (Format != null)

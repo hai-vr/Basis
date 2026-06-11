@@ -102,6 +102,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Pooled CPU-side texture for async GPU readbacks.</summary>
     private Texture2D pooledScreenshot;
 
+    /// <summary>Bitmask for the UI layer toggle in <see cref="Nameplates"/>.</summary>
+    private int uiLayerMask;
+
     /// <summary>Shared “clear to color” material (Unlit/Color).</summary>
     private static Material clearMaterial;
 
@@ -114,6 +117,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>Folder where screenshots are written (platform-dependent).</summary>
     private string picturesFolder;
+
+    /// <summary>Whether the UI/nameplates are currently visible in the capture.</summary>
+    private bool showUI = false;
+
+    /// <summary>Read-only view of <see cref="showUI"/> for UI status indicators.</summary>
+    public bool ShowUIInCapture => showUI;
 
     /// <summary>Last visibility state reported by the mesh renderer check.</summary>
     public bool LastVisibilityState = false;
@@ -142,6 +151,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         InitializeVolumetrics();
         InitializeFolders();
         await HandHeld.SaveSettings();
+        SetupUILayerMask();
         SetupClearMaterial();
 
         base.Awake();
@@ -335,6 +345,20 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
     }
 
+    /// <summary>Stores the UI layer bit as a culling mask for toggling nameplates.</summary>
+    private void SetupUILayerMask()
+    {
+        int uiLayer = LayerMask.NameToLayer("UI");
+        if (uiLayer < 0)
+        {
+            BasisDebug.LogError("UI Layer not found.");
+        }
+        else
+        {
+            uiLayerMask = 1 << uiLayer;
+        }
+    }
+
     /// <summary>Initializes a shared “clear to color” material lazily.</summary>
     private void SetupClearMaterial()
     {
@@ -520,16 +544,21 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         countdownText.text = ((int)delaySeconds).ToString();
     }
 
-    /// <summary>Returns whether the given layer renders into the capture.</summary>
-    public bool IsLayerVisible(int layer) => (captureCamera.cullingMask & (1 << layer)) != 0;
-
-    /// <summary>Adds or removes a layer from the capture camera's culling mask.</summary>
-    public void SetLayerVisible(int layer, bool visible)
+    /// <summary>Toggles UI/nameplates in/out of the capture via the UI layer bit.</summary>
+    public void Nameplates()
     {
-        if (visible)
-            captureCamera.cullingMask |= (1 << layer);
+        if (uiLayerMask == 0)
+        {
+            BasisDebug.LogWarning("UI Layer Mask was not initialized properly.");
+            return;
+        }
+
+        showUI = !showUI;
+
+        if (showUI)
+            captureCamera.cullingMask |= uiLayerMask;
         else
-            captureCamera.cullingMask &= ~(1 << layer);
+            captureCamera.cullingMask &= ~uiLayerMask;
     }
 
     /// <summary>Immediate photo capture using the current format choice (EXR/PNG).</summary>

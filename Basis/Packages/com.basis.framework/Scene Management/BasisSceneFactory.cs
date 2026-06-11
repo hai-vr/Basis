@@ -35,12 +35,22 @@ public static class BasisSceneFactory
     }
     private static void OnSceneUnloaded(Scene unloadedScene)
     {
+        ForceUnloadProbeVolumeData();
         // Check if any BasisScene still exists after the scene was unloaded
         BasisScene[] scenes = Object.FindObjectsByType<BasisScene>(FindObjectsInactive.Exclude);
         if (scenes.Length == 0)
         {
             LoadLoadingScene();
         }
+    }
+    private static void ForceUnloadProbeVolumeData()
+    {
+        ProbeReferenceVolume probeVolume = ProbeReferenceVolume.instance;
+        if (!probeVolume.isInitialized)
+        {
+            return;
+        }
+        probeVolume.PerformPendingOperations();
     }
     public static void BasisSceneDestroyed(BasisScene UnloadingScene)
     {

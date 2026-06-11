@@ -283,6 +283,7 @@ namespace Basis.Scripts.Networking
         private const string MutexName  = "BasisVR_DeepLink_Instance";
         private const string PipeName   = @"\\.\pipe\basisvr_deeplink";
         private const int    PipeBufSz  = 2048;
+        private static volatile bool _pipeStop;
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr CreateMutexW(IntPtr attr, bool owner, string name);
@@ -307,7 +308,8 @@ namespace Basis.Scripts.Networking
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool WriteFile(IntPtr file, byte[] buf, uint toWrite, out uint written, IntPtr overlapped);
 
-        // Returns true if this is the primary instance, false if secondary (caller should return immediately).
+        // Returns true to continue startup; false only when a second instance forwarded a
+        // deep link to the primary and is quitting. A second instance with no link runs normally.
         private static bool InitializeSingleInstance()
         {
             const int ERROR_ALREADY_EXISTS = 183;
@@ -316,24 +318,29 @@ namespace Basis.Scripts.Networking
 
             if (alreadyRunning)
             {
-                // Forward URL to primary instance, then quit this second instance.
                 string url = GetCliDeepLinkUrl();
-                if (!string.IsNullOrEmpty(url))
+                if (string.IsNullOrEmpty(url)) return true;
+
+                byte[] data = System.Text.Encoding.UTF8.GetBytes(url);
+                bool forwarded = false;
+                IntPtr pipe = CreateFileW(PipeName, 0x40000000u /*GENERIC_WRITE*/, 0,
+                    IntPtr.Zero, 3u /*OPEN_EXISTING*/, 0, IntPtr.Zero);
+                if (pipe != new IntPtr(-1))
                 {
-                    byte[] data = System.Text.Encoding.UTF8.GetBytes(url);
-                    IntPtr pipe = CreateFileW(PipeName, 0x40000000u /*GENERIC_WRITE*/, 0,
-                        IntPtr.Zero, 3u /*OPEN_EXISTING*/, 0, IntPtr.Zero);
-                    if (pipe != new IntPtr(-1))
-                    {
-                        WriteFile(pipe, data, (uint)data.Length, out _, IntPtr.Zero);
-                        CloseHandle(pipe);
-                    }
+                    forwarded = WriteFile(pipe, data, (uint)data.Length, out _, IntPtr.Zero);
+                    CloseHandle(pipe);
                 }
-                Application.Quit();
+
+                if (forwarded)
+                    BasisDebug.Log($"[BasisDeepLink] Another instance is already running — forwarded {url} to it; closing this second instance.");
+                else
+                    BasisDebug.LogWarning($"[BasisDeepLink] Another instance is already running — could not forward {url} over the pipe; closing this second instance anyway.");
+                System.Diagnostics.Process.GetCurrentProcess().Kill();
                 return false;
             }
 
             // Primary instance — listen for URLs forwarded by future second instances.
+            Application.quitting += StopPipeServer;
             Thread t = new Thread(PipeServerLoop) { IsBackground = true, Name = "BasisVR_PipeServer" };
             t.Start();
             return true;
@@ -346,13 +353,14 @@ namespace Basis.Scripts.Networking
             const uint PIPE_WAIT           = 0x0;
             IntPtr invalid = new IntPtr(-1);
 
-            while (true)
+            while (!_pipeStop)
             {
                 IntPtr pipe = CreateNamedPipeW(PipeName, PIPE_ACCESS_INBOUND,
                     PIPE_TYPE_BYTE | PIPE_WAIT, 1, 0, PipeBufSz, 0, IntPtr.Zero);
                 if (pipe == invalid) break;
 
                 if (!ConnectNamedPipe(pipe, IntPtr.Zero)) { CloseHandle(pipe); continue; }
+                if (_pipeStop) { CloseHandle(pipe); break; }
 
                 byte[] buf = new byte[PipeBufSz];
                 if (ReadFile(pipe, buf, (uint)buf.Length, out uint read, IntPtr.Zero) && read > 0)
@@ -364,6 +372,14 @@ namespace Basis.Scripts.Networking
 
                 CloseHandle(pipe);
             }
+        }
+
+        private static void StopPipeServer()
+        {
+            _pipeStop = true;
+            IntPtr c = CreateFileW(PipeName, 0x40000000u /*GENERIC_WRITE*/, 0,
+                IntPtr.Zero, 3u /*OPEN_EXISTING*/, 0, IntPtr.Zero);
+            if (c != new IntPtr(-1)) CloseHandle(c);
         }
 
         private static string GetCliDeepLinkUrl()
