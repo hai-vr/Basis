@@ -76,6 +76,7 @@ public partial class BasisHandHeldCamera
 
         previewScreenGO = GameObject.CreatePrimitive(PrimitiveType.Quad);
         previewScreenGO.name = "CameraPreviewScreen";
+        previewScreenGO.layer = LayerMask.NameToLayer("OverlayUI");
 
         if (previewScreenGO.TryGetComponent(out MeshCollider meshCollider))
         {

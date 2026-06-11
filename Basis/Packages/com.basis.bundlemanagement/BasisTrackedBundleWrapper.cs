@@ -69,8 +69,6 @@ public class BasisTrackedBundleWrapper
                     }
 
                     BasisDebug.LogError("Asset Bundle was null this should never occur");
-                    #else
-                    BasisDebug.LogError("Already Unloaded this bundle, check logic could be ok if you loaded this a few times and unloaded it quickly as well.");
                     #endif
                     return false;
                 }
