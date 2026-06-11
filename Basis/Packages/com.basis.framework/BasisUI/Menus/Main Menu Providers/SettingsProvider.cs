@@ -701,39 +701,50 @@ namespace Basis.BasisUI
             sliderPropVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.propVolume.tooltip"));
             sliderPropVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyPropVolume);
 
-            // OUTPUT DEVICE
+            // Remote Players (Spatial Audio) — also hosts Hearing Range and the
+            // Audio Source cap, since both are "how do I hear other players" controls.
+            PanelToggle audioAdvancedToggle = SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
+
+            // OUTPUT DEVICE (advanced)
             if (BasisAudioOutputDevices.IsSupported)
             {
                 PanelElementDescriptor outputGroup =
                     PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
                 outputGroup.SetTitle(BasisLocalization.Get("settings.audio.output.title"));
 
-                PanelDropdown dropdownOutputDevice = PanelDropdown.CreateNewEntry(outputGroup);
-                dropdownOutputDevice.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.outputDevice"));
-                dropdownOutputDevice.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.outputDevice.tooltip"));
-
-                List<BasisAudioOutputDevices.OutputDevice> outputDevices = BasisAudioOutputDevices.GetDevices();
-                List<string> outputIds = new List<string>(outputDevices.Count + 1) { string.Empty };
-                List<string> outputNames = new List<string>(outputDevices.Count + 1) { BasisLocalization.Get("settings.audio.outputDevice.systemDefault") };
-                for (int i = 0; i < outputDevices.Count; i++)
+                if (Application.platform == RuntimePlatform.WindowsPlayer || Application.platform == RuntimePlatform.WindowsEditor)
                 {
-                    outputIds.Add(outputDevices[i].Id);
-                    outputNames.Add(outputDevices[i].Name);
+                    outputGroup.SetDescription(BasisLocalization.Get("settings.audio.output.advisory"));
                 }
-                dropdownOutputDevice.AssignEntries(outputIds, outputNames);
-                dropdownOutputDevice.SetValueWithoutNotify(BasisAudioOutputDevices.GetRoutedDeviceId());
-
-                void OutputDeviceChanged(string deviceId)
+                else
                 {
-                    if (!BasisAudioOutputDevices.SetRoutedDevice(deviceId))
-                        BasisDebug.LogWarning("Failed to route audio to the selected output device.");
+                    PanelDropdown dropdownOutputDevice = PanelDropdown.CreateNewEntry(outputGroup);
+                    dropdownOutputDevice.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.outputDevice"));
+                    dropdownOutputDevice.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.outputDevice.tooltip"));
+
+                    List<BasisAudioOutputDevices.OutputDevice> outputDevices = BasisAudioOutputDevices.GetDevices();
+                    List<string> outputIds = new List<string>(outputDevices.Count + 1) { string.Empty };
+                    List<string> outputNames = new List<string>(outputDevices.Count + 1) { BasisLocalization.Get("settings.audio.outputDevice.systemDefault") };
+                    for (int i = 0; i < outputDevices.Count; i++)
+                    {
+                        outputIds.Add(outputDevices[i].Id);
+                        outputNames.Add(outputDevices[i].Name);
+                    }
+                    dropdownOutputDevice.AssignEntries(outputIds, outputNames);
+                    dropdownOutputDevice.SetValueWithoutNotify(BasisAudioOutputDevices.GetRoutedDeviceId());
+
+                    void OutputDeviceChanged(string deviceId)
+                    {
+                        if (!BasisAudioOutputDevices.SetRoutedDevice(deviceId))
+                            BasisDebug.LogWarning("Failed to route audio to the selected output device.");
+                    }
+                    dropdownOutputDevice.OnValueChanged += OutputDeviceChanged;
                 }
-                dropdownOutputDevice.OnValueChanged += OutputDeviceChanged;
+
+                outputGroup.SetActive(audioAdvancedToggle != null && audioAdvancedToggle.Value);
+                if (audioAdvancedToggle != null)
+                    audioAdvancedToggle.OnValueChanged += (val) => outputGroup.SetActive(val);
             }
-
-            // Remote Players (Spatial Audio) — also hosts Hearing Range and the
-            // Audio Source cap, since both are "how do I hear other players" controls.
-            SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
 
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.audio", ResetAudioDefaults);

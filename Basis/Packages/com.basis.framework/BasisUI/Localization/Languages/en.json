@@ -3676,7 +3676,11 @@
     },
     {
       "key": "settings.audio.output.title",
-      "value": "Output"
+      "value": "Output Device"
+    },
+    {
+      "key": "settings.audio.output.advisory",
+      "value": "To send Basis to a specific speaker or headset, use Windows' own Sound settings — right-click the volume icon, open Sound settings, then Volume mixer.\n\nBasis deliberately doesn't change the output device itself: Windows saves that choice per app, and it stops you from running more than one Basis at a time. So leave it on default here and pick the device in Windows instead."
     },
     {
       "key": "settings.audio.outputDevice",
