@@ -180,7 +180,10 @@ namespace HVR.Basis.Comms
             });
         }
 
-        private void Update()
+        private void OnEnable() => HVRCommsUpdateDriver.Register(this);
+        private void OnDisable() => HVRCommsUpdateDriver.Unregister(this);
+
+        internal void SimulateTick()
         {
             if (!_isInitialized || !_isWearer || !_isTrackingActive)
             {

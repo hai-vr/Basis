@@ -29,7 +29,9 @@ namespace HVR.Basis.Comms
         internal IHVRVariableBehaviour _behaviour;
 
         private void Awake() => _behaviour = isWearer ? new HVRVariableBehaviour_Wearer(this) : new HVRVariableBehaviour_Remote(this);
-        public void Update() => _behaviour.Update();
+        private void OnEnable() => HVRCommsUpdateDriver.Register(this);
+        private void OnDisable() => HVRCommsUpdateDriver.Unregister(this);
+        internal void SimulateTick() => _behaviour.Update();
         private void OnDestroy() => _behaviour.OnDestroy();
 
         public void RequireVariable(HVRVariable variable) => _behaviour.RequireVariable(variable);

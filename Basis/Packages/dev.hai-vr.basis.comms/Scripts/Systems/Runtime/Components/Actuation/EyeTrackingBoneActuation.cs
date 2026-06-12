@@ -122,11 +122,13 @@ namespace HVR.Basis.Comms
         private void OnEnable()
         {
             BasisNetworkTransmitter.AfterAvatarChanges += UpdateAfterAvatarChangesApplied;
+            HVRCommsUpdateDriver.Register(this);
         }
 
         private void OnDisable()
         {
             BasisNetworkTransmitter.AfterAvatarChanges -= UpdateAfterAvatarChangesApplied;
+            HVRCommsUpdateDriver.Unregister(this);
         }
 
         private void OnDestroy()
@@ -143,7 +145,7 @@ namespace HVR.Basis.Comms
             _eyeTracking?.OnDestroy();
         }
 
-        private void Update() => _eyeTracking?.Update();
+        internal void SimulateTick() => _eyeTracking?.Update();
         private void UpdateAfterAvatarChangesApplied() => _eyeTracking?.UpdateAfterAvatarChangesApplied();
 
         private class EyeTracking_Wearer : IEyeTracking

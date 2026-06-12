@@ -275,6 +275,7 @@ namespace Basis.EventDriver
             }
             ProfileEnd(PROF_LOCAL_PLAYER);
 
+            HVRCommsUpdateDriver.SimulateAll();
             BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
 
             // ── Remote audio simulate ──
