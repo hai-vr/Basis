@@ -469,7 +469,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.services.core": {
-      "version": "1.17.0",
+      "version": "1.18.0",
       "depth": 1,
       "source": "registry",
       "dependencies": {
@@ -506,7 +506,7 @@
       }
     },
     "com.unity.test-framework.performance": {
-      "version": "3.4.0",
+      "version": "3.5.0",
       "depth": 2,
       "source": "registry",
       "dependencies": {
