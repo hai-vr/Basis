@@ -11,6 +11,8 @@ using UnityEngine.Profiling;
 namespace GatorDragonGames.JigglePhysics {
 
 public class JiggleJobs {
+    public static bool UseMergedTransformReadReset = true;
+
     private JiggleMemoryBus _memoryBus;
 
     private JobHandle handlePersonalColliderRead;
@@ -50,6 +52,7 @@ public class JiggleJobs {
     private JiggleJobBulkColliderTransformRead jobBulkSceneColliderTransformRead;
     private JiggleJobBulkTransformRead jobBulkTransformRead;
     private JiggleJobBulkTransformReset jobBulkTransformReset;
+    private JiggleJobBulkTransformReadReset jobBulkTransformReadReset;
     private JiggleJobSimulate jobSimulate;
     private JiggleJobBulkReadRoots jobBulkReadRoots;
     private JiggleJobInterpolation jobInterpolation;
@@ -85,6 +88,7 @@ public class JiggleJobs {
         jobSimulate = new JiggleJobSimulate(_memoryBus, fixedDeltaTime);
         jobBulkTransformRead = new JiggleJobBulkTransformRead(_memoryBus);
         jobBulkTransformReset = new JiggleJobBulkTransformReset(_memoryBus);
+        jobBulkTransformReadReset = new JiggleJobBulkTransformReadReset(_memoryBus);
         jobBulkReadRoots = new JiggleJobBulkReadRoots(_memoryBus);
         jobInterpolation = new JiggleJobInterpolation(_memoryBus, fixedTime, fixedDeltaTime);
         jobBulkPersonalColliderTransformRead = new JiggleJobBulkColliderTransformRead(_memoryBus.personalColliders);
@@ -201,6 +205,7 @@ public class JiggleJobs {
             _memoryBus.CommitColliders();
             jobSimulate.UpdateArrays(_memoryBus);
             jobBulkTransformRead.UpdateArrays(_memoryBus);
+            jobBulkTransformReadReset.UpdateArrays(_memoryBus);
             jobBulkReadRoots.UpdateArrays(_memoryBus);
             jobInterpolation.UpdateArrays(_memoryBus);
             jobBulkPersonalColliderTransformRead.UpdateArrays(_memoryBus.personalColliders);
@@ -240,6 +245,7 @@ public class JiggleJobs {
         jobSimulate.timeIncrements = timeIncrements;
         jobBulkTransformReset.UpdateArrays(_memoryBus);
         jobBulkTransformRead.UpdateArrays(_memoryBus);
+        jobBulkTransformReadReset.UpdateArrays(_memoryBus);
         jobBulkPersonalColliderTransformRead.UpdateArrays(_memoryBus.personalColliders);
         jobBulkSceneColliderTransformRead.UpdateArrays(_memoryBus.sceneColliders);
         jobBroadPhase.UpdateArrays(_memoryBus);
@@ -279,14 +285,18 @@ public class JiggleJobs {
         handleBroadPhase = jobBroadPhase.Schedule(JobHandle.CombineDependencies(colliderHandles, handleBroadPhaseClear));
         hasHandleBroadPhase = true;
 
-        if (hasHandleTransformWrite) {
-            handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray(), JobHandle.CombineDependencies(colliderHandles, handleTransformWrite));
+        var bulkResetDep = hasHandleTransformWrite
+            ? JobHandle.CombineDependencies(colliderHandles, handleTransformWrite)
+            : colliderHandles;
+
+        if (UseMergedTransformReadReset) {
+            handleBulkRead = jobBulkTransformReadReset.Schedule(_memoryBus.GetTransformAccessArray(), bulkResetDep);
+            handleBulkReset = handleBulkRead;
         } else {
-            handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray(), colliderHandles);
+            handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray(), bulkResetDep);
+            handleBulkRead = jobBulkTransformRead.ScheduleReadOnly(_memoryBus.GetTransformAccessArray(), 128, handleBulkReset);
         }
         hasHandleBulkReset = true;
-
-        handleBulkRead = jobBulkTransformRead.ScheduleReadOnly(_memoryBus.GetTransformAccessArray(), 128, handleBulkReset);
         hasHandleBulkRead = true;
 
         handleInputInterpolate = jobInputInterpolation.ScheduleParallel(_memoryBus.transformCount, 128, handleBulkRead);
