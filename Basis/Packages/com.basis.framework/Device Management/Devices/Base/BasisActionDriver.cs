@@ -579,8 +579,8 @@ public static class BasisActionDriver
     // Per-role frame guard + reusable aggregate buffers for UpdatePlayerControlForRole: a role's
     // actions run once per frame against the combined state of all devices that hold the role.
     private static readonly Dictionary<BasisBoneTrackedRole, int> s_RoleDispatchFrame = new Dictionary<BasisBoneTrackedRole, int>(capacity: 4);
-    private static readonly BasisInputState s_AggCurrent = new BasisInputState();
-    private static readonly BasisInputState s_AggLast = new BasisInputState();
+    private static  BasisInputState s_AggCurrent = new BasisInputState();
+    private static  BasisInputState s_AggLast = new BasisInputState();
 
     /// <summary>
     /// Rebuilds and caches the compiled action delegate array for a single role.
