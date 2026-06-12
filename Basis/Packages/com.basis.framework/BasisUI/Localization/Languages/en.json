@@ -1235,6 +1235,18 @@
       "value": "Maximum number of physics colliders allowed per avatar."
     },
     {
+      "key": "settings.perf.jiggleFrustumCull.toggle.tooltip",
+      "value": "Skip jiggle collisions for colliders that are outside every camera's view."
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.toggle.tooltip",
+      "value": "Skip jiggle collisions for colliders far from every camera."
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.slider.tooltip",
+      "value": "Maximum distance from a camera at which jiggle collisions still run."
+    },
+    {
       "key": "settings.perf.cloth.toggle.tooltip",
       "value": "Limit how many cloth simulations another player's avatar may have."
     },
@@ -6781,6 +6793,18 @@
     {
       "key": "settings.perf.colliders.slider",
       "value": "Max Colliders"
+    },
+    {
+      "key": "settings.perf.jiggleFrustumCull.toggle",
+      "value": "Cull Off-Screen Collisions"
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.toggle",
+      "value": "Cull Distant Collisions"
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.slider",
+      "value": "Max Collision Distance"
     },
     {
       "key": "settings.perf.cloth.toggle",

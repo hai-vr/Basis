@@ -463,6 +463,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UsePerfLimitJiggleColliders = new("useperflimitjigglecolliders", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> MaxPerfJiggleColliders = new("maxperfjigglecolliders", new BasisPlatformDefault<float>(64));
 
+        public static BasisSettingsBinding<bool> UseJiggleCollisionFrustumCull = new("usejigglecollisionfrustumcull", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> UseJiggleCollisionDistanceCull = new("usejigglecollisiondistancecull", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> JiggleCollisionCullDistance = new("jigglecollisionculldistance", new BasisPlatformDefault<float>(20));
+
         // Animators default on at 1 — extras are a common perf trap (every child
         // Animator ticks every frame). Excess Animators are trimmed, not blocked.
         public static BasisSettingsBinding<bool> UsePerfLimitAnimators = new("useperflimitanimators", new BasisPlatformDefault<bool>(true));
@@ -1449,6 +1453,9 @@ namespace Basis.BasisUI
             MaxPerfJiggleBones.LoadBindingValue();
             UsePerfLimitJiggleColliders.LoadBindingValue();
             MaxPerfJiggleColliders.LoadBindingValue();
+            UseJiggleCollisionFrustumCull.LoadBindingValue();
+            UseJiggleCollisionDistanceCull.LoadBindingValue();
+            JiggleCollisionCullDistance.LoadBindingValue();
             UsePerfLimitAnimators.LoadBindingValue();
             MaxPerfAnimators.LoadBindingValue();
             UsePerfLimitBones.LoadBindingValue();

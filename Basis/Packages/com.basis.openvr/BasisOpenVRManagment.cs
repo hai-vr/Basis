@@ -24,6 +24,14 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public SteamVR_Render SteamVR_Render;
         public SteamVR SteamVR;
         public Dictionary<string, OpenVRDevice> TypicalDevices = new Dictionary<string, OpenVRDevice>();
+        /// <summary>
+        /// Maps a live device index to the uniqueID it was created with, captured at connect.
+        /// On disconnect the device index may be dead and its render-model property unreadable, so
+        /// recomputing the uniqueID can produce a different string, miss the teardown, and strand the
+        /// old input object on its hand role. Looking the id up here makes teardown target the exact
+        /// object that was created.
+        /// </summary>
+        private readonly Dictionary<uint, string> ConnectedIndexToUniqueID = new Dictionary<uint, string>();
         public bool IsInUse = false;
         /// <summary>
         /// When true, device creation/destruction from SteamVR events is suppressed.
@@ -68,11 +76,28 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             if (deviceConnected)
             {
+                // Remember the id this index was created with so teardown can find it even after the
+                // device goes dark and its render-model property can no longer be read.
+                ConnectedIndexToUniqueID[deviceIndex] = uniqueID;
                 CreateTrackerDevice(deviceIndex, deviceClass, uniqueID, notUnique);
             }
             else
             {
-                DestroyPhysicalTrackedDevice(uniqueID);
+                // Prefer the id captured at connect; recomputing from a now-dead index can yield a
+                // different string and leave the original input object stranded (a duplicate holder).
+                if (ConnectedIndexToUniqueID.TryGetValue(deviceIndex, out string knownUniqueID))
+                {
+                    ConnectedIndexToUniqueID.Remove(deviceIndex);
+                    DestroyPhysicalTrackedDevice(knownUniqueID);
+                }
+                else
+                {
+                    // No id was cached for this index (a disconnect with no matching connect, or the
+                    // cache was cleared underneath us). Fall back to the recomputed id, which can be
+                    // stale on a now-dead index and may leave a stranded holder — flag it.
+                    BasisDebug.LogError($"No cached uniqueID for disconnected device index {deviceIndex}; falling back to recomputed id {uniqueID}", BasisDebug.LogTag.Device);
+                    DestroyPhysicalTrackedDevice(uniqueID);
+                }
             }
         }
         private void CreateTrackerDevice(uint deviceIndex, ETrackedDeviceClass deviceClass, string uniqueID, string notUniqueID)
@@ -328,6 +353,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 DestroyPhysicalTrackedDevice(device);
             }
+            ConnectedIndexToUniqueID.Clear();
             BasisDebug.Log("OpenVR: Soft-stopped input devices (runtime kept alive)", BasisDebug.LogTag.Device);
         }
 
@@ -379,6 +405,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 DestroyPhysicalTrackedDevice(device);
             }
+            ConnectedIndexToUniqueID.Clear();
 
             SteamVR_Render.steamvr_render = null;
             SteamVR_Render = null;

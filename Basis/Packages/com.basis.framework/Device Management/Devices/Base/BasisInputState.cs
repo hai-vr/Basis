@@ -307,5 +307,33 @@ namespace Basis.Scripts.Device_Management.Devices
             target.primary2DAxisRaw = this.primary2DAxisRaw;
             target.Secondary2DAxisRaw = this.Secondary2DAxisRaw;
         }
+
+        /// <summary>
+        /// OR/max-merges another device's state into this one. Used to combine multiple devices
+        /// that share a hand role into a single aggregated dispatch, so an edge action fires once
+        /// for the role instead of once per device. Booleans are OR'd, triggers take the max, and
+        /// each 2D axis takes the larger-magnitude of the two so an idle second device does not
+        /// cancel out the active one.
+        /// </summary>
+        /// <param name="other">The state to merge into this one.</param>
+        public void MergeFrom(BasisInputState other)
+        {
+            GripButton |= other.gripButton;
+            SystemOrMenuButton |= other.menuButton;
+            PrimaryButtonGetState |= other.primaryButtonGetState;
+            SecondaryButtonGetState |= other.secondaryButtonGetState;
+            Secondary2DAxisClick |= other.secondary2DAxisClick;
+            Primary2DAxisClick |= other.primary2DAxisClick;
+            Trigger = Mathf.Max(trigger, other.trigger);
+            SecondaryTrigger = Mathf.Max(secondaryTrigger, other.secondaryTrigger);
+            if (other.primary2DAxisRaw.sqrMagnitude > primary2DAxisRaw.sqrMagnitude)
+            {
+                primary2DAxisRaw = other.primary2DAxisRaw;
+            }
+            if (other.secondary2DAxisRaw.sqrMagnitude > secondary2DAxisRaw.sqrMagnitude)
+            {
+                secondary2DAxisRaw = other.secondary2DAxisRaw;
+            }
+        }
     }
 }

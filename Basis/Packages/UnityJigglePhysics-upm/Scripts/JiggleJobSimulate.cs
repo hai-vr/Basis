@@ -619,6 +619,10 @@ public struct JiggleJobSimulate : IJobFor {
         }
     }
 
+    #if UNITY_EDITOR && JIGGLE_VALIDATE
+    // Opt-in via the JIGGLE_VALIDATE scripting define. Kept out of Execute by default: the out-string +
+    // throw can't be Burst-compiled, so its presence forces the whole simulate job to run as managed IL
+    // in the editor. Sanitize() (below) already repairs NaNs every frame regardless.
     private bool Validate(JiggleTreeJobData tree) {
         if (!tree.GetIsValid(out string failReason)) {
             throw new InvalidOperationException(failReason);
@@ -626,10 +630,11 @@ public struct JiggleJobSimulate : IJobFor {
 
         return true;
     }
+    #endif
 
     public void Execute(int index) {
         var tree = jiggleTrees[index];
-        #if UNITY_EDITOR
+        #if UNITY_EDITOR && JIGGLE_VALIDATE
         if (!Validate(tree)) {
             return;
         }

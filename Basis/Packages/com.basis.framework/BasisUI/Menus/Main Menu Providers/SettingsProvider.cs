@@ -10,6 +10,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using Basis.Scripts.Settings;
+using GatorDragonGames.JigglePhysics;
 
 namespace Basis.BasisUI
 {
@@ -73,6 +74,8 @@ namespace Basis.BasisUI
 #endif
             ApplyOpenLipSyncMaxSlots();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyOpenLipSyncMaxSlots;
+            ApplyJiggleCollisionCulling();
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
         }
 
         private static void ApplyOpenLipSyncMaxSlots()
@@ -80,6 +83,14 @@ namespace Basis.BasisUI
             BasisOpenLipSyncDriver.UseSlotLimit = BasisSettingsDefaults.UseOpenLipSyncLimit.RawValue;
             BasisOpenLipSyncDriver.MaxSlots = Mathf.Max(0, (int)BasisSettingsDefaults.OpenLipSyncMaxSlots.RawValue);
             BasisOpenLipSyncDriver.EnforceSlotLimit();
+        }
+
+        private static void ApplyJiggleCollisionCulling()
+        {
+            JigglePhysics.SetCollisionCulling(
+                BasisSettingsDefaults.UseJiggleCollisionFrustumCull.RawValue,
+                BasisSettingsDefaults.UseJiggleCollisionDistanceCull.RawValue,
+                Mathf.Max(0f, BasisSettingsDefaults.JiggleCollisionCullDistance.RawValue));
         }
 
         public const string StaticTitleKey = "settings.title";

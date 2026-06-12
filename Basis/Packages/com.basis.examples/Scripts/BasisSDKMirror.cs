@@ -208,6 +208,7 @@ public class BasisSDKMirror : MonoBehaviour
 #endif
         }
 
+        BasisCullingCameraRegistry.Unregister(LeftCamera);
         if (LeftCamera) Destroy(LeftCamera.gameObject);
         if (RightCamera) Destroy(RightCamera.gameObject);
 
@@ -255,6 +256,7 @@ public class BasisSDKMirror : MonoBehaviour
 
         CreatePortalCamera(mainCamera, StereoscopicEye.Left, ref LeftCamera, ref PortalTextureLeft);
         CreatePortalCamera(mainCamera, StereoscopicEye.Right, ref RightCamera, ref PortalTextureRight);
+        BasisCullingCameraRegistry.Register(LeftCamera);
 
         // Bind textures to the mirror material
         Renderer.material = MirrorsMaterial;

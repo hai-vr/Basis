@@ -210,6 +210,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         UnRegisterLoadedNetID(myLoadedNetId);
 
         UnsubscribeMeshRendererCheck();
+        BasisCullingCameraRegistry.Unregister(captureCamera);
         ReleaseRenderTexture();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
         if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
@@ -241,6 +242,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low);
         BasisDebug.Log($"[HandHeldCamera] Preview reset to {PreviewCaptureWidth}x{PreviewCaptureHeight} @ {AntialiasingQuality.Low}");
         captureCamera.targetTexture = renderTexture;
+        BasisCullingCameraRegistry.Register(captureCamera);
     }
 
     /// <summary>

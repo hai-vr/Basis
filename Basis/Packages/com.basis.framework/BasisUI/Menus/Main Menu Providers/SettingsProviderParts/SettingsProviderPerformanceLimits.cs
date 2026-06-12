@@ -145,6 +145,20 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.cloth.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.cloth.slider.tooltip"));
 
+        PanelToggle jiggleFrustumToggle = PanelToggle.CreateNewEntry(physics.ContentParent);
+        jiggleFrustumToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.perf.jiggleFrustumCull.toggle"));
+        jiggleFrustumToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleFrustumCull.toggle.tooltip"));
+        jiggleFrustumToggle.AssignBinding(BasisSettingsDefaults.UseJiggleCollisionFrustumCull);
+
+        AddLimitPair(physics.ContentParent,
+            BasisLocalization.Get("settings.perf.jiggleDistanceCull.toggle"),
+            BasisLocalization.Get("settings.perf.jiggleDistanceCull.slider"),
+            BasisSettingsDefaults.UseJiggleCollisionDistanceCull,
+            BasisSettingsDefaults.JiggleCollisionCullDistance,
+            2f, 100f, false, decimals: 0,
+            toggleTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.toggle.tooltip"),
+            sliderTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.slider.tooltip"));
+
         PanelElementDescriptor effects =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         effects.SetTitle(BasisLocalization.Get("settings.perf.group.effects"));
@@ -258,6 +272,9 @@ public static class SettingsProviderPerformanceLimits
         BasisSettingsDefaults.MaxPerfJiggleBones.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitJiggleColliders.ResetToDefault();
         BasisSettingsDefaults.MaxPerfJiggleColliders.ResetToDefault();
+        BasisSettingsDefaults.UseJiggleCollisionFrustumCull.ResetToDefault();
+        BasisSettingsDefaults.UseJiggleCollisionDistanceCull.ResetToDefault();
+        BasisSettingsDefaults.JiggleCollisionCullDistance.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitAnimators.ResetToDefault();
         BasisSettingsDefaults.MaxPerfAnimators.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitBones.ResetToDefault();

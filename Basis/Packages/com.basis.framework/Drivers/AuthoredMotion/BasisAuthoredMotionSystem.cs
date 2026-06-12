@@ -260,6 +260,7 @@ public static class BasisAuthoredMotionSystem
         public bool[] MovementEnabled;       // per-slot author default (Movement.enabled)
         public bool ComponentEnabled;        // mirrors the component's runtime enabled state
         public int Offset;                   // current start index in the native containers
+        public bool InContainers;            // flattened into the native containers (false while only queued in sPendingAdds)
     }
 
     // Persistent SoA, parallel to sTargets.
@@ -268,12 +269,15 @@ public static class BasisAuthoredMotionSystem
     static NativeList<float4> sRotationSamples;       // shared Sequence rotation frames (absolute, xyzw)
     static NativeList<byte> sValidMask;
     static TransformAccessArray sTargets;
+    static Transform[] sTargetScratch = System.Array.Empty<Transform>();
 
     static readonly List<Registration> sRegistrations = new List<Registration>();
     static readonly Dictionary<BasisAuthoredMotion, Registration> sLookup = new Dictionary<BasisAuthoredMotion, Registration>();
+    static readonly List<Registration> sPendingAdds = new List<Registration>();  // joins appended at the next Schedule() without a full rebuild
 
     static JobHandle sPending;
     static bool sInitialized;
+    static bool sDirty;   // a structural removal is pending; the next Schedule() rebuilds once
 
     public static int SlotCount => sInitialized ? sMovements.Length : 0;
 
@@ -287,6 +291,8 @@ public static class BasisAuthoredMotionSystem
         sTargets = new TransformAccessArray(math.max(1, initialCapacity));
         sRegistrations.Clear();
         sLookup.Clear();
+        sPendingAdds.Clear();
+        sDirty = false;
         sInitialized = true;
     }
 
@@ -301,6 +307,8 @@ public static class BasisAuthoredMotionSystem
         if (sTargets.isCreated) sTargets.Dispose();
         sRegistrations.Clear();
         sLookup.Clear();
+        sPendingAdds.Clear();
+        sDirty = false;
         sInitialized = false;
     }
 
@@ -321,7 +329,7 @@ public static class BasisAuthoredMotionSystem
         sRegistrations.Add(reg);
         sLookup[component] = reg;
         component.EnabledStateChanged += OnEnabledStateChanged;
-        Rebuild();
+        sPendingAdds.Add(reg);   // appended incrementally next Schedule(); a pending rebuild (above) would absorb it instead
     }
 
     public static void Unregister(BasisAuthoredMotion component)
@@ -331,7 +339,8 @@ public static class BasisAuthoredMotionSystem
         component.EnabledStateChanged -= OnEnabledStateChanged;
         sRegistrations.Remove(reg);
         sLookup.Remove(component);
-        Rebuild();
+        sPendingAdds.Remove(reg);   // drop it if it was queued but never committed
+        sDirty = true;              // removal can't be appended; the next Schedule() rebuilds
     }
 
     /// <summary>
@@ -342,7 +351,13 @@ public static class BasisAuthoredMotionSystem
     /// </summary>
     public static JobHandle Schedule()
     {
-        if (!sInitialized || sMovements.Length == 0) return default;
+        if (!sInitialized) return default;
+
+        // A removal forces one full rebuild (collapsing a frame's worth); pure joins append incrementally.
+        // A pending rebuild supersedes queued joins — Rebuild() re-flattens every registration and clears the queue.
+        if (sDirty) Rebuild();
+        else if (sPendingAdds.Count > 0) CommitPendingAdds();
+        if (sMovements.Length == 0) return default;
 
         // Complete the previous frame's writes before rescheduling over the same containers.
         CompletePending();
@@ -575,9 +590,73 @@ public static class BasisAuthoredMotionSystem
         return string.IsNullOrEmpty(path) ? root : root.Find(path);
     }
 
+    // Appends queued joins onto the live containers — the common avatar-join path, O(added) not O(total).
+    // Mirrors Rebuild's per-registration fill but only for sPendingAdds, so existing slots/offsets stay put.
+    // Removal/recalibration can't take this path (a mid-set change desyncs the parallel TransformAccessArray) — they Rebuild.
+    static void CommitPendingAdds()
+    {
+        CompletePending();   // the job reads these containers
+
+        int addSlots = 0, addOptions = 0, addSamples = 0;
+        for (int a = 0; a < sPendingAdds.Count; a++)
+        {
+            Registration reg = sPendingAdds[a];
+            addSlots += reg.Data.Length;
+            if (reg.Options != null) addOptions += reg.Options.Length;
+            if (reg.RotationSamples != null) addSamples += reg.RotationSamples.Length;
+        }
+
+        // Grow once up front so the per-registration fill below never reallocates mid-append.
+        if (sMovements.Capacity < sMovements.Length + addSlots) sMovements.Capacity = sMovements.Length + addSlots;
+        if (sValidMask.Capacity < sValidMask.Length + addSlots) sValidMask.Capacity = sValidMask.Length + addSlots;
+        if (sOptions.Capacity < sOptions.Length + addOptions) sOptions.Capacity = sOptions.Length + addOptions;
+        if (sRotationSamples.Capacity < sRotationSamples.Length + addSamples) sRotationSamples.Capacity = sRotationSamples.Length + addSamples;
+        if (!sTargets.isCreated) sTargets = new TransformAccessArray(math.max(1, addSlots));
+
+        for (int a = 0; a < sPendingAdds.Count; a++)
+        {
+            Registration reg = sPendingAdds[a];
+            reg.Offset = sMovements.Length;
+
+            int optionBase = sOptions.Length;
+            if (reg.Options != null && reg.Options.Length > 0)
+                unsafe
+                {
+                    fixed (AuthoredOptionData* src = reg.Options)
+                        sOptions.AddRange(src, reg.Options.Length);
+                }
+
+            int sampleBase = sRotationSamples.Length;
+            if (reg.RotationSamples != null && reg.RotationSamples.Length > 0)
+                unsafe
+                {
+                    fixed (float4* src = reg.RotationSamples)
+                        sRotationSamples.AddRange(src, reg.RotationSamples.Length);
+                }
+
+            for (int i = 0; i < reg.Data.Length; i++)
+            {
+                Transform tf = reg.Targets[i];
+                if (tf == null) continue; // UGC: a target may have been destroyed
+                AuthoredMovementData d = reg.Data[i];
+                if ((Kind)d.kind == Kind.RandomSelect) d.optionStart += optionBase;
+                else if ((Kind)d.kind == Kind.Sequence) d.sampleStart += sampleBase;
+                sMovements.Add(d);
+                sValidMask.Add((byte)(reg.ComponentEnabled && reg.MovementEnabled[i] ? 1 : 0));
+                sTargets.Add(tf);
+            }
+
+            reg.InContainers = true;
+        }
+
+        sPendingAdds.Clear();
+    }
+
     // Rebuilds the native containers from the managed registrations on a structural change — never per-frame.
     static void Rebuild()
     {
+        sDirty = false;
+        sPendingAdds.Clear();   // a full re-flatten below covers every registration, queued or not
         CompletePending();
 
         // Prune registrations whose component was destroyed without an explicit Unregister (Unity fake-null).
@@ -590,29 +669,49 @@ public static class BasisAuthoredMotionSystem
             }
         }
 
-        int total = 0;
-        for (int i = 0; i < sRegistrations.Count; i++) total += sRegistrations[i].Data.Length;
+        // Size every container to its exact total up front so the fill below never reallocates.
+        int totalSlots = 0, totalOptions = 0, totalSamples = 0;
+        for (int i = 0; i < sRegistrations.Count; i++)
+        {
+            Registration reg = sRegistrations[i];
+            totalSlots += reg.Data.Length;
+            if (reg.Options != null) totalOptions += reg.Options.Length;
+            if (reg.RotationSamples != null) totalSamples += reg.RotationSamples.Length;
+        }
 
         sMovements.Clear();
         sOptions.Clear();
         sRotationSamples.Clear();
         sValidMask.Clear();
-        if (sTargets.isCreated) sTargets.Dispose();
-        sTargets = new TransformAccessArray(math.max(1, total));
+        if (sMovements.Capacity < totalSlots) sMovements.Capacity = totalSlots;
+        if (sValidMask.Capacity < totalSlots) sValidMask.Capacity = totalSlots;
+        if (sOptions.Capacity < totalOptions) sOptions.Capacity = totalOptions;
+        if (sRotationSamples.Capacity < totalSamples) sRotationSamples.Capacity = totalSamples;
+        if (sTargetScratch.Length != totalSlots) sTargetScratch = new Transform[totalSlots];
 
+        int filled = 0;
         for (int r = 0; r < sRegistrations.Count; r++)
         {
             Registration reg = sRegistrations[r];
             reg.Offset = sMovements.Length;
+            reg.InContainers = true;
 
-            // Concatenate this registration's side buffers; slots reference them via a rebased offset.
+            // Concatenate this registration's side buffers (one bulk copy each); slots reference them via a rebased offset.
             int optionBase = sOptions.Length;
-            if (reg.Options != null)
-                for (int o = 0; o < reg.Options.Length; o++) sOptions.Add(reg.Options[o]);
+            if (reg.Options != null && reg.Options.Length > 0)
+                unsafe
+                {
+                    fixed (AuthoredOptionData* src = reg.Options)
+                        sOptions.AddRange(src, reg.Options.Length);
+                }
 
             int sampleBase = sRotationSamples.Length;
-            if (reg.RotationSamples != null)
-                for (int s = 0; s < reg.RotationSamples.Length; s++) sRotationSamples.Add(reg.RotationSamples[s]);
+            if (reg.RotationSamples != null && reg.RotationSamples.Length > 0)
+                unsafe
+                {
+                    fixed (float4* src = reg.RotationSamples)
+                        sRotationSamples.AddRange(src, reg.RotationSamples.Length);
+                }
 
             for (int i = 0; i < reg.Data.Length; i++)
             {
@@ -622,10 +721,32 @@ public static class BasisAuthoredMotionSystem
                 if ((Kind)d.kind == Kind.RandomSelect) d.optionStart += optionBase;
                 else if ((Kind)d.kind == Kind.Sequence) d.sampleStart += sampleBase;
                 sMovements.Add(d);
-                sTargets.Add(tf);
                 sValidMask.Add((byte)(reg.ComponentEnabled && reg.MovementEnabled[i] ? 1 : 0));
+                sTargetScratch[filled++] = tf;
             }
         }
+
+        // Push the gathered targets in one bulk call. A recalibration that keeps the slot count reuses the
+        // array via SetTransforms; a register/unregister changes it and rebuilds. Neither path pays the
+        // per-element TransformAccessArray.Add that dominated the rebuild.
+        Transform[] finalTargets = filled == sTargetScratch.Length ? sTargetScratch : TrimTargets(sTargetScratch, filled);
+        if (filled > 0 && sTargets.isCreated && sTargets.length == filled)
+        {
+            sTargets.SetTransforms(finalTargets);
+        }
+        else
+        {
+            if (sTargets.isCreated) sTargets.Dispose();
+            sTargets = new TransformAccessArray(finalTargets);
+        }
+    }
+
+    // Exact-length copy for SetTransforms when a destroyed UGC target left the scratch buffer under-filled.
+    static Transform[] TrimTargets(Transform[] src, int length)
+    {
+        var exact = new Transform[length];
+        System.Array.Copy(src, exact, length);
+        return exact;
     }
 
     // Toggle-system-agnostic: any actuator flipping the component's enabled lands here; patch just its mask slice.
@@ -633,6 +754,10 @@ public static class BasisAuthoredMotionSystem
     {
         if (!sLookup.TryGetValue(component, out Registration reg)) return;
         reg.ComponentEnabled = enabled;
+
+        // A pending rebuild recomputes the whole mask from ComponentEnabled; a queued-but-uncommitted join has no
+        // valid slice yet. Either way the next commit reads the value just stored above, so skip the in-place patch.
+        if (sDirty || !reg.InContainers) return;
 
         CompletePending(); // the job reads ValidMask
         for (int i = 0; i < reg.Data.Length; i++)

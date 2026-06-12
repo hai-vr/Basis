@@ -274,7 +274,19 @@ namespace Basis.Scripts.Device_Management.Devices
                         }
                         else
                         {
-                            BasisDebug.Log($"Has Multiple Roles assigned for {found} most likely ok.", BasisDebug.LogTag.Input);
+                            // A same-backend device already holds this multi-capable role (e.g. a
+                            // stranded OpenVR controller left over from a SteamVR reconnect). Reclaim
+                            // it so only one device per backend drives the role; cross-backend holders
+                            // (e.g. hand-tracking coexisting with a controller) are intentionally kept.
+                            if (Input.SubSystemIdentifier == SubSystemIdentifier)
+                            {
+                                BasisDebug.Log($"Reclaiming {Role} from same-backend holder {Input.UniqueDeviceIdentifier}", BasisDebug.LogTag.Input);
+                                Input.UnAssignTracker();
+                            }
+                            else
+                            {
+                                BasisDebug.Log($"Has Multiple Roles assigned for {found} most likely ok.", BasisDebug.LogTag.Input);
+                            }
                         }
                     }
                 }
@@ -536,7 +548,17 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             if (HasPlayerControlSupport)
             {
-                BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
+                // Roles that may have multiple holders (the hands) dispatch once per frame on the
+                // combined state of all holders, so a duplicate or coexisting device can't double-fire
+                // edge actions (menu toggle, mic, jump). Every other role keeps the direct fast path.
+                if (CanHaveMultipleRoles.Contains(trackedRole))
+                {
+                    BasisActionDriver.UpdatePlayerControlForRole(trackedRole);
+                }
+                else
+                {
+                    BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
+                }
             }
             if (hasPlayerRaycastSupport && HasRaycaster)
             {

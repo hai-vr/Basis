@@ -14,6 +14,7 @@ using GatorDragonGames.JigglePhysics;
 using HVR.Basis.Comms;
 using SteamAudio;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using static Basis.EventDriver.BasisEventDriverProfileSections;
@@ -34,6 +35,7 @@ namespace Basis.EventDriver
 #else
             false;
 #endif
+        private static readonly List<Camera> JiggleCullCameras = new List<Camera>(8);
         // Profiler section IDs live in BasisEventDriverProfileSections (pulled in via `using static`).
         // ── Partial method declarations (calls are stripped in non-editor builds) ──
         partial void ProfileLateUpdateInit();
@@ -338,6 +340,15 @@ namespace Basis.EventDriver
 
             // ── JigglePhysics schedule ──
             ProfileBegin(PROF_JIGGLE_SCHEDULE);
+
+            JiggleCullCameras.Clear();
+            var jiggleCullCamera = BasisLocalCameraDriver.CameraInstance;
+            if (jiggleCullCamera != null)
+            {
+                JiggleCullCameras.Add(jiggleCullCamera);
+            }
+            BasisCullingCameraRegistry.CollectInto(JiggleCullCameras);
+            JigglePhysics.SetCullingCameras(JiggleCullCameras);
 
             fixedDeltaTime = Time.fixedDeltaTime;
             JigglePhysics.ScheduleSimulate(TimeAsDouble, fixedDeltaTime);

@@ -10,7 +10,7 @@ namespace GatorDragonGames.JigglePhysics {
 [BurstCompile]
 public unsafe struct JiggleGridCell {
     public static int2 GetKeyForPosition(float3 position) {
-        const float gridSizeMeters = 1f;
+        const float gridSizeMeters = 0.5f;
         return (int2)math.round(position.xz*(1f/gridSizeMeters));
     }
 
@@ -82,6 +82,15 @@ public struct JiggleJobBroadPhase : IJob {
     public NativeReference<JiggleGridCell> globalCell;
     [ReadOnly] public NativeArray<JiggleCollider> jiggleColliders;
     public int jiggleColliderCount;
+
+    [ReadOnly] public NativeArray<JiggleCullingCamera> cullingCameras;
+    public int cullingCameraCount;
+    public byte frustumCull;
+    public byte distanceCull;
+    public float maxCollisionDistance;
+    public float nearKeepRadius;
+    public float frustumMargin;
+
     public const int MAX_COLLIDERS = 128;
     public const int GLOBAL_COLLIDER_EDGE_LENGTH = 10;
     private const int GLOBAL_COLLIDER_CELLS = GLOBAL_COLLIDER_EDGE_LENGTH*GLOBAL_COLLIDER_EDGE_LENGTH;
@@ -91,6 +100,13 @@ public struct JiggleJobBroadPhase : IJob {
         jiggleColliders = bus.sceneColliders;
         jiggleColliderCount = bus.sceneColliderCount;
         globalCell = bus.globalCell;
+        cullingCameras = default;
+        cullingCameraCount = 0;
+        frustumCull = 0;
+        distanceCull = 0;
+        maxCollisionDistance = 0f;
+        nearKeepRadius = 0f;
+        frustumMargin = 0f;
     }
 
     public void UpdateArrays(JiggleMemoryBus bus) {
@@ -104,6 +120,9 @@ public struct JiggleJobBroadPhase : IJob {
         for (int i = 0; i < jiggleColliderCount; i++) {
             var collider = jiggleColliders[i];
             float3 position = collider.localToWorldMatrix.c3.xyz;
+            if (IsColliderCulled(collider, position)) {
+                continue;
+            }
             float3 aabbExtent;
             switch (collider.type) {
                 case JiggleCollider.JiggleColliderType.Capsule: {
@@ -150,6 +169,46 @@ public struct JiggleJobBroadPhase : IJob {
             }
 
         }
+    }
+
+    private bool IsColliderCulled(in JiggleCollider collider, float3 position) {
+        if (cullingCameraCount == 0 || (frustumCull == 0 && distanceCull == 0)) {
+            return false;
+        }
+        if (collider.type == JiggleCollider.JiggleColliderType.Plane) {
+            return false;
+        }
+        var boundingRadius = collider.worldRadius;
+        if (collider.type == JiggleCollider.JiggleColliderType.Capsule) {
+            boundingRadius += collider.worldHeight * 0.5f;
+        }
+        var nearSq = nearKeepRadius * nearKeepRadius;
+        var maxRange = maxCollisionDistance + boundingRadius;
+        var maxSq = maxRange * maxRange;
+        for (int c = 0; c < cullingCameraCount; c++) {
+            var cam = cullingCameras[c];
+            var distSq = math.distancesq(cam.position, position);
+            if (distSq <= nearSq) {
+                return false;
+            }
+            if (distanceCull != 0 && distSq > maxSq) {
+                continue;
+            }
+            if (frustumCull == 0 || SphereInFrustum(cam, position, boundingRadius + frustumMargin)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool SphereInFrustum(in JiggleCullingCamera cam, float3 center, float radius) {
+        if (math.dot(cam.plane0.xyz, center) + cam.plane0.w < -radius) return false;
+        if (math.dot(cam.plane1.xyz, center) + cam.plane1.w < -radius) return false;
+        if (math.dot(cam.plane2.xyz, center) + cam.plane2.w < -radius) return false;
+        if (math.dot(cam.plane3.xyz, center) + cam.plane3.w < -radius) return false;
+        if (math.dot(cam.plane4.xyz, center) + cam.plane4.w < -radius) return false;
+        if (math.dot(cam.plane5.xyz, center) + cam.plane5.w < -radius) return false;
+        return true;
     }
 }
 
