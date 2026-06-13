@@ -51,27 +51,110 @@
 
 /* ---- PCM ring ----------------------------------------------------------- */
 
+/* Interleaved float FIFO with per-chunk PTS metadata. The producer (decode
+ * thread) writes decoded chunks tagged with their media timestamps; the
+ * consumer (Unity audio thread) reads gated against the presentation clock so
+ * audio release is paced to the same timeline video presents on. All drops are
+ * whole-frame multiples — a non-frame-sized drop would permanently rotate the
+ * channel order for every consumer downstream. */
 struct PcmRing {
     float* buf = nullptr;
     int cap = 0;     /* in floats */
     int head = 0, tail = 0;
+    int frame = 1;   /* floats per interleaved frame (channel count) */
+    int sr = 48000;  /* sample rate, for chunk durations */
     CRITICAL_SECTION cs;
+
+    static const int CHUNKS = 1024;
+    struct Chunk { int64_t pts; int floats; };
+    Chunk chunks[CHUNKS] = {};
+    int chead = 0, ccount = 0;
+
+    /* Serving is sequential and never blocks on future timestamps — the
+     * consumer's own prefetch owns short-term timing. The clock is only used
+     * to detect a stale head (connect burst, post-stall backlog): when the
+     * oldest queued audio falls further than TRIM_LATE behind the clock, the
+     * queue is trimmed so the head sits CONSUMER_LEAD ahead of it. The lead
+     * compensates the consumer-side pipeline (Unity streaming-clip prefetch +
+     * DSP output latency): samples handed over now become audible roughly that
+     * much later, so a future-biased head lands on the clock at the speaker. */
+    static const int64_t TRIM_LATE_US = 150000;
+    static const int64_t CONSUMER_LEAD_US = 380000;
 
     void init(int floats) { cap = floats; buf = (float*)malloc(sizeof(float) * cap); InitializeCriticalSection(&cs); }
     void destroy() { free(buf); buf = nullptr; DeleteCriticalSection(&cs); }
-    void write(const float* s, int n) {
+
+    int fill() const { return (tail - head + cap) % cap; }
+
+    /* Drops the oldest `n` floats (rounded down to whole frames) from the float
+     * ring and the chunk metadata together. Caller holds cs. */
+    void drop_oldest(int n) {
+        n -= n % frame;
+        int avail = fill();
+        if (n > avail) n = avail - (avail % frame);
+        if (n <= 0) return;
+        head = (head + n) % cap;
+        while (n > 0 && ccount > 0) {
+            Chunk& c = chunks[chead];
+            if (c.floats <= n) { n -= c.floats; chead = (chead + 1) % CHUNKS; ccount--; }
+            else {
+                c.floats -= n;
+                c.pts += (int64_t)(n / frame) * 1000000LL / (sr > 0 ? sr : 48000);
+                n = 0;
+            }
+        }
+    }
+
+    void write(const float* s, int n, int64_t pts) {
+        if (n <= 0) return;
         EnterCriticalSection(&cs);
-        for (int i = 0; i < n; ++i) {
-            int nt = (tail + 1) % cap;
-            if (nt == head) head = (head + 1) % cap; /* overwrite oldest */
-            buf[tail] = s[i]; tail = nt;
+        if (n > cap - 1) {
+            /* Drop the oldest whole frames of an over-capacity write and carry
+             * the timestamp forward, so the retained tail keeps a correct PTS
+             * and the channel order isn't rotated by a sub-frame trim. */
+            int keep = (cap - 1) - ((cap - 1) % frame);
+            int drop = n - keep;
+            s += drop;
+            pts += (int64_t)(drop / frame) * 1000000LL / (sr > 0 ? sr : 48000);
+            n = keep;
+        }
+        int space = cap - 1 - fill();
+        if (n > space) {
+            int need = (n - space) + frame - 1;
+            drop_oldest(need - need % frame);
+        }
+        for (int i = 0; i < n; ++i) { buf[tail] = s[i]; tail = (tail + 1) % cap; }
+        if (ccount == CHUNKS) {
+            chunks[(chead + ccount - 1) % CHUNKS].floats += n;
+        } else {
+            Chunk& c = chunks[(chead + ccount) % CHUNKS];
+            c.pts = pts; c.floats = n; ccount++;
         }
         LeaveCriticalSection(&cs);
     }
-    int read(float* out, int n) {
+
+    /* now_us = INT64_MIN reads ungated (no presentation clock yet). */
+    int read(float* out, int n, int64_t now_us) {
         EnterCriticalSection(&cs);
+        int64_t srr = sr > 0 ? sr : 48000;
+        if (now_us != INT64_MIN && ccount > 0) {
+            int64_t late = now_us - chunks[chead].pts;
+            if (late > TRIM_LATE_US) {
+                drop_oldest((int)((late + CONSUMER_LEAD_US) * srr / 1000000LL) * frame);
+            }
+        }
         int got = 0;
-        while (got < n && head != tail) { out[got++] = buf[head]; head = (head + 1) % cap; }
+        while (got < n && ccount > 0) {
+            Chunk& c = chunks[chead];
+            int take = c.floats < n - got ? c.floats : n - got;
+            for (int i = 0; i < take; ++i) { out[got + i] = buf[head]; head = (head + 1) % cap; }
+            got += take;
+            if (take == c.floats) { chead = (chead + 1) % CHUNKS; ccount--; }
+            else {
+                c.floats -= take;
+                c.pts += (int64_t)take * 1000000LL / (frame * srr);
+            }
+        }
         LeaveCriticalSection(&cs);
         return got;
     }
@@ -155,11 +238,26 @@ struct basis_decoder {
 
     /* audio */
     IMFTransform* adec = nullptr;
+    basis_codec_t acodec = BASIS_CODEC_NONE;
     int asr = 0, ach = 0, aobj = 2;
     int aBits = 32;                 /* output sample bits: 32=float, 16=PCM int */
     bool aconfigured = false;
+
+    /* LPCM bypass (no decoder): convert/reorder straight into the PCM ring. */
+    int aLpcmAssign = 0;            /* Blu-ray channel_assignment */
+    int aLpcmBits = 16;
+    float* aLpcmBuf = nullptr;      /* reusable convert buffer */
+    int aLpcmBufCap = 0;            /* in floats */
     volatile LONG dbg_aout = 0;     /* AAC PCM outputs produced */
     PcmRing pcm;
+    int64_t aPtsFallback = 0;       /* next chunk PTS when MF gives no sample time */
+
+    /* Audio-gate clock: media-time offset from QPC, low-passed (~2s) so the
+     * segment-cadence wobble of the live-edge lock (bursty transports advance
+     * `newest` in jumps) averages out before the audio anchor reads it. The
+     * audio thread reconstructs `now` as qpc_us + offset. INT64_MIN = clock
+     * not started (audio reads ungated). */
+    volatile LONGLONG audClockOffsetUs = INT64_MIN;
 };
 
 /* ---- D3D / MF helpers --------------------------------------------------- */
@@ -490,16 +588,31 @@ static bool configure_audio_mft(basis_decoder* d, const uint8_t* asc, int asc_le
     in->Release();
     if (FAILED(hr)) { SAFE_RELEASE(d->adec); return false; }
 
-    /* Use a type the decoder actually offers (Float preferred, else PCM16). */
-    IMFMediaType* chosen = nullptr; int bits = 0;
+    /* Pick the output type the decoder offers. Prefer a channel count matching
+     * the input, then IEEE float, then more channels. For >2-channel AAC the
+     * decoder also offers a stereo fold-down, so matching the input channel
+     * count is what keeps the discrete surround channels (e.g. 5.1); float vs
+     * 16-bit PCM only changes the conversion in drain_audio. */
+    IMFMediaType* chosen = nullptr; int bits = 0; int chosenRank = -1;
+    int target = d->ach ? d->ach : 2;
     for (DWORD i = 0; ; ++i) {
         IMFMediaType* t = nullptr;
         if (FAILED(d->adec->GetOutputAvailableType(0, i, &t))) break;
         GUID sub; t->GetGUID(MF_MT_SUBTYPE, &sub);
-        UINT32 b = 0; t->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &b);
-        if (sub == MFAudioFormat_Float) { if (chosen) chosen->Release(); chosen = t; bits = 32; break; }
-        if (sub == MFAudioFormat_PCM && !chosen) { chosen = t; bits = (int)(b ? b : 16); }
-        else t->Release();
+        UINT32 b = 0, tch = 0;
+        t->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &b);
+        t->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &tch);
+        bool isFloat = (sub == MFAudioFormat_Float);
+        bool isPcm = (sub == MFAudioFormat_PCM);
+        if (!isFloat && !isPcm) { t->Release(); continue; }
+        int rank = ((int)tch == target ? 10000 : 0) + (isFloat ? 1000 : 0) + (int)tch;
+        if (rank > chosenRank) {
+            if (chosen) chosen->Release();
+            chosen = t; chosenRank = rank;
+            bits = isFloat ? 32 : (int)(b ? b : 16);
+        } else {
+            t->Release();
+        }
     }
     if (!chosen) { SAFE_RELEASE(d->adec); return false; }
 
@@ -532,21 +645,35 @@ static void drain_audio(basis_decoder* d) {
         HRESULT hr = d->adec->ProcessOutput(0, 1, &ob, &status);
         if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT || FAILED(hr)) { mb->Release(); sample->Release(); break; }
 
+        /* The decoder propagates input sample times to its outputs; fall back
+         * to a sample-counted timeline if one comes back without a time. */
+        LONGLONG st100 = 0;
+        int64_t pts = SUCCEEDED(sample->GetSampleTime(&st100)) ? st100 / 10 : d->aPtsFallback;
+
         BYTE* p = nullptr; DWORD cur = 0;
         if (SUCCEEDED(mb->Lock(&p, nullptr, &cur)) && cur > 0) {
+            int srr = d->asr > 0 ? d->asr : 48000;
+            int ch = d->ach > 0 ? d->ach : 1;
             if (d->aBits == 16) {
                 int n = (int)(cur / 2);
                 const int16_t* s16 = (const int16_t*)p;
                 float tmp[4096];
+                int maxFrames = 4096 / ch; if (maxFrames < 1) maxFrames = 1;
                 int off = 0;
-                while (off < n) {
-                    int c = n - off; if (c > 4096) c = 4096;
+                /* Write whole interleaved frames only: a sub-frame chunk would
+                 * give the ring's per-chunk PTS a fractional sample count. */
+                while (off + ch <= n) {
+                    int framesLeft = (n - off) / ch;
+                    int c = (framesLeft > maxFrames ? maxFrames : framesLeft) * ch;
                     for (int i = 0; i < c; ++i) tmp[i] = s16[off + i] / 32768.0f;
-                    d->pcm.write(tmp, c);
+                    d->pcm.write(tmp, c, pts + (int64_t)(off / ch) * 1000000LL / srr);
                     off += c;
                 }
+                d->aPtsFallback = pts + (int64_t)(n / ch) * 1000000LL / srr;
             } else {
-                d->pcm.write((const float*)p, (int)(cur / sizeof(float)));
+                int n = (int)(cur / sizeof(float));
+                d->pcm.write((const float*)p, n, pts);
+                d->aPtsFallback = pts + (int64_t)(n / ch) * 1000000LL / srr;
             }
             mb->Unlock();
             InterlockedIncrement(&d->dbg_aout);
@@ -597,6 +724,7 @@ extern "C" void basis_decoder_destroy(basis_decoder_t* d) {
     /* shared textures + handles already freed by basis_decoder_render_release above */
     DeleteCriticalSection(&d->presentLock);
     d->pcm.destroy();
+    free(d->aLpcmBuf);
     delete d;
 }
 
@@ -614,9 +742,36 @@ extern "C" int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t 
 
 extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
                                               int sample_rate, int channels, const uint8_t* asc, int asc_len) {
-    if (!d || d->aconfigured || codec != BASIS_CODEC_AAC) return 0;
+    if (!d || d->aconfigured) return 0;
+
+    if (codec == BASIS_CODEC_LPCM) {
+        /* No decoder involved — submit_audio converts straight into the ring.
+         * 48 kHz / 16- or 24-bit only (the streaming-clip consumer plays at the
+         * clip rate, so 96/192 kHz needs a resampler this player doesn't have
+         * yet). The TS demuxer already filters to these formats before
+         * announcing; this guard is the matching backstop. The config blob
+         * carries the Blu-ray channel_assignment + bits code. */
+        if (sample_rate != 48000 || channels < 1 || channels > 8 || asc_len < 2) return 0;
+        int bits = asc[1] == 1 ? 16 : asc[1] == 3 ? 24 : 0;
+        if (!bits) return 0; /* 20-bit unsupported */
+        d->acodec = BASIS_CODEC_LPCM;
+        d->asr = sample_rate; d->ach = channels;
+        d->aLpcmAssign = asc[0];
+        d->aLpcmBits = bits;
+        d->aconfigured = true;
+        d->pcm.frame = channels;
+        d->pcm.sr = sample_rate;
+        return 0;
+    }
+
+    if (codec != BASIS_CODEC_AAC) return 0;
     d->asr = sample_rate; d->ach = channels;
-    if (configure_audio_mft(d, asc, asc_len)) d->aconfigured = true;
+    if (configure_audio_mft(d, asc, asc_len)) {
+        d->acodec = BASIS_CODEC_AAC;
+        d->aconfigured = true;
+        d->pcm.frame = d->ach > 0 ? d->ach : 1;
+        d->pcm.sr = d->asr > 0 ? d->asr : 48000;
+    }
     return 0;
 }
 
@@ -659,8 +814,58 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
     return 0;
 }
 
+/* Source-order -> WAVE-order channel map for the Blu-ray HDMV LPCM
+ * channel_assignment values whose stream order differs from WAVE (Blu-ray
+ * places the LFE last and the side pair before the rears). The index tables
+ * match ffmpeg's pcm_bluray decoder remap for assignments 9 (5.1), 10 (7.0)
+ * and 11 (7.1), and were verified by ear against a 7.1 channel-marker stream.
+ * NULL = identity (mono/stereo/3.0/4.0/5.0 already arrive in WAVE order). */
+static const int* lpcm_remap(int assign) {
+    static const int k51[6] = { 0, 1, 2, 4, 5, 3 };
+    static const int k70[7] = { 0, 1, 2, 5, 3, 4, 6 };
+    static const int k71[8] = { 0, 1, 2, 6, 4, 5, 7, 3 };
+    if (assign == 9) return k51;
+    if (assign == 10) return k70;
+    if (assign == 11) return k71;
+    return nullptr;
+}
+
+static void submit_lpcm(basis_decoder* d, const uint8_t* p, int len, int64_t pts_us) {
+    int ch = d->ach;
+    int bytes = d->aLpcmBits / 8;
+    int frame_bytes = ch * bytes;
+    int frames = len / frame_bytes;
+    if (frames <= 0) return;
+    int floats = frames * ch;
+    if (floats > d->aLpcmBufCap) {
+        float* nb = (float*)realloc(d->aLpcmBuf, sizeof(float) * floats);
+        if (!nb) return;
+        d->aLpcmBuf = nb; d->aLpcmBufCap = floats;
+    }
+    const int* map = lpcm_remap(d->aLpcmAssign);
+    for (int f = 0; f < frames; ++f) {
+        const uint8_t* s = p + f * frame_bytes;
+        float* o = d->aLpcmBuf + f * ch;
+        for (int c = 0; c < ch; ++c) {
+            int oc = map ? map[c] : c;
+            if (bytes == 2) {
+                int v = (int16_t)((s[c * 2] << 8) | s[c * 2 + 1]);
+                o[oc] = v / 32768.0f;
+            } else {
+                int v = (s[c * 3] << 16) | (s[c * 3 + 1] << 8) | s[c * 3 + 2];
+                if (v & 0x800000) v -= 0x1000000;
+                o[oc] = v / 8388608.0f;
+            }
+        }
+    }
+    d->pcm.write(d->aLpcmBuf, floats, pts_us);
+    InterlockedIncrement(&d->dbg_aout);
+}
+
 extern "C" int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len, int64_t pts_us) {
-    if (!d || !d->adec || !data || len <= 0) return -1;
+    if (!d || !data || len <= 0) return -1;
+    if (d->acodec == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
+    if (!d->adec) return -1;
     IMFSample* s = make_input_sample(data, len, pts_us);
     HRESULT hr = d->adec->ProcessInput(0, s, 0);
     s->Release();
@@ -739,7 +944,12 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
         if (fill < 2 * interval) buf += interval;
         else if (fill > buf + 200000) buf -= 10000;
     }
-    if (buf < 40000) buf = 40000;
+    /* With audio configured, the buffer must cover the audio consumer's
+     * pipeline depth (streaming-clip prefetch + DSP latency, ~400ms): audio
+     * cannot be released from ahead of the live decode edge, so video must
+     * present at least that far behind it for the two to land together. */
+    int64_t minBuf = d->aconfigured ? 460000 : 40000;
+    if (buf < minBuf) buf = minBuf;
     if (buf > maxBuf) buf = maxBuf;
     d->bufferUs = (LONG)buf;
 
@@ -751,6 +961,20 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     int64_t effBuf = (wallElapsed < 1200000) ? (buf * wallElapsed / 1200000) : buf;
     int64_t nowMedia = liveClock - effBuf;
     d->dbg_lagms = (LONG)((newest - nowMedia) / 1000);
+
+    /* Publish the audio-gate clock as a low-passed offset from QPC (~2s EMA);
+     * large jumps (startup, hard resync, discontinuity) snap instead of
+     * filtering so the gate follows resyncs immediately. */
+    {
+        int64_t qpcUs = (nowq.QuadPart - d->createQpc.QuadPart) * 1000000LL / freq;
+        int64_t off = nowMedia - qpcUs;
+        LONGLONG prev = InterlockedCompareExchange64(&d->audClockOffsetUs, 0, 0);
+        if (prev == INT64_MIN || off - prev > 700000 || off - prev < -700000) {
+            InterlockedExchange64(&d->audClockOffsetUs, off);
+        } else {
+            InterlockedExchange64(&d->audClockOffsetUs, prev + (off - prev) * dtUs / 2000000);
+        }
+    }
 
     /* recover from non-monotonic/bogus PTS (lastPresentedPts stuck above the ring) */
     if (d->lastPresentedPts != INT64_MIN && d->lastPresentedPts > newest) d->lastPresentedPts = INT64_MIN;
@@ -821,7 +1045,18 @@ extern "C" int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c
 }
 extern "C" int basis_decoder_read_audio(basis_decoder_t* d, float* out, int max_floats) {
     if (!d) return 0;
-    int n = d->pcm.read(out, max_floats);
+    if (basis_engine_is_paused(d->engine)) return 0;
+    /* Reconstruct the presentation clock from the published offset so audio
+     * release is paced to the timeline video presents on. No offset yet (no
+     * video frame presented, or an audio-only stream) reads ungated. */
+    int64_t now = INT64_MIN;
+    LONGLONG off = InterlockedCompareExchange64(&d->audClockOffsetUs, 0, 0);
+    if (off != INT64_MIN) {
+        LARGE_INTEGER q; QueryPerformanceCounter(&q);
+        int64_t freq = d->qpcFreq.QuadPart ? d->qpcFreq.QuadPart : 1;
+        now = (q.QuadPart - d->createQpc.QuadPart) * 1000000LL / freq + off;
+    }
+    int n = d->pcm.read(out, max_floats, now);
     if (n > 0 && d->ach > 0) InterlockedAdd64(&d->audioSamplesRead, (LONGLONG)(n / d->ach));
     return n;
 }
