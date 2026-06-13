@@ -10,23 +10,30 @@ using UnityEngine;
 namespace Basis.Scripts.Networking
 {
     /// <summary>
-    /// Handles <c>basisvr://</c> deep links on all platforms.
+    /// Handles deep links on all platforms.
     ///
     /// Cold-start  — <see cref="TryConsumeStartupLink"/> is called from
     ///   <see cref="BasisConnectionService.TryGetBootstrapConnection"/> before the first
     ///   auto-connect attempt.  Reads <see cref="Application.absoluteURL"/> (mobile /
-    ///   some desktop configs) and scans CLI args for a bare <c>basisvr://</c> argument.
+    ///   some desktop configs) and scans CLI args for a bare scheme argument.
     ///
     /// Warm-start — <see cref="Application.deepLinkActivated"/> fires while the app is
     ///   already running.  Shows a confirmation before connecting; routes to the
     ///   notification list in VR/DND mode rather than force-opening the menu.
     ///
-    /// URL format:  <c>basisvr://host[:port][?password=xxx]</c>
+    /// URL format:  <c>scheme://host[:port][?password=xxx]</c>
     ///   Password must be in the query string — URL fragments are stripped by some OSes.
     /// </summary>
     public static class BasisDeepLinkProvider
     {
-        public const string Scheme = "basisvr://";
+        /// <summary>URL scheme registered with the OS. Change before building — not runtime-configurable.</summary>
+        public const string DeepLinkScheme = "basisdemo";
+        public static string Scheme => DeepLinkScheme + "://";
+        public const string BundleUrlName = "org.basisvr." + DeepLinkScheme;
+
+        /// <summary>When true, only one Windows client instance runs at a time. Change before building.</summary>
+        private const bool SingleInstance = false;
+
         private const string DeepLinkEntryId = "__deeplink__";
 
         // Covers the full flow: set when a deep link is accepted (before dialog shown or
@@ -40,8 +47,16 @@ namespace Basis.Scripts.Networking
         private static void Initialize()
         {
             Application.deepLinkActivated += OnDeepLinkActivated;
+            Application.quitting += () =>
+            {
+                if (_pendingShow != null)
+                {
+                    BasisNetworkManagement.OnIstanceCreated -= _pendingShow;
+                    _pendingShow = null;
+                }
+            };
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-            if (!InitializeSingleInstance()) return;
+            if (SingleInstance && !InitializeSingleInstance()) return;
             RegisterPlatformUrlScheme();
 #elif UNITY_STANDALONE_LINUX && !UNITY_EDITOR
             RegisterPlatformUrlScheme();
@@ -50,13 +65,33 @@ namespace Basis.Scripts.Networking
 
         /// <summary>
         /// Called once at startup from <see cref="BasisConnectionService.TryGetBootstrapConnection"/>.
+        /// Routes through the same confirmation flow as warm-start so the user always
+        /// sees the "Join Server?" dialog before connecting.
         /// </summary>
         public static bool TryConsumeStartupLink(out ServerDirectoryEntry entry)
         {
+            entry = null;
+            string url = GetStartupLinkUrl();
+            if (url == null) return false;
+            OnDeepLinkActivated(url);
+            return false;
+        }
+
+        private static string GetStartupLinkUrl()
+        {
             if (!string.IsNullOrEmpty(Application.absoluteURL)
-                && TryParseBasisUrl(Application.absoluteURL, out entry))
-                return true;
-            return TryGetCliDeepLink(out entry);
+                && Application.absoluteURL.StartsWith(Scheme, StringComparison.OrdinalIgnoreCase))
+                return Application.absoluteURL;
+            try
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                if (args == null) return null;
+                foreach (string arg in args)
+                    if (!string.IsNullOrEmpty(arg) && arg.StartsWith(Scheme, StringComparison.OrdinalIgnoreCase))
+                        return arg;
+            }
+            catch { }
+            return null;
         }
 
         /// <summary>
@@ -83,7 +118,7 @@ namespace Basis.Scripts.Networking
             if (string.IsNullOrEmpty(addr)) return string.Empty;
             string portStr = entry.Target?.Get(ConnectionTarget.Keys.Port) ?? string.Empty;
             ushort port = ushort.TryParse(portStr, out ushort p) ? p : LNLConnectionTargetParser.DefaultPort;
-            return FormatDeepLink(addr, port, entry.HasPassword ? entry.Password : null);
+            return FormatDeepLink(addr, port, !string.IsNullOrEmpty(entry.Password) ? entry.Password : null);
         }
 
         private static void OnDeepLinkActivated(string url)
@@ -133,7 +168,7 @@ namespace Basis.Scripts.Networking
             }
 
             BasisMainMenu.Open();
-            if (BasisMainMenu.Instance == null) { _deepLinkActive = false; return; }
+            if (BasisMainMenu.Instance == null) { _deepLinkActive = false; BasisDebug.LogWarning("[BasisDeepLink] Main menu instance unavailable — deep link cancelled."); return; }
             if (BasisMainMenu.Instance.Dialogue != null)
                 BasisMainMenu.Instance.Dialogue.ReleaseInstance();
 
@@ -172,21 +207,6 @@ namespace Basis.Scripts.Networking
             finally { _deepLinkActive = false; }
         }
 
-        private static bool TryGetCliDeepLink(out ServerDirectoryEntry entry)
-        {
-            entry = null;
-            string[] args;
-            try { args = Environment.GetCommandLineArgs(); }
-            catch { return false; }
-            if (args == null) return false;
-
-            foreach (string arg in args)
-            {
-                if (!string.IsNullOrEmpty(arg) && arg.StartsWith(Scheme, StringComparison.OrdinalIgnoreCase))
-                    return TryParseBasisUrl(arg, out entry);
-            }
-            return false;
-        }
 
         public static bool TryParseBasisUrl(string url, out ServerDirectoryEntry entry)
         {
@@ -206,7 +226,7 @@ namespace Basis.Scripts.Networking
             int queryIdx = rest.IndexOf('?');
             if (queryIdx >= 0)
             {
-                connectionPart = rest.Substring(0, queryIdx);
+                connectionPart = rest.Substring(0, queryIdx).TrimEnd('/');
                 password = ParsePasswordFromQuery(rest.Substring(queryIdx + 1));
             }
 
@@ -217,7 +237,6 @@ namespace Basis.Scripts.Networking
             ConnectionTarget target = new ConnectionTarget(BasisNetworkStackRegistry.DefaultId, $"{addr}:{port}");
             target.Set(ConnectionTarget.Keys.Address, addr);
             target.Set(ConnectionTarget.Keys.Port, port.ToString(CultureInfo.InvariantCulture));
-            target.Set(ConnectionTarget.Keys.Password, password);
 
             entry = new ServerDirectoryEntry
             {
@@ -275,14 +294,14 @@ namespace Basis.Scripts.Networking
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         // ── Single-instance + warm-start via named mutex + named pipe ──────────
-        // Application.deepLinkActivated never fires on Win32 standalone. When a
-        // basisvr:// link is clicked while the app is already running, Windows
+        // Only active when SingleInstance = true (compile-time constant above).
+        // When a deep link is clicked while the app is already running, Windows
         // launches a second instance. That second instance detects the mutex,
         // pipes the URL to the primary instance, and quits immediately.
 
-        private const string MutexName  = "BasisVR_DeepLink_Instance";
-        private const string PipeName   = @"\\.\pipe\basisvr_deeplink";
-        private const int    PipeBufSz  = 2048;
+        private static string MutexName => DeepLinkScheme.ToUpperInvariant() + "_DeepLink_Instance";
+        private static string PipeName  => @"\\.\pipe\" + DeepLinkScheme + "_deeplink";
+        private const int    PipeBufSz  = 8192;
         private static volatile bool _pipeStop;
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
@@ -308,8 +327,6 @@ namespace Basis.Scripts.Networking
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool WriteFile(IntPtr file, byte[] buf, uint toWrite, out uint written, IntPtr overlapped);
 
-        // Returns true to continue startup; false only when a second instance forwarded a
-        // deep link to the primary and is quitting. A second instance with no link runs normally.
         private static bool InitializeSingleInstance()
         {
             const int ERROR_ALREADY_EXISTS = 183;
@@ -339,7 +356,6 @@ namespace Basis.Scripts.Networking
                 return false;
             }
 
-            // Primary instance — listen for URLs forwarded by future second instances.
             Application.quitting += StopPipeServer;
             Thread t = new Thread(PipeServerLoop) { IsBackground = true, Name = "BasisVR_PipeServer" };
             t.Start();
@@ -365,6 +381,8 @@ namespace Basis.Scripts.Networking
                 byte[] buf = new byte[PipeBufSz];
                 if (ReadFile(pipe, buf, (uint)buf.Length, out uint read, IntPtr.Zero) && read > 0)
                 {
+                    if (read == PipeBufSz)
+                        BasisDebug.LogWarning("[BasisDeepLink] Pipe read hit buffer limit — URL may be truncated.");
                     string url = System.Text.Encoding.UTF8.GetString(buf, 0, (int)read);
                     Basis.Scripts.Device_Management.BasisDeviceManagement.mainThreadActions
                         .Enqueue(() => OnDeepLinkActivated(url));
@@ -399,6 +417,9 @@ namespace Basis.Scripts.Networking
         // ── Registry URL scheme registration ──────────────────────────────────
 
         [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int RegDeleteTreeW(IntPtr hKey, string subKey);
+
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int RegCreateKeyExW(IntPtr hKey, string subKey, int reserved, IntPtr lpClass,
             int options, int samDesired, IntPtr secAttr, out IntPtr result, out int disposition);
 
@@ -411,24 +432,35 @@ namespace Basis.Scripts.Networking
 
         private static void RegisterWindowsScheme(string exePath)
         {
+            const string prefsKey = "__basis_dlDeepLinkScheme__";
             IntPtr hkcu = new IntPtr(unchecked((int)0x80000001));
+
+            string prevScheme = PlayerPrefs.GetString(prefsKey, string.Empty);
+            if (!string.IsNullOrEmpty(prevScheme) && prevScheme != DeepLinkScheme)
+            {
+                if (RegDeleteTreeW(hkcu, $@"Software\Classes\{prevScheme}") == 0)
+                    BasisDebug.Log($"[BasisDeepLink] Removed stale URL scheme {prevScheme}://");
+            }
+
             const int KEY_ALL_ACCESS = 0xF003F;
             const int REG_SZ = 1;
 
-            int ret1 = RegCreateKeyExW(hkcu, @"Software\Classes\basisvr", 0, IntPtr.Zero, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key1, out _);
-            if (ret1 != 0) { BasisDebug.LogError($"[BasisDeepLink] RegCreateKeyExW(basisvr) failed: {ret1}"); return; }
-            string proto = "URL:BasisVR Protocol";
+            int ret1 = RegCreateKeyExW(hkcu, $@"Software\Classes\{DeepLinkScheme}", 0, IntPtr.Zero, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key1, out _);
+            if (ret1 != 0) { BasisDebug.LogError($"[BasisDeepLink] RegCreateKeyExW({DeepLinkScheme}) failed: {ret1}"); return; }
+            string proto = $"URL:{DeepLinkScheme} Protocol";
             RegSetValueExW(key1, "", 0, REG_SZ, proto, (proto.Length + 1) * 2);
             RegSetValueExW(key1, "URL Protocol", 0, REG_SZ, "", 2);
             RegCloseKey(key1);
 
-            int ret2 = RegCreateKeyExW(hkcu, @"Software\Classes\basisvr\shell\open\command", 0, IntPtr.Zero, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key2, out _);
+            int ret2 = RegCreateKeyExW(hkcu, $@"Software\Classes\{DeepLinkScheme}\shell\open\command", 0, IntPtr.Zero, 0, KEY_ALL_ACCESS, IntPtr.Zero, out IntPtr key2, out _);
             if (ret2 != 0) { BasisDebug.LogError($"[BasisDeepLink] RegCreateKeyExW(command) failed: {ret2}"); return; }
             string cmd = $"\"{exePath}\" \"%1\"";
             RegSetValueExW(key2, "", 0, REG_SZ, cmd, (cmd.Length + 1) * 2);
             RegCloseKey(key2);
 
-            BasisDebug.Log($"[BasisDeepLink] Registered basisvr:// → {cmd}");
+            PlayerPrefs.SetString(prefsKey, DeepLinkScheme);
+            PlayerPrefs.Save();
+            BasisDebug.Log($"[BasisDeepLink] Registered {DeepLinkScheme}:// → {cmd}");
         }
 #endif
 
@@ -443,16 +475,16 @@ namespace Basis.Scripts.Networking
             string safeName = Application.productName.Replace("\n", "").Replace("\r", "");
             string safeExe = exePath.Replace("\n", "").Replace("\r", "");
 
-            string desktopFile = System.IO.Path.Combine(desktopDir, "basisvr-handler.desktop");
+            string desktopFile = System.IO.Path.Combine(desktopDir, $"{DeepLinkScheme}-handler.desktop");
             System.IO.File.WriteAllText(desktopFile,
                 "[Desktop Entry]\n" +
                 $"Name={safeName}\n" +
                 $"Exec=\"{safeExe}\" %u\n" +
                 "Type=Application\n" +
                 "NoDisplay=true\n" +
-                "MimeType=x-scheme-handler/basisvr;\n");
+                $"MimeType=x-scheme-handler/{DeepLinkScheme};\n");
 
-            RunProcess("xdg-mime", "default basisvr-handler.desktop x-scheme-handler/basisvr");
+            RunProcess("xdg-mime", $"default {DeepLinkScheme}-handler.desktop x-scheme-handler/{DeepLinkScheme}");
             RunProcess("update-desktop-database", desktopDir);
         }
 

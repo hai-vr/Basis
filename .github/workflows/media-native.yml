@@ -1,0 +1,71 @@
+# Builds librist from source — the only third-party native dependency of the Media
+# Player's optional RIST transport (-DBASIS_WITH_RIST=ON). librist vendors its own
+# mbedTLS and links it into a single static archive, so each job produces one lib.
+# The statics are never committed; this workflow keeps the from-source build green
+# on every change under Native~/ and publishes the archives as downloadable artifacts.
+#
+# Scope is librist only, not the plugin binary: basis_media_native's real backends
+# include Unity's PluginAPI headers, which ship with the editor and aren't available
+# here, so the plugin (.dll/.so) is still built on a Unity-equipped machine. Both jobs
+# run the same build-librist scripts a developer runs locally — the recipe has one home.
+#
+# Note: workflow_dispatch only appears in the Actions UI once this file is on the
+# default branch; until then the pull_request trigger exercises it on PRs.
+name: media-native (RIST)
+
+on:
+  workflow_dispatch:
+    inputs:
+      librist_ref:
+        description: "librist git tag (must match what basis_rist.c targets)"
+        default: "v0.2.11"
+  push:
+    paths:
+      - "Basis/Packages/com.basis.mediaplayer/Native~/**"
+      - ".github/workflows/media-native.yml"
+  pull_request:
+    paths:
+      - "Basis/Packages/com.basis.mediaplayer/Native~/**"
+      - ".github/workflows/media-native.yml"
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  NATIVE_DIR: Basis/Packages/com.basis.mediaplayer/Native~
+  LIBRIST_REF: ${{ inputs.librist_ref || 'v0.2.11' }}
+
+jobs:
+  win-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1   # puts MSVC (vcvars) on PATH so meson uses cl
+        with:
+          arch: x64
+      - run: pip install meson ninja
+      - name: Build librist (static, /MD)
+        shell: pwsh
+        working-directory: ${{ env.NATIVE_DIR }}
+        run: ./build-librist.ps1 -LibristRef "$env:LIBRIST_REF"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: librist-win-x64
+          path: ${{ env.NATIVE_DIR }}/third_party/win-x64/rist.lib
+
+  android-arm64:
+    runs-on: ubuntu-latest   # Android NDK is preinstalled ($ANDROID_NDK_ROOT)
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install meson + ninja
+        run: |
+          sudo apt-get update && sudo apt-get install -y ninja-build
+          pip install meson
+      - name: Build librist (NDK arm64, static)
+        working-directory: ${{ env.NATIVE_DIR }}
+        run: ./build-librist.sh android-arm64
+      - uses: actions/upload-artifact@v5
+        with:
+          name: librist-android-arm64
+          path: ${{ env.NATIVE_DIR }}/third_party/android-arm64/librist.a
