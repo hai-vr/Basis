@@ -23,29 +23,14 @@ namespace Basis.Scripts.Player
         public static GameObject LocalPlayerReadyToSpawn;
 
         /// <summary>
-        /// Prefab asset for the remote player, loaded via Addressables by <see cref="Initialize"/>.
-        /// </summary>
-        public static GameObject RemotePlayerReadyToSpawn;
-
-        /// <summary>
         /// Addressables key for the local player prefab.
         /// </summary>
         public static string LocalPlayerId = "LocalPlayer";
 
         /// <summary>
-        /// Addressables key for the remote player prefab.
-        /// </summary>
-        public static string RemotePlayerId = "RemotePlayer";
-
-        /// <summary>
         /// Addressables handle used to manage the local player prefab's lifetime.
         /// </summary>
         public static UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> LocalHandle;
-
-        /// <summary>
-        /// Addressables handle used to manage the remote player prefab's lifetime.
-        /// </summary>
-        public static UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> RemoteHandle;
 
         /// <summary>
         /// Tpose Handle
@@ -68,9 +53,6 @@ namespace Basis.Scripts.Player
             LocalHandle = Addressables.LoadAssetAsync<GameObject>(LocalPlayerId);
             LocalPlayerReadyToSpawn = LocalHandle.WaitForCompletion();
 
-            RemoteHandle = Addressables.LoadAssetAsync<GameObject>(RemotePlayerId);
-            RemotePlayerReadyToSpawn = RemoteHandle.WaitForCompletion();
-
             TposeHandle = Addressables.LoadAssetAsync<RuntimeAnimatorController>(TPose);
             TposeController = TposeHandle.WaitForCompletion();
         }
@@ -79,13 +61,12 @@ namespace Basis.Scripts.Player
         /// Releases Addressables handles acquired by <see cref="Initialize"/>.
         /// </summary>
         /// <remarks>
-        /// After calling this, <see cref="LocalPlayerReadyToSpawn"/> and <see cref="RemotePlayerReadyToSpawn"/>
-        /// should no longer be used. Re-run <see cref="Initialize"/> to load them again.
+        /// After calling this, <see cref="LocalPlayerReadyToSpawn"/>
+        /// should no longer be used. Re-run <see cref="Initialize"/> to load it again.
         /// </remarks>
         public static void DeInitialize()
         {
             Addressables.Release(LocalHandle);
-            Addressables.Release(RemoteHandle);
             Addressables.Release(TposeController);
         }
 
