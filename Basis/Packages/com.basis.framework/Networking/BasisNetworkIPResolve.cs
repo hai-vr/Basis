@@ -13,7 +13,7 @@ public static class BasisNetworkIPResolve
             if (ips != null && ips.Length > 0)
             {
                 foreach (IPAddress ip in ips)
-                    BasisDebug.Log($"IP Candidate: {ip}");
+                    BasisDebug.Log($"IP Candidate: {ip}", BasisDebug.LogTag.Networking);
 
                 // Prefer IPv6 when the OS supports it (mirrors LiteNetLib's resolution order)
                 if (Socket.OSSupportsIPv6)

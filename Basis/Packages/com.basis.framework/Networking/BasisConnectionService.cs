@@ -5,6 +5,8 @@ using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Network.Core;
 using System;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -128,7 +130,7 @@ namespace Basis.Scripts.Networking
                 string resolvedIp = await resolveTask;
                 if (!string.IsNullOrEmpty(resolvedIp) && resolvedIp != address)
                 {
-                    BasisDebug.Log($"[IPv6Fallback] Resolved {address} → {resolvedIp}", BasisDebug.LogTag.Networking);
+                    BasisDebug.Log($"Resolved {address} → {resolvedIp}", BasisDebug.LogTag.Networking);
                     BasisNetworkManagement.Ip = resolvedIp;
                 }
 
@@ -271,7 +273,10 @@ namespace Basis.Scripts.Networking
             if (!LNLConnectionTargetParser.TryParseConnectionString(value, out string addr, out ushort port, out _, out string password))
                 return false;
 
-            ConnectionTarget target = new ConnectionTarget(BasisNetworkStackRegistry.DefaultId, $"{addr}:{port}");
+            bool isIPv6 = IPAddress.TryParse(addr, out IPAddress parsedAddr)
+                && parsedAddr.AddressFamily == AddressFamily.InterNetworkV6;
+            string raw = isIPv6 ? $"[{addr}]:{port}" : $"{addr}:{port}";
+            ConnectionTarget target = new ConnectionTarget(BasisNetworkStackRegistry.DefaultId, raw);
             target.Set(ConnectionTarget.Keys.Address, addr);
             target.Set(ConnectionTarget.Keys.Port, port.ToString(System.Globalization.CultureInfo.InvariantCulture));
             target.Set(ConnectionTarget.Keys.Password, password ?? string.Empty);

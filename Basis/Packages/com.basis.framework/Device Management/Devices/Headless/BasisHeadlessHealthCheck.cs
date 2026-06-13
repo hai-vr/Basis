@@ -69,7 +69,7 @@ public sealed class BasisHeadlessHealthCheck : IDisposable
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogWarning("Headless health check loop error: " + ex);
+                BasisDebug.LogWarning("Headless health check loop error: " + ex, BasisDebug.LogTag.Networking);
                 continue;
             }
 
