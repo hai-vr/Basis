@@ -100,6 +100,9 @@ namespace Basis.BasisUI
         public static void ApplyNamePlateSettings()
         {
             BasisRemoteNamePlateDriver.ApplyNamePlateSettingsFromUI();
+#if !UNITY_SERVER
+            BasisNetworkPIPCameraDriver.ApplyPipNamePlateSettingsFromUI();
+#endif        
         }
     }
 }
