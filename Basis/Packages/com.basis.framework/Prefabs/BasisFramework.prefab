@@ -59,6 +59,7 @@ GameObject:
   - component: {fileID: 947700616637325904}
   - component: {fileID: 4222888336659293539}
   - component: {fileID: 3244661821366532348}
+  - component: {fileID: 1593740516327517}
   - component: {fileID: 4326429654513598727}
   m_Layer: 0
   m_Name: Modules
@@ -390,6 +391,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd42373e464aed048bd891b65e60d79f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::SMModuleBloomOverrideURP
+--- !u!114 &1593740516327517
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3197856584617865972}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d8443f8cfb94e89a397c6c93171386a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Basis Framework::SMModuleVolumetricFogOverrideURP
 --- !u!114 &4326429654513598727
 MonoBehaviour:
   m_ObjectHideFlags: 0

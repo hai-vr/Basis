@@ -1463,6 +1463,34 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            // --- Accessibility: Volumetric Fog Override ---
+            PanelElementDescriptor fogGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            fogGroup.SetTitle(BasisLocalization.Get("settings.graphics.fog.title"));
+
+            PanelToggle toggleFogOverride = PanelToggle.CreateNewEntry(fogGroup.ContentParent);
+            toggleFogOverride.AssignBinding(BasisSettingsDefaults.UseVolumetricFogOverride);
+            toggleFogOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.fog.override"));
+            toggleFogOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fog.override.tooltip"));
+
+            PanelSlider sliderFogDensity = PanelSlider.CreateEntryAndBind(
+                fogGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.fog.density"),
+                    "",
+                    BasisSettingsDefaults.FOG_DENSITY_MIN,
+                    BasisSettingsDefaults.FOG_DENSITY_MAX,
+                    false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VolumetricFogDensity);
+            sliderFogDensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fog.density.tooltip"));
+
+            sliderFogDensity.Descriptor.SetActive(toggleFogOverride.Value);
+            toggleFogOverride.OnValueChanged += (val) =>
+            {
+                sliderFogDensity.Descriptor.SetActive(val);
+                fogGroup.ForceRebuild();
+                descriptor.ForceRebuild();
+            };
+
             // --- Camera Near/Far Override ---
             PanelElementDescriptor cameraClipGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1631,6 +1659,8 @@ namespace Basis.BasisUI
 
             BasisSettingsDefaults.UseBloomOverride.ResetToDefault();
             BasisSettingsDefaults.BloomIntensity.ResetToDefault();
+            BasisSettingsDefaults.UseVolumetricFogOverride.ResetToDefault();
+            BasisSettingsDefaults.VolumetricFogDensity.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.

@@ -200,6 +200,21 @@ namespace Basis.BasisUI
         public const float BLOOM_INTENSITY_MAX = 5f;
 
         /// <summary>
+        /// When enabled, the volumetric fog density override is applied to all
+        /// VolumetricFogVolumeComponent overrides on existing Volumes in the scene.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseVolumetricFogOverride = new("usevolumetricfogoverride", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Volumetric fog density override. 0 = fog disabled, higher = denser fog.
+        /// Only applied when <see cref="UseVolumetricFogOverride"/> is enabled.
+        /// </summary>
+        public static BasisSettingsBinding<float> VolumetricFogDensity = new("volumetricfogdensity", new BasisPlatformDefault<float>(0.2f));
+
+        public const float FOG_DENSITY_MIN = 0f;
+        public const float FOG_DENSITY_MAX = 1f;
+
+        /// <summary>
         /// When enabled, ReflectionProbe components in the scene whose mode is Realtime are
         /// driven by Basis at the rate selected by <see cref="RealtimeReflectionProbeRate"/>.
         /// When disabled, Basis does not modify any probe state.
@@ -1364,6 +1379,8 @@ namespace Basis.BasisUI
             Antialiasing.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
             BloomIntensity.LoadBindingValue();
+            UseVolumetricFogOverride.LoadBindingValue();
+            VolumetricFogDensity.LoadBindingValue();
             UseRealtimeReflectionProbes.LoadBindingValue();
             RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();

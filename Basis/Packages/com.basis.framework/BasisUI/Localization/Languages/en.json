@@ -231,6 +231,14 @@
       "value": "How strong the glow effect is around bright lights."
     },
     {
+      "key": "settings.graphics.fog.override.tooltip",
+      "value": "Manually control the volumetric fog in the scene."
+    },
+    {
+      "key": "settings.graphics.fog.density.tooltip",
+      "value": "How thick the fog is. Zero turns the fog off."
+    },
+    {
       "key": "settings.graphics.cameraClip.override.tooltip",
       "value": "Manually set how near and far the camera can see."
     },
@@ -3965,6 +3973,22 @@
     {
       "key": "settings.graphics.bloom.intensity",
       "value": "Bloom Intensity"
+    },
+    {
+      "key": "settings.graphics.fog.title",
+      "value": "Volumetric Fog"
+    },
+    {
+      "key": "settings.graphics.fog.override",
+      "value": "Override Volumetric Fog"
+    },
+    {
+      "key": "settings.graphics.fog.override.description",
+      "value": "Override the scene volumetric fog."
+    },
+    {
+      "key": "settings.graphics.fog.density",
+      "value": "Fog Density"
     },
     {
       "key": "settings.graphics.cameraClip.title",

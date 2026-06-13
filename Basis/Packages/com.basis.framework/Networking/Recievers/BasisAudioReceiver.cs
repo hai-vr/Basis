@@ -352,7 +352,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// True when a main-thread <see cref="ApplyAudioState"/> is owed: the source's
         /// enabled state disagrees with whether real audio is queued. Safe to read off-thread.
         /// </summary>
-        public bool NeedsAudioStateApply => HasAudioSource && VoiceBuffer.HasRealAudio != _audioEnabled;
+        public bool NeedsAudioStateApply => HasAudioSource && ShouldAudioBeActive() != _audioEnabled;
 
         /// <summary>
         /// True while the voice source is enabled (and so OnAudioFilterRead is running
@@ -362,13 +362,30 @@ namespace Basis.Scripts.Networking.Receivers
         public bool IsAudioActive => HasAudioSource && _audioEnabled;
 
         /// <summary>
+        /// Whether the AudioSource should currently be enabled. True while real audio is
+        /// queued, and for a short hang afterwards so brief inter-word/sentence gaps don't
+        /// disable+re-enable the source — that churn restarts Steam Audio's per-source
+        /// state and clicks on every resume. We still disable once the stream has been
+        /// fully silent for IdleResetThresholdUnits (the same point the decoder resets), so
+        /// genuinely idle players don't keep a live spatialized voice source — which is
+        /// what matters at 1000+ players.
+        /// </summary>
+        private bool ShouldAudioBeActive()
+        {
+            if (VoiceBuffer.HasRealAudio) return true;
+#pragma warning disable CS0420 // Volatile.Read provides correct semantics for this volatile field
+            return System.Threading.Volatile.Read(ref _silentUnits20ms) < IdleResetThresholdUnits;
+#pragma warning restore CS0420
+        }
+
+        /// <summary>
         /// Main-thread only: reconciles AudioSource enabled/playing with the decoded queue.
         /// No-op when already in the right state.
         /// </summary>
         public void ApplyAudioState()
         {
             if (!HasAudioSource) return;
-            if (VoiceBuffer.HasRealAudio)
+            if (ShouldAudioBeActive())
             {
                 EnableAndEnsurePlaying();
             }
@@ -391,7 +408,7 @@ namespace Basis.Scripts.Networking.Receivers
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
                 if (!HasAudioSource) return;
-                if (VoiceBuffer.HasRealAudio)
+                if (ShouldAudioBeActive())
                     EnableAndEnsurePlaying();
                 else
                     DisableAudio();
@@ -809,12 +826,24 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
+        /// <summary>
+        /// Soft peak limiter: transparent below ±0.8, then a smooth knee that
+        /// asymptotically approaches ±1 instead of hard-clamping. Per-player volume can
+        /// boost up to 1.5×, which pushes loud syllables past full scale; a hard clamp
+        /// there is audible buzz/crackle, so round the peaks instead. C1-continuous at the
+        /// knee (slope 1) and never exceeds ±1, so it can't overshoot the output buffer.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float FastClamp(float x)
+        private static float SoftLimit(float x)
         {
-            if (x > 1f) return 1f;
-            if (x < -1f) return -1f;
-            return x;
+            const float t = 0.8f;        // linear region
+            const float range = 1f - t;  // headroom to the ±1 ceiling
+            float ax = x < 0f ? -x : x;
+            if (ax <= t) return x;
+            if (ax >= 8f) return x < 0f ? -1f : 1f; // guard Inf/huge -> NaN in the ratio
+            float over = ax - t;
+            float comp = t + range * (over / (over + range));
+            return x < 0f ? -comp : comp;
         }
 
         /// <summary>
@@ -1028,7 +1057,7 @@ namespace Basis.Scripts.Networking.Receivers
                 float raw = source[f];
                 float absRaw = raw < 0f ? -raw : raw;
                 if (absRaw > blockPeak) blockPeak = absRaw;
-                float sample = FastClamp(raw * gain * env);
+                float sample = SoftLimit(raw * gain * env);
                 for (int c = 0; c < channels; c++)
                     data[idx++] = sample;
                 lastWritten = sample;

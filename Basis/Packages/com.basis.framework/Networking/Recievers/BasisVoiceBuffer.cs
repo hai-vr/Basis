@@ -48,7 +48,62 @@ public class BasisVoiceBuffer
     private int _lastDecayTick;
     private const int DecayIntervalMs = 5000; // ~5 s half-life
 
-    public int InitialBufferDepth => RemoteOpusSettings.JitterBufferSize;
+    // ── Adaptive jitter depth (per stream) ──
+    // RemoteOpusSettings.JitterBufferSize is the user-set FLOOR. We grow the effective
+    // depth for THIS stream when packets are seen arriving too late for the current
+    // depth, and relax back toward the floor when the stream is clean. Lateness is
+    // measured clock-free (a packet whose playback slot already passed, counted in
+    // InsertEncoded), so this needs no high-resolution timer. The depth drives both the
+    // initial pre-roll and the grace window before a gap is declared lost.
+    private int _adaptiveExtraDepth;
+    private long _arrivalsSinceAdjust;
+    private long _lateSinceAdjust;
+    private int _lastDepthAdjustTick;
+    private const int DepthAdjustIntervalMs = 1500;
+    // Pre-roll cap (packets). 10 ≈ 200 ms max startup buffering on a bad network.
+    private const int MaxPrerollDepth = 10;
+    // Running-grace cap (packets). Kept well below the decoded PCM queue (8 frames /
+    // 160 ms) so holding a slot for a late packet drains that queue without underrunning.
+    private const int MaxRunningGrace = 3;
+
+    /// <summary>Per-stream pre-roll depth: user floor, grown by observed lateness, capped.</summary>
+    public int InitialBufferDepth
+    {
+        get { lock (_encodedLock) return TargetDepthLocked(); }
+    }
+
+    // Caller must hold _encodedLock.
+    private int TargetDepthLocked()
+    {
+        int depth = RemoteOpusSettings.JitterBufferSize + _adaptiveExtraDepth;
+        if (depth < 1) depth = 1;
+        else if (depth > MaxPrerollDepth) depth = MaxPrerollDepth;
+        return depth;
+    }
+
+    // Caller must hold _encodedLock. Periodically nudges _adaptiveExtraDepth from the
+    // recent late-arrival ratio.
+    private void MaybeAdjustDepthLocked(int now)
+    {
+        int elapsed = unchecked(now - _lastDepthAdjustTick);
+        if (elapsed >= 0 && elapsed < DepthAdjustIntervalMs) return;
+        _lastDepthAdjustTick = now;
+
+        if (_arrivalsSinceAdjust >= 20)
+        {
+            float lateRatio = (float)_lateSinceAdjust / _arrivalsSinceAdjust;
+            if (lateRatio > 0.05f) _adaptiveExtraDepth += 2;
+            else if (lateRatio > 0.01f) _adaptiveExtraDepth += 1;
+            else if (lateRatio < 0.002f) _adaptiveExtraDepth -= 1;
+
+            int maxExtra = MaxPrerollDepth - RemoteOpusSettings.JitterBufferSize;
+            if (maxExtra < 0) maxExtra = 0;
+            if (_adaptiveExtraDepth < 0) _adaptiveExtraDepth = 0;
+            else if (_adaptiveExtraDepth > maxExtra) _adaptiveExtraDepth = maxExtra;
+        }
+        _arrivalsSinceAdjust = 0;
+        _lateSinceAdjust = 0;
+    }
 
     // ==================== Decoded PCM frame queue ====================
 
@@ -161,15 +216,28 @@ public class BasisVoiceBuffer
             }
 
             int distance = SeqDist(sequenceNumber, _nextPlaybackSeq);
+
+            // Adaptive-depth telemetry: every packet is an arrival; a negative distance
+            // means its playback slot already passed, i.e. it arrived too late for the
+            // current depth. A rising late ratio grows the buffer (MaybeAdjustDepthLocked).
+            _arrivalsSinceAdjust++;
+            if (distance < 0) _lateSinceAdjust++;
+            MaybeAdjustDepthLocked(Environment.TickCount);
+
             if (distance < 0) return; // old packet, discard
 
             if (distance >= MaxAheadDistance)
             {
-                // Huge jump — reset
+                // Forward jump too wide for the 64-slot ring to represent (heavy loss
+                // burst or a sender restart). We must drop the stale slots, but DON'T
+                // force a full re-pre-roll: the decoded PCM queue is still draining real
+                // audio and the underrun fade covers the seam, so a transient burst
+                // shouldn't add the entire jitter pre-roll as extra silence on top of the
+                // gap. Resync and require only a short re-fill before playback resumes.
                 ClearEncoded();
                 _nextPlaybackSeq = sequenceNumber;
                 _started = true;
-                _receivedSinceStart = 0;
+                _receivedSinceStart = Math.Max(0, TargetDepthLocked() - 2);
                 distance = 0;
             }
 
@@ -247,7 +315,7 @@ public class BasisVoiceBuffer
         lock (_encodedLock)
         {
             if (!_started) return false;
-            if (_receivedSinceStart < InitialBufferDepth) return false;
+            if (_receivedSinceStart < TargetDepthLocked()) return false;
 
             int slot = _nextPlaybackSeq & EncodedSlotMask;
             if (_encoded[slot].Occupied && _encoded[slot].SequenceNumber == _nextPlaybackSeq)
@@ -262,13 +330,29 @@ public class BasisVoiceBuffer
                 return true;
             }
 
-            if (_hasHighest && SeqDist(_nextPlaybackSeq, _highestReceivedSeq) < 0)
+            if (_hasHighest)
             {
-                isMissing = true;
-                _nextPlaybackSeq++;
-                DecayRecentIfDue();
-                _recentMissing++;
-                return true;
+                // Slot empty. How far is playback behind the newest arrival?
+                int lead = -SeqDist(_nextPlaybackSeq, _highestReceivedSeq); // >0 when behind
+                if (lead > 0)
+                {
+                    // Grace window: don't declare the gap lost until we're this many
+                    // packets behind the newest arrival, giving a reordered/jittered
+                    // packet time to land instead of PLC-ing it immediately (= crackle on
+                    // a jittery network). Bounded by MaxRunningGrace so the hold drains
+                    // the decoded queue without underrunning it.
+                    int grace = TargetDepthLocked();
+                    if (grace > MaxRunningGrace) grace = MaxRunningGrace;
+                    if (lead >= grace)
+                    {
+                        isMissing = true;
+                        _nextPlaybackSeq++;
+                        DecayRecentIfDue();
+                        _recentMissing++;
+                        return true;
+                    }
+                    // else: hold and wait for the late packet (or for `lead` to grow).
+                }
             }
 
             return false;
