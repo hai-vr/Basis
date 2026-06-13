@@ -48,6 +48,7 @@ namespace Basis.Scripts.Networking.Receivers
         public BasisNetworkReceiver BasisNetworkReceiver;
         public static float[] silentData;
         public static int outputSampleRate;
+        private static bool _loggedOutputRate;
 
 #if !UNITY_SERVER
         public OpusSharp.Core.Interfaces.IOpusDecoder decoder;
@@ -92,12 +93,26 @@ namespace Basis.Scripts.Networking.Receivers
         // while the jitter buffer is filling back up.
         private bool _idleResetDone;
 
-        // Resampler state — persistent across OnAudioFilterRead callbacks so phase
-        // and the last interpolation sample carry over the callback boundary. Without
-        // this, interpolation restarts at phase=0 each call and drops a fractional
-        // sample per callback = periodic crackle.
-        private double _resamplePhase;
-        private float _resampleLastSample;
+        // Anti-aliased polyphase resampler for the 48 kHz network stream -> output
+        // device rate. Replaces a first-order linear interpolation that had no
+        // anti-aliasing lowpass: whenever the output device wasn't 48 kHz (44.1 kHz
+        // desktop devices, or a Bluetooth headset forced to 16 kHz SCO while the mic
+        // is open) the linear path folded high-frequency voice content back into the
+        // audible band as continuous grit/crackle. AudioResampler is a windowed-sinc
+        // design that lowpasses to the output Nyquist before decimating.
+        private OpenLipSync.Inference.Audio.AudioResampler _sincResampler;
+        private int _sincResamplerOutRate = -1;
+
+        // Resampler output produced beyond what a callback consumed, carried to the
+        // next callback. Bridges the resampler's push-N / pull-M model to the fixed
+        // per-callback frame count OnAudioFilterRead must fill.
+        private float[] _resampleLeftover = new float[256];
+        private int _resampleLeftoverCount;
+
+        // Set on the main thread when the audio-thread resampler should restart
+        // (re-enable / new utterance / rate change); consumed on the audio thread so
+        // the delay line is only ever mutated there.
+        private volatile bool _sincResetRequested;
 
         // Output gain smoothing — ramps the final per-sample gain across a callback
         // instead of stepping per callback (kills zippering on head movement /
@@ -518,6 +533,20 @@ namespace Basis.Scripts.Networking.Receivers
 
         // ==================== Initialization / lifecycle ====================
 
+        private static void LogOutputRateOnce()
+        {
+            if (_loggedOutputRate) return;
+            _loggedOutputRate = true;
+            if (outputSampleRate != RemoteOpusSettings.NetworkSampleRate)
+            {
+                BasisDebug.Log($"[Voice] Output device runs at {outputSampleRate} Hz; voice streams at {RemoteOpusSettings.NetworkSampleRate} Hz, so playback is resampled (anti-aliased polyphase). A non-48000 device rate — 44100, or 16000 on a Bluetooth headset in headset/SCO mode while the mic is open — is the usual source of resampler-side voice artifacts.", BasisDebug.LogTag.Voice);
+            }
+            else
+            {
+                BasisDebug.Log($"[Voice] Output device runs at {outputSampleRate} Hz, matching the voice stream — no resampling.", BasisDebug.LogTag.Voice);
+            }
+        }
+
         public void Initialize(BasisNetworkReceiver networkedPlayer)
         {
 #if UNITY_SERVER
@@ -526,6 +555,7 @@ namespace Basis.Scripts.Networking.Receivers
             outputSampleRate = AudioSettings.outputSampleRate;
             silentData ??= new float[RemoteOpusSettings.MaxFrameSize];
             BasisNetworkReceiver = networkedPlayer;
+            LogOutputRateOnce();
 
 #if UNITY_IOS && !UNITY_EDITOR
             // iOS requires statically linked Opus library
@@ -544,6 +574,9 @@ namespace Basis.Scripts.Networking.Receivers
                 decoder.Dispose();
                 decoder = null;
             }
+            _sincResampler?.Dispose();
+            _sincResampler = null;
+            _sincResamplerOutRate = -1;
 #endif
             UnloadAudioSource();
         }
@@ -589,6 +622,7 @@ namespace Basis.Scripts.Networking.Receivers
             _resampleScratch = new float[BufferSize];
             _cachedOutputRate = outputSampleRate;
             _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
+            WarmResampler();
             ResetAudioThreadState();
         }
 
@@ -607,6 +641,7 @@ namespace Basis.Scripts.Networking.Receivers
 
             _cachedOutputRate = outputSampleRate;
             _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
+            WarmResampler();
             ResetAudioThreadState();
 #if UNITY_SERVER
             return;
@@ -663,8 +698,9 @@ namespace Basis.Scripts.Networking.Receivers
 
         private void ResetAudioThreadState()
         {
-            _resamplePhase = 0.0;
-            _resampleLastSample = 0f;
+            // Defer the resampler restart to the audio thread (EnsureSincResampler);
+            // its delay line must not be mutated from the main thread mid-callback.
+            _sincResetRequested = true;
             _lastGain = 0f;
             _gainPrimed = false;
             _fadeEnvelope = 0f;
@@ -806,56 +842,86 @@ namespace Basis.Scripts.Networking.Receivers
 
         private void ProcessResample(Span<float> data, int frames, int channels)
         {
-            // Persistent-phase linear interpolation. The virtual input stream is
-            //   virtual[0]       = _resampleLastSample (carry from previous callback)
-            //   virtual[i>=1]    = _inputScratch[i-1]  (freshly read this callback)
-            // and _resamplePhase is kept modulo 1 between callbacks, so there is no
-            // restart-at-zero discontinuity and no fractional sample is silently
-            // dropped at the callback boundary.
-            double step = _resampleRatio;
-            if (step <= 0.0) step = 1.0;
-
-            double maxPhase = _resamplePhase + (frames - 1) * step;
-            int maxVirtualIndex = (int)Math.Floor(maxPhase) + 1;
-            int N = Math.Max(1, maxVirtualIndex); // new input samples needed this callback
-
-            EnsureCapacity(ref _inputScratch, N);
+            EnsureSincResampler();
             EnsureCapacity(ref _resampleScratch, frames);
-
-            int read = VoiceBuffer.ReadPcm(_inputScratch, N);
-            bool underrun = read < N;
-            Span<float> input = _inputScratch.AsSpan(0, N);
             Span<float> resampled = _resampleScratch.AsSpan(0, frames);
-            if (underrun)
+
+            if (_sincResampler == null)
             {
-                FadeFillUnderrun(input, read, N);
+                // Output rate not usable yet — emit silence rather than risk a
+                // wrong-rate resampler. Effectively never hit post-init.
+                resampled.Clear();
+                ApplyGainAndWrite(resampled, data, frames, channels);
+                return;
             }
 
-            double phase = _resamplePhase;
-            for (int f = 0; f < frames; f++)
+            int produced = 0;
+            bool underrun = false;
+
+            // 1) Consume anything the resampler over-produced last callback.
+            if (_resampleLeftoverCount > 0)
             {
-                int iLow = (int)Math.Floor(phase);
-                double frac = phase - iLow;
-                int iHigh = iLow + 1;
-
-                float sLow = iLow <= 0 ? _resampleLastSample
-                           : (iLow - 1 < N ? input[iLow - 1] : _resampleLastSample);
-                float sHigh = iHigh <= 0 ? _resampleLastSample
-                            : (iHigh - 1 < N ? input[iHigh - 1] : sLow);
-
-                resampled[f] = (float)(sLow + frac * (sHigh - sLow));
-                phase += step;
+                int take = Math.Min(_resampleLeftoverCount, frames);
+                _resampleLeftover.AsSpan(0, take).CopyTo(resampled);
+                int rem = _resampleLeftoverCount - take;
+                if (rem > 0)
+                    _resampleLeftover.AsSpan(take, rem).CopyTo(_resampleLeftover.AsSpan(0, rem));
+                _resampleLeftoverCount = rem;
+                produced = take;
             }
 
-            // Advance phase and carry over the last consumed sample to the next callback.
-            double endPhase = _resamplePhase + frames * step;
-            int consumedVirtual = (int)Math.Floor(endPhase);
-            int lastIdx = consumedVirtual - 1;
-            if (lastIdx >= 0 && lastIdx < N)
+            // 2) Pull decoded PCM and run it through the polyphase filter until the
+            //    callback is full. The resampler keeps its own delay line + phase, so
+            //    variable-size feeds give the same continuous output as one big feed.
+            double ratio = _resampleRatio > 0f ? _resampleRatio : 1.0;
+            int guard = 0;
+            while (produced < frames && guard++ < 8)
             {
-                _resampleLastSample = input[lastIdx];
+                int need = frames - produced;
+                int inWant = (int)Math.Ceiling(need * ratio) + 2;
+                EnsureCapacity(ref _inputScratch, inWant);
+                int read = VoiceBuffer.ReadPcm(_inputScratch, inWant);
+                if (read <= 0)
+                {
+                    underrun = true;
+                    break;
+                }
+
+                ReadOnlySpan<float> emitted = _sincResampler.Resample(_inputScratch.AsSpan(0, read));
+                int copy = Math.Min(emitted.Length, frames - produced);
+                if (copy > 0)
+                {
+                    emitted.Slice(0, copy).CopyTo(resampled.Slice(produced));
+                    produced += copy;
+                }
+
+                int surplus = emitted.Length - copy;
+                if (surplus > 0)
+                {
+                    int needCap = _resampleLeftoverCount + surplus;
+                    if (needCap > _resampleLeftover.Length)
+                    {
+                        int cap = _resampleLeftover.Length;
+                        while (cap < needCap) cap <<= 1;
+                        Array.Resize(ref _resampleLeftover, cap); // preserves existing samples
+                    }
+                    emitted.Slice(copy).CopyTo(_resampleLeftover.AsSpan(_resampleLeftoverCount));
+                    _resampleLeftoverCount += surplus;
+                }
+
+                if (read < inWant)
+                {
+                    // Decoded queue ran dry mid-callback.
+                    underrun = true;
+                    break;
+                }
             }
-            _resamplePhase = endPhase - consumedVirtual;
+
+            // 3) Smooth the boundary to silence if the queue underran.
+            if (produced < frames)
+            {
+                FadeFillUnderrun(resampled, produced, frames);
+            }
 
             ApplyGainAndWrite(resampled, data, frames, channels);
 
@@ -863,6 +929,70 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 _fadeEnvelope = 0f;
                 _lastOutputSample = 0f;
+            }
+        }
+
+        /// <summary>
+        /// (Re)creates the polyphase resampler when the output device rate changes and
+        /// services a pending delay-line reset. Runs on the audio thread so the
+        /// resampler is only ever mutated there; the main thread just sets
+        /// <see cref="_sincResetRequested"/>.
+        /// </summary>
+        private void EnsureSincResampler()
+        {
+            int outRate = _cachedOutputRate;
+            if (outRate <= 0)
+            {
+                return;
+            }
+
+            if (_sincResampler == null || _sincResamplerOutRate != outRate)
+            {
+                _sincResampler?.Dispose();
+                // 32 taps / 512 phases: anti-aliased quality at a fraction of the
+                // per-sample cost of the lipsync default (48/1024). This runs on the
+                // audio thread for every audible remote speaker, so tap count is the
+                // dominant cost; 32 still gives strong image rejection across the
+                // voice band.
+                _sincResampler = new OpenLipSync.Inference.Audio.AudioResampler(
+                    RemoteOpusSettings.NetworkSampleRate, outRate, filterTaps: 32, numPhases: 512);
+                _sincResamplerOutRate = outRate;
+                _resampleLeftoverCount = 0;
+                _sincResetRequested = false;
+                return;
+            }
+
+            if (_sincResetRequested)
+            {
+                _sincResetRequested = false;
+                _sincResampler.Reset();
+                _resampleLeftoverCount = 0;
+            }
+        }
+
+        /// <summary>
+        /// Main-thread warm-up: builds and caches the polyphase coefficient table for
+        /// the current output rate so the first audio-thread resample doesn't pay the
+        /// table build. Uses a throwaway instance (no shared state with the audio
+        /// thread's resampler). No-op when the device already runs at the network rate.
+        /// </summary>
+        private void WarmResampler()
+        {
+            int outRate = _cachedOutputRate;
+            if (outRate <= 0 || outRate == RemoteOpusSettings.NetworkSampleRate)
+            {
+                return;
+            }
+            try
+            {
+                using (new OpenLipSync.Inference.Audio.AudioResampler(
+                    RemoteOpusSettings.NetworkSampleRate, outRate, filterTaps: 32, numPhases: 512))
+                {
+                }
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogWarning($"[Voice] resampler warm-up failed: {ex.Message}", BasisDebug.LogTag.Voice);
             }
         }
 
