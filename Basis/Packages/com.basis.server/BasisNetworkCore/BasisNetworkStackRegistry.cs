@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,6 +18,12 @@ namespace Basis.Network.Core
         public string Motd;
         public int RoundTripMs;
         public Dictionary<string, string> Extras = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>
+        /// The IP address that successfully responded to the probe. Null when unreachable.
+        /// Callers can use this to bypass DNS re-resolution and connect directly to the
+        /// confirmed-reachable address family (supporting IPv6→IPv4 fallback).
+        /// </summary>
+        public IPAddress ResolvedAddress;
     }
 
     public delegate Task<ServerProbeResult> StackProbeDelegate(ConnectionTarget target, int timeoutMs, CancellationToken ct);

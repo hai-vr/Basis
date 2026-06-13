@@ -117,7 +117,20 @@ namespace Basis.Scripts.Networking
                 BasisNetworkManagement.NetworkStackId = stackId;
 
                 ReportConnectionProgress(60f, BasisLocalization.Get("menu.servers.status.loadingBundle"));
+
+                // Probe the server while the bundle loads to discover which address family
+                // is actually reachable. Skipped in host-mode: the local server may not be
+                // listening yet. Non-fatal: if the probe fails we fall back to the hostname.
+                Task<string> resolveTask = isHostMode
+                    ? Task.FromResult(address)
+                    : ResolveConnectionAddressAsync(entry.Target, address);
                 await LoadDefaultAssetBundleAsync();
+                string resolvedIp = await resolveTask;
+                if (!string.IsNullOrEmpty(resolvedIp) && resolvedIp != address)
+                {
+                    BasisDebug.Log($"[IPv6Fallback] Resolved {address} → {resolvedIp}", BasisDebug.LogTag.Networking);
+                    BasisNetworkManagement.Ip = resolvedIp;
+                }
 
                 ReportConnectionProgress(90f, BasisLocalization.Get("menu.servers.status.connecting"));
                 BasisNetworkManagement.Connect();
@@ -137,6 +150,25 @@ namespace Basis.Scripts.Networking
                 ReportConnectionError(BasisLocalization.Get("menu.servers.error.connectFailed"));
                 BasisDebug.LogError(ex.ToString());
             }
+        }
+
+        /// <summary>
+        /// Probes the server and returns the <see cref="IPAddress"/> string that actually
+        /// responded, or <paramref name="fallback"/> if the probe cannot reach either family.
+        /// A 2.5-second budget is split: first half for IPv6, second half for IPv4.
+        /// </summary>
+        private static async Task<string> ResolveConnectionAddressAsync(ConnectionTarget target, string fallback)
+        {
+            try
+            {
+                using CancellationTokenSource cts = new CancellationTokenSource(2500);
+                ServerProbeResult probe = await BasisNetworkStackRegistry.ProbeAsync(
+                    target, 2500, cts.Token).ConfigureAwait(false);
+                if (probe?.ResolvedAddress != null)
+                    return probe.ResolvedAddress.ToString();
+            }
+            catch { }
+            return fallback;
         }
 
         public static async Task LoadDefaultAssetBundleAsync()

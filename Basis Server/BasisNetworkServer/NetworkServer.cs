@@ -198,8 +198,8 @@ public static class NetworkServer
 
             if (!IPAddress.TryParse(Configuration.IPv6Address, out IPv6Address))
             {
-                BNL.LogWarning("Failed to parse IPv6 bind address, falling back to ::1");
-                IPv6Address = IPAddress.Parse("::1");
+                BNL.LogWarning("Failed to parse IPv6 bind address, falling back to ::");
+                IPv6Address = IPAddress.IPv6Any;
             }
 
             BNL.Log($"Server Wiring up SetPort {Configuration.SetPort} IPv6Address {Configuration.IPv6Address}");
