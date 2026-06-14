@@ -46,8 +46,8 @@ namespace Basis.IK.Debugging
             EditorGUILayout.LabelField("Hint Stress", EditorStyles.boldLabel);
             _cfg.Base.HintDir = EditorGUILayout.Vector3Field("Nominal Hint Dir", _cfg.Base.HintDir);
             _cfg.Base.HintDistanceFrac = EditorGUILayout.Slider("Hint Distance Frac", _cfg.Base.HintDistanceFrac, 0f, 1f);
-            _cfg.HintAzSteps = EditorGUILayout.IntSlider("Azimuth Steps", _cfg.HintAzSteps, 4, 48);
-            _cfg.HintElSteps = EditorGUILayout.IntSlider("Elevation Steps", _cfg.HintElSteps, 1, 19);
+            _cfg.HintAzSteps = EditorGUILayout.IntSlider("Azimuth Steps", _cfg.HintAzSteps, 4, 144);
+            _cfg.HintElSteps = EditorGUILayout.IntSlider("Elevation Steps", _cfg.HintElSteps, 1, 57);
             _cfg.SafeConeDeg = EditorGUILayout.Slider("Safe Hint Cone (deg)", _cfg.SafeConeDeg, 10f, 120f);
 
             EditorGUILayout.Space();

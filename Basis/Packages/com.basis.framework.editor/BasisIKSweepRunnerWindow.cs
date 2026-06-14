@@ -16,7 +16,7 @@ namespace Basis.IK.Debugging
         bool _hasRun;
         bool _includeTraj = true;
         float _trajNoise = 0.003f;
-        int _armGridSteps = 25;   // per-axis reach-target density for the arm grid sweep (was 9). Higher = finer flip detection, slower.
+        [System.NonSerialized] int _armGridSteps = 75;   // per-axis reach-target density for the arm grid sweep. NonSerialized so this code default wins on every recompile (Unity otherwise persists the open window's slider value).
         Vector2 _scroll;
 
         [MenuItem("Basis/Debug/IK/Run All Sweeps")]
@@ -40,7 +40,7 @@ namespace Basis.IK.Debugging
                 _trajNoise = EditorGUILayout.Slider("Trajectory Noise (m)", _trajNoise, 0f, 0.01f);
             }
 
-            _armGridSteps = EditorGUILayout.IntSlider("Arm Grid Steps (per axis)", _armGridSteps, 9, 49);
+            _armGridSteps = EditorGUILayout.IntSlider("Arm Grid Steps (per axis)", _armGridSteps, 9, 99);
             long armPts = (long)_armGridSteps * _armGridSteps * _armGridSteps;
             EditorGUILayout.LabelField($"    arm grid = {armPts:n0} reach targets ({_armGridSteps}^3); higher = finer flip detection, slower", EditorStyles.miniLabel);
 
@@ -102,117 +102,88 @@ namespace Basis.IK.Debugging
             _rows.Clear();
             _hasRun = true;
 
-            try { string p = BasisArmIKSweep.DefaultPath(); var cfg = BasisArmIKSweepConfig.Default(); cfg.Steps = new Vector3Int(_armGridSteps, _armGridSteps, _armGridSteps); var s = BasisArmIKSweep.Run(cfg, p); var g = BasisIKTestGates.GateArm(s); Record("Arm IK", g.pass, g.reason, p); var ge = BasisIKTestGates.GateArmElbowDirection(s); Record("Arm IK · elbow dir", ge.pass, ge.reason, p); }
-            catch (System.Exception e) { Record("Arm IK", false, e.Message, null); }
+            // Capture everything that needs the main thread up front: Application.persistentDataPath (the
+            // paths) and the window fields. The sweeps themselves are pure math + per-file CSV IO and share
+            // no mutable state, so each runs on a worker thread and they all go in parallel. We block until
+            // they finish (the editor is busy during the run, same as before -- just shorter), then log in
+            // submission order so the console/list read the same as the serial version.
+            int armSteps = _armGridSteps;
+            float trajNoise = _trajNoise;
+            bool includeTraj = _includeTraj;
 
-            try { string p = BasisShoulderSweep.DefaultPath(); var s = BasisShoulderSweep.Run(BasisShoulderSweepConfig.Default(), p); var g = BasisIKTestGates.GateShoulder(s); Record("Shoulder", g.pass, g.reason, p); }
-            catch (System.Exception e) { Record("Shoulder", false, e.Message, null); }
+            string armPath = BasisArmIKSweep.DefaultPath();
+            string shoulderPath = BasisShoulderSweep.DefaultPath();
+            string legPath = BasisLegIKSweep.DefaultPath();
+            string legInvPath = BasisLegInversionSweep.DefaultPath();
+            string headPath = BasisHeadSweep.DefaultPath();
+            string protectPath = BasisElbowProtectSweep.DefaultPath();
+            string armTrajPath = TrajPath("BasisArmIKTrajectory.csv");
+            string armTempPath = TrajPath("BasisArmIKTemporal.csv");
+            string armTempHandPath = TrajPath("BasisArmIKTemporalHand.csv");
+            string armTempTrackPath = TrajPath("BasisArmIKTemporalTracker.csv");
+            string protectTrajPath = TrajPath("BasisElbowProtectTrajectory.csv");
+            string legTrajPath = TrajPath("BasisLegIKTrajectory.csv");
+            string legTempPath = TrajPath("BasisLegIKTemporal.csv");
+            string legInvTempPath = TrajPath("BasisLegInversionTemporal.csv");
+            string headTrajPath = TrajPath("BasisHeadTrajectory.csv");
 
-            try { string p = BasisLegIKSweep.DefaultPath(); var s = BasisLegIKSweep.Run(BasisLegIKSweepConfig.Default(), p); var g = BasisIKTestGates.GateLeg(s); Record("Leg IK", g.pass, g.reason, p); }
-            catch (System.Exception e) { Record("Leg IK", false, e.Message, null); }
-
-            try { string p = BasisLegInversionSweep.DefaultPath(); var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.Run(cfg, p); var g = BasisIKTestGates.GateLegInversion(s); Record("Leg Inversion", g.pass, g.reason, p); }
-            catch (System.Exception e) { Record("Leg Inversion", false, e.Message, null); }
-
-            try { string p = BasisHeadSweep.DefaultPath(); var s = BasisHeadSweep.Run(BasisHeadSweepConfig.Default(), p); var g = BasisIKTestGates.GateHead(s); Record("Head", g.pass, g.reason, p); }
-            catch (System.Exception e) { Record("Head", false, e.Message, null); }
-
-            try { string p = BasisElbowProtectSweep.DefaultPath(); var s = BasisElbowProtectSweep.Run(BasisElbowProtectSweepConfig.Default(), p); var g = BasisIKTestGates.GateElbow(s); Record("Elbow Protect", g.pass, g.reason, p); }
-            catch (System.Exception e) { Record("Elbow Protect", false, e.Message, null); }
-
-            if (_includeTraj)
+            var jobs = new System.Collections.Generic.List<System.Func<Row[]>>
             {
-                try
+                () =>
                 {
-                    string p = TrajPath("BasisArmIKTrajectory.csv");
-                    var s = BasisArmIKSweep.RunTrajectories(BasisArmIKSweepConfig.Default(), _trajNoise, p);
-                    var g = BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
-                    Record("Arm IK · traj", g.pass, g.reason, p);
-                }
-                catch (System.Exception e) { Record("Arm IK · traj", false, e.Message, null); }
+                    try
+                    {
+                        var cfg = BasisArmIKSweepConfig.Default();
+                        cfg.Steps = new Vector3Int(armSteps, armSteps, armSteps);
+                        var s = BasisArmIKSweep.Run(cfg, armPath);
+                        var g = BasisIKTestGates.GateArm(s);
+                        var ge = BasisIKTestGates.GateArmElbowDirection(s);
+                        return new[]
+                        {
+                            new Row { Name = "Arm IK", Ok = g.pass, Detail = g.reason, Path = armPath },
+                            new Row { Name = "Arm IK · elbow dir", Ok = ge.pass, Detail = ge.reason, Path = armPath },
+                        };
+                    }
+                    catch (System.Exception e) { return new[] { new Row { Name = "Arm IK", Ok = false, Detail = e.Message, Path = null } }; }
+                },
+                () => Job("Shoulder", shoulderPath, () => { var s = BasisShoulderSweep.Run(BasisShoulderSweepConfig.Default(), shoulderPath); return BasisIKTestGates.GateShoulder(s); }),
+                () => Job("Leg IK", legPath, () => { var s = BasisLegIKSweep.Run(BasisLegIKSweepConfig.Default(), legPath); return BasisIKTestGates.GateLeg(s); }),
+                () => Job("Leg Inversion", legInvPath, () => { var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.Run(cfg, legInvPath); return BasisIKTestGates.GateLegInversion(s); }),
+                () => Job("Head", headPath, () => { var s = BasisHeadSweep.Run(BasisHeadSweepConfig.Default(), headPath); return BasisIKTestGates.GateHead(s); }),
+                () => Job("Elbow Protect", protectPath, () => { var s = BasisElbowProtectSweep.Run(BasisElbowProtectSweepConfig.Default(), protectPath); return BasisIKTestGates.GateElbow(s); }),
+            };
 
-                try
-                {
-                    // Per-frame feedback, no input noise: isolates solve + rate-limiter (vs the stateless scan).
-                    string p = TrajPath("BasisArmIKTemporal.csv");
-                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, 0f, 1f / 90f, p);
-                    var g = BasisIKTestGates.GateTemporal(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
-                    Record("Arm IK · temporal", g.pass, g.reason, p);
-                }
-                catch (System.Exception e) { Record("Arm IK · temporal", false, e.Message, null); }
-
-                try
-                {
-                    // Per-frame feedback + HAND-TARGET noise: the NO-TRACKER (lookup) case -- controller noise
-                    // moves the lookup hint AND the IK target. elbowJitter (mm) = how far it throws the elbow.
-                    string p = TrajPath("BasisArmIKTemporalHand.csv");
-                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, _trajNoise, 1f / 90f, p);
-                    Record("Arm IK · temporal+handnoise", s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (hand noise {_trajNoise * 1000f:F0}mm)", p);
-                }
-                catch (System.Exception e) { Record("Arm IK · temporal+handnoise", false, e.Message, null); }
-
-                try
-                {
-                    // Per-frame feedback + independent hint noise: simulates an elbow tracker's jitter.
-                    string p = TrajPath("BasisArmIKTemporalTracker.csv");
-                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), _trajNoise, 0f, 1f / 90f, p);
-                    Record("Arm IK · temporal+tracker", s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm glideJitter={s.WorstRoughDeg:F2} (hint noise {_trajNoise * 1000f:F0}mm)", p);
-                }
-                catch (System.Exception e) { Record("Arm IK · temporal+tracker", false, e.Message, null); }
-
-                try
-                {
-                    string p = TrajPath("BasisElbowProtectTrajectory.csv");
-                    var s = BasisElbowProtectSweep.RunTrajectories(BasisElbowProtectSweepConfig.Default(), _trajNoise, p);
-                    var g = BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
-                    Record("Elbow Protect · traj", g.pass, g.reason, p);
-                }
-                catch (System.Exception e) { Record("Elbow Protect · traj", false, e.Message, null); }
-
-                try
-                {
-                    // Knee = the other hint role. Catches knee pole flips (pop) -- expected clean, the leg
-                    // is flip-safe by design (hint-first axis + xyz-scaled hint commits at 180).
-                    string p = TrajPath("BasisLegIKTrajectory.csv");
-                    var s = BasisLegIKSweep.RunTrajectories(BasisLegIKSweepConfig.Default(), _trajNoise, 1f / 90f, false, p);
-                    var g = BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
-                    Record("Leg IK · traj", g.pass, g.reason, p);
-                }
-                catch (System.Exception e) { Record("Leg IK · traj", false, e.Message, null); }
-
-                try
-                {
-                    // Feedback + foot-target noise: does the knee amplify input noise the way the elbow did?
-                    // Expected small -- the knee pole is the stable bend-normal, not a moving target.
-                    string p = TrajPath("BasisLegIKTemporal.csv");
-                    var s = BasisLegIKSweep.RunTrajectories(BasisLegIKSweepConfig.Default(), _trajNoise, 1f / 90f, true, p);
-                    Record("Leg IK · temporal+footnoise", s.Ok, $"kneeJitter={s.WorstKneeJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (foot noise {_trajNoise * 1000f:F0}mm)", p);
-                }
-                catch (System.Exception e) { Record("Leg IK · temporal+footnoise", false, e.Message, null); }
-
-                try
-                {
-                    // Watches the knee cross to the backward side mid-motion: clean (good hint) gated to zero,
-                    // pole jitter reported. The dynamic complement to the inversion grid.
-                    string p = TrajPath("BasisLegInversionTemporal.csv");
-                    var cfg = BasisLegInversionConfig.Default();
-                    cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg;
-                    var s = BasisLegInversionSweep.RunTemporal(cfg, _trajNoise, p);
-                    var g = BasisIKTestGates.GateLegInversionTemporal(s);
-                    Record("Leg Inversion · temporal", g.pass, g.reason, p);
-                }
-                catch (System.Exception e) { Record("Leg Inversion · temporal", false, e.Message, null); }
-
-                try
-                {
-                    // Head pitch-noise is in DEGREES, so it uses a fixed ~0.3 deg HMD-noise rather than the metres slider.
-                    string p = TrajPath("BasisHeadTrajectory.csv");
-                    var s = BasisHeadSweep.RunTrajectories(BasisHeadSweepConfig.Default(), 0.3f, p);
-                    var g = BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
-                    Record("Head · traj", g.pass, g.reason, p);
-                }
-                catch (System.Exception e) { Record("Head · traj", false, e.Message, null); }
+            if (includeTraj)
+            {
+                jobs.Add(() => Job("Arm IK · traj", armTrajPath, () => { var s = BasisArmIKSweep.RunTrajectories(BasisArmIKSweepConfig.Default(), trajNoise, armTrajPath); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
+                jobs.Add(() => Job("Arm IK · temporal", armTempPath, () => { var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, 0f, 1f / 90f, armTempPath); return BasisIKTestGates.GateTemporal(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
+                jobs.Add(() => Job("Arm IK · temporal+handnoise", armTempHandPath, () => { var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, trajNoise, 1f / 90f, armTempHandPath); return (s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (hand noise {trajNoise * 1000f:F0}mm)"); }));
+                jobs.Add(() => Job("Arm IK · temporal+tracker", armTempTrackPath, () => { var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), trajNoise, 0f, 1f / 90f, armTempTrackPath); return (s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm glideJitter={s.WorstRoughDeg:F2} (hint noise {trajNoise * 1000f:F0}mm)"); }));
+                jobs.Add(() => Job("Elbow Protect · traj", protectTrajPath, () => { var s = BasisElbowProtectSweep.RunTrajectories(BasisElbowProtectSweepConfig.Default(), trajNoise, protectTrajPath); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
+                jobs.Add(() => Job("Leg IK · traj", legTrajPath, () => { var s = BasisLegIKSweep.RunTrajectories(BasisLegIKSweepConfig.Default(), trajNoise, 1f / 90f, false, legTrajPath); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
+                jobs.Add(() => Job("Leg IK · temporal+footnoise", legTempPath, () => { var s = BasisLegIKSweep.RunTrajectories(BasisLegIKSweepConfig.Default(), trajNoise, 1f / 90f, true, legTempPath); return (s.Ok, $"kneeJitter={s.WorstKneeJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (foot noise {trajNoise * 1000f:F0}mm)"); }));
+                jobs.Add(() => Job("Leg Inversion · temporal", legInvTempPath, () => { var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.RunTemporal(cfg, trajNoise, legInvTempPath); return BasisIKTestGates.GateLegInversionTemporal(s); }));
+                jobs.Add(() => Job("Head · traj", headTrajPath, () => { var s = BasisHeadSweep.RunTrajectories(BasisHeadSweepConfig.Default(), 0.3f, headTrajPath); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
             }
+
+            // Fan out: one worker thread per sweep (the .NET thread pool caps concurrency to the core count).
+            var running = new System.Threading.Tasks.Task<Row[]>[jobs.Count];
+            for (int i = 0; i < jobs.Count; i++) { var job = jobs[i]; running[i] = System.Threading.Tasks.Task.Run(job); }
+            try { System.Threading.Tasks.Task.WaitAll(running); }
+            catch (System.AggregateException) { } // every job already captures its own exception into a FAIL row
+
+            foreach (var t in running)
+                foreach (var row in t.Result)
+                    Record(row.Name, row.Ok, row.Detail, row.Path);
+        }
+
+        // One sweep job for the parallel Run All: runs body on a worker thread, turns its (pass, reason) into
+        // a Row, and captures any exception (incl. a sweep that touches a main-thread-only API) into a FAIL
+        // row so one bad sweep can't sink the rest.
+        static Row[] Job(string name, string path, System.Func<(bool pass, string reason)> body)
+        {
+            try { var (pass, reason) = body(); return new[] { new Row { Name = name, Ok = pass, Detail = reason, Path = path } }; }
+            catch (System.Exception e) { return new[] { new Row { Name = name, Ok = false, Detail = e.Message, Path = null } }; }
         }
 
         static string TrajPath(string fname)

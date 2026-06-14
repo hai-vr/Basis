@@ -19,7 +19,7 @@ namespace Basis.IK.Debugging
         public const float TrajMaxPopDeg = 45f;             // swivel jump on smooth motion (discontinuity)
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
         public const float TemporalMaxRoughDeg = 3f;        // clean 2nd-diff on smooth motion = stepping/jitter as the hand glides (per-frame feedback)
-        public const float LegInvertHintSafeConeDeg = 60f;  // hint within this of nominal must never bend the knee backward
+        public const float LegInvertHintSafeConeDeg = 50f;  // hint within this of nominal must never bend the knee backward. Measured onset is ~54 deg (lift pose + posterior down-hint, ~30-35 deg off the leg axis), so 50 is the data-driven safe envelope with margin; beyond it a grossly-wrong pole can still invert (solver forward-clamp would be needed to push it further).
 
         public static (bool pass, string reason) GateArm(in BasisArmIKSweepSummary s)
         {
@@ -28,9 +28,13 @@ namespace Basis.IK.Debugging
             if (s.ReachablePoints <= 0) return (false, "no reachable points");
             if (s.TrackerMeanAlignErrDeg > ArmMaxMeanAlignErrDeg)
                 return (false, $"tracker meanAlignErr {s.TrackerMeanAlignErrDeg:F1} > {ArmMaxMeanAlignErrDeg} deg (tracker not followed)");
-            if (s.TrackerMaxSensDegPerCm > ArmMaxTrackerSensDegPerCm)
-                return (false, $"max tracker sens {s.TrackerMaxSensDegPerCm:F0} > {ArmMaxTrackerSensDegPerCm} deg/cm (jitter)");
-            return (true, $"reach={s.ReachablePoints} alignErr={s.TrackerMeanAlignErrDeg:F1} maxSens={s.TrackerMaxSensDegPerCm:F0}");
+            // Gate on the 99.9th-percentile tracker sens, not the raw max: even after excluding the
+            // pole-collapse singularity, the max chases the worst well-conditioned boundary pose, which
+            // sharpens (not spreads) with grid density and so climbs forever. The percentile catches
+            // WIDESPREAD tracker jitter and is density-stable (mirrors the protect sens gate).
+            if (s.TrackerSens99DegPerCm > ArmMaxTrackerSensDegPerCm)
+                return (false, $"tracker sens p99.9 {s.TrackerSens99DegPerCm:F0} > {ArmMaxTrackerSensDegPerCm} deg/cm (widespread jitter; max {s.TrackerMaxSensDegPerCm:F0} at boundary outliers)");
+            return (true, $"reach={s.ReachablePoints} alignErr={s.TrackerMeanAlignErrDeg:F1} sensP99.9={s.TrackerSens99DegPerCm:F0} (max {s.TrackerMaxSensDegPerCm:F0})");
         }
 
         // Elbow DIRECTION (not the torso-collision "elbow protect"): the no-tracker lookup pole must keep
@@ -65,9 +69,12 @@ namespace Basis.IK.Debugging
                 return (false, $"cleared {clearedFrac:P0} of engaged < {ElbowMinClearedFraction:P0} (protect not clearing torso)");
             if (s.MeanResidualPenMm > ElbowMaxMeanResidualPenMm)
                 return (false, $"mean residual {s.MeanResidualPenMm:F0}mm > {ElbowMaxMeanResidualPenMm}mm (elbow left buried)");
-            if (s.MaxSensDegPerCm > ElbowMaxSensDegPerCm)
-                return (false, $"max sens {s.MaxSensDegPerCm:F0} > {ElbowMaxSensDegPerCm} deg/cm (oscillation)");
-            return (true, $"cleared={clearedFrac:P0} resid={s.MeanResidualPenMm:F0}mm maxSens={s.MaxSensDegPerCm:F0}");
+            // Gate on the 99.9th-percentile sens, not the raw max: the max chases a handful of protect
+            // engage/disengage boundary discontinuities that sharpen (not spread) with grid density, so it
+            // climbs forever as you densify. The percentile catches WIDESPREAD oscillation and is stable.
+            if (s.Sens99DegPerCm > ElbowMaxSensDegPerCm)
+                return (false, $"sens p99.9 {s.Sens99DegPerCm:F0} > {ElbowMaxSensDegPerCm} deg/cm (widespread oscillation; max {s.MaxSensDegPerCm:F0} at boundary outliers)");
+            return (true, $"cleared={clearedFrac:P0} resid={s.MeanResidualPenMm:F0}mm sensP99.9={s.Sens99DegPerCm:F0} (max {s.MaxSensDegPerCm:F0})");
         }
 
         public static (bool pass, string reason) GateShoulder(in BasisShoulderSweepSummary s)

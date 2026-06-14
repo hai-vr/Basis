@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -36,7 +37,7 @@ namespace Basis.IK.Debugging
                 IsLeft = false,
                 MinFrac = new Vector3(-0.7f, -1.1f, -0.6f),
                 MaxFrac = new Vector3(1.2f, 0.7f, 1.15f),
-                Steps = new Vector3Int(21, 21, 21),
+                Steps = new Vector3Int(63, 63, 63),
                 HintDir = new Vector3(0.2f, -1.0f, -0.15f),
                 HintDistanceFrac = 0.5f,
             };
@@ -61,6 +62,7 @@ namespace Basis.IK.Debugging
         public float LookupMaxElbowAngleDeg; // max solved elbow flexion (must stay <= straight; no hyperextension)
         public float TrackerMeanSensDegPerCm; // elbow swivel deg per cm of tracker position error
         public float TrackerMaxSensDegPerCm;
+        public float TrackerSens99DegPerCm; // 99.9th-percentile tracker sens over well-conditioned poses (density-stable; the max chases the pole-collapse singularity, which sharpens forever as the grid densifies)
         public int TrackerJitteryCount;  // reachable poses with sensitivity > 20 deg/cm
         public int TrackerFadedCount;    // reachable poses where the tracker hint is faded (reach>0.9)
         public float TrackerMeanAlignErrDeg; // mean angle between solved elbow and tracker pole (under-follow)
@@ -117,6 +119,7 @@ namespace Basis.IK.Debugging
             double trackerSensSum = 0.0;
             int trackerSensN = 0;
             float trackerSensMax = 0f;
+            var trackerSensValues = new List<float>(); // well-conditioned tracker sens, for a density-stable percentile
             int trackerJittery = 0;   // tracker poses with sensitivity > 20 deg/cm
             int trackerFaded = 0;     // tracker poses where the hint is partially/fully faded out
             double trackerAlignSum = 0.0;
@@ -133,7 +136,7 @@ namespace Basis.IK.Debugging
                     Directory.CreateDirectory(dir);
                 }
 
-                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent); // Persistent (not Temp): the sweep may run on a background thread (parallel Run All)
 
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
                 {
@@ -225,6 +228,7 @@ namespace Basis.IK.Debugging
                                         bool poleWellConditioned = hint.ArmProjMag > 0.12f * armLen && hint.HintProjMag > 0.12f * armLen;
                                         if (poleWellConditioned)
                                         {
+                                            trackerSensValues.Add(sensHint);
                                             if (sensHint > trackerSensMax) trackerSensMax = sensHint;
                                             if (sensHint > 20f) trackerJittery++;
                                         }
@@ -261,6 +265,7 @@ namespace Basis.IK.Debugging
                 summary.LookupMaxElbowAngleDeg = lookupMaxElbow;
                 summary.TrackerMeanSensDegPerCm = trackerSensN > 0 ? (float)(trackerSensSum / trackerSensN) : 0f;
                 summary.TrackerMaxSensDegPerCm = trackerSensMax;
+                summary.TrackerSens99DegPerCm = Percentile(trackerSensValues, 0.999f);
                 summary.TrackerJitteryCount = trackerJittery;
                 summary.TrackerFadedCount = trackerFaded;
                 summary.TrackerMeanAlignErrDeg = trackerAlignN > 0 ? (float)(trackerAlignSum / trackerAlignN) : 0f;
@@ -315,7 +320,7 @@ namespace Basis.IK.Debugging
             {
                 string dir = System.IO.Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent); // Persistent (not Temp): the sweep may run on a background thread (parallel Run All)
                 NativeArray<Vector3> tbl = table;
 
                 System.Func<Vector3, float> eval = target =>
@@ -416,7 +421,7 @@ namespace Basis.IK.Debugging
             {
                 string dir = System.IO.Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent); // Persistent (not Temp): the sweep may run on a background thread (parallel Run All)
                 NativeArray<Vector3> tbl = table;
 
                 Vector3 F3(float fx, float fy, float fz) => shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
@@ -623,6 +628,16 @@ namespace Basis.IK.Debugging
         {
             if (float.IsNaN(v)) return "nan";
             return v.ToString("0.######", CultureInfo.InvariantCulture);
+        }
+
+        // q-th percentile (0..1) -- density-stable, unlike the raw max which chases the sharpening
+        // pole-collapse singularity (near-straight arm / hint along the arm axis) as the grid densifies.
+        static float Percentile(List<float> values, float q)
+        {
+            if (values == null || values.Count == 0) return 0f;
+            values.Sort();
+            int idx = Mathf.Clamp(Mathf.CeilToInt(q * values.Count) - 1, 0, values.Count - 1);
+            return values[idx];
         }
 
         static Vector3 Mirror(Vector3 v, float mirror) { return new Vector3(v.x * mirror, v.y, v.z); }

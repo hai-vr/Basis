@@ -26,8 +26,8 @@ namespace Basis.IK.Debugging
             return new BasisLegInversionConfig
             {
                 Base = BasisLegIKSweepConfig.Default(),
-                HintAzSteps = 24,
-                HintElSteps = 9,
+                HintAzSteps = 72,
+                HintElSteps = 27,
                 SafeConeDeg = 60f,
             };
         }
