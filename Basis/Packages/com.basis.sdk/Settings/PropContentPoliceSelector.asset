@@ -17,6 +17,7 @@ MonoBehaviour:
   - BasisMediaPlayer
   - BasisMediaPlayerNetworking
   - BasisMediaPlayerAudio
+  - BasisMediaAudioChannel
   - BasisMediaPlayerStreaming
   - BasisMediaPlayerSynthetic
   - BasisVideoDisplay
