@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using System;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,15 +31,15 @@ namespace Basis.Network.Server
             // Normalize path: ensure leading slash, remove trailing slash (except root)
             pathNormalized = NormalizePath(config.HealthPath);
 
-            // Prefix must end with slash.
-            httpListener.Prefixes.Add($"http://{host}:{port}/");
+            // Prefix must end with slash. IPv6 address literals need bracket notation.
+            httpListener.Prefixes.Add($"http://{FormatHost(host)}:{port}/");
             httpListener.Start();
 
             startTimeUtc = DateTimeOffset.UtcNow;
 
             listenTask = ListenLoopAsync(cts.Token);
 
-            BNL.Log($"HTTP health check started at 'http://{host}:{port}{pathNormalized}'");
+            BNL.Log($"HTTP health check started at 'http://{FormatHost(host)}:{port}{pathNormalized}'");
         }
 
         private static string NormalizePath(string p)
@@ -164,6 +165,12 @@ namespace Basis.Network.Server
                 try { context?.Response?.Abort(); } catch { /* ignore */ }
             }
         }
+
+        // HttpListener URL prefixes require bracket notation for IPv6 address literals.
+        private static string FormatHost(string host) =>
+            IPAddress.TryParse(host, out IPAddress addr) && addr.AddressFamily == AddressFamily.InterNetworkV6
+                ? $"[{host}]"
+                : host;
 
         public void Stop() => Dispose();
 

@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,9 +37,15 @@ namespace Basis.Streaming
 
         public string Prefix { get; }
 
+        // HttpListener URL prefixes require bracket notation for IPv6 address literals.
+        private static string FormatHost(string host) =>
+            IPAddress.TryParse(host, out IPAddress addr) && addr.AddressFamily == AddressFamily.InterNetworkV6
+                ? $"[{host}]"
+                : host;
+
         public BasisStreamingMetaServer(string host, int port)
         {
-            Prefix = $"http://{host}:{port}/";
+            Prefix = $"http://{FormatHost(host)}:{port}/";
             listener.Prefixes.Add(Prefix);
             listener.Start();
             listenTask = ListenLoopAsync(cts.Token);

@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Sockets;
 using UnityEngine;
 
 public static class BasisNetworkIPResolve
@@ -11,20 +12,20 @@ public static class BasisNetworkIPResolve
             IPAddress[] ips = Dns.GetHostAddresses(hostname);
             if (ips != null && ips.Length > 0)
             {
-                string[] addresses = new string[ips.Length];
-                for (int Index = 0; Index < ips.Length; Index++)
+                foreach (IPAddress ip in ips)
+                    BasisDebug.Log($"IP Candidate: {ip}", BasisDebug.LogTag.Networking);
+
+                // Prefer IPv6 when the OS supports it (mirrors LiteNetLib's resolution order)
+                if (Socket.OSSupportsIPv6)
                 {
-                    addresses[Index] = ips[Index].ToString();
-                    BasisDebug.Log($"IP Candidate: {addresses[Index]}");
-
-                    bool hasThreePeriods = addresses[Index].Split('.').Length - 1 == 3;
-                    if (hasThreePeriods)
-                    {
-                        return addresses[Index]; // select IPv4 if possible (for now)
-                    }
-
+                    foreach (IPAddress ip in ips)
+                        if (ip.AddressFamily == AddressFamily.InterNetworkV6)
+                            return ip.ToString();
                 }
-                return addresses[0]; // pick first one: IPv4 or IPv6 we don't care right now
+                foreach (IPAddress ip in ips)
+                    if (ip.AddressFamily == AddressFamily.InterNetwork)
+                        return ip.ToString();
+                return ips[0].ToString();
             }
         }
         catch (System.Exception ex)
@@ -60,20 +61,18 @@ public static class BasisNetworkIPResolve
     {
         if (IpString.ToLower() == LocalHost)
         {
-            string[] IpStrings = BasisNetworkIPResolve.ResolveLocahost(IpString);
+            string[] IpStrings = BasisNetworkIPResolve.ResolveLocalhost(IpString);
             IpString = IpStrings[0];
         }
         return IPAddress.Parse(IpString);
     }
-    public static string[] ResolveLocahost(string localhost)
+    public static string[] ResolveLocalhost(string localhost)
     {
         string[] addresses = ResolveLocalhostToIP(localhost);
-        if (addresses != null)
-        {
-        }
-        else
+        if (addresses == null)
         {
             BasisDebug.LogError("Failed to resolve localhost to IP address.");
+            throw new System.IO.IOException("Failed to resolve localhost to IP address.");
         }
         return addresses;
     }

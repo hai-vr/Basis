@@ -2,6 +2,8 @@ using Basis.BasisUI;
 using Basis.Network.Core;
 using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -77,10 +79,17 @@ namespace Basis.Scripts.Networking
             };
         }
 
+        private static string FormatRaw(string address, ushort port)
+        {
+            return IPAddress.TryParse(address, out IPAddress ip) && ip.AddressFamily == AddressFamily.InterNetworkV6
+                ? $"[{address}]:{port}"
+                : $"{address}:{port}";
+        }
+
         private ServerDirectoryEntry BuildEntry(SavedServerEntry s)
         {
             string stackId = string.IsNullOrEmpty(s.NetworkStackId) ? BasisNetworkStackRegistry.DefaultId : s.NetworkStackId;
-            ConnectionTarget target = new ConnectionTarget(stackId, $"{s.Address}:{s.Port}");
+            ConnectionTarget target = new ConnectionTarget(stackId, FormatRaw(s.Address, s.Port));
             target.Set(ConnectionTarget.Keys.Address, s.Address);
             target.Set(ConnectionTarget.Keys.Port, s.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
             target.Set(ConnectionTarget.Keys.Password, s.HasPassword ? (s.Password ?? string.Empty) : string.Empty);

@@ -6,6 +6,8 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -826,7 +828,7 @@ namespace Basis.BasisUI
                     playerCount));
 
                 string description = string.Format("{0}  •  {1}",
-                    string.Format(BasisLocalization.Get("menu.servers.list.address"), address, port),
+                    DisplayAddress(address, port),
                     string.Format(BasisLocalization.Get("menu.servers.list.ping"), result.RoundTripMs));
                 if (!string.IsNullOrEmpty(result.Motd))
                 {
@@ -842,10 +844,18 @@ namespace Basis.BasisUI
                     name = string.Format(BasisLocalization.Get("menu.servers.list.defaultBadge"), name);
                 row.Group.SetTitle(name);
                 row.Group.SetDescription(string.Format("{0}  •  <color={1}>{2}</color>",
-                    string.Format(BasisLocalization.Get("menu.servers.list.address"), address, port),
+                    DisplayAddress(address, port),
                     OfflineColor,
                     BasisLocalization.Get("menu.servers.list.offline")));
             }
+        }
+
+        // Format address:port for display, using bracket notation for IPv6 literals.
+        private static string DisplayAddress(string address, ushort port)
+        {
+            if (IPAddress.TryParse(address, out IPAddress ip) && ip.AddressFamily == AddressFamily.InterNetworkV6)
+                return $"[{address}]:{port}";
+            return string.Format(BasisLocalization.Get("menu.servers.list.address"), address, port);
         }
 
         // TMP rich-text colors for the live online/offline indicators in each row.
