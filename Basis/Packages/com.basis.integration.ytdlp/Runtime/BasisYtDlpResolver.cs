@@ -1,5 +1,6 @@
 #if BASIS_MEDIAPLAYER_EXISTS && YTDLP_EXISTS
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using YtDlp;
@@ -8,13 +9,14 @@ namespace Basis.Integration.YtDlp
 {
     /// <summary>
     /// Bridges the in-process yt-dlp resolver (com.yewnyx.ytdlp) to BasisMediaPlayer:
-    /// turns a page URL (YouTube, Twitch, …) into a stream URL the OS-codec engine can
-    /// open, then loads it. The core media player has no reference to this type, so
-    /// removing this package removes the feature with nothing dangling.
+    /// turns a page URL (YouTube, Twitch, …) into the stream(s) the OS-codec engine
+    /// can open, then loads them. The core media player has no reference to this type,
+    /// so removing this package removes the feature with nothing dangling.
     ///
-    /// SCAFFOLD — the marked decisions are deferred to Documentation~/REQUIREMENTS.md
-    /// (trust-gate policy, format selection, init handshake). Not wired to a consumer
-    /// yet; this exists so the proposal has runnable bones to point at.
+    /// Sources that deliver high-res video and audio as separate streams (YouTube VOD
+    /// above ~360p: H.264 video-only + AAC audio-only) resolve to a split
+    /// BasisMediaSource (Uri + AudioUri); single muxed sources (Twitch / live YouTube
+    /// HLS, progressive ~360p) resolve to a single Uri.
     /// </summary>
     public static class BasisYtDlpResolver
     {
@@ -25,7 +27,7 @@ namespace Basis.Integration.YtDlp
         private static readonly object initLock = new object();
 
         /// <summary>
-        /// Resolves <paramref name="pageUrl"/> to a stream URL and loads it into
+        /// Resolves <paramref name="pageUrl"/> to its stream(s) and loads them into
         /// <paramref name="player"/>. URLs already naming a transport scheme the player
         /// opens directly (rtsp/rtmp) are passed through unresolved. Call from the main
         /// thread — the continuation resumes there via Unity's synchronization context,
@@ -55,13 +57,14 @@ namespace Basis.Integration.YtDlp
 
             try
             {
-                string streamUrl = await ResolveAsync(pageUrl, cancellationToken);
+                BasisMediaSource source = await ResolveSourceAsync(pageUrl, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 // OPEN QUESTION (REQUIREMENTS.md §Trust & consent): the resolved CDN host
-                // differs from pageUrl, so whatever gate the player enforces must be
-                // applied to the resolved host — or the page URL approved up front — or
-                // BasisMediaPlayerSecurity.IsUrlAllowed refuses it at LoadSource.
-                player.LoadUrl(streamUrl);
+                // (googlevideo, Twitch edge) differs from pageUrl, so LoadSource runs both
+                // Uri and AudioUri through BasisMediaPlayerSecurity.IsUrlAllowed — public
+                // https hosts pass; a host allowlist or page-URL-approval policy is the
+                // deferred decision.
+                player.LoadSource(source);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -72,24 +75,33 @@ namespace Basis.Integration.YtDlp
         }
 
         /// <summary>
-        /// Resolves a page URL to the best player-ingestible stream URL without loading
-        /// it. Extraction runs on a thread-pool thread inside yt-dlp.
+        /// Resolves a page URL to a BasisMediaSource — a split video+audio pair when the
+        /// source offers separate avc1/mp4a streams, otherwise a single muxed Uri —
+        /// without loading it. Extraction runs on a thread-pool thread inside yt-dlp.
         /// </summary>
-        public static async Task<string> ResolveAsync(string pageUrl, CancellationToken cancellationToken = default)
+        public static async Task<BasisMediaSource> ResolveSourceAsync(string pageUrl, CancellationToken cancellationToken = default)
         {
             await EnsureInitAsync();
             VideoInfo info = await YtDlpApi.ExtractAsync(pageUrl, opts: null, cancellationToken: cancellationToken);
-            string url = SelectPlayableUrl(info);
-            if (string.IsNullOrEmpty(url))
+            BasisMediaSource source = SelectSource(info);
+            if (source == null || string.IsNullOrEmpty(source.Uri))
                 throw new YtDlpException($"yt-dlp returned no player-ingestible format for '{pageUrl}'.");
-            return url;
+            return source;
+        }
+
+        /// <summary>
+        /// Resolution-only convenience returning just the primary stream URL (the video
+        /// leg of a split source, or the single muxed URL). Callers needing the audio
+        /// leg use <see cref="ResolveSourceAsync"/>.
+        /// </summary>
+        public static async Task<string> ResolveAsync(string pageUrl, CancellationToken cancellationToken = default)
+        {
+            BasisMediaSource source = await ResolveSourceAsync(pageUrl, cancellationToken);
+            return source.Uri;
         }
 
         private static Task EnsureInitAsync()
         {
-            // The exact bootstrap/native-init handshake is to be confirmed against
-            // dlp-native (REQUIREMENTS.md §Lifecycle); DlpBootstrap.EnsureInitAsync is
-            // documented as the single entry point that must complete before extraction.
             lock (initLock)
             {
                 return initTask ??= DlpBootstrap.EnsureInitAsync();
@@ -109,16 +121,103 @@ namespace Basis.Integration.YtDlp
             return true;
         }
 
-        // Picks the stream URL the OS-codec engine can open from yt-dlp's output.
-        private static string SelectPlayableUrl(VideoInfo info)
+        // Builds the BasisMediaSource from yt-dlp's format list. Prefers a split pair
+        // (avc1 video-only + mp4a audio-only) when both exist — that's how YouTube
+        // serves anything above ~360p, and the player presents the two in sync via
+        // AudioUri. Falls back to a single muxed/HLS stream (Twitch, live YouTube,
+        // progressive ~360p) otherwise. Assumes a split-capable player; emitting the
+        // pair only against one is a version-define refinement.
+        private static BasisMediaSource SelectSource(VideoInfo info)
         {
-            // SCAFFOLD: real selection is specified in REQUIREMENTS.md §Format selection.
-            // Twitch and live YouTube resolve to a single HLS m3u8 the player already
-            // ingests; high-res YouTube VOD is split (separate video-only + audio-only
-            // representations) and depends on split-stream playback landing in the media
-            // player — see the sibling proposal referenced in the doc.
-            return info?.DirectUrl;
+            if (info == null) return null;
+
+            Format video = BestVideoOnly(info.Formats);
+            Format audio = BestAudioOnly(info.Formats);
+            if (video != null && audio != null)
+                // A split avc1+mp4a pair is adaptive VOD (YouTube serves these only
+                // above ~360p), delivered faster than real time — pace it.
+                return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Paced = true };
+
+            Format muxed = BestMuxed(info.Formats);
+            string single = muxed?.Url;
+            if (string.IsNullOrEmpty(single)) single = info.DirectUrl;
+            return string.IsNullOrEmpty(single) ? null : new BasisMediaSource { Uri = single };
         }
+
+        // H.264 video-only, no higher than 1080p (avc1 is the player's ceiling — no
+        // VP9/AV1 decode), best height then bitrate, direct byte URL (not a manifest).
+        private static Format BestVideoOnly(List<Format> formats)
+        {
+            if (formats == null) return null;
+            Format best = null;
+            for (int i = 0; i < formats.Count; i++)
+            {
+                Format f = formats[i];
+                if (f == null || string.IsNullOrEmpty(f.Url)) continue;
+                if (!HasCodec(f.VCodec) || HasCodec(f.ACodec)) continue;         // video-only
+                if (!StartsWithCI(f.VCodec, "avc1")) continue;
+                if ((f.Height ?? 0) > 1080) continue;
+                if (!IsDirectByteStream(f.Protocol)) continue;
+                if (best == null || VideoBetter(f, best)) best = f;
+            }
+            return best;
+        }
+
+        // AAC audio-only, highest bitrate, direct byte URL.
+        private static Format BestAudioOnly(List<Format> formats)
+        {
+            if (formats == null) return null;
+            Format best = null;
+            for (int i = 0; i < formats.Count; i++)
+            {
+                Format f = formats[i];
+                if (f == null || string.IsNullOrEmpty(f.Url)) continue;
+                if (!HasCodec(f.ACodec) || HasCodec(f.VCodec)) continue;         // audio-only
+                if (!StartsWithCI(f.ACodec, "mp4a")) continue;
+                if (!IsDirectByteStream(f.Protocol)) continue;
+                if (best == null || Bitrate(f.AudioBitrate, f) > Bitrate(best.AudioBitrate, best)) best = f;
+            }
+            return best;
+        }
+
+        // Single stream carrying both tracks: progressive avc1+mp4a (e.g. itag 18) or an
+        // HLS variant. HLS manifests are allowed here — the player ingests them as one
+        // stream — so this path covers Twitch / live YouTube.
+        private static Format BestMuxed(List<Format> formats)
+        {
+            if (formats == null) return null;
+            Format best = null;
+            for (int i = 0; i < formats.Count; i++)
+            {
+                Format f = formats[i];
+                if (f == null || string.IsNullOrEmpty(f.Url)) continue;
+                if (!HasCodec(f.VCodec) || !HasCodec(f.ACodec)) continue;        // muxed
+                if (!StartsWithCI(f.VCodec, "avc1")) continue;
+                if ((f.Height ?? 0) > 1080) continue;
+                if (best == null || VideoBetter(f, best)) best = f;
+            }
+            return best;
+        }
+
+        private static bool VideoBetter(Format a, Format b)
+        {
+            int ha = a.Height ?? 0, hb = b.Height ?? 0;
+            if (ha != hb) return ha > hb;
+            return Bitrate(a.VideoBitrate, a) > Bitrate(b.VideoBitrate, b);
+        }
+
+        private static double Bitrate(double? primary, Format f) => primary ?? f.TotalBitrate ?? 0;
+
+        private static bool HasCodec(string codec) => !string.IsNullOrEmpty(codec) && codec != "none";
+
+        private static bool StartsWithCI(string s, string prefix)
+            => s != null && s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+
+        // Direct byte/range URL the engine fetches over WinHTTP. Skip DASH-manifest
+        // protocols the demuxers don't consume as a single byte stream; HLS is handled
+        // separately in BestMuxed (the player has its own HLS source).
+        private static bool IsDirectByteStream(string protocol)
+            => string.IsNullOrEmpty(protocol) || protocol == "https" || protocol == "http";
     }
 }
 #endif
