@@ -26,6 +26,7 @@ public static class SettingsProviderIK
     private static PanelToggle _uiEuroPos;
     private static PanelToggle _uiEuroRot;
     private static PanelSlider _uiCalibSphereScale;
+    private static PanelSlider _avatarScaleSlider;
     private static PanelElementDescriptor _boneEuroEditorGroup;
 
     private struct BoneBindings
@@ -113,6 +114,7 @@ public static class SettingsProviderIK
             ikParent,
             PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale"), 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
             BasisSettingsDefaults.SelectedScale);
+        _avatarScaleSlider = avatarScaleSlider;
 
         if (avatarScaleSlider != null)
         {
@@ -937,6 +939,16 @@ public static class SettingsProviderIK
 
         tabDesc.ForceRebuild();
         return tabPage;
+    }
+
+    public static void SetAvatarScaleSliderValueWithoutNotify(float value)
+    {
+        if (_avatarScaleSlider == null)
+        {
+            return;
+        }
+
+        _avatarScaleSlider.SetValueWithoutNotify(value);
     }
 
     // ------------------

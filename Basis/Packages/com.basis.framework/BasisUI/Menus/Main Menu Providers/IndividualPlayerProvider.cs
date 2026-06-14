@@ -794,6 +794,35 @@ namespace Basis.BasisUI
                 avatarErrorField.SetDescription(remotePlayer.AvatarLoadErrorMessage);
             }
 
+            PanelButton matchEyeHeightBtn = PanelButton.CreateNew(avatarGroup.ContentParent);
+            matchEyeHeightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.matchEyeHeight"));
+            if (BasisHeightDriver.TryGetMatchedEyeHeightOverrideMeters(remotePlayer, out float initialRemoteEyeHeight))
+            {
+                matchEyeHeightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.matchEyeHeight.description", initialRemoteEyeHeight));
+            }
+            else
+            {
+                matchEyeHeightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.matchEyeHeight.unavailable"));
+            }
+
+            matchEyeHeightBtn.OnClicked += () =>
+            {
+                if (!BasisHeightDriver.TryGetMatchedEyeHeightOverrideMeters(remotePlayer, out float remoteEyeHeight))
+                {
+                    BasisDebug.LogWarning("Cannot match eye height because the selected remote avatar eye height is unavailable.", BasisDebug.LogTag.Avatar);
+                    return;
+                }
+
+                if (!SMModuleCalibration.ApplyCustomScale)
+                {
+                    BasisSettingsDefaults.CustomScale.SetValue(true);
+                    SMModuleCalibration.ApplyCustomScale = true;
+                }
+
+                BasisHeightDriver.ApplyRuntimeOscEyeHeightOverride(remoteEyeHeight);
+                matchEyeHeightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.matchEyeHeight.description", remoteEyeHeight));
+            };
+
             // Performance filter result — tells the local user why a specific remote
             // avatar was hard-blocked and/or what the trim pass removed from it,
             // and offers a per-player bypass toggle so they can see this one avatar

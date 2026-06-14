@@ -2447,6 +2447,18 @@
       "value": "Avatar Load Error"
     },
     {
+      "key": "menu.individualPlayer.matchEyeHeight",
+      "value": "Match Eye Height"
+    },
+    {
+      "key": "menu.individualPlayer.matchEyeHeight.description",
+      "value": "Scale your avatar to match this player's current body scale ({0:0.###} m target eye height)."
+    },
+    {
+      "key": "menu.individualPlayer.matchEyeHeight.unavailable",
+      "value": "This player's current avatar eye height is not available yet."
+    },
+    {
       "key": "menu.individualPlayer.hideAvatar",
       "value": "Hide Avatar"
     },
