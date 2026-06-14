@@ -44,6 +44,19 @@ namespace Basis.IK.Debugging
                 RunAll();
             }
 
+            EditorGUILayout.HelpBox(
+                "Live jitter capture: ENTER PLAY, click below, then move/hold the arm for ~10s. Writes the " +
+                "solved shoulder/elbow/hand + IK inputs each frame to persistentDataPath/ArmIKRuntime so we " +
+                "can see which one jitters (shoulder vs filtered target/hint vs the elbow itself).",
+                MessageType.None);
+            using (new EditorGUI.DisabledScope(!Application.isPlaying))
+            {
+                if (GUILayout.Button("Capture Live Arm Jitter (10s)"))
+                {
+                    Basis.Scripts.Drivers.BasisArmIKRuntimeRecorder.RequestCapture(900);
+                }
+            }
+
             if (_hasRun)
             {
                 EditorGUILayout.Space();
@@ -114,7 +127,7 @@ namespace Basis.IK.Debugging
                 {
                     // Per-frame feedback, no input noise: isolates solve + rate-limiter (vs the stateless scan).
                     string p = TrajPath("BasisArmIKTemporal.csv");
-                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, 1f / 90f, p);
+                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, 0f, 1f / 90f, p);
                     var g = BasisIKTestGates.GateTemporal(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
                     Record("Arm IK · temporal", g.pass, g.reason, p);
                 }
@@ -122,10 +135,20 @@ namespace Basis.IK.Debugging
 
                 try
                 {
+                    // Per-frame feedback + HAND-TARGET noise: the NO-TRACKER (lookup) case -- controller noise
+                    // moves the lookup hint AND the IK target. elbowJitter (mm) = how far it throws the elbow.
+                    string p = TrajPath("BasisArmIKTemporalHand.csv");
+                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, _trajNoise, 1f / 90f, p);
+                    Record("Arm IK · temporal+handnoise", s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (hand noise {_trajNoise * 1000f:F0}mm)", p);
+                }
+                catch (System.Exception e) { Record("Arm IK · temporal+handnoise", false, e.Message, null); }
+
+                try
+                {
                     // Per-frame feedback + independent hint noise: simulates an elbow tracker's jitter.
                     string p = TrajPath("BasisArmIKTemporalTracker.csv");
-                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), _trajNoise, 1f / 90f, p);
-                    Record("Arm IK · temporal+tracker", s.Ok, $"glideJitter={s.WorstRoughDeg:F2} pop={s.WorstPopDeg:F0} (hint noise {_trajNoise * 1000f:F0}mm)", p);
+                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), _trajNoise, 0f, 1f / 90f, p);
+                    Record("Arm IK · temporal+tracker", s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm glideJitter={s.WorstRoughDeg:F2} (hint noise {_trajNoise * 1000f:F0}mm)", p);
                 }
                 catch (System.Exception e) { Record("Arm IK · temporal+tracker", false, e.Message, null); }
 
