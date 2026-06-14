@@ -51,6 +51,12 @@ namespace UnityEngine.Animations.Rigging
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-8f;
 
+        // Anatomical elbow flexion range, as the angle at the elbow between the upper arm and the forearm.
+        // 180 deg = arm straight; small = forearm folded toward the upper arm. A human elbow cannot
+        // hyperextend past straight, nor fold the forearm fully into the upper arm (~25-30 deg is the limit).
+        public const float MinElbowAngleDeg = 23f;
+        public const float MaxElbowAngleDeg = 180f;
+
         public static void Solve(in BasisArmSolveInput i, out BasisArmSolveResult r)
         {
             r = default;
@@ -79,6 +85,12 @@ namespace UnityEngine.Animations.Rigging
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             float atCorrectedLen = atCorrected.magnitude;
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
+
+            // Clamp to the anatomical elbow flexion range. The triangle solve already caps extension at
+            // straight (180 deg); the lower clamp stops the forearm folding impossibly far into the upper
+            // arm for a too-close target -- the joint holds at min flex and the hand falls short (pushed
+            // out along the target direction) instead of bending the elbow past human range.
+            newAbcAngle = Mathf.Clamp(newAbcAngle, MinElbowAngleDeg * Mathf.Deg2Rad, MaxElbowAngleDeg * Mathf.Deg2Rad);
 
             // Bend in the ARM plane. Cross(ab,bc) is the shoulder-elbow-hand plane normal, which the
             // triangle solve REQUIRES so deltaR changes |ac| to exactly the target distance. Seeding this

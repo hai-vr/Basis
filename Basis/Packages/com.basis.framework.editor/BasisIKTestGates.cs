@@ -9,6 +9,8 @@ namespace Basis.IK.Debugging
         // --- tunable thresholds (calibrate against a known-good run) ---
         public const float ArmMaxTrackerSensDegPerCm = 90f; // elbow swivel per cm hand jitter -> oscillation
         public const float ArmMaxMeanAlignErrDeg = 12f;     // mean angle solved-elbow vs tracker pole (follow)
+        public const float ArmMaxElbowMeanAlignErrDeg = 8f; // mean angle solved-elbow vs the LOOKUP (no-tracker) pole; drift off the natural down/back pole
+        public const int ArmMaxElbowUpFlips = 0;            // forward, non-overhead, EXTENDED (reach>0.55) reaches whose elbow flips hard UP (|swivel|>120). Zero-tolerance: the fixed lookup is clean (0) at every density; folded near-body reaches are excluded (elbow-up is natural there). Pre-fix: 4-7.
         public const float ElbowMinClearedFraction = 0.55f; // protect must clear most of the clearable set (ceiling ~0.64)
         public const float ElbowMaxMeanResidualPenMm = 25f; // mean leftover torso penetration after the push
         public const float ElbowMaxSensDegPerCm = 90f;      // final elbow swivel per cm hand jitter
@@ -17,6 +19,7 @@ namespace Basis.IK.Debugging
         public const float TrajMaxPopDeg = 45f;             // swivel jump on smooth motion (discontinuity)
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
         public const float TemporalMaxRoughDeg = 3f;        // clean 2nd-diff on smooth motion = stepping/jitter as the hand glides (per-frame feedback)
+        public const float LegInvertHintSafeConeDeg = 60f;  // hint within this of nominal must never bend the knee backward
 
         public static (bool pass, string reason) GateArm(in BasisArmIKSweepSummary s)
         {
@@ -28,6 +31,28 @@ namespace Basis.IK.Debugging
             if (s.TrackerMaxSensDegPerCm > ArmMaxTrackerSensDegPerCm)
                 return (false, $"max tracker sens {s.TrackerMaxSensDegPerCm:F0} > {ArmMaxTrackerSensDegPerCm} deg/cm (jitter)");
             return (true, $"reach={s.ReachablePoints} alignErr={s.TrackerMeanAlignErrDeg:F1} maxSens={s.TrackerMaxSensDegPerCm:F0}");
+        }
+
+        // Elbow DIRECTION (not the torso-collision "elbow protect"): the no-tracker lookup pole must keep
+        // the elbow tucked behind/below the hand, and the solve must actually land it there. A flip = the
+        // elbow ends up in front of / on the wrong side from where the lookup asked -- the artifact where
+        // "the elbow is out in front instead of naturally behind the hand". Driven by the same arm sweep.
+        public static (bool pass, string reason) GateArmElbowDirection(in BasisArmIKSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.ReachablePoints <= 0) return (false, "no reachable points");
+            if (s.LookupElbowUpCount > 0)
+                return (false, $"{s.LookupElbowUpCount} reachable poses point the elbow UP (chicken-wing)");
+            if (s.LookupElbowFlipCount > ArmMaxElbowUpFlips)
+                return (false, $"{s.LookupElbowFlipCount} extended forward reaches flip the elbow hard UP (|swivel|>120) instead of behind/below -- elbow in front / wrong side (align mean {s.LookupMeanAlignErrDeg:F1}, max {s.LookupMaxAlignErrDeg:F0})");
+            if (s.LookupMeanAlignErrDeg > ArmMaxElbowMeanAlignErrDeg)
+                return (false, $"mean elbow-direction error {s.LookupMeanAlignErrDeg:F1} > {ArmMaxElbowMeanAlignErrDeg} deg (elbow drifting off the natural pole)");
+            // Anatomical flexion: the solved elbow angle must never leave the human range (no over-flex / hyperextension).
+            float minFlex = UnityEngine.Animations.Rigging.BasisArmSolveCore.MinElbowAngleDeg;
+            float maxFlex = UnityEngine.Animations.Rigging.BasisArmSolveCore.MaxElbowAngleDeg;
+            if (s.LookupMinElbowAngleDeg < minFlex - 1f || s.LookupMaxElbowAngleDeg > maxFlex + 1f)
+                return (false, $"elbow flexion {s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0} deg leaves the human range [{minFlex:F0},{maxFlex:F0}] (over-flex / hyperextension)");
+            return (true, $"extUpFlips={s.LookupElbowFlipCount} elbowUp={s.LookupElbowUpCount} alignMean={s.LookupMeanAlignErrDeg:F1} flex={s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0}");
         }
 
         public static (bool pass, string reason) GateElbow(in BasisElbowProtectSweepSummary s)
@@ -63,6 +88,40 @@ namespace Basis.IK.Debugging
             if (float.IsNaN(s.MaxSwivelShiftDeg) || s.MaxSwivelShiftDeg > 180f)
                 return (false, $"knee swivel shift {s.MaxSwivelShiftDeg:F0} out of range");
             return (true, $"reach={s.ReachablePoints} maxSwivelShift={s.MaxSwivelShiftDeg:F0}");
+        }
+
+        // Inhuman knee detection: the knee must never bend backward (posterior to the hip->ankle line).
+        // The gate lives on WELL-CONDITIONED hints -- a reasonable hint (within the safe cone) and any
+        // reachable target under a good hint must stay human; a backward knee there means a tracker can
+        // invert the pole and break the pose. Pole-on-limb singularities are excluded (and reported), the
+        // way the trajectory gates exclude their kinematic singularities -- the solver blends those forward.
+        public static (bool pass, string reason) GateLegInversion(in BasisLegInversionSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.HintSamples <= 0) return (false, "no hint samples (sweep not exercising the knee)");
+            if (s.SafeConeInversions > 0)
+                return (false, $"{s.SafeConeInversions}/{s.SafeConeSamples} well-conditioned knee inversions within hint cone (onset {s.OnsetDeviationDeg:F0} deg) -- pole flips the knee backward");
+            if (s.TargetInversions > 0)
+                return (false, $"{s.TargetInversions}/{s.TargetReachable} reachable targets bend the knee backward with a good hint (inhuman pose)");
+            // Max-flexion limit: a human knee can't fold past the solver's MinKneeInteriorDeg clamp (calf
+            // through thigh). The flexion pass pulls the foot to the hip; the solved interior must hold there.
+            float flexLimit = UnityEngine.Animations.Rigging.BasisLegSolveCore.MinKneeInteriorDeg;
+            if (s.FlexClampSamples > 0 && s.MinKneeFlexDeg < flexLimit - 3f)
+                return (false, $"knee over-folds to {s.MinKneeFlexDeg:F0} deg interior < {flexLimit:F0} deg limit (calf through thigh -- clamp not holding)");
+            string onset = float.IsNaN(s.OnsetDeviationDeg) ? "none" : $"{s.OnsetDeviationDeg:F0}deg";
+            return (true, $"safe cone clean, onset={onset} natural={s.TargetInversions}/{s.TargetReachable} singular={s.SingularInversions}/{s.SingularSamples} minFlex={s.MinKneeFlexDeg:F0}/{flexLimit:F0}deg");
+        }
+
+        // Temporal knee inversion: on smooth foot motion with a good hint the knee must never cross to the
+        // backward (posterior) side mid-motion. Pole-noise crossings are reported, not gated (enough jitter
+        // always breaks it) -- they show how much tracker shake the knee tolerates before it transiently flips.
+        public static (bool pass, string reason) GateLegInversionTemporal(in BasisLegInversionTemporalSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.Crossings > 0)
+                return (false, $"knee flips backward {s.Crossings}x mid-motion on a good hint (min fwd {s.MinFwdFrac:F2}) -- transient inversion");
+            return (true, $"clean (min fwd {s.MinFwdFrac:F2}); under pole noise: {s.NoisyCrossings} flips (min fwd {s.NoisyMinFwdFrac:F2})");
         }
 
         public static (bool pass, string reason) GateHead(in BasisHeadSweepSummary s)

@@ -16,6 +16,7 @@ namespace Basis.IK.Debugging
         bool _hasRun;
         bool _includeTraj = true;
         float _trajNoise = 0.003f;
+        int _armGridSteps = 25;   // per-axis reach-target density for the arm grid sweep (was 9). Higher = finer flip detection, slower.
         Vector2 _scroll;
 
         [MenuItem("Basis/Debug/IK/Run All Sweeps")]
@@ -38,6 +39,10 @@ namespace Basis.IK.Debugging
             {
                 _trajNoise = EditorGUILayout.Slider("Trajectory Noise (m)", _trajNoise, 0f, 0.01f);
             }
+
+            _armGridSteps = EditorGUILayout.IntSlider("Arm Grid Steps (per axis)", _armGridSteps, 9, 49);
+            long armPts = (long)_armGridSteps * _armGridSteps * _armGridSteps;
+            EditorGUILayout.LabelField($"    arm grid = {armPts:n0} reach targets ({_armGridSteps}^3); higher = finer flip detection, slower", EditorStyles.miniLabel);
 
             if (GUILayout.Button("Run All IK Tests", GUILayout.Height(32)))
             {
@@ -97,7 +102,7 @@ namespace Basis.IK.Debugging
             _rows.Clear();
             _hasRun = true;
 
-            try { string p = BasisArmIKSweep.DefaultPath(); var s = BasisArmIKSweep.Run(BasisArmIKSweepConfig.Default(), p); var g = BasisIKTestGates.GateArm(s); Record("Arm IK", g.pass, g.reason, p); }
+            try { string p = BasisArmIKSweep.DefaultPath(); var cfg = BasisArmIKSweepConfig.Default(); cfg.Steps = new Vector3Int(_armGridSteps, _armGridSteps, _armGridSteps); var s = BasisArmIKSweep.Run(cfg, p); var g = BasisIKTestGates.GateArm(s); Record("Arm IK", g.pass, g.reason, p); var ge = BasisIKTestGates.GateArmElbowDirection(s); Record("Arm IK · elbow dir", ge.pass, ge.reason, p); }
             catch (System.Exception e) { Record("Arm IK", false, e.Message, null); }
 
             try { string p = BasisShoulderSweep.DefaultPath(); var s = BasisShoulderSweep.Run(BasisShoulderSweepConfig.Default(), p); var g = BasisIKTestGates.GateShoulder(s); Record("Shoulder", g.pass, g.reason, p); }
@@ -105,6 +110,9 @@ namespace Basis.IK.Debugging
 
             try { string p = BasisLegIKSweep.DefaultPath(); var s = BasisLegIKSweep.Run(BasisLegIKSweepConfig.Default(), p); var g = BasisIKTestGates.GateLeg(s); Record("Leg IK", g.pass, g.reason, p); }
             catch (System.Exception e) { Record("Leg IK", false, e.Message, null); }
+
+            try { string p = BasisLegInversionSweep.DefaultPath(); var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.Run(cfg, p); var g = BasisIKTestGates.GateLegInversion(s); Record("Leg Inversion", g.pass, g.reason, p); }
+            catch (System.Exception e) { Record("Leg Inversion", false, e.Message, null); }
 
             try { string p = BasisHeadSweep.DefaultPath(); var s = BasisHeadSweep.Run(BasisHeadSweepConfig.Default(), p); var g = BasisIKTestGates.GateHead(s); Record("Head", g.pass, g.reason, p); }
             catch (System.Exception e) { Record("Head", false, e.Message, null); }
@@ -181,6 +189,19 @@ namespace Basis.IK.Debugging
                     Record("Leg IK · temporal+footnoise", s.Ok, $"kneeJitter={s.WorstKneeJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (foot noise {_trajNoise * 1000f:F0}mm)", p);
                 }
                 catch (System.Exception e) { Record("Leg IK · temporal+footnoise", false, e.Message, null); }
+
+                try
+                {
+                    // Watches the knee cross to the backward side mid-motion: clean (good hint) gated to zero,
+                    // pole jitter reported. The dynamic complement to the inversion grid.
+                    string p = TrajPath("BasisLegInversionTemporal.csv");
+                    var cfg = BasisLegInversionConfig.Default();
+                    cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg;
+                    var s = BasisLegInversionSweep.RunTemporal(cfg, _trajNoise, p);
+                    var g = BasisIKTestGates.GateLegInversionTemporal(s);
+                    Record("Leg Inversion · temporal", g.pass, g.reason, p);
+                }
+                catch (System.Exception e) { Record("Leg Inversion · temporal", false, e.Message, null); }
 
                 try
                 {

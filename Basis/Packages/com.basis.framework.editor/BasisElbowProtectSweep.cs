@@ -72,7 +72,7 @@ namespace Basis.IK.Debugging
                 // Reach across and around the body so the upper arm sweeps in and out of the torso.
                 MinFrac = new Vector3(-1.3f, -1.1f, -0.5f),
                 MaxFrac = new Vector3(0.9f, 0.8f, 1.1f),
-                Steps = new Vector3Int(11, 11, 9),
+                Steps = new Vector3Int(25, 25, 21),
             };
         }
     }
@@ -225,8 +225,18 @@ namespace Basis.IK.Debugging
                                 {
                                     sensSum += sens;
                                     sensN++;
-                                    if (sens > sensMax) sensMax = sens;
-                                    if (sens > k_JitterDegPerCm) jittery++;
+                                    // Exclude singularities from the MAX, where swivel-per-cm is geometrically
+                                    // unbounded (so a denser grid keeps finding higher spikes), like the
+                                    // trajectory isSingular: a folded/extended arm (short shoulder->hand lever)
+                                    // and the protect's own can't-clear cases (CollisionState 2, already tracked
+                                    // by WrongSideFlipCount). What remains is the protect's twitch on cleared,
+                                    // well-conditioned poses.
+                                    bool wellConditioned = arm.ReachRatio >= 0.40f && arm.ReachRatio <= 0.97f && protect.CollisionState != 2;
+                                    if (wellConditioned)
+                                    {
+                                        if (sens > sensMax) sensMax = sens;
+                                        if (sens > k_JitterDegPerCm) jittery++;
+                                    }
                                 }
 
                                 rows += WriteRow(w, sb, side, ti, tj, tk, target, armLen, arm, isReachable,

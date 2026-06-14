@@ -48,8 +48,12 @@ namespace UnityEngine.Animations.Rigging
                 // When hand is forward, elbow goes more downward
                 bendDir = Vector3.Lerp(bendDir, new Vector3(0f, -1f, -0.3f), forwardness * 0.6f);
 
-                // When hand is above, elbow goes more backward
-                bendDir = Vector3.Lerp(bendDir, new Vector3(0f, -0.5f, -1f), upness * 0.5f);
+                // When hand is above, the elbow goes down and OUT (not straight back). A purely-backward
+                // bend runs nearly parallel to the shoulder->hand axis for an up-forward reach, which
+                // collapses the elbow pole (the swivel becomes unconstrained and the elbow flips UP).
+                // Down-and-out keeps the pole perpendicular to the arm, so the elbow follows it -- the
+                // natural high-reach pose (elbow flares to the side) instead of winging up/in front.
+                bendDir = Vector3.Lerp(bendDir, new Vector3(0.7f, -0.8f, -0.2f), upness * 0.5f);
 
                 // When hand is across body (inward), elbow goes outward and down
                 float inwardness = Mathf.Clamp01(-x);

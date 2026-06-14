@@ -36,7 +36,7 @@ namespace Basis.IK.Debugging
                 IsLeft = false,
                 MinFrac = new Vector3(-0.7f, -1.1f, -0.6f),
                 MaxFrac = new Vector3(1.2f, 0.7f, 1.15f),
-                Steps = new Vector3Int(9, 9, 9),
+                Steps = new Vector3Int(21, 21, 21),
                 HintDir = new Vector3(0.2f, -1.0f, -0.15f),
                 HintDistanceFrac = 0.5f,
             };
@@ -54,6 +54,11 @@ namespace Basis.IK.Debugging
         public float MaxSwivelShiftDeg;
         public float LookupMeanAbsSwivelDeg;
         public int LookupElbowUpCount;   // reachable lookup poses whose pole points up (chicken-wing)
+        public int LookupElbowFlipCount;     // forward, non-overhead reaches whose elbow flips hard UP (|swivel|>120) instead of hanging down/back
+        public float LookupMeanAlignErrDeg;  // health: mean angle between solved lookup-elbow and the lookup's requested pole (0 = elbow follows it)
+        public float LookupMaxAlignErrDeg;   // health: worst such angle
+        public float LookupMinElbowAngleDeg; // min solved elbow flexion over reachable poses (must stay >= anatomical min)
+        public float LookupMaxElbowAngleDeg; // max solved elbow flexion (must stay <= straight; no hyperextension)
         public float TrackerMeanSensDegPerCm; // elbow swivel deg per cm of tracker position error
         public float TrackerMaxSensDegPerCm;
         public int TrackerJitteryCount;  // reachable poses with sensitivity > 20 deg/cm
@@ -104,6 +109,11 @@ namespace Basis.IK.Debugging
             float swivelShiftMax = 0f;
             double lookupAbsSwivelSum = 0.0;
             int lookupElbowUp = 0;
+            int lookupElbowFlip = 0;          // reachable lookup poses whose elbow ends up off the requested pole
+            double lookupAlignSum = 0.0;
+            int lookupAlignN = 0;
+            float lookupAlignMax = 0f;
+            float lookupMinElbow = 999f, lookupMaxElbow = -999f;
             double trackerSensSum = 0.0;
             int trackerSensN = 0;
             float trackerSensMax = 0f;
@@ -183,12 +193,41 @@ namespace Basis.IK.Debugging
                                 {
                                     if (!float.IsNaN(swivelLookup)) lookupAbsSwivelSum += Mathf.Abs(swivelLookup);
                                     if (lookupBend.y > 0.2f) lookupElbowUp++;
+                                    // Health: mean/max angle the solved elbow sits off the requested lookup pole.
+                                    if (!float.IsNaN(alignLookup))
+                                    {
+                                        lookupAlignSum += alignLookup;
+                                        lookupAlignN++;
+                                        if (alignLookup > lookupAlignMax) lookupAlignMax = alignLookup;
+                                    }
+                                    // The headline bug: on a forward, non-overhead, EXTENDED reach the elbow
+                                    // swivels hard UP (|swivel|>120) instead of hanging down/back -- "elbow in
+                                    // front / wrong side". Folded reaches (reach<0.55, hand near the body) can
+                                    // legitimately raise the elbow, so they are excluded -- the fixed lookup is
+                                    // clean (0) on the extended region at every density. (align-vs-hint over-counts:
+                                    // a correct down elbow still reads >90 from the down-BACK hint.)
+                                    bool fwdExtended = (target.z - shoulder.z) > 0.2f * armLen
+                                        && (target.y - shoulder.y) < 0.4f * armLen
+                                        && lookup.ReachRatio > 0.55f;
+                                    if (fwdExtended && !float.IsNaN(swivelLookup) && Mathf.Abs(swivelLookup) > 120f) lookupElbowFlip++;
+                                    // Anatomical elbow flexion: the solved angle must stay in human range.
+                                    if (lookup.ElbowAngleDeg < lookupMinElbow) lookupMinElbow = lookup.ElbowAngleDeg;
+                                    if (lookup.ElbowAngleDeg > lookupMaxElbow) lookupMaxElbow = lookup.ElbowAngleDeg;
                                     if (!float.IsNaN(sensHint))
                                     {
                                         trackerSensSum += sensHint;
                                         trackerSensN++;
-                                        if (sensHint > trackerSensMax) trackerSensMax = sensHint;
-                                        if (sensHint > 20f) trackerJittery++;
+                                        // The MAX is singularity-dominated: where the elbow pole collapses
+                                        // (near-straight arm / hint along the arm axis) the swivel-per-cm is
+                                        // geometrically unbounded, so a denser grid keeps finding higher spikes.
+                                        // Exclude those from the max/jittery -- like the trajectory scanner's
+                                        // isSingular -- so the gate tracks well-conditioned jitter, not geometry.
+                                        bool poleWellConditioned = hint.ArmProjMag > 0.12f * armLen && hint.HintProjMag > 0.12f * armLen;
+                                        if (poleWellConditioned)
+                                        {
+                                            if (sensHint > trackerSensMax) trackerSensMax = sensHint;
+                                            if (sensHint > 20f) trackerJittery++;
+                                        }
                                     }
                                     if (hint.HintFade < 0.999f) trackerFaded++;
                                     if (!float.IsNaN(alignHint))
@@ -215,6 +254,11 @@ namespace Basis.IK.Debugging
                 summary.MaxSwivelShiftDeg = swivelShiftMax;
                 summary.LookupMeanAbsSwivelDeg = reachable > 0 ? (float)(lookupAbsSwivelSum / reachable) : 0f;
                 summary.LookupElbowUpCount = lookupElbowUp;
+                summary.LookupElbowFlipCount = lookupElbowFlip;
+                summary.LookupMeanAlignErrDeg = lookupAlignN > 0 ? (float)(lookupAlignSum / lookupAlignN) : 0f;
+                summary.LookupMaxAlignErrDeg = lookupAlignMax;
+                summary.LookupMinElbowAngleDeg = lookupMinElbow;
+                summary.LookupMaxElbowAngleDeg = lookupMaxElbow;
                 summary.TrackerMeanSensDegPerCm = trackerSensN > 0 ? (float)(trackerSensSum / trackerSensN) : 0f;
                 summary.TrackerMaxSensDegPerCm = trackerSensMax;
                 summary.TrackerJitteryCount = trackerJittery;
