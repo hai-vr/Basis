@@ -72,7 +72,7 @@ public static class BasisNetworkIPResolve
         if (addresses == null)
         {
             BasisDebug.LogError("Failed to resolve localhost to IP address.");
-            throw new System.IO.Exception("Failed to resolve localhost to IP address.");
+            throw new System.IO.IOException("Failed to resolve localhost to IP address.");
         }
         return addresses;
     }
