@@ -25,6 +25,9 @@ namespace Basis.Scripts.UI
         private InputAction enterAction;
         private InputAction keypadEnterAction;
 
+        private bool physicalKeyboardSubscribed;
+        private Keyboard subscribedKeyboard;
+
         /// <summary>
         /// Currently selected TMP input field (if any).
         /// </summary>
@@ -90,6 +93,8 @@ namespace Basis.Scripts.UI
         {
             base.OnDisable();
 
+            UnsubscribePhysicalKeyboard();
+
             tabAction.Disable();
             enterAction.Disable();
             keypadEnterAction.Disable();
@@ -100,7 +105,36 @@ namespace Basis.Scripts.UI
             basisUIRaycastProcess.OnDeInitialize();
         }
 
-        // Note: keyboard character input handlers kept for completeness; currently unused.
+        private void SubscribePhysicalKeyboard()
+        {
+            if (physicalKeyboardSubscribed) return;
+            if (!ShouldForwardPhysicalKeyboard()) return;
+
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null) return;
+
+            keyboard.onTextInput += OnTextInput;
+            subscribedKeyboard = keyboard;
+            physicalKeyboardSubscribed = true;
+        }
+
+        private void UnsubscribePhysicalKeyboard()
+        {
+            if (!physicalKeyboardSubscribed) return;
+
+            if (subscribedKeyboard != null)
+            {
+                subscribedKeyboard.onTextInput -= OnTextInput;
+            }
+            subscribedKeyboard = null;
+            physicalKeyboardSubscribed = false;
+        }
+
+        private static bool ShouldForwardPhysicalKeyboard()
+        {
+            return BasisDeviceManagement.IsCurrentModeVR() || BasisDeviceManagement.IsMobileHardware();
+        }
+
         private void OnTextInput(char character)
         {
             if (char.IsControl(character))
@@ -174,6 +208,7 @@ namespace Basis.Scripts.UI
                         HasHoverONInput = true;
                         MovementLock.Add(nameof(BasisInputModuleHandler));
                         CrouchingLock.Add(nameof(BasisInputModuleHandler));
+                        SubscribePhysicalKeyboard();
                         if (KeyboardRequired())
                         {
                             if (BasisMenuVirtualKeyboardPanel.HasInstance == false)
@@ -197,6 +232,7 @@ namespace Basis.Scripts.UI
                             HasHoverONInput = true;
                             MovementLock.Add(nameof(BasisInputModuleHandler));
                             CrouchingLock.Add(nameof(BasisInputModuleHandler));
+                            SubscribePhysicalKeyboard();
                             if (KeyboardRequired())
                             {
                                 if (BasisMenuVirtualKeyboardPanel.HasInstance == false)
@@ -213,6 +249,7 @@ namespace Basis.Scripts.UI
                 if (HasHoverONInput)
                 {
                     HasHoverONInput = false;
+                    UnsubscribePhysicalKeyboard();
                     CurrentSelectedTMP_InputField = null;
                     CurrentSelectedInputField = null;
                     MovementLock.Remove(nameof(BasisInputModuleHandler));
