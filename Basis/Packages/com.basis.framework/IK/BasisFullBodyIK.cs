@@ -428,6 +428,14 @@ namespace UnityEngine.Animations.Rigging
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
         public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
+        public string OffsetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationHead));
+        public string OffsetRotationPropertyChest => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationChest));
+        public string OffsetRotationPropertyLeftFoot => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(M_CalibrationLeftFootRotation));
+        public string OffsetRotationPropertyRightFoot => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(M_CalibrationRightFootRotation));
+        public string OffsetRotationPropertyLeftToe => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationLeftToe));
+        public string OffsetRotationPropertyRightToe => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationRightToe));
+        public string OffsetRotationPropertyLeftShoulder => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationLeftShoulder));
+        public string OffsetRotationPropertyRightShoulder => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationRightShoulder));
         public string LeftToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftToeEnabled));
         public string RightToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightToeEnabled));
         public string LeftDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToePosition));
@@ -930,6 +938,8 @@ p20, p54;
 targetRotationLeftLowerLeg, hintRotationLeftLowerLeg,
 targetRotationRightLowerLeg, hintRotationRightLowerLeg,
 targetRotationHips, offsetRotationHips,
+offsetRotationHead, offsetRotationChest, offsetRotationLeftFoot, offsetRotationRightFoot,
+offsetRotationLeftToe, offsetRotationRightToe, offsetRotationLeftShoulder, offsetRotationRightShoulder,
 leftDrivenTargetRot, rightDrivenTargetRot,
 targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
@@ -1035,6 +1045,17 @@ w20, w54;
             {
                 return;
             }
+
+            // Per-frame reads so FBT recalibration (which updates these on the constraint data)
+            // reaches the running job; the originals were copied once at job build (issue #531).
+            targetOffsetHead = V4ToQuat(offsetRotationHead.Get(stream));
+            targetOffsetChest = V4ToQuat(offsetRotationChest.Get(stream));
+            targetOffsetLeftFoot = V4ToQuat(offsetRotationLeftFoot.Get(stream));
+            targetOffsetRightFoot = V4ToQuat(offsetRotationRightFoot.Get(stream));
+            targetOffsetLeftToe = V4ToQuat(offsetRotationLeftToe.Get(stream));
+            targetOffsetRightToe = V4ToQuat(offsetRotationRightToe.Get(stream));
+            targetOffsetLeftShoulder = V4ToQuat(offsetRotationLeftShoulder.Get(stream));
+            targetOffsetRightShoulder = V4ToQuat(offsetRotationRightShoulder.Get(stream));
 
             // 1) Spine: hips + chest/neck/head chain
             SolveSpine(stream);
@@ -2599,15 +2620,15 @@ w20, w54;
                 MaxChestDeltaProperty = FloatProperty.Bind(animator, component, data.MaxChestDeltaPropertyDegFloatProperty),
                 enabledLeftShoulder = BoolProperty.Bind(animator, component, data.EnabledLeftShoulderProperty),
                 enabledRightShoulder = BoolProperty.Bind(animator, component, data.EnabledRightShoulderProperty),
-                targetOffsetLeftShoulder = data.m_CalibratedRotationLeftShoulder,
-                targetOffsetRightShoulder = data.m_CalibratedRotationRightShoulder,
+                offsetRotationLeftShoulder = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftShoulder),
+                offsetRotationRightShoulder = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightShoulder),
                 targetOffsetNeck = data.m_CalibratedRotationNeck,
-                targetOffsetHead = data.m_CalibratedRotationHead,
-                targetOffsetChest = data.m_CalibratedRotationChest,
-                targetOffsetLeftToe = data.m_CalibratedRotationLeftToe,
-                targetOffsetRightToe = data.m_CalibratedRotationRightToe,
-                targetOffsetLeftFoot = data.M_CalibrationLeftFootRotation,
-                targetOffsetRightFoot = data.M_CalibrationRightFootRotation,
+                offsetRotationHead = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyHead),
+                offsetRotationChest = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyChest),
+                offsetRotationLeftToe = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftToe),
+                offsetRotationRightToe = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightToe),
+                offsetRotationLeftFoot = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftFoot),
+                offsetRotationRightFoot = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightFoot),
                 targetOffsetLeftHand = data.m_CalibratedRotationLeftHand,
                 targetOffsetRightHand = data.m_CalibratedRotationRightHand,
                 MinHeadSpineHeight = FloatProperty.Bind(animator, component, data.MinHeadSpineHeightFloatProperty),

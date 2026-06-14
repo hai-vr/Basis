@@ -618,7 +618,9 @@ namespace Basis.BasisUI
 
             string DirectConnLabelKey(Basis.Scripts.Networking.BasisP2PManager.P2PSessionState st)
             {
-                if (BasisSettingsDefaults.DisableDirectConnections.RawValue &&
+                bool blockedByPolicy = BasisSettingsDefaults.DisableDirectConnections.RawValue ||
+                    (BasisNetworkModeration.GlobalDirectConnectLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass());
+                if (blockedByPolicy &&
                     st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected &&
                     st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting)
                 {
@@ -661,6 +663,16 @@ namespace Basis.BasisUI
                 if (st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Idle ||
                     st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed)
                 {
+                    if (BasisNetworkModeration.GlobalDirectConnectLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
+                    {
+                        BasisMainMenu.Instance.OpenDialogue(
+                            BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.title"),
+                            BasisLocalization.Get("menu.individualPlayer.directConnection.serverLockedDialog.body"),
+                            BasisLocalization.Get("ui.ok"),
+                            _ => { });
+                        return;
+                    }
+
                     if (BasisSettingsDefaults.DisableDirectConnections.RawValue)
                     {
                         BasisMainMenu.Instance.OpenDialogue(

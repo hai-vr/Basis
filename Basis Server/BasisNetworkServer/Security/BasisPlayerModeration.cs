@@ -369,6 +369,21 @@ namespace BasisNetworkServer.Security
                         HandleAudioRangeLimitsSet(peer, reader));
                     break;
 
+                case AdminRequestMode.GlobalTogglePlayspaceMover:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandlePlayspaceMoverToggle(peer));
+                    break;
+
+                case AdminRequestMode.GlobalToggleDirectConnect:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleDirectConnectToggle(peer));
+                    break;
+
+                case AdminRequestMode.SetGlobalAvatarScaleLimits:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleAvatarScaleLimitsSet(peer, reader));
+                    break;
+
                 case AdminRequestMode.RequestAllLogs:
                     Require(peer, PermNodes.AdminLogs, () =>
                         BasisServerLogBundleService.SendAllLogsToPeer(peer));
@@ -717,6 +732,55 @@ namespace BasisNetworkServer.Security
             SaveConfig();
             BasisAudioRangeLimitManager.BroadcastState();
             SendBackMessage(peer, $"Audio range limits set: microphone {NetworkServer.Configuration.MaxMicrophoneRangeMeters} m, hearing {NetworkServer.Configuration.MaxHearingRangeMeters} m.");
+        }
+
+        private static void HandlePlayspaceMoverToggle(NetPeer peer)
+        {
+            bool locked = BasisGlobalLockManager.TogglePlayspaceMover();
+            string state = locked ? "DISABLED" : "ENABLED";
+            BroadcastGlobalLockNotice(peer,
+                $"Playspace mover is now {state}.",
+                $"The playspace mover has been globally {state} for non-admins by an admin.");
+        }
+
+        private static void HandleDirectConnectToggle(NetPeer peer)
+        {
+            bool locked = BasisGlobalLockManager.ToggleDirectConnect();
+            string state = locked ? "DISABLED" : "ENABLED";
+            BroadcastGlobalLockNotice(peer,
+                $"Direct connections are now {state}.",
+                $"Direct (peer-to-peer) connections have been globally {state} for non-admins by an admin.");
+        }
+
+        private static void HandleAvatarScaleLimitsSet(NetPeer peer, NetPacketReader reader)
+        {
+            float minMeters = reader.GetFloat();
+            float maxMeters = reader.GetFloat();
+            BasisAvatarScaleLimitManager.SetLimits(minMeters, maxMeters);
+            NetworkServer.Configuration.MinAvatarEyeHeightMeters = BasisAvatarScaleLimitManager.MinMeters;
+            NetworkServer.Configuration.MaxAvatarEyeHeightMeters = BasisAvatarScaleLimitManager.MaxMeters;
+            SaveConfig();
+            BasisAvatarScaleLimitManager.BroadcastState();
+            SendBackMessage(peer, $"Avatar scale limits set: {NetworkServer.Configuration.MinAvatarEyeHeightMeters} m .. {NetworkServer.Configuration.MaxAvatarEyeHeightMeters} m.");
+        }
+
+        /// <summary>
+        /// Reply to the toggling admin, broadcast a one-line notice to everyone, then push the
+        /// refreshed lock-state payload. Used by the restriction toggles whose state rides on
+        /// GlobalGetLockState (playspace mover, direct connect).
+        /// </summary>
+        private static void BroadcastGlobalLockNotice(NetPeer peer, string adminReply, string broadcastNotice)
+        {
+            BNL.Log(broadcastNotice);
+            SendBackMessage(peer, adminReply);
+
+            var writer = NetworkServer.RentWriter();
+            new AdminRequest().Serialize(writer, AdminRequestMode.MessageAll);
+            writer.Put(broadcastNotice);
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.AdminChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+
+            BasisGlobalLockManager.BroadcastLockState();
         }
 
         private static void HandleGlobalToggle(NetPeer peer, string contentType, bool nowLocked)

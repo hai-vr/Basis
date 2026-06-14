@@ -116,6 +116,19 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
+            // Admin-controlled lockout: non-admins can't use the playspace mover. Clear any vertical
+            // offset / flip first so a locked player can't stay floating or tipped, then bail. Admins
+            // (basis.moderation.globallock) are exempt.
+            if (BasisNetworkModeration.GlobalPlayspaceMoverLocked
+                && BasisNetworkModeration.LocalPlayerHasGlobalLockBypass() == false)
+            {
+                VerticalOffset = 0f;
+                HasFlip = false;
+                FlipRotation = Quaternion.identity;
+                Stop();
+                return;
+            }
+
             if (_hasMovementLock == false)
             {
                 _movementLock = BasisLocks.GetContext(BasisLocks.Movement);

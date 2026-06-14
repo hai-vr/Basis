@@ -19,7 +19,7 @@ public class Configuration
     /// doc comments). Newly-added settings are healed automatically regardless: on load a
     /// config missing any current field is re-saved with the new settings added.
     /// </summary>
-    public const int CurrentConfigVersion = 2;
+    public const int CurrentConfigVersion = 3;
     /// <summary>Schema version stamped into config.xml; 0 = a pre-versioning file that is upgraded on load.</summary>
     public int ConfigVersion = 0;
 
@@ -104,6 +104,10 @@ public class Configuration
     public bool CrashReportingEnabled = true;
     public float MaxMicrophoneRangeMeters = 25f;
     public float MaxHearingRangeMeters = 25f;
+    public float MinAvatarEyeHeightMeters = 0.1f;
+    public float MaxAvatarEyeHeightMeters = 100f;
+    public bool PlayspaceMoverLocked = false;
+    public bool DirectConnectLocked = false;
 
     // ── REST API ──────────────────────────────────────────────────────────────
     /// <summary>Set to true to enable the REST management API.</summary>

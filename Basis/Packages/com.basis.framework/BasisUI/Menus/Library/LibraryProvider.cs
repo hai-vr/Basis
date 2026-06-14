@@ -847,9 +847,11 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent metadata;
             bool hasMeta = CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            // embedded items are always local, otherwise default to networked when connected
+            // embedded items are always local, otherwise default to networked when connected.
+            // Local-file content only exists on this device, so it can never be networked either.
             bool isEmbedded = item.EmbeddedSettings.IsEmbedded;
-            BundledContentHolder.NetworkType desiredNetworkType = isEmbedded
+            bool isLocalItem = BasisIOManagement.IsLocalBeeUrl(item.Url);
+            BundledContentHolder.NetworkType desiredNetworkType = (isEmbedded || isLocalItem)
                 ? BundledContentHolder.NetworkType.Local
                 : BasisNetworkConnection.LocalPlayerIsConnected
                     ? BundledContentHolder.NetworkType.Networked
@@ -1267,7 +1269,7 @@ namespace Basis.BasisUI
                 // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
                 PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
                 bool netConnectedForTypes = BasisNetworkConnection.LocalPlayerIsConnected;
-                List<string> contentSyncModeDisplayNames = GetAvailableNetworkTypes(netConnectedForTypes).Select(GetNetworkTypeDisplayName).ToList();
+                List<string> contentSyncModeDisplayNames = GetAvailableNetworkTypes(netConnectedForTypes, isLocalItem).Select(GetNetworkTypeDisplayName).ToList();
                 contentSyncModeDropDown.Descriptor.SetTitle(BasisLocalization.Get("library.networkType"));
                 contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(desiredNetworkType));
                 contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
@@ -1387,11 +1389,13 @@ namespace Basis.BasisUI
             sharePanelButton.Descriptor.SetWidth(150);
             sharePanelButton.Descriptor.SetHeight(60);
             sharePanelButton.SetInteractable(
-                BasisNetworkConnection.LocalPlayerIsConnected,
-                BasisNetworkConnection.LocalPlayerIsConnected ? null : BasisLocalization.Get("library.disabled.notConnected"));
+                BasisNetworkConnection.LocalPlayerIsConnected && !isLocalItem,
+                !BasisNetworkConnection.LocalPlayerIsConnected ? BasisLocalization.Get("library.disabled.notConnected")
+                : isLocalItem ? BasisLocalization.Get("library.disabled.local")
+                : null);
             sharePanelButton.OnClicked += async () =>
             {
-                if (!BasisNetworkConnection.LocalPlayerIsConnected) return;
+                if (!BasisNetworkConnection.LocalPlayerIsConnected || isLocalItem) return;
                 ContentShareType shareType;
                 switch (item.Mode)
                 {
@@ -1507,15 +1511,16 @@ namespace Basis.BasisUI
 
         /// <summary>
         /// Network types offered in the load dropdown. Local and Load-on-Boot work offline; Networked
-        /// only appears when connected to a server.
+        /// only appears when connected to a server. Local-file content is never networkable (it does
+        /// not exist on other clients), so it is restricted to Local and Load-on-Boot.
         /// </summary>
-        private static List<BundledContentHolder.NetworkType> GetAvailableNetworkTypes(bool connected)
+        private static List<BundledContentHolder.NetworkType> GetAvailableNetworkTypes(bool connected, bool isLocal)
         {
             List<BundledContentHolder.NetworkType> types = new List<BundledContentHolder.NetworkType>
             {
                 BundledContentHolder.NetworkType.Local
             };
-            if (connected)
+            if (connected && !isLocal)
             {
                 types.Add(BundledContentHolder.NetworkType.Networked);
             }
@@ -1583,19 +1588,20 @@ namespace Basis.BasisUI
         {
             await PersistServerProvidedItemOnLoad(item);
 
-            // Load-on-Boot persists the item so it auto-loads next launch, then loads it now locally.
-            if (networkType == BundledContentHolder.NetworkType.LoadOnBoot)
+            // Local-file content only exists on this device — it can never be networked or synchronized,
+            // so force it back to a local load if something requested otherwise.
+            if ((networkType == BundledContentHolder.NetworkType.Networked || networkType == BundledContentHolder.NetworkType.Synchronized)
+                && BasisIOManagement.IsLocalBeeUrl(item.Url))
             {
-                if (item.Mode == BundledContentHolder.Mode.World || item.Mode == BundledContentHolder.Mode.Prop)
-                {
-                    await BasisPreloadContentStore.Add(new BasisPreloadContentStore.PreloadEntry
-                    {
-                        Url = item.Url,
-                        Pass = item.Pass,
-                        Mode = item.Mode,
-                        PlacementType = item.PlacementType,
-                    });
-                }
+                BasisDebug.LogWarning($"Local content {item.Url} cannot be networked; loading it locally instead.");
+                networkType = BundledContentHolder.NetworkType.Local;
+            }
+
+            // Load-on-Boot loads the item now (locally) and records it so it auto-loads next launch.
+            // Worlds are recorded here; props are recorded after load so the placed transform is captured.
+            bool persistBoot = networkType == BundledContentHolder.NetworkType.LoadOnBoot;
+            if (persistBoot)
+            {
                 networkType = BundledContentHolder.NetworkType.Local;
             }
 
@@ -1613,14 +1619,73 @@ namespace Basis.BasisUI
                         break;
                     case BundledContentHolder.Mode.Prop:
                         await ContentLoader.LoadProp(item, networkType, persistence, IsProtected, modifyScale);
+                        if (persistBoot)
+                        {
+                            await PersistPropBootEntry(item);
+                        }
                         break;
                     case BundledContentHolder.Mode.World:
+                        if (persistBoot)
+                        {
+                            await BasisPreloadContentStore.Add(new BasisPreloadContentStore.PreloadEntry
+                            {
+                                Url = item.Url,
+                                Pass = item.Pass,
+                                Mode = item.Mode,
+                                PlacementType = item.PlacementType,
+                            });
+                        }
                         await ContentLoader.LoadWorld(item, networkType, persistence, IsProtected);
                         break;
                     default:
                         BasisDebug.LogError($"LoadSelectedItem was given an item with an unknown mode of {item.Mode}, cannot determine how to load!");
                         break;
                 }
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError(ex);
+            }
+        }
+
+        /// <summary>
+        /// Records a just-loaded prop in the boot store together with the world transform it was
+        /// placed at, so it respawns in the same spot next launch. No-op if the prop never spawned
+        /// (e.g. the user cancelled placement).
+        /// </summary>
+        private static async Task PersistPropBootEntry(BasisDataStoreItemKeys.ItemKey item)
+        {
+            try
+            {
+                IReadOnlyList<BasisRuntimeSpawnRegistry.SpawnInstance> instances = BasisRuntimeSpawnRegistry.GetInstances(item.Url);
+                if (instances == null || instances.Count == 0)
+                {
+                    return;
+                }
+
+                BasisRuntimeSpawnRegistry.SpawnInstance instance = instances
+                    .OrderByDescending(i => i.SpawnedUtc)
+                    .FirstOrDefault();
+
+                if (instance == null ||
+                    !BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(instance.LoadedNetID, out GameObject go) ||
+                    go == null)
+                {
+                    return;
+                }
+
+                Transform t = go.transform;
+                await BasisPreloadContentStore.Add(new BasisPreloadContentStore.PreloadEntry
+                {
+                    Url = item.Url,
+                    Pass = item.Pass,
+                    Mode = item.Mode,
+                    PlacementType = item.PlacementType,
+                    HasTransform = true,
+                    Position = t.position,
+                    Rotation = t.rotation,
+                    Scale = t.localScale,
+                });
             }
             catch (Exception ex)
             {

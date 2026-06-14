@@ -4,14 +4,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
 /// <summary>
 /// Loads "load on boot" content (see <see cref="BasisPreloadContentStore"/>) at startup: the first
-/// preloaded world becomes the initial world and any preloaded props spawn at the player origin.
-/// Skipped when the app is auto-joining a server (the server provides the world instead).
+/// preloaded world becomes the initial world and any preloaded props respawn at the placed transform
+/// they were saved with. Skipped when the app is auto-joining a server (the server provides the world).
 /// </summary>
 public static class BasisBootContentLoader
 {
@@ -95,9 +96,7 @@ public static class BasisBootContentLoader
 
                 try
                 {
-                    BasisDataStoreItemKeys.ItemKey propItem = ToItemKey(entry);
-                    propItem.PlacementType = BundledContentHolder.PlacementType.SpawnAtPlayerOrigin;
-                    await ContentLoader.LoadProp(propItem, BundledContentHolder.NetworkType.Local);
+                    await LoadBootProp(entry);
                 }
                 catch (Exception ex)
                 {
@@ -109,6 +108,34 @@ public static class BasisBootContentLoader
         {
             BasisDebug.LogError($"Boot content load failed: {ex}");
         }
+    }
+
+    private static async Task LoadBootProp(BasisPreloadContentStore.PreloadEntry entry)
+    {
+        BasisDataStoreItemKeys.ItemKey item = ToItemKey(entry);
+
+        // Restore the placed transform when we saved one — spawn directly so interactive
+        // placement (raycast) is skipped and the prop lands exactly where it was put.
+        if (entry.HasTransform &&
+            CachedMetaData.TryGetMeta(entry.Url, out CachedMetaData.CachedContent cached) &&
+            cached?.BasisBundleConnector != null)
+        {
+            await ContentLoader.HandleLoadGameObjectWithBundle(
+                item,
+                cached,
+                BundledContentHolder.NetworkType.Local,
+                entry.Position,
+                entry.Rotation,
+                entry.Scale,
+                BasisDeviceManagement.Instance.transform,
+                admin: false,
+                modifyScale: true);
+            return;
+        }
+
+        // No saved transform — fall back to spawning at the player origin.
+        item.PlacementType = BundledContentHolder.PlacementType.SpawnAtPlayerOrigin;
+        await ContentLoader.LoadProp(item, BundledContentHolder.NetworkType.Local);
     }
 
     private static BasisDataStoreItemKeys.ItemKey ToItemKey(BasisPreloadContentStore.PreloadEntry entry)

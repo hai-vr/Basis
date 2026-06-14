@@ -329,9 +329,24 @@ namespace Basis.Scripts.Device_Management.Devices
             BasisInverseOffsetData.InitialInverseTrackRotation = Quaternion.Inverse(tracker.rotation);
             BasisInverseOffsetData.InitialControlRotation = bone.rotation;
 
-            Vector3 Offset = bone.position - tracker.position;
+            // Land the bone on the avatar's own clean T-pose bone position (head-aligned by
+            // DriveTpose), converted from world into the bone-sim/player-root frame. The bone sim's
+            // degenerate yaw doesn't reliably track the head at large angles, so this uses the real
+            // T-pose pose for the head/body direction actually calibrated in, then follows tracker
+            // deltas. Falls back to the live bone pose if the avatar bone isn't resolvable.
+            Vector3 referencePosition = bone.position;
+            BasisLocalAvatarDriver avatarDriver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
+            if (avatarDriver != null && avatarDriver.StoredRolesTransforms != null
+                && TryGetRole(out BasisBoneTrackedRole role)
+                && avatarDriver.StoredRolesTransforms.TryGetValue(role, out Transform avatarBone)
+                && avatarBone != null)
+            {
+                referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(avatarBone.position);
+            }
+
+            Vector3 Offset = referencePosition - tracker.position;
             Vector3 InverseOffsetPosition = BasisInverseOffsetData.InitialInverseTrackRotation * Offset;
-            Quaternion InverseOffsetRotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
+            Quaternion InverseOffsetRotation = BasisInverseOffsetData.InitialInverseTrackRotation * bone.rotation;
             Control.SetInverseOffset(InverseOffsetPosition, InverseOffsetRotation);
             Control.UseInverseOffset = true;
 

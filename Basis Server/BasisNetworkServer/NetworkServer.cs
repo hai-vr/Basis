@@ -87,6 +87,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisGlobalLockManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisAudioRangeLimitManager.InitializeFromConfig(configuration);
+        BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(configuration);
         SetupServer(configuration);
         SubscribeEvents(Configuration);
 

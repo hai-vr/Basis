@@ -372,6 +372,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisCrashReportStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisAudioRangeLimitManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisAvatarScaleLimitManager.SendStateToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else

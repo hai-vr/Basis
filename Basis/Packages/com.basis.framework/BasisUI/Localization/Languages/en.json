@@ -2655,6 +2655,10 @@
       "value": "You have direct connections disabled in General settings. Enable them there to request a peer-to-peer link."
     },
     {
+      "key": "menu.individualPlayer.directConnection.serverLockedDialog.body",
+      "value": "Direct connections are disabled on this server by an admin."
+    },
+    {
       "key": "menu.individualPlayer.directConnection.accept",
       "value": "Accept"
     },
@@ -3095,6 +3099,10 @@
       "value": "This item is protected and can only be removed by an admin."
     },
     {
+      "key": "library.disabled.local",
+      "value": "Local files only exist on your device, so they can't be shared or networked."
+    },
+    {
       "key": "library.load",
       "value": "Load"
     },
@@ -3256,7 +3264,7 @@
     },
     {
       "key": "library.dialog.add.urlPlaceholder",
-      "value": "URL"
+      "value": "URL or local file path"
     },
     {
       "key": "library.dialog.add.passwordPlaceholder",
@@ -3264,7 +3272,7 @@
     },
     {
       "key": "library.dialog.add.urlDescription",
-      "value": "This should be a direct link to your BEE file."
+      "value": "A direct link to your BEE file, or the full path to a local .bee file on this device."
     },
     {
       "key": "library.dialog.add.addButton",
@@ -7373,6 +7381,38 @@
     {
       "key": "settings.admin.maxHearingRange",
       "value": "Max Hearing Range"
+    },
+    {
+      "key": "settings.admin.title.lockPlayspaceMover",
+      "value": "Lock Playspace Mover"
+    },
+    {
+      "key": "settings.admin.title.lockPlayspaceMover.tooltip",
+      "value": "Stop non-admin players from grabbing and dragging their play space. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockDirectConnect",
+      "value": "Lock Direct Connections"
+    },
+    {
+      "key": "settings.admin.title.lockDirectConnect.tooltip",
+      "value": "Stop non-admin players from opening direct peer-to-peer connections. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.minAvatarHeight",
+      "value": "Min Avatar Height"
+    },
+    {
+      "key": "settings.admin.minAvatarHeight.tooltip",
+      "value": "Smallest avatar eye height non-admin players may scale to. 0.1 m = effectively no minimum."
+    },
+    {
+      "key": "settings.admin.maxAvatarHeight",
+      "value": "Max Avatar Height"
+    },
+    {
+      "key": "settings.admin.maxAvatarHeight.tooltip",
+      "value": "Largest avatar eye height non-admin players may scale to. 100 m = effectively no maximum."
     },
     {
       "key": "settings.main.title.searchMenus",

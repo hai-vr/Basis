@@ -19,6 +19,8 @@ namespace BasisNetworkServer.Security
         private static int _thirdPersonDisabled;
         private static int _additionalAvatarDataLock;
         private static int _cameraMetadataDisallowMask;
+        private static int _playspaceMoverLocked;
+        private static int _directConnectLocked;
 
         public static bool AvatarsLocked => Interlocked.CompareExchange(ref _avatarsLocked, 0, 0) == 1;
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
@@ -27,6 +29,8 @@ namespace BasisNetworkServer.Security
         public static bool ThirdPersonDisabled => Interlocked.CompareExchange(ref _thirdPersonDisabled, 0, 0) == 1;
         public static bool AdditionalAvatarDataLock => Interlocked.CompareExchange(ref _additionalAvatarDataLock, 0, 0) == 1;
         public static byte CameraMetadataDisallowMask => (byte)Interlocked.CompareExchange(ref _cameraMetadataDisallowMask, 0, 0);
+        public static bool PlayspaceMoverLocked => Interlocked.CompareExchange(ref _playspaceMoverLocked, 0, 0) == 1;
+        public static bool DirectConnectLocked => Interlocked.CompareExchange(ref _directConnectLocked, 0, 0) == 1;
 
         /// <summary>
         /// Seed the initial lock state from the server configuration.
@@ -41,6 +45,8 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _thirdPersonDisabled, config.ThirdPersonDisabled ? 1 : 0);
             Interlocked.Exchange(ref _additionalAvatarDataLock, config.AdditionalAvatarDataLock ? 1 : 0);
             Interlocked.Exchange(ref _cameraMetadataDisallowMask, config.CameraMetadataDisallowMask);
+            Interlocked.Exchange(ref _playspaceMoverLocked, config.PlayspaceMoverLocked ? 1 : 0);
+            Interlocked.Exchange(ref _directConnectLocked, config.DirectConnectLocked ? 1 : 0);
         }
 
         /// <summary>
@@ -73,6 +79,16 @@ namespace BasisNetworkServer.Security
         /// sync messages. Returns the new state (true = additional data stripped).
         /// </summary>
         public static bool ToggleAdditionalAvatarDataLock() => Toggle(ref _additionalAvatarDataLock);
+
+        /// <summary>
+        /// Toggle the non-admin playspace-mover lockout. Returns the new state (true = locked).
+        /// </summary>
+        public static bool TogglePlayspaceMover() => Toggle(ref _playspaceMoverLocked);
+
+        /// <summary>
+        /// Toggle the non-admin direct-connect (P2P) lockout. Returns the new state (true = locked).
+        /// </summary>
+        public static bool ToggleDirectConnect() => Toggle(ref _directConnectLocked);
 
         /// <summary>
         /// Set the per-category camera photo-metadata disallow mask (set bit = disallowed).
@@ -111,6 +127,9 @@ namespace BasisNetworkServer.Security
             writer.Put(CameraMetadataDisallowMask);
             // Appended after CameraMetadataDisallowMask (1 byte) — older clients that stop reading earlier still parse.
             writer.Put((byte)NetworkServer.Configuration.BasisUserRestrictionMode);
+            // Appended after BasisUserRestrictionMode — older clients that stop reading earlier still parse.
+            writer.Put(PlayspaceMoverLocked);
+            writer.Put(DirectConnectLocked);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -134,6 +153,9 @@ namespace BasisNetworkServer.Security
             writer.Put(CameraMetadataDisallowMask);
             // Appended after CameraMetadataDisallowMask (1 byte) — older clients that stop reading earlier still parse.
             writer.Put((byte)NetworkServer.Configuration.BasisUserRestrictionMode);
+            // Appended after BasisUserRestrictionMode — older clients that stop reading earlier still parse.
+            writer.Put(PlayspaceMoverLocked);
+            writer.Put(DirectConnectLocked);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

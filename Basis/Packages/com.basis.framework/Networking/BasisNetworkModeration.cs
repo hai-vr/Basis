@@ -344,6 +344,10 @@ public static class BasisNetworkModeration
                 HandleAudioRangeLimits(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetAvatarScaleLimits:
+                HandleAvatarScaleLimits(reader);
+                break;
+
             case AdminRequestMode.LogBundleBegin:
                 BasisLogBundleReceiver.Begin(reader);
                 break;
@@ -713,6 +717,38 @@ public static class BasisNetworkModeration
     /// </summary>
     public static event Action<bool> OnGlobalHeadlessDisallowStateChanged;
 
+    /// <summary>
+    /// Server-pushed lock: while true, non-admin players cannot use the playspace mover.
+    /// Admins (basis.moderation.globallock) are exempt — see <see cref="LocalPlayerHasGlobalLockBypass"/>.
+    /// </summary>
+    public static bool GlobalPlayspaceMoverLocked { get; private set; }
+
+    /// <summary>Fired when the playspace-mover lockout flag changes.</summary>
+    public static event Action<bool> OnGlobalPlayspaceMoverLockedChanged;
+
+    /// <summary>
+    /// Server-pushed lock: while true, the server refuses to broker direct (P2P) connections for
+    /// non-admin players and clients hide the direct-connect control. Admins are exempt.
+    /// </summary>
+    public static bool GlobalDirectConnectLocked { get; private set; }
+
+    /// <summary>Fired when the direct-connect lockout flag changes.</summary>
+    public static event Action<bool> OnGlobalDirectConnectLockedChanged;
+
+    /// <summary>
+    /// True when the local player holds the global-lock moderation permission (or the '*' wildcard),
+    /// which exempts them from the admin-controlled avatar-scale clamp, playspace-mover lockout, and
+    /// direct-connect lockout. Mirrors the server's permission check; direct connect is still gated
+    /// server-side, so this is just UI/UX for that one.
+    /// </summary>
+    public static bool LocalPlayerHasGlobalLockBypass()
+    {
+        var perms = BasisNetworkManagement.LocalPermissions;
+        return perms != null &&
+               (perms.Contains(BasisPermissions.PermNodes.All) ||
+                perms.Contains(BasisPermissions.PermNodes.ModerationGlobalLock));
+    }
+
     private static void HandleGlobalLockState(NetDataReader reader)
     {
         GlobalAvatarsLocked = reader.GetBool();
@@ -768,7 +804,27 @@ public static class BasisNetworkModeration
                 }
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}", BasisDebug.LogTag.Networking);
+        // PlayspaceMoverLocked appended after BasisUserRestrictionMode — same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextPlayspaceLocked = reader.GetBool();
+            if (nextPlayspaceLocked != GlobalPlayspaceMoverLocked)
+            {
+                GlobalPlayspaceMoverLocked = nextPlayspaceLocked;
+                OnGlobalPlayspaceMoverLockedChanged?.Invoke(GlobalPlayspaceMoverLocked);
+            }
+        }
+        // DirectConnectLocked appended after PlayspaceMoverLocked — same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextDirectConnectLocked = reader.GetBool();
+            if (nextDirectConnectLocked != GlobalDirectConnectLocked)
+            {
+                GlobalDirectConnectLocked = nextDirectConnectLocked;
+                OnGlobalDirectConnectLockedChanged?.Invoke(GlobalDirectConnectLocked);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -821,6 +877,25 @@ public static class BasisNetworkModeration
     public static void GlobalToggleAdditionalAvatarDataLock()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleAdditionalAvatarDataLock);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global playspace-mover lockout. Server flips the flag, persists it to
+    /// config.xml, and broadcasts the new GlobalGetLockState payload. Non-admins can't grab/drag
+    /// their play space while set.
+    /// </summary>
+    public static void GlobalTogglePlayspaceMover()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalTogglePlayspaceMover);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global direct-connect (P2P) lockout. Server flips the flag, persists it,
+    /// broadcasts the new lock state, and refuses to broker P2P for non-admins while set.
+    /// </summary>
+    public static void GlobalToggleDirectConnect()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleDirectConnect);
     }
 
     /// <summary>
@@ -892,6 +967,46 @@ public static class BasisNetworkModeration
             AdminRequestMode.SetGlobalAudioRangeLimits,
             w => w.Put(microphoneMeters),
             w => w.Put(hearingMeters));
+    }
+
+    /// <summary>
+    /// Server-pushed minimum avatar eye height (metres) for non-admin players. Defaults to 0.1 m
+    /// until a server pushes a value; admins bypass the clamp.
+    /// </summary>
+    public static float ServerMinAvatarEyeHeightMeters { get; private set; } = 0.1f;
+
+    /// <summary>Server-pushed maximum avatar eye height (metres) for non-admin players.</summary>
+    public static float ServerMaxAvatarEyeHeightMeters { get; private set; } = 100f;
+
+    /// <summary>Fired when the server pushes new avatar scale limits (min, max) in metres.</summary>
+    public static event Action<float, float> OnAvatarScaleLimitsChanged;
+
+    private static void HandleAvatarScaleLimits(NetDataReader reader)
+    {
+        ServerMinAvatarEyeHeightMeters = reader.GetFloat();
+        ServerMaxAvatarEyeHeightMeters = reader.GetFloat();
+        BasisDebug.Log($"Avatar scale limits from server -> {ServerMinAvatarEyeHeightMeters} m .. {ServerMaxAvatarEyeHeightMeters} m", BasisDebug.LogTag.Networking);
+        OnAvatarScaleLimitsChanged?.Invoke(ServerMinAvatarEyeHeightMeters, ServerMaxAvatarEyeHeightMeters);
+        // Re-apply so a non-admin already out of range is corrected immediately, not only on their
+        // next scale change. The clamp is a no-op for admins, so re-applying is harmless for them.
+        if (BasisLocalPlayer.Instance != null && BasisLocalPlayer.PlayerReady)
+        {
+            BasisHeightDriver.ApplyScaleAndHeight();
+        }
+    }
+
+    /// <summary>
+    /// Admin: set the server-wide min/max avatar eye height (metres). Persisted to config.xml and
+    /// broadcast to every client; non-admins are clamped to it.
+    /// </summary>
+    public static void SetGlobalAvatarScaleLimits(float minMeters, float maxMeters)
+    {
+        if (minMeters < 0.01f) minMeters = 0.01f;
+        if (maxMeters < minMeters) maxMeters = minMeters;
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalAvatarScaleLimits,
+            w => w.Put(minMeters),
+            w => w.Put(maxMeters));
     }
 
     private static void HandleGlobalHeadlessDisallowState(NetDataReader reader)

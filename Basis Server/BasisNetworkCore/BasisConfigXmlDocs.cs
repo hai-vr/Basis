@@ -188,6 +188,10 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("CrashReportingEnabled", " Allow clients to send a one-shot report of each error/exception they hit to the server, stored under CrashReports/<uuid>.jsonl with their UUID and display name. true|false; default true. Set false to globally disable reporting (clients are told to stop sending). ", " ===== Diagnostics ===== "));
             t.Fields.Add(new FieldDoc("MaxMicrophoneRangeMeters", " Maximum microphone (voice transmit) range, in metres, a client may set. Clients clamp their Microphone Range slider and effective range to this ceiling; can also be changed live from the admin panel. float; default 25. ", " ===== Audio / voice range ===== "));
             t.Fields.Add(new FieldDoc("MaxHearingRangeMeters", " Maximum hearing (audio receive) range, in metres, a client may set. Clients clamp their Hearing Range slider and effective range to this ceiling. float; default 25. "));
+            t.Fields.Add(new FieldDoc("MinAvatarEyeHeightMeters", " Minimum avatar eye height, in metres, a non-admin player may scale to. Clients clamp their avatar scale to this floor. float; default 0.1 (effectively no minimum). Admins (basis.moderation.globallock) bypass it. ", " ===== Avatar scale + movement restrictions (seed at boot; toggle live from the admin panel). Admins with basis.moderation.globallock bypass these. ===== "));
+            t.Fields.Add(new FieldDoc("MaxAvatarEyeHeightMeters", " Maximum avatar eye height, in metres, a non-admin player may scale to. Clients clamp their avatar scale to this ceiling. float; default 100 (effectively no maximum). "));
+            t.Fields.Add(new FieldDoc("PlayspaceMoverLocked", " Stop non-admin players from using the playspace mover (grabbing/dragging/rotating/scaling their play space). true|false; default false. "));
+            t.Fields.Add(new FieldDoc("DirectConnectLocked", " Refuse to broker direct (peer-to-peer) connections for non-admin players; clients also hide the direct-connect control. true|false; default false. "));
             _docs[typeof(global::Configuration)] = t;
         }
 

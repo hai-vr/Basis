@@ -136,44 +136,123 @@ namespace Basis.Scripts.Avatar
         public static void FullBodyCalibration()
         {
             BasisCalibrationDebugRecorder.Begin("fbt_recalib");
-            BasisHeightDriver.OnAvatarFBCalibration();//avatar height is good,player height is needed
-            HasFBIKTrackers = false;
-            BasisHintBiasStore.Clear();
-            BasisDeviceManagement.UnassignFBTrackers();
-            BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
-
-            // Avatar still goes into T-pose because ComputeHints reads chest/hips reference
-            // rotations from it. The classifier itself doesn't touch the avatar.
-            BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
-            BasisLocalPlayer.Instance.DriveTpose();
-
-            Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
-
             try
             {
-                ClassifyAndAssignTrackersFromTPose();
-
-                // IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
+                BasisHeightDriver.OnAvatarFBCalibration();//avatar height is good,player height is needed
+                HasFBIKTrackers = false;
+                BasisHintBiasStore.Clear();
+                BasisDeviceManagement.UnassignFBTrackers();
                 BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 
-                ComputeHints(storedRoleTransforms);
+                // Avatar still goes into T-pose because ComputeHints reads chest/hips reference
+                // rotations from it. The classifier itself doesn't touch the avatar.
+                BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
+                BasisLocalPlayer.Instance.DriveTpose();
+
+                Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
+
+                try
+                {
+                    ClassifyAndAssignTrackersFromTPose();
+
+                    // IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
+                    BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
+
+                    LogFbikRotationCalibration();
+                    RecomputeFbikRotationCalibration();
+
+                    ComputeHints(storedRoleTransforms);
+                }
+                finally
+                {
+                    BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
+                    BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
+                }
+
+                BasisLocalPlayer.Instance.LocalAnimatorDriver.AssignHipsFBTracker();
+
+                // Refresh the per-role calibration spheres so they re-anchor to the
+                // newly stored avatar bone transforms. No-op when the ShowGizmos
+                // master toggle is off; the toggle path rebuilds when it flips on.
+                BasisLocalPlayer.Instance.LocalBoneDriver.RebuildCalibrationSpheres();
+
+                OnFullBodyCalibrated?.Invoke();
             }
             finally
             {
-                BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
-                BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
+                BasisCalibrationDebugRecorder.Flush();
             }
+        }
 
-            BasisLocalPlayer.Instance.LocalAnimatorDriver.AssignHipsFBTracker();
+        // Issue #531 rotation diagnostic: dumps the FBIK per-effector rotation calibration
+        // (frozen at rig setup in CreateBasisFullBodyRIG, never recomputed on recalibration)
+        // alongside what a fresh recompute against the current T-pose bone/avatar frames would
+        // produce. If 'frozen' stays constant across recalibrations while 'freshRecompute'
+        // tracks the moved tracker, the freeze is the rotation residue.
+        private static void LogFbikRotationCalibration()
+        {
+            var rig = BasisLocalPlayer.Instance.LocalRigDriver;
+            if (rig == null || rig.BasisFullIKConstraint == null) return;
+            var data = rig.BasisFullIKConstraint.data;
+            Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
 
-            // Refresh the per-role calibration spheres so they re-anchor to the
-            // newly stored avatar bone transforms. No-op when the ShowGizmos
-            // master toggle is off; the toggle path rebuilds when it flips on.
-            BasisLocalPlayer.Instance.LocalBoneDriver.RebuildCalibrationSpheres();
+            LogFbikRole("Head", data.m_CalibratedRotationHead, BasisLocalBoneDriver.HeadControl, Mapping.head);
+            LogFbikRole("Hips", data.OffsetRotationHips, BasisLocalBoneDriver.HipsControl, Mapping.Hips);
+            LogFbikRole("Chest", data.m_CalibratedRotationChest, BasisLocalBoneDriver.ChestControl, Mapping.chest);
+            LogFbikRole("LeftFoot", data.M_CalibrationLeftFootRotation, BasisLocalBoneDriver.LeftFootControl, Mapping.leftFoot);
+            LogFbikRole("RightFoot", data.M_CalibrationRightFootRotation, BasisLocalBoneDriver.RightFootControl, Mapping.rightFoot);
+            LogFbikRole("LeftToe", data.m_CalibratedRotationLeftToe, BasisLocalBoneDriver.LeftToeControl, Mapping.leftToe);
+            LogFbikRole("RightToe", data.m_CalibratedRotationRightToe, BasisLocalBoneDriver.RightToeControl, Mapping.rightToe);
+        }
 
-            OnFullBodyCalibrated?.Invoke();
+        private static void LogFbikRole(string label, Quaternion frozen, BasisLocalBoneControl control, Transform avatarBone)
+        {
+            BasisCalibrationDebugRecorder.Rotation("FbikRotCalib", label, "frozen", frozen);
+            if (control != null)
+            {
+                BasisCalibrationDebugRecorder.Rotation("FbikRotCalib", label, "boneOutWorld", control.OutgoingWorldData.rotation);
+            }
+            if (avatarBone != null)
+            {
+                BasisCalibrationDebugRecorder.Rotation("FbikRotCalib", label, "avatarBoneWorld", avatarBone.rotation);
+            }
+            if (control != null && avatarBone != null)
+            {
+                Quaternion fresh = Quaternion.Inverse(control.OutgoingWorldData.rotation) * avatarBone.rotation;
+                BasisCalibrationDebugRecorder.Rotation("FbikRotCalib", label, "freshRecompute", fresh);
+            }
+        }
 
-            BasisCalibrationDebugRecorder.Flush();
+        // Issue #531 rotation fix: CreateBasisFullBodyRIG captures the FBIK per-effector rotation
+        // offsets once at avatar load against the pre-calibration bone frame and never refreshes
+        // them. The constraint applies finalRot = boneOutgoingWorld * offset, so a stale offset
+        // leaves the avatar rotated off by the body-frame drift since load (only an app restart
+        // re-captured it). Recompute them here, in T-pose after the post-assignment simulate,
+        // with the same formula CreateBasisFullBodyRIG uses, so finalRot lands back on the avatar
+        // T-pose for the frame the user actually calibrated in.
+        private static void RecomputeFbikRotationCalibration()
+        {
+            var rig = BasisLocalPlayer.Instance.LocalRigDriver;
+            if (rig == null || rig.BasisFullIKConstraint == null) return;
+            var data = rig.BasisFullIKConstraint.data;
+            Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
+
+            BasisLocalRigDriver.RecalibratedHead = FreshRotationOffset(BasisLocalBoneDriver.HeadControl, Mapping.head, data.m_CalibratedRotationHead);
+            BasisLocalRigDriver.RecalibratedHips = FreshRotationOffset(BasisLocalBoneDriver.HipsControl, Mapping.Hips, data.OffsetRotationHips);
+            BasisLocalRigDriver.RecalibratedChest = FreshRotationOffset(BasisLocalBoneDriver.ChestControl, Mapping.chest, data.m_CalibratedRotationChest);
+            BasisLocalRigDriver.RecalibratedLeftFoot = FreshRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.leftFoot, data.M_CalibrationLeftFootRotation);
+            BasisLocalRigDriver.RecalibratedRightFoot = FreshRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.rightFoot, data.M_CalibrationRightFootRotation);
+            BasisLocalRigDriver.RecalibratedLeftToe = FreshRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.leftToe, data.m_CalibratedRotationLeftToe);
+            BasisLocalRigDriver.RecalibratedRightToe = FreshRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.rightToe, data.m_CalibratedRotationRightToe);
+            BasisLocalRigDriver.RecalibratedLeftShoulder = FreshRotationOffset(BasisLocalBoneDriver.LeftShoulderControl, Mapping.leftShoulder, data.m_CalibratedRotationLeftShoulder);
+            BasisLocalRigDriver.RecalibratedRightShoulder = FreshRotationOffset(BasisLocalBoneDriver.RightShoulderControl, Mapping.RightShoulder, data.m_CalibratedRotationRightShoulder);
+            BasisLocalRigDriver.HasRecalibratedRotationOffsets = true;
+        }
+
+        private static Quaternion FreshRotationOffset(BasisLocalBoneControl control, Transform avatarBone, Quaternion current)
+        {
+            if (control == null || avatarBone == null) return current;
+            return Quaternion.Inverse(control.OutgoingWorldData.rotation) * avatarBone.rotation;
         }
 
         /// <summary>

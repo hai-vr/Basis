@@ -847,6 +847,27 @@ public static class BasisIOManagement
     }
 
     /// <summary>
+    /// Returns true when <paramref name="location"/> is a local BEE location (a <c>file://</c> URI)
+    /// rather than a HTTP/HTTPS download, regardless of whether the file currently exists. Use this
+    /// for the "this content is local and can never be networked" invariant; use
+    /// <see cref="TryResolveLocalBeePath"/> when you actually need to read the file off disk.
+    /// </summary>
+    public static bool IsLocalBeeUrl(string location)
+    {
+        if (string.IsNullOrWhiteSpace(location))
+            return false;
+
+        if (Uri.TryCreate(location, UriKind.Absolute, out Uri uri))
+        {
+            if (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                return false;
+            return uri.IsFile;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Returns true when <paramref name="location"/> points at an existing local BEE file
     /// (a <c>file://</c> URI or a raw filesystem path) rather than a HTTP/HTTPS download,
     /// resolving it to an absolute local path. Used to route a dropped-in local BEE through

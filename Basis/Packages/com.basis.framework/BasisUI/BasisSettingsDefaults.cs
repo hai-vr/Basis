@@ -1420,6 +1420,7 @@ namespace Basis.BasisUI
             DevShowConsole.LoadBindingValue();
             DevShowEuroFilter.LoadBindingValue();
             DevShowNetStats.LoadBindingValue();
+            DumpCalibrationCsv.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;

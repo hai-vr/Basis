@@ -128,6 +128,15 @@ namespace BasisNetworkServer
                 BNL.LogError($"[P2P] Empty session token from peer {sender.Id}, dropping Request.");
                 return;
             }
+            // Admin-controlled instance lockout: non-admins may not establish direct (P2P) connections.
+            // Admins (basis.moderation.globallock) are exempt so they can still connect for moderation.
+            if (BasisNetworkServer.Security.BasisGlobalLockManager.DirectConnectLocked &&
+                !BasisPermissions.PermissionManager.PermissionIntegration.HasValidRequirement(sender, BasisPermissions.PermNodes.ModerationGlobalLock))
+            {
+                BNL.Log($"[P2P] DirectConnectLocked: rejecting Request from non-admin peer {sender.Id}.");
+                SendSub(sender, BasisNetworkCommons.P2PSub_Cancel, msg.sessionToken, msg.otherPlayerId);
+                return;
+            }
             if (msg.otherPlayerId == sender.Id)
             {
                 BNL.LogError($"[P2P] Peer {sender.Id} tried to request a session with itself.");

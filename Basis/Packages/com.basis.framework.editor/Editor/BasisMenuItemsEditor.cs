@@ -91,6 +91,9 @@ public static class BasisMenuItemsEditor
         Value.CreatePhysicalTrackedDevice("{htc}vr_tracker_vive_3_0" + UnityEngine.Random.Range(-9999999999999, 999999999999), "{htc}vr_tracker_vive_3_0");
         BasisDeviceManagement.VisibleTrackers(true);
         BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
+        // PutAvatarIntoTPose disabled the FBIK tracker weights; restore them so existing
+        // controllers / the avatar pose don't stay broken until the next calibrate.
+        BasisLocalPlayer.Instance.LocalRigDriver.RestoreAllTrackers();
     }
     [MenuItem("Basis/Trackers/Create Vive Right Controller")]
     public static void CreateViveRightTracker()
@@ -153,6 +156,9 @@ public static class BasisMenuItemsEditor
         BasisLeftFoot.FollowMovement.rotation = UnityEngine.Random.rotation;
         BasisRightFoot.FollowMovement.rotation = UnityEngine.Random.rotation;
         BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
+        // PutAvatarIntoTPose disabled the FBIK tracker weights; restore them so existing
+        // controllers / the avatar pose don't stay broken until the next calibrate.
+        BasisLocalPlayer.Instance.LocalRigDriver.RestoreAllTrackers();
         // Show the trackers
         BasisDeviceManagement.VisibleTrackers(true);
     }

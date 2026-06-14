@@ -95,17 +95,37 @@ public static class BasisHeightDriver
         // Prefer selected unscaled avatar metric; fall back if invalid.
         float unscaled = SanitizePositive(SelectedUnScaledAvatarHeight, FallbackHeightInMeters);
 
-        ScaledToMatchValue = SelectedScale / unscaled;
+        // Target eye height (metres): the selected height when scaling, else the avatar's natural
+        // height. Clamp it to the admin-enforced range (a no-op for admins and the default range),
+        // then derive the scale factor. unscaled/unscaled == 1 exactly, so the "scaling off" case
+        // stays 1x unless an admin limit actually pulls it in.
+        float targetMeters = ScaleAvatar ? SelectedScale : unscaled;
+        targetMeters = ClampToAdminEyeHeight(targetMeters);
 
-        // If user has disabled scaling, force to 1.
-        if (!ScaleAvatar)
-        {
-            ScaledToMatchValue = 1f;
-        }
+        ScaledToMatchValue = targetMeters / unscaled;
 
         BasisDebug.Log($"Applying Scale to Avatar {ScaledToMatchValue}", BasisDebug.LogTag.Avatar);
 
         ApplyAvatarScale(ScaledToMatchValue);
+    }
+
+    /// <summary>
+    /// Clamp a target avatar eye height (metres) to the server-pushed admin scale limits. Admins
+    /// (basis.moderation.globallock) bypass it; the default 0.1..100 m range is effectively a no-op.
+    /// </summary>
+    public static float ClampToAdminEyeHeight(float eyeHeightMeters)
+    {
+        if (BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
+        {
+            return eyeHeightMeters;
+        }
+
+        float min = BasisNetworkModeration.ServerMinAvatarEyeHeightMeters;
+        float max = BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters;
+        if (float.IsNaN(min) || float.IsInfinity(min) || min <= 0f) min = 0.1f;
+        if (float.IsNaN(max) || float.IsInfinity(max) || max <= 0f) max = 100f;
+        if (max < min) max = min;
+        return Mathf.Clamp(eyeHeightMeters, min, max);
     }
 
     public enum HeightModeChange
@@ -118,6 +138,7 @@ public static class BasisHeightDriver
     public static bool ApplyRuntimeOscEyeHeightOverride(float eyeHeightMeters)
     {
         eyeHeightMeters = SanitizePositive(eyeHeightMeters, FallbackHeightInMeters);
+        eyeHeightMeters = ClampToAdminEyeHeight(eyeHeightMeters);
 
         float unscaledAvatarEyeHeight = SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters);
         float scaleFactor = eyeHeightMeters / unscaledAvatarEyeHeight;

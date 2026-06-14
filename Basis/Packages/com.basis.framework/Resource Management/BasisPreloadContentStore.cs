@@ -23,6 +23,13 @@ public static class BasisPreloadContentStore
         public string Pass;
         public BundledContentHolder.Mode Mode;
         public BundledContentHolder.PlacementType PlacementType;
+
+        // Placed transform (world position/rotation + local scale) for props, so they restore where
+        // they were put. Worlds have no placement and leave HasTransform false.
+        public bool HasTransform;
+        public Vector3 Position;
+        public Quaternion Rotation;
+        public Vector3 Scale;
     }
 
     private static string _filePath;
@@ -172,13 +179,24 @@ public static class BasisPreloadContentStore
                 string url = (string)item.Element("Url");
                 if (string.IsNullOrWhiteSpace(url)) continue;
 
-                _entries.Add(new PreloadEntry
+                PreloadEntry entry = new PreloadEntry
                 {
                     Url = url,
                     Pass = (string)item.Element("Pass") ?? string.Empty,
                     Mode = ParseEnum(item.Element("Mode")?.Value, BundledContentHolder.Mode.World),
                     PlacementType = ParseEnum(item.Element("PlacementType")?.Value, BundledContentHolder.PlacementType.SpawnAtPlayerOrigin),
-                });
+                };
+
+                XElement tf = item.Element("Transform");
+                if (tf != null)
+                {
+                    entry.HasTransform = true;
+                    entry.Position = new Vector3((float?)tf.Element("Px") ?? 0f, (float?)tf.Element("Py") ?? 0f, (float?)tf.Element("Pz") ?? 0f);
+                    entry.Rotation = new Quaternion((float?)tf.Element("Rx") ?? 0f, (float?)tf.Element("Ry") ?? 0f, (float?)tf.Element("Rz") ?? 0f, (float?)tf.Element("Rw") ?? 1f);
+                    entry.Scale = new Vector3((float?)tf.Element("Sx") ?? 1f, (float?)tf.Element("Sy") ?? 1f, (float?)tf.Element("Sz") ?? 1f);
+                }
+
+                _entries.Add(entry);
             }
         }
         catch (Exception e)
@@ -193,15 +211,29 @@ public static class BasisPreloadContentStore
         return Enum.TryParse(value, out T parsed) ? parsed : fallback;
     }
 
+    private static XElement BuildItemElement(PreloadEntry e)
+    {
+        XElement item = new XElement("Item",
+            new XElement("Url", e.Url ?? string.Empty),
+            new XElement("Pass", e.Pass ?? string.Empty),
+            new XElement("Mode", e.Mode.ToString()),
+            new XElement("PlacementType", e.PlacementType.ToString()));
+
+        if (e.HasTransform)
+        {
+            item.Add(new XElement("Transform",
+                new XElement("Px", e.Position.x), new XElement("Py", e.Position.y), new XElement("Pz", e.Position.z),
+                new XElement("Rx", e.Rotation.x), new XElement("Ry", e.Rotation.y), new XElement("Rz", e.Rotation.z), new XElement("Rw", e.Rotation.w),
+                new XElement("Sx", e.Scale.x), new XElement("Sy", e.Scale.y), new XElement("Sz", e.Scale.z)));
+        }
+
+        return item;
+    }
+
     private static async Task SaveToFile()
     {
         XDocument doc = new XDocument(
-            new XElement("PreloadContent",
-                _entries.Select(e => new XElement("Item",
-                    new XElement("Url", e.Url ?? string.Empty),
-                    new XElement("Pass", e.Pass ?? string.Empty),
-                    new XElement("Mode", e.Mode.ToString()),
-                    new XElement("PlacementType", e.PlacementType.ToString())))));
+            new XElement("PreloadContent", _entries.Select(BuildItemElement)));
 
         string tempPath = FilePath + ".tmp";
         try

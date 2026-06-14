@@ -111,6 +111,20 @@ namespace Basis.BasisUI
             additionalAvatarDataLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAdditionalAvatarDataLock);
             additionalAvatarDataLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAdditionalAvatarDataLock();
 
+            PanelToggle playspaceMoverLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
+            playspaceMoverLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover"));
+            playspaceMoverLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover.tooltip"));
+            playspaceMoverLock.Descriptor.SetDescription("Stops non-admin players from grabbing/dragging/rotating/scaling their play space with the playspace mover. Admins are unaffected.");
+            playspaceMoverLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPlayspaceMoverLocked);
+            playspaceMoverLock.OnValueChanged += _ => BasisNetworkModeration.GlobalTogglePlayspaceMover();
+
+            PanelToggle directConnectLock = PanelToggle.CreateNewEntry(lockGroup.ContentParent);
+            directConnectLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockDirectConnect"));
+            directConnectLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockDirectConnect.tooltip"));
+            directConnectLock.Descriptor.SetDescription("Stops non-admin players from opening direct (peer-to-peer) connections; the server refuses to broker P2P for them. Admins are unaffected.");
+            directConnectLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalDirectConnectLocked);
+            directConnectLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleDirectConnect();
+
             PanelSlider opusPacketLossSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
             opusPacketLossSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.admin.opusFecLoss")));
             opusPacketLossSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFecLoss.tooltip"));
@@ -129,6 +143,18 @@ namespace Basis.BasisUI
             maxHearingRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxHearingRange.tooltip"));
             maxHearingRangeSlider.Descriptor.SetDescription("Maximum hearing (audio receive) range in metres any client may set. Each client's Hearing Range slider and effective range is clamped to this.");
             maxHearingRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxHearingRangeMeters);
+
+            PanelSlider minAvatarHeightSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
+            minAvatarHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.minAvatarHeight"), 0.1f, 10f, false, 2, ValueDisplayMode.Meters));
+            minAvatarHeightSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.minAvatarHeight.tooltip"));
+            minAvatarHeightSlider.Descriptor.SetDescription("Smallest avatar eye height (metres) a non-admin player may scale to; their avatar scale is clamped up to this. 0.1 = effectively no minimum. Admins bypass it.");
+            minAvatarHeightSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMinAvatarEyeHeightMeters);
+
+            PanelSlider maxAvatarHeightSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, lockGroup.ContentParent);
+            maxAvatarHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxAvatarHeight"), 0.1f, 100f, false, 2, ValueDisplayMode.Meters));
+            maxAvatarHeightSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxAvatarHeight.tooltip"));
+            maxAvatarHeightSlider.Descriptor.SetDescription("Largest avatar eye height (metres) a non-admin player may scale to; their avatar scale is clamped down to this. 100 = effectively no maximum. Admins bypass it.");
+            maxAvatarHeightSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters);
 
             controller.AvatarLockToggle = avatarLock;
             controller.PropLockToggle = propLock;
@@ -152,6 +178,23 @@ namespace Basis.BasisUI
             {
                 controller.MaxHearingRangeMeters = value;
                 BasisNetworkModeration.SetGlobalAudioRangeLimits(controller.MaxMicrophoneRangeMeters, controller.MaxHearingRangeMeters);
+            };
+
+            controller.PlayspaceMoverLockToggle = playspaceMoverLock;
+            controller.DirectConnectLockToggle = directConnectLock;
+            controller.MinAvatarHeightSlider = minAvatarHeightSlider;
+            controller.MaxAvatarHeightSlider = maxAvatarHeightSlider;
+            controller.MinAvatarHeightMeters = BasisNetworkModeration.ServerMinAvatarEyeHeightMeters;
+            controller.MaxAvatarHeightMeters = BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters;
+            minAvatarHeightSlider.OnValueChanged += value =>
+            {
+                controller.MinAvatarHeightMeters = value;
+                BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
+            };
+            maxAvatarHeightSlider.OnValueChanged += value =>
+            {
+                controller.MaxAvatarHeightMeters = value;
+                BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
             };
 
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
@@ -536,6 +579,12 @@ namespace Basis.BasisUI
             public PanelSlider MaxHearingRangeSlider;
             public float MaxMicrophoneRangeMeters;
             public float MaxHearingRangeMeters;
+            public PanelToggle PlayspaceMoverLockToggle;
+            public PanelToggle DirectConnectLockToggle;
+            public PanelSlider MinAvatarHeightSlider;
+            public PanelSlider MaxAvatarHeightSlider;
+            public float MinAvatarHeightMeters;
+            public float MaxAvatarHeightMeters;
             public System.Action<byte> ApplyCameraMask;
 
             private void OnEnable()
@@ -560,6 +609,12 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged += OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged += OnGlobalRestrictionModeChanged;
+                BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
+                BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged += OnGlobalPlayspaceMoverLockedChanged;
+                BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnGlobalDirectConnectLockedChanged += OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnAvatarScaleLimitsChanged += OnAvatarScaleLimitsChanged;
             }
 
             private void OnDisable()
@@ -575,6 +630,9 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
+                BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
+                BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
             }
 
             private void OnDestroy()
@@ -588,6 +646,9 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
+                BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
+                BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -640,6 +701,24 @@ namespace Basis.BasisUI
             {
                 if (WhitelistToggle != null) WhitelistToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.WhiteList);
                 if (RejoinLockToggle != null) RejoinLockToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.RejoinOnly);
+            }
+
+            private void OnGlobalPlayspaceMoverLockedChanged(bool locked)
+            {
+                if (PlayspaceMoverLockToggle != null) PlayspaceMoverLockToggle.SetValueWithoutNotify(locked);
+            }
+
+            private void OnGlobalDirectConnectLockedChanged(bool locked)
+            {
+                if (DirectConnectLockToggle != null) DirectConnectLockToggle.SetValueWithoutNotify(locked);
+            }
+
+            private void OnAvatarScaleLimitsChanged(float minMeters, float maxMeters)
+            {
+                MinAvatarHeightMeters = minMeters;
+                MaxAvatarHeightMeters = maxMeters;
+                if (MinAvatarHeightSlider != null) MinAvatarHeightSlider.SetValueWithoutNotify(minMeters);
+                if (MaxAvatarHeightSlider != null) MaxAvatarHeightSlider.SetValueWithoutNotify(maxMeters);
             }
         }
     }

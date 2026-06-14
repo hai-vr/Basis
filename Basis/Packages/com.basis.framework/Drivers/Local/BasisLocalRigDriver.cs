@@ -179,6 +179,9 @@ namespace Basis.Scripts.Drivers
 
         public void SetBodySettings()
         {
+            // New rig build re-captures the setup rotation offsets; drop any prior FBT recalibration
+            // so the fresh avatar uses its own capture until the user calibrates again (issue #531).
+            HasRecalibratedRotationOffsets = false;
             var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
             Spine(rigGO);
             BasisLocalBoneControl.HasEvents = true;
@@ -912,6 +915,18 @@ namespace Basis.Scripts.Drivers
         // init AND from SimulateIKDestinations every frame so slider changes flow into the
         // animation job. Without the per-frame call, sliders update RawValue but the IK keeps
         // running on the boot-time snapshot.
+        // Issue #531: FBT-recalibrated per-effector rotation offsets. CreateBasisFullBodyRIG captures
+        // these once at rig build against the pre-calibration frame; a one-shot runtime write to the
+        // [SyncSceneToStream] data field does NOT persist (it reverts to the serialized setup value),
+        // so FullBodyCalibration stashes the freshly recomputed values here and ApplyTuningSettings
+        // re-applies them every frame — the same persistent path the tuning sliders use. Cleared on
+        // rig (re)build so a new avatar uses its own setup capture until the user calibrates.
+        public static bool HasRecalibratedRotationOffsets;
+        public static Quaternion RecalibratedHead, RecalibratedHips, RecalibratedChest;
+        public static Quaternion RecalibratedLeftFoot, RecalibratedRightFoot;
+        public static Quaternion RecalibratedLeftToe, RecalibratedRightToe;
+        public static Quaternion RecalibratedLeftShoulder, RecalibratedRightShoulder;
+
         private static void ApplyTuningSettings(ref BasisFullBodyData data)
         {
             data.MaxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
@@ -977,6 +992,19 @@ namespace Basis.Scripts.Drivers
             data.HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue * collisionScale;
             data.ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue * collisionScale;
             data.CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue * collisionScale;
+
+            if (HasRecalibratedRotationOffsets)
+            {
+                data.m_CalibratedRotationHead = RecalibratedHead;
+                data.OffsetRotationHips = RecalibratedHips;
+                data.m_CalibratedRotationChest = RecalibratedChest;
+                data.M_CalibrationLeftFootRotation = RecalibratedLeftFoot;
+                data.M_CalibrationRightFootRotation = RecalibratedRightFoot;
+                data.m_CalibratedRotationLeftToe = RecalibratedLeftToe;
+                data.m_CalibratedRotationRightToe = RecalibratedRightToe;
+                data.m_CalibratedRotationLeftShoulder = RecalibratedLeftShoulder;
+                data.m_CalibratedRotationRightShoulder = RecalibratedRightShoulder;
+            }
         }
         public void DisableAllTrackers()
         {
@@ -997,6 +1025,36 @@ namespace Basis.Scripts.Drivers
                 data.HasHipsTracker = false;
                 data.EnabledLeftShoulder = false;
                 data.EnabledRightShoulder = false;
+                BasisFullIKConstraint.data = data;
+            }
+        }
+        /// <summary>
+        /// Re-applies the full-body IK constraint weights from each bone's current rig-layer
+        /// state — the inverse of <see cref="DisableAllTrackers"/>. PutAvatarIntoTPose disables
+        /// these so the T-pose read isn't dragged by trackers; FullBodyCalibration restores them
+        /// as a side effect of (re)assigning roles, but any flow that enters/exits T-pose WITHOUT
+        /// a full calibration must call this or the arm hints / chest / shoulders / legs stay
+        /// stuck at zero weight (the avatar and controller arms look broken until the next
+        /// calibrate). HasHipsTracker is omitted on purpose — the per-frame Simulate recomputes it.
+        /// </summary>
+        public void RestoreAllTrackers()
+        {
+            if (BasisFullIKConstraint != null)
+            {
+                var data = BasisFullIKConstraint.data;
+                data.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
+                data.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
+                data.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
+                data.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
+                data.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
+                data.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
+                data.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
+                data.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
+                data.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
+                data.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
+                data.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
+                data.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
+                data.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
                 BasisFullIKConstraint.data = data;
             }
         }

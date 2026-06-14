@@ -154,13 +154,25 @@ namespace Basis.Scripts.Drivers
             var tpose = bone.TposeLocalScaled;
             Add("OffsetCapture", role, "boneTposeScaled", tpose.position, tpose.rotation, Vector3.one, note);
 
+            Vector3 referenceLocal = outLocal.position;
+            var avatarDriver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
+            if (avatarDriver != null && avatarDriver.StoredRolesTransforms != null
+                && input.TryGetRole(out var roleEnum)
+                && avatarDriver.StoredRolesTransforms.TryGetValue(roleEnum, out var avatarBone)
+                && avatarBone != null)
+            {
+                Add("OffsetCapture", role, "avatarBoneWorld", avatarBone.position, avatarBone.rotation, Vector3.one, note);
+                referenceLocal = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(avatarBone.position);
+                Add("OffsetCapture", role, "avatarBoneRefLocal", referenceLocal, Quaternion.identity, Vector3.one, note);
+            }
+
             Quaternion inverseTrackerWorldRotation = Quaternion.Inverse(trackerWorldRot);
             Vector3 worldOffsetPosition = inverseTrackerWorldRotation * (outWorld.position - trackerWorldPos);
             Quaternion worldOffsetRotation = inverseTrackerWorldRotation * outWorld.rotation;
             Add("OffsetCapture", role, "offsetWorldBased", worldOffsetPosition, worldOffsetRotation, Vector3.one, note);
 
             Quaternion inverseScaledRotation = Quaternion.Inverse(scaled.rotation);
-            Vector3 virtualOffsetPosition = inverseScaledRotation * (outLocal.position - scaled.position);
+            Vector3 virtualOffsetPosition = inverseScaledRotation * (referenceLocal - scaled.position);
             Quaternion virtualOffsetRotation = inverseScaledRotation * outLocal.rotation;
             Add("OffsetCapture", role, "offsetVirtualLocal", virtualOffsetPosition, virtualOffsetRotation, Vector3.one, note);
 
