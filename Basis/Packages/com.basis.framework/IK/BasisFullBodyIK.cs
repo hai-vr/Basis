@@ -1028,6 +1028,12 @@ w20, w54;
         public NativeArray<int> swingCollided;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
+        // Per-swing-slot OneEuro state for elbow-swivel OUTPUT smoothing (Raw.x = prev raw swivel deg,
+        // Raw.y = prev low-passed swivel velocity, Smooth.x = prev smoothed swivel): damps the elbow jitter
+        // the solve amplifies from tiny input noise, with the hand kept exactly on target.
+        public NativeArray<Vector3> armLookupRaw;
+        public NativeArray<Vector3> armLookupSmooth;
+        public NativeArray<int> armLookupInit;
         public FloatProperty ikLockMode;
         public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
@@ -2049,7 +2055,13 @@ w20, w54;
             input.HintWeight = hintWeight;
             input.TargetOffset = targetOffset;
             input.PlayerUp = playerUp.Get(stream);
-            input.HintMaxStepDeg = 540f * stream.deltaTime;
+            // No per-frame swivel clamp. The rig runs after the animator resets the bones, so the solve is
+            // stateless: a per-frame cap can't "ease in" over frames, it just permanently pins the elbow that
+            // many degrees from the animated bend -- which is why an assigned elbow tracker did almost nothing
+            // (6deg/frame). Offline always ran unclamped (MaxValue) and its tests pass, so full swivel is the
+            // proven-safe path. The anti-parallel flip is held off by the commit + hand-reach reduction in
+            // BasisArmSolveCore (reach stays exact), not by clamping the swivel.
+            input.HintMaxStepDeg = float.MaxValue;
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
 
@@ -2433,6 +2445,61 @@ w20, w54;
                 }
             }
         }
+        // OneEuro smoothing of the ELBOW SWIVEL output (the angle the elbow makes around the shoulder->hand
+        // axis). The hand stays exactly on target -- only the swivel is damped. The velocity is low-passed
+        // FIRST, so frame-to-frame jitter (zero-mean swivel velocity) leaves the cutoff at its floor (heavy
+        // smoothing -> the solve's amplification of tiny input noise is killed), while a real reach (sustained
+        // swivel velocity) opens the cutoff so the elbow tracks with no lag. Per swing slot.
+        const float k_SwivelMinCutoff = 1.0f;    // Hz, held-still smoothing floor
+        const float k_SwivelDerivCutoff = 1.0f;  // Hz, derivative low-pass (rejects jitter velocity)
+        const float k_SwivelBeta = 0.05f;        // how fast the cutoff opens with sustained swivel speed (deg/s)
+        static float LookupAlpha(float cutoff, float dt)
+        {
+            float tau = 1f / (2f * Mathf.PI * Mathf.Max(cutoff, 1e-3f));
+            return 1f / (1f + tau / dt);
+        }
+        void SmoothElbowSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt)
+        {
+            if (!armLookupInit.IsCreated || slot < 0 || slot >= armLookupInit.Length || dt <= 1e-6f)
+            {
+                return;
+            }
+            Vector3 a = root.GetPosition(stream), b = mid.GetPosition(stream), c = tip.GetPosition(stream);
+            Vector3 ac = c - a;
+            float acSqr = ac.sqrMagnitude;
+            if (acSqr < k_SqrEpsilon) return;
+            Vector3 axis = ac / Mathf.Sqrt(acSqr);
+            Vector3 refDir = Vector3.ProjectOnPlane(Vector3.down, axis);
+            Vector3 pole = Vector3.ProjectOnPlane(b - a, axis);
+            if (refDir.sqrMagnitude < k_SqrEpsilon || pole.sqrMagnitude < k_SqrEpsilon) return;
+            refDir.Normalize();
+            float curSwivel = Vector3.SignedAngle(refDir, pole, axis);
+
+            if (armLookupInit[slot] == 0)
+            {
+                armLookupRaw[slot] = new Vector3(curSwivel, 0f, 0f);
+                armLookupSmooth[slot] = new Vector3(curSwivel, 0f, 0f);
+                armLookupInit[slot] = 1;
+                return;
+            }
+            float prevRaw = armLookupRaw[slot].x, prevVel = armLookupRaw[slot].y, prevSmooth = armLookupSmooth[slot].x;
+            float vel = Mathf.DeltaAngle(prevRaw, curSwivel) / dt;
+            float velHat = Mathf.Lerp(prevVel, vel, LookupAlpha(k_SwivelDerivCutoff, dt));
+            float cutoff = k_SwivelMinCutoff + k_SwivelBeta * Mathf.Abs(velHat);
+            float smooth = prevSmooth + Mathf.DeltaAngle(prevSmooth, curSwivel) * LookupAlpha(cutoff, dt);
+            armLookupRaw[slot] = new Vector3(curSwivel, velHat, 0f);
+            armLookupSmooth[slot] = new Vector3(smooth, 0f, 0f);
+
+            Vector3 center = a + axis * Vector3.Dot(b - a, axis);
+            float radius = (b - center).magnitude;
+            if (radius < k_Epsilon) return;
+            Vector3 desiredElbow = center + (Quaternion.AngleAxis(smooth, axis) * refDir) * radius;
+            Vector3 preHand = c;
+            Quaternion preHandRot = tip.GetRotation(stream);
+            SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
+            tip.SetPosition(stream, preHand);
+            tip.SetRotation(stream, preHandRot);
+        }
         public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow, int swingSlot)
         {
             if (!enabledProp.Get(stream))
@@ -2453,6 +2520,7 @@ w20, w54;
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
+            bool usedLookup = false;
 
             if (!hasHint && HasArmBendLookup)
             {
@@ -2465,15 +2533,23 @@ w20, w54;
                 Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
                 hint = new AffineTransform(shoulderPos + 0.5f * armLen * lookupBend, hintRot);
                 hasHint = true;
+                usedLookup = true;
             }
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
+            // Only damp the elbow on the lookup (no-tracker) path. A real elbow tracker is the user's
+            // intentional input -- smoothing it just mutes the hint they're moving (the knee has no such
+            // damper, which is why it feels far more responsive). Tracker present => drive the elbow directly.
+            if (usedLookup)
+            {
+                SmoothElbowSwivel(stream, root, mid, tip, swingSlot, stream.deltaTime);
+            }
             int collisionState = 0;
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
             {
                 // Geometry lives in BasisElbowProtectCore so the offline sweep harness runs the
                 // exact same penetration test and elbow push. Apply the result through the stream.
-                BasisElbowProtectInput epi;
+                BasisElbowProtectInput epi = default;
                 epi.Shoulder = root.GetPosition(stream);
                 epi.Elbow = mid.GetPosition(stream);
                 epi.Hand = tip.GetPosition(stream);
@@ -2488,13 +2564,6 @@ w20, w54;
                 epi.HandRadius = handRadius.Get(stream);
                 epi.HandSkin = handSkin.Get(stream);
                 epi.PlayerUp = playerUp.Get(stream);
-                // Pin the elbow to a DOWN-redirected target (DownBias) with a soft smoothstep
-                // engagement gate (DepthScaleRange); full pin both sides (1,1) holds a stable target.
-                // Set SameSideBlend=0.5, DepthScaleRange=0f, DownBias=0f to restore the legacy snap.
-                epi.SameSideBlend = 1f;
-                epi.WrongSideBlend = 1f;
-                epi.DepthScaleRange = 0.04f;
-                epi.DownBias = 1f;
 
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
                 if (epr.Engaged)
@@ -2815,6 +2884,9 @@ w20, w54;
             job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingCollided = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingSmoothState = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.armLookupRaw = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.armLookupSmooth = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.armLookupInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
 
 
 
@@ -2900,6 +2972,9 @@ w20, w54;
             if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
             if (job.swingCollided.IsCreated) job.swingCollided.Dispose();
             if (job.swingSmoothState.IsCreated) job.swingSmoothState.Dispose();
+            if (job.armLookupRaw.IsCreated) job.armLookupRaw.Dispose();
+            if (job.armLookupSmooth.IsCreated) job.armLookupSmooth.Dispose();
+            if (job.armLookupInit.IsCreated) job.armLookupInit.Dispose();
 
             job.spineCache.Dispose();
         }

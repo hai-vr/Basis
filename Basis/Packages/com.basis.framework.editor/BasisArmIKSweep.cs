@@ -242,6 +242,7 @@ namespace Basis.IK.Debugging
             public BasisTrajectoryResult[] Results;
             public float WorstPopDeg;
             public float WorstRoughDeg;
+            public float WorstElbowJitterM;  // worst |noisy elbow - clean elbow| in metres (temporal runs)
             public string Error;
         }
 
@@ -341,6 +342,137 @@ namespace Basis.IK.Debugging
                 if (table.IsCreated) table.Dispose();
             }
             return summary;
+        }
+
+        // Per-frame TEMPORAL drive: feeds the PREVIOUS frame's solved pose back in (the live bend plane keys
+        // off it) with the live rate limit (540 deg/s). targetNoise jitters the HAND target each frame
+        // (controller noise -> moves BOTH the lookup hint and the IK target: the no-tracker case); hintNoise
+        // jitters the hint alone (an elbow tracker). A clean reference sim runs in lockstep, so
+        // WorstElbowJitterM = worst |noisy elbow - clean elbow| in METRES: how far a small input wobble
+        // throws the elbow (the "0.1 m jitter"). Pass dt = 1/refresh.
+        public static BasisArmIKTrajectorySummary RunTemporal(BasisArmIKSweepConfig cfg, float hintNoise, float targetNoise, float dt, string path)
+        {
+            var summary = new BasisArmIKTrajectorySummary { Ok = false, Path = path };
+            float mirror = cfg.IsLeft ? -1f : 1f;
+            float upper = Mathf.Max(1e-4f, cfg.UpperLength);
+            float lower = Mathf.Max(1e-4f, cfg.LowerLength);
+            float armLen = upper + lower;
+            Vector3 shoulder = Vector3.zero;
+            Vector3 elbowDir = Mirror(cfg.RestElbowDir, mirror).normalized;
+            Vector3 forearmDir = Mirror(cfg.RestForearmDir, mirror).normalized;
+            if (elbowDir.sqrMagnitude < 1e-8f) elbowDir = Vector3.down;
+            if (forearmDir.sqrMagnitude < 1e-8f) forearmDir = Vector3.forward;
+            Vector3 restElbow = shoulder + elbowDir * upper;
+            Vector3 restHand = restElbow + forearmDir * lower;
+            bool isLeft = cfg.IsLeft;
+            float maxStep = 540f * Mathf.Max(1e-4f, dt);
+
+            NativeArray<Vector3> table = default;
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                NativeArray<Vector3> tbl = table;
+
+                Vector3 F3(float fx, float fy, float fz) => shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
+                string[] names = { "across", "vertical", "reach-up-across", "circle" };
+                Vector3[][] paths =
+                {
+                    BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
+                    BasisIKTrajectoryScan.Line(F3(0.10f, -0.80f, 0.30f), F3(0.10f, 0.70f, 0.30f), 160),
+                    BasisIKTrajectoryScan.Line(F3(0.60f, -0.60f, 0.20f), F3(-0.50f, 0.50f, 0.30f), 160),
+                    BasisIKTrajectoryScan.Circle(F3(0f, -0.10f, 0.40f), new Vector3(mirror, 0f, 0f), new Vector3(0f, 1f, 0f), 0.50f * armLen, 200),
+                };
+                var results = new BasisTrajectoryResult[names.Length];
+                float worstPop = 0f, worstRough = 0f, worstJitterM = 0f;
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisArmIKTemporal " + System.DateTime.UtcNow.ToString("o") +
+                                " side=" + (isLeft ? "left" : "right") + " dt=" + F(dt) +
+                                " rateDegPerFrame=" + F(maxStep) + " hintNoise=" + F(hintNoise) + " targetNoise=" + F(targetNoise));
+                    w.WriteLine("path,step,target_x,target_y,target_z,swivel_deg,elbow_x,elbow_y,elbow_z,jitter_m");
+                    var sb = new StringBuilder(160);
+                    for (int pi = 0; pi < names.Length; pi++)
+                    {
+                        Vector3[] pts = paths[pi];
+                        Vector3 nElbow = restElbow, nHand = restHand; // noisy feedback state
+                        Vector3 cElbow = restElbow, cHand = restHand; // clean reference feedback state
+                        var rng = new System.Random(9000 + pi);
+                        float maxJump = 0f, prev = float.NaN, sdPrev = float.NaN, maxJitter = 0f;
+                        double roughSum = 0.0; int roughN = 0, pops = 0;
+                        for (int s = 0; s < pts.Length; s++)
+                        {
+                            Vector3 cleanTarget = pts[s];
+                            Vector3 noisyTarget = cleanTarget;
+                            if (targetNoise > 0f)
+                            {
+                                noisyTarget += new Vector3((float)(rng.NextDouble() * 2.0 - 1.0),
+                                    (float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0)) * targetNoise;
+                            }
+                            Vector3 hintNoiseVec = hintNoise > 0f
+                                ? new Vector3((float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0),
+                                    (float)(rng.NextDouble() * 2.0 - 1.0)) * hintNoise
+                                : Vector3.zero;
+
+                            Vector3 cleanElbow = SolveStep(tbl, shoulder, ref cElbow, ref cHand, cleanTarget, Vector3.zero, armLen, isLeft, maxStep);
+                            Vector3 noisyElbow = SolveStep(tbl, shoulder, ref nElbow, ref nHand, noisyTarget, hintNoiseVec, armLen, isLeft, maxStep);
+                            float sw = Swivel(shoulder, nHand, noisyElbow);
+                            float jitter = (noisyElbow - cleanElbow).magnitude;
+                            if (jitter > maxJitter) maxJitter = jitter;
+
+                            sb.Clear();
+                            sb.Append(names[pi]).Append(',').Append(s).Append(',');
+                            sb.Append(F(cleanTarget.x)).Append(',').Append(F(cleanTarget.y)).Append(',').Append(F(cleanTarget.z)).Append(',').Append(F(sw)).Append(',');
+                            sb.Append(F(noisyElbow.x)).Append(',').Append(F(noisyElbow.y)).Append(',').Append(F(noisyElbow.z)).Append(',').Append(F(jitter));
+                            w.WriteLine(sb.ToString());
+
+                            if (!float.IsNaN(sw) && !float.IsNaN(prev))
+                            {
+                                float sd = Mathf.DeltaAngle(prev, sw);
+                                float d = Mathf.Abs(sd);
+                                if (d > maxJump) maxJump = d;
+                                if (d > 8f) pops++;
+                                if (!float.IsNaN(sdPrev)) { roughSum += Mathf.Abs(sd - sdPrev); roughN++; }
+                                sdPrev = sd;
+                            }
+                            else sdPrev = float.NaN;
+                            prev = sw;
+                        }
+                        results[pi] = new BasisTrajectoryResult
+                        {
+                            Name = names[pi], Steps = pts.Length, CleanMaxJumpDeg = maxJump, Pops = pops,
+                            CleanRoughDeg = roughN > 0 ? (float)(roughSum / roughN) : 0f,
+                        };
+                        if (maxJump > worstPop) worstPop = maxJump;
+                        if (results[pi].CleanRoughDeg > worstRough) worstRough = results[pi].CleanRoughDeg;
+                        if (maxJitter > worstJitterM) worstJitterM = maxJitter;
+                    }
+                }
+                summary.Ok = true; summary.Results = results; summary.WorstPopDeg = worstPop;
+                summary.WorstRoughDeg = worstRough; summary.WorstElbowJitterM = worstJitterM;
+            }
+            catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
+            finally { if (table.IsCreated) table.Dispose(); }
+            return summary;
+        }
+
+        // One temporal feedback step: lookup hint (+ optional hint noise) -> solve from the carried pose to
+        // target with the live rate limit; advances the carried elbow/hand and returns the solved elbow.
+        static Vector3 SolveStep(NativeArray<Vector3> tbl, Vector3 shoulder, ref Vector3 curElbow, ref Vector3 curHand,
+            Vector3 target, Vector3 hintNoiseVec, float armLen, bool isLeft, float maxStep)
+        {
+            Vector3 lookupBend = ComputeLookupBend(tbl, target - shoulder, armLen, isLeft);
+            Vector3 hint = shoulder + 0.5f * armLen * lookupBend + hintNoiseVec;
+            BasisArmSolveInput input;
+            input.Shoulder = shoulder; input.Elbow = curElbow; input.Hand = curHand;
+            input.RootRotation = Quaternion.identity; input.MidRotation = Quaternion.identity;
+            input.TargetPosition = target; input.TargetRotation = Quaternion.identity;
+            input.HintPosition = hint; input.HintWeight = true; input.TargetOffset = Quaternion.identity;
+            input.PlayerUp = Vector3.up; input.HintMaxStepDeg = maxStep;
+            BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
+            curElbow = r.ElbowSolved; curHand = r.HandSolved;
+            return r.ElbowSolved;
         }
 
         // Degrees of elbow swivel produced per 1 cm of lateral tracker position error at this pose.

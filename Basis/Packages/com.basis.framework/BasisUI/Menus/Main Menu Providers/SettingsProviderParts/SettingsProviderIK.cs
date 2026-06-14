@@ -593,6 +593,11 @@ public static class SettingsProviderIK
                 moveBodyBack.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip"));
             }
 
+            var elbowSwingToggle = PanelToggle.CreateNewEntry(dynamicsParent);
+            elbowSwingToggle.Descriptor.SetTitle("Elbow Swing Smoothing");
+            elbowSwingToggle.AssignBinding(BasisSettingsDefaults.FBIKElbowSwingEnabled);
+            elbowSwingToggle.Descriptor.SetTooltip("Rate-limits the elbow/knee swing and how fast a torso-collision push eases in. Off = the elbow swings freely (test for over-damping).");
+
             var swingSmooth = PanelSlider.CreateAndBind(
                 dynamicsParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.swingSmoothRate.title"), 0f, 3600f, false, 0, ValueDisplayMode.Raw),
@@ -1152,6 +1157,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.ResetToDefault();
         BasisSettingsDefaults.FBIKSwingSmoothRate.ResetToDefault();
+        BasisSettingsDefaults.FBIKElbowSwingEnabled.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringDamping.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisPitchGainDeg.ResetToDefault();

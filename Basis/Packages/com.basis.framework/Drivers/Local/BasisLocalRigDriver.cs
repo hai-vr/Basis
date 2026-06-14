@@ -678,6 +678,19 @@ namespace Basis.Scripts.Drivers
                 Transform animRoot = localPlayer?.BasisAvatar?.Animator != null ? localPlayer.BasisAvatar.Animator.transform : null;
                 BasisCalibrationDebugRecorder.RuntimeEndFrame(localPlayer != null ? localPlayer.transform : null, animRoot);
             }
+
+            // Arm-IK jitter capture: log the solved shoulder/elbow/hand + the IK inputs (hand target, elbow
+            // hint) each frame so a held-still capture shows which one actually moves. No-op unless armed.
+            if (BasisArmIKRuntimeRecorder.Active)
+            {
+                var armMap = BasisLocalAvatarDriver.Mapping;
+                BasisArmIKRuntimeRecorder.Sample(
+                    armMap.leftUpperArm, armMap.leftLowerArm, armMap.leftHand,
+                    armMap.RightUpperArm, armMap.RightLowerArm, armMap.rightHand,
+                    data.PositionLeftHand, data.PositionRightHand,
+                    data.LeftLowerArmPosition, data.RightLowerArmPosition,
+                    data.HintWeightLeftHand, data.HintWeightRightHand);
+            }
         }
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
@@ -949,7 +962,9 @@ namespace Basis.Scripts.Drivers
             data.SpineMaxLateralDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxLateralDeg.RawValue;
             data.SpineSquishBoost = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineSquishBoost.RawValue;
             data.MoveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
-            data.SwingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue;
+            data.SwingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowSwingEnabled.RawValue
+                ? Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue
+                : 0f;
             data.SpineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
             data.NeckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             data.ChestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;

@@ -12,6 +12,8 @@ namespace Basis.IK.Debugging
         public Vector3 WorstJumpTarget; // hand target where the worst clean pop occurred
         public float NoisyRoughDeg;     // mean |2nd difference| of the output under tracking noise (= jitter)
         public int Zigzags;             // signed-delta reversals under noise (= visible shake)
+        public float SingularMaxJumpDeg;// largest clean pop that occurred at a kinematic singularity (folded/straight)
+        public float CleanRoughDeg;     // mean |2nd difference| on SMOOTH (noise-free) motion = stepping/jitter as it glides
     }
 
     // Sweeps one output angle (e.g. elbow / knee swivel) along a CONTINUOUS hand path and reports how
@@ -43,24 +45,41 @@ namespace Basis.IK.Debugging
 
         // eval: hand target -> output swivel (deg), or float.NaN if unreachable/undefined there.
         // noise: per-axis uniform tracking noise (m) added on the jitter pass. seed: deterministic.
+        // isSingular (optional): target -> true at a kinematic singularity (folded/near-straight) where a
+        // pole flip is unavoidable for a stateless solve and the live rate-limiter handles it. Pops there
+        // are reported as SingularMaxJumpDeg, NOT CleanMaxJumpDeg, so the gate fails only on real bugs.
         public static BasisTrajectoryResult Scan(string name, Vector3[] path, Func<Vector3, float> eval,
-            float noise, int seed, float popThresh = 8f, float zigzagThresh = 1.5f)
+            float noise, int seed, float popThresh = 8f, float zigzagThresh = 1.5f, Func<Vector3, bool> isSingular = null)
         {
             var res = new BasisTrajectoryResult { Name = name, Steps = path != null ? path.Length : 0 };
             if (path == null || path.Length < 2) return res;
 
-            // Clean pass: discontinuities (pops) on smooth motion.
-            float prev = float.NaN, maxJump = 0f;
+            // Clean pass: discontinuities (pops, 1st diff) AND stepping (CleanRough, 2nd diff) on SMOOTH motion.
+            float prev = float.NaN, maxJump = 0f, singMax = 0f, sdPrevClean = float.NaN;
+            double cleanRoughSum = 0.0; int cleanRoughN = 0;
             int pops = 0; Vector3 worst = Vector3.zero;
             for (int i = 0; i < path.Length; i++)
             {
                 float s = eval(path[i]);
                 if (!float.IsNaN(s) && !float.IsNaN(prev))
                 {
-                    float d = Mathf.Abs(Mathf.DeltaAngle(prev, s));
-                    if (d > maxJump) { maxJump = d; worst = path[i]; }
-                    if (d > popThresh) pops++;
+                    float sd = Mathf.DeltaAngle(prev, s);
+                    float d = Mathf.Abs(sd);
+                    bool sing = isSingular != null && (isSingular(path[i]) || isSingular(path[i - 1]));
+                    if (sing)
+                    {
+                        if (d > singMax) singMax = d;
+                        sdPrevClean = float.NaN;
+                    }
+                    else
+                    {
+                        if (d > maxJump) { maxJump = d; worst = path[i]; }
+                        if (d > popThresh) pops++;
+                        if (!float.IsNaN(sdPrevClean)) { cleanRoughSum += Mathf.Abs(sd - sdPrevClean); cleanRoughN++; }
+                        sdPrevClean = sd;
+                    }
                 }
+                else sdPrevClean = float.NaN;
                 prev = s;
             }
 
@@ -98,6 +117,8 @@ namespace Basis.IK.Debugging
             res.WorstJumpTarget = worst;
             res.NoisyRoughDeg = roughN > 0 ? (float)(roughSum / roughN) : 0f;
             res.Zigzags = zz;
+            res.SingularMaxJumpDeg = singMax;
+            res.CleanRoughDeg = cleanRoughN > 0 ? (float)(cleanRoughSum / cleanRoughN) : 0f;
             return res;
         }
     }

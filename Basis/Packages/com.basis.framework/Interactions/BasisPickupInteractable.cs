@@ -12,7 +12,6 @@ using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Collections;
 using Basis.Scripts.BasisSdk.Players;
-using Basis.BasisUI;
 using Unity.Mathematics;
 
 namespace Basis.Scripts.BasisSdk.Interactions
