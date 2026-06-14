@@ -108,18 +108,14 @@ namespace Basis.Integration.YtDlp
             }
         }
 
-        // Whether a URL should go through yt-dlp at all. Transport schemes the OS-codec
-        // engine opens directly never need resolution.
-        private static bool NeedsResolution(string url)
-        {
-            // SCAFFOLD: refine per REQUIREMENTS.md §Scope. rtsp/rtmp are always direct;
-            // http(s) is ambiguous (a page vs. a direct .m3u8/.mp4/.ts) and needs a
-            // real policy rather than this placeholder.
-            if (url.StartsWith("rtsp", StringComparison.OrdinalIgnoreCase) ||
-                url.StartsWith("rtmp", StringComparison.OrdinalIgnoreCase))
-                return false;
-            return true;
-        }
+        // Whether a URL should be resolved by yt-dlp, or is already something the player
+        // opens directly. The directly-playable classification is owned by the player
+        // (BasisMediaUrlRouter.IsDirectlyPlayable) so there's one source of truth; a page
+        // URL (YouTube, Twitch, …) is anything that isn't directly playable. This only
+        // steers — an unsupported page URL simply fails to resolve and surfaces via
+        // ResolveAndPlay's onError.
+        internal static bool NeedsResolution(string url)
+            => !string.IsNullOrEmpty(url) && !BasisMediaUrlRouter.IsDirectlyPlayable(url);
 
         // Builds the BasisMediaSource from yt-dlp's format list. Prefers a split pair
         // (avc1 video-only + mp4a audio-only) when both exist — that's how YouTube
@@ -135,8 +131,8 @@ namespace Basis.Integration.YtDlp
             Format audio = BestAudioOnly(info.Formats);
             if (video != null && audio != null)
                 // A split avc1+mp4a pair is adaptive VOD (YouTube serves these only
-                // above ~360p), delivered faster than real time — pace it.
-                return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Paced = true };
+                // above ~360p), delivered faster than real time — force on-demand pacing.
+                return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Delivery = BasisMediaDelivery.OnDemand };
 
             Format muxed = BestMuxed(info.Formats);
             string single = muxed?.Url;
