@@ -730,30 +730,13 @@ public partial class BasisTransmissionResults
             UnClampedInterval = fast;
             intervalSeconds = fast;
 
-            // Keep BasisFrameClock ticking only while we're announcing a P2P rate, so the floor
-            // below can read a live (smoothed, unscaled) frame interval.
-            if (!_p2pFrameClockRequested)
-            {
-                BasisFrameClock.AddRequest();
-                _p2pFrameClockRequested = true;
-            }
-
             // Floor the advertised interval at the real frame interval so we never advertise a
-            // faster rate than we can actually send — the same FPS the P2P rate-warning UI reads.
-            // Falls back to Time.smoothDeltaTime until the clock warms up (e.g. just entered P2P).
-            float fps = BasisFrameClock.SmoothedFramesPerSecond;
-            float frameInterval = fps > 0f ? 1f / fps : Time.smoothDeltaTime;
+            // faster rate than we can actually send.
+            float frameInterval = Time.smoothDeltaTime > 0f ? Time.smoothDeltaTime : fast;
             Basis.Scripts.Networking.BasisAvatarRateRegistry.MaybeAnnounceLocalRate(Mathf.Max(fast, frameInterval));
         }
         else
         {
-            // Not in a P2P session — drop the frame-clock request if we were holding one.
-            if (_p2pFrameClockRequested)
-            {
-                BasisFrameClock.RemoveRequest();
-                _p2pFrameClockRequested = false;
-            }
-
             DefaultInterval = meta.SyncInterval / 1000f;
             float calculatedIntervalBase = meta.BaseMultiplier + (smallestD2 * meta.IncreaseRate);
             UnClampedInterval = DefaultInterval * calculatedIntervalBase;
@@ -866,11 +849,6 @@ public partial class BasisTransmissionResults
         return true;
     }
 
-    // Held only while in a P2P session (see UpdateSendInterval): keeps BasisFrameClock
-    // ticking so the rate-announce floor can read a live SmoothedFramesPerSecond without
-    // depending on the FPS HUD / settings panel being open. Released in the server branch.
-    private bool _p2pFrameClockRequested;
-
     public void Initialize()
     {
         // Track join/leave to force resync against index order changes
@@ -884,13 +862,6 @@ public partial class BasisTransmissionResults
     {
         BasisNetworkPlayer.OnRemotePlayerJoined -= OnPlayerIndexChanged;
         BasisNetworkPlayer.OnRemotePlayerLeft -= OnPlayerIndexChanged;
-
-        // Backstop: release the frame-clock request if we tore down mid-P2P-session.
-        if (_p2pFrameClockRequested)
-        {
-            BasisFrameClock.RemoveRequest();
-            _p2pFrameClockRequested = false;
-        }
 
         ReleaseResults();
 
