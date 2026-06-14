@@ -153,9 +153,25 @@ namespace UnityEngine.Animations.Rigging
                     if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
                         hintR = QuaternionExt.FromToRotation(abProj, ahProj);
-                        if (hintFade < 1f)
+                        // A near-180 deg bend->hint rotation is direction-ambiguous when applied
+                        // partially, so the elbow snaps sides on smooth motion (the pole flip). Commit
+                        // toward the hint (fade->1) as the bend nears anti-parallel, so the elbow lands
+                        // on the smooth hint pole instead of halfway; the ramp keeps it continuous.
+                        float effFade = hintFade;
+                        if (effFade < 1f)
                         {
-                            hintR = Quaternion.Slerp(Quaternion.identity, hintR, hintFade);
+                            float denom = Mathf.Sqrt(abProj.sqrMagnitude * ahProj.sqrMagnitude);
+                            float cosBA = denom > k_Epsilon ? Mathf.Clamp(Vector3.Dot(abProj, ahProj) / denom, -1f, 1f) : 1f;
+                            float flipDeg = Mathf.Acos(cosBA) * Mathf.Rad2Deg;
+                            float commit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((flipDeg - 90f) / 80f));
+                            // Only commit when the hint is already strong. Committing as it merely emerges
+                            // (low fade) snaps the elbow off the stable rest bend -- the folded-arm case.
+                            commit *= Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((hintFade - 0.3f) / 0.25f));
+                            effFade = hintFade + (1f - hintFade) * commit;
+                        }
+                        if (effFade < 1f)
+                        {
+                            hintR = Quaternion.Slerp(Quaternion.identity, hintR, effFade);
                         }
                         hintR = QuaternionExt.NormalizeSafe(hintR);
 

@@ -16,6 +16,7 @@ namespace Basis.IK.Debugging
         public const float HeadMaxNeckDeg = 90f;
         public const float TrajMaxPopDeg = 45f;             // swivel jump on smooth motion (discontinuity)
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
+        public const float TemporalMaxRoughDeg = 3f;        // clean 2nd-diff on smooth motion = stepping/jitter as the hand glides (per-frame feedback)
 
         public static (bool pass, string reason) GateArm(in BasisArmIKSweepSummary s)
         {
@@ -84,6 +85,18 @@ namespace Basis.IK.Debugging
             if (worstRoughDeg > TrajMaxRoughDeg)
                 return (false, $"rough {worstRoughDeg:F1} > {TrajMaxRoughDeg} deg (jitter under noise)");
             return (true, $"pop={worstPopDeg:F0} rough={worstRoughDeg:F1}");
+        }
+
+        // Per-frame feedback drive: worstRoughDeg is the clean 2nd-difference (stepping as the hand glides),
+        // the live-only jitter the stateless scan can't see.
+        public static (bool pass, string reason) GateTemporal(bool ok, string error, float worstPopDeg, float worstRoughDeg)
+        {
+            if (!ok) return (false, string.IsNullOrEmpty(error) ? "did not run" : error);
+            if (worstPopDeg > TrajMaxPopDeg)
+                return (false, $"pop {worstPopDeg:F0} > {TrajMaxPopDeg} deg");
+            if (worstRoughDeg > TemporalMaxRoughDeg)
+                return (false, $"glide-jitter {worstRoughDeg:F2} > {TemporalMaxRoughDeg} deg/step (elbow steps as the hand glides)");
+            return (true, $"pop={worstPopDeg:F0} glideJitter={worstRoughDeg:F2}");
         }
     }
 }

@@ -112,6 +112,25 @@ namespace Basis.IK.Debugging
 
                 try
                 {
+                    // Per-frame feedback, no input noise: isolates solve + rate-limiter (vs the stateless scan).
+                    string p = TrajPath("BasisArmIKTemporal.csv");
+                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), 0f, 1f / 90f, p);
+                    var g = BasisIKTestGates.GateTemporal(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
+                    Record("Arm IK · temporal", g.pass, g.reason, p);
+                }
+                catch (System.Exception e) { Record("Arm IK · temporal", false, e.Message, null); }
+
+                try
+                {
+                    // Per-frame feedback + independent hint noise: simulates an elbow tracker's jitter.
+                    string p = TrajPath("BasisArmIKTemporalTracker.csv");
+                    var s = BasisArmIKSweep.RunTemporal(BasisArmIKSweepConfig.Default(), _trajNoise, 1f / 90f, p);
+                    Record("Arm IK · temporal+tracker", s.Ok, $"glideJitter={s.WorstRoughDeg:F2} pop={s.WorstPopDeg:F0} (hint noise {_trajNoise * 1000f:F0}mm)", p);
+                }
+                catch (System.Exception e) { Record("Arm IK · temporal+tracker", false, e.Message, null); }
+
+                try
+                {
                     string p = TrajPath("BasisElbowProtectTrajectory.csv");
                     var s = BasisElbowProtectSweep.RunTrajectories(BasisElbowProtectSweepConfig.Default(), _trajNoise, p);
                     var g = BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
