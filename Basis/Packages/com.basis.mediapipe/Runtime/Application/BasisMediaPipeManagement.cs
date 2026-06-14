@@ -24,6 +24,7 @@ namespace Basis.MediaPipe
 
         private readonly BasisMediaPipeCamera _camera = new BasisMediaPipeCamera();
         private readonly Dictionary<BasisBoneTrackedRole, BasisInputXRSimulate> _trackers = new();
+        private readonly HashSet<BasisBoneTrackedRole> _activeTrackers = new();
         private readonly MediaPipeFaceConverter _faceConverter = new MediaPipeFaceConverter();
         private readonly MediaPipeHandConverter _handConverter = new MediaPipeHandConverter();
         private readonly MediaPipeHeadConverter _headConverter = new MediaPipeHeadConverter();
@@ -174,6 +175,7 @@ namespace Basis.MediaPipe
 
         private void HandleAvatarChanged()
         {
+            DestroyAllTrackers();
             CacheArmRig();
             _armConverter.Reset();
             CalibrateHead();
@@ -337,6 +339,10 @@ namespace Basis.MediaPipe
                     Quaternion headRotation = Config.EnableHeadRotation ? eye.OutGoingData.rotation * headOffset : eye.OutGoingData.rotation;
                     EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(headPosition, headRotation);
                 }
+                else
+                {
+                    RemoveTracker(BasisBoneTrackedRole.Head);
+                }
             }
             else
             {
@@ -368,6 +374,10 @@ namespace Basis.MediaPipe
                 if (result.HasPose && BasisLocalBoneDriver.ChestControl != null && _bodyConverter.TryGetChestRotation(in result, out Quaternion chestRotation))
                 {
                     EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(BasisLocalBoneDriver.ChestControl.TposeLocal.position, chestRotation);
+                }
+                else
+                {
+                    RemoveTracker(BasisBoneTrackedRole.Chest);
                 }
             }
             else
@@ -474,17 +484,24 @@ namespace Basis.MediaPipe
 
         private void RemoveTracker(BasisBoneTrackedRole role)
         {
+            if (!_activeTrackers.Remove(role))
+            {
+                return;
+            }
             if (_trackers.TryGetValue(role, out BasisInputXRSimulate input) && input != null)
             {
-                BasisDeviceManagement.Instance.RemoveDevicesFrom(SubSystem, $"{SubSystem}:{role}");
+                input.UnAssignTracker();
             }
-            _trackers.Remove(role);
         }
 
         private BasisInputXRSimulate EnsureTracker(BasisBoneTrackedRole role)
         {
             if (_trackers.TryGetValue(role, out BasisInputXRSimulate existing) && existing != null)
             {
+                if (_activeTrackers.Add(role))
+                {
+                    existing.AssignRoleAndTracker(role);
+                }
                 return existing;
             }
 
@@ -503,11 +520,13 @@ namespace Basis.MediaPipe
 
             BasisInputXRSimulate input = go.AddComponent<BasisInputXRSimulate>();
             input.FollowMovement = move;
-            input.InitializeTracking(id, SubSystem, SubSystem, true, role);
+            input.InitializeTracking(id, SubSystem, SubSystem, false, role);
+            input.AssignRoleAndTracker(role);
 
             BasisDeviceManagement.Instance.TryAdd(input);
 
             _trackers[role] = input;
+            _activeTrackers.Add(role);
             return input;
         }
 
@@ -547,6 +566,7 @@ namespace Basis.MediaPipe
                 }
             }
             _trackers.Clear();
+            _activeTrackers.Clear();
         }
     }
 }

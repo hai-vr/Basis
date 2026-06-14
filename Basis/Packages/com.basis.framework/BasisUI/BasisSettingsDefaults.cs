@@ -156,6 +156,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> PlayspaceMoverHand = new("playspacemoverhand", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.HandBoth));
         public static BasisSettingsBinding<bool> PlayspaceMoverRotate = new("playspacemoverrotate", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> PlayspaceMoverScale = new("playspacemoverscale", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PlayspaceMoverVertical = new("playspacemoververtical", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceMoverFlip = new("playspacemoverflip", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> PlayspaceMoverFlipAngle = new("playspacemoverflipangle", new BasisPlatformDefault<float>(180f));
+        public static BasisSettingsBinding<string> PlayspaceMoverFlipAxis = new("playspacemoverflipaxis", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.AxisRoll));
 
         public static BasisSettingsBinding<string> QualityLevel = new("qualitylevel", new BasisPlatformDefault<string>
         {
@@ -198,6 +202,21 @@ namespace Basis.BasisUI
 
         public const float BLOOM_INTENSITY_MIN = 0f;
         public const float BLOOM_INTENSITY_MAX = 5f;
+
+        /// <summary>
+        /// When enabled, the volumetric fog density override is applied to all
+        /// VolumetricFogVolumeComponent overrides on existing Volumes in the scene.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseVolumetricFogOverride = new("usevolumetricfogoverride", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Volumetric fog density override. 0 = fog disabled, higher = denser fog.
+        /// Only applied when <see cref="UseVolumetricFogOverride"/> is enabled.
+        /// </summary>
+        public static BasisSettingsBinding<float> VolumetricFogDensity = new("volumetricfogdensity", new BasisPlatformDefault<float>(0.2f));
+
+        public const float FOG_DENSITY_MIN = 0f;
+        public const float FOG_DENSITY_MAX = 1f;
 
         /// <summary>
         /// When enabled, ReflectionProbe components in the scene whose mode is Realtime are
@@ -462,6 +481,10 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> UsePerfLimitJiggleColliders = new("useperflimitjigglecolliders", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> MaxPerfJiggleColliders = new("maxperfjigglecolliders", new BasisPlatformDefault<float>(64));
+
+        public static BasisSettingsBinding<bool> UseJiggleCollisionFrustumCull = new("usejigglecollisionfrustumcull", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> UseJiggleCollisionDistanceCull = new("usejigglecollisiondistancecull", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> JiggleCollisionCullDistance = new("jigglecollisionculldistance", new BasisPlatformDefault<float>(20));
 
         // Animators default on at 1 — extras are a common perf trap (every child
         // Animator ticks every frame). Excess Animators are trimmed, not blocked.
@@ -1352,6 +1375,10 @@ namespace Basis.BasisUI
             PlayspaceMoverHand.LoadBindingValue();
             PlayspaceMoverRotate.LoadBindingValue();
             PlayspaceMoverScale.LoadBindingValue();
+            PlayspaceMoverVertical.LoadBindingValue();
+            PlayspaceMoverFlip.LoadBindingValue();
+            PlayspaceMoverFlipAngle.LoadBindingValue();
+            PlayspaceMoverFlipAxis.LoadBindingValue();
 
             // Rendering / Graphics
             QualityLevel.LoadBindingValue();
@@ -1360,6 +1387,8 @@ namespace Basis.BasisUI
             Antialiasing.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
             BloomIntensity.LoadBindingValue();
+            UseVolumetricFogOverride.LoadBindingValue();
+            VolumetricFogDensity.LoadBindingValue();
             UseRealtimeReflectionProbes.LoadBindingValue();
             RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
@@ -1449,6 +1478,9 @@ namespace Basis.BasisUI
             MaxPerfJiggleBones.LoadBindingValue();
             UsePerfLimitJiggleColliders.LoadBindingValue();
             MaxPerfJiggleColliders.LoadBindingValue();
+            UseJiggleCollisionFrustumCull.LoadBindingValue();
+            UseJiggleCollisionDistanceCull.LoadBindingValue();
+            JiggleCollisionCullDistance.LoadBindingValue();
             UsePerfLimitAnimators.LoadBindingValue();
             MaxPerfAnimators.LoadBindingValue();
             UsePerfLimitBones.LoadBindingValue();

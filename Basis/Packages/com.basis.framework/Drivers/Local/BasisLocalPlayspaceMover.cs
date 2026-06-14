@@ -14,11 +14,19 @@ namespace Basis.Scripts.Drivers
     /// configurable controller input, the way naelstrof's VRPlayspaceMover does. Gated behind the
     /// Body Tracking "Playspace Mover" toggle and driven each frame after character movement.
     ///
-    /// The drag is applied incrementally through the character controller, so it composes with
-    /// normal locomotion instead of blocking it. One held hand drags (translation). Two hands holding
-    /// the main input scale (drives the custom avatar scale, not the play space); two hands holding the
-    /// rotation input rotate (yaw). The net drag is tracked so <see cref="ResetOffset"/> can undo it
-    /// while leaving normal locomotion intact.
+    /// Horizontal (X/Z) drag is applied incrementally through the character controller, so it composes
+    /// with normal locomotion instead of blocking it and still resolves walls/floors. One held hand
+    /// drags (translation). Two hands holding the main input scale (drives the custom avatar scale, not
+    /// the play space); two hands holding the rotation input rotate (yaw). The net horizontal drag is
+    /// tracked so <see cref="ResetOffset"/> can undo it while leaving normal locomotion intact.
+    ///
+    /// Vertical (Y) drag works like OVR Advanced Settings' "Space Drag": you pull yourself up or down
+    /// and stay where you let go. It can't ride the character controller (gravity, applied earlier in
+    /// the frame, would claw it straight back), so instead it accumulates into <see cref="VerticalOffset"/>
+    /// — a tracking-space height offset injected into every device in
+    /// <see cref="Device_Management.Devices.BasisInput.ComputeUnscaledDeviceCoord"/>, the same hook seated
+    /// mode uses for its height delta. That shifts the whole tracking space (view, hands, avatar) without
+    /// moving the capsule or touching gravity, so it persists for free. Gated by the "Vertical" toggle.
     /// </summary>
     public static class BasisLocalPlayspaceMover
     {
@@ -30,6 +38,11 @@ namespace Basis.Scripts.Drivers
         public const string HandBoth = "Both";
         public const string HandLeft = "Left";
         public const string HandRight = "Right";
+
+        // Play-space flip axes (settings-driven, not controller-bound).
+        public const string AxisRoll = "Roll";   // about forward — sideways / upside down
+        public const string AxisPitch = "Pitch"; // about right — front/back flip
+        public const string AxisYaw = "Yaw";     // about up — spin the view horizontally
 
         private const float MinHeight = 0.1f;
         private const float MaxHeight = 5f;
@@ -49,13 +62,42 @@ namespace Basis.Scripts.Drivers
         private static bool _scaleDirty;
         private static float _pendingScaleHeight;
 
-        // Net translation the mover has applied, so it can be undone on demand.
+        // Net horizontal translation the mover has applied through the character controller, so it can
+        // be undone on demand. Vertical is tracked separately in VerticalOffset.
         private static Vector3 _offsetPos;
+
+        /// <summary>
+        /// Vertical play-space offset (OVRAS Space-Drag style), in unscaled (real-world) metres. Injected
+        /// into every device's Y in <see cref="Device_Management.Devices.BasisInput.ComputeUnscaledDeviceCoord"/>
+        /// — the same hook seated mode uses — so the whole tracking space (view, hands, avatar) shifts up/
+        /// down without moving the capsule or fighting gravity. Persists until dragged back or reset.
+        /// </summary>
+        public static float VerticalOffset;
+
+        // Previous frame's offset-free (raw) hand heights. The vertical drag is measured from these so
+        // the injected VerticalOffset (which is added back into the device Y we read) can't feed back
+        // into the measurement and run the offset away.
+        private static float _prevLeftRawY;
+        private static float _prevRightRawY;
+
+        /// <summary>
+        /// Active play-space flip rotation (OVRAS-style, but settings-driven not grabbed). Applied about
+        /// head height to the rig's final local->world pose — the avatar via <see cref="ApplyFlipToMatrix"/>
+        /// (localToWorldMatrix) and the view/controllers/trackers via
+        /// <see cref="Device_Management.Devices.BasisInput.ApplyFinalMovement"/> — so the world appears
+        /// rotated / upside down without rotating the character controller capsule. Identity when the flip
+        /// toggle is off or the angle is ~0/360.
+        /// </summary>
+        public static Quaternion FlipRotation = Quaternion.identity;
+        /// <summary>True while <see cref="FlipRotation"/> is a non-identity rotation worth applying.</summary>
+        public static bool HasFlip;
+        // Local-space pivot height (eye height) the flip rotates about, so your view stays put as the world tips.
+        private static float _flipPivotY;
 
         private static BasisLocks.LockContext _movementLock;
         private static bool _hasMovementLock;
 
-        /// <summary>Total play-space drag currently applied (world units).</summary>
+        /// <summary>Total horizontal play-space drag currently applied (world units).</summary>
         public static Vector3 CurrentOffset => _offsetPos;
 
         public static void Simulate(BasisLocalPlayer player, float deltaTime)
@@ -65,6 +107,11 @@ namespace Basis.Scripts.Drivers
                 || BasisDeviceManagement.IsCurrentModeVR() == false
                 || player.LocalSeatDriver.IsSeated)
             {
+                // Feature off / not VR / seated / not ready: drop any vertical offset + flip so re-enabling
+                // starts clean and you aren't left floating or tipped.
+                VerticalOffset = 0f;
+                HasFlip = false;
+                FlipRotation = Quaternion.identity;
                 Stop();
                 return;
             }
@@ -74,10 +121,24 @@ namespace Basis.Scripts.Drivers
                 _movementLock = BasisLocks.GetContext(BasisLocks.Movement);
                 _hasMovementLock = true;
             }
+
+            // Publish the flip from its settings every active frame (it's independent of grabbing and
+            // persists through movement lock + idle, like the vertical offset).
+            UpdateFlip();
+
             if (_movementLock)
             {
+                // Movement externally locked: stop dragging but keep the vertical offset (it's a static
+                // tracking shift, so you simply stay put — opening a menu mid-air won't drop you).
                 Stop();
                 return;
+            }
+
+            // Vertical drag turned off while lifted: settle back to the floor rather than leaving the
+            // player stuck at a previous offset with no way to lower it short of Reset.
+            if (BasisSettingsDefaults.PlayspaceMoverVertical.RawValue == false)
+            {
+                VerticalOffset = 0f;
             }
 
             string handMode = BasisSettingsDefaults.PlayspaceMoverHand.RawValue;
@@ -95,13 +156,23 @@ namespace Basis.Scripts.Drivers
 
             if (count == 0)
             {
+                // No hand grabbing this frame. Release the grab/scale state; the vertical offset stays
+                // put on its own (OVRAS-style "stay where you let go").
                 Stop();
                 return;
             }
 
+            // Offset-free hand heights for vertical drag: subtract the injected VerticalOffset that the
+            // device pipeline already added back into UnscaledDeviceCoord, so the measurement can't feed
+            // back into itself and run the offset away.
+            float leftRawY = leftUnscaled.y - VerticalOffset;
+            float rightRawY = rightUnscaled.y - VerticalOffset;
+
             if (_grabbing == false || left != _capLeft || right != _capRight)
             {
                 Capture(left, right, leftLocal, rightLocal);
+                _prevLeftRawY = leftRawY;
+                _prevRightRawY = rightRawY;
             }
 
             bool allowRotate = BasisSettingsDefaults.PlayspaceMoverRotate.RawValue;
@@ -163,9 +234,20 @@ namespace Basis.Scripts.Drivers
                 }
             }
 
+            // Vertical play-space drag: pulling the hand(s) down (raw Y decreasing) lifts the play space.
+            // Two-handed drag uses the hand midpoint so both hands moving together raise/lower you.
+            if (BasisSettingsDefaults.PlayspaceMoverVertical.RawValue)
+            {
+                float curRawY = count == 1 ? (left ? leftRawY : rightRawY) : (leftRawY + rightRawY) * 0.5f;
+                float prevRawY = count == 1 ? (left ? _prevLeftRawY : _prevRightRawY) : (_prevLeftRawY + _prevRightRawY) * 0.5f;
+                VerticalOffset += prevRawY - curRawY;
+            }
+
             Apply(player, pcur, newPos, newRot);
             _prevLeftLocal = leftLocal;
             _prevRightLocal = rightLocal;
+            _prevLeftRawY = leftRawY;
+            _prevRightRawY = rightRawY;
         }
 
         /// <summary>
@@ -181,6 +263,74 @@ namespace Basis.Scripts.Drivers
                 player.Teleport(p - _offsetPos, r);
             }
             _offsetPos = Vector3.zero;
+            VerticalOffset = 0f;
+            // Also clear any active flip and turn its toggle off so Reset fully returns you to normal.
+            BasisSettingsDefaults.PlayspaceMoverFlip.SetValue(false);
+            HasFlip = false;
+            FlipRotation = Quaternion.identity;
+        }
+
+        /// <summary>
+        /// Recomputes <see cref="FlipRotation"/>/<see cref="HasFlip"/> from the flip settings (toggle,
+        /// angle 0-360, axis). The character controller is never rotated — only the rig's render/tracking
+        /// pose, applied via <see cref="ApplyFlipToMatrix"/> and
+        /// <see cref="Device_Management.Devices.BasisInput.ApplyFinalMovement"/>.
+        /// </summary>
+        private static void UpdateFlip()
+        {
+            if (BasisSettingsDefaults.PlayspaceMoverFlip.RawValue == false)
+            {
+                HasFlip = false;
+                FlipRotation = Quaternion.identity;
+                return;
+            }
+
+            float angle = BasisSettingsDefaults.PlayspaceMoverFlipAngle.RawValue;
+            // ~0 or ~360 is no rotation; skip the work and the per-device/matrix transforms.
+            HasFlip = Mathf.Abs(Mathf.DeltaAngle(angle, 0f)) > 0.05f;
+            if (HasFlip == false)
+            {
+                FlipRotation = Quaternion.identity;
+                return;
+            }
+
+            FlipRotation = Quaternion.AngleAxis(angle, FlipAxisVector(BasisSettingsDefaults.PlayspaceMoverFlipAxis.RawValue));
+            _flipPivotY = BasisHeightDriver.SelectedScaledPlayerHeight;
+        }
+
+        private static Vector3 FlipAxisVector(string axis)
+        {
+            switch (axis)
+            {
+                case AxisPitch: return Vector3.right;   // front/back flip
+                case AxisYaw: return Vector3.up;        // spin the view horizontally
+                default: return Vector3.forward;        // roll / barrel (upside down)
+            }
+        }
+
+        /// <summary>
+        /// Bakes the active flip into a local->world matrix (used for the avatar bones). Rotates about the
+        /// eye-height pivot in the player's local space so the body tips around the head, not the floor.
+        /// No-op unless a flip is active.
+        /// </summary>
+        public static Matrix4x4 ApplyFlipToMatrix(Matrix4x4 localToWorld)
+        {
+            if (HasFlip == false) return localToWorld;
+            Vector3 pivot = new Vector3(0f, _flipPivotY, 0f);
+            Matrix4x4 flip = Matrix4x4.Translate(pivot) * Matrix4x4.Rotate(FlipRotation) * Matrix4x4.Translate(-pivot);
+            return localToWorld * flip;
+        }
+
+        /// <summary>
+        /// Applies the active flip to a device's final local pose (camera, controllers, trackers) so they
+        /// tip in lockstep with the avatar. No-op unless a flip is active.
+        /// </summary>
+        public static void ApplyFlipToLocalPose(ref Vector3 localPosition, ref Quaternion localRotation)
+        {
+            if (HasFlip == false) return;
+            Vector3 pivot = new Vector3(0f, _flipPivotY, 0f);
+            localPosition = pivot + (FlipRotation * (localPosition - pivot));
+            localRotation = FlipRotation * localRotation;
         }
 
         private static void ApplyScaleGesture(Vector3 leftUnscaled, Vector3 rightUnscaled)
@@ -243,8 +393,9 @@ namespace Basis.Scripts.Drivers
             var driver = player.LocalCharacterDriver;
             Vector3 delta = newPos - pcur;
 
-            // Keep vertical position under normal gravity/grounding — the play-space drag is horizontal,
-            // so the character controller still resolves floor height, steps, and falls while dragging.
+            // The play-space drag handled here is horizontal; vertical is applied separately as a
+            // tracking offset (see VerticalOffset) so it never fights gravity/grounding. The character
+            // controller keeps resolving floor height, steps, and falls while dragging.
             delta.y = 0f;
 
             // Move through the character controller so the drag composes with normal locomotion

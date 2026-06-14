@@ -28,6 +28,14 @@ public static class JigglePhysics {
     private static double accumulator;
     private static double lastFixedCurrentTime = 0f;
 
+    private const int MaxCullingCameras = 16;
+    private static readonly JiggleCullingCamera[] cullingCameraBuffer = new JiggleCullingCamera[MaxCullingCameras];
+    private static int cullingCameraCount;
+    private static bool collisionFrustumCull = true;
+    private static bool collisionDistanceCull = true;
+    private static float collisionCullDistance = 20f;
+    private static readonly Plane[] cullingFrustumScratch = new Plane[6];
+
     public static void ScheduleSimulate(double realTime, float fixedDeltaTime) {
         if (hasRunThisFrame) {
             return;
@@ -47,6 +55,7 @@ public static class JigglePhysics {
         }
             
         jobs = GetJiggleJobs(lastFixedCurrentTime, fixedDeltaTime);
+        jobs.SetCollisionCulling(collisionFrustumCull, collisionDistanceCull, collisionCullDistance, cullingCameraBuffer, cullingCameraCount);
         jobs.Simulate(lastFixedCurrentTime, realTime, skips);
         skips = 0;
         hasRunThisFrame = true;
@@ -111,6 +120,41 @@ public static class JigglePhysics {
     }
     
     public static void SetGlobalDirty() => _globalDirty = true;
+
+    public static void SetCollisionCulling(bool frustumCull, bool distanceCull, float maxDistance) {
+        collisionFrustumCull = frustumCull;
+        collisionDistanceCull = distanceCull;
+        collisionCullDistance = maxDistance;
+    }
+
+    public static void SetCullingCameras(List<Camera> cameras) {
+        int count = 0;
+        if (cameras != null) {
+            var cameraCount = cameras.Count;
+            for (int i = 0; i < cameraCount && count < MaxCullingCameras; i++) {
+                var cam = cameras[i];
+                if (cam == null) {
+                    continue;
+                }
+                GeometryUtility.CalculateFrustumPlanes(cam, cullingFrustumScratch);
+                cullingCameraBuffer[count] = new JiggleCullingCamera() {
+                    plane0 = PlaneToFloat4(cullingFrustumScratch[0]),
+                    plane1 = PlaneToFloat4(cullingFrustumScratch[1]),
+                    plane2 = PlaneToFloat4(cullingFrustumScratch[2]),
+                    plane3 = PlaneToFloat4(cullingFrustumScratch[3]),
+                    plane4 = PlaneToFloat4(cullingFrustumScratch[4]),
+                    plane5 = PlaneToFloat4(cullingFrustumScratch[5]),
+                    position = cam.transform.position,
+                };
+                count++;
+            }
+        }
+        cullingCameraCount = count;
+    }
+
+    private static float4 PlaneToFloat4(Plane plane) {
+        return new float4(plane.normal.x, plane.normal.y, plane.normal.z, plane.distance);
+    }
 
     public static void AddJiggleCollider(JiggleColliderSerializable collider) {
         jobs.ScheduleAdd(collider);

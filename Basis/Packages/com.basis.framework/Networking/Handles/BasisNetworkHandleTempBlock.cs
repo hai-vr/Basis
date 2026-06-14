@@ -102,6 +102,9 @@ public static class BasisNetworkHandleTempBlock
             remotePlayer.OnChatMessageReceived?.Invoke(string.Empty);
         }
         remotePlayer.OnNamePlateActiveStateShouldRefresh?.Invoke();
+#if !UNITY_SERVER
+        BasisNetworkPIPCameraDriver.RefreshPipNamePlateVisibilityFromPlayerState();
+#endif
     }
 
     /// <summary>

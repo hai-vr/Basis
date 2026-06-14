@@ -101,6 +101,7 @@ namespace HVR.Basis.Comms
         private HVRAvatarComms comms;
         private readonly Dictionary<int, bool> _isFaceTrackingAddress = new();
         private bool _isInitialized;
+        private bool _isRegistered;
 
         // Fired when tracking activity state changes. Scoped per-avatar (this relay
         // is created per BasisAvatar), so local and remote subscribers never collide.
@@ -158,6 +159,7 @@ namespace HVR.Basis.Comms
         {
             _isInitialized = true;
             _isWearer = isWearer;
+            RefreshDriverRegistration();
 
             comms.VariableStore.RegisterAddresses(new[] { ActivityAddressId }, OnAddressUpdated);
             if (isWearer)
@@ -169,6 +171,7 @@ namespace HVR.Basis.Comms
         public void OnHVRReadyBothAvatarAndNetwork(bool isWearer)
         {
             _isWearer = isWearer;
+            RefreshDriverRegistration();
             comms.RequireVariable(new HVRVariable
             {
                 addressId = ActivityAddressId,
@@ -180,7 +183,20 @@ namespace HVR.Basis.Comms
             });
         }
 
-        private void Update()
+        private void OnEnable() => RefreshDriverRegistration();
+        private void OnDisable() => RefreshDriverRegistration();
+
+        private void RefreshDriverRegistration()
+        {
+            bool shouldRegister = _isWearer && isActiveAndEnabled;
+            if (shouldRegister == _isRegistered) return;
+
+            _isRegistered = shouldRegister;
+            if (shouldRegister) HVRCommsUpdateDriver.Register(this);
+            else HVRCommsUpdateDriver.Unregister(this);
+        }
+
+        internal void SimulateTick()
         {
             if (!_isInitialized || !_isWearer || !_isTrackingActive)
             {

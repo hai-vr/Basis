@@ -3,6 +3,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using System;
+using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -52,6 +53,11 @@ public static class BasisRemoteFaceManagement
     public static BasisRemoteFaceDriver[] faceCache = Array.Empty<BasisRemoteFaceDriver>();
     public static float[][] eyesCache = Array.Empty<float[]>();
 
+    // Eye transforms as last built into eyeTransforms, per slot. A reference change (avatar reload) means the
+    // TransformAccessArray must be rebuilt; a pure calibration bump leaves these equal and skips the rebuild.
+    static Transform[] lastLeftEye = Array.Empty<Transform>();
+    static Transform[] lastRightEye = Array.Empty<Transform>();
+
     // Per-slot last-seen BasisRemoteFaceDriver.FaceGeneration; a mismatch means the slot
     // was (re)calibrated and its eye bones / calibration must be re-read.
     public static uint[] lastFaceGen = Array.Empty<uint>();
@@ -66,6 +72,16 @@ public static class BasisRemoteFaceManagement
     public static TransformAccessArray eyeTransforms;
     public static NativeArray<int> pairToSlot;
     public static int eyeTransformPairCount;
+
+    // Driver-keyed registry behind eyeTransforms: pair p (transforms 2p, 2p+1) is owned by pairDriver[p], in a
+    // stable append/swap-back order independent of the snapshot slot index. A join appends one pair instead of
+    // rebinding all transforms; pairToSlot[p] is rewritten each reconcile so snapshot reorders stay cheap.
+    static BasisRemoteFaceDriver[] pairDriver = Array.Empty<BasisRemoteFaceDriver>();
+    static Transform[] pairLeft = Array.Empty<Transform>();
+    static Transform[] pairRight = Array.Empty<Transform>();
+    static int[] pairSeenGen = Array.Empty<int>();
+    static readonly Dictionary<BasisRemoteFaceDriver, int> driverToPair = new Dictionary<BasisRemoteFaceDriver, int>();
+    static int reconcileGen;
     // lastHasEyeBones[i] mirrors the slot's eye-bones-presence as it was when we
     // last built eyeTransforms. Compared against the current value during Simulate
     // to detect avatar reloads / player swaps cheaply.
@@ -149,8 +165,7 @@ public static class BasisRemoteFaceManagement
                     {
                         faceCache[Index] = Face;
                         eyesCache[Index] = receiver.EyesAndMouth;
-                        BlitSlot(Face, Index, pCalL, pCalR, pLastHas);
-                        needRebuild = true;
+                        if (BlitSlot(Face, Index, pCalL, pCalR, pLastHas)) needRebuild = true;
                     }
 
                     pUse[Index] = (pLastHas[Index] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
@@ -164,8 +179,7 @@ public static class BasisRemoteFaceManagement
 
                     if (lastFaceGen[Index] != Face.FaceGeneration)
                     {
-                        BlitSlot(Face, Index, pCalL, pCalR, pLastHas);
-                        needRebuild = true;
+                        if (BlitSlot(Face, Index, pCalL, pCalR, pLastHas)) needRebuild = true;
                     }
 
                     pUse[Index] = (pLastHas[Index] != 0 && !Face.OverrideEye) ? (byte)1 : (byte)0;
@@ -177,7 +191,7 @@ public static class BasisRemoteFaceManagement
 
         if (needRebuild)
         {
-            RebuildEyeTransformsArray();
+            ReconcileEyeTransforms();
         }
 
         var job = new RemoteAnimJob
@@ -236,13 +250,18 @@ public static class BasisRemoteFaceManagement
         HasJob = true;
     }
 
-    static unsafe void BlitSlot(BasisRemoteFaceDriver Face, int Index, EyeCalibrationBlit* pCalL, EyeCalibrationBlit* pCalR, byte* pLastHas)
+    // Returns true when this slot's contribution to eyeTransforms changed (eye bones gained/lost, or the eye
+    // transforms swapped on an avatar reload) so a rebuild is required; a pure calibration bump re-blits the
+    // data below and returns false, sparing the full ~26k-transform rebuild.
+    static unsafe bool BlitSlot(BasisRemoteFaceDriver Face, int Index, EyeCalibrationBlit* pCalL, EyeCalibrationBlit* pCalR, byte* pLastHas)
     {
-        bool hasValidEyeBones = Face.HasEyeBones
-            && Face.LeftEyeTransform != null
-            && Face.RightEyeTransform != null;
+        Transform left = Face.LeftEyeTransform;
+        Transform right = Face.RightEyeTransform;
+        bool hasValidEyeBones = Face.HasEyeBones && left != null && right != null;
 
         lastFaceGen[Index] = Face.FaceGeneration;
+
+        bool wasValid = pLastHas[Index] != 0;
         pLastHas[Index] = hasValidEyeBones ? (byte)1 : (byte)0;
 
         // Blit on eye-bone presence, not useJob, so calibration is ready when OverrideEye later clears.
@@ -261,20 +280,25 @@ public static class BasisRemoteFaceManagement
                 initialRotation = Face.calRight.initialRotation,
             };
         }
+
+        bool setChanged = wasValid != hasValidEyeBones
+            || (hasValidEyeBones && (!ReferenceEquals(lastLeftEye[Index], left) || !ReferenceEquals(lastRightEye[Index], right)));
+        lastLeftEye[Index] = hasValidEyeBones ? left : null;
+        lastRightEye[Index] = hasValidEyeBones ? right : null;
+        return setChanged;
     }
 
     /// <summary>
-    /// Rebuild <see cref="eyeTransforms"/> + <see cref="pairToSlot"/> for the
-    /// current snapshot. Only includes slots whose face driver reports both
-    /// <c>HasEyeBones</c> and non-null left/right transforms. Must be called
-    /// from the main thread, and any in-flight job using these arrays must
-    /// already be complete (caller's responsibility).
+    /// Incrementally reconciles <see cref="eyeTransforms"/> + <see cref="pairToSlot"/> with the current
+    /// eye-having slots. A joining player appends a single pair; a leaving player / lost eye bones is
+    /// swap-back removed; an avatar reload re-points its pair in place. pairToSlot is rewritten for every
+    /// live pair so snapshot reorders cost an int rewrite, not a transform rebind. Must run on the main
+    /// thread with any in-flight eye job already complete (caller's responsibility).
     /// </summary>
-    static void RebuildEyeTransformsArray()
+    static void ReconcileEyeTransforms()
     {
-        // Stop any in-flight transform job before we mutate the structure
-        // it's reading. handle is the chain (anim → transform write); waiting
-        // on it covers both.
+        // Stop any in-flight transform job before we mutate the structure it's reading. handle is the chain
+        // (anim → transform write); waiting on it covers both.
         if (HasJob)
         {
             handle.Complete();
@@ -282,44 +306,154 @@ public static class BasisRemoteFaceManagement
             eyeTransformJobScheduled = false;
         }
 
-        if (eyeTransforms.isCreated)
+        // If Unity auto-removed destroyed eye transforms (a leave / avatar reload), the array no longer lines up
+        // with our pair bookkeeping — resync with a full rebuild. The hot path (joins) never destroys a transform,
+        // so it stays incremental.
+        if (!eyeTransforms.isCreated || eyeTransforms.length != eyeTransformPairCount * 2)
         {
-            eyeTransforms.Dispose();
+            FullRebuildEyeTransforms();
+            return;
         }
 
-        // Count the included slots so we can size the TransformAccessArray.
+        unchecked { reconcileGen++; }
+        int gen = reconcileGen;
+
+        // Add / update / mark-seen pass. Each eye-having slot ensures its driver owns a pair.
+        for (int slot = 0; slot < count; slot++)
+        {
+            if (lastHasEyeBones[slot] == 0) continue;
+            BasisRemoteFaceDriver Face = faceCache[slot];
+            Transform left = Face.LeftEyeTransform;
+            Transform right = Face.RightEyeTransform;
+            if (left == null || right == null) continue; // teardown race; any existing pair is dropped below
+
+            if (driverToPair.TryGetValue(Face, out int p))
+            {
+                // Reload: same driver, swapped eye bones — re-point the pair without touching the rest.
+                if (!ReferenceEquals(pairLeft[p], left)) { eyeTransforms[p * 2] = left; pairLeft[p] = left; }
+                if (!ReferenceEquals(pairRight[p], right)) { eyeTransforms[p * 2 + 1] = right; pairRight[p] = right; }
+            }
+            else
+            {
+                // Join / gained eye bones: append one pair at the end.
+                p = eyeTransformPairCount;
+                EnsurePairCapacity(p + 1);
+                eyeTransforms.Add(left);
+                eyeTransforms.Add(right);
+                pairDriver[p] = Face;
+                pairLeft[p] = left;
+                pairRight[p] = right;
+                driverToPair[Face] = p;
+                eyeTransformPairCount = p + 1;
+            }
+
+            pairSeenGen[p] = gen;
+            pairToSlot[p] = slot;
+        }
+
+        // Remove pass: pairs not seen this reconcile (driver left or lost eye bones) are swap-back removed.
+        int q = 0;
+        while (q < eyeTransformPairCount)
+        {
+            if (pairSeenGen[q] != gen) RemovePairSwapBack(q);
+            else q++;
+        }
+
+        lastBuiltCount = count;
+    }
+
+    // Grows the pair-parallel bookkeeping arrays (and pairToSlot / the TAA) to hold at least 'needed' pairs.
+    static void EnsurePairCapacity(int needed)
+    {
+        if (pairDriver.Length < needed)
+        {
+            int newSize = math.max(16, math.ceilpow2(needed));
+            Array.Resize(ref pairDriver, newSize);
+            Array.Resize(ref pairLeft, newSize);
+            Array.Resize(ref pairRight, newSize);
+            Array.Resize(ref pairSeenGen, newSize);
+        }
+        if (eyeTransforms.capacity < needed * 2)
+        {
+            eyeTransforms.capacity = math.max(needed * 2, math.max(4, eyeTransforms.capacity * 2));
+        }
+        if (!pairToSlot.IsCreated || pairToSlot.Length < needed)
+        {
+            int newSize = math.max(16, math.ceilpow2(needed));
+            var grown = new NativeArray<int>(newSize, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            if (pairToSlot.IsCreated)
+            {
+                NativeArray<int>.Copy(pairToSlot, grown, eyeTransformPairCount);
+                pairToSlot.Dispose();
+            }
+            pairToSlot = grown;
+        }
+    }
+
+    // Removes pair p by moving the last pair into its place (two transform indices), keeping the array dense.
+    static void RemovePairSwapBack(int p)
+    {
+        int last = eyeTransformPairCount - 1;
+        driverToPair.Remove(pairDriver[p]);
+
+        if (p != last)
+        {
+            eyeTransforms[p * 2] = pairLeft[last];
+            eyeTransforms[p * 2 + 1] = pairRight[last];
+            pairDriver[p] = pairDriver[last];
+            pairLeft[p] = pairLeft[last];
+            pairRight[p] = pairRight[last];
+            pairSeenGen[p] = pairSeenGen[last];
+            pairToSlot[p] = pairToSlot[last];
+            driverToPair[pairDriver[p]] = p;
+        }
+
+        eyeTransforms.RemoveAtSwapBack(last * 2 + 1);
+        eyeTransforms.RemoveAtSwapBack(last * 2);
+        pairDriver[last] = null;
+        pairLeft[last] = null;
+        pairRight[last] = null;
+        eyeTransformPairCount = last;
+    }
+
+    // Resync path: rebuild eyeTransforms + the registry from the live slots. Used for the first build and after
+    // Unity auto-drops a destroyed transform (which would otherwise leave the incremental bookkeeping skewed).
+    static void FullRebuildEyeTransforms()
+    {
+        driverToPair.Clear();
+        eyeTransformPairCount = 0;
+
         int validCount = 0;
         for (int i = 0; i < count; i++)
-        {
             if (lastHasEyeBones[i] != 0) validCount++;
-        }
 
-        eyeTransforms = new TransformAccessArray(validCount * 2);
+        if (eyeTransforms.isCreated) eyeTransforms.Dispose();
+        eyeTransforms = new TransformAccessArray(math.max(2, validCount * 2));
+        EnsurePairCapacity(math.max(1, validCount));
 
-        if (pairToSlot.IsCreated && pairToSlot.Length < validCount)
+        unchecked { reconcileGen++; }
+        int gen = reconcileGen;
+
+        for (int slot = 0; slot < count; slot++)
         {
-            pairToSlot.Dispose();
-        }
-        if (!pairToSlot.IsCreated || pairToSlot.Length < validCount)
-        {
-            pairToSlot = new NativeArray<int>(math.max(16, math.ceilpow2(math.max(1, validCount))), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        }
+            if (lastHasEyeBones[slot] == 0) continue;
+            BasisRemoteFaceDriver Face = faceCache[slot];
+            Transform left = Face.LeftEyeTransform;
+            Transform right = Face.RightEyeTransform;
+            if (left == null || right == null) continue;
 
-        int pair = 0;
-        for (int i = 0; i < count; i++)
-        {
-            if (lastHasEyeBones[i] == 0) continue;
-            BasisRemoteFaceDriver Face = faceCache[i];
-            // hasValidEyeBones already verified both transforms non-null at gather time;
-            // re-checking here costs nothing and protects against teardown races.
-            if (Face.LeftEyeTransform == null || Face.RightEyeTransform == null) continue;
-
-            eyeTransforms.Add(Face.LeftEyeTransform);
-            eyeTransforms.Add(Face.RightEyeTransform);
-            pairToSlot[pair++] = i;
+            int p = eyeTransformPairCount;
+            eyeTransforms.Add(left);
+            eyeTransforms.Add(right);
+            pairDriver[p] = Face;
+            pairLeft[p] = left;
+            pairRight[p] = right;
+            pairSeenGen[p] = gen;
+            driverToPair[Face] = p;
+            pairToSlot[p] = slot;
+            eyeTransformPairCount = p + 1;
         }
 
-        eyeTransformPairCount = pair;
         lastBuiltCount = count;
     }
 
@@ -439,6 +573,8 @@ public static class BasisRemoteFaceManagement
             Array.Resize(ref faceCache, newSize);
             Array.Resize(ref eyesCache, newSize);
             Array.Resize(ref lastFaceGen, newSize);
+            Array.Resize(ref lastLeftEye, newSize);
+            Array.Resize(ref lastRightEye, newSize);
         }
     }
 
@@ -616,6 +752,15 @@ public static class BasisRemoteFaceManagement
         faceCache = Array.Empty<BasisRemoteFaceDriver>();
         eyesCache = Array.Empty<float[]>();
         lastFaceGen = Array.Empty<uint>();
+        lastLeftEye = Array.Empty<Transform>();
+        lastRightEye = Array.Empty<Transform>();
+
+        driverToPair.Clear();
+        pairDriver = Array.Empty<BasisRemoteFaceDriver>();
+        pairLeft = Array.Empty<Transform>();
+        pairRight = Array.Empty<Transform>();
+        pairSeenGen = Array.Empty<int>();
+        reconcileGen = 0;
     }
 
     [BurstCompile]

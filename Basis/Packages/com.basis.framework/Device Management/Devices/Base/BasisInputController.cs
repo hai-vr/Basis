@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Mathematics;
 using UnityEngine;
@@ -88,14 +89,17 @@ public abstract class BasisInputController : BasisInput
     }
     public Vector3 ChangeHandYHeight(Vector3 position)
     {
-        if (SMModuleSitStand.IsSteatedMode && BasisDeviceManagement.IsCurrentModeVR())
+        // Mirror BasisInput.ComputeUnscaledDeviceCoord so the avatar's hand bones (driven by HandFinal,
+        // a separate path) lift with the play-space mover's vertical offset and seated mode — not just
+        // the head/body/controller models. VR only.
+        if (BasisDeviceManagement.IsCurrentModeVR())
         {
-            position.y += SMModuleSitStand.MissingHeightDelta;
-            return position;
+            position.y += BasisLocalPlayspaceMover.VerticalOffset;
+            if (SMModuleSitStand.IsSteatedMode)
+            {
+                position.y += SMModuleSitStand.MissingHeightDelta;
+            }
         }
-        else
-        {
-            return position;
-        }
+        return position;
     }
 }

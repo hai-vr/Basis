@@ -83,7 +83,7 @@ Things that remain to be done in Comms:
 - ⬜ Specify whether transitions should go across choices.
 
 Long-term objectives:
-- ⬜ Migrate HVRVariableNetworking.Update() and HVRVixxyOrchestrator.Update() to use BasisEventDriver functions.
+- ✅ Migrate HVRVariableNetworking.Update(), HVRVixxyOrchestrator.Update(), FaceTrackingActivityRelay.Update() and EyeTrackingBoneActuation.Update() to a single batch pumped by BasisEventDriver (HVRCommsUpdateDriver).
 - ⬜ Slow down interpolation delay when server reduction kicks in.
   - ⬜ If the queue is starving, slow down the playback.
 - ⬜ Make Vixxy usable in Props.

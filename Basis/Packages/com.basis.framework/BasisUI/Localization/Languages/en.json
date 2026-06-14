@@ -231,6 +231,14 @@
       "value": "How strong the glow effect is around bright lights."
     },
     {
+      "key": "settings.graphics.fog.override.tooltip",
+      "value": "Manually control the volumetric fog in the scene."
+    },
+    {
+      "key": "settings.graphics.fog.density.tooltip",
+      "value": "How thick the fog is. Zero turns the fog off."
+    },
+    {
       "key": "settings.graphics.cameraClip.override.tooltip",
       "value": "Manually set how near and far the camera can see."
     },
@@ -1233,6 +1241,18 @@
     {
       "key": "settings.perf.colliders.slider.tooltip",
       "value": "Maximum number of physics colliders allowed per avatar."
+    },
+    {
+      "key": "settings.perf.jiggleFrustumCull.toggle.tooltip",
+      "value": "Skip jiggle collisions for colliders that are outside every camera's view."
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.toggle.tooltip",
+      "value": "Skip jiggle collisions for colliders far from every camera."
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.slider.tooltip",
+      "value": "Maximum distance from a camera at which jiggle collisions still run."
     },
     {
       "key": "settings.perf.cloth.toggle.tooltip",
@@ -2425,6 +2445,18 @@
     {
       "key": "menu.individualPlayer.avatarLoadError",
       "value": "Avatar Load Error"
+    },
+    {
+      "key": "menu.individualPlayer.matchEyeHeight",
+      "value": "Match Eye Height"
+    },
+    {
+      "key": "menu.individualPlayer.matchEyeHeight.description",
+      "value": "Scale your avatar to match this player's current body scale ({0:0.###} m target eye height)."
+    },
+    {
+      "key": "menu.individualPlayer.matchEyeHeight.unavailable",
+      "value": "This player's current avatar eye height is not available yet."
     },
     {
       "key": "menu.individualPlayer.hideAvatar",
@@ -3955,6 +3987,22 @@
       "value": "Bloom Intensity"
     },
     {
+      "key": "settings.graphics.fog.title",
+      "value": "Volumetric Fog"
+    },
+    {
+      "key": "settings.graphics.fog.override",
+      "value": "Override Volumetric Fog"
+    },
+    {
+      "key": "settings.graphics.fog.override.description",
+      "value": "Override the scene volumetric fog."
+    },
+    {
+      "key": "settings.graphics.fog.density",
+      "value": "Fog Density"
+    },
+    {
       "key": "settings.graphics.cameraClip.title",
       "value": "Camera Clip Distances"
     },
@@ -4433,6 +4481,50 @@
     {
       "key": "settings.bodyTracking.playspaceMover.scale.tooltip",
       "value": "When grabbing with both hands, resize yourself by spreading or closing your hands."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.vertical",
+      "value": "Allow Vertical (up / down)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.vertical.tooltip",
+      "value": "Let the grab move you up and down as well as sideways, and stay at the height you let go of (like OVR Advanced Settings' Space Drag). Use the Reset button to return to the floor."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flip",
+      "value": "Flip Playspace"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flip.tooltip",
+      "value": "Rotate your whole view (and avatar) by the amount below so the world appears tipped or upside down. Your collision and walking stay upright. Turn this off or press Reset to return."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis",
+      "value": "Flip Axis"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.tooltip",
+      "value": "Which way to tip: Roll (sideways / upside down), Pitch (front-back), or Yaw (spin your view left-right)."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.roll",
+      "value": "Roll (upside down)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.pitch",
+      "value": "Pitch (front / back)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.yaw",
+      "value": "Yaw (spin)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAngle",
+      "value": "Flip Amount"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAngle.tooltip",
+      "value": "How far to rotate, 0 to 360 degrees. 180 is fully upside down."
     },
     {
       "key": "settings.bodyTracking.playspaceMover.rotateInput",
@@ -6781,6 +6873,18 @@
     {
       "key": "settings.perf.colliders.slider",
       "value": "Max Colliders"
+    },
+    {
+      "key": "settings.perf.jiggleFrustumCull.toggle",
+      "value": "Cull Off-Screen Collisions"
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.toggle",
+      "value": "Cull Distant Collisions"
+    },
+    {
+      "key": "settings.perf.jiggleDistanceCull.slider",
+      "value": "Max Collision Distance"
     },
     {
       "key": "settings.perf.cloth.toggle",

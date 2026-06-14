@@ -330,6 +330,66 @@ public static class BasisActionDriver
         }
 #endif
     }
+
+    /// <summary>
+    /// Dispatches a role's actions once per frame using the combined input state of every device
+    /// currently holding that role. This makes edge-triggered actions (menu toggle, mic, jump) fire
+    /// exactly once per role even when two devices share a hand role — e.g. a duplicate controller
+    /// left over from a SteamVR reconnect, or hand-tracking coexisting with a controller. Booleans
+    /// are OR'd across holders so either one can trigger an edge (see <see cref="BasisInputState.MergeFrom"/>).
+    /// With a single holder (the common case) the aggregate equals that device, so behaviour is
+    /// unchanged. Used for roles that may legitimately have multiple holders; other roles dispatch
+    /// directly through <see cref="UpdatePlayerControl"/>.
+    /// </summary>
+    /// <param name="role">The role whose actions will be executed.</param>
+    public static void UpdatePlayerControlForRole(BasisBoneTrackedRole role)
+    {
+        if (!s_RoleToCompiled.TryGetValue(role, out var compiled) || compiled.Length == 0)
+        {
+            return;
+        }
+
+        // Coalesce: only the first device to reach dispatch for this role this frame runs it.
+        // The aggregate below already folds in every other holder, so later devices no-op.
+        int frame = Time.frameCount;
+        if (s_RoleDispatchFrame.TryGetValue(role, out int lastFrame) && lastFrame == frame)
+        {
+            return;
+        }
+        s_RoleDispatchFrame[role] = frame;
+
+        // Combine the current/last state of every device holding this role into one aggregate.
+        var devices = BasisDeviceManagement.Instance.AllInputDevices;
+        int count = devices.Count;
+        bool seeded = false;
+        for (int Index = 0; Index < count; Index++)
+        {
+            BasisInput device = devices[Index];
+            if (!device.TryGetRole(out BasisBoneTrackedRole deviceRole) || deviceRole != role)
+            {
+                continue;
+            }
+            if (!seeded)
+            {
+                device.CurrentInputState.CopyTo(s_AggCurrent);
+                device.LastInputState.CopyTo(s_AggLast);
+                seeded = true;
+            }
+            else
+            {
+                s_AggCurrent.MergeFrom(device.CurrentInputState);
+                s_AggLast.MergeFrom(device.LastInputState);
+            }
+        }
+
+        if (!seeded)
+        {
+            return;
+        }
+
+        UpdatePlayerControl(role, ref s_AggCurrent, ref s_AggLast);
+    }
+
     public static async void ResetBindingsToDefaultsAsyncIgnored()
     {
       await  ResetBindingsToDefaultsAsync();
@@ -515,6 +575,12 @@ public static class BasisActionDriver
     private static readonly List<BasisBoneTrackedRole> s_EmptyRoles = new List<BasisBoneTrackedRole>(0);
     private static readonly InputAction[] s_EmptyImpls = Array.Empty<InputAction>();
     private static bool s_SuppressRebuild;
+
+    // Per-role frame guard + reusable aggregate buffers for UpdatePlayerControlForRole: a role's
+    // actions run once per frame against the combined state of all devices that hold the role.
+    private static readonly Dictionary<BasisBoneTrackedRole, int> s_RoleDispatchFrame = new Dictionary<BasisBoneTrackedRole, int>(capacity: 4);
+    private static  BasisInputState s_AggCurrent = new BasisInputState();
+    private static  BasisInputState s_AggLast = new BasisInputState();
 
     /// <summary>
     /// Rebuilds and caches the compiled action delegate array for a single role.

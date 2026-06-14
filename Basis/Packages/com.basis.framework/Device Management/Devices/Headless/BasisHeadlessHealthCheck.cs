@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,11 +17,17 @@ public sealed class BasisHeadlessHealthCheck : IDisposable
     public BasisHeadlessHealthCheck(string host, int port, string path)
     {
         pathNormalized = NormalizePath(path);
-        httpListener.Prefixes.Add($"http://{host}:{port}/");
+        httpListener.Prefixes.Add($"http://{FormatHost(host)}:{port}/");
         httpListener.Start();
         BasisHeadlessRuntimeStatus.SetHealthListenerRunning(true);
         listenTask = ListenLoopAsync(cts.Token);
     }
+
+    // HttpListener URL prefixes require bracket notation for IPv6 address literals.
+    private static string FormatHost(string host) =>
+        IPAddress.TryParse(host, out IPAddress addr) && addr.AddressFamily == AddressFamily.InterNetworkV6
+            ? $"[{host}]"
+            : host;
 
     public static string NormalizePath(string path)
     {
@@ -62,7 +69,7 @@ public sealed class BasisHeadlessHealthCheck : IDisposable
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogWarning("Headless health check loop error: " + ex);
+                BasisDebug.LogWarning("Headless health check loop error: " + ex, BasisDebug.LogTag.Networking);
                 continue;
             }
 

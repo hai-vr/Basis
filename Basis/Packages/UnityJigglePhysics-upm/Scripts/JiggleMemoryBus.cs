@@ -404,6 +404,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         Profiler.EndSample();
     }
 
+    #if UNITY_EDITOR && JIGGLE_VALIDATE
+    // Per-frame NaN/allocation diagnostics — opt-in via the JIGGLE_VALIDATE scripting define. Off by
+    // default: this walks every point every frame (O(points)), and Sanitize() already repairs NaNs.
     private bool GetIsValid(out string failReason) {
         for (int i = 0; i < treeCount; i++) {
             var tree = jiggleTreeStructsArray[i];
@@ -441,9 +444,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         failReason = "All good!";
         return true;
     }
+    #endif
 
     private void WriteOut() {
-        #if UNITY_EDITOR
+        #if UNITY_EDITOR && JIGGLE_VALIDATE
         if (!GetIsValid(out var failReason)) {
             Debug.LogError(failReason);
         }

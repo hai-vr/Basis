@@ -14,6 +14,7 @@ using GatorDragonGames.JigglePhysics;
 using HVR.Basis.Comms;
 using SteamAudio;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using static Basis.EventDriver.BasisEventDriverProfileSections;
@@ -34,6 +35,7 @@ namespace Basis.EventDriver
 #else
             false;
 #endif
+        private static readonly List<Camera> JiggleCullCameras = new List<Camera>(8);
         // Profiler section IDs live in BasisEventDriverProfileSections (pulled in via `using static`).
         // ── Partial method declarations (calls are stripped in non-editor builds) ──
         partial void ProfileLateUpdateInit();
@@ -223,6 +225,18 @@ namespace Basis.EventDriver
             {
                 OnBeforeRender();
             }
+
+            // Comms eye/Vixxy/activity actuation is pumped in front of the network-apply barrier so
+            // its main-thread cost overlaps the in-flight BasisRemoteNetworkDriver interpolation
+            // jobs (InterpolateBoneRotationsJob + FilterBoneRotationsOneEuroJob), which
+            // SimulateNetworkApply's Apply() completes below. Vixxy actuates blendshapes/materials,
+            // so it must stay ahead of BasisBlendShapeDriver and the render. VariableNetworking is
+            // split off to a later barrier (see the AuthoredMotion schedule/complete below) — it
+            // produces no visible write this frame, so it hides behind a different job. Safe: the
+            // comms batch reads only its own networked variable state, never the remote pose/bone
+            // output produced by SimulateNetworkApply.
+            HVRCommsUpdateDriver.SimulateActuators();
+
             ProfileBegin(PROF_NETWORK_APPLY);
             ProfileBegin2();
             BasisLocalPlayer.FireJustBeforeNetworkApply();
@@ -334,10 +348,26 @@ namespace Basis.EventDriver
             ProfileEnd(PROF_BLENDSHAPE_APPLY);
 
             // ── Authored motion: write non-humanoid authored bones before jiggle samples them ──
-            BasisAuthoredMotionSystem.Complete(BasisAuthoredMotionSystem.Schedule());
+            // Split schedule/complete (was a synchronous Complete(Schedule())) so the authored
+            // transform-write job overlaps a slice of independent main-thread work instead of
+            // stalling on it. VariableNetworking is that filler: it touches none of the authored
+            // transforms, produces no avatar-visible write this frame, and stays ahead of the
+            // AfterAvatarChanges eye read below — so its cost hides behind the job's wall-clock.
+            var authoredMotionJob = BasisAuthoredMotionSystem.Schedule();
+            HVRCommsUpdateDriver.SimulateVariableNetworking();
+            BasisAuthoredMotionSystem.Complete(authoredMotionJob);
 
             // ── JigglePhysics schedule ──
             ProfileBegin(PROF_JIGGLE_SCHEDULE);
+
+            JiggleCullCameras.Clear();
+            var jiggleCullCamera = BasisLocalCameraDriver.CameraInstance;
+            if (jiggleCullCamera != null)
+            {
+                JiggleCullCameras.Add(jiggleCullCamera);
+            }
+            BasisCullingCameraRegistry.CollectInto(JiggleCullCameras);
+            JigglePhysics.SetCullingCameras(JiggleCullCameras);
 
             fixedDeltaTime = Time.fixedDeltaTime;
             JigglePhysics.ScheduleSimulate(TimeAsDouble, fixedDeltaTime);

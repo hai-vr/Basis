@@ -10,6 +10,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using Basis.Scripts.Settings;
+using GatorDragonGames.JigglePhysics;
 
 namespace Basis.BasisUI
 {
@@ -73,6 +74,8 @@ namespace Basis.BasisUI
 #endif
             ApplyOpenLipSyncMaxSlots();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyOpenLipSyncMaxSlots;
+            ApplyJiggleCollisionCulling();
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
         }
 
         private static void ApplyOpenLipSyncMaxSlots()
@@ -80,6 +83,14 @@ namespace Basis.BasisUI
             BasisOpenLipSyncDriver.UseSlotLimit = BasisSettingsDefaults.UseOpenLipSyncLimit.RawValue;
             BasisOpenLipSyncDriver.MaxSlots = Mathf.Max(0, (int)BasisSettingsDefaults.OpenLipSyncMaxSlots.RawValue);
             BasisOpenLipSyncDriver.EnforceSlotLimit();
+        }
+
+        private static void ApplyJiggleCollisionCulling()
+        {
+            JigglePhysics.SetCollisionCulling(
+                BasisSettingsDefaults.UseJiggleCollisionFrustumCull.RawValue,
+                BasisSettingsDefaults.UseJiggleCollisionDistanceCull.RawValue,
+                Mathf.Max(0f, BasisSettingsDefaults.JiggleCollisionCullDistance.RawValue));
         }
 
         public const string StaticTitleKey = "settings.title";
@@ -444,6 +455,8 @@ namespace Basis.BasisUI
                 };
             }
 
+            BuildNetworkingSection(container);
+
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.general", ResetGeneralDefaults);
             descriptor.ForceRebuild();
@@ -498,8 +511,10 @@ namespace Basis.BasisUI
                     }
                 }
             };
+        }
 
-            // NETWORKING GROUP
+        private static void BuildNetworkingSection(RectTransform container)
+        {
             PanelElementDescriptor networkingGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
@@ -518,17 +533,8 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.P2PAvatarSyncRate);
             sliderP2PRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.tooltip"));
 
-            PanelElementDescriptor p2pRateWarning = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
-            p2pRateWarning.SetTitle(string.Empty);
-            if (p2pRateWarning.HasDescription)
-            {
-                p2pRateWarning.DescriptionLabel.color = new Color(1f, 0.78f, 0.28f);
-            }
-            p2pRateWarning.SetActive(false);
-
             _avatarRateSlider = sliderP2PRate;
-            _avatarRateWarning = p2pRateWarning;
+            _networkingGroup = networkingGroup;
             _avatarRateLastFps = -1;
             _avatarRateLastRate = -1;
             _avatarRateWarnShown = false;
@@ -539,27 +545,20 @@ namespace Basis.BasisUI
                 _avatarRateTickSubscribed = true;
             }
 
-            PanelElementDescriptor encryptionInfo = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
-            encryptionInfo.SetTitle(BasisLocalization.Get("settings.general.networking.encryption.title"));
-            encryptionInfo.SetDescription(BuildEncryptionStatusText());
-
             void RefreshDirectConnectionVisibility(bool directOn)
             {
                 sliderP2PRate.Descriptor.SetActive(directOn);
-                encryptionInfo.SetActive(directOn);
                 if (!directOn)
                 {
                     _avatarRateWarnShown = false;
-                    p2pRateWarning.SetActive(false);
                 }
+                RefreshNetworkingStatus();
                 networkingGroup.ForceRebuild();
             }
             RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
             toggleDirectConnections.OnValueChanged += (directOn) =>
             {
                 BasisSettingsDefaults.DisableDirectConnections.SetValue(!directOn);
-                encryptionInfo.SetDescription(BuildEncryptionStatusText());
                 RefreshDirectConnectionVisibility(directOn);
             };
         }
@@ -589,17 +588,35 @@ namespace Basis.BasisUI
         }
 
         private static PanelSlider _avatarRateSlider;
-        private static PanelElementDescriptor _avatarRateWarning;
+        private static PanelElementDescriptor _networkingGroup;
         private static bool _avatarRateTickSubscribed;
         private static int _avatarRateLastFps = -1;
         private static int _avatarRateLastRate = -1;
         private static bool _avatarRateWarnShown;
         private const int AvatarRateWarningPollInterval = 15;
 
+        private static void RefreshNetworkingStatus()
+        {
+            PanelElementDescriptor group = _networkingGroup;
+            if (group == null)
+            {
+                return;
+            }
+
+            string status = BuildEncryptionStatusText();
+            if (_avatarRateWarnShown)
+            {
+                status += "\n<color=#FFC747>"
+                    + BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", _avatarRateLastFps, _avatarRateLastRate)
+                    + "</color>";
+            }
+            group.SetRichDescription(status);
+        }
+
         private static void UpdateAvatarRateWarning()
         {
-            PanelElementDescriptor warning = _avatarRateWarning;
-            if (warning == null)
+            PanelElementDescriptor group = _networkingGroup;
+            if (group == null)
             {
                 BasisFrameClock.OnTick -= UpdateAvatarRateWarning;
                 BasisFrameClock.RemoveRequest();
@@ -626,7 +643,8 @@ namespace Basis.BasisUI
                 if (_avatarRateWarnShown)
                 {
                     _avatarRateWarnShown = false;
-                    warning.SetActive(false);
+                    RefreshNetworkingStatus();
+                    group.ForceRebuild();
                 }
                 return;
             }
@@ -638,8 +656,8 @@ namespace Basis.BasisUI
             _avatarRateWarnShown = true;
             _avatarRateLastFps = fps;
             _avatarRateLastRate = rate;
-            warning.SetActive(true);
-            warning.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", fps, rate));
+            RefreshNetworkingStatus();
+            group.ForceRebuild();
         }
 
         // ------------------
@@ -1452,6 +1470,34 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            // --- Accessibility: Volumetric Fog Override ---
+            PanelElementDescriptor fogGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            fogGroup.SetTitle(BasisLocalization.Get("settings.graphics.fog.title"));
+
+            PanelToggle toggleFogOverride = PanelToggle.CreateNewEntry(fogGroup.ContentParent);
+            toggleFogOverride.AssignBinding(BasisSettingsDefaults.UseVolumetricFogOverride);
+            toggleFogOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.fog.override"));
+            toggleFogOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fog.override.tooltip"));
+
+            PanelSlider sliderFogDensity = PanelSlider.CreateEntryAndBind(
+                fogGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.fog.density"),
+                    "",
+                    BasisSettingsDefaults.FOG_DENSITY_MIN,
+                    BasisSettingsDefaults.FOG_DENSITY_MAX,
+                    false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VolumetricFogDensity);
+            sliderFogDensity.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fog.density.tooltip"));
+
+            sliderFogDensity.Descriptor.SetActive(toggleFogOverride.Value);
+            toggleFogOverride.OnValueChanged += (val) =>
+            {
+                sliderFogDensity.Descriptor.SetActive(val);
+                fogGroup.ForceRebuild();
+                descriptor.ForceRebuild();
+            };
+
             // --- Camera Near/Far Override ---
             PanelElementDescriptor cameraClipGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1620,6 +1666,8 @@ namespace Basis.BasisUI
 
             BasisSettingsDefaults.UseBloomOverride.ResetToDefault();
             BasisSettingsDefaults.BloomIntensity.ResetToDefault();
+            BasisSettingsDefaults.UseVolumetricFogOverride.ResetToDefault();
+            BasisSettingsDefaults.VolumetricFogDensity.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.

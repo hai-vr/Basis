@@ -248,6 +248,20 @@ namespace OpenLipSync.Inference.Audio
             return Math.Sin(pix) / pix;
         }
 
+        /// <summary>
+        /// Restart internal state (delay line, phase, priming) without rebuilding the
+        /// coefficient table. The next <see cref="Resample"/> re-primes from silence,
+        /// as a freshly constructed instance would. For callers that reuse one resampler
+        /// across discontinuous streams (e.g. per-utterance voice playback).
+        /// </summary>
+        public void Reset()
+        {
+            _bufHead = 0;
+            _bufCount = 0;
+            _time = 0.0;
+            _primed = false;
+        }
+
         public void Dispose()
         {
             if (!_disposed)

@@ -2,6 +2,7 @@
 using Basis.Network.Core;
 using System;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -33,10 +34,10 @@ namespace Basis.Network.Server
                 BNL.LogWarning("[REST API] No ApiKey configured — all requests will be rejected. Set ApiKey in config to enable the REST API.");
 
             _routes = new BasisRestApiRoutes(control ?? new BasisServerControl());
-            _listener.Prefixes.Add($"http://{config.ApiHost}:{config.ApiPort}/");
+            _listener.Prefixes.Add($"http://{FormatHost(config.ApiHost)}:{config.ApiPort}/");
             _listener.Start();
             _ = ListenLoopAsync(_cts.Token);
-            BNL.Log($"REST API started at http://{config.ApiHost}:{config.ApiPort}/api/");
+            BNL.Log($"REST API started at http://{FormatHost(config.ApiHost)}:{config.ApiPort}/api/");
         }
 
         private async Task ListenLoopAsync(CancellationToken token)
@@ -119,6 +120,12 @@ namespace Basis.Network.Server
             using var sha = SHA256.Create();
             return sha.ComputeHash(data);
         }
+
+        // HttpListener URL prefixes require bracket notation for IPv6 address literals.
+        private static string FormatHost(string host) =>
+            IPAddress.TryParse(host, out IPAddress addr) && addr.AddressFamily == AddressFamily.InterNetworkV6
+                ? $"[{host}]"
+                : host;
 
         public void Dispose()
         {

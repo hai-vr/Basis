@@ -43,7 +43,7 @@ public class Configuration
     public float LowQualityDistance = 40f;
     public bool OverrideAutoDiscoveryOfIpv = false;
     public string IPv4Address = "0.0.0.0";
-    public string IPv6Address = "::1";
+    public string IPv6Address = "::";
     public string Password = "default_password";
     public bool UseAuth = true;
     public bool UseAuthIdentity = true;

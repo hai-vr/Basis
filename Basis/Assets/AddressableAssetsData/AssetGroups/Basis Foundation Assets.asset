@@ -192,11 +192,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 4b6d450b11ad8974e8c4ba0b1e0df50e
-    m_Address: RemotePlayer
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5063ae403b85a6c4e8d99f33a85ca528
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Close Button.prefab
     m_ReadOnly: 0

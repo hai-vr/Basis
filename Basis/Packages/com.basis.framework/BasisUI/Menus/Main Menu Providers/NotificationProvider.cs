@@ -225,7 +225,7 @@ namespace Basis.BasisUI
             private void AddEmpty(string text)
             {
                 PanelElementDescriptor empty = PanelElementDescriptor.CreateNew(
-                    PanelElementDescriptor.ElementStyles.Group, Root);
+                    PanelElementDescriptor.ElementStyles.Entry, Root);
                 empty.SetTitle(string.Empty);
                 empty.SetDescription(text);
             }
@@ -233,7 +233,7 @@ namespace Basis.BasisUI
             private void BuildPendingRow(BasisNotification n)
             {
                 PanelElementDescriptor row = PanelElementDescriptor.CreateNew(
-                    PanelElementDescriptor.ElementStyles.Group, Root);
+                    PanelElementDescriptor.ElementStyles.Entry, Root);
                 row.SetTitle(n.Title);
                 row.SetDescription(WithTimestamp(n.Description, n.CreatedUtc));
 
@@ -260,7 +260,7 @@ namespace Basis.BasisUI
             private void BuildHistoryRow(BasisNotification n)
             {
                 PanelElementDescriptor row = PanelElementDescriptor.CreateNew(
-                    PanelElementDescriptor.ElementStyles.Group, Root);
+                    PanelElementDescriptor.ElementStyles.Entry, Root);
 
                 row.SetTitle(string.IsNullOrEmpty(n.Title)
                     ? OutcomeBadge(n.Status)

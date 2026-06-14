@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 
 namespace Basis.Network.Core
 {
@@ -24,7 +26,9 @@ namespace Basis.Network.Core
             string portString = target.Get(ConnectionTarget.Keys.Port, DefaultPort.ToString(CultureInfo.InvariantCulture));
             string password = target.Get(ConnectionTarget.Keys.Password, string.Empty);
 
-            string s = $"{address}:{portString}";
+            bool isIPv6 = IPAddress.TryParse(address, out IPAddress ip)
+                && ip.AddressFamily == AddressFamily.InterNetworkV6;
+            string s = isIPv6 ? $"[{address}]:{portString}" : $"{address}:{portString}";
             if (!string.IsNullOrEmpty(password)) s += "#" + password;
             return s;
         }
@@ -46,23 +50,57 @@ namespace Basis.Network.Core
                 left = raw.Substring(0, hashIdx);
             }
 
-            int colonIdx = left.LastIndexOf(':');
-            if (colonIdx > 0
-                && colonIdx < left.Length - 1
-                && ushort.TryParse(left.Substring(colonIdx + 1), out ushort parsedPort)
-                && parsedPort > 0)
+            if (left.Length > 0 && left[0] == '[')
             {
-                address = left.Substring(0, colonIdx).Trim();
-                port = parsedPort;
-                portProvided = true;
+                // Bracketed IPv6 literal: [addr]:port or [addr]
+                int closeBracket = left.IndexOf(']');
+                if (closeBracket > 0)
+                {
+                    address = left.Substring(1, closeBracket - 1).Trim();
+                    string afterBracket = left.Substring(closeBracket + 1);
+                    if (afterBracket.Length > 1 && afterBracket[0] == ':')
+                    {
+                        if (ushort.TryParse(afterBracket.Substring(1), out ushort parsedPort) && parsedPort > 0)
+                        {
+                            port = parsedPort;
+                            portProvided = true;
+                        }
+                    }
+                }
+                else
+                {
+                    address = left.Trim(); // malformed bracket — treat whole string as address
+                }
             }
             else
             {
-                address = left.Trim();
+                int colonIdx = left.LastIndexOf(':');
+                if (colonIdx > 0
+                    && colonIdx < left.Length - 1
+                    && ushort.TryParse(left.Substring(colonIdx + 1), out ushort parsedPort)
+                    && parsedPort > 0)
+                {
+                    string candidateAddress = left.Substring(0, colonIdx).Trim();
+                    // If the candidate address still contains a colon it is a bare IPv6
+                    // literal (e.g. "::1", "2001:db8::1") being misread as host:port.
+                    // Leave it unsplit; the user must use [addr]:port notation for
+                    // an IPv6 address with an explicit port.
+                    if (candidateAddress.IndexOf(':') < 0)
+                    {
+                        address = candidateAddress;
+                        port = parsedPort;
+                        portProvided = true;
+                    }
+                    else
+                    {
+                        address = left.Trim();
+                    }
+                }
+                else
+                {
+                    address = left.Trim();
+                }
             }
-
-            if (address.StartsWith("[") && address.EndsWith("]") && address.Length >= 2)
-                address = address.Substring(1, address.Length - 2);
 
             return !string.IsNullOrEmpty(address);
         }

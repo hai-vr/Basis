@@ -59,8 +59,6 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     public long PresentationOffsetUs = 0;
 
     [Header("Audio")]
-    [Tooltip("Where decoded audio is routed. UnityAudioSource hands frames to a BasisMediaPlayerAudio on this GameObject. Currently the only supported routing; the property exists so additional routings can be added without breaking call sites.")]
-    public BasisAudioRouting AudioRouting = BasisAudioRouting.UnityAudioSource;
     [Tooltip("Linear volume 0..1 applied to the audio path. Maps to BasisMediaPlayerAudio.VolumeGain.")]
     [Range(0f, 1f)] public float Volume = 1f;
     [Tooltip("If true, the audio path is silenced without stopping the source.")]
@@ -281,11 +279,9 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         // the master media clock so video frames are scheduled against audio
         // playback instead of wall time. Falls back to wall-clock pacing
         // automatically when no audio component is present (e.g. video-only).
-        if (TryGetComponent(out audioComponent))
-        {
-            Clock.ExternalSource = audioComponent;
-            ApplyAudioRoutingToComponent();
-        }
+        TryGetComponent(out audioComponent);
+        if (audioComponent != null) Clock.ExternalSource = audioComponent;
+        ApplyAudioSettingsToComponent();
         BasisMediaPlayerRegistry.Add(this);
     }
 
@@ -297,7 +293,8 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl called with empty URL.", BasisDebug.LogTag.Video);
             return;
         }
-        LoadSource(BasisMediaSource.FromUrl(url));
+        var media = BasisMediaSource.FromUrl(url);
+        LoadSource(media);
     }
 
     // Convenience wrapper: builds a BasisMediaSource from an absolute or
@@ -309,7 +306,8 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             BasisDebug.LogWarning("BasisMediaPlayer.LoadLocalPath called with empty path.", BasisDebug.LogTag.Video);
             return;
         }
-        LoadSource(BasisMediaSource.FromLocalPath(path));
+        var media = BasisMediaSource.FromLocalPath(path);
+        LoadSource(media);
     }
 
     // Resolves the descriptor to the OS-codec engine and starts it. All network
@@ -354,7 +352,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             if (!BasisMediaPlayerSecurity.IsUrlAllowed(media.Uri, out string blockReason))
                 throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{media.Uri}': {blockReason}");
 
-            SetNativeEngine(new BasisNativeVideoSource(media.Uri));
+            SetNativeEngine(new BasisNativeVideoSource(ResolveNativeUri(media)));
         }
         catch (Exception ex)
         {
@@ -362,6 +360,23 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         }
 
         ApplyMediaSourceSettings(media);
+    }
+
+    // RIST exposes a receive-buffer depth that librist parses straight from the URL
+    // query. Framework devs set it via Options["buffer"] (milliseconds); fold it in
+    // here so the native side sees rist://host:port?...&buffer=<ms>. Non-RIST schemes
+    // ignore Options["buffer"], so the URI is returned untouched for them.
+    private static string ResolveNativeUri(BasisMediaSource media)
+    {
+        string uri = media.Uri;
+        if (media.Options != null &&
+            uri.StartsWith("rist://", StringComparison.OrdinalIgnoreCase) &&
+            media.Options.TryGetValue("buffer", out object buffer) && buffer != null)
+        {
+            char sep = uri.IndexOf('?') >= 0 ? '&' : '?';
+            uri += $"{sep}buffer={buffer}";
+        }
+        return uri;
     }
 
     private void HandleProtonDeclined(BasisMediaSource media)
@@ -380,8 +395,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         PlaybackRate = media.PlaybackRate;
         Volume = media.Volume;
         Mute = media.Mute;
-        AudioRouting = media.AudioRouting;
-        ApplyAudioRoutingToComponent();
+        ApplyAudioSettingsToComponent();
     }
 
     public void Play()
@@ -578,7 +592,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     private void OnValidate()
     {
-        ApplyAudioRoutingToComponent();
+        ApplyAudioSettingsToComponent();
         // Live-tune the buffer when changed in the inspector during play.
         if (Application.isPlaying) nativeEngine?.SetBuffer(BufferMode, ResolvedBufferMilliseconds());
     }
@@ -609,10 +623,6 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         source.OnEndOfStream += HandleEndOfStream;
         source.OnReady += HandleSourceReady;
         source.OnVideoSizeChanged += HandleVideoSizeChanged;
-        if (audioComponent != null)
-        {
-            source.OnAudioFrame += audioComponent.Enqueue;
-        }
         if (seekableSource != null)
         {
             seekableSource.OnPrepared += HandleSourceReady;
@@ -630,10 +640,6 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         source.OnEndOfStream -= HandleEndOfStream;
         source.OnReady -= HandleSourceReady;
         source.OnVideoSizeChanged -= HandleVideoSizeChanged;
-        if (audioComponent != null)
-        {
-            source.OnAudioFrame -= audioComponent.Enqueue;
-        }
         if (seekableSource != null)
         {
             seekableSource.OnPrepared -= HandleSourceReady;
@@ -668,7 +674,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             nativeEngine.OnBitrateTrackChanged += HandleBitrateTrackChanged;
             nativeEngine.OnAudioTrackChanged += HandleAudioTrackChanged;
         }
-        if (audioComponent != null) audioComponent.NativePcmSource = nativeEngine;
+        RouteNativePcmSource(nativeEngine);
         if (nativeEngine != null) nativeEngine.SetBuffer(BufferMode, ResolvedBufferMilliseconds());
 
         // Push the (currently null) external texture so consumers rebind once a
@@ -730,11 +736,15 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         System.Threading.Interlocked.Exchange(ref lastEnqueuedPtsUs, 0);
     }
 
-    private void ApplyAudioRoutingToComponent()
+    private void ApplyAudioSettingsToComponent()
     {
-        if (audioComponent == null) return;
-        audioComponent.VolumeGain = Volume;
-        audioComponent.Mute = Mute;
+        if (audioComponent != null) { audioComponent.VolumeGain = Volume; audioComponent.Mute = Mute; }
+        if (nativeEngine != null) RouteNativePcmSource(nativeEngine);
+    }
+
+    private void RouteNativePcmSource(IBasisPcmSource pcm)
+    {
+        if (audioComponent != null) audioComponent.NativePcmSource = pcm;
     }
 
     private void HandleVideoFrame(BasisVideoFrame frame)
@@ -945,9 +955,9 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
         runtimeCurrentMediaTimeUs = Math.Max(0, nativeEngine.PositionUs);
 
-        if (audioComponent != null && nativeEngine.TryGetPcmFormat(out int sr, out int ch) && sr > 0 && ch > 0)
+        if (nativeEngine.TryGetPcmFormat(out int sr, out int ch) && sr > 0 && ch > 0)
         {
-            audioComponent.SetExpectedFormat(sr, ch);
+            audioComponent?.SetExpectedFormat(sr, ch);
         }
 
         Texture tex = nativeEngine.OutputTexture;

@@ -236,13 +236,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         private void OnInputAdded(BasisInput input)
         {
-            // - disabled -dooly  if (!input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole r))
-            //     return;
+            if (input == null || !input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role))
+                return;
 
-            if (Inputs.SetInputByRole(input, BasisInteractInputState.Ignored))
-            {
-            }
-            else
+            if (!BasisInputSources.IsInteractionRole(role))
+                return;
+
+            if (!Inputs.SetInputByRole(input, BasisInteractInputState.Ignored))
             {
                 BasisDebug.LogError("New input added not setup as expected, Input role was set to ignored!");
             }
@@ -254,7 +254,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         private void OnInputRemoved(BasisInput input)
         {
-            if (input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role))
+            if (input != null && input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role)
+                && BasisInputSources.IsInteractionRole(role))
             {
                 if (Inputs.TryGetByRole(role, out var wrapper) && wrapper.Source != null)
                 {

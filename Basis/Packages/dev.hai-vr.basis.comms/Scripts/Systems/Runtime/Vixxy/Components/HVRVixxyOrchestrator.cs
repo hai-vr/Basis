@@ -92,7 +92,10 @@ namespace HVR.Vixxy
             return Enumerable.Empty<IHVRVixxyActuator>();
         }
 
-        private void Update()
+        private void OnEnable() => HVRCommsUpdateDriver.Register(this);
+        private void OnDisable() => HVRCommsUpdateDriver.Unregister(this);
+
+        internal void SimulateTick()
         {
             if (_needsReevaluateSystemAddresses)
             {

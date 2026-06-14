@@ -302,7 +302,7 @@ MonoBehaviour:
     ParamNames:
     - Player
     - Position
-    - Player.transform
+    - Player.AvatarParent
     ParamDocs:
     - The player to assign the fallback avatar to.
     - The address of the fallback avatar.
@@ -408,7 +408,7 @@ MonoBehaviour:
     ParamNames:
     - Player
     - Position
-    - Player.transform
+    - Player.AvatarParent
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -474,7 +474,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - Player.BasisAvatar.NotifyAvatarReady(false
+    - Player
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -798,12 +798,10 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Avatar.
-    MemberName: FullBodyCalibration
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - good
-    - BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance
+    MemberName: OnFullBodyCalibrated
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -3764,6 +3762,493 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisCalibrationDebugRecorder
+    MemberName: BasisCalibrationDebugRecorder
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Developer-only diagnostic recorder for the local avatar calibration
+      pipeline.\n When the \"Dump Calibration CSV\" developer toggle is on, every
+      stage of calibration\n (spawn, T-pose, offset capture, post-zero) pushes the
+      scales / positions / rotation\n eulers (plus raw quaternions) of the avatar
+      root and each tracked bone into a flat\n table, which is flushed to a CSV under
+      persistentDataPath/CalibrationDebug at the end\n of calibration. The gate is
+      read once at Begin; when off, every Record\n call is a single bool check so
+      it is free to leave the instrumentation in place."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisCalibrationDebugRecorder
+    MemberName: Enabled
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True only between a Begin with the toggle on and its Flush.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisCalibrationDebugRecorder
+    MemberName: Path.Combine
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - Application.persistentDataPath
+    - '"CalibrationDebug"'
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Folder the calibration CSVs are written to (and read back by the editor
+      window).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisCalibrationDebugRecorder
+    MemberName: RuntimeSampleFrames
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 1
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Number of post-calibration frames the runtime sampler records.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisCalibrationDebugRecorder
+    MemberName: RuntimeActive
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True while the per-frame runtime sampler is collecting frames.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisCalibrationDebugRecorder
+    MemberName: Begin
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (!Enabled
+    ParamDocs:
+    - Identifier (e.g. avatar/display name) used in the file name.
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Starts a recording session. Reads the developer toggle; if off, the
+      session stays\n disabled and all subsequent Record calls are no-ops until the
+      next Begin."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: Bone
+    Kind: Method
+    ParamCount: 4
+    ParamNames:
+    - stage
+    - label
+    - t
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Records both the world-space and local-space pose (position, rotation
+      euler, quaternion,\n scale) of a transform. Emits two rows so the same bone
+      can be compared across spaces."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: Pose
+    Kind: Method
+    ParamCount: 7
+    ParamNames:
+    - stage
+    - label
+    - space
+    - position
+    - rotation
+    - scale
+    - (!Enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Records an explicit pose (position, rotation, scale) in the given space.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: Meta
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - label
+    - (!Enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Records a free-text metadata row (e.g. the avatar name). Null-safe:
+      null label/value are\n stored as empty strings. No-op when the session is disabled."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: Rotation
+    Kind: Method
+    ParamCount: 5
+    ParamNames:
+    - stage
+    - label
+    - space
+    - rotation
+    - (!Enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Records a bare rotation (e.g. a calibrated offset quaternion). Position
+      is zero, scale one.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: RuntimeBegin
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (!Enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Starts a fresh session that the per-frame sampler fills for RuntimeSampleFrames\n
+      frames after calibration, then auto-flushes. Reads the toggle; no-op when off.
+      Writes a\n separate \"runtime_*\" CSV so the live head solve can be compared
+      against the calibration capture."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: RuntimeBone
+    Kind: Method
+    ParamCount: 4
+    ParamNames:
+    - label
+    - target
+    - offset
+    - '!RuntimeActive'
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Records one bone's live solve for the current runtime frame: the IK
+      target rotation, the\n calibrated offset, the predicted product (target * offset)
+      and the observed bone pose."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: RuntimeEndFrame
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - playerRoot
+    - '!RuntimeActive'
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Closes the current runtime frame: records the live avatar roots, advances
+      the frame\n counter, and flushes once RuntimeSampleFrames frames have been
+      captured."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: Flush
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (!Enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Writes all recorded rows to a CSV and ends the session. No-op when
+      the session was\n never enabled or nothing was recorded. Always clears state
+      so the next Begin starts clean."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.Avatar.BasisContentTagFilter
     MemberName: BasisContentTagFilter
     Kind: Type
@@ -4213,6 +4698,39 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: ClearAll
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - OnPairingsChanged?.Invoke(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Remove every pairing. Persists and fires OnPairingsChanged\n once.
+      No-op if there are none."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
     MemberName: EnumerateCanonicalPairs
     Kind: Method
     ParamCount: 1
@@ -4371,6 +4889,38 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Remove any override for `id`. No-op if there isn't one.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: ClearAll
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - OnOverridesChanged?.Invoke(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Remove every override. No-op if there are none.
     Remarks: 
     Returns: 
     Value: 
@@ -4739,6 +5289,74 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Sets the Action's state to Inactive, with callbacks.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: CaptureOnClose
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "When false, closing the dialogue dismisses it silently instead of parking\n
+      it in the notification center."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: EnableAlternate
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - label
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Adds a third button to the dialogue between Accept and Decline. Choosing
+      it\n resolves the dialogue and invokes `onChosen` instead of the\n binary accept/decline
+      callback. The button is created at runtime so existing\n two-button callers
+      are unaffected."
     Remarks: 
     Returns: 
     Value: 
@@ -5714,6 +6332,74 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Bloom intensity override. 0 = bloom disabled, 1 = default scene bloom.\n
       Only applied when UseBloomOverride is enabled."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: new
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - '"usevolumetricfogoverride"'
+    - BasisPlatformDefault<bool>(false)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "When enabled, the volumetric fog density override is applied to all\n
+      VolumetricFogVolumeComponent overrides on existing Volumes in the scene."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: new
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - '"volumetricfogdensity"'
+    - BasisPlatformDefault<float>(0.2f)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Volumetric fog density override. 0 = fog disabled, higher = denser
+      fog.\n Only applied when UseVolumetricFogOverride is enabled."
     Remarks: 
     Returns: 
     Value: 
@@ -7291,6 +7977,37 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisHandHeldCamera
+    MemberName: ShowUIInCapture
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Instantiated material assigned to the preview renderer.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisHandHeldCamera
     MemberName: LastVisibilityState
     Kind: Field
     ParamCount: 0
@@ -7307,7 +8024,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Instantiated material assigned to the preview renderer.
+    Summary: Last visibility state reported by the mesh renderer check.
     Remarks: 
     Returns: 
     Value: 
@@ -9246,6 +9963,169 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisHandHeldCamera
+    MemberName: BasisHandHeldCamera
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 1
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Spawns a grabbable, resizable preview screen next to the handheld camera
+      that mirrors the\n camera's live feed. It exists only while the Camera HUD
+      setting is on, the user is in VR, and\n the camera is in direct-to-screen (recording-view)
+      mode \u2014 in that mode the feed lives in\n CopyCameraColorToStaticRTFeature.OutputRT
+      and the camera is already force-rendering."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisHandHeldCamera
+    MemberName: previewScreenSideOffset
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Sideways offset from the camera, in meters at default avatar scale,
+      where the screen spawns.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisHandHeldCamera
+    MemberName: previewScreenWidth
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Spawn width of the screen, in meters at default avatar scale, before
+      the user resizes it.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisHandHeldCamera
+    MemberName: previewScreenMinScalePercent
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Smallest the screen can be resized to, as a percent of its spawn size
+      (two-hand gesture).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisHandHeldCamera
+    MemberName: previewScreenMaxScalePercent
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Largest the screen can be resized to, as a percent of its spawn size
+      (two-hand gesture).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisHandHeldCameraUI
     MemberName: BasisHandHeldCameraUI
     Kind: Type
@@ -10170,7 +11050,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - BaseTypes[Index].Simulate(
+    - BaseTypes[Index]?.Simulate(
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -11471,6 +12351,42 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: 
+    MemberName: HandRotationFromLandmarks
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - wrist
+    - indexMCP
+    - wrist
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Records a bone control's rest frames (local + world outgoing, T-pose
+      local/scaled, and the\n inverse-offset-from-bone) for the calibration CSV.
+      No-op unless the developer toggle is on."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: UnityEngine.Animations.Rigging.BasisArmBendLookup
     MemberName: BasisArmBendLookup
     Kind: Type
@@ -12049,7 +12965,7 @@ MonoBehaviour:
     - hint
     - hintWeight
     - targetOffset
-    - tip.GetPosition(stream
+    - mid.GetRotation(stream
     ParamDocs:
     - The animation stream to work on.
     - The transform handle for the root transform.
@@ -12751,8 +13667,8 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
-    MemberName: OnInteractStartEvent
-    Kind: Field
+    MemberName: new
+    Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -12782,8 +13698,8 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
-    MemberName: OnInteractEndEvent
-    Kind: Field
+    MemberName: new
+    Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -14995,7 +15911,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - CanInteractInjected.AllTrue(input
+    - (!base.CanDirectGrab(input)
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -15819,6 +16735,75 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.BasisSpawnedStaticState
+    MemberName: BasisSpawnedStaticState
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Applies the server-authoritative \"static / locked\" state to a spawned
+      item by forwarding it to\n every IBasisStaticLockable on the object (pickup
+      props, vehicles, \u2026). Used by both\n the spawn path (late joiners spawning
+      an already-static item) and the runtime toggle broadcast."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.IBasisStaticLockable
+    MemberName: IBasisStaticLockable
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Implemented by components on a spawned item that can be frozen / locked
+      by the library\n \"Static\" toggle. Pickup props disable interaction and freeze
+      their rigidbody; vehicles lock\n out movement. Routing through this interface
+      keeps the framework from having to reference the\n vehicles package directly
+      (the dependency only goes the other way)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisFingerInterpolateJob
     MemberName: BasisFingerInterpolateJob
     Kind: Type
@@ -16122,6 +17107,41 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Limiter threshold (e.g., 0.95) and soft knee width (e.g., 0.05).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.BasisAppRelaunch
+    MemberName: BasisAppRelaunch
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Restarts the application and reconnects to the current server, restoring
+      the\n active device mode. In a standalone player this relaunches the process
+      with\n `--force-<mode>` and `--connection=ip:port#password` args. In the\n
+      editor it stores the intent and toggles play mode off then on, restoring the
+      same\n mode and reconnecting on the next play session."
     Remarks: 
     Returns: 
     Value: 
@@ -16612,6 +17632,178 @@ MonoBehaviour:
       the on-disk outbox is deleted as\n soon as the reports are taken for sending,
       so the same reports are never re-sent on a\n later reboot (and a crash before
       this point simply retries the unchanged outbox)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.BasisDeepLinkProvider
+    MemberName: BasisDeepLinkProvider
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Handles deep links on all platforms.\n\n Cold-start  \u2014 TryConsumeStartupLink
+      is called from\n   BasisConnectionService.TryGetBootstrapConnection before
+      the first\n   auto-connect attempt.  Reads Application.absoluteURL (mobile
+      /\n   some desktop configs) and scans CLI args for a bare scheme argument.\n\n
+      Warm-start \u2014 Application.deepLinkActivated fires while the app is\n  
+      already running.  Shows a confirmation before connecting; routes to the\n  
+      notification list in VR/DND mode rather than force-opening the menu.\n\n URL
+      format:  `scheme://host[:port][?password=xxx]`\n   Password must be in the
+      query string \u2014 URL fragments are stripped by some OSes."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.BasisDeepLinkProvider
+    MemberName: DeepLinkScheme
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 1
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "URL scheme registered with the OS. Change before building \u2014 not
+      runtime-configurable."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.
+    MemberName: TryConsumeStartupLink
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - OnDeepLinkActivated(url
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: When true, only one Windows client instance runs at a time. Change before
+      building.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.
+    MemberName: FormatDeepLink
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - host
+    - port
+    - Uri.EscapeDataString(password
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Formats a `basisvr://` invite link. Returns string.Empty if\n `host`
+      is null or empty."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.
+    MemberName: FormatDeepLink
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Formats a `basisvr://` invite link from a ServerDirectoryEntry.\n Returns
+      string.Empty if the entry has no address."
     Remarks: 
     Returns: 
     Value: 
@@ -18026,6 +19218,40 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: DeleteAllLogs
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - SendAdminRequest(AdminRequestMode.DeleteAllLogs
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Admin: ask the server to permanently delete every file under its logs/
+      and\n CrashReports/ folders \u2014 the same set RequestAllLogs pulls. The server\n
+      replies with a status message. Server-gated by basis.admin.logs."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: DisplayMessageWithFolder
     Kind: Method
     ParamCount: 2
@@ -18886,6 +20112,71 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Fired when the server-pushed camera metadata policy mask changes.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: GlobalUserRestrictionMode
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-pushed player join restriction mode (Normal / WhiteList / RejoinOnly).
+      Cached from the\n lock-state payload \u2014 sent on connect and whenever an
+      admin changes it \u2014 so the admin panel\n toggles can reflect the live server
+      state instead of always reading off."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Action
+    Kind: Event
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Fired when the server-pushed restriction mode changes.
     Remarks: 
     Returns: 
     Value: 
@@ -19890,9 +21181,11 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Client-side manager for networked PIP cameras.\n Fully static - driven
-      by BasisLocalPlayer.AfterSimulateOnLate via Simulate().\n Uses Unity Jobs (Burst-compiled
-      IJobParallelFor) for smoothing remote camera transforms.\n Spawns/destroys
-      the remote PIP prefab via Addressables."
+      by BasisLocalPlayer.AfterSimulateOnLate via Simulate().\n Smoothing (IJobParallelFor)
+      plus camera and owner-nameplate transform writes\n (IJobParallelForTransform)
+      all run Burst-compiled off the main thread. Each spawned\n camera and nameplate
+      is an independent scene root so the transform writes spread\n across worker
+      threads instead of serializing on a shared hierarchy."
     Remarks: 
     Returns: 
     Value: 
@@ -20050,8 +21343,8 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Dispose native arrays and unsubscribe from the simulation loop.\n Called
-      from BasisNetworkLifeCycle shutdown path."
+    Summary: "Dispose native containers and unsubscribe from the simulation loop.\n
+      Called from BasisNetworkLifeCycle shutdown path."
     Remarks: 
     Returns: 
     Value: 
@@ -20084,7 +21377,8 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Per-frame simulation driven by BasisLocalPlayer.AfterSimulateOnLate.\n
-      Completes the previous frame's job, applies transforms, schedules next job."
+      Smooths toward the latest network targets and writes the camera + nameplate\n
+      transforms via parallel jobs, completing them before the frame renders."
     Remarks: 
     Returns: 
     Value: 
@@ -20393,8 +21687,42 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: RemotePipNamePlate
+    MemberName: RemotePipNamePlate
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Spawn a remote PIP camera and its owner-name tag, appending them to
+      the dense SoA\n and transform arrays. Both objects are independent scene roots
+      (DontDestroyOnLoad)\n so their per-frame transform writes spread across worker
+      threads."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
-    MemberName: DeltaTime
+    MemberName: ViewerPosition
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -20410,7 +21738,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Spawn the remote PIP prefab instance for a player.
+    Summary: Local viewer (camera) world position used to bill-board the tag (yaw-only).
     Remarks: 
     Returns: 
     Value: 
@@ -21120,6 +22448,44 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: 
+    MemberName: RequestSetStatic
+    Kind: Method
+    ParamCount: 4
+    ParamNames:
+    - LoadedNetID
+    - Mode
+    - IsStatic
+    - BasisDebug.LogTag.Networking
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Asks the server to toggle the \"static / locked\" flag on an already-spawned
+      item.\n The server authorizes (item creator or moderator) and, on success,
+      rebroadcasts the\n change to every client. Mode is 0 for GameObjects, 1 for
+      scenes (matches the spawn record)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisRemoteFaceManagement
     MemberName: BasisRemoteFaceManagement
     Kind: Type
@@ -21337,10 +22703,12 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Rebuild eyeTransforms + pairToSlot for the\n current snapshot. Only
-      includes slots whose face driver reports both\n `HasEyeBones` and non-null
-      left/right transforms. Must be called\n from the main thread, and any in-flight
-      job using these arrays must\n already be complete (caller's responsibility)."
+    Summary: "Incrementally reconciles eyeTransforms + pairToSlot with the current\n
+      eye-having slots. A joining player appends a single pair; a leaving player
+      / lost eye bones is\n swap-back removed; an avatar reload re-points its pair
+      in place. pairToSlot is rewritten for every\n live pair so snapshot reorders
+      cost an int rewrite, not a transform rebind. Must run on the main\n thread
+      with any in-flight eye job already complete (caller's responsibility)."
     Remarks: 
     Returns: 
     Value: 
@@ -21647,6 +23015,43 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Called automatically before scene load to configure iOS audio session.\n
       Sets PlayAndRecord category with DefaultToSpeaker option."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.
+    MemberName: SetStaticByLoadedNetId
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - loadedNetId
+    - isStatic
+    - (string.IsNullOrWhiteSpace(loadedNetId)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Applies the server-authoritative \"static / locked\" state to a spawned
+      item: updates the\n stored record (so the library UI reflects it) and applies
+      the freeze/lock to the live\n object via any IBasisStaticLockable components
+      (pickup prop or vehicle).\n Main-thread only (touches GameObjects)."
     Remarks: 
     Returns: 
     Value: 
@@ -22277,6 +23682,87 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisAudioGizmos
+    MemberName: BasisAudioGizmos
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runtime visualisation of the remote-voice spatial-audio pipeline. Driven
+      each\n frame from SMModuleDebugOptions (under the master ShowGizmos gate)\n
+      so it appears live in VR/desktop, not just the editor scene view.\n\n Three
+      sub-toggles:\n  \u2022 Ranges     \u2014 the local listener's hearing-distance
+      sphere (wireframe), plus a\n                 per-speaker full-volume ring at
+      the AudioSource minDistance.\n  \u2022 ListenerCone \u2014 the directional-dampening
+      cone (RAListenerConeAngle) projected\n                 from the listener: inside
+      the wedge a source plays at full volume,\n                 outside it is damped
+      toward RAListenerDampenAmount.\n  \u2022 Levels       \u2014 per speaker: an
+      arrow along the Steam Audio source-forward\n                 (directivity dipole)
+      axis with a vertical loudness meter on its tip.\n                 The arrow
+      + meter fill are tinted green\u2192red by the net loudness that\n                
+      reaches you, so a red arrow on someone facing you is the \"facing me\n                
+      but quiet\" test. The meter fill rises to the speaker's live output\n                
+      (\"max volume\") under a fixed dim headroom up to full scale, and the\n                
+      label breaks every attenuation factor out as a \xD7multiplier \u2014\n                
+      per-player volume, distance rolloff, directivity, occlusion, listener\n                
+      cone, and global main volume \u2014 so you can read off what makes someone\n                
+      quiet."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisAudioGizmos
+    MemberName: Tick
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - EnsureMasterHook(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Per-frame entry point. `scale` is the local avatar scale.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: ValidSettingsChange
     Kind: Method
@@ -22667,6 +24153,39 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: SMModuleVolumetricFogOverrideURP
+    MemberName: SMModuleVolumetricFogOverrideURP
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisSettingsBase
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Accessibility settings module that controls volumetric fog density\n
+      by modifying VolumetricFogVolumeComponent overrides on all existing Volumes
+      in the scene.\n Only applies when the volumetric fog override toggle is enabled."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Streaming.BasisStreamingMetaRuntime
     MemberName: BasisStreamingMetaRuntime
     Kind: Type
@@ -22687,6 +24206,44 @@ MonoBehaviour:
     Summary: "Owns the BasisStreamingMetaServer lifecycle. Subscribes to\n BasisSettingsDefaults.EnableStreamingMeta
       so the listener\n starts/stops the moment the user flips the toggle."
     Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Streaming.
+    MemberName: ApplyFromSettings
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Re-applies the persisted BasisSettingsDefaults.EnableStreamingMeta\n
+      value once settings have been loaded from disk. Called by\n BasisSettingsDefaults.LoadAll."
+    Remarks: "Bootstrap runs at RuntimeInitializeLoadType.AfterSceneLoad,\n which
+      is before BasisSettingsDefaults.LoadAll populates the bindings, so\n the initial
+      OnEnable read sees the construction-time default (off) and\n BasisSettingsBinding{T}.LoadBindingValue
+      writes the loaded value without\n firing `OnChanged`. Without this re-apply
+      the listener would only come up after a\n manual toggle \u2014 not on startup
+      when the user already had it enabled."
     Returns: 
     Value: 
     Examples: []
@@ -25652,6 +27209,40 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.BasisUI.
+    MemberName: SetTooltip
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - value
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Sets the hover-tooltip text for this element. Unlike SetDescription,
+      this is not\n shown inline on the panel \u2014 it only appears in the tooltip
+      bar on hover."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
     MemberName: SetRichDescription
     Kind: Method
     ParamCount: 1
@@ -25747,6 +27338,44 @@ MonoBehaviour:
       natural height and minHeight).\n Call this AFTER the descriptor has been populated
       with its initial content.\n Pass a `minHeight` large enough to fit future content
       \u2014 once\n frozen, if text grows beyond this the overflow will be clipped."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: IsolateAsCanvas
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Promotes this descriptor's subtree onto its own nested Canvas so geometry\n
+      changes inside it (live stats, meters) only re-batch this group, not the whole
+      open menu.\n Pair with FreezeLayoutSize on the live fields: freeze stops the
+      per-tick\n reflow, the nested canvas stops the per-tick batch rebuild reaching
+      the root canvas.\n Inherits the parent canvas's shader channels so TMP renders
+      identically; Basis input is\n collider + per-canvas GraphicRegistry based,
+      so nested children stay interactive without\n an extra GraphicRaycaster."
     Remarks: 
     Returns: 
     Value: 
@@ -26535,6 +28164,176 @@ MonoBehaviour:
       int),\n which asks the underlying FontEngine to resolve the font file on\n
       the host OS. The first name that resolves wins. The list\n intentionally overlaps
       Windows / macOS / Linux / Android so a\n single array serves every platform."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: GetShippedJapaneseFallback
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The project's authoritative Japanese glyph source: a dynamic TMP font\n
+      asset built once from the embedded Noto Sans JP and cached, so menus,\n settings,
+      nameplates and chat share one face on every platform regardless\n of installed
+      OS fonts. Returns null if the addressable can't resolve yet."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: RefreshJapanesePriority
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - InstallFallbacks(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Wires the embedded Noto Sans JP into the global fallback list (swapping\n
+      out any OS Japanese font picked up during the early BeforeSceneLoad pass)\n
+      and re-applies language-aware CJK ordering from the resolved UI language.\n
+      Call once BasisLocalization is initialized and on every\n language change."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: ShowTooltip
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Builds the hover tooltip bar directly below the hotbar button bar.
+      It stays hidden\n until a setting is hovered (see ShowTooltip), then fades
+      in. Raise AreaHeight to grow it."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: HideTooltip
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Fade the hover tooltip bar back out.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: Open
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - BasisUIManagement.CloseAllMenus(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Stops the current tooltip fade (and its pending deactivate callback)
+      so a new fade\n can take over cleanly \u2014 e.g. re-showing while a fade-out
+      is still mid-flight."
     Remarks: 
     Returns: 
     Value: 
@@ -27420,6 +29219,142 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Set this button active until the given element is released.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: InteractableTarget
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: "The Selectable that owns this control's interactable state (dropdown,
+      toggle, slider,\n button, input field). Null for elements that have no interactive
+      control."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: interactable
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True when this control has no Selectable, or its Selectable is interactable.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: SetInteractable
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - interactable
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: "Enables or disables this control. When disabling, pass a short reason
+      describing why \u2014\n it is shown in the hover tooltip so a greyed-out control
+      explains itself instead of\n looking broken. The reason is cleared automatically
+      when the control is re-enabled."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: if
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - string.IsNullOrEmpty(Descriptor.Description
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: "Text shown in the hover tooltip bar. While disabled with a reason,
+      that reason is\n shown so a greyed-out control explains itself. Otherwise prefers
+      the element's\n description, falling back to its title \u2014 controls like
+      toggles/sliders/dropdowns\n only set a title. Override to surface something
+      more specific."
     Remarks: 
     Returns: 
     Value: 
@@ -30492,7 +32427,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - 0
+    - (!sInitialized
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -30799,6 +32734,38 @@ MonoBehaviour:
     Summary: "Cached player entity ID, captured on the main thread during TryInitialize.\n
       Used for lazy OpenLipSync slot acquisition which can be triggered from the\n
       audio thread (where GetEntityId() cannot be called)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisAudioAndVisemeDriver
+    MemberName: AudioSourceInactive
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "True when TrackedAudioSource is disabled (player not speaking).\n Maintained
+      by BasisAudioReceiver so Simulate doesn't poll the native enabled flag."
     Remarks: 
     Returns: 
     Value: 
@@ -31283,8 +33250,8 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: JiggleColliders
-    Kind: Field
+    MemberName: List
+    Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -31299,7 +33266,10 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Backing store for jiggle colliders created for the avatar rig.
+    Summary: "Backing store for jiggle colliders created for the avatar rig.\n Initialized
+      inline: the remote driver is a plain object (no Unity serialization\n to populate
+      this), so without the initializer it would be null and the jiggle\n remove/add
+      passes would dereference null."
     Remarks: 
     Returns: 
     Value: 
@@ -34329,6 +36299,8 @@ MonoBehaviour:
     ParamNames:
     - LocalPlayer.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true
     ParamDocs:
+    - Pipeline stage label (e.g. "Spawn", "TPose", "PostZero").
+    - Local player whose avatar root is recorded alongside the mapping.
     - The local player whose avatar meshes are scanned.
     BaseTypeName: 
     Interfaces: []
@@ -34341,7 +36313,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Populates SkinnedMeshRenderer and caches its length for fast loops.
+    Summary: "Null-safe label for the calibration debug session: prefers the avatar
+      GameObject name,\n falls back to the player display name, then a constant.
+      Never throws."
     Remarks: 
     Returns: 
     Value: 
@@ -34571,7 +36545,10 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Destroys all runtime objects. Safe to call multiple times.
+    Summary: "Computes the world-space vertical frame bounds from the avatar's hips
+      bone and the top\n of its renderer bounds (capped to a head-bone-relative ceiling
+      so raised arms don't blow\n the framing out), so tall heads fit and the framing
+      re-fits on avatar swap. Returns false\n when the avatar isn't ready."
     Remarks: 
     Returns: 
     Value: 
@@ -35765,7 +37742,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - UpdateSkeletonChainPositions(chainIdx
+    - BasisHeightDriver.ScaledToMatchValue
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -39461,6 +41438,109 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Call this once per LateUpdate from your driver, passing Time.deltaTime.\n
       This is the ONLY place that sets enabled/color/scale."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalPlayspaceMover
+    MemberName: BasisLocalPlayspaceMover
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Lets a VR user grab and drag (and optionally rotate/scale) their play
+      space by holding a\n configurable controller input, the way naelstrof's VRPlayspaceMover
+      does. Gated behind the\n Body Tracking \"Playspace Mover\" toggle and driven
+      each frame after character movement.\n\n The drag is applied incrementally
+      through the character controller, so it composes with\n normal locomotion instead
+      of blocking it. One held hand drags (translation). Two hands holding\n the
+      main input scale (drives the custom avatar scale, not the play space); two
+      hands holding the\n rotation input rotate (yaw). The net drag is tracked so
+      ResetOffset can undo it\n while leaving normal locomotion intact."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalPlayspaceMover
+    MemberName: CurrentOffset
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Total play-space drag currently applied (world units).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: ResetOffset
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - r
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Undoes the net play-space drag (returns to where the user was before
+      dragging),\n leaving custom scale and normal locomotion untouched."
     Remarks: 
     Returns: 
     Value: 
@@ -43191,11 +45271,46 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: GetSOutIndexMap
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Exposes the playerId\u2192dense `sOut` index map for bulk inline resolution
+      in hot\n selection loops, avoiding a TryGetSOutIndex call per player. The array
+      is\n indexed by ushort playerId; entries are -1 when absent. Read-only \u2014
+      do not mutate.\n Returns null when the system isn't initialized. Valid for
+      the current frame only."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: GetRemoteFrameArray
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - sOut.AsArray(
+    - '!sOut.IsCreated'
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -46047,6 +48162,40 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisContentSphereBillboardDriver
+    MemberName: BasisContentSphereBillboardDriver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Yaw-only billboards every content-share orb title toward the local
+      camera in a\n single Burst job. Orbs keep spinning; only the title label is
+      re-faced each frame.\n Ticked from BasisEventDriver.LateUpdateBody alongside
+      the remote nameplate jobs."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: SpawnPreloadedMessage
     Kind: Method
@@ -47672,6 +49821,73 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisObjectSyncNetworking
+    MemberName: IsStatic
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-authoritative \"static\" flag. When true the prop can't be hovered
+      or grabbed by anyone\n and is frozen (kinematic) in place. Set via the library
+      Static toggle; applied through SetStatic."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: SetStatic
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - isStatic
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Apply or release the server-authoritative static / locked state (IBasisStaticLockable).\n
+      ControlState performs the actual freeze (drop + kinematic) or the restore when
+      toggled off."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: IsLocallyEntered
     Kind: Method
@@ -48222,11 +50438,10 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Receivers.BasisAudioReceiver
-    MemberName: Insert
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - msg.TotalPlayedInSilence
+    MemberName: PerPlayerVolume
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -48323,6 +50538,71 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Receivers.
+    MemberName: ShouldAudioBeActive
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "True when a main-thread ApplyAudioState is owed: the source's\n enabled
+      state disagrees with whether real audio is queued. Safe to read off-thread."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Receivers.
+    MemberName: IsAudioActive
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "True while the voice source is enabled (and so OnAudioFilterRead is
+      running\n the level meter). Read by debug gizmos to zero a meter that would
+      otherwise\n freeze at its last value once the source is disabled between utterances."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Receivers.
     MemberName: ApplyAudioState
     Kind: Method
     ParamCount: 1
@@ -48340,7 +50620,13 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: 'Main-thread only: updates AudioSource enabled/playing state after decode.'
+    Summary: "Whether the AudioSource should currently be enabled. True while real
+      audio is\n queued, and for a short hang afterwards so brief inter-word/sentence
+      gaps don't\n disable+re-enable the source \u2014 that churn restarts Steam
+      Audio's per-source\n state and clicks on every resume. We still disable once
+      the stream has been\n fully silent for IdleResetThresholdUnits (the same point
+      the decoder resets), so\n genuinely idle players don't keep a live spatialized
+      voice source \u2014 which is\n what matters at 1000+ players."
     Remarks: 
     Returns: 
     Value: 
@@ -48901,6 +51187,47 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: EnsureSlotInitialized
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - 1
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Grows the lazily-initialized region to include `playerId` on the\n
+      main thread. BeginWrite only covers [0, LargestNetworkReceiverID+1), and that\n
+      high-water is recomputed at the tail of LateUpdate \u2014 AFTER RemoteBoneJobSystem.Schedule()\n
+      reads these slots earlier in the same LateUpdate. A remote whose avatar calibrates
+      within\n a frame of joining (cached/fallback avatars) registers a key the driver
+      hasn't covered\n yet, so the bone-copy jobs read uninitialized NativeArray
+      memory and emit a NaN pose.\n Call this at calibration, before the player is
+      registered with RemoteBoneJobSystem.\n Completes any in-flight oneEuroJob first
+      (same reason as SeedScaleState): EnsureInitialized\n writes arrays the job
+      touches."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: SeedScaleState
     Kind: Method
     ParamCount: 2
@@ -49065,6 +51392,39 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Complete scheduled jobs for the current frame.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: SkipBonesPtr
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (byte*)(void*
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Base pointer to the per-player skip flags (valid after BeginRead); null
+      if uninitialized.
     Remarks: 
     Returns: 
     Value: 
@@ -49810,6 +52170,39 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisVoiceBuffer
+    MemberName: lock
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - TargetDepthLocked(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'Per-stream pre-roll depth: user floor, grown by observed lateness,
+      capped.'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: lock
     Kind: Method
     ParamCount: 1
@@ -51045,7 +53438,8 @@ MonoBehaviour:
     ParamNames: []
     ParamDocs: []
     BaseTypeName: MonoBehaviour
-    Interfaces: []
+    Interfaces:
+    - IBasisPlayer
     IsAbstract: 1
     IsSealed: 0
     IsStatic: 0
@@ -51055,8 +53449,11 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Base component for both local and remote players within the Basis SDK.\n
-      Provides common identity, avatar, visibility, progress, and lifecycle events."
+    Summary: "Base component for the local player within the Basis SDK. The remote
+      player no\n longer derives from this type \u2014 it is a plain managed object
+      implementing\n IBasisPlayer. Shared state both players need is declared on
+      the\n interface; anything below that is not on the interface (the poll hooks,
+      mode\n constants) is local-only."
     Remarks: 
     Returns: 
     Value: 
@@ -51103,7 +53500,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: PlayerPlatform
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51134,7 +53531,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: DisplayName
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51165,7 +53562,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: UUID
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51196,7 +53593,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: SafeDisplayName
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51227,7 +53624,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: BasisAvatar
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51258,7 +53655,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: AvatarTransform
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51290,7 +53687,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: AvatarAnimatorTransform
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51321,7 +53718,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: PlayerSelf
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51337,6 +53734,130 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Cached self transform for quick access.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
+    MemberName: GameObject
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: The GameObject this player lives on.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
+    MemberName: Transform
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: The player's root transform.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
+    MemberName: AvatarParent
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Local avatars are parented under the local player.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
+    MemberName: IsDestroyed
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Local players are MonoBehaviours, so Unity's overloaded == reports destruction.
     Remarks: 
     Returns: 
     Value: 
@@ -51507,7 +54028,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: FaceIsVisible
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51538,7 +54059,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: FaceRenderer
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51601,7 +54122,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer
     MemberName: AudioReceived
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51756,7 +54277,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer+void
     MemberName: IsConsideredFallBackAvatar
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51788,7 +54309,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer+void
     MemberName: AvatarLoadMode
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -51819,7 +54340,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisPlayer+void
     MemberName: AvatarMetaData
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -52011,37 +54532,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Player.BasisPlayerFactory
-    MemberName: RemotePlayerReadyToSpawn
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Prefab asset for the remote player, loaded via Addressables by Initialize.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Player.BasisPlayerFactory
     MemberName: LocalPlayerId
     Kind: Field
     ParamCount: 0
@@ -52073,37 +54563,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Player.BasisPlayerFactory
-    MemberName: RemotePlayerId
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Addressables key for the remote player prefab.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Player.BasisPlayerFactory
     MemberName: LocalHandle
     Kind: Field
     ParamCount: 0
@@ -52121,37 +54580,6 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Addressables handle used to manage the local player prefab's lifetime.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Player.BasisPlayerFactory
-    MemberName: RemoteHandle
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Addressables handle used to manage the remote player prefab's lifetime.
     Remarks: 
     Returns: 
     Value: 
@@ -52281,8 +54709,8 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Releases Addressables handles acquired by Initialize.
-    Remarks: "After calling this, LocalPlayerReadyToSpawn and RemotePlayerReadyToSpawn\n
-      should no longer be used. Re-run Initialize to load them again."
+    Remarks: "After calling this, LocalPlayerReadyToSpawn\n should no longer be used.
+      Re-run Initialize to load it again."
     Returns: 
     Value: 
     Examples: []
@@ -52771,6 +55199,40 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.IBasisPlayer
+    MemberName: IBasisPlayer
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Shared contract for local and remote players. Lets systems hold a player\n
+      without caring whether it is a MonoBehaviour (local) or a plain\n managed object
+      (remote). Exposes the player's backing GameObject\n and Transform explicitly
+      so callers never depend on the\n implementation being a Unity component."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalPlayer
     MemberName: BasisLocalPlayer
     Kind: Type
@@ -52887,6 +55349,38 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: File name used to persist the last-used avatar reference.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalPlayer
+    MemberName: CurrentAvatarUniqueID
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Stable identifier of the avatar currently worn, used to key per-avatar
+      persisted state.
     Remarks: 
     Returns: 
     Value: 
@@ -54069,7 +56563,7 @@ MonoBehaviour:
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    BaseTypeName: BasisPlayer
+    BaseTypeName: IBasisPlayer
     Interfaces: []
     IsAbstract: 0
     IsSealed: 0
@@ -54083,10 +56577,12 @@ MonoBehaviour:
     Summary: "Remote (non-local) player representation used by the Basis SDK.\n Handles
       avatar creation/loading, remote eye/bone driving, network pose consumption,\n
       mesh LOD adjustments, and remote name plate lifecycle."
-    Remarks: "This class owns a number of runtime-only components and addressable
-      resources.\n Call OnDestroy to dispose drivers and release addressable instances\n
-      created during RemoteInitialize(ClientAvatarChangeMessage, ClientMetaDataMessage,
-      string)."
+    Remarks: "Unlike the local player, this is a plain managed object (not a MonoBehaviour)\n
+      with no dedicated root GameObject. The avatar, nameplate, and mouth marker
+      are each\n independent scene roots positioned by the bone job system, so their
+      transform writes\n spread across worker threads. Because it is not a UnityEngine.Object,
+      lifecycle is\n explicit: the disconnect path calls OnDestroy to release the
+      nameplate and\n mouth (the avatar is unloaded separately by the avatar factory)."
     Returns: 
     Value: 
     Examples: []
@@ -54100,6 +56596,101 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+    MemberName: GameObject
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The remote player has no dedicated root object. The \"Mouth\" marker
+      is a stable\n per-player transform (job-positioned, alive for the player's
+      whole lifetime), so it\n doubles as the anchor for Transform/GameObject."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+    MemberName: AvatarParent
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Remote avatars are scene roots (no parent) so the bone jobs parallelize.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+    MemberName: IsDestroyed
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True once OnDestroy has run. Used in place of Unity's `this == null`.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: BasisRemoteAvatarDriver
     Kind: Method
     ParamCount: 0
@@ -54131,7 +56722,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: NetworkReceiver
     Kind: Field
     ParamCount: 0
@@ -54163,9 +56754,9 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
-    MemberName: RemoteFaceDriver
-    Kind: Field
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
+    MemberName: BasisRemoteFaceDriver
+    Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -54194,7 +56785,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: OnAvatarFailedStateChanged
     Kind: Field
     ParamCount: 0
@@ -54226,7 +56817,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: OnChatMessageReceived
     Kind: Field
     ParamCount: 0
@@ -54258,7 +56849,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: OnChatTypingStateChanged
     Kind: Field
     ParamCount: 0
@@ -54289,7 +56880,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: OnNamePlateActiveStateShouldRefresh
     Kind: Field
     ParamCount: 0
@@ -54321,7 +56912,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: TalkMode
     Kind: Field
     ParamCount: 0
@@ -54353,7 +56944,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.
     MemberName: OnTalkModeChanged
     Kind: Field
     ParamCount: 0
@@ -54610,7 +57201,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.
-    MemberName: AvatarRangeDebounceSeconds
+    MemberName: PendingRangeActive
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -54623,7 +57214,7 @@ MonoBehaviour:
     IsPartial: 0
     IsMemberStatic: 0
     IsMemberReadOnly: 0
-    IsMemberConst: 1
+    IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Debounce state for avatar range transitions. View-cone and avatar-cap
@@ -55122,9 +57713,8 @@ MonoBehaviour:
       this\n remote as if no limits were enabled. Set from the individual-player
       menu\n so the local user can look at a specific avatar at full fidelity without\n
       touching their global caps or the session-wide\n Basis.Scripts.Avatar.BasisAvatarPerformanceLimits.BypassAllLimits\n
-      toggle. Deliberately System.NonSerializedAttribute \u2014 resets\n to false
-      every launch, every reconnect, and every fresh player join, so\n there's no
-      accidental \"I forgot I disabled the filter for Alice\"."
+      toggle. Resets to false every launch, every reconnect, and every fresh\n player
+      join, so there's no accidental \"I forgot I disabled the filter for Alice\"."
     Remarks: 
     Returns: 
     Value: 
@@ -55355,7 +57945,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - RemoteFaceDriver.OnDestroy(
+    - (IsDestroyed
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -55368,8 +57958,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Disposes owned drivers and releases addressable instances (name plate,
-      bone jobs).
+    Summary: "Disposes owned drivers and releases addressable instances (name plate,
+      bone jobs).\n No longer a Unity message \u2014 the disconnect path calls this
+      explicitly before\n destroying the owned root GameObject."
     Remarks: 
     Returns: 
     Value: 
@@ -55613,9 +58204,8 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.UI.NamePlate.
     MemberName: RefreshActiveState
     Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - gameObject.SetActive(BasisRemoteNamePlateDriver.ShouldPlateBeActive(this)
+    ParamCount: 0
+    ParamNames: []
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -55932,6 +58522,43 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Updates gameObject.SetActive on all plates based on current visibility
       state.\n Call only on state transitions, not every frame."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: BakeNameMesh
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - displayName
+    - filter
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Bakes a display name into a combined rounded-quad + text mesh and assigns
+      it to\n the given filter/renderer. Shared by the remote player nameplate and
+      any other\n consumer that wants a standalone name label. Returns false if the
+      baking assets\n aren't loaded yet so the caller can retry."
     Remarks: 
     Returns: 
     Value: 
@@ -57162,101 +59789,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.
-    MemberName: ChildLayoutOptions
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Layout options must be applied immediately after through ApplyLayoutOptions().
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.BasisUI.
-    MemberName: Direction
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Direction is handled via Horizontal/Vertical Layout Groups and cannot
-      be changed at runtime.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.BasisUI.
-    MemberName: Direction
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Direction is handled via Horizontal/Vertical Layout Groups and should
-      not be changed.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: Basis.BasisUI.LayoutContainerOptions
     MemberName: Constrained
     Kind: Field
@@ -58234,7 +60766,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - BasisMainMenu.Instance.ActiveMenu.ReleaseInstance(
+    - BasisMainMenu.CloseActivePanel(
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -58636,11 +61168,11 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.BasisUI.
-    MemberName: SyncUiFromSnapshot
+    MemberName: RefreshMicrophoneDeviceEntries
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - sliderMicrophoneVolume.SetValueWithoutNotify(s.Volume01
+    - dropdownMicrophoneSelection.SetValueWithoutNotify(SMDMicrophone.Current.Microphone
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -59249,6 +61781,47 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: Executes all compiled actions for a role given current and last input
       states.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: UpdatePlayerControlForRole
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - 0
+    ParamDocs:
+    - The role whose actions will be executed.
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Dispatches a role's actions once per frame using the combined input
+      state of every device\n currently holding that role. This makes edge-triggered
+      actions (menu toggle, mic, jump) fire\n exactly once per role even when two
+      devices share a hand role \u2014 e.g. a duplicate controller\n left over from
+      a SteamVR reconnect, or hand-tracking coexisting with a controller. Booleans\n
+      are OR'd across holders so either one can trigger an edge (see BasisInputState.MergeFrom).\n
+      With a single holder (the common case) the aggregate equals that device, so
+      behaviour is\n unchanged. Used for roles that may legitimately have multiple
+      holders; other roles dispatch\n directly through UpdatePlayerControl."
     Remarks: 
     Returns: 
     Value: 
@@ -61591,7 +64164,7 @@ MonoBehaviour:
     ParamCount: 2
     ParamNames:
     - true
-    - LastInputState
+    - (HasPlayerControlSupport
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -63217,6 +65790,43 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: Copies this state into `target` and triggers appropriate change events
       in the target.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
+    MemberName: MergeFrom
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - other
+    ParamDocs:
+    - The state to merge into this one.
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "OR/max-merges another device's state into this one. Used to combine
+      multiple devices\n that share a hand role into a single aggregated dispatch,
+      so an edge action fires once\n for the role instead of once per device. Booleans
+      are OR'd, triggers take the max, and\n each 2D axis takes the larger-magnitude
+      of the two so an idle second device does not\n cancel out the active one."
     Remarks: 
     Returns: 
     Value: 
@@ -66472,7 +69082,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - nameplateGroup.SetDescription(BasisLocalization.Get("settings.nameplates.description")
+    - nameplateGroup.SetTitle(BasisLocalization.Get("settings.nameplates.title")
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -66731,6 +69341,37 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: ApplyHrtfProfile
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Applies the user-selected HRTF profile to the Steam Audio listener.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.BasisUI.SettingsProviderTrackerSettings
     MemberName: SettingsProviderTrackerSettings
     Kind: Type
@@ -66817,7 +69458,7 @@ MonoBehaviour:
     - title
     - binding
     - initialColor
-    - group.SetTitle(title
+    - group.SetTooltip(Basis.BasisUI.BasisLocalization.Get("settings.uiStyle.colorPicker.tooltip")
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -74501,8 +77142,9 @@ MonoBehaviour:
   - TypeFullName: Basis.EventDriver.
     MemberName: Update
     Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    ParamCount: 1
+    ParamNames:
+    - BasisDebug.LogTag.Event
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -74536,7 +77178,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - BasisSceneFactory.Simulate(fixedDeltaTime
+    - BasisDebug.LogTag.Event
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -74568,7 +77210,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - ProfileLateUpdateInit(
+    - BasisDebug.LogTag.Event
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -75147,6 +77789,156 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: CreateTextGizmo
+    Kind: Method
+    ParamCount: 5
+    ParamNames:
+    - GizmoName
+    - linkedID
+    - position
+    - text
+    - CreateNewID(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Creates a world-space text label. Built in code (no prefab); the TMP
+      component\n picks up the project's default font. Drive it each frame with\n
+      UpdateTextGizmo (which billboards + recolors only on change)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: UpdateTextGizmo
+    Kind: Method
+    ParamCount: 6
+    ParamNames:
+    - linkedID
+    - position
+    - rotation
+    - scale
+    - text
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Updates a text label's pose, scale, text and color in one call. Text
+      and color\n are only re-applied when they actually changed, so a static label
+      costs just a\n transform write (cheap billboard) per frame. `rotation` is\n
+      typically a billboard facing the listener camera."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: BillboardRotation
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - worldPos
+    - 1e-6f
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Rotation that faces a world point toward a camera, upright. Shared
+      by every\n gizmo system that billboards a text label so the math lives in one
+      place."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: UpdateGizmoColor
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - linkedID
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Recolors an existing gizmo (sphere or line) in place. Sphere gizmos
+      own an\n Instantiated material so mutating its color is safe; line gizmos carry
+      color\n as per-renderer vertex colors (startColor/endColor), independent of
+      the shared\n line material. Use for gizmos whose color encodes a live value
+      each frame\n (e.g. audio gain) \u2014 cheaper and alloc-free compared to SetLineGizmoGradient."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: SetGizmoActive
     Kind: Method
     ParamCount: 2
@@ -75244,6 +78036,108 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisTextGizmos
+    MemberName: BasisTextGizmos
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: MonoBehaviour
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "World-space debug text label for a gizmo. Created in code (no prefab)
+      so the\n text system is self-contained; the underlying TMP_Text picks up\n
+      the project's default TMP font on AddComponent. Per-frame mutations are cached\n
+      so a label whose value hasn't changed does not re-tessellate the text mesh
+      or\n touch the color buffer."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Apply
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - position
+    - rotation
+    - scale
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Sets pose + uniform scale in a single transform write.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: SetText
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _lastText
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Only re-assigns text when the string actually changed (TMP rebuilds
+      the mesh on set).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.OpenVR.BasisOpenVRInput
     MemberName: BasisOpenVRInput
     Kind: Type
@@ -75299,6 +78193,41 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: SteamVR/OpenVR init. Mirrors your controller-style init.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.OpenVR.BasisOpenVRManagement
+    MemberName: IsInUse
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Maps a live device index to the uniqueID it was created with, captured
+      at connect.\n On disconnect the device index may be dead and its render-model
+      property unreadable, so\n recomputing the uniqueID can produce a different
+      string, miss the teardown, and strand the\n old input object on its hand role.
+      Looking the id up here makes teardown target the exact\n object that was created."
     Remarks: 
     Returns: 
     Value: 
@@ -76943,6 +79872,40 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Network.Core.BasisNetworkCommons
+    MemberName: ModifyResourceChannel
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 1
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Modify an already-spawned resource's flags (e.g. Static). Client\u2192server
+      request;\n the server authorizes (item creator or moderator) then rebroadcasts
+      to all clients.\n Id is 55 (not contiguous with the other resource channels)
+      because 29-54 were\n already taken when this was added."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Network.Core.BasisNetworkCommons
     MemberName: ContentShareChannel
     Kind: Field
     ParamCount: 0
@@ -78335,6 +81298,69 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Configuration
+    MemberName: ApiEnabled
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Set to true to enable the REST management API.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Configuration
+    MemberName: ApiKey
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Bearer token required on every API request. Empty string disables the
+      API even if ApiEnabled is true.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Configuration
     MemberName: LoadFromXml
     Kind: Method
     ParamCount: 1
@@ -79438,6 +82464,43 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: 
+    MemberName: SetStatic
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - modifyResource
+    - '[{modifyResource.LoadedNetID}]"'
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Toggle the server-authoritative \"Static\" flag on an already-spawned
+      resource.\n Only the item's creator or a moderator (protection permission)
+      may change it.\n On success the new state is stored and rebroadcast to every
+      client (and replayed\n to late joiners via SendOutAllResources, which serializes
+      the whole record)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisNetworkServerLibrary
     MemberName: SendLibraryToPeer
     Kind: Method
@@ -79726,7 +82789,7 @@ MonoBehaviour:
     ParamCount: 2
     ParamNames:
     - serverSideSyncPlayerMessage
-    - serverSideSyncPlayerMessage.Serialize(Writer
+    - (!NetworkServer.CheckValidated(Writer)
     ParamDocs:
     - 
     - 
@@ -87099,6 +90162,167 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: SerializableBasis+ModifyResource
+    MemberName: ModifyResource
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Client\u2192server request to change a flag on an already-spawned resource,
+      and the\n server\u2192client broadcast that applies the change on every client.
+      Carries the static-lock\n state: Static freezes the item for everyone; StaticAdminLocked\n
+      marks it as the admin tier (only a moderator, not the creator, may change or
+      clear it)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: SerializableBasis+ModifyResource
+    MemberName: LoadedNetID
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Unique network id of the spawned resource to modify.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: SerializableBasis+ModifyResource
+    MemberName: Mode
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 0 = GameObject, 1 = Scene (matches LocalLoadResource.Mode).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: SerializableBasis+ModifyResource
+    MemberName: Static
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Desired frozen state (pickup disabled + frozen for props, locked out
+      for vehicles).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: SerializableBasis+ModifyResource
+    MemberName: StaticAdminLocked
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'Desired admin tier: when true only a moderator may change it, and it
+      implies Static.'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Network.Core.PermissionBitsetMap
     MemberName: PermissionBitsetMap
     Kind: Type
@@ -87516,6 +90740,72 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "normal users can't remove these items\n never net written just handled
       by server"
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: SerializableBasis+LocalLoadResource
+    MemberName: Static
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "when true this item is \"static\": pickup is disabled for everyone
+      and the object is\n frozen in place (vehicles are locked out). Server-authoritative,
+      set via ModifyResource."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: SerializableBasis+LocalLoadResource
+    MemberName: StaticAdminLocked
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "when true the static lock is \"admin tier\": only a moderator (not
+      the item's creator) may\n change or clear it, and it implies Static is also
+      true. Distinct from\n IsAdminLocked, which is the removal lock."
     Remarks: 
     Returns: 
     Value: 
@@ -90921,6 +94211,139 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Clamp, set, and report whether the value actually changed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.BasisRejoinLockManager
+    MemberName: BasisRejoinLockManager
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runtime-only \"rejoin-only\" lockdown. While the restriction mode is\n
+      BasisNetworkCore.Security.BasisUserRestrictionMode.RejoinOnly, only the UUIDs\n
+      captured at the moment the mode was enabled may (re)connect \u2014 nobody new.
+      The set persists\n through disconnects (so a captured player can leave and
+      rejoin) and never grows. It is not\n persisted to disk; a restart normalizes
+      the mode back to Normal and the set starts empty."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.BasisRejoinLockManager
+    MemberName: CaptureCurrentPopulation
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Snapshot every currently-authenticated peer's UUID as the allowed set.\n
+      Called when the restriction mode transitions to RejoinOnly."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
+    MemberName: Clear
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _allowed.Clear(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Drop the captured set (mode changed away from RejoinOnly).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
+    MemberName: IsAllowed
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _allowed.ContainsKey(uuid
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True if this UUID was connected when the lockdown was enabled.
     Remarks: 
     Returns: 
     Value: 

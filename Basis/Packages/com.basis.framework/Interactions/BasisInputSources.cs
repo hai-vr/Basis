@@ -158,6 +158,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return primary;
         }
 
+        public static bool IsInteractionRole(BasisBoneTrackedRole role)
+        {
+            return role == BasisBoneTrackedRole.CenterEye
+                || role == BasisBoneTrackedRole.LeftHand
+                || role == BasisBoneTrackedRole.RightHand;
+        }
+
         public bool SetInputByRole(BasisInput input, BasisInteractInputState state)
         {
             var created = BasisInputWrapper.TryNewTracking(input, state, out BasisInputWrapper wrapper);
@@ -179,7 +186,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     rightHand = wrapper;
                     return true;
                 default:
-                    BasisDebug.LogError("Unable to Create [TryNewTracking]", BasisDebug.LogTag.Device);
                     return false;
             }
         }

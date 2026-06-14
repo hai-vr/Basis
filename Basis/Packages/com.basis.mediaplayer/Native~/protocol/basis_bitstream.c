@@ -83,8 +83,8 @@ int basis_avcc_to_annexb(const uint8_t* in, int in_len, int nls, uint8_t* out, i
         uint32_t nlen = 0;
         for (int k = 0; k < nls; ++k) nlen = (nlen << 8) | in[ip + k];
         ip += nls;
-        if (nlen == 0 || ip + (int)nlen > in_len) break;
-        if (op + 4 + (int)nlen > out_cap) return -1;
+        if (nlen == 0 || nlen > (uint32_t)(in_len - ip)) break;
+        if (op > out_cap - 4 || nlen > (uint32_t)(out_cap - op - 4)) return -1;
         memcpy(out + op, kStartCode, 4);
         op += 4;
         memcpy(out + op, in + ip, nlen);
@@ -168,6 +168,10 @@ int basis_adts_parse(const uint8_t* p, int len, basis_adts_t* out) {
     out->header_len = protection_absent ? 7 : 9;
     if (frame_len < out->header_len) return -1;
     return 0;
+}
+
+int basis_aac_channels_from_config(int config) {
+    return config == 7 ? 8 : config;
 }
 
 int basis_aac_build_asc(int object_type, int sample_rate, int channels, uint8_t out[2]) {
