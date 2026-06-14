@@ -521,6 +521,19 @@ namespace Basis.BasisUI
 
         private static void BuildTuningSliders(RectTransform parent)
         {
+            // Calibration tolerance: widens every constellation accept region at once. The
+            // one knob most users will reach for — bump it if a tracker refuses to bind
+            // during full-body calibration (atypical proportions, high-mounted trackers, a
+            // wide stance, or an imperfect T-pose).
+            PanelSlider calibrationTolerance = PanelSlider.CreateAndBind(parent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("trackerLinking.tuning.calibrationTolerance"),
+                    1f, 3f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.CalibrationTolerance);
+            if (calibrationTolerance != null)
+            {
+                calibrationTolerance.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.tuning.calibrationTolerance.tooltip"));
+            }
+
             // Surprise penalty: how aggressively a glitching half loses authority.
             PanelSlider penalty = PanelSlider.CreateAndBind(parent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("trackerLinking.tuning.surprisePenalty"),
@@ -639,6 +652,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PairingDistanceEmaAlpha.ResetToDefault();
             BasisSettingsDefaults.PairingWeightSmoothing.ResetToDefault();
             BasisSettingsDefaults.PairingRotationHalfLife.ResetToDefault();
+            BasisSettingsDefaults.CalibrationTolerance.ResetToDefault();
             BasisTrackerRoleOverride.ClearAll();
             BasisTrackerPairing.ClearAll();
             BasisTrackerIdentifyGizmos.ClearAll();

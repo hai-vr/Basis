@@ -991,6 +991,10 @@
       "value": "How much the paired tracker's rotation is smoothed to reduce jitter."
     },
     {
+      "key": "trackerLinking.tuning.calibrationTolerance.tooltip",
+      "value": "Widen every tracker's calibration accept zone. Raise this if a tracker won't bind during full-body calibration."
+    },
+    {
       "key": "settings.nameplates.show.tooltip",
       "value": "Display floating name labels above other players in the world."
     },
@@ -1985,6 +1989,14 @@
     {
       "key": "trackerLinking.tuning.rotationHalfLife.description",
       "value": "Temporal smoothing for the linked pair's fused rotation. Higher = smoother hips but more rotational lag; lower = snappier when the two trackers flex apart. 0 = no smoothing. Default: 0.08 s."
+    },
+    {
+      "key": "trackerLinking.tuning.calibrationTolerance",
+      "value": "Calibration Tolerance"
+    },
+    {
+      "key": "trackerLinking.tuning.calibrationTolerance.description",
+      "value": "Multiplies the size of every body-part accept zone used when matching trackers to roles during full-body calibration. Higher = more forgiving of unusual body proportions, high-mounted trackers, a wide stance, or an imperfect T-pose, at the cost of occasional mis-assignment. Default: 1."
     },
     {
       "key": "menu.exit.dialog.title",

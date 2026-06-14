@@ -13,9 +13,9 @@ using UnityEngine;
 /// Three sub-toggles:
 ///  • Ranges     — the local listener's hearing-distance sphere (wireframe), plus a
 ///                 per-speaker full-volume ring at the AudioSource minDistance.
-///  • ListenerCone — the directional-dampening cone (RAListenerConeAngle) projected
-///                 from the listener: inside the wedge a source plays at full volume,
-///                 outside it is damped toward RAListenerDampenAmount.
+///  • ListenerCone — the listener directional-dampening pattern (RAListenerConeAngle /
+///                 RAListenerDampenAmount) drawn as a polar curve around the listener:
+///                 full radius ahead, near-full at the sides, pinching to the rear floor.
 ///  • Levels       — per speaker: an arrow along the Steam Audio source-forward
 ///                 (directivity dipole) axis with a vertical loudness meter on its tip.
 ///                 The arrow + meter fill are tinted green→red by the net loudness that
@@ -36,13 +36,11 @@ public static class BasisAudioGizmos
     public static bool ShowLabels;
 
     private const int RingSegments = 28;
+    private const int DirectivitySegments = 48;
     private const float ArrowBaseLength = 0.45f;   // metres, before avatar-scale
     private const float TipBaseSize = 0.05f;
     private const float LineBaseWidth = 0.006f;
-    private const float ConeLength = 2.5f;          // how far to project the cone wedge
-    // The cone apex would otherwise sit exactly on the listener camera, so every
-    // spoke converges on the near plane and clutters/clips the view. Push it forward.
-    private const float ConeApexOffset = 0.6f;
+    private const float DirectivityRadius = 2.5f;   // forward reach of the listener directivity curve
     private const float LabelBaseScale = 0.025f;
     private const float LabelBaseHeight = 0.12f;    // lift above the anchor point
     private const float LevelBarHeight = 0.4f;      // metres of bar for a full-scale (1.0) peak
@@ -80,10 +78,11 @@ public static class BasisAudioGizmos
 
     // Listener-centric gizmos (created once, repositioned each frame).
     private static int _hearingRingX = -1, _hearingRingY = -1, _hearingRingZ = -1;
-    private static int _coneStar = -1, _coneRing = -1;
+    private static int _dirRingH = -1, _dirRingV = -1;
     private static int _hearingLabel = -1, _coneLabel = -1;
     private static int _lastHearingMeters = int.MinValue;
     private static int _lastConeDegrees = int.MinValue;
+    private static int _lastConeRearPct = int.MinValue;
     private static string _hearingLabelText = "";
     private static string _coneLabelText = "";
 
@@ -92,7 +91,7 @@ public static class BasisAudioGizmos
 
     // Reused so per-frame ring/star rebuilds don't allocate.
     private static readonly Vector3[] _ringScratch = new Vector3[RingSegments];
-    private static readonly Vector3[] _coneScratch = new Vector3[9];
+    private static readonly Vector3[] _dirScratch = new Vector3[DirectivitySegments];
 
     // Reused for the (throttled) breakdown label so a rebuild doesn't allocate a builder.
     private static readonly System.Text.StringBuilder _levelText = new System.Text.StringBuilder(160);
@@ -132,12 +131,13 @@ public static class BasisAudioGizmos
         DestroyId(ref _hearingRingX);
         DestroyId(ref _hearingRingY);
         DestroyId(ref _hearingRingZ);
-        DestroyId(ref _coneStar);
-        DestroyId(ref _coneRing);
+        DestroyId(ref _dirRingH);
+        DestroyId(ref _dirRingV);
         DestroyId(ref _hearingLabel);
         DestroyId(ref _coneLabel);
         _lastHearingMeters = int.MinValue;
         _lastConeDegrees = int.MinValue;
+        _lastConeRearPct = int.MinValue;
     }
 
     // ── Listener-centric: hearing sphere + dampening cone ───────────────────
@@ -200,33 +200,58 @@ public static class BasisAudioGizmos
             // A 360° cone means "no dampening anywhere" — nothing meaningful to draw.
             if (coneAngle >= 360f)
             {
-                DestroyId(ref _coneStar);
-                DestroyId(ref _coneRing);
+                DestroyId(ref _dirRingH);
+                DestroyId(ref _dirRingV);
                 DestroyId(ref _coneLabel);
             }
             else
             {
-                // Apex pushed forward off the camera so the spokes don't converge on
-                // the near plane (the reported clipping/clutter).
-                Vector3 apex = listenerPos + fwd * (ConeApexOffset * scale);
-                BuildCone(apex, fwd, coneAngle * 0.5f, out Vector3 ringCenter);
-                EnsureStar(ref _coneStar, "AudioListenerCone", width, ConeColor);
-                BasisGizmoManager.UpdateLineGizmo(_coneStar, _coneScratch);
+                float dampenPercent = Mathf.Clamp(BasisSettingsDefaults.RAListenerDampenAmount.RawValue, 1f, 95f);
+                float minVolume = 1f - dampenPercent / 100f;
+                float halfConeRad = coneAngle * 0.5f * Mathf.Deg2Rad;
+                float cosHalfCone = Mathf.Cos(halfConeRad);
+                float radius = DirectivityRadius * scale;
 
-                float ringRadius = ConeLength * Mathf.Tan(Mathf.Min(89f, coneAngle * 0.5f) * Mathf.Deg2Rad);
-                BuildCircle(ringCenter, fwd, ringRadius);
-                EnsureRing(ref _coneRing, "AudioListenerConeRing", width, ConeColor);
-                BasisGizmoManager.UpdateLineGizmo(_coneRing, _ringScratch);
+                Vector3 right = Vector3.Cross(Vector3.up, fwd);
+                if (right.sqrMagnitude < 1e-5f)
+                {
+                    right = Vector3.Cross(Vector3.forward, fwd);
+                }
+                right.Normalize();
+                Vector3 up = Vector3.Cross(fwd, right).normalized;
+
+                BuildDirectivityCurve(listenerPos, fwd, right, radius, minVolume, cosHalfCone, halfConeRad);
+                if (_dirRingH <= 0)
+                {
+                    BasisGizmoManager.CreateLineGizmo("AudioDirectivityH", out _dirRingH, _dirScratch, width, ConeColor, true);
+                }
+                else
+                {
+                    BasisGizmoManager.UpdateLineGizmo(_dirRingH, _dirScratch);
+                }
+
+                BuildDirectivityCurve(listenerPos, fwd, up, radius, minVolume, cosHalfCone, halfConeRad);
+                if (_dirRingV <= 0)
+                {
+                    BasisGizmoManager.CreateLineGizmo("AudioDirectivityV", out _dirRingV, _dirScratch, width, ConeColor, true);
+                }
+                else
+                {
+                    BasisGizmoManager.UpdateLineGizmo(_dirRingV, _dirScratch);
+                }
 
                 if (ShowLabels)
                 {
                     int deg = Mathf.RoundToInt(coneAngle);
-                    if (deg != _lastConeDegrees)
+                    int rearPct = Mathf.RoundToInt(minVolume * 100f);
+                    if (deg != _lastConeDegrees || rearPct != _lastConeRearPct)
                     {
                         _lastConeDegrees = deg;
-                        _coneLabelText = $"Voice cone {deg}°";
+                        _lastConeRearPct = rearPct;
+                        _coneLabelText = $"Voice {deg}° · rear {rearPct}%";
                     }
-                    UpdateLabel(ref _coneLabel, "AudioConeLabel", ringCenter, _coneLabelText, ConeColor, scale);
+                    Vector3 anchor = listenerPos + fwd * radius;
+                    UpdateLabel(ref _coneLabel, "AudioConeLabel", anchor, _coneLabelText, ConeColor, scale);
                 }
                 else
                 {
@@ -236,8 +261,8 @@ public static class BasisAudioGizmos
         }
         else
         {
-            DestroyId(ref _coneStar);
-            DestroyId(ref _coneRing);
+            DestroyId(ref _dirRingH);
+            DestroyId(ref _dirRingV);
             DestroyId(ref _coneLabel);
         }
     }
@@ -502,36 +527,40 @@ public static class BasisAudioGizmos
     }
 
     /// <summary>
-    /// Star polyline radiating from the apex out to the 4 cone edges and the centre
-    /// axis, drawn with one LineRenderer by returning to the apex between each spoke.
+    /// Fills <see cref="_dirScratch"/> with a closed polar curve of the listener
+    /// directional-dampening multiplier in the plane spanned by (fwd, planePerp): the
+    /// radius at each angle is the gain a source there would receive, so the loop is full
+    /// radius ahead, near-full at the sides, and pinches to the rear floor (minVolume)
+    /// directly behind. Mirrors <c>BasisDirectionalDampenJob</c> so the picture matches
+    /// the audio.
     /// </summary>
-    private static void BuildCone(Vector3 apex, Vector3 fwd, float halfAngle, out Vector3 ringCenter)
+    private static void BuildDirectivityCurve(Vector3 center, Vector3 fwd, Vector3 planePerp, float radius, float minVolume, float cosHalfCone, float halfConeRad)
     {
-        Vector3 up = Vector3.Cross(fwd, Vector3.right);
-        if (up.sqrMagnitude < 1e-4f)
+        float span = Mathf.PI - halfConeRad;
+        float invSpan = span > 1e-5f ? 1f / span : 0f;
+        float step = (Mathf.PI * 2f) / DirectivitySegments;
+        for (int i = 0; i < DirectivitySegments; i++)
         {
-            up = Vector3.Cross(fwd, Vector3.up);
+            float phi = i * step;
+            float c = Mathf.Cos(phi);
+            float s = Mathf.Sin(phi);
+
+            float gain;
+            if (c >= cosHalfCone)
+            {
+                gain = 1f;
+            }
+            else
+            {
+                float theta = Mathf.Acos(Mathf.Clamp(c, -1f, 1f));
+                float u = Mathf.Clamp01((theta - halfConeRad) * invSpan);
+                float falloff = u * u * (3f - 2f * u);
+                gain = Mathf.Lerp(1f, minVolume, falloff);
+            }
+
+            Vector3 dir = fwd * c + planePerp * s;
+            _dirScratch[i] = center + dir * (radius * gain);
         }
-        up.Normalize();
-        Vector3 right = Vector3.Cross(up, fwd).normalized;
-
-        Vector3 eUp = apex + (Quaternion.AngleAxis(-halfAngle, right) * fwd) * ConeLength;
-        Vector3 eDown = apex + (Quaternion.AngleAxis(halfAngle, right) * fwd) * ConeLength;
-        Vector3 eLeft = apex + (Quaternion.AngleAxis(-halfAngle, up) * fwd) * ConeLength;
-        Vector3 eRight = apex + (Quaternion.AngleAxis(halfAngle, up) * fwd) * ConeLength;
-        Vector3 center = apex + fwd * ConeLength;
-
-        _coneScratch[0] = apex;
-        _coneScratch[1] = eUp;
-        _coneScratch[2] = apex;
-        _coneScratch[3] = eDown;
-        _coneScratch[4] = apex;
-        _coneScratch[5] = eLeft;
-        _coneScratch[6] = apex;
-        _coneScratch[7] = eRight;
-        _coneScratch[8] = center;
-
-        ringCenter = center;
     }
 
     private static Color GainColor(float gain)
@@ -549,14 +578,6 @@ public static class BasisAudioGizmos
         if (id <= 0)
         {
             BasisGizmoManager.CreateLineGizmo(name, out id, _ringScratch, width, color, true);
-        }
-    }
-
-    private static void EnsureStar(ref int id, string name, float width, Color color)
-    {
-        if (id <= 0)
-        {
-            BasisGizmoManager.CreateLineGizmo(name, out id, _coneScratch, width, color, false);
         }
     }
 
@@ -629,9 +650,10 @@ public static class BasisAudioGizmos
         }
         _speakers.Clear();
         _hearingRingX = _hearingRingY = _hearingRingZ = -1;
-        _coneStar = _coneRing = -1;
+        _dirRingH = _dirRingV = -1;
         _hearingLabel = _coneLabel = -1;
         _lastHearingMeters = int.MinValue;
         _lastConeDegrees = int.MinValue;
+        _lastConeRearPct = int.MinValue;
     }
 }

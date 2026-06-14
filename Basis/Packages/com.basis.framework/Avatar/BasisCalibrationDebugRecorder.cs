@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -114,6 +117,55 @@ namespace Basis.Scripts.Drivers
                 return;
             }
             Add(stage, label, space, Vector3.zero, rotation, Vector3.one, note);
+        }
+
+        /// <summary>
+        /// Records one FB tracker's offset capture (issue #531). Emits, under stage "OffsetCapture"
+        /// and label=role, the virtualized device/bone-local poses <see cref="BasisInput.CalculateOffset"/>
+        /// now uses (ScaledDeviceCoord, OutGoing local, OutgoingWorld, TposeLocalScaled), the live Unity
+        /// transform world pose the old path read, the player root, and BOTH the legacy world-space
+        /// inverse offset and the virtualized local-space offset so the two can be compared pass-to-pass
+        /// after a tracker is moved and recalibrated.
+        /// </summary>
+        public static void OffsetCapture(BasisInput input, BasisLocalBoneControl bone)
+        {
+            if (!Enabled || input == null || bone == null)
+            {
+                return;
+            }
+            string role = input.TryGetRole(out var resolved) ? resolved.ToString() : "(none)";
+            string note = input.UniqueDeviceIdentifier;
+
+            input.transform.GetPositionAndRotation(out Vector3 trackerWorldPos, out Quaternion trackerWorldRot);
+            Add("OffsetCapture", role, "trackerWorld", trackerWorldPos, trackerWorldRot, Vector3.one, note);
+
+            var scaled = input.ScaledDeviceCoord;
+            Add("OffsetCapture", role, "trackerScaledLocal", scaled.position, scaled.rotation, Vector3.one, note);
+
+            var unscaled = input.UnscaledDeviceCoord;
+            Add("OffsetCapture", role, "trackerUnscaled", unscaled.position, unscaled.rotation, Vector3.one, note);
+
+            var outLocal = bone.OutGoingData;
+            Add("OffsetCapture", role, "boneOutLocal", outLocal.position, outLocal.rotation, Vector3.one, note);
+
+            var outWorld = bone.OutgoingWorldData;
+            Add("OffsetCapture", role, "boneOutWorld", outWorld.position, outWorld.rotation, Vector3.one, note);
+
+            var tpose = bone.TposeLocalScaled;
+            Add("OffsetCapture", role, "boneTposeScaled", tpose.position, tpose.rotation, Vector3.one, note);
+
+            Quaternion inverseTrackerWorldRotation = Quaternion.Inverse(trackerWorldRot);
+            Vector3 worldOffsetPosition = inverseTrackerWorldRotation * (outWorld.position - trackerWorldPos);
+            Quaternion worldOffsetRotation = inverseTrackerWorldRotation * outWorld.rotation;
+            Add("OffsetCapture", role, "offsetWorldBased", worldOffsetPosition, worldOffsetRotation, Vector3.one, note);
+
+            Quaternion inverseScaledRotation = Quaternion.Inverse(scaled.rotation);
+            Vector3 virtualOffsetPosition = inverseScaledRotation * (outLocal.position - scaled.position);
+            Quaternion virtualOffsetRotation = inverseScaledRotation * outLocal.rotation;
+            Add("OffsetCapture", role, "offsetVirtualLocal", virtualOffsetPosition, virtualOffsetRotation, Vector3.one, note);
+
+            Matrix4x4 localToWorld = BasisLocalPlayer.localToWorldMatrix;
+            Add("OffsetCapture", role, "playerRoot", localToWorld.GetColumn(3), localToWorld.rotation, Vector3.one, note);
         }
 
         /// <summary>

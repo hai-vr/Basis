@@ -478,7 +478,7 @@ public struct BasisDirectionalDampenJob : IJobParallelFor
     public float3 ListenerPosition;
     public float3 ListenerForward;
     public float CosHalfCone;
-    public float CosRange;
+    public float HalfConeRad;
     public float MinVolume;
 
     [ReadOnly] public NativeArray<float3> TargetPositions;
@@ -501,11 +501,11 @@ public struct BasisDirectionalDampenJob : IJobParallelFor
         if (dot >= CosHalfCone)
         {
             Multipliers[i] = 1f;
+            return;
         }
-        else
-        {
-            float t = (CosHalfCone - dot) / CosRange;
-            Multipliers[i] = math.lerp(1f, MinVolume, t);
-        }
+
+        float theta = math.acos(math.clamp(dot, -1f, 1f));
+        float falloff = math.smoothstep(HalfConeRad, math.PI, theta);
+        Multipliers[i] = math.lerp(1f, MinVolume, falloff);
     }
 }

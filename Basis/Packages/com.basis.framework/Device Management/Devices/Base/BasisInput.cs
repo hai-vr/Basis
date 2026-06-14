@@ -321,16 +321,21 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
 
-            //get the trackers position in space.
-            transform.GetPositionAndRotation(out BasisInverseOffsetData.TrackerPosition, out BasisInverseOffsetData.TrackerRotation);
-            BasisInverseOffsetData.InitialInverseTrackRotation = Quaternion.Inverse(BasisInverseOffsetData.TrackerRotation);
-            BasisInverseOffsetData.InitialControlRotation = Control.OutgoingWorldData.rotation;
+            BasisCalibratedCoords tracker = ScaledDeviceCoord;
+            BasisCalibratedCoords bone = Control.OutGoingData;
 
-            Vector3 Offset = Control.OutgoingWorldData.position - BasisInverseOffsetData.TrackerPosition;
-            Control.SetInverseOffset(
-                BasisInverseOffsetData.InitialInverseTrackRotation * (Offset),
-                BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation);
+            BasisInverseOffsetData.TrackerPosition = tracker.position;
+            BasisInverseOffsetData.TrackerRotation = tracker.rotation;
+            BasisInverseOffsetData.InitialInverseTrackRotation = Quaternion.Inverse(tracker.rotation);
+            BasisInverseOffsetData.InitialControlRotation = bone.rotation;
+
+            Vector3 Offset = bone.position - tracker.position;
+            Vector3 InverseOffsetPosition = BasisInverseOffsetData.InitialInverseTrackRotation * Offset;
+            Quaternion InverseOffsetRotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
+            Control.SetInverseOffset(InverseOffsetPosition, InverseOffsetRotation);
             Control.UseInverseOffset = true;
+
+            BasisCalibrationDebugRecorder.OffsetCapture(this, Control);
         }
 
         /// <summary>

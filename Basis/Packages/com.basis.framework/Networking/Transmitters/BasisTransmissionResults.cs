@@ -327,7 +327,7 @@ public partial class BasisTransmissionResults
             dampenJob.ListenerPosition = BasisLocalCameraDriver.Position;
             dampenJob.ListenerForward = BasisLocalCameraDriver.Forward();
             dampenJob.CosHalfCone = cosHalfCone;
-            dampenJob.CosRange = cosHalfCone + 1f;
+            dampenJob.HalfConeRad = halfConeRad;
             dampenJob.MinVolume = 1f - (dampenPercent / 100f);
 
             dampenJobHandle = dampenJob.Schedule(receiverCount, 64);

@@ -882,6 +882,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKLeftShoulderUseCalibration = new("fbikleftshoulderusecalibration", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKRightShoulderUseCalibration = new("fbikrightshoulderusecalibration", new BasisPlatformDefault<bool>(false));
 
+        // ---------------- CALIBRATION TOLERANCE ----------------
+        // Sigma multiplier for the FBIK constellation classifier. 1 = stock acceptance
+        // regions; higher widens every role's accept band so players with atypical body
+        // proportions, high-mounted trackers, or an imperfect calibration pose can still
+        // bind. Read in BasisAvatarIKStageCalibration.BuildPriors via GetCalibrationTolerance.
+        public static BasisSettingsBinding<float> CalibrationTolerance = new("fbikcalibrationtolerance", new BasisPlatformDefault<float>(1f));
+
         /// <summary>
         /// Returns the per-role "use for calibration" binding, or null for roles that have
         /// no UI entry (e.g. CenterEye, Neck, Spine, UpperArm/UpperLeg, Mouth).
@@ -1758,6 +1765,7 @@ namespace Basis.BasisUI
             PairingEmaAlpha.LoadBindingValue();
             PairingDistanceEmaAlpha.LoadBindingValue();
             PairingWeightSmoothing.LoadBindingValue();
+            CalibrationTolerance.LoadBindingValue();
 
             // Remote Nameplate
             NPEnabled.LoadBindingValue();
