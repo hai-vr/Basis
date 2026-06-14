@@ -65,16 +65,6 @@ namespace Basis.IK.Debugging
             _cfg.ShoulderForward = EditorGUILayout.FloatField("Shoulder Forward (z)", _cfg.ShoulderForward);
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Protect Blend (under test)", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("shipped: same=1, wrong=1 (full pin = jitter-free); a weaker push un-pins -> jitter", EditorStyles.miniLabel);
-            _cfg.SameSideBlend = EditorGUILayout.Slider("Same-Side Blend", _cfg.SameSideBlend, 0f, 1f);
-            _cfg.WrongSideBlend = EditorGUILayout.Slider("Wrong-Side Blend", _cfg.WrongSideBlend, 0f, 1f);
-            EditorGUILayout.LabelField("down bias: 0 = push straight out (chicken-wing); 1 = aim the elbow down (shipped 0.7)", EditorStyles.miniLabel);
-            _cfg.DownBias = EditorGUILayout.Slider("Down Bias", _cfg.DownBias, 0f, 1f);
-            EditorGUILayout.LabelField("depth scale: 0 = legacy hard on/off; >0 = soft smoothstep engagement gate (shipped 0.04)", EditorStyles.miniLabel);
-            _cfg.DepthScaleRange = EditorGUILayout.Slider("Depth Scale Range (m)", _cfg.DepthScaleRange, 0f, 0.3f);
-
-            EditorGUILayout.Space();
             EditorGUILayout.LabelField("Target Grid (fractions of arm length)", EditorStyles.boldLabel);
             _cfg.MinFrac = EditorGUILayout.Vector3Field("Min Frac", _cfg.MinFrac);
             _cfg.MaxFrac = EditorGUILayout.Vector3Field("Max Frac", _cfg.MaxFrac);
@@ -114,8 +104,8 @@ namespace Basis.IK.Debugging
                 {
                     EditorGUILayout.HelpBox(
                         $"Wrote {_last.Rows} rows ({_last.Points} points, {_last.ReachablePoints} reachable, {_last.EngagedPoints} engaged).\n" +
-                        $"CHICKEN-WING: mean swing {_last.MeanSwingDeg:F1}°, max {_last.MaxSwingDeg:F0}°; elbow pushed up at {_last.ElbowUpCount} poses\n" +
-                        $"SNAP: wrong-side flips (blend=1) at {_last.WrongSideFlipCount} poses; mean swivel shift {_last.MeanProtectShiftDeg:F1}°, max {_last.MaxProtectShiftDeg:F0}°\n" +
+                        $"CLEARANCE: cleared {_last.ClearedPoints}/{_last.EngagedPoints}; mean residual {_last.MeanResidualPenMm:F0}mm, max {_last.MaxResidualPenMm:F0}mm; could-not-clear {_last.WrongSideFlipCount}\n" +
+                        $"SWING: mean {_last.MeanSwingDeg:F1}°, max {_last.MaxSwingDeg:F0}°; pushed-up {_last.ElbowUpCount}; mean shift {_last.MeanProtectShiftDeg:F1}°\n" +
                         $"TWITCH: mean {_last.MeanSensDegPerCm:F1}°/cm, max {_last.MaxSensDegPerCm:F0}°/cm; jittery (>20°/cm) at {_last.JitteryCount}\n" +
                         _last.Path, MessageType.None);
                     EditorGUILayout.BeginHorizontal();

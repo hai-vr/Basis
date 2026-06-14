@@ -154,6 +154,7 @@ namespace Basis.Scripts.Avatar
                 try
                 {
                     ClassifyAndAssignTrackersFromTPose();
+                    LogConstellation();
 
                     // IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
                     BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
@@ -253,6 +254,58 @@ namespace Basis.Scripts.Avatar
         {
             if (control == null || avatarBone == null) return current;
             return Quaternion.Inverse(control.OutgoingWorldData.rotation) * avatarBone.rotation;
+        }
+
+        // Arm-tracker calibration diagnostic: dumps every constellation sample (including the
+        // UNASSIGNED ones the OffsetCapture rows can't show) plus the per-role priors, so a tracker
+        // that "refused to calibrate" reveals its reason — NearOrigin (stale/zero poll), its best-fit
+        // role + score (below the ~-9 accept threshold = didn't fit any role), or which role it lost to.
+        private static void LogConstellation()
+        {
+            if (!BasisCalibrationDebugRecorder.Enabled) return;
+
+            System.Globalization.CultureInfo ci = System.Globalization.CultureInfo.InvariantCulture;
+            var samples = ConstellationDebug.Samples;
+            for (int i = 0; i < samples.Count; i++)
+            {
+                ConstellationDebug.DebugSample s = samples[i];
+                string note = $"dev={s.DeviceId} nearOrigin={s.NearOrigin} assigned={s.Assigned} role={s.AssignedRole} bestAny={s.BestAnyRole} bestScore={s.BestAnyScore.ToString("F2", ci)}";
+                BasisCalibrationDebugRecorder.Pose("Constellation", "sample" + i.ToString(ci), "sample",
+                    new Vector3(s.HeightRatio, s.LateralRatio, s.BestAnyScore), Quaternion.identity, Vector3.one, note);
+            }
+
+            var priors = ConstellationDebug.Priors;
+            for (int p = 0; p < priors.Count; p++)
+            {
+                ConstellationDebug.DebugPrior pr = priors[p];
+                string note = $"enabled={pr.Enabled} assignedSampleIdx={pr.AssignedSampleIndex}";
+                BasisCalibrationDebugRecorder.Pose("Constellation", pr.Role.ToString(), "prior",
+                    new Vector3(pr.ExpectedHeight, pr.ExpectedLateral, 0f), Quaternion.identity,
+                    new Vector3(pr.HeightSigma, pr.LateralSigma, 0f), note);
+            }
+
+            // Every input device, including ones the classifier filters out before scoring (linked
+            // pair-half, role-pinned, disabled-role, or polled at origin) so a tracker that never
+            // becomes a sample is still visible — that's where a "refused to calibrate" tracker hides.
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
+            if (devices != null)
+            {
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    BasisInput input = devices[i];
+                    if (input == null) continue;
+                    bool hasRole = input.TryGetRole(out BasisBoneTrackedRole r);
+                    bool pinned = input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole;
+                    bool fbCapable = BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(r);
+                    Vector3 uns = input.UnscaledDeviceCoord.position;
+                    bool nearOrigin = uns.sqrMagnitude < ConstellationNearOriginEpsilonSqr;
+                    string note = $"common={input.CommonDeviceIdentifier} role={(hasRole ? r.ToString() : "(none)")} fbRole={(hasRole && fbCapable)} linked={input.IsLinked} pinned={pinned} nearOrigin={nearOrigin} dev={input.UniqueDeviceIdentifier}";
+                    BasisCalibrationDebugRecorder.Pose("Devices", "device" + i.ToString(ci), "device",
+                        uns, input.UnscaledDeviceCoord.rotation, Vector3.one, note);
+                }
+            }
+
+            BasisCalibrationDebugRecorder.Meta("ConstellationStatus", ConstellationDebug.Status);
         }
 
         /// <summary>

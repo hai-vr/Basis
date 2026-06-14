@@ -2473,7 +2473,7 @@ w20, w54;
             {
                 // Geometry lives in BasisElbowProtectCore so the offline sweep harness runs the
                 // exact same penetration test and elbow push. Apply the result through the stream.
-                BasisElbowProtectInput epi;
+                BasisElbowProtectInput epi = default;
                 epi.Shoulder = root.GetPosition(stream);
                 epi.Elbow = mid.GetPosition(stream);
                 epi.Hand = tip.GetPosition(stream);
@@ -2488,13 +2488,6 @@ w20, w54;
                 epi.HandRadius = handRadius.Get(stream);
                 epi.HandSkin = handSkin.Get(stream);
                 epi.PlayerUp = playerUp.Get(stream);
-                // Pin the elbow to a DOWN-redirected target (DownBias) with a soft smoothstep
-                // engagement gate (DepthScaleRange); full pin both sides (1,1) holds a stable target.
-                // Set SameSideBlend=0.5, DepthScaleRange=0f, DownBias=0f to restore the legacy snap.
-                epi.SameSideBlend = 1f;
-                epi.WrongSideBlend = 1f;
-                epi.DepthScaleRange = 0.04f;
-                epi.DownBias = 1f;
 
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
                 if (epr.Engaged)

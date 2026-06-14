@@ -37,12 +37,6 @@ namespace Basis.IK.Debugging
         public float ShoulderHeight;    // y
         public float ShoulderForward;   // z
 
-        // Tuning knobs under test (shipped live: same=1, wrong=1, depth=0.04, down=0.7).
-        public float SameSideBlend;
-        public float WrongSideBlend;
-        public float DepthScaleRange;   // 0 = legacy binary snap; >0 = soft smoothstep engagement gate
-        public float DownBias;          // 0 = push straight out (chicken-wing); 1 = aim the pin down
-
         // Hand-target grid in torso space around the shoulder, fractions of arm length.
         public Vector3 MinFrac;
         public Vector3 MaxFrac;
@@ -75,11 +69,6 @@ namespace Basis.IK.Debugging
                 ShoulderHeight = 0.46f,
                 ShoulderForward = 0.0f,
 
-                SameSideBlend = 1.0f,
-                WrongSideBlend = 1.0f,
-                DepthScaleRange = 0.04f,   // soft engagement gate; matches the shipped live value
-                DownBias = 1.0f,           // aim the pinned elbow fully down (kills the chicken-wing); 0 = straight out
-
                 // Reach across and around the body so the upper arm sweeps in and out of the torso.
                 MinFrac = new Vector3(-1.3f, -1.1f, -0.5f),
                 MaxFrac = new Vector3(0.9f, 0.8f, 1.1f),
@@ -96,7 +85,10 @@ namespace Basis.IK.Debugging
         public int Points;
         public int ReachablePoints;
         public int EngagedPoints;        // protect produced a swing (upper arm penetrated the torso)
-        public int WrongSideFlipCount;   // engaged poses on the wrong side -> WrongSideBlend snap (the twitch)
+        public int ClearedPoints;        // engaged poses whose pushed elbow actually leaves the torso
+        public float MeanResidualPenMm;  // mean residual torso penetration after the push (mm), over engaged
+        public float MaxResidualPenMm;
+        public int WrongSideFlipCount;   // engaged poses that could not fully clear (CollisionState==2)
         public float MeanSwingDeg;       // mean elbow swing applied over engaged poses (chicken-wing magnitude)
         public float MaxSwingDeg;
         public float MeanProtectShiftDeg;// mean |final - raw| elbow swivel over engaged poses
@@ -143,8 +135,9 @@ namespace Basis.IK.Debugging
             int sz = Mathf.Max(1, cfg.Steps.z);
 
             int points = 0, reachable = 0, engaged = 0, wrongFlips = 0, elbowUp = 0, jittery = 0, rows = 0;
-            double swingSum = 0.0, shiftSum = 0.0, sensSum = 0.0;
-            float swingMax = 0f, shiftMax = 0f, sensMax = 0f;
+            int clearedPoints = 0;
+            double swingSum = 0.0, shiftSum = 0.0, sensSum = 0.0, residSum = 0.0;
+            float swingMax = 0f, shiftMax = 0f, sensMax = 0f, residMax = 0f;
             int sensN = 0;
 
             NativeArray<Vector3> table = default;
@@ -163,8 +156,6 @@ namespace Basis.IK.Debugging
                     w.WriteLine("# BasisElbowProtectSweep " + System.DateTime.UtcNow.ToString("o"));
                     w.WriteLine("# side=" + (cfg.IsLeft ? "left" : "right") +
                                 " upper=" + F(upper) + " lower=" + F(lower) +
-                                " sameBlend=" + F(cfg.SameSideBlend) + " wrongBlend=" + F(cfg.WrongSideBlend) +
-                                " depth=" + F(cfg.DepthScaleRange) + " down=" + F(cfg.DownBias) +
                                 " shoulder=(" + F(shoulder.x) + "," + F(shoulder.y) + "," + F(shoulder.z) + ")");
                     w.WriteLine("side,ti,tj,tk,target_x,target_y,target_z,target_dist,arm_len,reach_ratio,reachable," +
                                 "elbow_x,elbow_y,elbow_z,hand_x,hand_y,hand_z," +
@@ -217,6 +208,10 @@ namespace Basis.IK.Debugging
                                 {
                                     engaged++;
                                     if (protect.CollisionState == 2) wrongFlips++;
+                                    if (protect.ResidualClearance >= 0f) clearedPoints++;
+                                    float residMm = protect.ResidualClearance >= 0f ? 0f : -protect.ResidualClearance * 1000f;
+                                    residSum += residMm;
+                                    if (residMm > residMax) residMax = residMm;
                                     swingSum += protect.SwingAngleDeg;
                                     if (protect.SwingAngleDeg > swingMax) swingMax = protect.SwingAngleDeg;
                                     if (!float.IsNaN(protectShift))
@@ -246,6 +241,9 @@ namespace Basis.IK.Debugging
                 summary.Points = points;
                 summary.ReachablePoints = reachable;
                 summary.EngagedPoints = engaged;
+                summary.ClearedPoints = clearedPoints;
+                summary.MeanResidualPenMm = engaged > 0 ? (float)(residSum / engaged) : 0f;
+                summary.MaxResidualPenMm = residMax;
                 summary.WrongSideFlipCount = wrongFlips;
                 summary.MeanSwingDeg = engaged > 0 ? (float)(swingSum / engaged) : 0f;
                 summary.MaxSwingDeg = swingMax;
@@ -284,10 +282,6 @@ namespace Basis.IK.Debugging
                 HandRadius = cfg.HandRadius,
                 HandSkin = cfg.HandSkin,
                 PlayerUp = Vector3.up,
-                SameSideBlend = cfg.SameSideBlend,
-                WrongSideBlend = cfg.WrongSideBlend,
-                DepthScaleRange = cfg.DepthScaleRange,
-                DownBias = cfg.DownBias,
             };
         }
 
@@ -357,8 +351,7 @@ namespace Basis.IK.Debugging
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
                 {
                     w.WriteLine("# BasisElbowProtectTrajectory " + System.DateTime.UtcNow.ToString("o") +
-                                " noise=" + F(noise) + " same=" + F(cfg.SameSideBlend) + " wrong=" + F(cfg.WrongSideBlend) +
-                                " depth=" + F(cfg.DepthScaleRange) + " down=" + F(cfg.DownBias));
+                                " noise=" + F(noise));
                     w.WriteLine("path,step,target_x,target_y,target_z,swivel_deg");
                     var sb = new StringBuilder(128);
                     for (int pi = 0; pi < pathNames.Length; pi++)
