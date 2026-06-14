@@ -313,6 +313,14 @@ namespace Basis.BasisUI
 
             await BasisLoadHandler.EnsureInitializationComplete();
 
+            // Local BEE files aren't written to the on-disc meta cache; their connector is already
+            // populated on the wrapper by the meta-only pass, so return it directly instead of
+            // treating the missing cache entry as a reason to drop the item.
+            if (BasisIOManagement.TryResolveLocalBeePath(item.Url, out _))
+            {
+                return wrapper;
+            }
+
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
             var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(item.Url);
             if (onDisc)
@@ -1258,23 +1266,22 @@ namespace Basis.BasisUI
 
                 // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
                 PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
-                List<string> contentSyncModeDisplayNames = GetNetworkTypeDisplayNames();
+                bool netConnectedForTypes = BasisNetworkConnection.LocalPlayerIsConnected;
+                List<string> contentSyncModeDisplayNames = GetAvailableNetworkTypes(netConnectedForTypes).Select(GetNetworkTypeDisplayName).ToList();
                 contentSyncModeDropDown.Descriptor.SetTitle(BasisLocalization.Get("library.networkType"));
                 contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(desiredNetworkType));
                 contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
                 contentSyncModeDropDown.AssignEntries(contentSyncModeDisplayNames);
                 contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
 
-                // disable network type selection
+                // Local and Load-on-Boot work offline; Networked only appears when connected. The
+                // dropdown is interactable for any non-embedded item so a local/boot world can be
+                // chosen without a server.
                 {
-                    bool netConnected = BasisNetworkConnection.LocalPlayerIsConnected;
                     bool embeddedAddressable = item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable;
-                    // only interactable when the player is connected and the item is not embedded
                     contentSyncModeDropDown.SetInteractable(
-                        netConnected && !embeddedAddressable,
-                        !netConnected ? BasisLocalization.Get("library.disabled.notConnected")
-                        : embeddedAddressable ? BasisLocalization.Get("library.disabled.embedded")
-                        : null);
+                        !embeddedAddressable,
+                        embeddedAddressable ? BasisLocalization.Get("library.disabled.embedded") : null);
                 }
 
                 // set the default network type
@@ -1493,18 +1500,32 @@ namespace Basis.BasisUI
         {
             [BundledContentHolder.NetworkType.Local] = BasisLocalization.Get("library.networkType.local"),
             [BundledContentHolder.NetworkType.Networked] = BasisLocalization.Get("library.networkType.networked"),
+            [BundledContentHolder.NetworkType.LoadOnBoot] = BasisLocalization.Get("library.networkType.loadOnBoot"),
             // TODO: Re-enable once synchronized loading is fully working (late joiner + prop unload bugs)
             // [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
         };
 
+        /// <summary>
+        /// Network types offered in the load dropdown. Local and Load-on-Boot work offline; Networked
+        /// only appears when connected to a server.
+        /// </summary>
+        private static List<BundledContentHolder.NetworkType> GetAvailableNetworkTypes(bool connected)
+        {
+            List<BundledContentHolder.NetworkType> types = new List<BundledContentHolder.NetworkType>
+            {
+                BundledContentHolder.NetworkType.Local
+            };
+            if (connected)
+            {
+                types.Add(BundledContentHolder.NetworkType.Networked);
+            }
+            types.Add(BundledContentHolder.NetworkType.LoadOnBoot);
+            return types;
+        }
+
         private static string GetNetworkTypeDisplayName(BundledContentHolder.NetworkType networkType)
         {
             return NetworkTypeDisplayNames.TryGetValue(networkType, out string name) ? name : networkType.ToString();
-        }
-
-        private static List<string> GetNetworkTypeDisplayNames()
-        {
-            return new List<string>(NetworkTypeDisplayNames.Values);
         }
 
         private static bool TryParseNetworkTypeFromDisplayName(string displayName, out BundledContentHolder.NetworkType networkType)
@@ -1531,6 +1552,8 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("library.networkType.networked.description"),
                 BundledContentHolder.NetworkType.Synchronized =>
                     BasisLocalization.Get("library.networkType.synchronized.description"),
+                BundledContentHolder.NetworkType.LoadOnBoot =>
+                    BasisLocalization.Get("library.networkType.loadOnBoot.description"),
                 _ =>
                     BasisLocalization.Get("library.networkType.unknown.description"),
             };
@@ -1559,6 +1582,22 @@ namespace Basis.BasisUI
         public static async Task LoadSelectedItem(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local, bool persistence = false, bool modifyScale = false)
         {
             await PersistServerProvidedItemOnLoad(item);
+
+            // Load-on-Boot persists the item so it auto-loads next launch, then loads it now locally.
+            if (networkType == BundledContentHolder.NetworkType.LoadOnBoot)
+            {
+                if (item.Mode == BundledContentHolder.Mode.World || item.Mode == BundledContentHolder.Mode.Prop)
+                {
+                    await BasisPreloadContentStore.Add(new BasisPreloadContentStore.PreloadEntry
+                    {
+                        Url = item.Url,
+                        Pass = item.Pass,
+                        Mode = item.Mode,
+                        PlacementType = item.PlacementType,
+                    });
+                }
+                networkType = BundledContentHolder.NetworkType.Local;
+            }
 
             // At this point the item should be fully loaded and ready to use. What happens next is up to you and your application needs.
             // For example, you could raise an event that other parts of your app listen for, or directly instantiate the loaded content if it's a prefab.
@@ -2148,6 +2187,10 @@ namespace Basis.BasisUI
                 {
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
+
+                        // If this content was set to load on boot, removing it here also stops it
+                        // from coming back next launch. No-op when it was never a boot item.
+                        _ = BasisPreloadContentStore.Remove(itemKey.Url);
 
                         switch(itemKey.SpawnMode)
                         {

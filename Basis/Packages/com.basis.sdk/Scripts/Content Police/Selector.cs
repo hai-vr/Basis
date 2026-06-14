@@ -27,6 +27,12 @@ public partial class BundledContentHolder
         /// Has a 5-minute timeout; players that fail to load are skipped.
         /// </summary>
         Synchronized = 2,
+        /// <summary>
+        /// Loads locally now and persists the item so it is reloaded automatically on
+        /// every startup (see BasisPreloadContentStore / BasisBootContentLoader). Worlds
+        /// become the initial world; props respawn at the player origin.
+        /// </summary>
+        LoadOnBoot = 3,
     }
 
     // used to determine the way an item can be placed into a world

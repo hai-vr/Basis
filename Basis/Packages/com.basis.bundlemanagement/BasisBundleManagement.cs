@@ -203,6 +203,121 @@ public static class BasisBundleManagement
         return (result.Value.Item1, string.Empty);
     }
 
+    /// <summary>
+    /// Reads connector + platform section directly from a local BEE file. Tries the remote-format
+    /// layout (8-byte header, all platform sections — the SDK export) first, then falls back to the
+    /// full-file cache layout (4-byte header, single section), so either on-disk format loads.
+    /// </summary>
+    public static async Task<(BasisBundleGenerated Generated, byte[] BundleBytes, string ErrorMessage)> LocalDirectLoadBundleConnector(BasisTrackedBundleWrapper bundleWrapper, string localPath, BasisProgressReport progressCallback, CancellationToken cancellationToken)
+    {
+        if (!BasisBeeValidator.IsValidBundleWrapper(bundleWrapper, out string wrapperErr))
+        {
+            return (null, null, wrapperErr);
+        }
+
+        if (string.IsNullOrWhiteSpace(localPath))
+        {
+            return (null, null, "Local bee path is null or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(bundleWrapper.LoadableBundle.UnlockPassword))
+        {
+            return (null, null, "Unlock password is null or empty.");
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return (null, null, "Cancelled before starting.");
+        }
+
+        string password = bundleWrapper.LoadableBundle.UnlockPassword;
+        BasisDebug.Log("Reading local bee file from disk: " + localPath);
+
+        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadRemoteBeeFromDiskEx(localPath, password, progressCallback, cancellationToken, includeSection: true).ConfigureAwait(false);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            BasisDebug.Log($"Local remote-format read failed ({result.Error}); trying full-file format.", BasisDebug.LogTag.Event);
+            result = await BasisIOManagement.ReadBEEFileEx(localPath, password, progressCallback, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!result.IsSuccess || result.Value is null)
+        {
+            return (null, null, "Local bee read failed. " + (result.Error ?? "No details."));
+        }
+
+        BeeReadResult data = result.Value;
+        bundleWrapper.LoadableBundle.BasisBundleConnector = data.Connector;
+        bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = localPath;
+
+        if (!BasisBeeValidator.IsValidConnector(data.Connector, out string connErr))
+        {
+            return (null, null, connErr);
+        }
+
+        if (data.SectionData is null || data.SectionData.Length == 0)
+        {
+            return (null, null, "Section data is missing after local read.");
+        }
+
+        if (!TryGetPlatform(bundleWrapper.LoadableBundle.BasisBundleConnector, out BasisBundleGenerated generated, out string pfErr))
+        {
+            return (null, null, "Local bee loaded connector but " + pfErr + " (platform=" + Application.platform + ").");
+        }
+
+        return (generated, data.SectionData, string.Empty);
+    }
+
+    /// <summary>
+    /// Reads only the connector from a local BEE file, trying the remote-format layout first and
+    /// falling back to the full-file cache layout. Used by meta-only loads (library cards).
+    /// </summary>
+    public static async Task<(BasisBundleConnector Connector, string ErrorMessage)> LocalDirectConnectorFile(BasisTrackedBundleWrapper bundleWrapper, string localPath, BasisProgressReport progressCallback, CancellationToken cancellationToken)
+    {
+        if (!BasisBeeValidator.IsValidBundleWrapper(bundleWrapper, out string wrapperErr))
+        {
+            return (null, wrapperErr);
+        }
+
+        if (string.IsNullOrWhiteSpace(localPath))
+        {
+            return (null, "Local bee path is null or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(bundleWrapper.LoadableBundle.UnlockPassword))
+        {
+            return (null, "Unlock password is null or empty.");
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return (null, "Cancelled before starting.");
+        }
+
+        string password = bundleWrapper.LoadableBundle.UnlockPassword;
+        BasisDebug.Log("Reading local bee connector from disk: " + localPath);
+
+        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadRemoteBeeFromDiskEx(localPath, password, progressCallback, cancellationToken, includeSection: false).ConfigureAwait(false);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            result = await BasisIOManagement.ReadBEEConnectorFileEx(localPath, password, progressCallback, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!result.IsSuccess || result.Value is null)
+        {
+            return (null, "Local bee connector read failed. " + (result.Error ?? "No details."));
+        }
+
+        bundleWrapper.LoadableBundle.BasisBundleConnector = result.Value.Connector;
+        bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = localPath;
+
+        if (!BasisBeeValidator.IsValidConnector(result.Value.Connector, out string connErr))
+        {
+            return (null, connErr);
+        }
+
+        return (result.Value.Connector, string.Empty);
+    }
+
     private static bool TryGetPlatform(BasisBundleConnector connector, out BasisBundleGenerated generated, out string error)
     {
         generated = null;

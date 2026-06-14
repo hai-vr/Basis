@@ -120,6 +120,14 @@ namespace Basis.BasisUI
                 return new MetaOnlyLoadOutcome(null, true);
             }
 
+            // Local BEE files are read straight from disk and never written to the on-disc meta cache,
+            // so the LoadWrapperFromDisc lookup below would treat the missing cache entry as a corrupt
+            // item and remove it. The connector is already populated by the meta-only load above.
+            if (BasisIOManagement.TryResolveLocalBeePath(item.Url, out _))
+            {
+                return new MetaOnlyLoadOutcome(metaResult.Loaded ? newWrapper : null, false);
+            }
+
             // grab the wrapper from disc, we can pass in our wrapper
             BasisLoadableBundleWrapper loaded = await LoadWrapperFromDisc(item, newWrapper);
             return new MetaOnlyLoadOutcome(loaded, false);

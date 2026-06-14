@@ -451,6 +451,108 @@ public static class BasisIOManagement
         return BeeResult<BeeReadResult>.Ok(new BeeReadResult(connector, null));
     }
 
+    /// <summary>
+    /// Reads a REMOTE-format BEE blob (8-byte Int64 header) from a local file, parses the connector,
+    /// and (when <paramref name="includeSection"/> is true) returns the platform-matching section.
+    /// This is the on-disk equivalent of <see cref="DownloadBEEEx"/> for a BEE the SDK exported
+    /// straight to disk rather than to a HTTP host.
+    /// </summary>
+    public static async Task<BeeResult<BeeReadResult>> ReadRemoteBeeFromDiskEx(string filePath, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, bool includeSection = true)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return BeeResult<BeeReadResult>.Fail("ReadRemoteBeeFromDiskEx: File path is null or empty.");
+
+        if (!File.Exists(filePath))
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: File not found: {filePath}");
+
+        if (string.IsNullOrWhiteSpace(vp))
+            return BeeResult<BeeReadResult>.Fail("ReadRemoteBeeFromDiskEx: VP is null or empty.");
+
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 96 * 1024, useAsync: true);
+
+        if (fs.Length < BasisBeeConstants.RemoteHeaderSize)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: File too small to contain remote header. Size={fs.Length} bytes.");
+
+        byte[] headerBytes = await ReadExactAsync(fs, BasisBeeConstants.RemoteHeaderSize, cancellationToken).ConfigureAwait(false);
+        if (headerBytes.Length != BasisBeeConstants.RemoteHeaderSize)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Failed to read remote header. Got {headerBytes.Length} bytes.");
+
+        long connectorLength = ReadInt64LittleEndian(headerBytes);
+        if (connectorLength <= 0)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Invalid connector length {connectorLength}. File may not be a remote-format BEE.");
+
+        if (connectorLength > BasisBeeConstants.MaxConnectorBytes)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
+
+        long remainingAfterHeader = fs.Length - fs.Position;
+        if (connectorLength > remainingAfterHeader)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Connector length {connectorLength} exceeds file remainder {remainingAfterHeader}.");
+
+        byte[] connectorBytes = await ReadExactAsync(fs, checked((int)connectorLength), cancellationToken).ConfigureAwait(false);
+        if (connectorBytes.LongLength != connectorLength)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Failed to read full connector block. Expected {connectorLength}, got {connectorBytes.Length}.");
+
+        BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback).ConfigureAwait(false);
+        if (connector == null)
+            return BeeResult<BeeReadResult>.Fail("ReadRemoteBeeFromDiskEx: Failed to parse connector metadata (null).");
+
+        if (!includeSection)
+            return BeeResult<BeeReadResult>.Ok(new BeeReadResult(connector, null));
+
+        if (connector.BasisBundleGenerated == null || connector.BasisBundleGenerated.Length == 0)
+            return BeeResult<BeeReadResult>.Fail("ReadRemoteBeeFromDiskEx: Connector contains no sections.");
+
+        long cursor = fs.Position;
+        long matchOffset = -1;
+        long matchLength = 0;
+
+        for (int index = 0; index < connector.BasisBundleGenerated.Length; index++)
+        {
+            BasisBundleGenerated entry = connector.BasisBundleGenerated[index];
+            if (entry == null)
+                return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Null section entry at index {index}.");
+
+            long sectionLength = entry.EndByte;
+            if (sectionLength <= 0)
+                return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Invalid section length at index {index}: {sectionLength}.");
+
+            if (sectionLength > BasisBeeConstants.MaxSectionBytes)
+                return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Section length {sectionLength} at index {index} exceeds max allowed {BasisBeeConstants.MaxSectionBytes}.");
+
+            long sectionEndExclusive = cursor + sectionLength;
+            if (sectionEndExclusive > fs.Length)
+                return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Section at index {index} runs past end of file.");
+
+            bool isPlatform;
+            try
+            {
+                isPlatform = BasisBundleConnector.IsPlatform(entry);
+            }
+            catch (Exception ex)
+            {
+                return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Exception while checking platform for section {index}: {ex.Message}");
+            }
+
+            if (isPlatform)
+            {
+                matchOffset = cursor;
+                matchLength = sectionLength;
+            }
+
+            cursor = sectionEndExclusive;
+        }
+
+        if (matchOffset < 0)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: No platform-matching section found. Platform Request was {Application.platform}. {BasisBundleConnector.DebugOfPlatforms(connector)}");
+
+        fs.Seek(matchOffset, SeekOrigin.Begin);
+        byte[] platformSectionData = await ReadExactAsync(fs, checked((int)matchLength), cancellationToken).ConfigureAwait(false);
+        if (platformSectionData.LongLength != matchLength)
+            return BeeResult<BeeReadResult>.Fail($"ReadRemoteBeeFromDiskEx: Expected section length {matchLength}, got {platformSectionData.Length}.");
+
+        return BeeResult<BeeReadResult>.Ok(new BeeReadResult(connector, platformSectionData));
+    }
+
     public static string GenerateFilePath(string fileName, string subFolder)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -742,6 +844,46 @@ public static class BasisIOManagement
 
         normalizedUrl = uri.AbsoluteUri;
         return true;
+    }
+
+    /// <summary>
+    /// Returns true when <paramref name="location"/> points at an existing local BEE file
+    /// (a <c>file://</c> URI or a raw filesystem path) rather than a HTTP/HTTPS download,
+    /// resolving it to an absolute local path. Used to route a dropped-in local BEE through
+    /// the on-disk reader instead of the network download path.
+    /// </summary>
+    public static bool TryResolveLocalBeePath(string location, out string localPath)
+    {
+        localPath = null;
+        if (string.IsNullOrWhiteSpace(location))
+            return false;
+
+        if (Uri.TryCreate(location, UriKind.Absolute, out Uri uri))
+        {
+            if (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                return false;
+
+            if (uri.IsFile)
+            {
+                try { localPath = uri.LocalPath; }
+                catch { return false; }
+                return !string.IsNullOrEmpty(localPath) && File.Exists(localPath);
+            }
+
+            return false;
+        }
+
+        try
+        {
+            if (File.Exists(location))
+            {
+                localPath = location;
+                return true;
+            }
+        }
+        catch { }
+
+        return false;
     }
 
     private static async Task<byte[]> ReadExactAsync(Stream s, int size, CancellationToken ct)

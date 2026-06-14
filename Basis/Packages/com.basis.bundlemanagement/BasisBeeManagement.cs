@@ -57,7 +57,14 @@ public static class BasisBeeManagement
     /// <returns></returns>
     public static async Task HandleBundleAndMetaLoading(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInBytes = 4L * 1024 * 1024 * 1024)
     {
-        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+        string beeLocation = wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+        if (BasisIOManagement.TryResolveLocalBeePath(beeLocation, out string localBeePath))
+        {
+            await HandleLocalBeeBundle(wrapper, localBeePath, report, cancellationToken);
+            return;
+        }
+
+        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(beeLocation);
         bool didForceRedownload = false;
         bool shouldUseOnDiskMeta = IsMetaOnDisc;
 
@@ -152,6 +159,54 @@ public static class BasisBeeManagement
         }
     }
     /// <summary>
+    /// Loads a BEE that lives on the local filesystem (no download, no on-disc cache copy).
+    /// Reads connector + platform section directly and generates the asset bundle.
+    /// </summary>
+    private static async Task HandleLocalBeeBundle(BasisTrackedBundleWrapper wrapper, string localBeePath, BasisProgressReport report, CancellationToken cancellationToken)
+    {
+        var output = await BasisBundleManagement.LocalDirectLoadBundleConnector(wrapper, localBeePath, report, cancellationToken);
+
+        if (output.Item1 == null || !string.IsNullOrEmpty(output.Item3))
+        {
+            throw new Exception($"Local bundle load failed for {localBeePath}: {output.Item3}");
+        }
+
+        if (output.Item2 == null || output.Item2.Length == 0)
+        {
+            throw new Exception($"Local bundle load returned no section data for {localBeePath}.");
+        }
+
+        string assetToLoadName = output.Item1.AssetToLoadName;
+        if (string.IsNullOrEmpty(assetToLoadName))
+        {
+            throw new Exception("Missing AssetToLoadName in local bee file! corrupted?");
+        }
+
+        foreach (AssetBundle assetBundle in AssetBundle.GetAllLoadedAssetBundles())
+        {
+            if (assetBundle != null && assetBundle.Contains(assetToLoadName))
+            {
+                wrapper.AssetBundle = assetBundle;
+                #if UNITY_BUNDLEUNLOAD
+                wrapper.IsBundleBackingStoreReleased = false;
+                #endif
+                BasisDebug.Log($"Reusing already-loaded AssetBundle for {assetToLoadName}");
+                return;
+            }
+        }
+
+        AssetBundleCreateRequest bundleRequest = await BasisEncryptionToData.GenerateBundleFromFile(wrapper.LoadableBundle.UnlockPassword, output.Item2, output.Item1.AssetBundleCRC, report);
+        if (bundleRequest == null || bundleRequest.assetBundle == null)
+        {
+            throw new Exception($"AssetBundle creation failed for local bee file {localBeePath}.");
+        }
+
+        wrapper.AssetBundle = bundleRequest.assetBundle;
+        #if UNITY_BUNDLEUNLOAD
+        wrapper.IsBundleBackingStoreReleased = false;
+        #endif
+    }
+    /// <summary>
     /// Saves or updates on-disc metadata when it is missing or was refreshed by a forced re-download.
     /// </summary>
     private static async Task SaveMetaIfNeeded(BasisTrackedBundleWrapper wrapper, bool wasMetaOnDisc, bool didForceRedownload, string downloadedPlatform)
@@ -180,7 +235,18 @@ public static class BasisBeeManagement
     /// and if not, whether the failure was transient (network/cancel) or fatal (missing/corrupt).</returns>
     public static async Task<BasisMetaLoadResult> HandleMetaOnlyLoad(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken)
     {
-        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+        string beeLocation = wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+        if (BasisIOManagement.TryResolveLocalBeePath(beeLocation, out string localBeePath))
+        {
+            var (localConnector, localErr) = await BasisBundleManagement.LocalDirectConnectorFile(wrapper, localBeePath, report, cancellationToken);
+            if (localConnector == null || !string.IsNullOrEmpty(localErr))
+            {
+                return BasisMetaLoadResult.Corrupt(localErr ?? "Local connector read failed.");
+            }
+            return BasisMetaLoadResult.Success;
+        }
+
+        var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(beeLocation);
         (BasisBundleConnector Connector, string ErrorMessage) output;
         if (IsMetaOnDisc)
         {

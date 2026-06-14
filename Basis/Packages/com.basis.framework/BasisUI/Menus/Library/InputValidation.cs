@@ -1,5 +1,6 @@
 
 using System;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using Basis.Scripts.UI.UI_Panels;
@@ -95,6 +96,33 @@ namespace Basis.BasisUI
                 Password = null
             };
         }
+
+        /// <summary>
+        /// Accepts a local filesystem path or <c>file://</c> URI to an existing BEE file and
+        /// canonicalises it to an absolute <c>file://</c> URI. Returns false when the path does
+        /// not resolve to an existing local file.
+        /// </summary>
+        private static bool TryNormalizeLocalBeePath(string raw, out string normalized)
+        {
+            normalized = null;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+
+            try
+            {
+                string path = raw;
+                if (Uri.TryCreate(raw, UriKind.Absolute, out Uri uri) && uri.IsFile)
+                    path = uri.LocalPath;
+
+                if (!File.Exists(path)) return false;
+
+                normalized = new Uri(Path.GetFullPath(path)).AbsoluteUri;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
         
         /// <summary>
         /// Splits an optional <c>url#base64password</c> fragment off the URL. If the
@@ -150,20 +178,30 @@ namespace Basis.BasisUI
             if (ApplyPlatformConversionOfUrl(url, out string converted))
                 url = converted;
 
-            // Normalize URL
-            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
-                return Fail(EntryValidationResult.InvalidUrlFormat);
-
-            if (uri.Scheme != Uri.UriSchemeHttp &&
-                uri.Scheme != Uri.UriSchemeHttps)
-                return Fail(EntryValidationResult.InvalidUrlScheme);
-
-            var builder = new UriBuilder(uri)
+            // Normalize URL — http/https for a remote BEE file, or a local file path / file:// URI
+            // for a BEE dropped on disk (Steam build local worlds).
+            if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
-                Host = uri.Host.ToLowerInvariant()
-            };
+                var builder = new UriBuilder(uri)
+                {
+                    Host = uri.Host.ToLowerInvariant()
+                };
 
-            url = builder.Uri.ToString().TrimEnd('/');
+                url = builder.Uri.ToString().TrimEnd('/');
+            }
+            else if (TryNormalizeLocalBeePath(url, out string localUrl))
+            {
+                url = localUrl;
+            }
+            else if (uri != null && uri.IsAbsoluteUri && !uri.IsFile)
+            {
+                return Fail(EntryValidationResult.InvalidUrlScheme);
+            }
+            else
+            {
+                return Fail(EntryValidationResult.InvalidUrlFormat);
+            }
 
             if (string.IsNullOrEmpty(password))
                 return Fail(EntryValidationResult.EmptyPassword);

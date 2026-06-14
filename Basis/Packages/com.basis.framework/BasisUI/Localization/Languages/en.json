@@ -3151,6 +3151,10 @@
       "value": "Everyone (Instant)"
     },
     {
+      "key": "library.networkType.loadOnBoot",
+      "value": "Load on Boot"
+    },
+    {
       "key": "library.networkType.local.description",
       "value": "If the item is set to local, it will only be visible and interactive for you."
     },
@@ -3161,6 +3165,10 @@
     {
       "key": "library.networkType.synchronized.description",
       "value": "Downloads to all players, then spawns simultaneously once everyone is ready. Has a 5 minute timeout for slow connections."
+    },
+    {
+      "key": "library.networkType.loadOnBoot.description",
+      "value": "Loads this for you now and automatically every time you launch. Remove it from the Instantiated tab to stop it loading on startup."
     },
     {
       "key": "library.networkType.unknown.description",
