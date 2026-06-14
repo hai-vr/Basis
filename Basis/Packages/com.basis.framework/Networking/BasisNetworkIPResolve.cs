@@ -61,17 +61,18 @@ public static class BasisNetworkIPResolve
     {
         if (IpString.ToLower() == LocalHost)
         {
-            string[] IpStrings = BasisNetworkIPResolve.ResolveLocahost(IpString);
+            string[] IpStrings = BasisNetworkIPResolve.ResolveLocalhost(IpString);
             IpString = IpStrings[0];
         }
         return IPAddress.Parse(IpString);
     }
-    public static string[] ResolveLocahost(string localhost)
+    public static string[] ResolveLocalhost(string localhost)
     {
         string[] addresses = ResolveLocalhostToIP(localhost);
         if (addresses == null)
         {
             BasisDebug.LogError("Failed to resolve localhost to IP address.");
+            throw new System.IO.IOException("Failed to resolve localhost to IP address.");
         }
         return addresses;
     }
