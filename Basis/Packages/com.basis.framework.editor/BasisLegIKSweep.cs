@@ -171,6 +171,134 @@ namespace Basis.IK.Debugging
             return summary;
         }
 
+        public struct BasisLegIKTrajectorySummary
+        {
+            public bool Ok;
+            public string Path;
+            public BasisTrajectoryResult[] Results;
+            public float WorstPopDeg;
+            public float WorstRoughDeg;
+            public float WorstKneeJitterM;  // worst |noisy knee - clean knee| (m), temporal foot-noise run
+            public string Error;
+        }
+
+        // Mirrors the arm trajectory/temporal tests for the knee (same two-bone-pole-hint structure). Catches
+        // knee pole flips (pop on smooth motion) and -- the temporal run -- whether foot-target noise gets
+        // amplified into knee jitter the way the elbow did. The leg uses a FIXED bend-normal hint, so we
+        // expect far less than the arm; this proves it rather than assuming.
+        public static BasisLegIKTrajectorySummary RunTrajectories(BasisLegIKSweepConfig cfg, float noise, float dt, bool temporal, string path)
+        {
+            var summary = new BasisLegIKTrajectorySummary { Ok = false, Path = path };
+            float mirror = cfg.IsLeft ? -1f : 1f;
+            float upper = Mathf.Max(1e-4f, cfg.UpperLength);
+            float lower = Mathf.Max(1e-4f, cfg.LowerLength);
+            float legLen = upper + lower;
+            Vector3 hip = Vector3.zero;
+            Vector3 kneeDir = Mirror(cfg.RestKneeDir, mirror).normalized;
+            Vector3 shinDir = Mirror(cfg.RestShinDir, mirror).normalized;
+            if (kneeDir.sqrMagnitude < 1e-8f) kneeDir = Vector3.down;
+            if (shinDir.sqrMagnitude < 1e-8f) shinDir = Vector3.down;
+            Vector3 restKnee = hip + kneeDir * upper;
+            Vector3 restFoot = restKnee + shinDir * lower;
+            Vector3 bendNormal = Mirror(cfg.BendNormal, mirror);
+            if (bendNormal.sqrMagnitude < 1e-8f) bendNormal = Vector3.right;
+            Vector3 hintDir = Mirror(cfg.HintDir, mirror).normalized;
+            if (hintDir.sqrMagnitude < 1e-8f) hintDir = Vector3.forward;
+            Vector3 hintPos = hip + hintDir * (cfg.HintDistanceFrac * legLen);
+
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                Vector3 F3(float fx, float fy, float fz) => hip + new Vector3(fx * mirror, fy, fz) * legLen;
+                string[] names = { "step", "lift-knee", "swing-side", "circle" };
+                Vector3[][] paths =
+                {
+                    BasisIKTrajectoryScan.Line(F3(0.10f, -0.95f, -0.50f), F3(0.10f, -0.95f, 0.60f), 160),
+                    BasisIKTrajectoryScan.Line(F3(0.10f, -1.10f, 0.10f), F3(0.10f, -0.35f, 0.40f), 160),
+                    BasisIKTrajectoryScan.Line(F3(0.50f, -0.90f, 0.20f), F3(-0.40f, -0.90f, 0.20f), 160),
+                    BasisIKTrajectoryScan.Circle(F3(0.10f, -0.80f, 0.20f), new Vector3(mirror, 0f, 0f), new Vector3(0f, 0f, 1f), 0.35f * legLen, 200),
+                };
+                bool IsSingular(Vector3 t) { float rr = (t - hip).magnitude / legLen; return rr < 0.35f || rr > 0.97f; }
+
+                var results = new BasisTrajectoryResult[names.Length];
+                float worstPop = 0f, worstRough = 0f, worstJitterM = 0f;
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisLegIK" + (temporal ? "Temporal" : "Trajectory") + " " + System.DateTime.UtcNow.ToString("o") +
+                                " side=" + (cfg.IsLeft ? "left" : "right") + " noise=" + F(noise) + " dt=" + F(dt));
+                    w.WriteLine("path,step,target_x,target_y,target_z,knee_swivel_deg,knee_x,knee_y,knee_z,jitter_m");
+                    var sb = new StringBuilder(160);
+                    for (int pi = 0; pi < names.Length; pi++)
+                    {
+                        Vector3[] pts = paths[pi];
+                        Vector3 nKnee = restKnee, nFoot = restFoot, cKnee = restKnee, cFoot = restFoot;
+                        var rng = new System.Random(7000 + pi);
+                        float maxJump = 0f, prev = float.NaN, maxJitter = 0f;
+                        double roughSum = 0.0; int roughN = 0, pops = 0; float sdPrev = float.NaN;
+                        for (int s = 0; s < pts.Length; s++)
+                        {
+                            Vector3 cleanTgt = pts[s];
+                            Vector3 noisyTgt = cleanTgt;
+                            if (noise > 0f)
+                            {
+                                noisyTgt += new Vector3((float)(rng.NextDouble() * 2.0 - 1.0),
+                                    (float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0)) * noise;
+                            }
+                            Vector3 kneeOut, footOut;
+                            if (temporal)
+                            {
+                                BasisLegSolveResult cr = SolveOne(hip, cKnee, cFoot, cleanTgt, hintPos, bendNormal, 1f);
+                                cKnee = cr.KneeSolved; cFoot = cr.FootSolved;
+                                BasisLegSolveResult nr = SolveOne(hip, nKnee, nFoot, noisyTgt, hintPos, bendNormal, 1f);
+                                nKnee = nr.KneeSolved; nFoot = nr.FootSolved;
+                                kneeOut = nr.KneeSolved; footOut = nr.FootSolved;
+                                float jit = (nKnee - cKnee).magnitude;
+                                if (jit > maxJitter) maxJitter = jit;
+                            }
+                            else
+                            {
+                                BasisLegSolveResult r = SolveOne(hip, restKnee, restFoot, noisyTgt, hintPos, bendNormal, 1f);
+                                kneeOut = r.KneeSolved; footOut = r.FootSolved;
+                            }
+                            float sw = Swivel(hip, footOut, kneeOut);
+                            sb.Clear();
+                            sb.Append(names[pi]).Append(',').Append(s).Append(',');
+                            Append(sb, cleanTgt.x); Append(sb, cleanTgt.y); Append(sb, cleanTgt.z);
+                            Append(sb, sw);
+                            Append(sb, kneeOut.x); Append(sb, kneeOut.y); sb.Append(F(kneeOut.z)).Append(',').Append(F(maxJitter));
+                            w.WriteLine(sb.ToString());
+
+                            bool sing = IsSingular(cleanTgt) || (s > 0 && IsSingular(pts[s - 1]));
+                            if (!float.IsNaN(sw) && !float.IsNaN(prev) && !sing)
+                            {
+                                float sd = Mathf.DeltaAngle(prev, sw); float d = Mathf.Abs(sd);
+                                if (d > maxJump) maxJump = d;
+                                if (d > 8f) pops++;
+                                if (!float.IsNaN(sdPrev)) { roughSum += Mathf.Abs(sd - sdPrev); roughN++; }
+                                sdPrev = sd;
+                            }
+                            else sdPrev = float.NaN;
+                            prev = sw;
+                        }
+                        results[pi] = new BasisTrajectoryResult
+                        {
+                            Name = names[pi], Steps = pts.Length, CleanMaxJumpDeg = maxJump, Pops = pops,
+                            CleanRoughDeg = roughN > 0 ? (float)(roughSum / roughN) : 0f,
+                        };
+                        if (maxJump > worstPop) worstPop = maxJump;
+                        if (results[pi].CleanRoughDeg > worstRough) worstRough = results[pi].CleanRoughDeg;
+                        if (maxJitter > worstJitterM) worstJitterM = maxJitter;
+                    }
+                }
+                summary.Ok = true; summary.Results = results; summary.WorstPopDeg = worstPop;
+                summary.WorstRoughDeg = worstRough; summary.WorstKneeJitterM = worstJitterM;
+            }
+            catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
+            return summary;
+        }
+
         static BasisLegSolveResult SolveOne(Vector3 hip, Vector3 knee, Vector3 foot, Vector3 target, Vector3 hint, Vector3 bendNormal, float hintWeight)
         {
             BasisLegSolveInput input;

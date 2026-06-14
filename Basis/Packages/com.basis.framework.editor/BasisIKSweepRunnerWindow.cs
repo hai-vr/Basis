@@ -163,6 +163,27 @@ namespace Basis.IK.Debugging
 
                 try
                 {
+                    // Knee = the other hint role. Catches knee pole flips (pop) -- expected clean, the leg
+                    // is flip-safe by design (hint-first axis + xyz-scaled hint commits at 180).
+                    string p = TrajPath("BasisLegIKTrajectory.csv");
+                    var s = BasisLegIKSweep.RunTrajectories(BasisLegIKSweepConfig.Default(), _trajNoise, 1f / 90f, false, p);
+                    var g = BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg);
+                    Record("Leg IK · traj", g.pass, g.reason, p);
+                }
+                catch (System.Exception e) { Record("Leg IK · traj", false, e.Message, null); }
+
+                try
+                {
+                    // Feedback + foot-target noise: does the knee amplify input noise the way the elbow did?
+                    // Expected small -- the knee pole is the stable bend-normal, not a moving target.
+                    string p = TrajPath("BasisLegIKTemporal.csv");
+                    var s = BasisLegIKSweep.RunTrajectories(BasisLegIKSweepConfig.Default(), _trajNoise, 1f / 90f, true, p);
+                    Record("Leg IK · temporal+footnoise", s.Ok, $"kneeJitter={s.WorstKneeJitterM * 1000f:F0}mm pop={s.WorstPopDeg:F0} (foot noise {_trajNoise * 1000f:F0}mm)", p);
+                }
+                catch (System.Exception e) { Record("Leg IK · temporal+footnoise", false, e.Message, null); }
+
+                try
+                {
                     // Head pitch-noise is in DEGREES, so it uses a fixed ~0.3 deg HMD-noise rather than the metres slider.
                     string p = TrajPath("BasisHeadTrajectory.csv");
                     var s = BasisHeadSweep.RunTrajectories(BasisHeadSweepConfig.Default(), 0.3f, p);

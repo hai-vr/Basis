@@ -80,7 +80,12 @@ namespace UnityEngine.Animations.Rigging
             float atCorrectedLen = atCorrected.magnitude;
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
 
-            // Prefer current bend plane; fall back to hint / target / player-up if collinear.
+            // Bend in the ARM plane. Cross(ab,bc) is the shoulder-elbow-hand plane normal, which the
+            // triangle solve REQUIRES so deltaR changes |ac| to exactly the target distance. Seeding this
+            // axis from the hint (as the leg does) tilts it off the arm plane, so deltaR rotates the hand
+            // out of plane and it over/undershoots the target. The hint instead follows via the swivel
+            // (hintR) below, which rotates about the shoulder->hand axis and so preserves reach exactly.
+            // Hint / shoulder->target / player-up are collinear-only fallbacks (arm near-straight).
             byte axisSource = 0;
             Vector3 axis = Vector3.Cross(ab, bc);
             if (axis.sqrMagnitude < k_SqrEpsilon)
@@ -183,6 +188,25 @@ namespace UnityEngine.Animations.Rigging
                         if (hintAngle > i.HintMaxStepDeg && hintAngle > k_Epsilon)
                         {
                             hintR = Quaternion.Slerp(Quaternion.identity, hintR, i.HintMaxStepDeg / hintAngle);
+                        }
+
+                        // Hand reach is PRIMARY: the hint must stay a pure swivel about the shoulder->hand
+                        // axis so the hand keeps meeting the target. At the anti-parallel singularity
+                        // FromToRotation's axis is arbitrary, so a full hint throws the hand off (the pole
+                        // flip). Reduce the hint toward identity until the hand returns to its pre-hint reach
+                        // (or as close as possible) -- the elbow yields, the destination is always met.
+                        float reachTol = (cPosition - tPosition).magnitude + 0.004f * totalLen;
+                        Vector3 cFull = aPosition + hintR * (cPosition - aPosition);
+                        if ((cFull - tPosition).magnitude > reachTol)
+                        {
+                            float lo = 0f, hi = 1f;
+                            for (int it = 0; it < 12; it++)
+                            {
+                                float midK = 0.5f * (lo + hi);
+                                Vector3 cK = aPosition + Quaternion.Slerp(Quaternion.identity, hintR, midK) * (cPosition - aPosition);
+                                if ((cK - tPosition).magnitude <= reachTol) lo = midK; else hi = midK;
+                            }
+                            hintR = Quaternion.Slerp(Quaternion.identity, hintR, lo);
                         }
 
                         rootRot = hintR * rootRot;

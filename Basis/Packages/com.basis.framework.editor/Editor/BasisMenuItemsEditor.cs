@@ -131,6 +131,44 @@ public static class BasisMenuItemsEditor
         CreateViveLeftTracker();
         CreateViveRightTracker();
     }
+    // One click = both hands (roled controllers) AND a full body-puck set (hips, chest, elbows, knees,
+    // feet). Body pucks are generic and get their roles from Full Body calibration (run that next).
+    [MenuItem("Basis/Trackers/FullSet")]
+    public static void CreateFullSet()
+    {
+        BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
+        BasisSimulateXR XR = FindSimulate();
+        var map = BasisLocalAvatarDriver.Mapping;
+
+        // Hands as roled controllers.
+        BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl leftHand, BasisBoneTrackedRole.LeftHand);
+        BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl rightHand, BasisBoneTrackedRole.RightHand);
+        BasisInputXRSimulate lCtrl = XR.CreatePhysicalTrackedDevice("{indexcontroller}valve_controller_knu_3_0_left" + UnityEngine.Random.Range(-9999999999999, 999999999999), "{indexcontroller}valve_controller_knu_3_0_left", BasisBoneTrackedRole.LeftHand, true);
+        lCtrl.FollowMovement.SetPositionAndRotation(leftHand.OutgoingWorldData.position, Quaternion.identity);
+        BasisInputXRSimulate rCtrl = XR.CreatePhysicalTrackedDevice("{indexcontroller}valve_controller_knu_3_0_right" + UnityEngine.Random.Range(-9999999999999, 999999999999), "{indexcontroller}valve_controller_knu_3_0_right", BasisBoneTrackedRole.RightHand, true);
+        rCtrl.FollowMovement.SetPositionAndRotation(rightHand.OutgoingWorldData.position, Quaternion.identity);
+
+        // Body pucks at hips/chest/elbows/knees/feet (generic; Full Body calibration assigns roles by position).
+        const string puck = "{htc}vr_tracker_vive_3_0";
+        (Transform bone, string label)[] parts =
+        {
+            (map.Hips, "Hips"), (map.chest, "Chest"),
+            (map.leftLowerArm, "LeftLowerArm"), (map.RightLowerArm, "RightLowerArm"),
+            (map.LeftLowerLeg, "LeftLowerLeg"), (map.RightLowerLeg, "RightLowerLeg"),
+            (map.leftFoot, "LeftFoot"), (map.rightFoot, "RightFoot"),
+        };
+        foreach ((Transform bone, string label) in parts)
+        {
+            if (bone == null) continue;
+            BasisInputXRSimulate dev = XR.CreatePhysicalTrackedDevice(puck + " " + label + " | " + UnityEngine.Random.Range(-9999999999999, 999999999999), puck);
+            dev.FollowMovement.SetPositionAndRotation(ModifyVector(bone.position), UnityEngine.Random.rotation);
+        }
+
+        BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
+        // PutAvatarIntoTPose disabled the FBIK tracker weights; restore them.
+        BasisLocalPlayer.Instance.LocalRigDriver.RestoreAllTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
+    }
     [MenuItem("Basis/Trackers/Create 3 Point")]
     public static void CreatePuck3Tracker()
     {

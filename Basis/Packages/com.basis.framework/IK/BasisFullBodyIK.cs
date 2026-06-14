@@ -2055,7 +2055,13 @@ w20, w54;
             input.HintWeight = hintWeight;
             input.TargetOffset = targetOffset;
             input.PlayerUp = playerUp.Get(stream);
-            input.HintMaxStepDeg = 540f * stream.deltaTime;
+            // No per-frame swivel clamp. The rig runs after the animator resets the bones, so the solve is
+            // stateless: a per-frame cap can't "ease in" over frames, it just permanently pins the elbow that
+            // many degrees from the animated bend -- which is why an assigned elbow tracker did almost nothing
+            // (6deg/frame). Offline always ran unclamped (MaxValue) and its tests pass, so full swivel is the
+            // proven-safe path. The anti-parallel flip is held off by the commit + hand-reach reduction in
+            // BasisArmSolveCore (reach stays exact), not by clamping the swivel.
+            input.HintMaxStepDeg = float.MaxValue;
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
 
@@ -2514,6 +2520,7 @@ w20, w54;
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
+            bool usedLookup = false;
 
             if (!hasHint && HasArmBendLookup)
             {
@@ -2526,9 +2533,16 @@ w20, w54;
                 Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
                 hint = new AffineTransform(shoulderPos + 0.5f * armLen * lookupBend, hintRot);
                 hasHint = true;
+                usedLookup = true;
             }
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
-            SmoothElbowSwivel(stream, root, mid, tip, swingSlot, stream.deltaTime);
+            // Only damp the elbow on the lookup (no-tracker) path. A real elbow tracker is the user's
+            // intentional input -- smoothing it just mutes the hint they're moving (the knee has no such
+            // damper, which is why it feels far more responsive). Tracker present => drive the elbow directly.
+            if (usedLookup)
+            {
+                SmoothElbowSwivel(stream, root, mid, tip, swingSlot, stream.deltaTime);
+            }
             int collisionState = 0;
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
