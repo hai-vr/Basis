@@ -455,6 +455,8 @@ namespace Basis.BasisUI
                 };
             }
 
+            BuildNetworkingSection(container);
+
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.general", ResetGeneralDefaults);
             descriptor.ForceRebuild();
@@ -509,8 +511,10 @@ namespace Basis.BasisUI
                     }
                 }
             };
+        }
 
-            // NETWORKING GROUP
+        private static void BuildNetworkingSection(RectTransform container)
+        {
             PanelElementDescriptor networkingGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
@@ -529,17 +533,8 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.P2PAvatarSyncRate);
             sliderP2PRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.tooltip"));
 
-            PanelElementDescriptor p2pRateWarning = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
-            p2pRateWarning.SetTitle(string.Empty);
-            if (p2pRateWarning.HasDescription)
-            {
-                p2pRateWarning.DescriptionLabel.color = new Color(1f, 0.78f, 0.28f);
-            }
-            p2pRateWarning.SetActive(false);
-
             _avatarRateSlider = sliderP2PRate;
-            _avatarRateWarning = p2pRateWarning;
+            _networkingGroup = networkingGroup;
             _avatarRateLastFps = -1;
             _avatarRateLastRate = -1;
             _avatarRateWarnShown = false;
@@ -550,27 +545,20 @@ namespace Basis.BasisUI
                 _avatarRateTickSubscribed = true;
             }
 
-            PanelElementDescriptor encryptionInfo = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, networkingGroup.ContentParent);
-            encryptionInfo.SetTitle(BasisLocalization.Get("settings.general.networking.encryption.title"));
-            encryptionInfo.SetDescription(BuildEncryptionStatusText());
-
             void RefreshDirectConnectionVisibility(bool directOn)
             {
                 sliderP2PRate.Descriptor.SetActive(directOn);
-                encryptionInfo.SetActive(directOn);
                 if (!directOn)
                 {
                     _avatarRateWarnShown = false;
-                    p2pRateWarning.SetActive(false);
                 }
+                RefreshNetworkingStatus();
                 networkingGroup.ForceRebuild();
             }
             RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
             toggleDirectConnections.OnValueChanged += (directOn) =>
             {
                 BasisSettingsDefaults.DisableDirectConnections.SetValue(!directOn);
-                encryptionInfo.SetDescription(BuildEncryptionStatusText());
                 RefreshDirectConnectionVisibility(directOn);
             };
         }
@@ -600,17 +588,35 @@ namespace Basis.BasisUI
         }
 
         private static PanelSlider _avatarRateSlider;
-        private static PanelElementDescriptor _avatarRateWarning;
+        private static PanelElementDescriptor _networkingGroup;
         private static bool _avatarRateTickSubscribed;
         private static int _avatarRateLastFps = -1;
         private static int _avatarRateLastRate = -1;
         private static bool _avatarRateWarnShown;
         private const int AvatarRateWarningPollInterval = 15;
 
+        private static void RefreshNetworkingStatus()
+        {
+            PanelElementDescriptor group = _networkingGroup;
+            if (group == null)
+            {
+                return;
+            }
+
+            string status = BuildEncryptionStatusText();
+            if (_avatarRateWarnShown)
+            {
+                status += "\n<color=#FFC747>"
+                    + BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", _avatarRateLastFps, _avatarRateLastRate)
+                    + "</color>";
+            }
+            group.SetRichDescription(status);
+        }
+
         private static void UpdateAvatarRateWarning()
         {
-            PanelElementDescriptor warning = _avatarRateWarning;
-            if (warning == null)
+            PanelElementDescriptor group = _networkingGroup;
+            if (group == null)
             {
                 BasisFrameClock.OnTick -= UpdateAvatarRateWarning;
                 BasisFrameClock.RemoveRequest();
@@ -637,7 +643,8 @@ namespace Basis.BasisUI
                 if (_avatarRateWarnShown)
                 {
                     _avatarRateWarnShown = false;
-                    warning.SetActive(false);
+                    RefreshNetworkingStatus();
+                    group.ForceRebuild();
                 }
                 return;
             }
@@ -649,8 +656,8 @@ namespace Basis.BasisUI
             _avatarRateWarnShown = true;
             _avatarRateLastFps = fps;
             _avatarRateLastRate = rate;
-            warning.SetActive(true);
-            warning.SetDescription(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", fps, rate));
+            RefreshNetworkingStatus();
+            group.ForceRebuild();
         }
 
         // ------------------

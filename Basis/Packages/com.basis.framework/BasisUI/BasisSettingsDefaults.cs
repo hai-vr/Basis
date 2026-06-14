@@ -156,6 +156,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> PlayspaceMoverHand = new("playspacemoverhand", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.HandBoth));
         public static BasisSettingsBinding<bool> PlayspaceMoverRotate = new("playspacemoverrotate", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> PlayspaceMoverScale = new("playspacemoverscale", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> PlayspaceMoverVertical = new("playspacemoververtical", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> PlayspaceMoverFlip = new("playspacemoverflip", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> PlayspaceMoverFlipAngle = new("playspacemoverflipangle", new BasisPlatformDefault<float>(180f));
+        public static BasisSettingsBinding<string> PlayspaceMoverFlipAxis = new("playspacemoverflipaxis", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.AxisRoll));
 
         public static BasisSettingsBinding<string> QualityLevel = new("qualitylevel", new BasisPlatformDefault<string>
         {
@@ -1371,6 +1375,10 @@ namespace Basis.BasisUI
             PlayspaceMoverHand.LoadBindingValue();
             PlayspaceMoverRotate.LoadBindingValue();
             PlayspaceMoverScale.LoadBindingValue();
+            PlayspaceMoverVertical.LoadBindingValue();
+            PlayspaceMoverFlip.LoadBindingValue();
+            PlayspaceMoverFlipAngle.LoadBindingValue();
+            PlayspaceMoverFlipAxis.LoadBindingValue();
 
             // Rendering / Graphics
             QualityLevel.LoadBindingValue();

@@ -464,6 +464,11 @@ namespace Basis.Scripts.BasisSdk.Players
                 localToWorldMatrix = Matrix4x4.TRS(seatPos, seatRot, transform.lossyScale);
             }
 
+            // Apply the play-space flip (OVRAS-style) to the avatar's local->world matrix so the body
+            // tips/inverts with the view. The view, controllers, and trackers get the same flip in
+            // BasisInput.ApplyFinalMovement. No-op unless a flip is active; the capsule is never rotated.
+            localToWorldMatrix = BasisLocalPlayspaceMover.ApplyFlipToMatrix(localToWorldMatrix);
+
             OnLateSimulateBones(this);
 
             // moves all bones to where they belong

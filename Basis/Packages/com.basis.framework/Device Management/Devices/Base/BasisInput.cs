@@ -214,15 +214,20 @@ namespace Basis.Scripts.Device_Management.Devices
         }
         public void ComputeUnscaledDeviceCoord(ref BasisCalibratedCoords coords,Vector3 position)
         {
-            if (SMModuleSitStand.IsSteatedMode && BasisDeviceManagement.IsCurrentModeVR())
+            // Vertical tracking-space offsets (VR only). Seated mode raises the eye to standing height;
+            // the play-space mover adds its live OVRAS-style "Space Drag" vertical offset. Both shift the
+            // whole tracking space here so the camera, hands, and avatar move together as one without
+            // moving the character controller capsule.
+            if (BasisDeviceManagement.IsCurrentModeVR())
             {
-                position.y += SMModuleSitStand.MissingHeightDelta;
-                coords.position = position;
+                float yOffset = BasisLocalPlayspaceMover.VerticalOffset;
+                if (SMModuleSitStand.IsSteatedMode)
+                {
+                    yOffset += SMModuleSitStand.MissingHeightDelta;
+                }
+                position.y += yOffset;
             }
-            else
-            {
-                coords.position = position;
-            }
+            coords.position = position;
         }
         /// <summary>
         /// Computes the raycast origin/direction using the hand’s final transform and active offset.
@@ -364,7 +369,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ApplyFinalMovement()
         {
-            this.transform.SetLocalPositionAndRotation(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation);
+            Vector3 localPosition = ScaledDeviceCoord.position;
+            Quaternion localRotation = ScaledDeviceCoord.rotation;
+            // Tip the whole tracking rig (camera via the head device, controllers, trackers) to match the
+            // avatar's play-space flip; no-op unless a flip is active. The character controller is untouched.
+            BasisLocalPlayspaceMover.ApplyFlipToLocalPose(ref localPosition, ref localRotation);
+            this.transform.SetLocalPositionAndRotation(localPosition, localRotation);
         }
 
         /// <summary>

@@ -81,7 +81,9 @@ public static class BasisLocalHeightCalculator
             if (lockToInput != null && lockToInput.BasisInput != null)
             {
                 lockToInput.BasisInput.LatePollData();
-                BasisHeightDriver.PlayerEyeHeight = lockToInput.BasisInput.UnscaledDeviceCoord.position.y;
+                // Subtract the play-space mover's vertical offset so calibrating while lifted doesn't read
+                // an inflated eye height (the offset is injected into UnscaledDeviceCoord by the device).
+                BasisHeightDriver.PlayerEyeHeight = lockToInput.BasisInput.UnscaledDeviceCoord.position.y - BasisLocalPlayspaceMover.VerticalOffset;
                 BasisDebug.Log($"Player raw eye height from device: {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
             }
             else
@@ -111,7 +113,9 @@ public static class BasisLocalHeightCalculator
         if (lockToInput != null && lockToInput.BasisInput != null)
         {
             lockToInput.BasisInput.LatePollData();
-            return lockToInput.BasisInput.UnscaledDeviceCoord.position.y;
+            // Exclude the play-space mover's vertical offset (injected into UnscaledDeviceCoord) so a
+            // pitch-calibration sample taken while lifted still reflects the true HMD height.
+            return lockToInput.BasisInput.UnscaledDeviceCoord.position.y - BasisLocalPlayspaceMover.VerticalOffset;
         }
         return -1f;
     }

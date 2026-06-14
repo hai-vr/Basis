@@ -4483,6 +4483,50 @@
       "value": "When grabbing with both hands, resize yourself by spreading or closing your hands."
     },
     {
+      "key": "settings.bodyTracking.playspaceMover.vertical",
+      "value": "Allow Vertical (up / down)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.vertical.tooltip",
+      "value": "Let the grab move you up and down as well as sideways, and stay at the height you let go of (like OVR Advanced Settings' Space Drag). Use the Reset button to return to the floor."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flip",
+      "value": "Flip Playspace"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flip.tooltip",
+      "value": "Rotate your whole view (and avatar) by the amount below so the world appears tipped or upside down. Your collision and walking stay upright. Turn this off or press Reset to return."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis",
+      "value": "Flip Axis"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.tooltip",
+      "value": "Which way to tip: Roll (sideways / upside down), Pitch (front-back), or Yaw (spin your view left-right)."
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.roll",
+      "value": "Roll (upside down)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.pitch",
+      "value": "Pitch (front / back)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAxis.yaw",
+      "value": "Yaw (spin)"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAngle",
+      "value": "Flip Amount"
+    },
+    {
+      "key": "settings.bodyTracking.playspaceMover.flipAngle.tooltip",
+      "value": "How far to rotate, 0 to 360 degrees. 180 is fully upside down."
+    },
+    {
       "key": "settings.bodyTracking.playspaceMover.rotateInput",
       "value": "Rotation Input"
     },

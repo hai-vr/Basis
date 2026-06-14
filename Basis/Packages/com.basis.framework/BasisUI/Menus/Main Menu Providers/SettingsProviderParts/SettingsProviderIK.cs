@@ -193,6 +193,30 @@ public static class SettingsProviderIK
             scaleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.scale.tooltip"));
             scaleToggle.AssignBinding(BasisSettingsDefaults.PlayspaceMoverScale);
 
+            var verticalToggle = PanelToggle.CreateNewEntry(moverParent);
+            verticalToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.vertical"));
+            verticalToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.vertical.tooltip"));
+            verticalToggle.AssignBinding(BasisSettingsDefaults.PlayspaceMoverVertical);
+
+            var flipToggle = PanelToggle.CreateNewEntry(moverParent);
+            flipToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.flip"));
+            flipToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.flip.tooltip"));
+            flipToggle.AssignBinding(BasisSettingsDefaults.PlayspaceMoverFlip);
+
+            var flipAxisDropdown = PanelDropdown.CreateNewEntry(moverParent);
+            flipAxisDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.flipAxis"));
+            flipAxisDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.flipAxis.tooltip"));
+            flipAxisDropdown.AssignLocalizedEntries(
+                new List<string> { BasisLocalPlayspaceMover.AxisRoll, BasisLocalPlayspaceMover.AxisPitch, BasisLocalPlayspaceMover.AxisYaw },
+                new List<string> { "settings.bodyTracking.playspaceMover.flipAxis.roll", "settings.bodyTracking.playspaceMover.flipAxis.pitch", "settings.bodyTracking.playspaceMover.flipAxis.yaw" });
+            flipAxisDropdown.AssignBinding(BasisSettingsDefaults.PlayspaceMoverFlipAxis);
+
+            var flipAngleSlider = PanelSlider.CreateEntryAndBind(
+                moverParent,
+                PanelSlider.SliderSettings.Degrees(BasisLocalization.Get("settings.bodyTracking.playspaceMover.flipAngle"), 0f, 360f, true, 0),
+                BasisSettingsDefaults.PlayspaceMoverFlipAngle);
+            flipAngleSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.flipAngle.tooltip"));
+
             var resetButton = PanelButton.CreateNew(moverParent);
             resetButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset"));
             resetButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset.tooltip"));
@@ -1079,6 +1103,10 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.PlayspaceMoverHand.ResetToDefault();
         BasisSettingsDefaults.PlayspaceMoverRotate.ResetToDefault();
         BasisSettingsDefaults.PlayspaceMoverScale.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverVertical.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverFlip.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverFlipAngle.ResetToDefault();
+        BasisSettingsDefaults.PlayspaceMoverFlipAxis.ResetToDefault();
 
         // Global One Euro / smoothing parameters
         BasisSettingsDefaults.FBIKSmoothingStrength.ResetToDefault();
