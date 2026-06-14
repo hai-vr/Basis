@@ -353,6 +353,17 @@ namespace Basis.IK.Debugging
                     return shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
                 }
 
+                // Folded/extended arm = kinematic singularity (elbow pole ill-defined), where a smooth hand
+                // path produces an unavoidable swivel pop. Report those separately instead of failing on them
+                // -- the same isSingular exclusion the leg/arm/head trajectory scans use; this one lacked it.
+                // 0.40 (not the leg's 0.35) matches this sweep's folded-sens cutoff -- the protect push keeps
+                // the pole sensitive a bit longer.
+                System.Func<Vector3, bool> isSingular = target =>
+                {
+                    float rr = (target - shoulder).magnitude / armLen;
+                    return rr < 0.40f || rr > 0.97f;
+                };
+
                 string[] pathNames = { "across-chest", "up-centerline", "reach-up-across", "tuck-circle" };
                 Vector3[][] pathPts =
                 {
@@ -371,7 +382,7 @@ namespace Basis.IK.Debugging
                     var sb = new StringBuilder(128);
                     for (int pi = 0; pi < pathNames.Length; pi++)
                     {
-                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 12345 + pi);
+                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 12345 + pi, isSingular: isSingular);
                         Vector3[] pts = pathPts[pi];
                         for (int s = 0; s < pts.Length; s++)
                         {
