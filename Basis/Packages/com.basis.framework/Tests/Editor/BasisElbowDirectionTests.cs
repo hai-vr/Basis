@@ -415,6 +415,112 @@ namespace Basis.Tests.IK
         }
 
         [Test]
+        public void Elbow_DoesNotFlip_OnBackwardFullStretch()
+        {
+            // The live arm solve is STATELESS and unclamped (BasisFullBodyIK resets the bones each frame and
+            // passes HintMaxStepDeg=MaxValue), so a smooth backward hand path must give a CONTINUOUS elbow
+            // swivel solved fresh each sample -- a jump between adjacent samples IS the "fully stretched
+            // backward, flips rapidly" artifact. Reaching behind, the lookup bend goes near-collinear with the
+            // arm; the pole-collapse stabilizer must hold the elbow on the stable down pole instead. Solve
+            // each sample the way the live rig does (fresh rest pose, no rate limit).
+            foreach (var arc in new[]
+            {
+                (a: new Vector3(0.85f, -0.20f, -0.30f), b: new Vector3(0.10f, -0.20f, -0.85f), name: "back-swing"),
+                (a: new Vector3(0.45f, -0.05f, -0.80f), b: new Vector3(0.30f, -0.75f, -0.55f), name: "back-lower"),
+            })
+            {
+                Vector3[] pts = ExtArc(arc.a, arc.b, 0.92f, 200);
+                float prev = float.NaN, worst = 0f;
+                foreach (var pt in pts)
+                {
+                    var r = SolveWithLookupHint(pt, out _); // stateless, MaxValue -- exactly the live rig
+                    float sw = Swivel(Shoulder, r.HandSolved, r.ElbowSolved);
+                    if (!float.IsNaN(sw) && !float.IsNaN(prev))
+                        worst = Mathf.Max(worst, Mathf.Abs(Mathf.DeltaAngle(prev, sw)));
+                    prev = sw;
+                }
+                // A continuous backward sweep moves the swivel a few deg per sample; a flip is a >90 deg jump.
+                // 45 deg matches the harness pop gate (BasisIKTestGates.TrajMaxPopDeg) and cleanly separates them.
+                Assert.That(worst, Is.LessThan(45f),
+                    $"'{arc.name}' backward full-stretch: stateless elbow swivel jumps {worst:0.0} deg between adjacent samples (>45) -- the arm flips rapidly reaching behind.");
+            }
+        }
+
+        [Test]
+        public void Elbow_StaysContinuous_AcrossReachableWorkspace()
+        {
+            // The strongest pole-flip guard: sweep the hand a FULL 360 deg around the body at several
+            // elevations and reaches and assert the stateless (live-model) elbow swivel never jumps. Each
+            // revolution passes through forward, both sides AND fully behind, so a pole flip anywhere in the
+            // reachable workspace -- not just the backward case -- trips this. Reaches stay below the genuine
+            // dead-straight singularity (>0.95) and elevations off the vertical (straight up/down, where the
+            // down pole is undefined).
+            float worst = 0f; string where = "";
+            foreach (float reach in new[] { 0.70f, 0.85f, 0.90f })
+            foreach (float ev in new[] { 0.30f, 0.0f, -0.30f, -0.60f })
+            {
+                float j = StatelessWorstArcJump(LatitudeCircle(ev, reach, 220));
+                if (j > worst) { worst = j; where = $"reach {reach:0.00}, elevation {ev:0.0}"; }
+            }
+            // Continuous motion moves the swivel a few deg per sample; a flip is a >90 deg jump. 45 matches the
+            // harness pop gate (BasisIKTestGates.TrajMaxPopDeg); measured worst is single digits.
+            Assert.That(worst, Is.LessThan(45f),
+                $"stateless elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} -- a pole flip in the reachable workspace.");
+        }
+
+        [Test]
+        public void Elbow_DoesNotFlip_AcrossBackwardWorkspace()
+        {
+            // Dense backward-hemisphere lock-in for the fully-stretched-backward fix: azimuth sweeps (out to
+            // the side -> straight behind) at several elevations, and elevation sweeps (level-back -> down-back)
+            // at several azimuths, each at several near-full reaches. Stateless (live model); the swivel must
+            // stay continuous everywhere behind the body. Tighter bound than the workspace test -- this is the
+            // region we fixed (measured worst ~3-4 deg).
+            float worst = 0f; string where = "";
+            foreach (float reach in new[] { 0.85f, 0.90f, 0.92f })
+            {
+                foreach (float ev in new[] { 0.05f, -0.30f, -0.65f })
+                {
+                    float j = StatelessWorstArcJump(ExtArc(new Vector3(0.90f, ev, -0.30f), new Vector3(0.05f, ev, -0.95f), reach, 140));
+                    if (j > worst) { worst = j; where = $"azimuth reach {reach:0.00} ev {ev:0.0}"; }
+                }
+                foreach (float az in new[] { 0.10f, 0.45f, 0.85f })
+                {
+                    float j = StatelessWorstArcJump(ExtArc(new Vector3(az, 0.05f, -0.90f), new Vector3(az, -0.85f, -0.45f), reach, 140));
+                    if (j > worst) { worst = j; where = $"elevation reach {reach:0.00} az {az:0.0}"; }
+                }
+            }
+            Assert.That(worst, Is.LessThan(25f),
+                $"backward elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} (>25) -- the arm flips reaching behind.");
+        }
+
+        [Test]
+        public void Elbow_StraightArmInput_PicksStableDownPole_NoThrash()
+        {
+            // Locks the dead-straight axis fallback (Part A): when the INPUT arm is exactly straight the
+            // shoulder-elbow-hand plane is undefined, so Cross(ab,bc) collapses. The old code then thrashed
+            // between the collinear hint/target/player-up fallbacks (the backward flip at full extension); it
+            // must instead seed a stable down pole and stay continuous as the target sweeps behind the body.
+            Vector3 dir0 = new Vector3(0.10f, -0.20f, -1f).normalized;
+            Vector3 straightElbow = Shoulder + dir0 * Upper;          // elbow + hand collinear with the
+            Vector3 straightHand = Shoulder + dir0 * (Upper + Lower); // shoulder -> Cross(ab,bc) = 0
+            float prev = float.NaN, worst = 0f;
+            for (int s = 0; s <= 160; s++)
+            {
+                Vector3 tdir = Quaternion.AngleAxis(Mathf.Lerp(-60f, 60f, s / 160f), Vector3.up) * dir0;
+                Vector3 target = Shoulder + tdir * (0.9f * ArmLen);
+                Vector3 hint = Shoulder + 0.5f * ArmLen * LookupBend(target - Shoulder);
+                var r = SolveOne(Shoulder, straightElbow, straightHand, target, hint, true, float.MaxValue);
+                float sw = Swivel(Shoulder, r.HandSolved, r.ElbowSolved);
+                if (!float.IsNaN(sw) && !float.IsNaN(prev))
+                    worst = Mathf.Max(worst, Mathf.Abs(Mathf.DeltaAngle(prev, sw)));
+                prev = sw;
+            }
+            Assert.That(worst, Is.LessThan(25f),
+                $"straight-arm input thrashes the bend plane: swivel jumps {worst:0.0} deg as the target sweeps (>25) -- the dead-straight fallback is not stable.");
+        }
+
+        [Test]
         public void Elbow_StaysStable_UnderNoisyTrackerHint()
         {
             // Simulate a jittery elbow tracker: the hand is held still and forward while the hint gets
@@ -530,6 +636,36 @@ namespace Basis.Tests.IK
                 pts[s] = Shoulder + u * (Mathf.Lerp(reachLo, reachHi, s / (float)(stepsEachWay - 1)) * ArmLen);
             for (int s = 0; s < stepsEachWay; s++)
                 pts[stepsEachWay + s] = Shoulder + u * (Mathf.Lerp(reachHi, reachLo, s / (float)(stepsEachWay - 1)) * ArmLen);
+            return pts;
+        }
+
+        // Worst adjacent-sample elbow-swivel jump along a hand path, solved the way the LIVE rig does:
+        // stateless (fresh rest pose each sample) with no rate limit. A jump is a pole flip.
+        float StatelessWorstArcJump(Vector3[] pts)
+        {
+            float prev = float.NaN, worst = 0f;
+            foreach (var pt in pts)
+            {
+                var r = SolveWithLookupHint(pt, out _);
+                float sw = Swivel(Shoulder, r.HandSolved, r.ElbowSolved);
+                if (!float.IsNaN(sw) && !float.IsNaN(prev))
+                    worst = Mathf.Max(worst, Mathf.Abs(Mathf.DeltaAngle(prev, sw)));
+                prev = sw;
+            }
+            return worst;
+        }
+
+        // A full 360 deg azimuth circle of hand targets at a fixed elevation (y fraction) and reach, on the
+        // sphere about the shoulder -- one revolution passes through forward, both sides and fully behind.
+        static Vector3[] LatitudeCircle(float elevationY, float reach, int n)
+        {
+            float c = Mathf.Sqrt(Mathf.Max(0f, 1f - elevationY * elevationY));
+            var pts = new Vector3[n];
+            for (int s = 0; s < n; s++)
+            {
+                float th = (s / (float)(n - 1)) * 2f * Mathf.PI;
+                pts[s] = Shoulder + new Vector3(Mathf.Sin(th) * c, elevationY, Mathf.Cos(th) * c) * (reach * ArmLen);
+            }
             return pts;
         }
 

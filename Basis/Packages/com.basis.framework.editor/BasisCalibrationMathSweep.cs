@@ -119,27 +119,28 @@ namespace Basis.IK.Debugging
                         if (!pass || i < 3) WriteRow(w, sb, "scale", i, posErr, rotErr, $"s={F(scale)}", pass);
                     }
 
-                    // 3) Per-effector rotation calibration: boneOutgoing*offset must land on the avatar's
-                    //    own bind frame (relative to its animator root) regardless of the bone-sim spawn
-                    //    orientation — the #531 "no orientation leak across avatar swap" invariant.
+                    // 3) Per-effector rotation calibration (production = aligned pure-world): captured with the
+                    //    avatar root aligned to the bone-sim parent, Inverse(boneOutWorld)*avatarBone must both
+                    //    reproduce the bone AND be root-independent (#531 "no orientation leak across avatar swap").
                     for (int i = 0; i < cases; i++)
                     {
                         var rng = new System.Random(3000 + i);
-                        Quaternion boneOut = RandRot(rng);
-                        Quaternion root = RandRot(rng);
-                        Quaternion avatarBone = RandRot(rng);
-                        bool hasRoot = (i & 1) == 0;
+                        Quaternion root = RandRot(rng);        // shared capture frame: avatar root aligned to bone-sim parent
+                        Quaternion boneLocal = RandRot(rng);   // bone-sim outgoing within that frame
+                        Quaternion avatarLocal = RandRot(rng); // avatar bind bone within that frame
+                        Quaternion boneOutWorld = root * boneLocal;
+                        Quaternion avatarBone = root * avatarLocal;
 
-                        Quaternion offset = BasisAnimationRiggingHelper.CalibratedRotationOffset(boneOut, root, avatarBone, hasRoot);
-                        Quaternion applied = boneOut * offset;
-                        Quaternion target = hasRoot ? Quaternion.Inverse(root) * avatarBone : avatarBone;
-                        float errDeg = Quaternion.Angle(applied, target);
+                        Quaternion offset = BasisAnimationRiggingHelper.CalibratedRotationOffset(boneOutWorld, avatarBone);
+                        float reproduceErr = Quaternion.Angle(boneOutWorld * offset, avatarBone);
+                        float leakDeg = Quaternion.Angle(offset, Quaternion.Inverse(boneLocal) * avatarLocal);
+                        float errDeg = Mathf.Max(reproduceErr, leakDeg);
 
                         s.MaxRotCalErrDeg = Mathf.Max(s.MaxRotCalErrDeg, errDeg);
                         bool pass = errDeg < 0.1f;
                         if (!pass) s.Failures++;
                         s.Cases++;
-                        if (!pass || i < 3) WriteRow(w, sb, "rotcal", i, errDeg, 0f, hasRoot ? "withRoot" : "noRoot", pass);
+                        if (!pass || i < 3) WriteRow(w, sb, "rotcal", i, errDeg, 0f, "aligned", pass);
                     }
 
                     // 4) Pitch-calibrated height: recover the level-gaze eye height Y(0)=P+B from three

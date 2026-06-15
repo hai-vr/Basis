@@ -149,6 +149,7 @@ namespace Basis.IK.Debugging
             string legTrajPath = TrajPath("BasisLegIKTrajectory.csv");
             string legTempPath = TrajPath("BasisLegIKTemporal.csv");
             string legRoundTripPath = TrajPath("BasisLegIKPoleRoundTrip.csv");
+            string legStanceFlickerPath = TrajPath("BasisLegStraightStanceTemporal.csv");
             string legInvTempPath = TrajPath("BasisLegInversionTemporal.csv");
             string legCrouchLPath = TrajPath("BasisLegCrouch_L.csv");
             string legCrouchRPath = TrajPath("BasisLegCrouch_R.csv");
@@ -220,7 +221,7 @@ namespace Basis.IK.Debugging
                     bool L = isLeft;
                     string side = L ? "L" : "R";
                     string atp = SidePath(armTrajPath, L), atmp = SidePath(armTempPath, L), athp = SidePath(armTempHandPath, L), attp = SidePath(armTempTrackPath, L);
-                    string ptp = SidePath(protectTrajPath, L), ltp = SidePath(legTrajPath, L), ltmp = SidePath(legTempPath, L), lrtp = SidePath(legRoundTripPath, L);
+                    string ptp = SidePath(protectTrajPath, L), ltp = SidePath(legTrajPath, L), ltmp = SidePath(legTempPath, L), lrtp = SidePath(legRoundTripPath, L), lsf = SidePath(legStanceFlickerPath, L);
 
                     jobs.Add(() => Job($"Arm IK · traj ({side})", atp, () => { var c = BasisArmIKSweepConfig.Default(); c.IsLeft = L; var s = BasisArmIKSweep.RunTrajectories(c, trajNoise, atp); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
                     jobs.Add(() => Job($"Arm IK · temporal ({side})", atmp, () => { var c = BasisArmIKSweepConfig.Default(); c.IsLeft = L; var s = BasisArmIKSweep.RunTemporal(c, 0f, 0f, 1f / 90f, atmp); var g = BasisIKTestGates.GateTemporal(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); return (g.pass, g.reason + $" swivelRange={s.WorstSwivelRangeDeg:F0} (incl. ext-* full-extension arcs)"); }));
@@ -228,10 +229,12 @@ namespace Basis.IK.Debugging
                     jobs.Add(() => Job($"Arm IK · temporal+tracker ({side})", attp, () => { var c = BasisArmIKSweepConfig.Default(); c.IsLeft = L; var s = BasisArmIKSweep.RunTemporal(c, trajNoise, 0f, 1f / 90f, attp); return (s.Ok, $"elbowJitter={s.WorstElbowJitterM * 1000f:F0}mm glideJitter={s.WorstRoughDeg:F2} (hint noise {trajNoise * 1000f:F0}mm)"); }));
                     jobs.Add(() => Job($"Elbow Protect · traj ({side})", ptp, () => { var c = BasisElbowProtectSweepConfig.Default(); c.IsLeft = L; var s = BasisElbowProtectSweep.RunTrajectories(c, trajNoise, ptp); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
                     jobs.Add(() => Job($"Leg IK · traj ({side})", ltp, () => { var c = BasisLegIKSweepConfig.Default(); c.IsLeft = L; var s = BasisLegIKSweep.RunTrajectories(c, trajNoise, 1f / 90f, false, ltp); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
-                    jobs.Add(() => Job($"Leg IK · temporal+footnoise ({side})", ltmp, () => { var c = BasisLegIKSweepConfig.Default(); c.IsLeft = L; var s = BasisLegIKSweep.RunTrajectories(c, trajNoise, 1f / 90f, true, ltmp); return (s.Ok, $"kneeJitter={s.WorstKneeJitterM * 1000f:F0}mm (wellCond {s.WorstKneeJitterWellCondM * 1000f:F0}mm) pop={s.WorstPopDeg:F0} (foot noise {trajNoise * 1000f:F0}mm)"); }));
+                    jobs.Add(() => Job($"Leg IK · temporal+footnoise ({side})", ltmp, () => { var c = BasisLegIKSweepConfig.Default(); c.IsLeft = L; var s = BasisLegIKSweep.RunTrajectories(c, trajNoise, 1f / 90f, true, ltmp); return BasisIKTestGates.GateLegKneeJitter(s.Ok, s.Error, s.WorstKneeJitterWellCondM, s.WorstKneeJitterM, trajNoise); }));
                     // Pole round-trip: hint + foot both present, smooth foot motion (noise-free, stateful feed) -- catches the
                     // knee pole swinging out and rotating back to where it was, which the per-frame pop gate above misses.
                     jobs.Add(() => Job($"Leg IK · pole round-trip ({side})", lrtp, () => { var c = BasisLegIKSweepConfig.Default(); c.IsLeft = L; var s = BasisLegIKSweep.RunTrajectories(c, 0f, 1f / 90f, true, lrtp); return BasisIKTestGates.GateLegSwivelRoundTrip(s.Ok, s.Error, s.WorstSwivelRoundTripDeg, s.WorstRoundTripPath); }));
+                    // Stateful flicker: hold near-straight + 3mm foot noise, feed the previous knee -- the live model of the standing outward/inward flip (the stateless straight-stance check can't see it).
+                    jobs.Add(() => Job($"Leg IK · stance flicker ({side})", lsf, () => { var c = BasisLegIKSweepConfig.Default(); c.IsLeft = L; var s = BasisLegIKSweep.RunStraightStanceTemporal(c, trajNoise, lsf); return BasisIKTestGates.GateLegStraightStanceFlicker(s); }));
                 }
                 jobs.Add(() => Job("Head · traj", headTrajPath, () => { var s = BasisHeadSweep.RunTrajectories(BasisHeadSweepConfig.Default(), 0.3f, headTrajPath); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
                 jobs.Add(() => Job("Leg Inversion · temporal", legInvTempPath, () => { var c = BasisLegInversionConfig.Default(); c.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.RunTemporal(c, trajNoise, legInvTempPath); return BasisIKTestGates.GateLegInversionTemporal(s); }));

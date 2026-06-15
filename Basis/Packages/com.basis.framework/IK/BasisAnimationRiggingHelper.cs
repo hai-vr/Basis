@@ -8,23 +8,19 @@ using UnityEngine.Animations.Rigging;
 
 public static class BasisAnimationRiggingHelper
 {
-    /// <summary>Per-effector bind offset for the uncalibrated rig build: bone-sim LOCAL outgoing against the
-    /// avatar bone RELATIVE TO the animator root (the avatar's own forward), so its spawn orientation can't
-    /// leak in. FBT calibration recomputes these head-driven instead (FullBodyCalibration).</summary>
+    /// <summary>Per-effector bind offset captured in T-pose with the avatar root aligned to the player:
+    /// Inverse(bone-sim world outgoing) * avatar bone, the same form FBT calibration uses.</summary>
     public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
     {
-        return CalibratedRotationOffset(control.OutGoingData.rotation, animatorRoot != null ? animatorRoot.rotation : Quaternion.identity, avatarBone.rotation, animatorRoot != null);
+        return CalibratedRotationOffset(control.OutgoingWorldData.rotation, avatarBone.rotation);
     }
 
-    /// <summary>Pure form: the per-effector bind offset from rotations alone. offset applied as
-    /// boneOutgoing*offset reproduces the avatar bone relative to its animator root, so a spawn
-    /// orientation can't leak across an avatar swap. Shared with the Calibration Math sweep.</summary>
-    public static Quaternion CalibratedRotationOffset(Quaternion boneOutgoingRotation, Quaternion animatorRootRotation, Quaternion avatarBoneRotation, bool hasAnimatorRoot)
+    /// <summary>Pure form (shared with the Calibration Math sweep): maps the bone-sim world outgoing onto the
+    /// avatar bone. Both captured against the same aligned root, so the offset carries no spawn-orientation
+    /// leak across an avatar swap.</summary>
+    public static Quaternion CalibratedRotationOffset(Quaternion boneOutgoingWorldRotation, Quaternion avatarBoneRotation)
     {
-        Quaternion boneRelativeToRoot = hasAnimatorRoot
-            ? Quaternion.Inverse(animatorRootRotation) * avatarBoneRotation
-            : avatarBoneRotation;
-        return Quaternion.Inverse(boneOutgoingRotation) * boneRelativeToRoot;
+        return Quaternion.Inverse(boneOutgoingWorldRotation) * avatarBoneRotation;
     }
 
     /// <summary>
@@ -172,6 +168,7 @@ public static class BasisAnimationRiggingHelper
         {
             Transform animRoot = player?.BasisAvatar?.Animator != null ? player.BasisAvatar.Animator.transform : null;
             BasisCalibrationDebugRecorder.Bone("Offsets", "AnimatorRoot", animRoot);
+            BasisCalibrationDebugRecorder.Rotation("Offsets", "PlayerRoot", "localToWorld", BasisLocalPlayer.localToWorldMatrix.rotation);
 
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationHead", "offset", data.m_CalibratedRotationHead);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibrationLeftFootRotation", "offset", data.M_CalibrationLeftFootRotation);

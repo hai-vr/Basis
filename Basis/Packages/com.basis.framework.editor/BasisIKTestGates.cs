@@ -25,9 +25,15 @@ namespace Basis.IK.Debugging
         public const float LegMaxFootErrorM = 0.002f;       // reachable foot must land on target: the hint rotates ABOUT the hip->foot axis so reach is preserved (measured 0.0mm). 2mm guards a gross reach regression; a miss = the solve disturbed reach.
         public const float LegMaxHintFollowDeg = 8f;        // mean angle the solved knee pole sits off the COMMANDED hint pole, well-conditioned (measured 0 deg, max 0 over 7445). 8 matches the arm elbow-align gate; above = the knee isn't following the knee tracker.
         public const float LegMaxHintSensDegPerCm = 60f;    // 99.9th-pct knee-swivel change per cm of hint jitter (measured p99.9 28-30, max 69-138 at boundary outliers). Percentile not max -- the max chases pole-collapse outliers that climb with density (mirrors the arm/protect sens gates).
+        // --- leg temporal forward-anchor + noise amplification (calibrated to the 2026-06-16 known-good run) ---
+        public const float LegInvertTemporalMinFwdFrac = 0.3f;    // on a good-hint smooth path the knee must stay this anterior (baseline min fwd 0.66); catches a near-extension forward-anchor regression before it inverts (reverted fade sagged to -0.17).
+        public const float LegMaxKneeJitterWellCondM = 0.015f;    // well-conditioned (singular-excluded) knee jitter under 3mm foot noise (baseline 7mm); 15mm is a 2x regression guard on the typical-pose noise->knee amplification.
+        public const float LegMaxKneeJitterRawM = 0.085f;         // raw worst incl. near-singular poses (baseline 68-70mm). 85mm catches a near-extension destabilization (the reverted fade pushed it to 90-93mm) while clearing the deterministic baseline.
         // --- leg straight-stance ("standing knees cave inward") -- UNCALIBRATED, calibrate after the first run ---
         public const float LegStraightStanceMaxInwardFrac = 0.3f; // standing knee-pole inward (toward-centerline) component; >this = the knee caves in at full extension (forward ~0 expected).
         public const float LegStraightStanceMaxFlipSens = 0.5f;   // how far a tiny uneven-feet/waist-tilt swings the standing knee inward; high = near-singular coin-flip (the asymmetric flicker).
+        public const float LegStanceFlickerMaxStepDeg = 3f;       // STATEFUL: worst per-frame knee-swivel jump under 3mm foot noise at a near-straight reach (measured 0.1deg -- the solver is stable offline). 3 is a wide guard against a solver destabilization.
+        public const float LegStanceFlickerMaxRangeDeg = 8f;      // STATEFUL: total knee-swivel wander over the run (measured 0deg). 8 catches a slow drift (e.g. an un-anchoring fix); two metrics so a fix can't trade flicker for drift.
         // --- tracker placement / discovery gates (calibrate against a known-good run) ---
         public const float TrackerPlacementCleanMinFraction = 0.85f; // overall clean (no-jitter) correctness floor across ALL archetypes incl. extreme; below = broken
         public const float TrackerPlacementCoreMinFraction = 1.0f;   // common "core" archetypes must classify every tracker cleanly
@@ -162,7 +168,12 @@ namespace Basis.IK.Debugging
             if (s.Steps <= 0) return (false, "no steps");
             if (s.Crossings > 0)
                 return (false, $"knee flips backward {s.Crossings}x mid-motion on a good hint (min fwd {s.MinFwdFrac:F2}) -- transient inversion");
-            return (true, $"clean (min fwd {s.MinFwdFrac:F2}); under pole noise: {s.NoisyCrossings} flips (min fwd {s.NoisyMinFwdFrac:F2})");
+            // Not just "never fully inverts" -- the knee must stay COMFORTABLY anterior on a good hint. Known-good
+            // baseline min fwd is 0.66; a regression that lets it sag toward posterior (e.g. the reverted hint-fade
+            // dropped it to -0.17 without ever "crossing") is caught here before it becomes a visible back-bend.
+            if (s.MinFwdFrac < LegInvertTemporalMinFwdFrac)
+                return (false, $"knee sags toward posterior mid-motion (min fwd {s.MinFwdFrac:F2} < {LegInvertTemporalMinFwdFrac}) -- near-extension forward-anchor weakened, not yet a full inversion but heading there");
+            return (true, $"clean (min fwd {s.MinFwdFrac:F2} >= {LegInvertTemporalMinFwdFrac}); under pole noise: {s.NoisyCrossings} flips (min fwd {s.NoisyMinFwdFrac:F2})");
         }
 
         // Crouch (foot planted, hips lowering): a good forward hint must keep the knee anterior with no swivel
@@ -210,6 +221,36 @@ namespace Basis.IK.Debugging
             if (s.FlipSensitivity > LegStraightStanceMaxFlipSens)
                 return (false, $"standing knee is flip-sensitive: a tiny uneven-feet/waist-tilt swings the pole inward by {s.FlipSensitivity:F2} (to {s.WorstPerturbedInwardFrac:F2}) > {LegStraightStanceMaxFlipSens} -- near-singular coin-flip (the L/R asymmetry)");
             return (true, $"forward (minFwd {s.MinForwardFrac:F2}, worstInward {s.WorstInwardFrac:F2}); under tilt worstInward {s.WorstPerturbedInwardFrac:F2} flipSens {s.FlipSensitivity:F2}");
+        }
+
+        // STATEFUL straight-stance flicker: hold near-straight + per-frame foot noise, feed the previous knee.
+        // The knee swivel must neither FAST-oscillate (WorstStepDeg = the visible flicker) nor slowly WANDER
+        // (WorstSwivelRangeDeg = drift). Two metrics so a fix can't trade one for the other -- this is the test
+        // the stateless straight-stance check couldn't be (it re-seeds forward each step). UNCALIBRATED.
+        public static (bool pass, string reason) GateLegStraightStanceFlicker(in BasisLegStraightStanceTemporalSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.WorstStepDeg > LegStanceFlickerMaxStepDeg)
+                return (false, $"standing knee FLICKERS {s.WorstStepDeg:F0} deg/frame under foot noise (reach {s.AtReach:F2}, {s.Zigzags} oscillations) > {LegStanceFlickerMaxStepDeg} -- the straight-leg outward/inward flip");
+            if (s.WorstSwivelRangeDeg > LegStanceFlickerMaxRangeDeg)
+                return (false, $"standing knee WANDERS {s.WorstSwivelRangeDeg:F0} deg of swivel over the run > {LegStanceFlickerMaxRangeDeg} -- slow drift (e.g. a fade-style fix that un-anchors the knee)");
+            return (true, $"steady: maxStep {s.WorstStepDeg:F1} deg/frame, range {s.WorstSwivelRangeDeg:F0} deg, {s.Zigzags} oscillations (reach {s.AtReach:F2})");
+        }
+
+        // Knee jitter under foot-target noise (the leg has no swivel rate-limiter, so foot-tracker noise
+        // propagates into the knee). wellCond (singular-excluded) is the typical-pose figure; raw includes the
+        // near-extension singular poses where a tiny foot move swings the knee a lot. Both gated now so a
+        // near-extension destabilization -- e.g. a hint change that un-anchors the straight-leg knee -- is caught
+        // instead of slipping through as a reported number (which is how the reverted fade's 68->90mm hid).
+        public static (bool pass, string reason) GateLegKneeJitter(bool ok, string error, float wellCondM, float rawM, float noiseM)
+        {
+            if (!ok) return (false, string.IsNullOrEmpty(error) ? "did not run" : error);
+            if (wellCondM > LegMaxKneeJitterWellCondM)
+                return (false, $"well-conditioned knee jitter {wellCondM * 1000f:F0}mm from {noiseM * 1000f:F0}mm foot noise > {LegMaxKneeJitterWellCondM * 1000f:F0}mm (typical-pose noise->knee amplification regressed)");
+            if (rawM > LegMaxKneeJitterRawM)
+                return (false, $"raw knee jitter {rawM * 1000f:F0}mm (incl. near-singular) from {noiseM * 1000f:F0}mm foot noise > {LegMaxKneeJitterRawM * 1000f:F0}mm (near-extension knee destabilized -- straight-leg flicker/drift)");
+            return (true, $"wellCond {wellCondM * 1000f:F0}mm raw {rawM * 1000f:F0}mm from {noiseM * 1000f:F0}mm foot noise");
         }
 
         public static (bool pass, string reason) GateHead(in BasisHeadSweepSummary s)
@@ -558,6 +599,7 @@ namespace Basis.IK.Debugging
 
         // --- spine bend distribution (per-axis spine/upperChest) ---
         public const float SpineBendTwistMaxJumpDeg = 30f; // raw twist step across center; a branch snap is ~180-360
+        public const float SpineBendLookDownBendDriftDeg = 0.5f; // forward bend must not move as the gaze pitches (the fade is twist-only)
         public const float SpineBendMaxCouplingErrDeg = 0.05f; // bend->twist coupling: euler.y vs coupling*euler.z, and zero at coupling=0
 
         // DistributeSpineBend: the asymmetric flexion clamp must hold per axis, the rest deadband must zero
@@ -573,6 +615,8 @@ namespace Basis.IK.Debugging
                 return (false, $"spine twist jumps {s.TwistMaxJumpDeg:F0} deg across center > {SpineBendTwistMaxJumpDeg} (atan2 branch snap -- the hips-bind cancellation regressed)");
             if (s.LookDownTwistMaxJumpDeg > SpineBendTwistMaxJumpDeg)
                 return (false, $"spine twist jumps {s.LookDownTwistMaxJumpDeg:F0} deg looking down through vertical > {SpineBendTwistMaxJumpDeg} (the vertical-gaze azimuth fade regressed -- chest snaps out of the way)");
+            if (s.LookDownBendDriftDeg > SpineBendLookDownBendDriftDeg)
+                return (false, $"forward bend drifts {s.LookDownBendDriftDeg:F2} deg as the gaze pitches > {SpineBendLookDownBendDriftDeg} (the vertical-gaze twist fade bled into the lean)");
             if (s.MaxClampOverDeg > 0.05f)
                 return (false, $"bend exceeds the asymmetric flexion clamp by {s.MaxClampOverDeg:F2} deg (limit not holding)");
             if (s.MaxDeadbandLeakDeg > 0.05f)
@@ -585,7 +629,7 @@ namespace Basis.IK.Debugging
                 return (false, $"a forward-facing lateral lean adds {s.MaxCouplingBaselineDeg:F3} deg of twist at coupling=0 > {SpineBendMaxCouplingErrDeg} (spurious yaw -- coupling not isolated)");
             if (s.MaxCouplingErrDeg > SpineBendMaxCouplingErrDeg)
                 return (false, $"bend->twist coupling off by {s.MaxCouplingErrDeg:F3} deg > {SpineBendMaxCouplingErrDeg} (euler.y != coupling * euler.z -- not a proportion of the lateral bend)");
-            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° lookDownTwistJump={s.LookDownTwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} coupling(err={s.MaxCouplingErrDeg:F3}° base={s.MaxCouplingBaselineDeg:F3}°) cases={s.Cases}");
+            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° lookDownTwistJump={s.LookDownTwistMaxJumpDeg:F1}° lookDownBendDrift={s.LookDownBendDriftDeg:F2}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} coupling(err={s.MaxCouplingErrDeg:F3}° base={s.MaxCouplingBaselineDeg:F3}°) cases={s.Cases}");
         }
 
         // --- spine CCD twist shaping (graded + orientation-independent: a lateral head reach must BEND) ---

@@ -37,6 +37,7 @@ namespace Basis.IK.Debugging
         public float MaxYawSplitErr;      // PelvicTwistRouting off the 25/75 spine:upperChest split
         public float TwistMaxJumpDeg;     // worst frame-to-frame raw twist jump across center (branch snap)
         public float LookDownTwistMaxJumpDeg; // worst twist jump as the gaze pitches through vertical (look-down snap)
+        public float LookDownBendDriftDeg;    // worst forward-bend drift as the gaze pitches (the fade must be twist-only)
         public float MaxCouplingErrDeg;     // bend->twist coupling: euler.y vs coupling * euler.z (forward-facing lean)
         public float MaxCouplingBaselineDeg; // yaw produced at coupling=0 with a forward-facing lean (must be ~0)
         public int Failures;
@@ -66,7 +67,7 @@ namespace Basis.IK.Debugging
 
             int cases = 0, nan = 0, fails = 0;
             float mClamp = 0f, mLeak = 0f, mSquish = 0f, mSplit = 0f, mTwistJump = 0f;
-            float mCoupling = 0f, mCouplingBase = 0f, mLookDownJump = 0f;
+            float mCoupling = 0f, mCouplingBase = 0f, mLookDownJump = 0f, mLookDownBendDrift = 0f;
 
             try
             {
@@ -280,6 +281,45 @@ namespace Basis.IK.Debugging
                             }
                         }
                     }
+
+                    // ---- Pass E: look-down fade isolation (the fade damps only the twist, not the lean) ----
+                    // Hold the head leaned forward (a real forward bend) and pitch the head ROTATION through
+                    // vertical, which drives the twist fade. The forward/lateral bend is position-derived, so
+                    // it must not move while the twist fades; drift is the worst forward-bend deviation. A
+                    // regression that let the fade touch the bend would hunch/un-hunch the spine on look-down.
+                    {
+                        Vector3 chestE = hips + Vector3.up * 0.2f;
+                        Vector3 headE = hips + Vector3.up * k_RestLen + Vector3.forward * 0.3f;
+                        float baseBendX = 0f; bool haveBase = false;
+                        for (int pi = 0; pi < ts; pi++)
+                        {
+                            float phi = Mathf.Lerp(0f, 95f, pi / (float)(ts - 1));
+                            Quaternion headRot = Quaternion.AngleAxis(20f, Vector3.up) * Quaternion.AngleAxis(phi, Vector3.right);
+                            BasisSpineBendInput input = MakeInput(Quaternion.identity, hips, chestE, headE,
+                                Quaternion.identity, headRot, 0.5f, false, false, k_MaxLat);
+                            BasisSpineBendCore.Solve(input, out BasisSpineBendResult r);
+
+                            float bendX = r.WriteSpine ? r.SpineEuler.x : 0f;
+                            if (!haveBase) { baseBendX = bendX; haveBase = true; }
+                            float drift = Mathf.Abs(bendX - baseBendX);
+
+                            bool hadNaN = (r.WriteSpine && !Finite(r.SpineEuler)) || float.IsNaN(r.TwistY);
+                            cases++;
+                            if (hadNaN) nan++;
+                            if (drift > mLookDownBendDrift) mLookDownBendDrift = drift;
+                            bool fail = hadNaN || drift > 0.5f;
+                            if (fail) fails++;
+
+                            sb.Clear();
+                            sb.Append("fadeiso,");
+                            Append(sb, phi); Append(sb, bendX); Append(sb, 0f); Append(sb, 0f);
+                            Append(sb, r.BendGate); Append(sb, r.SquishMult); Append(sb, r.TwistY);
+                            Append(sb, drift); Append(sb, 0f); Append(sb, 0f); Append(sb, 0f); Append(sb, 0f);
+                            Append(sb, 0f);
+                            sb.Append(fail ? '1' : '0');
+                            w.WriteLine(sb.ToString());
+                        }
+                    }
                 }
 
                 summary.Ok = true;
@@ -291,6 +331,7 @@ namespace Basis.IK.Debugging
                 summary.MaxYawSplitErr = mSplit;
                 summary.TwistMaxJumpDeg = mTwistJump;
                 summary.LookDownTwistMaxJumpDeg = mLookDownJump;
+                summary.LookDownBendDriftDeg = mLookDownBendDrift;
                 summary.MaxCouplingErrDeg = mCoupling;
                 summary.MaxCouplingBaselineDeg = mCouplingBase;
                 summary.Failures = fails;

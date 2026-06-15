@@ -32,7 +32,8 @@ namespace Basis.IK.Debugging
                 "Sweeps the per-axis spine/upperChest bend distribution. Pass A checks the asymmetric clamp, " +
                 "rest deadband, squish range and the 25/75 yaw split; pass B scans head yaw across center with " +
                 "a yawed hips bind to guard the twist branch-cut fix (no ±360 snap); pass D scans head pitch " +
-                "through vertical to guard the look-down fade (chest must not snap sideways). Same math as DistributeSpineBend.",
+                "through vertical to guard the look-down fade (chest must not snap sideways); pass E checks that " +
+                "fade is twist-only (the forward bend must not drift as the gaze pitches). Same math as DistributeSpineBend.",
                 MessageType.Info);
 
             EditorGUILayout.LabelField("Configuration", EditorStyles.boldLabel);
@@ -72,7 +73,7 @@ namespace Basis.IK.Debugging
                         (g.pass ? "PASS  " : "FAIL  ") + g.reason + "\n" +
                         $"cases={_last.Cases} nan={_last.NaNCount} fails={_last.Failures}\n" +
                         $"clampOver={_last.MaxClampOverDeg:F3}° deadband={_last.MaxDeadbandLeakDeg:F3}° " +
-                        $"squishErr={_last.MaxSquishErr:F4} yawSplit={_last.MaxYawSplitErr:F4} twistJump={_last.TwistMaxJumpDeg:F2}° lookDownJump={_last.LookDownTwistMaxJumpDeg:F2}°\n" +
+                        $"squishErr={_last.MaxSquishErr:F4} yawSplit={_last.MaxYawSplitErr:F4} twistJump={_last.TwistMaxJumpDeg:F2}° lookDownJump={_last.LookDownTwistMaxJumpDeg:F2}° bendDrift={_last.LookDownBendDriftDeg:F2}°\n" +
                         _last.Path,
                         g.pass ? MessageType.Info : MessageType.Error);
                     if (GUILayout.Button("Reveal CSV")) EditorUtility.RevealInFinder(_last.Path);

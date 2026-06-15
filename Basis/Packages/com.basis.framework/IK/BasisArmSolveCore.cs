@@ -97,13 +97,29 @@ namespace UnityEngine.Animations.Rigging
             // axis from the hint (as the leg does) tilts it off the arm plane, so deltaR rotates the hand
             // out of plane and it over/undershoots the target. The hint instead follows via the swivel
             // (hintR) below, which rotates about the shoulder->hand axis and so preserves reach exactly.
-            // Hint / shoulder->target / player-up are collinear-only fallbacks (arm near-straight).
+            // Stable-down-pole / hint / shoulder->target / player-up are collinear-only fallbacks (arm near-straight).
             byte axisSource = 0;
             Vector3 axis = Vector3.Cross(ab, bc);
             if (axis.sqrMagnitude < k_SqrEpsilon)
             {
-                axis = i.HintWeight ? Vector3.Cross(i.HintPosition - aPosition, bc) : Vector3.zero;
-                axisSource = 1;
+                // Arm dead straight: the bend plane is undefined. Bend toward a STABLE pole (the elbow hangs
+                // down, perpendicular to the shoulder->hand axis) FIRST, so a fully-stretched arm settles
+                // instead of thrashing between the collinear fallbacks below -- which, reaching BACKWARD, are
+                // themselves near-parallel to the backward forearm and so flip the bend plane frame-to-frame.
+                Vector3 straightArm = ac.sqrMagnitude > k_SqrEpsilon ? ac : bc;
+                if (straightArm.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 saN = straightArm.normalized;
+                    Vector3 downPole = -i.PlayerUp - saN * Vector3.Dot(-i.PlayerUp, saN);
+                    axis = Vector3.Cross(downPole, bc);
+                    axisSource = 4;
+                }
+
+                if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
+                    axis = i.HintWeight ? Vector3.Cross(i.HintPosition - aPosition, bc) : Vector3.zero;
+                    axisSource = 1;
+                }
                 if (axis.sqrMagnitude < k_SqrEpsilon)
                 {
                     axis = Vector3.Cross(atCorrected, bc);
@@ -226,6 +242,46 @@ namespace UnityEngine.Animations.Rigging
                         cPosition = aPosition + hintR * (cPosition - aPosition);
                         midRot = hintR * midRot;
                         hintApplied = true;
+                    }
+                }
+            }
+
+            // Pole-collapse stabilizer (the BACKWARD full-stretch rapid flip). The live arm solve is
+            // stateless and unclamped, so when the hint pole goes near-collinear with the shoulder->hand axis
+            // -- as the arm stretches out, worst BEHIND the body where the lookup bend itself points backward
+            // along the arm -- the swivel is hypersensitive and the elbow flips rapidly on small hand motion.
+            // Ease the elbow toward a STABLE pole (world-down projected onto the swing plane, where it
+            // naturally hangs) by a reach-preserving swivel about the shoulder->hand axis, weighted by how
+            // collapsed the hint pole is (collapse 1 at projNorm<=0.15, off by 0.30 -- the tuning knob; raise
+            // it if a backward flip survives, lower it if forward/up reaches drift). Folded into HintDelta so
+            // the runtime applies it; the hand stays exactly on target -- only the ill-conditioned swivel DOF
+            // is replaced by a stable attractor. Perpendicular hint poles (forward / up reaches) are untouched.
+            if (i.HintWeight)
+            {
+                float poleCond = totalLen > k_Epsilon ? hintProjMag / totalLen : 1f;
+                float collapse = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((poleCond - 0.15f) / 0.15f));
+                Vector3 acStab = cPosition - aPosition;
+                if (collapse > 0f && acStab.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 acStabN = acStab.normalized;
+                    Vector3 downPole = -i.PlayerUp - acStabN * Vector3.Dot(-i.PlayerUp, acStabN);
+                    Vector3 elbowPole = (bPosition - aPosition) - acStabN * Vector3.Dot(bPosition - aPosition, acStabN);
+                    if (downPole.sqrMagnitude > k_SqrEpsilon && elbowPole.sqrMagnitude > k_SqrEpsilon)
+                    {
+                        Quaternion stab = Quaternion.Slerp(Quaternion.identity, QuaternionExt.FromToRotation(elbowPole, downPole), collapse);
+                        // Offline temporal callers pass a per-solve cap; the live stateless rig passes MaxValue
+                        // (down is a fixed target, so a full stateless swivel onto it is stable, not a snap).
+                        float stabAngle = 2f * Mathf.Acos(Mathf.Clamp(Mathf.Abs(stab.w), 0f, 1f)) * Mathf.Rad2Deg;
+                        if (stabAngle > i.HintMaxStepDeg && stabAngle > k_Epsilon)
+                        {
+                            stab = Quaternion.Slerp(Quaternion.identity, stab, i.HintMaxStepDeg / stabAngle);
+                        }
+                        stab = QuaternionExt.NormalizeSafe(stab);
+                        rootRot = stab * rootRot;
+                        bPosition = aPosition + stab * (bPosition - aPosition);
+                        cPosition = aPosition + stab * (cPosition - aPosition);
+                        midRot = stab * midRot;
+                        hintR = stab * hintR; // fold into the hint delta the runtime applies
                     }
                 }
             }

@@ -350,7 +350,10 @@ namespace Basis.IK.Debugging
                 // "ext-*" hold the hand near full extension (reach ~0.95, well-conditioned but nearly straight)
                 // and sweep its DIRECTION so the elbow pole has to rotate right where it is most ill-defined --
                 // the "extend the arm out fully and it flips" case the moderate-reach paths above never enter.
-                string[] pathNames = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach" };
+                // "back-*" do the same BEHIND the body (z<0): there the arm axis, the lookup bend and the
+                // forearm all point backward, so Cross(ab,bc) AND the hint/target axis fallbacks all collapse
+                // and the bend-plane axis thrashes -- the "fully stretched backward, flips rapidly" case.
+                string[] pathNames = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach", "back-swing", "back-lower", "back-reach" };
                 Vector3[][] pathPts =
                 {
                     BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
@@ -362,6 +365,13 @@ namespace Basis.IK.Debugging
                     // Radial push straight out to (near) full extension -- the elbow pole collapses at the far
                     // end (>0.985 reported as the singularity below); the band up to it must not flip.
                     BasisIKTrajectoryScan.Line(Sphere(0.12f, -0.18f, 1.0f, 0.55f), Sphere(0.12f, -0.18f, 1.0f, 0.99f), 160),
+                    // Fully extended BEHIND, swung in azimuth from out-to-the-side back to straight-behind --
+                    // the hand crosses behind the shoulder line where the backward pole reorganizes (flip).
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.85f, -0.20f, -0.30f, 0.92f), Sphere(0.10f, -0.20f, -0.85f, 0.92f), 160),
+                    // Fully extended behind, lowered from level-back to down-back.
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.45f, -0.05f, -0.80f, 0.92f), Sphere(0.30f, -0.75f, -0.55f, 0.92f), 160),
+                    // Radial push straight BACK to near full extension -- the "stretch the arm out behind you" move.
+                    BasisIKTrajectoryScan.Line(Sphere(0.30f, -0.25f, -0.95f, 0.5f), Sphere(0.30f, -0.25f, -0.95f, 0.96f), 160),
                 };
 
                 // At true full extension (arm dead straight) the pole is genuinely undefined, so a stateless
@@ -460,7 +470,8 @@ namespace Basis.IK.Debugging
                 }
                 // ext-* sweep the hand at ~0.95 reach (nearly straight): the live rate limiter must keep the
                 // elbow from snapping AND from slewing the whole way around -- the full-extension pole flip.
-                string[] names = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach" };
+                // back-* do it BEHIND the body, where the bend-plane axis fallbacks all collapse (rapid flip).
+                string[] names = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach", "back-swing", "back-lower", "back-reach" };
                 Vector3[][] paths =
                 {
                     BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
@@ -472,6 +483,12 @@ namespace Basis.IK.Debugging
                     // Push straight out to near full extension: as the arm straightens the elbow pole collapses,
                     // and the live rate-limited feed must keep the elbow tucked instead of slewing around.
                     BasisIKTrajectoryScan.Line(Sphere(0.12f, -0.18f, 1.0f, 0.55f), Sphere(0.12f, -0.18f, 1.0f, 0.99f), 160),
+                    // Fully extended BEHIND, swung in azimuth side -> straight-behind (crosses the flip region).
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.85f, -0.20f, -0.30f, 0.92f), Sphere(0.10f, -0.20f, -0.85f, 0.92f), 160),
+                    // Fully extended behind, lowered from level-back to down-back.
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.45f, -0.05f, -0.80f, 0.92f), Sphere(0.30f, -0.75f, -0.55f, 0.92f), 160),
+                    // Radial push straight BACK to near full extension -- "stretch the arm out behind you".
+                    BasisIKTrajectoryScan.Line(Sphere(0.30f, -0.25f, -0.95f, 0.5f), Sphere(0.30f, -0.25f, -0.95f, 0.96f), 160),
                 };
                 var results = new BasisTrajectoryResult[names.Length];
                 float worstPop = 0f, worstRough = 0f, worstJitterM = 0f, worstSwivelRange = 0f;

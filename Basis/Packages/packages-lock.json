@@ -84,6 +84,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.integration.ytdlp": {
+      "version": "file:com.basis.integration.ytdlp",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.basis.mediapipe": {
       "version": "file:com.basis.mediapipe",
       "depth": 0,

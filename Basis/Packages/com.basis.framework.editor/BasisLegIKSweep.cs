@@ -76,6 +76,18 @@ namespace Basis.IK.Debugging
         public float OnsetReach;               // reach where the clean knee first tips inward (NaN none)
     }
 
+    public struct BasisLegStraightStanceTemporalSummary
+    {
+        public bool Ok;
+        public string Path;
+        public string Error;
+        public int Steps;
+        public float WorstStepDeg;        // worst per-frame knee-swivel jump under foot noise = the FAST FLICKER amplitude (the original "flips outward/inward")
+        public int Zigzags;               // swivel-velocity sign reversals = how many times it oscillated (flicker frequency)
+        public float WorstSwivelRangeDeg; // max-min knee swivel over a run = total WANDER (fast flicker + slow drift; a fade-style fix trades flicker for drift -> still trips here)
+        public float AtReach;             // the near-straight reach that produced the worst
+    }
+
     public static class BasisLegIKSweep
     {
         public const string DefaultFileName = "BasisLegIKSweep.csv";
@@ -511,6 +523,109 @@ namespace Basis.IK.Debugging
                 summary.WorstInwardFrac = worstInward; summary.MinForwardFrac = minForward;
                 summary.WorstPerturbedInwardFrac = worstPertInward; summary.FlipSensitivity = flipSens;
                 summary.OnsetReach = onset;
+            }
+            catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
+            return summary;
+        }
+
+        public const string StraightStanceTemporalFileName = "BasisLegStraightStanceTemporal.csv";
+        public static string StraightStanceTemporalPath() => System.IO.Path.Combine(Application.persistentDataPath, StraightStanceTemporalFileName);
+
+        // STATEFUL straight-stance flicker test -- the honest model of the user's "standing legs flip outward/
+        // inward" report, which the stateless RunStraightStance can't see (it re-seeds forward each step, so a
+        // fix that merely LETS GO of the knee looks clean there -- exactly how the hint-fade passed it). Hold the
+        // foot at a near-straight reach, add per-frame foot-tracker noise, feed the previous frame's knee/foot
+        // back in (like the live rig), and watch the knee swivel:
+        //   WorstStepDeg        = fast per-frame oscillation (the visible flicker)
+        //   WorstSwivelRangeDeg = total wander over the run (flicker AND slow drift -- a fade-style fix that
+        //                         stops the flicker by un-anchoring the knee shows up here as drift, not a pass)
+        public static BasisLegStraightStanceTemporalSummary RunStraightStanceTemporal(BasisLegIKSweepConfig cfg, float noise, string path)
+        {
+            var summary = new BasisLegStraightStanceTemporalSummary { Ok = false, Path = path };
+            float mirror = cfg.IsLeft ? -1f : 1f;
+            float upper = Mathf.Max(1e-4f, cfg.UpperLength);
+            float lower = Mathf.Max(1e-4f, cfg.LowerLength);
+            float legLen = upper + lower;
+            Vector3 hip = Vector3.zero;
+            Vector3 kneeDir = Mirror(cfg.RestKneeDir, mirror).normalized;
+            Vector3 shinDir = Mirror(cfg.RestShinDir, mirror).normalized;
+            if (kneeDir.sqrMagnitude < 1e-8f) kneeDir = Vector3.down;
+            if (shinDir.sqrMagnitude < 1e-8f) shinDir = Vector3.down;
+            Vector3 restKnee = hip + kneeDir * upper;
+            Vector3 restFoot = restKnee + shinDir * lower;
+            Vector3 bendNormal = cfg.BendNormal;
+            if (bendNormal.sqrMagnitude < 1e-8f) bendNormal = Vector3.right;
+
+            float[] reaches = { 0.95f, 0.965f, 0.98f, 0.99f };
+            const int frames = 200;
+
+            float worstStep = 0f, worstRange = 0f, atReach = 0f;
+            int worstZig = 0, totalSteps = 0;
+
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisLegStraightStanceTemporal " + System.DateTime.UtcNow.ToString("o") +
+                                " side=" + (cfg.IsLeft ? "left" : "right") + " noise=" + F(noise));
+                    w.WriteLine("reach,frame,foot_x,foot_y,foot_z,knee_swivel_deg,step_deg");
+                    var sb = new StringBuilder(128);
+
+                    for (int ri = 0; ri < reaches.Length; ri++)
+                    {
+                        float r = reaches[ri];
+                        Vector3 footDir = new Vector3(0.06f * mirror, -1f, 0.05f).normalized;
+                        Vector3 baseFoot = hip + footDir * (r * legLen);
+                        Vector3 knee = restKnee, foot = restFoot;
+                        var rng = new System.Random(13000 + ri);
+                        float prevSw = float.NaN, prevD = float.NaN, minSw = float.MaxValue, maxSw = -float.MaxValue, maxStep = 0f;
+                        int zig = 0;
+                        for (int s = 0; s < frames; s++)
+                        {
+                            Vector3 noisyFoot = baseFoot;
+                            if (noise > 0f)
+                            {
+                                noisyFoot += new Vector3((float)(rng.NextDouble() * 2.0 - 1.0),
+                                    (float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0)) * noise;
+                            }
+                            // foot-driver-style knee hint, recomputed from the (noisy) foot each frame as the live rig does
+                            Vector3 hint = (hip + noisyFoot) * 0.5f + Vector3.forward * (upper * 0.4f) + (mirror * Vector3.right) * (0.01f * legLen);
+                            BasisLegSolveResult res = SolveOne(hip, knee, foot, noisyFoot, hint, bendNormal, 1f);
+                            knee = res.KneeSolved; foot = res.FootSolved;
+                            float sw = Swivel(hip, foot, knee);
+                            float step = 0f;
+                            if (!float.IsNaN(sw))
+                            {
+                                if (sw < minSw) minSw = sw;
+                                if (sw > maxSw) maxSw = sw;
+                                if (!float.IsNaN(prevSw))
+                                {
+                                    float d = Mathf.DeltaAngle(prevSw, sw);
+                                    step = Mathf.Abs(d);
+                                    if (step > maxStep) maxStep = step;
+                                    if (!float.IsNaN(prevD) && d * prevD < 0f && step > 1f && Mathf.Abs(prevD) > 1f) zig++;
+                                    prevD = d;
+                                }
+                                prevSw = sw;
+                                totalSteps++;
+                            }
+                            sb.Clear();
+                            Append(sb, r); sb.Append(s).Append(',');
+                            Append(sb, noisyFoot.x); Append(sb, noisyFoot.y); Append(sb, noisyFoot.z);
+                            Append(sb, sw); sb.Append(F(step));
+                            w.WriteLine(sb.ToString());
+                        }
+                        float range = (maxSw > -float.MaxValue && minSw < float.MaxValue) ? (maxSw - minSw) : 0f;
+                        if (maxStep > worstStep) { worstStep = maxStep; atReach = r; }
+                        if (range > worstRange) worstRange = range;
+                        if (zig > worstZig) worstZig = zig;
+                    }
+                }
+                summary.Ok = true; summary.Steps = totalSteps;
+                summary.WorstStepDeg = worstStep; summary.Zigzags = worstZig;
+                summary.WorstSwivelRangeDeg = worstRange; summary.AtReach = atReach;
             }
             catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
             return summary;

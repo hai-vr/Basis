@@ -1468,6 +1468,18 @@ w20, w54;
             input.HasSpine = hasSpine;
             input.HasUpper = hasUpper;
 
+            // A tracked chest already measures torso lean, so the head-position-derived forward/lateral
+            // pre-bend is redundant -- and looking down swings the HMD forward of the neck, which it
+            // misreads as a lean and hunches the chest forward (the squish boost compounds it). Drop the
+            // lean (pitch/roll) and let the tracked chest + the spine chain own it; keep the facing twist.
+            if (HasChestTracker.Get(stream))
+            {
+                input.SpineBendPitch = 0f;
+                input.SpineBendRoll = 0f;
+                input.UpperBendPitch = 0f;
+                input.UpperBendRoll = 0f;
+            }
+
             BasisSpineBendCore.Solve(input, out BasisSpineBendResult r);
             if (r.EarlyOut)
             {

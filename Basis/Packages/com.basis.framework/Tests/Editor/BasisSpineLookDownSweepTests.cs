@@ -168,6 +168,72 @@ namespace Basis.Tests.IK
             }
         }
 
+        // ----------------------------------------------------------------- surgical: fade is twist-only
+
+        [Test]
+        public void TwistFade_IsTwistOnly_LeavesTheForwardBendUntouched()
+        {
+            // The fade must only damp the head-facing TWIST -- never the position-derived forward/lateral
+            // bend. Hold the head leaned forward (a real forward bend) and pitch the head rotation (which
+            // drives the fade) through vertical: the forward/lateral bend must not move a hair, while the
+            // twist fades. A refactor that let the fade multiply the wrong term would silently kill the
+            // spine's forward bend the moment you look down -- this is the guard for that.
+            Vector3 forwardHead = new Vector3(0f, 1f, 0.3f);
+            var b = Solve(0f, yaw: 20f, head: forwardHead);
+            Assert.That(b.SpineEuler.x, Is.GreaterThan(1f), "setup: no forward bend to check the fade against.");
+
+            bool twistActuallyFaded = false;
+            for (float rotPitch = 0f; rotPitch <= 95f; rotPitch += 5f)
+            {
+                var r = Solve(rotPitch, yaw: 20f, head: forwardHead);
+                Assert.That(r.SpineEuler.x, Is.EqualTo(b.SpineEuler.x).Within(1e-3f),
+                    $"forward spine bend shifted ({b.SpineEuler.x:0.000}->{r.SpineEuler.x:0.000}) as the head pitched to {rotPitch:0}; the twist fade bled into the lean.");
+                Assert.That(r.UpperEuler.x, Is.EqualTo(b.UpperEuler.x).Within(1e-3f),
+                    $"forward upper-chest bend shifted as the head pitched to {rotPitch:0}; the twist fade bled into the lean.");
+                Assert.That(r.SpineEuler.z, Is.EqualTo(b.SpineEuler.z).Within(1e-3f),
+                    $"lateral spine bend shifted as the head pitched to {rotPitch:0}; the twist fade bled into the roll.");
+                if (Mathf.Abs(r.TwistY) < 1f) twistActuallyFaded = true;
+            }
+            Assert.That(twistActuallyFaded, Is.True,
+                "the twist never faded across the sweep -- the test isn't actually exercising the fade.");
+        }
+
+        [Test]
+        public void NormalGazeRange_LeavesTheTwistUntouched()
+        {
+            // The fix must be surgical: out to ~65 deg of gaze pitch the applied twist is EXACTLY the raw
+            // head-facing azimuth (the fade is fully off there). Pins the fade band so it can't drift down
+            // into everyday poses, which would quietly drop the spine's natural follow-your-gaze twist.
+            foreach (float yaw in new[] { 10f, 25f, -20f })
+            {
+                for (float pitch = -65f; pitch <= 65f; pitch += 5f)
+                {
+                    var r = Solve(pitch, yaw);
+                    float raw = RawTwistDeg(pitch, yaw);
+                    Assert.That(r.TwistY, Is.EqualTo(raw).Within(0.01f),
+                        $"pitch {pitch:0} (yaw {yaw:0}): applied twist {r.TwistY:0.00} != raw {raw:0.00}; the fade reaches into the normal gaze range.");
+                }
+            }
+        }
+
+        [Test]
+        public void TwistFade_IsMonotonic_AsGazeApproachesVertical()
+        {
+            // For a fixed head facing, the applied twist may only ever DECREASE as the gaze pitches toward
+            // vertical -- a non-monotonic fade (a bump) would read as the chest twitching mid-nod.
+            foreach (float yaw in new[] { 15f, 30f, -25f })
+            {
+                float prev = float.PositiveInfinity;
+                for (float pitch = 0f; pitch <= 89f; pitch += 1f)
+                {
+                    float twist = Mathf.Abs(Solve(pitch, yaw).UpperEuler.y);
+                    Assert.That(twist, Is.LessThanOrEqualTo(prev + 1e-3f),
+                        $"twist grew ({prev:0.000}->{twist:0.000}) as the gaze pitched to {pitch:0} (yaw {yaw:0}); the fade must be monotonic.");
+                    prev = twist;
+                }
+            }
+        }
+
         // ----------------------------------------------------------------- helpers (test scaffolding)
 
         // Worst consecutive-step change in the applied spine AND upper-chest yaw over a fine pitch sweep
@@ -196,6 +262,16 @@ namespace Basis.Tests.IK
 
         static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
         static bool IsFinite(Vector3 v) => IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
+
+        // The raw head-facing azimuth the fade damps, with hips/bind identity (matching the Solve builder)
+        // so it is exactly the value the core computes before the fade -- used to assert the fade is off.
+        static float RawTwistDeg(float pitch, float yaw)
+        {
+            Quaternion headRot = Quaternion.AngleAxis(yaw, Vector3.up) * Quaternion.AngleAxis(pitch, Vector3.right);
+            Vector3 f = headRot * Vector3.forward;
+            float horizSq = f.x * f.x + f.z * f.z;
+            return horizSq < 1e-8f ? 0f : Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+        }
 
         static BasisSpineBendResult Solve(float pitch, float yaw) => Solve(pitch, yaw, new Vector3(0f, 1f, 0f));
 
