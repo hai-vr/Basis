@@ -134,14 +134,6 @@ namespace UnityEngine.Animations.Rigging
 
             axis = Vector3.Normalize(axis);
 
-            // A knee is a hinge: it only bends anterior (the BendNormal side). A hint or near-singular geometry
-            // can produce a posterior bend axis -- and that axis can flip sign across a crouch, snapping the knee
-            // ("leg shoots up inverted" when crouched with the foot behind the hip). Commit the axis to the
-            // BendNormal hemisphere so the knee stays anterior and can't flip; the foot still reaches the target
-            // (the axis sign is pole freedom, not foot position).
-            if (i.BendNormal.sqrMagnitude > k_SqrEpsilon && Vector3.Dot(axis, i.BendNormal) < 0f)
-                axis = -axis;
-
             float a = 0.5f * (oldAbcAngle - newAbcAngle);
             float sin = Mathf.Sin(a);
             float cos = Mathf.Cos(a);

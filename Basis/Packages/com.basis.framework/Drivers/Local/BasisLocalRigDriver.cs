@@ -638,6 +638,24 @@ namespace Basis.Scripts.Drivers
                     data.EnableRightLowerLeg = 0f;
                 }
 
+                if (BasisLegCrouchDebug.Enabled)
+                {
+                    if (data.LeftUpperLeg != null && data.LeftLowerLeg != null && data.leftFoot != null)
+                    {
+                        Vector3 hipL = data.LeftUpperLeg.position, kneeL = data.LeftLowerLeg.position;
+                        float legLenL = Vector3.Distance(hipL, kneeL) + Vector3.Distance(kneeL, data.leftFoot.position);
+                        BasisLegCrouchDebug.Record("L", Time.time, !leftHasTracker && footIKBlendWeightLeft > 0.001f && footDriverReady,
+                            legLenL, hipL, data.LeftFootPosition, data.PositionLeftLowerLeg, kneeL);
+                    }
+                    if (data.RightUpperLeg != null && data.RightLowerLeg != null && data.RightFoot != null)
+                    {
+                        Vector3 hipR = data.RightUpperLeg.position, kneeR = data.RightLowerLeg.position;
+                        float legLenR = Vector3.Distance(hipR, kneeR) + Vector3.Distance(kneeR, data.RightFoot.position);
+                        BasisLegCrouchDebug.Record("R", Time.time, !rightHasTracker && footIKBlendWeightRight > 0.001f && footDriverReady,
+                            legLenR, hipR, data.RightFootPosition, data.PositionRightLowerLeg, kneeR);
+                    }
+                }
+
                 // ── HANDS ──
                 data.PositionLeftHand = pOut[S_LeftHand];
                 data.RotationLeftHand = rOut[S_LeftHand];

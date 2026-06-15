@@ -51,6 +51,12 @@ namespace Basis.IK.Debugging
         public float MaxBucklingPushErrM;    // push magnitude vs the documented formula
         public float MaxClampRotOverDeg;     // ClampRotation result further than maxAngle from reference
         public float MaxClampRotIdempotentDeg;
+        // Deep-crouch / inversion pass: as the head descends to and past hip level, the clamps must keep the
+        // hips at or below the head (no flip) and move smoothly (no sideways/up fling).
+        public float MaxHipsAboveHeadM;      // ClampHipsAroundHead output above the head (must be ~0)
+        public float MaxBendAboveHeadM;      // EnforceSpineBendLimit output above the head (must be ~0)
+        public float MaxCrouchStepM;         // worst hips jump per step across the crossing (fling/teleport)
+        public float MaxChainAboveHeadM;     // full clamp chain (composed, pipeline order) output above the head (~0)
         public int Failures;
         public string Error;
     }
@@ -86,6 +92,7 @@ namespace Basis.IK.Debugging
             int cases = 0, nan = 0, fails = 0;
             float mHipsOver = 0f, mHipsDir = 0f, mHipsIdem = 0f, mBendOver = 0f, mBendIdem = 0f;
             float mAntiDef = 0f, mAntiIdem = 0f, mBuckHoriz = 0f, mBuckPush = 0f, mRotOver = 0f, mRotIdem = 0f;
+            float mHipsAbove = 0f, mBendAbove = 0f, mCrouchStep = 0f, mChainAbove = 0f;
 
             try
             {
@@ -152,6 +159,62 @@ namespace Basis.IK.Debugging
                             }
                         }
                     }
+
+                    // ---- Pass B: deep crouch / inversion ----
+                    // Sweep the hips from below the head up THROUGH head height to above it (the head
+                    // descending to and past hip level in a deep crouch). The clamps must keep the hips at or
+                    // below the head (no flip) and move smoothly across the crossing (no sideways/up fling).
+                    w.WriteLine("# Pass B: deep crouch -- hips swept below->above head; clamps must keep hips at/below head, no fling");
+                    w.WriteLine("crouch_vy,lat,maxbend,hips_above,bend_above,chain_above,clamp_step,fail");
+                    int crouchSteps = 81;
+                    foreach (float lat in new[] { 0.1f, 0.25f, 0.45f })
+                    {
+                        foreach (float maxBend in new[] { 30f, 60f, 90f })
+                        {
+                            Vector3 prevClamp = Vector3.zero;
+                            bool havePrev = false;
+                            for (int c = 0; c < crouchSteps; c++)
+                            {
+                                float vy = Mathf.Lerp(-0.7f, 0.3f, c / (float)(crouchSteps - 1)); // hips.y - head.y
+                                Vector3 hipsB = head + new Vector3(lat, vy, 0f);
+
+                                Vector3 hcB = BasisFullIKConstraintJob.ClampHipsAroundHead(head, hipsB, rest, cfg.MinFactor, cfg.MaxFactor, up);
+                                Vector3 beB = BasisFullIKConstraintJob.EnforceSpineBendLimit(head, hipsB, maxBend, up);
+
+                                // Full clamp chain in pipeline order (head forward-facing). Exercises AntiContortionist
+                                // and MitigateSpineBuckling in the inverted regime too, and proves the COMPOSED result
+                                // the user actually gets keeps the hips at/below the head.
+                                Vector3 ch = BasisFullIKConstraintJob.AntiContortionist(head, Quaternion.identity, hipsB, Quaternion.identity, rest);
+                                ch = BasisFullIKConstraintJob.MitigateSpineBuckling(head, Quaternion.identity, ch, rest, up);
+                                ch = BasisFullIKConstraintJob.EnforceSpineBendLimit(head, ch, maxBend, up);
+                                ch = BasisFullIKConstraintJob.ClampHipsAroundHead(head, ch, rest, cfg.MinFactor, cfg.MaxFactor, up);
+
+                                bool nanB = !Finite(hcB) || !Finite(beB) || !Finite(ch);
+                                float hcAbove = Finite(hcB) ? Vector3.Dot(hcB - head, up) : 0f;
+                                float beAbove = Finite(beB) ? Vector3.Dot(beB - head, up) : 0f;
+                                float chainAbove = Finite(ch) ? Vector3.Dot(ch - head, up) : 0f;
+                                float step = (havePrev && Finite(hcB)) ? (hcB - prevClamp).magnitude : 0f;
+                                prevClamp = hcB;
+                                havePrev = true;
+
+                                cases++;
+                                if (nanB) nan++;
+                                if (hcAbove > mHipsAbove) mHipsAbove = hcAbove;
+                                if (beAbove > mBendAbove) mBendAbove = beAbove;
+                                if (chainAbove > mChainAbove) mChainAbove = chainAbove;
+                                if (step > mCrouchStep) mCrouchStep = step;
+
+                                bool failB = nanB || hcAbove > 1e-3f || beAbove > 1e-3f || chainAbove > 1e-3f || step > 0.3f;
+                                if (failB) fails++;
+
+                                sb.Clear();
+                                Append(sb, vy); Append(sb, lat); Append(sb, maxBend);
+                                Append(sb, hcAbove); Append(sb, beAbove); Append(sb, chainAbove); Append(sb, step);
+                                sb.Append(failB ? '1' : '0');
+                                w.WriteLine(sb.ToString());
+                            }
+                        }
+                    }
                 }
 
                 summary.Ok = true;
@@ -168,6 +231,10 @@ namespace Basis.IK.Debugging
                 summary.MaxBucklingPushErrM = mBuckPush;
                 summary.MaxClampRotOverDeg = mRotOver;
                 summary.MaxClampRotIdempotentDeg = mRotIdem;
+                summary.MaxHipsAboveHeadM = mHipsAbove;
+                summary.MaxBendAboveHeadM = mBendAbove;
+                summary.MaxCrouchStepM = mCrouchStep;
+                summary.MaxChainAboveHeadM = mChainAbove;
                 summary.Failures = fails;
             }
             catch (System.Exception e)

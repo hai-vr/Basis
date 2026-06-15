@@ -464,7 +464,14 @@ namespace Basis.IK.Debugging
                             cKnee = r.KneeSolved; cFoot = r.FootSolved;
                             ClassifyInverted(hip, r.KneeSolved, r.FootSolved, legLen, out float flex, out float swivel, out float fwd);
 
-                            bool bent = flex < 160f && !float.IsNaN(swivel);
+                            // Pole offset: how far the knee sits off the hip->foot line. Near the axis (a
+                            // near-straight or deeply-tucked leg) the swivel is undefined, so its noise isn't a
+                            // real flip -- only treat a swivel jump as a snap when the pole is well-defined.
+                            Vector3 chord = foot - hip;
+                            Vector3 kneeRel = r.KneeSolved - hip;
+                            float chordSq = chord.sqrMagnitude;
+                            Vector3 poleOff = chordSq > 1e-10f ? kneeRel - chord * (Vector3.Dot(kneeRel, chord) / chordSq) : kneeRel;
+                            bool bent = flex < 160f && poleOff.magnitude > 0.06f * legLen && !float.IsNaN(swivel);
                             float jump = (bent && !float.IsNaN(prevSwivel)) ? Mathf.Abs(Mathf.DeltaAngle(prevSwivel, swivel)) : 0f;
                             bool post = bent && fwd < k_InvertedFwdFrac;
                             bool snap = jump > 90f;

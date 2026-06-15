@@ -402,6 +402,8 @@ namespace Basis.IK.Debugging
         // --- FBIK spine safety clamps ---
         public const float SpineClampMaxPosErrM = 1e-4f;     // distance/idempotence (m, exact clamps)
         public const float SpineClampMaxAngleErrDeg = 0.1f;  // bend/rotation limit overshoot + idempotence
+        public const float SpineClampMaxAboveHeadM = 1e-3f;  // deep crouch: hips must never sit above the head (the flip)
+        public const float SpineClampMaxCrouchStepM = 0.3f;  // deep crouch: hips must not jump/teleport as the head passes hip level
 
         // FBIK spine clamps (ClampHipsAroundHead / EnforceSpineBendLimit / AntiContortionist /
         // MitigateSpineBuckling / ClampRotation): the guards that keep the torso from contorting. Each
@@ -429,7 +431,15 @@ namespace Basis.IK.Debugging
             if (s.MaxAntiContortIdempotentM > idem) idem = s.MaxAntiContortIdempotentM;
             if (idem > SpineClampMaxPosErrM || s.MaxClampRotIdempotentDeg > SpineClampMaxAngleErrDeg)
                 return (false, $"a clamp is not idempotent: pos {idem:F5} m / rot {s.MaxClampRotIdempotentDeg:F2} deg (re-clamping a clamped pose moves it)");
-            return (true, $"bendOver={s.MaxBendOverDeg:F2}° rotOver={s.MaxClampRotOverDeg:F2}° hips={s.MaxHipsClampOverErrM:F5}m antiDef={s.MaxAntiContortDeficitM:F5}m idem={idem:F5}m cases={s.Cases}");
+            if (s.MaxHipsAboveHeadM > SpineClampMaxAboveHeadM)
+                return (false, $"deep crouch: ClampHipsAroundHead drove the hips {s.MaxHipsAboveHeadM * 100f:F1}cm ABOVE the head > {SpineClampMaxAboveHeadM * 100f:F1}cm (the body flips / hips fly up)");
+            if (s.MaxBendAboveHeadM > SpineClampMaxAboveHeadM)
+                return (false, $"deep crouch: EnforceSpineBendLimit left the hips {s.MaxBendAboveHeadM * 100f:F1}cm above the head > {SpineClampMaxAboveHeadM * 100f:F1}cm (inverted)");
+            if (s.MaxChainAboveHeadM > SpineClampMaxAboveHeadM)
+                return (false, $"deep crouch: the composed clamp chain left the hips {s.MaxChainAboveHeadM * 100f:F1}cm above the head > {SpineClampMaxAboveHeadM * 100f:F1}cm (pipeline still flips)");
+            if (s.MaxCrouchStepM > SpineClampMaxCrouchStepM)
+                return (false, $"deep crouch: hips jump {s.MaxCrouchStepM * 100f:F0}cm as the head passes hip level > {SpineClampMaxCrouchStepM * 100f:F0}cm (sideways/up fling, not a smooth crouch)");
+            return (true, $"bendOver={s.MaxBendOverDeg:F2}° rotOver={s.MaxClampRotOverDeg:F2}° hips={s.MaxHipsClampOverErrM:F5}m antiDef={s.MaxAntiContortDeficitM:F5}m idem={idem:F5}m crouch(above={s.MaxHipsAboveHeadM * 100f:F1}cm chain={s.MaxChainAboveHeadM * 100f:F1}cm step={s.MaxCrouchStepM * 100f:F0}cm) cases={s.Cases}");
         }
 
         // --- hip hinge (pelvis pitch sharing forward lean) ---
@@ -497,6 +507,7 @@ namespace Basis.IK.Debugging
 
         // --- spine bend distribution (per-axis spine/upperChest) ---
         public const float SpineBendTwistMaxJumpDeg = 30f; // raw twist step across center; a branch snap is ~180-360
+        public const float SpineBendMaxCouplingErrDeg = 0.05f; // bend->twist coupling: euler.y vs coupling*euler.z, and zero at coupling=0
 
         // DistributeSpineBend: the asymmetric flexion clamp must hold per axis, the rest deadband must zero
         // the bend (pitch/roll), the squish multiplier must stay in [1-boost, 1+boost], PelvicTwistRouting
@@ -517,7 +528,11 @@ namespace Basis.IK.Debugging
                 return (false, $"squish multiplier off the [1-boost,1+boost] range by {s.MaxSquishErr:F4}");
             if (s.MaxYawSplitErr > 1e-3f)
                 return (false, $"PelvicTwistRouting off the 25/75 spine:upperChest split by {s.MaxYawSplitErr:F4}");
-            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} cases={s.Cases}");
+            if (s.MaxCouplingBaselineDeg > SpineBendMaxCouplingErrDeg)
+                return (false, $"a forward-facing lateral lean adds {s.MaxCouplingBaselineDeg:F3} deg of twist at coupling=0 > {SpineBendMaxCouplingErrDeg} (spurious yaw -- coupling not isolated)");
+            if (s.MaxCouplingErrDeg > SpineBendMaxCouplingErrDeg)
+                return (false, $"bend->twist coupling off by {s.MaxCouplingErrDeg:F3} deg > {SpineBendMaxCouplingErrDeg} (euler.y != coupling * euler.z -- not a proportion of the lateral bend)");
+            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} coupling(err={s.MaxCouplingErrDeg:F3}° base={s.MaxCouplingBaselineDeg:F3}°) cases={s.Cases}");
         }
 
         // --- spine CCD twist shaping (graded + orientation-independent: a lateral head reach must BEND) ---
@@ -528,6 +543,7 @@ namespace Basis.IK.Debugging
         public const float SpineTwistMaxJumpDeg = 8f;             // graded twist must stay continuous across center
         public const float SpineTwistMaxReachErrM = 0.03f;        // bending instead of twisting must still reach (on-sphere => slop only)
         public const float SpineTwistMaxOrientationSpreadDeg = 2f; // upright vs lying-down result must match (body-relative axis)
+        public const float SpineTwistMaxMidBendIncreaseDeg = 0.5f; // thoracic stiffening (even curvature) must not INCREASE the mid-joint bend
 
         // BasisTwistSolveCore.ShapeReachStep + the graded spine CCD it drives. Pass A: the swing/twist split is
         // exact (twistKeep=1/swingScale=1 no-ops, twistKeep=0 removes the twist, swingScale=0 removes the swing,
@@ -543,8 +559,9 @@ namespace Basis.IK.Debugging
             if (s.Cases <= 0) return (false, "no cases");
             if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
             if (s.MaxIdentityErrDeg > SpineTwistMaxInvariantErrDeg || s.MaxResidualTwistDeg > SpineTwistMaxInvariantErrDeg
-                || s.MaxResidualSwingDeg > SpineTwistMaxInvariantErrDeg || s.MaxBlendErrDeg > SpineTwistMaxInvariantErrDeg)
-                return (false, $"ShapeReachStep off: identity={s.MaxIdentityErrDeg:F3} residTwist={s.MaxResidualTwistDeg:F3} residSwing={s.MaxResidualSwingDeg:F3} blend={s.MaxBlendErrDeg:F3} deg > {SpineTwistMaxInvariantErrDeg} (swing-twist not separating)");
+                || s.MaxResidualSwingDeg > SpineTwistMaxInvariantErrDeg || s.MaxBlendErrDeg > SpineTwistMaxInvariantErrDeg
+                || s.MaxSwingBlendErrDeg > SpineTwistMaxInvariantErrDeg)
+                return (false, $"ShapeReachStep off: identity={s.MaxIdentityErrDeg:F3} residTwist={s.MaxResidualTwistDeg:F3} residSwing={s.MaxResidualSwingDeg:F3} twistBlend={s.MaxBlendErrDeg:F3} swingBlend={s.MaxSwingBlendErrDeg:F3} deg > {SpineTwistMaxInvariantErrDeg} (swing-twist not separating)");
             if (s.ReproMaxTwistDeg < SpineTwistMinReproDeg)
                 return (false, $"keep=1 only twisted {s.ReproMaxTwistDeg:F1} deg < {SpineTwistMinReproDeg} (sweep not provoking the corkscrew -- it would miss a regression)");
             float kept = s.ReproMaxTwistDeg > 1e-3f ? s.GradedMaxTwistDeg / s.ReproMaxTwistDeg : 1f;
@@ -561,7 +578,9 @@ namespace Basis.IK.Debugging
                 return (false, $"upright vs lying-down twist differs by {s.OrientationSpreadDeg:F1} deg > {SpineTwistMaxOrientationSpreadDeg} (twist axis not body-relative -- breaks lying down)");
             if (s.WorldUpSupineTwistDeg < SpineTwistMinReproDeg)
                 return (false, $"negative control weak: supine-about-world-up twisted only {s.WorldUpSupineTwistDeg:F1} deg < {SpineTwistMinReproDeg} (control not exercising the prone corkscrew -- can't prove the axis matters)");
-            return (true, $"lumbar/neck keep {s.TestedLumbarKeep:F2}/{s.TestedCervicalKeep:F2} twist {s.ReproMaxTwistDeg:F1}->{s.GradedMaxTwistDeg:F1}° (kept {kept:P0}; lumbar {s.ReproLumbarTwistDeg:F1}->{s.GradedLumbarTwistDeg:F1}°, neck {s.GradedCervicalTwistDeg:F1}°) jump {s.GradedMaxJumpDeg:F1}° reach {s.GradedMaxReachErrM * 100f:F1}cm orient±{s.OrientationSpreadDeg:F1}° worldUpProne {s.WorldUpSupineTwistDeg:F1}° cases={s.Cases}");
+            if (s.GradedMidBendDeg > s.UniformMidBendDeg + SpineTwistMaxMidBendIncreaseDeg)
+                return (false, $"even curvature backwards: mid-thoracic stiffening INCREASED the mid-joint bend ({s.UniformMidBendDeg:F1}->{s.GradedMidBendDeg:F1} deg) instead of redistributing it to the lumbar/cervical");
+            return (true, $"lumbar/neck keep {s.TestedLumbarKeep:F2}/{s.TestedCervicalKeep:F2} twist {s.ReproMaxTwistDeg:F1}->{s.GradedMaxTwistDeg:F1}° (kept {kept:P0}; lumbar {s.ReproLumbarTwistDeg:F1}->{s.GradedLumbarTwistDeg:F1}°, neck {s.GradedCervicalTwistDeg:F1}°) jump {s.GradedMaxJumpDeg:F1}° reach {s.GradedMaxReachErrM * 100f:F1}cm orient±{s.OrientationSpreadDeg:F1}° worldUpProne {s.WorldUpSupineTwistDeg:F1}° midBend {s.UniformMidBendDeg:F1}->{s.GradedMidBendDeg:F1}° swingBlend={s.MaxSwingBlendErrDeg:F3}° cases={s.Cases}");
         }
 
         // --- elbow swivel One-Euro filter ---

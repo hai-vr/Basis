@@ -1055,7 +1055,6 @@ w20, w54;
         public Quaternion TposeChestRot;
         public float TposeShoulderToHandLeft, TposeShoulderToHandRight;
         public FloatProperty jobWeight { get; set; }
-        const float maxHorizontalFactor = 0.35f;
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
         {
@@ -1798,34 +1797,27 @@ w20, w54;
         public static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
         {
             Vector3 headToHips = hipsPos - headPos;
-            float sqrMag = headToHips.sqrMagnitude;
-            if (sqrMag < k_SqrEpsilon)
+            float dist = headToHips.magnitude;
+            float minD = restDistance * minFactor;
+            float maxD = restDistance * maxFactor;
+            if (dist < k_Epsilon)
             {
-                return headPos - restDistance * minFactor * playerUp;
+                return headPos - minD * playerUp; // degenerate: place the hips straight below the head
             }
 
-            // Use the head→hips direction as the "up" axis for the clamp
-            Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
-
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
-
-            float absY = Mathf.Abs(verticalDot);
-            float minY = restDistance * minFactor;
-            float maxY = restDistance * maxFactor;
-            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-            vertical = up * clampedY;
-
-            float lateralLen = lateral.magnitude;
-            float maxLateral = restDistance * maxHorizontalFactor;
-
-            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
+            Vector3 dir = headToHips / dist;
+            // The hips must never rise above the head -- that inversion is the deep-crouch flip (hips fly up).
+            // If the head→hips ray points upward, drop it to head height (a full forward fold) keeping its
+            // heading; if that heading is degenerate too, fall straight down. Below-head poses are untouched,
+            // so normal posture/lean is unchanged -- only the inversion is clamped.
+            float upDot = Vector3.Dot(dir, playerUp);
+            if (upDot > 0f)
             {
-                lateral *= maxLateral / lateralLen;
+                Vector3 horiz = dir - playerUp * upDot;
+                dir = horiz.sqrMagnitude > k_SqrEpsilon ? horiz.normalized : -playerUp;
             }
 
-            return headPos + vertical + lateral;
+            return headPos + dir * Mathf.Clamp(dist, minD, maxD);
         }
         public static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg, Vector3 playerUp)
         {
@@ -1835,44 +1827,33 @@ w20, w54;
             }
 
             Vector3 diff = hipsPos - headPos;
-            float sqrMag = diff.sqrMagnitude;
-            if (sqrMag < k_MinMag)
+            if (diff.sqrMagnitude < k_MinMag)
             {
                 return hipsPos;
             }
 
             Vector3 up = playerUp;
 
-            // Decompose into vertical (along -up, hips below head) and lateral
-            float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
-            Vector3 vertical = -up * verticalDot;
-            Vector3 lateral = diff - vertical;
-
+            // Decompose head→hips into a downward drop (along -up) and a horizontal lean.
+            float down = Vector3.Dot(diff, -up);  // signed: hips are below the head when > 0
+            Vector3 lateral = diff + up * down;   // diff minus the (-up * down) vertical part
             float lateralLen = lateral.magnitude;
-            float absVertical = Mathf.Abs(verticalDot);
 
-            if (lateralLen < k_MinMag || absVertical < k_MinMag)
+            // The hips sit at most maxBendDeg off straight-down from the head -- and NEVER above it. The
+            // downward drop that puts them exactly on that cone is lateral / tan(maxBend); if the current
+            // drop is less (over-bent, or inverted with down <= 0) pull it down onto the cone, below the head.
+            // Without this, a deep crouch drives the hips up/sideways here as the head passes hip height.
+            // Already within the cone (and below the head) => unchanged, so normal posture is untouched.
+            // Clamp the cone angle below 90deg so tan stays finite and positive (>=90 would blow up / go
+            // negative): the hips can fold to nearly horizontal but never above the head.
+            float coneTan = Mathf.Tan(Mathf.Min(maxBendDeg, 89.9f) * Mathf.Deg2Rad);
+            float minDown = lateralLen / Mathf.Max(coneTan, k_MinMag);
+            if (down >= minDown)
             {
                 return hipsPos;
             }
 
-            // Current bend angle from head to hips
-            float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
-            if (currentAngle <= maxBendDeg)
-            {
-                return hipsPos;
-            }
-
-            // We want lateral / newVertical = tan(maxBend)
-            float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
-            float newVertical = lateralLen / Mathf.Max(maxRatio, k_MinMag);
-
-            // Push hips further down in the same direction along -up
-            float finalVertical = Mathf.Sign(verticalDot) * Mathf.Max(newVertical, absVertical);
-            Vector3 newVerticalVec = -up * finalVertical;
-
-            Vector3 newDiff = newVerticalVec + (lateralLen > k_MinMag ? lateral.normalized * lateralLen : Vector3.zero);
-            return headPos + newDiff;
+            return headPos - up * minDown + lateral;
         }
         /// <summary>
         /// Anti-contortionist: enforces minimum hip-to-head distance based on angular similarity

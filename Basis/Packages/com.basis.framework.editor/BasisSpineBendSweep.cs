@@ -36,6 +36,8 @@ namespace Basis.IK.Debugging
         public float MaxSquishErr;        // squish multiplier outside [1-boost, 1+boost]
         public float MaxYawSplitErr;      // PelvicTwistRouting off the 25/75 spine:upperChest split
         public float TwistMaxJumpDeg;     // worst frame-to-frame raw twist jump across center (branch snap)
+        public float MaxCouplingErrDeg;     // bend->twist coupling: euler.y vs coupling * euler.z (forward-facing lean)
+        public float MaxCouplingBaselineDeg; // yaw produced at coupling=0 with a forward-facing lean (must be ~0)
         public int Failures;
         public string Error;
     }
@@ -63,6 +65,7 @@ namespace Basis.IK.Debugging
 
             int cases = 0, nan = 0, fails = 0;
             float mClamp = 0f, mLeak = 0f, mSquish = 0f, mSplit = 0f, mTwistJump = 0f;
+            float mCoupling = 0f, mCouplingBase = 0f;
 
             try
             {
@@ -192,6 +195,47 @@ namespace Basis.IK.Debugging
                             w.WriteLine(sb.ToString());
                         }
                     }
+
+                    // ---- Pass C: bend->twist coupling (a lateral lean adds a little same-side axial rotation) ----
+                    // Head faces forward (no facing-twist) and the hips bind is identity, so euler.y is ENTIRELY
+                    // the coupling term: e.y == coupling * e.z. Small lateral offsets keep both within the lateral
+                    // clamp so the relationship is exact; coupling=0 must leave euler.y at zero.
+                    foreach (float coupling in new[] { 0f, 0.15f, 0.3f })
+                    {
+                        Vector3 chestC = hips + Vector3.up * 0.2f;
+                        foreach (float ox in new[] { 0.08f, 0.16f, 0.24f })
+                        {
+                            Vector3 head = hips + Vector3.up * k_RestLen + new Vector3(ox, 0f, 0f);
+                            BasisSpineBendInput input = MakeInput(Quaternion.identity, hips, chestC, head,
+                                Quaternion.identity, Quaternion.identity, 0f, false, false, 90f);
+                            input.BendTwistCoupling = coupling;
+                            BasisSpineBendCore.Solve(input, out BasisSpineBendResult r);
+
+                            float spineErr = r.WriteSpine ? Mathf.Abs(r.SpineEuler.y - coupling * r.SpineEuler.z) : 0f;
+                            float upperErr = r.WriteUpper ? Mathf.Abs(r.UpperEuler.y - coupling * r.UpperEuler.z) : 0f;
+                            float err = Mathf.Max(spineErr, upperErr);
+                            float baseY = coupling == 0f
+                                ? Mathf.Max(r.WriteSpine ? Mathf.Abs(r.SpineEuler.y) : 0f, r.WriteUpper ? Mathf.Abs(r.UpperEuler.y) : 0f)
+                                : 0f;
+                            bool hadNaN = (r.WriteSpine && !Finite(r.SpineEuler)) || (r.WriteUpper && !Finite(r.UpperEuler));
+
+                            cases++;
+                            if (hadNaN) nan++;
+                            if (err > mCoupling) mCoupling = err;
+                            if (baseY > mCouplingBase) mCouplingBase = baseY;
+                            bool fail = hadNaN || err > 0.05f || baseY > 0.05f;
+                            if (fail) fails++;
+
+                            sb.Clear();
+                            sb.Append("couple,");
+                            Append(sb, coupling); Append(sb, ox); Append(sb, 0f); Append(sb, 0f);
+                            Append(sb, r.BendGate); Append(sb, r.SquishMult); Append(sb, r.TwistY);
+                            Append(sb, r.WriteSpine ? r.SpineEuler.y : 0f); Append(sb, r.WriteSpine ? r.SpineEuler.z : 0f);
+                            Append(sb, err); Append(sb, baseY); Append(sb, 0f); Append(sb, 0f);
+                            sb.Append(fail ? '1' : '0');
+                            w.WriteLine(sb.ToString());
+                        }
+                    }
                 }
 
                 summary.Ok = true;
@@ -202,6 +246,8 @@ namespace Basis.IK.Debugging
                 summary.MaxSquishErr = mSquish;
                 summary.MaxYawSplitErr = mSplit;
                 summary.TwistMaxJumpDeg = mTwistJump;
+                summary.MaxCouplingErrDeg = mCoupling;
+                summary.MaxCouplingBaselineDeg = mCouplingBase;
                 summary.Failures = fails;
             }
             catch (System.Exception e)

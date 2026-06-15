@@ -42,6 +42,7 @@ namespace Basis.IK.Debugging
         public float MaxResidualTwistDeg;
         public float MaxResidualSwingDeg;
         public float MaxBlendErrDeg;
+        public float MaxSwingBlendErrDeg;    // swingScale scales the swing angle linearly (the even-curvature primitive)
         // Pass B -- graded CCD (worst over both orientations unless noted)
         public float ReproMaxTwistDeg;       // keep=1 baseline peak axial twist (the corkscrew must reproduce)
         public float GradedMaxTwistDeg;      // graded peak axial twist
@@ -51,6 +52,10 @@ namespace Basis.IK.Debugging
         public float ReproLumbarTwistDeg;    // lumbar joint twist at full lean, keep=1
         public float GradedLumbarTwistDeg;   // lumbar joint twist at full lean, graded (must drop -- the grading)
         public float GradedCervicalTwistDeg; // cervical joint twist at full lean, graded (kept free)
+        // Even curvature: the mid-thoracic SWING (bend) with the stiffening vs without -- stiffening must not
+        // increase the mid joint's bend (it redistributes the curve toward the flexible lumbar/cervical).
+        public float GradedMidBendDeg;       // mid (chest) joint bend at full lean, thoracic stiffening ON
+        public float UniformMidBendDeg;      // mid (chest) joint bend at full lean, stiffening OFF
         // Pass C -- negative control
         public float WorldUpSupineTwistDeg;  // supine peak twist (about body axis) when relaxed about WORLD up
         public float TestedLumbarKeep, TestedCervicalKeep;
@@ -113,15 +118,23 @@ namespace Basis.IK.Debugging
                         float keptTwist = Mathf.Abs(SignedTwistDeg(BasisTwistSolveCore.ExtractTwist(part, axis), axis));
                         float blendErr = Mathf.Abs(keptTwist - keepT * fullTwist);
 
-                        bool nan = !Finite(identErr) || !Finite(residualTwist) || !Finite(residualSwing) || !Finite(blendErr);
+                        // Swing blend: scaling the swing by swingScale (twistKeep=1) scales its angle linearly.
+                        float fullSwingAng = Quaternion.Angle(Quaternion.identity, delta * Quaternion.Inverse(BasisTwistSolveCore.ExtractTwist(delta, axis)));
+                        float swingScaleT = Mathf.Lerp(0.1f, 0.9f, (float)rng.NextDouble());
+                        Quaternion partS = BasisTwistSolveCore.ShapeReachStep(delta, axis, 1f, swingScaleT);
+                        float partSwingAng = Quaternion.Angle(Quaternion.identity, partS * Quaternion.Inverse(BasisTwistSolveCore.ExtractTwist(partS, axis)));
+                        float swingBlendErr = Mathf.Abs(partSwingAng - swingScaleT * fullSwingAng);
+
+                        bool nan = !Finite(identErr) || !Finite(residualTwist) || !Finite(residualSwing) || !Finite(blendErr) || !Finite(swingBlendErr);
                         if (nan) s.NaNCount++;
                         s.MaxIdentityErrDeg = Mathf.Max(s.MaxIdentityErrDeg, identErr);
                         s.MaxResidualTwistDeg = Mathf.Max(s.MaxResidualTwistDeg, residualTwist);
                         s.MaxResidualSwingDeg = Mathf.Max(s.MaxResidualSwingDeg, residualSwing);
                         s.MaxBlendErrDeg = Mathf.Max(s.MaxBlendErrDeg, blendErr);
+                        s.MaxSwingBlendErrDeg = Mathf.Max(s.MaxSwingBlendErrDeg, swingBlendErr);
                         s.Cases++;
 
-                        bool fail = nan || identErr > 0.1f || residualTwist > 0.1f || residualSwing > 0.1f || blendErr > 0.5f;
+                        bool fail = nan || identErr > 0.1f || residualTwist > 0.1f || residualSwing > 0.1f || blendErr > 0.5f || swingBlendErr > 0.5f;
                         if (fail) s.Failures++;
                         if (fail || i < 2)
                         {
@@ -139,7 +152,7 @@ namespace Basis.IK.Debugging
                     float[] gradedTwistByOrient = new float[orient.Length];
 
                     float reproMax = 0f, reproLumbar = 0f;
-                    float gradedMax = 0f, gradedReach = 0f, gradedJump = 0f, gradedLumbar = 0f, gradedCervical = 0f;
+                    float gradedMax = 0f, gradedReach = 0f, gradedJump = 0f, gradedLumbar = 0f, gradedCervical = 0f, gradedMidUpright = 0f;
                     for (int o = 0; o < orient.Length; o++)
                     {
                         Quaternion Q = orient[o];
@@ -156,11 +169,17 @@ namespace Basis.IK.Debugging
                         gradedLumbar = Mathf.Max(gradedLumbar, g.LumbarTwist);
                         gradedCervical = Mathf.Max(gradedCervical, g.CervicalTwist);
                         gradedTwistByOrient[o] = g.MaxTwist;
+                        if (o == 0) gradedMidUpright = g.MidBendDeg;
                     }
 
                     // ---- Pass C: negative control -- supine, relaxed about WORLD up, measured about body up ----
                     LeanResult nc = RunLean(orient[1], Vector3.up, orient[1] * Vector3.up,
                         s.TestedLumbarKeep, s.TestedCervicalKeep, k_ThoracicBendStiffen, steps, w, sb, "supine_worldup", ref bnan);
+
+                    // Even curvature: the same graded twist but with the mid-thoracic stiffening OFF, to confirm
+                    // the stiffening redistributes the bend away from the mid joint (does not increase it).
+                    LeanResult gu = RunLean(Quaternion.identity, Vector3.up, Vector3.up,
+                        s.TestedLumbarKeep, s.TestedCervicalKeep, 0f, steps, w, sb, "upright_uniform", ref bnan);
 
                     if (bnan) s.NaNCount++;
                     s.ReproMaxTwistDeg = reproMax;
@@ -172,7 +191,9 @@ namespace Basis.IK.Debugging
                     s.GradedLumbarTwistDeg = gradedLumbar;
                     s.GradedCervicalTwistDeg = gradedCervical;
                     s.WorldUpSupineTwistDeg = nc.MaxTwist;
-                    s.Cases += orient.Length * 2 * steps + steps;
+                    s.GradedMidBendDeg = gradedMidUpright;
+                    s.UniformMidBendDeg = gu.MidBendDeg;
+                    s.Cases += orient.Length * 2 * steps + 2 * steps;
                 }
 
                 s.Ok = true;
@@ -185,7 +206,7 @@ namespace Basis.IK.Debugging
             return s;
         }
 
-        struct LeanResult { public float MaxTwist, MaxJump, MaxReachErr, LumbarTwist, CervicalTwist; }
+        struct LeanResult { public float MaxTwist, MaxJump, MaxReachErr, LumbarTwist, CervicalTwist, MidBendDeg; }
 
         // Warm-started lateral lean on the reach sphere, body rigidly oriented by Q, twist relaxed about
         // 'relaxAxis' and measured about 'measureAxis' (these differ only for the world-up negative control).
@@ -201,7 +222,7 @@ namespace Basis.IK.Debugging
             float restLen = k_CumLen[0];
 
             float maxTwist = 0f, maxJump = 0f, maxReachErr = 0f, prevSigned = 0f;
-            float lumbarTwist = 0f, cervicalTwist = 0f;
+            float lumbarTwist = 0f, cervicalTwist = 0f, midBend = 0f;
             bool havePrev = false;
 
             for (int p = 0; p < steps; p++)
@@ -212,13 +233,19 @@ namespace Basis.IK.Debugging
                 Vector3 target = leanDir * restLen;
                 SolveChain(pos, rot, target, relaxAxis, lumbarKeep, cervicalKeep, swingStiffen);
 
-                float stepMaxTwist = 0f, chestSigned = 0f, rootSigned = 0f, tipSigned = 0f;
+                float stepMaxTwist = 0f, chestSigned = 0f, rootSigned = 0f, tipSigned = 0f, chestSwingAng = 0f;
                 for (int j = 1; j <= n - 2; j++)
                 {
                     Quaternion local = rot[j] * Quaternion.Inverse(Q); // rotation relative to rest orientation Q
                     float signed = SignedTwistDeg(BasisTwistSolveCore.ExtractTwist(local, measureAxis), measureAxis);
                     stepMaxTwist = Mathf.Max(stepMaxTwist, Mathf.Abs(signed));
-                    if (j == 2) chestSigned = signed;
+                    if (j == 2)
+                    {
+                        chestSigned = signed;
+                        // swing (bend) of the mid joint = the rotation left after removing the twist about the axis.
+                        Quaternion swingPart = local * Quaternion.Inverse(BasisTwistSolveCore.ExtractTwist(local, measureAxis));
+                        chestSwingAng = Quaternion.Angle(Quaternion.identity, swingPart);
+                    }
                     if (j == n - 2) rootSigned = Mathf.Abs(signed); // spine / lumbar
                     if (j == 1) tipSigned = Mathf.Abs(signed);      // neck / cervical
                 }
@@ -231,7 +258,7 @@ namespace Basis.IK.Debugging
                 maxTwist = Mathf.Max(maxTwist, stepMaxTwist);
                 maxJump = Mathf.Max(maxJump, jump);
                 maxReachErr = Mathf.Max(maxReachErr, reachErr);
-                if (p == steps - 1) { lumbarTwist = rootSigned; cervicalTwist = tipSigned; }
+                if (p == steps - 1) { lumbarTwist = rootSigned; cervicalTwist = tipSigned; midBend = chestSwingAng; }
 
                 sb.Clear(); sb.Append(tag).Append(',');
                 Append(sb, phi); Append(sb, 0f);
@@ -240,7 +267,7 @@ namespace Basis.IK.Debugging
                 sb.Append('0'); w.WriteLine(sb.ToString());
             }
 
-            return new LeanResult { MaxTwist = maxTwist, MaxJump = maxJump, MaxReachErr = maxReachErr, LumbarTwist = lumbarTwist, CervicalTwist = cervicalTwist };
+            return new LeanResult { MaxTwist = maxTwist, MaxJump = maxJump, MaxReachErr = maxReachErr, LumbarTwist = lumbarTwist, CervicalTwist = cervicalTwist, MidBendDeg = midBend };
         }
 
         // Faithful replica of SolveSequentialSpineIK: hips (last) fixed, head (0) the effector; rotate
