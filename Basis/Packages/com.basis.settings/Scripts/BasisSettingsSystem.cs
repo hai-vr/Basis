@@ -120,6 +120,11 @@ public static class BasisSettingsSystem
         OnSettingsFinishedChanges?.Invoke();
         ForceQualityRefresh();
     }
+    /// <summary>Re-applies current settings to live targets without forcing a quality refresh.</summary>
+    public static void ReapplySettings()
+    {
+        OnSettingsFinishedChanges?.Invoke();
+    }
     public static bool HasSaveData(string uniqueSettingsName)
     {
         return settingsData.settings.TryGetValue(uniqueSettingsName, out var existing);

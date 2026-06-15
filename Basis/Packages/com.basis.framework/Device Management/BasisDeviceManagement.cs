@@ -324,6 +324,7 @@ namespace Basis.Scripts.Device_Management
             SetupAutoSwap();
             OnInitializationCompleted?.Invoke();
             OnInitializationComplete = true;
+            BasisSettingsSystem.NotifyFinishedChanges();
         }
 
         #endregion
@@ -549,6 +550,7 @@ namespace Basis.Scripts.Device_Management
             }
 
             AllInputDevices.Add(input);
+            BasisSettingsSystem.ReapplySettings();
 
             if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev))
             {

@@ -2100,7 +2100,7 @@
     },
     {
       "key": "menu.servers.ipAddress",
-      "value": "IP Address"
+      "value": "Server Address"
     },
     {
       "key": "menu.servers.port",

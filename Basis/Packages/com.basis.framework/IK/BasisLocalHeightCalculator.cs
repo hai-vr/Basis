@@ -42,7 +42,7 @@ public static class BasisLocalHeightCalculator
             var headFlat = new Vector3(head.x, 0f, head.z);
             var handFlat = new Vector3(hand.x, 0f, hand.z);
 
-            BasisHeightDriver.PlayerArmSpan = Vector3.Distance(headFlat, handFlat);
+            BasisHeightDriver.PlayerArmSpan = Vector3.Distance(headFlat, handFlat) * 2f;
             return;
         }
 
@@ -210,6 +210,17 @@ public static class BasisLocalHeightCalculator
                 BasisDebug.LogTag.Avatar
             );
             armSpan = minAllowed;
+        }
+
+        float maxAllowed = eyeHeight * (1f + EyeArmTolerance);
+        if (armSpan > maxAllowed)
+        {
+            BasisDebug.LogWarning(
+                $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}). " +
+                $"Clamping to max allowed: {maxAllowed}",
+                BasisDebug.LogTag.Avatar
+            );
+            armSpan = maxAllowed;
         }
     }
 

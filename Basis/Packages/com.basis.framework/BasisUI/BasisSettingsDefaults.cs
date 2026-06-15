@@ -314,7 +314,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevDebugFaceTracking = new("devdebugfacetracking", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevDebugEyeTracking = new("devdebugeyetracking", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));

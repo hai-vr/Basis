@@ -102,7 +102,8 @@ public static class BasisHeightDriver
         float targetMeters = ScaleAvatar ? SelectedScale : unscaled;
         targetMeters = ClampToAdminEyeHeight(targetMeters);
 
-        ScaledToMatchValue = targetMeters / unscaled;
+        float denom = ScaleAvatar ? SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters) : unscaled;
+        ScaledToMatchValue = targetMeters / denom;
 
         BasisDebug.Log($"Applying Scale to Avatar {ScaledToMatchValue}", BasisDebug.LogTag.Avatar);
 
@@ -358,11 +359,11 @@ public static class BasisHeightDriver
         // "Default" denominator in the same space as SelectedScaled* (which currently includes calY)
         float defaultScaled = SanitizePositive(FallbackHeightInMeters * calY, FallbackHeightInMeters);
 
-        PlayerToDefaultRatioScaled = SafeDivide(SelectedScaledAvatarHeight, FallbackHeightInMeters, 1f);
-        AvatarToDefaultRatioScaled = SafeDivide(SelectedScaledPlayerHeight, FallbackHeightInMeters, 1f);
+        PlayerToDefaultRatioScaled = SafeDivide(SelectedScaledPlayerHeight, FallbackHeightInMeters, 1f);
+        AvatarToDefaultRatioScaled = SafeDivide(SelectedScaledAvatarHeight, FallbackHeightInMeters, 1f);
         // Use SafeDivide for all ratios (prevents NaN/Inf/0 denom explosions)
-        PlayerToDefaultRatioScaledWithAvatarScale = SafeDivide(SelectedScaledAvatarHeight, defaultScaled, 1f);
-        AvatarToDefaultRatioScaledWithAvatarScale = SafeDivide(SelectedScaledPlayerHeight, defaultScaled, 1f);
+        PlayerToDefaultRatioScaledWithAvatarScale = SafeDivide(SelectedScaledPlayerHeight, defaultScaled, 1f);
+        AvatarToDefaultRatioScaledWithAvatarScale = SafeDivide(SelectedScaledAvatarHeight, defaultScaled, 1f);
 
         // Relative ratios between player and avatar.
         PlayerToAvatarRatioScaled = SafeDivide(SelectedScaledPlayerHeight, SelectedScaledAvatarHeight, 1f);
@@ -388,7 +389,7 @@ public static class BasisHeightDriver
             $"Height Mode: {Height} | PlayerMetric(scaled): {SelectedScaledPlayerHeight}m | " +
             $"AvatarMetric(scaled): {SelectedScaledAvatarHeight}m | " +
             $"PlayerToAvatar: {PlayerToAvatarRatioScaled} | AvatarToPlayer: {AvatarToPlayerRatioScaled} | " +
-            $"PlayerToDefault: {AvatarToDefaultRatioScaledWithAvatarScale} | AvatarToDefault: {PlayerToDefaultRatioScaledWithAvatarScale} | " +
+            $"PlayerToDefault: {PlayerToDefaultRatioScaledWithAvatarScale} | AvatarToDefault: {AvatarToDefaultRatioScaledWithAvatarScale} | " +
             $"DeviceScale: {DeviceScale}",
             BasisDebug.LogTag.Avatar
         );

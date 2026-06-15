@@ -35,7 +35,8 @@ body:
     id: buildinfo
     attributes:
       label: Build Info
-      placeholder: Settings > Developer > Copy Build Info button
+      description: 'In Basis, open Settings > Developer and click the "Copy Build Info" button, then paste the result here. If it is not visible, enable "Build & Environment" under Section Visibility on that tab.'
+      placeholder: 'Version: ...  Unity: ...  Platform: ...  Mode: ...  Build GUID: ...'
     validations:
       required: true
   - type: textarea

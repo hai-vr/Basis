@@ -705,6 +705,8 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             source.dopplerLevel = BasisSettingsDefaults.RADopplerLevel.RawValue;
             source.spatialBlend = BasisSettingsDefaults.RASpatialBlend.RawValue;
             source.priority = (int)BasisSettingsDefaults.RAPriority.RawValue;
+            source.spatialize = true;
+            source.spatializePostEffects = true;
 
 #if STEAMAUDIO_ENABLED
             // Steam Audio settings

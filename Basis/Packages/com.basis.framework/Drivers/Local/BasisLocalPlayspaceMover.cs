@@ -159,12 +159,19 @@ namespace Basis.Scripts.Drivers
             string rotateInput = BasisSettingsDefaults.PlayspaceMoverRotateInput.RawValue;
             bool allowLeft = handMode != HandRight;
             bool allowRight = handMode != HandLeft;
+            bool allowRotate = BasisSettingsDefaults.PlayspaceMoverRotate.RawValue;
+            bool allowScale = BasisSettingsDefaults.PlayspaceMoverScale.RawValue;
 
             GatherHand(BasisBoneTrackedRole.LeftHand, mainInput, rotateInput, out bool leftPresent, out bool leftMain, out bool leftRotate, out Vector3 leftLocal, out Vector3 leftUnscaled);
             GatherHand(BasisBoneTrackedRole.RightHand, mainInput, rotateInput, out bool rightPresent, out bool rightMain, out bool rightRotate, out Vector3 rightLocal, out Vector3 rightUnscaled);
 
-            bool left = leftPresent && (leftMain || leftRotate) && allowLeft;
-            bool right = rightPresent && (rightMain || rightRotate) && allowRight;
+            // The rotate input is a two-handed-only gesture (yaw); translation (one hand) and scale (two
+            // hands) are driven by the MAIN input. A single hand on the rotate input must not engage, or a
+            // lone trigger pull (the default rotate input, and also the UI click input) drags the play
+            // space. See issue #874.
+            bool bothRotate = allowRotate && allowLeft && allowRight && leftPresent && rightPresent && leftRotate && rightRotate;
+            bool left = (leftPresent && leftMain && allowLeft) || bothRotate;
+            bool right = (rightPresent && rightMain && allowRight) || bothRotate;
             int count = (left ? 1 : 0) + (right ? 1 : 0);
 
             if (count == 0)
@@ -187,9 +194,6 @@ namespace Basis.Scripts.Drivers
                 _prevLeftRawY = leftRawY;
                 _prevRightRawY = rightRawY;
             }
-
-            bool allowRotate = BasisSettingsDefaults.PlayspaceMoverRotate.RawValue;
-            bool allowScale = BasisSettingsDefaults.PlayspaceMoverScale.RawValue;
 
             player.transform.GetPositionAndRotation(out Vector3 pcur, out Quaternion qcur);
 
@@ -449,9 +453,10 @@ namespace Basis.Scripts.Drivers
                 if (device.TryGetRole(out BasisBoneTrackedRole r) == false || r != role) continue;
 
                 present = true;
-                // Grip is also the pickup input — while this hand is holding an interactable,
-                // don't let it drive the mover until the object is released.
-                if (IsHandHoldingObject(device))
+                // Grip is the pickup input and the trigger is the UI click input — while this hand is
+                // holding an interactable or pointing at UI it's driving that, not the mover. Don't let it
+                // grab the play space until it's released / pointed away (issue #874).
+                if (IsHandHoldingObject(device) || IsHandPointingAtUI(device))
                 {
                     mainHeld = false;
                     rotateHeld = false;
@@ -484,6 +489,15 @@ namespace Basis.Scripts.Drivers
                 }
             }
             return false;
+        }
+
+        // True while this hand's pointer is over a UI element this frame. Mirrors the HadRaycastUITarget
+        // gate the pickup/interaction system uses, so click-dragging a menu never drags the play space.
+        private static bool IsHandPointingAtUI(BasisInput device)
+        {
+            return device.HasRaycaster
+                && device.BasisUIRaycast != null
+                && device.BasisUIRaycast.HadRaycastUITarget;
         }
 
         private static bool IsHeld(BasisInputState state, string inputMode)

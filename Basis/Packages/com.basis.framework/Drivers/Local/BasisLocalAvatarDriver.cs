@@ -167,8 +167,6 @@ namespace Basis.Scripts.Drivers
 
             Calibration(player);
 
-            // Mapping is freshly re-detected and the avatar is in T-pose but still at its spawn
-            // orientation here — this is the frame the offset capture reads from.
             RecordCalibrationStage("TPose", player);
 
             // Capture T-pose bone rotations for network compression (while still in T-pose)

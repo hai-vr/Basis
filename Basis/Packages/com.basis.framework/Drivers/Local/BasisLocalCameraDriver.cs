@@ -653,7 +653,7 @@ namespace Basis.Scripts.Drivers
                     float aspect = CameraInstance.aspect;
                     Vector3 lossyScale = this.transform.lossyScale;
                     Vector2 offset = microphoneIconDriver.IconPositionOffset;
-                    float ratio = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
+                    float ratio = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
                     if (!_micLayoutValid || fov != _micLayoutFov || aspect != _micLayoutAspect
                         || lossyScale != _micLayoutLossyScale || offset != _micLayoutOffset
@@ -695,7 +695,7 @@ namespace Basis.Scripts.Drivers
             // leaves third-person orbiting the player root, ~eye-height too low (Y only).
             Transform parentTransform = transform.parent;
 
-            float scale = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
+            float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             parentTransform.GetPositionAndRotation(out Vector3 targetTrackingPos, out Quaternion targetTrackingRot);
 
             Vector3 euler = targetTrackingRot.eulerAngles;

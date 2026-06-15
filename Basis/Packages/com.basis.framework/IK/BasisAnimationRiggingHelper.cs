@@ -2,11 +2,23 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
 public static class BasisAnimationRiggingHelper
 {
+    /// <summary>Per-effector bind offset for the uncalibrated rig build: bone-sim LOCAL outgoing against the
+    /// avatar bone RELATIVE TO the animator root (the avatar's own forward), so its spawn orientation can't
+    /// leak in. FBT calibration recomputes these head-driven instead (FullBodyCalibration).</summary>
+    public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
+    {
+        Quaternion boneRelativeToRoot = animatorRoot != null
+            ? Quaternion.Inverse(animatorRoot.rotation) * avatarBone.rotation
+            : avatarBone.rotation;
+        return Quaternion.Inverse(control.OutGoingData.rotation) * boneRelativeToRoot;
+    }
+
     /// <summary>
     /// Build the combined Full IK constraint from arrays of joints and roles.
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
@@ -51,10 +63,10 @@ public static class BasisAnimationRiggingHelper
         data.LeftToe = Mapping.leftToe;
         data.RightToe = Mapping.rightToe;
         // Head
-        data.m_CalibratedRotationHead = Mapping.Hashead ? Quaternion.Inverse(BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation) * Mapping.head.rotation : Quaternion.identity;
+        data.m_CalibratedRotationHead = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.HeadControl, Mapping.AnimatorRoot, Mapping.head) : Quaternion.identity;
         // Feet
-        data.M_CalibrationLeftFootRotation = Mapping.Hashead ? Quaternion.Inverse(BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation) * Mapping.leftFoot.rotation : Quaternion.identity;
-        data.M_CalibrationRightFootRotation = Mapping.Hashead ? Quaternion.Inverse(BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation) * Mapping.rightFoot.rotation : Quaternion.identity;
+        data.M_CalibrationLeftFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.AnimatorRoot, Mapping.leftFoot) : Quaternion.identity;
+        data.M_CalibrationRightFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.AnimatorRoot, Mapping.rightFoot) : Quaternion.identity;
 
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
@@ -85,16 +97,16 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftHand = Quaternion.Inverse(leftLandmarkBind) * leftBoneBind;
         data.m_CalibratedRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
-        data.m_CalibratedRotationChest = Mapping.Haschest ? Quaternion.Inverse(BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation) * Mapping.chest.rotation : Quaternion.identity;
+        data.m_CalibratedRotationChest = Mapping.Haschest ? CalibratedRotationOffset(BasisLocalBoneDriver.ChestControl, Mapping.AnimatorRoot, Mapping.chest) : Quaternion.identity;
         data.m_CalibratedRotationNeck = Mapping.Hasneck ? Mapping.neck.rotation : Quaternion.identity;
-        data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? Quaternion.Inverse(BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData.rotation) * Mapping.leftToe.rotation : Quaternion.identity;
-        data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? Quaternion.Inverse(BasisLocalBoneDriver.RightToeControl.OutgoingWorldData.rotation) * Mapping.rightToe.rotation : Quaternion.identity;
+        data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.AnimatorRoot, Mapping.leftToe) : Quaternion.identity;
+        data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? CalibratedRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.AnimatorRoot, Mapping.rightToe) : Quaternion.identity;
 
 
-        data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? Quaternion.Inverse(BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation) * Mapping.leftShoulder.rotation : Quaternion.identity;
-        data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? Quaternion.Inverse(BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation) * Mapping.RightShoulder.rotation : Quaternion.identity;
+        data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftShoulderControl, Mapping.AnimatorRoot, Mapping.leftShoulder) : Quaternion.identity;
+        data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.RightShoulderControl, Mapping.AnimatorRoot, Mapping.RightShoulder) : Quaternion.identity;
         // Hips reference rotation
-        data.OffsetRotationHips = Mapping.HasHips ? Quaternion.Inverse(BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation) * Mapping.Hips.rotation : Quaternion.identity;
+        data.OffsetRotationHips = Mapping.HasHips ? CalibratedRotationOffset(BasisLocalBoneDriver.HipsControl, Mapping.AnimatorRoot, Mapping.Hips) : Quaternion.identity;
         // Head
         data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
         data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
@@ -147,10 +159,7 @@ public static class BasisAnimationRiggingHelper
         data.ChestPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
         data.ChestRotation = chest.rotation;
 
-        // Developer diagnostics: dump the calibrated offsets + the runtime targets and the avatar
-        // root they were captured against. The offsets here are absolute world rotations of the
-        // bind bones, so the avatar's spawn orientation (AnimatorRoot) leaks into them — this is
-        // the data needed to confirm the flipped/inverted-head root cause.
+        // Developer diagnostics: dump the calibrated offsets, the runtime targets, and the avatar root.
         if (BasisCalibrationDebugRecorder.Enabled)
         {
             Transform animRoot = player?.BasisAvatar?.Animator != null ? player.BasisAvatar.Animator.transform : null;
@@ -176,9 +185,7 @@ public static class BasisAnimationRiggingHelper
             BasisCalibrationDebugRecorder.Pose("Offsets", "TargetLeftFoot", "target", data.LeftFootPosition, data.LeftFootRotation, Vector3.one);
             BasisCalibrationDebugRecorder.Pose("Offsets", "TargetRightFoot", "target", data.RightFootPosition, data.RightFootRotation, Vector3.one);
 
-            // Bone-control rest frames: the root-relative quantities the bone sim actually composes
-            // at runtime (OutgoingWorld = ParentRotation * OutGoing). Comparing TposeLocal against
-            // the absolute CalibratedRotation offsets above pins the absolute-vs-relative mismatch.
+            // Bone-control rest frames (OutgoingWorld = ParentRotation * OutGoing).
             RecordControlRest("head.ctrl", BasisLocalBoneDriver.HeadControl);
             RecordControlRest("hips.ctrl", BasisLocalBoneDriver.HipsControl);
             RecordControlRest("chest.ctrl", BasisLocalBoneDriver.ChestControl);
