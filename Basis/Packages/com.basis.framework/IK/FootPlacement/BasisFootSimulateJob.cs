@@ -46,6 +46,11 @@ public struct BasisFootSimulateJob : IJob
 
         // ── Body forward ──
         float3 rawFwd = ComputeBodyForward(inp, sim, p, up);
+
+        // Body yaw rate (deg/s), smoothed — paces stepping so feet keep up when turning / spinning.
+        float bodyYawRate = math.lengthsq(sim.prevBodyFwd) > 0.001f ? SignedAngle(sim.prevBodyFwd, rawFwd, up) / dt : 0f;
+        sim.prevBodyFwd = rawFwd;
+        sim.smoothedYawRateDeg = math.lerp(sim.smoothedYawRateDeg, bodyYawRate, 1f - math.exp(-p.bodyFwdRateMoving * dt));
         float fwdRate = speed > 0.1f ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
         float fwdAlpha = 1f - math.exp(-fwdRate * dt);
         sim.smoothedBodyFwd = math.normalize(Slerp3(sim.smoothedBodyFwd, rawFwd, fwdAlpha));
@@ -115,8 +120,16 @@ public struct BasisFootSimulateJob : IJob
         EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * p.idealSideEnforceFraction);
 
         // ── Step parameters ──
-        float speedT = math.saturate(speed / p.fastSpeedRef);
-        float idleBoost = speed < p.idleSpeedThreshold ? p.stepTriggerDist * p.idleBoostFraction : 0f;
+        // Pace steps by translation OR body rotation: a spin (high yaw rate, no translation) must step
+        // as fast as a fast walk so the feet keep up and don't cross. fastYawRef is the yaw rate above
+        // which even fast steps can't keep up; go full-fast at half that.
+        float fastYawRef = math.max(1f, 0.5f * p.maxPlantedYawDegrees / math.max(0.01f, p.stepDurFast));
+        float yawT = math.saturate(math.abs(sim.smoothedYawRateDeg) / fastYawRef);
+        float speedT = math.max(math.saturate(speed / p.fastSpeedRef), yawT);
+        // Idle boost only when genuinely stationary -- NOT spinning in place (which has speed ~0 but
+        // a high yaw rate); boosting the trigger there steps late and the foot crosses.
+        bool stationary = speed < p.idleSpeedThreshold && math.abs(sim.smoothedYawRateDeg) < 20f;
+        float idleBoost = stationary ? p.stepTriggerDist * p.idleBoostFraction : 0f;
         float threshold = p.stepTriggerDist + speed * p.strideScale + idleBoost;
         float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, speedT);
 
@@ -147,6 +160,17 @@ public struct BasisFootSimulateJob : IJob
         // ── Update feet ──
         UpdateFoot(ref left, ref right, rawFwd, speed, threshold, stepDur, dt, up);
         UpdateFoot(ref right, ref left, rawFwd, speed, threshold, stepDur, dt, up);
+
+        // One foot stays grounded: if both planted feet want to step the same tick, keep the
+        // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
+        // once (e.g. spinning in place), which reads as floating/moonwalking. The per-foot trigger
+        // already requires the other foot planted, so this only catches the same-tick double-want.
+        if (left.phase == 0 && right.phase == 0 && left.wantsStep && right.wantsStep)
+        {
+            float ld = HDist(left.plantedPos, left.idealPos, up);
+            float rd = HDist(right.plantedPos, right.idealPos, up);
+            if (ld >= rd) right.wantsStep = false; else left.wantsStep = false;
+        }
 
         // ── Knee hints ──
         float avgThigh = (p.leftThighLen + p.rightThighLen) * 0.5f;
@@ -238,8 +262,13 @@ public struct BasisFootSimulateJob : IJob
 
             float3 pos = math.lerp(f.stepStartPos, f.stepTargetPos, ease);
 
-            float speedT2 = math.saturate(speed / p.fastSpeedRef);
-            float dynamicHeight = p.stepHeightCalc * math.lerp(p.stepHeightMinFraction, 1.0f, speedT2);
+            // Lift scales with stride length (a short shuffle barely lifts; a full stride lifts fully),
+            // floored so a tiny step still clears the ground and capped at the calibrated step height.
+            // Scales with the avatar automatically (avgLeg and stepHeightCalc both scale).
+            float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
+            float stepDist = HDist(f.stepStartPos, f.stepTargetPos, up);
+            float strideFrac = math.saturate(stepDist / math.max(1e-3f, avgLeg * p.stepHeightStrideRefFraction));
+            float dynamicHeight = p.stepHeightCalc * math.lerp(p.stepHeightMinFraction, 1.0f, strideFrac);
 
             float lift = math.pow(t, p.stepArcLiftExp) * math.pow(1f - t, p.stepArcDropExp) / 0.234f;
             pos += up * (math.saturate(lift) * dynamicHeight);

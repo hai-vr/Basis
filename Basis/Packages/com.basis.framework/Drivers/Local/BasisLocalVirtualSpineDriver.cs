@@ -659,7 +659,7 @@ public class BasisLocalVirtualSpineDriver
     }
 
     [BurstCompile]
-    private static void ExtractYawBurst(in quaternion rotation, out quaternion result)
+    internal static void ExtractYawBurst(in quaternion rotation, out quaternion result)
     {
         float3 f = math.mul(rotation, new float3(0f, 0f, 1f));
         f.y = 0f;
@@ -681,7 +681,7 @@ public class BasisLocalVirtualSpineDriver
     }
 
     [BurstCompile]
-    private static void ComputeHipsPosition(
+    internal static void ComputeHipsPosition(
         in float3 neckPos,
         in float3 worldUp,
         float lenTotal,
@@ -710,7 +710,7 @@ public class BasisLocalVirtualSpineDriver
     }
 
     [BurstCompile]
-    private static void ComputeChainPlacement(
+    internal static void ComputeChainPlacement(
         in float3 neckPos,
         in float3 hipsPos,
         float tChest,
@@ -729,7 +729,7 @@ public class BasisLocalVirtualSpineDriver
     }
 
     [BurstCompile]
-    private static void YawDegrees(in quaternion yawOnly, out float result)
+    internal static void YawDegrees(in quaternion yawOnly, out float result)
     {
         float3 f = math.mul(yawOnly, new float3(0f, 0f, 1f));
         result = math.degrees(math.atan2(f.x, f.z));

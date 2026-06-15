@@ -153,7 +153,7 @@ namespace Basis.Scripts.UI
 
         public void OnPlayersHeightChanged(HeightModeChange Mode)
         {
-            float uiScale = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
+            float uiScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             if (LineRenderer != null)
             {
                 float size = lineWidth * uiScale;

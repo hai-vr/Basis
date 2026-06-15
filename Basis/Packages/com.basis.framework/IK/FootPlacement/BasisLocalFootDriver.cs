@@ -101,6 +101,9 @@ public partial class BasisLocalFootDriver
     [Tooltip("Min dynamic step height at slow speed (fraction of max).")]
     [SerializeField, Range(0.0f, 1.0f)]
     private float stepHeightMinFraction = 0.4f;
+    [Tooltip("Stride length (fraction of leg) at which step lift reaches its full height.")]
+    [SerializeField, Range(0.2f, 0.8f)]
+    private float stepHeightStrideRefFraction = 0.45f;
 
     [Header("Idle Behavior")]
     [Tooltip("Speed below which player is considered idle.")]
@@ -427,6 +430,7 @@ public partial class BasisLocalFootDriver
             stepArcLiftExp = stepArcLiftExp,
             stepArcDropExp = stepArcDropExp,
             stepHeightMinFraction = stepHeightMinFraction,
+            stepHeightStrideRefFraction = stepHeightStrideRefFraction,
             idleSpeedThreshold = idleSpeedThreshold,
             idleBoostFraction = idleBoostFraction,
             maxPlantedYawDegrees = maxPlantedYawDegrees,
@@ -617,8 +621,16 @@ public partial class BasisLocalFootDriver
         float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
         float avgShin = (leftShinLen + rightShinLen) * 0.5f;
 
+        // Scale the absolute clamp bounds with the avatar so a child / giant gets proportional step
+        // params instead of clipping at human-sized limits (fulfilling "everything scales with the
+        // body"). Lengths scale linearly; gait time & speed scale as sqrt (pendulum / Froude),
+        // matching how pendulum and fastSpeedRef already derive. lengthScale = 1 at calibration.
+        float baseAvgLeg = (baseLeftLegLen + baseRightLegLen) * 0.5f;
+        float lengthScale = baseAvgLeg > 1e-4f ? avgLeg / baseAvgLeg : 1f;
+        float timeScale = Mathf.Sqrt(lengthScale);
+
         // Ray sphere radius: ~half the foot width, approximated as footLength * 0.3
-        raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, 0.02f, 0.12f);
+        raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, 0.02f * lengthScale, 0.12f * lengthScale);
 
         // footHeightOffset: how far above the ground raycast hit the IK target sits.
         // For the legs to fully extend when standing, the vertical distance from
@@ -628,19 +640,19 @@ public partial class BasisLocalFootDriver
         //   upperLegToFootVertical + ankleHeight - footHeightOffset >= avgLeg
         float desiredOffset = ankleHeight * footHeightOffsetMul;
         float straightLegLimit = upperLegToFootVertical + ankleHeight - avgLeg;
-        footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), 0.001f, 0.05f);
+        footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), 0.001f * lengthScale, 0.05f * lengthScale);
 
-        stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, 0.04f, 0.18f);
+        stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, 0.04f * lengthScale, 0.18f * lengthScale);
 
-        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, 0.02f, 0.22f);
+        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, 0.02f * lengthScale, 0.22f * lengthScale);
 
-        stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, 0.03f, 0.20f);
+        stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, 0.03f * lengthScale, 0.20f * lengthScale);
 
         float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
-        stepDurSlow = Mathf.Clamp(pendulum * stepDurSlowMul, 0.10f, 0.30f);
-        stepDurFast = Mathf.Clamp(pendulum * stepDurFastMul, 0.06f, 0.18f);
+        stepDurSlow = Mathf.Clamp(pendulum * stepDurSlowMul, 0.10f * timeScale, 0.30f * timeScale);
+        stepDurFast = Mathf.Clamp(pendulum * stepDurFastMul, 0.06f * timeScale, 0.18f * timeScale);
 
-        fastSpeedRef = Mathf.Clamp(fastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f, 3.5f);
+        fastSpeedRef = Mathf.Clamp(fastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f * timeScale, 3.5f * timeScale);
 
         _paramsDirty = true;
     }
@@ -840,7 +852,8 @@ public partial class BasisLocalFootDriver
         ref readonly BasisFootSimState sim = ref UnsafeUtility.AsRef<BasisFootSimState>(_nativeSimState.GetUnsafeReadOnlyPtr());
         float3 velFlat = (float3)ProjectHorizontal(sim.smoothedVelocity);
         float speed = math.length(velFlat);
-        float speedT = Mathf.Clamp01(speed / fastSpeedRef);
+        float fastYawRef = Mathf.Max(1f, 0.5f * maxPlantedYawDegrees / Mathf.Max(0.01f, stepDurFast));
+        float speedT = Mathf.Max(Mathf.Clamp01(speed / fastSpeedRef), Mathf.Clamp01(Mathf.Abs(sim.smoothedYawRateDeg) / fastYawRef));
 
         f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;

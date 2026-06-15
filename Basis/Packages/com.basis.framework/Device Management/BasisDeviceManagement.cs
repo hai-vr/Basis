@@ -324,6 +324,7 @@ namespace Basis.Scripts.Device_Management
             SetupAutoSwap();
             OnInitializationCompleted?.Invoke();
             OnInitializationComplete = true;
+            BasisSettingsSystem.NotifyFinishedChanges();
         }
 
         #endregion
@@ -495,6 +496,10 @@ namespace Basis.Scripts.Device_Management
             {
                 inst.AllInputDevices[i]?.UnAssignFBTracker();
             }
+
+            // A full FB-tracker unassign invalidates the stored rotation-calibration reference, so a later
+            // avatar build falls back to the uncalibrated capture instead of a stale calibration.
+            BasisAvatarIKStageCalibration.HasCalibrationReference = false;
         }
 
         /// <summary>
@@ -549,6 +554,7 @@ namespace Basis.Scripts.Device_Management
             }
 
             AllInputDevices.Add(input);
+            BasisSettingsSystem.ReapplySettings();
 
             if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev))
             {

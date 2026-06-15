@@ -469,6 +469,8 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
                 audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
                 audioSource.loop = true;
+                audioSource.spatialize = true;
+                audioSource.spatializePostEffects = true;
                 audioSource.enabled = true;
                 audioSource.Play();
                 audioSource.maxDistance = MaxDistance;
@@ -688,7 +690,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         // ==================== Volume ====================
 
-        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f, float dopplerLevel = 1f, float spatialBlend = 1.0f, bool spatialize = true, bool spatializePostEffects = true)
+        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f)
         {
             if (BasisNetworkReceiver != null && BasisNetworkReceiver.RemotePlayer != null && BasisNetworkReceiver.RemotePlayer.IsEffectivelyBlocked)
             {
@@ -703,10 +705,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 return;
             }
-            audioSource.spatialize = spatialize;
-            audioSource.spatializePostEffects = spatializePostEffects;
-            audioSource.spatialBlend = Mathf.Clamp01(spatialBlend);
-            audioSource.dopplerLevel = Mathf.Max(0f, dopplerLevel);
             // Unity AudioSource stays at unit gain; actual attenuation happens per-sample in OnAudioFilterRead.
             audioSource.volume = 1f;
         }

@@ -147,6 +147,16 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
+            // A hand aiming at UI means the user is driving the menu, not the play space — disable the
+            // whole mover (no drag/rotate/scale/vertical) while either hand is raycasting onto a UI
+            // target. Like the movement lock, keep the vertical offset + flip so opening a menu mid-air
+            // doesn't drop or un-tip you (issue #874).
+            if (AnyHandPointingAtUI())
+            {
+                Stop();
+                return;
+            }
+
             // Vertical drag turned off while lifted: settle back to the floor rather than leaving the
             // player stuck at a previous offset with no way to lower it short of Reset.
             if (BasisSettingsDefaults.PlayspaceMoverVertical.RawValue == false)
@@ -159,12 +169,19 @@ namespace Basis.Scripts.Drivers
             string rotateInput = BasisSettingsDefaults.PlayspaceMoverRotateInput.RawValue;
             bool allowLeft = handMode != HandRight;
             bool allowRight = handMode != HandLeft;
+            bool allowRotate = BasisSettingsDefaults.PlayspaceMoverRotate.RawValue;
+            bool allowScale = BasisSettingsDefaults.PlayspaceMoverScale.RawValue;
 
             GatherHand(BasisBoneTrackedRole.LeftHand, mainInput, rotateInput, out bool leftPresent, out bool leftMain, out bool leftRotate, out Vector3 leftLocal, out Vector3 leftUnscaled);
             GatherHand(BasisBoneTrackedRole.RightHand, mainInput, rotateInput, out bool rightPresent, out bool rightMain, out bool rightRotate, out Vector3 rightLocal, out Vector3 rightUnscaled);
 
-            bool left = leftPresent && (leftMain || leftRotate) && allowLeft;
-            bool right = rightPresent && (rightMain || rightRotate) && allowRight;
+            // The rotate input is a two-handed-only gesture (yaw); translation (one hand) and scale (two
+            // hands) are driven by the MAIN input. A single hand on the rotate input must not engage, or a
+            // lone trigger pull (the default rotate input, and also the UI click input) drags the play
+            // space. See issue #874.
+            bool bothRotate = allowRotate && allowLeft && allowRight && leftPresent && rightPresent && leftRotate && rightRotate;
+            bool left = (leftPresent && leftMain && allowLeft) || bothRotate;
+            bool right = (rightPresent && rightMain && allowRight) || bothRotate;
             int count = (left ? 1 : 0) + (right ? 1 : 0);
 
             if (count == 0)
@@ -187,9 +204,6 @@ namespace Basis.Scripts.Drivers
                 _prevLeftRawY = leftRawY;
                 _prevRightRawY = rightRawY;
             }
-
-            bool allowRotate = BasisSettingsDefaults.PlayspaceMoverRotate.RawValue;
-            bool allowScale = BasisSettingsDefaults.PlayspaceMoverScale.RawValue;
 
             player.transform.GetPositionAndRotation(out Vector3 pcur, out Quaternion qcur);
 
@@ -482,6 +496,28 @@ namespace Basis.Scripts.Drivers
                 {
                     return true;
                 }
+            }
+            return false;
+        }
+
+        // True while either hand controller's pointer is over a UI element this frame. Mirrors the
+        // HadRaycastUITarget gate the pickup/interaction system uses so the menu, not the play space, gets
+        // the input. Checked for both hands regardless of hand mode — aiming at the menu with any hand
+        // means you're in the menu, so the whole mover is suppressed.
+        private static bool AnyHandPointingAtUI()
+        {
+            if (BasisDeviceManagement.Instance == null) return false;
+            var devices = BasisDeviceManagement.Instance.AllInputDevices;
+            if (devices == null) return false;
+
+            foreach (BasisInput device in devices)
+            {
+                if (device == null || device.HasControl == false) continue;
+                if (device.HasRaycaster == false || device.BasisUIRaycast == null) continue;
+                if (device.BasisUIRaycast.HadRaycastUITarget == false) continue;
+                if (device.TryGetRole(out BasisBoneTrackedRole r) == false) continue;
+                if (r != BasisBoneTrackedRole.LeftHand && r != BasisBoneTrackedRole.RightHand) continue;
+                return true;
             }
             return false;
         }

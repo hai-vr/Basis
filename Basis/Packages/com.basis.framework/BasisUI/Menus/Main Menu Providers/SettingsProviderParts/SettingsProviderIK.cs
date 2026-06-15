@@ -634,6 +634,24 @@ public static class SettingsProviderIK
                 spineCcdRelax.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineCcdRelax.title.tooltip"));
             }
 
+            var spineTwistKeep = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineTwistKeep.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKSpineTwistKeep);
+            if (spineTwistKeep != null)
+            {
+                spineTwistKeep.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineTwistKeep.title.tooltip"));
+            }
+
+            var spineNeckTwistKeep = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineNeckTwistKeep.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKSpineNeckTwistKeep);
+            if (spineNeckTwistKeep != null)
+            {
+                spineNeckTwistKeep.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineNeckTwistKeep.title.tooltip"));
+            }
+
             var chestArmSwingFactor = PanelSlider.CreateAndBind(
                 dynamicsParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestArmSwingFactor.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
@@ -1191,6 +1209,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKSpineMaxLateralDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineSquishBoost.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineCCDRelax.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineTwistKeep.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineNeckTwistKeep.ResetToDefault();
         BasisSettingsDefaults.FBIKNeckMaxConeDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKChestArmSwingFactor.ResetToDefault();
         BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.ResetToDefault();

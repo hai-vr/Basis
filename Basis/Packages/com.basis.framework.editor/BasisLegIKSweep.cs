@@ -82,7 +82,7 @@ namespace Basis.IK.Debugging
             Vector3 restKnee = hip + kneeDir * upper;
             Vector3 restFoot = restKnee + shinDir * lower;
 
-            Vector3 bendNormal = Mirror(cfg.BendNormal, mirror);
+            Vector3 bendNormal = cfg.BendNormal; // NOT mirrored: the rig uses the same hips-right KneeBendPref for both legs (BasisLocalRigDriver)
             if (bendNormal.sqrMagnitude < 1e-8f) bendNormal = Vector3.right;
 
             Vector3 hintDir = Mirror(cfg.HintDir, mirror).normalized;
@@ -200,7 +200,7 @@ namespace Basis.IK.Debugging
             if (shinDir.sqrMagnitude < 1e-8f) shinDir = Vector3.down;
             Vector3 restKnee = hip + kneeDir * upper;
             Vector3 restFoot = restKnee + shinDir * lower;
-            Vector3 bendNormal = Mirror(cfg.BendNormal, mirror);
+            Vector3 bendNormal = cfg.BendNormal; // NOT mirrored: the rig uses the same hips-right KneeBendPref for both legs (BasisLocalRigDriver)
             if (bendNormal.sqrMagnitude < 1e-8f) bendNormal = Vector3.right;
             Vector3 hintDir = Mirror(cfg.HintDir, mirror).normalized;
             if (hintDir.sqrMagnitude < 1e-8f) hintDir = Vector3.forward;

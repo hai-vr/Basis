@@ -65,7 +65,7 @@ namespace Basis.Scripts.Avatar
             public static readonly List<DebugSample> Samples = new List<DebugSample>(16);
             public static readonly List<DebugPrior> Priors = new List<DebugPrior>(16);
 
-            public static float AcceptThreshold => ConstellationAcceptThreshold;
+            public static float AcceptThreshold => BasisConstellationClassifier.AcceptThreshold;
 
             public static void Reset(string reason)
             {
@@ -89,23 +89,6 @@ namespace Basis.Scripts.Avatar
             public bool NearOrigin;     // tracker's UnscaledDeviceCoord came back ≈ Vector3.zero — almost always a stale/missing poll
         }
 
-        private readonly struct BoneRolePrior
-        {
-            public readonly BasisBoneTrackedRole Role;
-            public readonly float ExpectedHeightRatio;
-            public readonly float ExpectedLateralRatio;
-            public readonly float HeightSigma;
-            public readonly float LateralSigma;
-
-            public BoneRolePrior(BasisBoneTrackedRole role, float h, float lat, float hSigma, float latSigma)
-            {
-                Role = role;
-                ExpectedHeightRatio = h;
-                ExpectedLateralRatio = lat;
-                HeightSigma = hSigma;
-                LateralSigma = latSigma;
-            }
-        }
         /// <summary>
         /// data for ik calibration
         /// </summary>
@@ -224,36 +207,74 @@ namespace Basis.Scripts.Avatar
             }
         }
 
-        // Issue #531 rotation fix: CreateBasisFullBodyRIG captures the FBIK per-effector rotation
-        // offsets once at avatar load against the pre-calibration bone frame and never refreshes
-        // them. The constraint applies finalRot = boneOutgoingWorld * offset, so a stale offset
-        // leaves the avatar rotated off by the body-frame drift since load (only an app restart
-        // re-captured it). Recompute them here, in T-pose after the post-assignment simulate,
-        // with the same formula CreateBasisFullBodyRIG uses, so finalRot lands back on the avatar
-        // T-pose for the frame the user actually calibrated in.
+        // FBT per-effector rotation calibration. CreateBasisFullBodyRIG captures uncalibrated, animator-
+        // relative offsets at avatar load; calibration overrides them with the head-driven version. The
+        // reference captured here -- Inverse(boneSimOutgoing) * AnimatorRoot per effector -- is independent
+        // of the avatar bind, so ApplyCalibrationToCurrentAvatar can re-derive the offsets for any avatar's
+        // own T-pose bind. That is what lets FBT calibration survive an avatar swap without a T-pose redo.
+        public static bool HasCalibrationReference;
+        private static Quaternion s_refHead, s_refHips, s_refChest, s_refLeftFoot, s_refRightFoot,
+            s_refLeftToe, s_refRightToe, s_refLeftShoulder, s_refRightShoulder;
+
         private static void RecomputeFbikRotationCalibration()
         {
             var rig = BasisLocalPlayer.Instance.LocalRigDriver;
             if (rig == null || rig.BasisFullIKConstraint == null) return;
+            Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
+            Quaternion rootRot = Mapping.HasAnimatorRoot ? Mapping.AnimatorRoot.rotation : Quaternion.identity;
+
+            s_refHead = CaptureCalibrationReference(BasisLocalBoneDriver.HeadControl, rootRot);
+            s_refHips = CaptureCalibrationReference(BasisLocalBoneDriver.HipsControl, rootRot);
+            s_refChest = CaptureCalibrationReference(BasisLocalBoneDriver.ChestControl, rootRot);
+            s_refLeftFoot = CaptureCalibrationReference(BasisLocalBoneDriver.LeftFootControl, rootRot);
+            s_refRightFoot = CaptureCalibrationReference(BasisLocalBoneDriver.RightFootControl, rootRot);
+            s_refLeftToe = CaptureCalibrationReference(BasisLocalBoneDriver.LeftToeControl, rootRot);
+            s_refRightToe = CaptureCalibrationReference(BasisLocalBoneDriver.RightToeControl, rootRot);
+            s_refLeftShoulder = CaptureCalibrationReference(BasisLocalBoneDriver.LeftShoulderControl, rootRot);
+            s_refRightShoulder = CaptureCalibrationReference(BasisLocalBoneDriver.RightShoulderControl, rootRot);
+            HasCalibrationReference = true;
+
+            ApplyCalibrationToCurrentAvatar();
+        }
+
+        /// <summary>
+        /// Re-derives the per-effector FBT rotation offsets for the CURRENT avatar from the stored
+        /// calibration reference, so the calibration survives an avatar swap (no T-pose redo). Called at
+        /// calibration and again from the rig (re)build. No-op until a calibration has been captured.
+        /// </summary>
+        public static void ApplyCalibrationToCurrentAvatar()
+        {
+            if (!HasCalibrationReference) return;
+            var rig = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalRigDriver : null;
+            if (rig == null || rig.BasisFullIKConstraint == null) return;
             var data = rig.BasisFullIKConstraint.data;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
+            Quaternion rootInv = Mapping.HasAnimatorRoot ? Quaternion.Inverse(Mapping.AnimatorRoot.rotation) : Quaternion.identity;
 
-            BasisLocalRigDriver.RecalibratedHead = FreshRotationOffset(BasisLocalBoneDriver.HeadControl, Mapping.head, data.m_CalibratedRotationHead);
-            BasisLocalRigDriver.RecalibratedHips = FreshRotationOffset(BasisLocalBoneDriver.HipsControl, Mapping.Hips, data.OffsetRotationHips);
-            BasisLocalRigDriver.RecalibratedChest = FreshRotationOffset(BasisLocalBoneDriver.ChestControl, Mapping.chest, data.m_CalibratedRotationChest);
-            BasisLocalRigDriver.RecalibratedLeftFoot = FreshRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.leftFoot, data.M_CalibrationLeftFootRotation);
-            BasisLocalRigDriver.RecalibratedRightFoot = FreshRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.rightFoot, data.M_CalibrationRightFootRotation);
-            BasisLocalRigDriver.RecalibratedLeftToe = FreshRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.leftToe, data.m_CalibratedRotationLeftToe);
-            BasisLocalRigDriver.RecalibratedRightToe = FreshRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.rightToe, data.m_CalibratedRotationRightToe);
-            BasisLocalRigDriver.RecalibratedLeftShoulder = FreshRotationOffset(BasisLocalBoneDriver.LeftShoulderControl, Mapping.leftShoulder, data.m_CalibratedRotationLeftShoulder);
-            BasisLocalRigDriver.RecalibratedRightShoulder = FreshRotationOffset(BasisLocalBoneDriver.RightShoulderControl, Mapping.RightShoulder, data.m_CalibratedRotationRightShoulder);
+            BasisLocalRigDriver.RecalibratedHead = OffsetFromReference(s_refHead, rootInv, Mapping.head, data.m_CalibratedRotationHead);
+            BasisLocalRigDriver.RecalibratedHips = OffsetFromReference(s_refHips, rootInv, Mapping.Hips, data.OffsetRotationHips);
+            BasisLocalRigDriver.RecalibratedChest = OffsetFromReference(s_refChest, rootInv, Mapping.chest, data.m_CalibratedRotationChest);
+            BasisLocalRigDriver.RecalibratedLeftFoot = OffsetFromReference(s_refLeftFoot, rootInv, Mapping.leftFoot, data.M_CalibrationLeftFootRotation);
+            BasisLocalRigDriver.RecalibratedRightFoot = OffsetFromReference(s_refRightFoot, rootInv, Mapping.rightFoot, data.M_CalibrationRightFootRotation);
+            BasisLocalRigDriver.RecalibratedLeftToe = OffsetFromReference(s_refLeftToe, rootInv, Mapping.leftToe, data.m_CalibratedRotationLeftToe);
+            BasisLocalRigDriver.RecalibratedRightToe = OffsetFromReference(s_refRightToe, rootInv, Mapping.rightToe, data.m_CalibratedRotationRightToe);
+            BasisLocalRigDriver.RecalibratedLeftShoulder = OffsetFromReference(s_refLeftShoulder, rootInv, Mapping.leftShoulder, data.m_CalibratedRotationLeftShoulder);
+            BasisLocalRigDriver.RecalibratedRightShoulder = OffsetFromReference(s_refRightShoulder, rootInv, Mapping.RightShoulder, data.m_CalibratedRotationRightShoulder);
             BasisLocalRigDriver.HasRecalibratedRotationOffsets = true;
         }
 
-        private static Quaternion FreshRotationOffset(BasisLocalBoneControl control, Transform avatarBone, Quaternion current)
+        // Avatar-bind-independent calibration reference: Inverse(boneSimOutgoing) * AnimatorRoot.
+        private static Quaternion CaptureCalibrationReference(BasisLocalBoneControl control, Quaternion animatorRootRot)
         {
-            if (control == null || avatarBone == null) return current;
-            return Quaternion.Inverse(control.OutgoingWorldData.rotation) * avatarBone.rotation;
+            return control != null ? Quaternion.Inverse(control.OutgoingWorldData.rotation) * animatorRootRot : Quaternion.identity;
+        }
+
+        // offset = reference * (avatar bone relative to its own animator root). On the calibration avatar this
+        // reproduces the head-driven Inverse(boneSimOutgoing) * avatarBone exactly; on a swapped-in avatar it
+        // re-targets that same calibration onto the new bind.
+        private static Quaternion OffsetFromReference(Quaternion reference, Quaternion animatorRootInv, Transform avatarBone, Quaternion current)
+        {
+            return avatarBone != null ? reference * (animatorRootInv * avatarBone.rotation) : current;
         }
 
         // Arm-tracker calibration diagnostic: dumps every constellation sample (including the
@@ -358,46 +379,55 @@ namespace Basis.Scripts.Avatar
                 return;
             }
 
-            float armReach = EstimateArmReach(samples);
-            ConstellationDebug.ArmReach = armReach;
-            float stanceReach = EstimateStanceWidth(samples);
             float calibrationTolerance = GetCalibrationTolerance();
 
-            BoneRolePrior[] priors = BuildPriors(armReach, stanceReach, calibrationTolerance);
-
-            // Re-center the foot/toe height priors on the player's measured foot-tracker
-            // height (ankle-strap / boot mount variance) before the elbow re-center and the
-            // snapshot capture, so the visualizer and in-VR spheres show the moved regions too.
-            ApplyMeasuredFootHeightPriors(priors, samples);
-
-            // Re-center the elbow (lower-arm) priors on the line between the known hand
-            // controller and the estimated shoulder. The hand controllers already carry a
-            // pinned role, so their pose is reliable even when the player can't hold a clean
-            // T-pose; anchoring the elbow region to the hand→shoulder midpoint keeps a
-            // drooped or slightly-forward forearm tracker inside its acceptance region
-            // instead of falling outside the static T-pose circle. Runs before the snapshot
-            // capture so the editor visualizer and the in-VR calibration spheres pick up the
-            // moved region for free.
-            ApplyElbowMidpointPriors(priors, samples, bodyOrigin, bodyRotInv, eyeHeight);
-
-            CapturePriorSnapshots(priors);
-
-            // Honor per-role calibration toggles from the body-tracking settings UI.
-            // Roles with their toggle off are dropped from the prior list so the
-            // classifier never attempts to bind a tracker to them.
-            int kept = 0;
-            for (int i = 0; i < priors.Length; i++)
+            // Map the live samples to the pure classifier's scalar inputs, resolving any user
+            // role override per tracker. BasisConstellationClassifier owns the priors, scoring,
+            // and greedy assignment (shared with the editor Tracker Placement Sweep); this method
+            // just feeds it live device data and applies the roles it returns.
+            int sampleCount = samples.Count;
+            BasisConstellationSample[] classifierSamples = new BasisConstellationSample[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
             {
-                if (Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(priors[i].Role))
+                TrackerSample ts = samples[i];
+                int forcedRole = -1;
+                if (ts.Input != null && !ts.NearOrigin && TryResolveOverride(ts.Input, out BasisBoneTrackedRole overrideRole))
                 {
-                    priors[kept++] = priors[i];
+                    forcedRole = (int)overrideRole;
+                }
+                classifierSamples[i] = new BasisConstellationSample
+                {
+                    HeightRatio = ts.HeightRatio,
+                    LateralRatio = ts.LateralRatio,
+                    DepthLocal = ts.BodyLocal.z,
+                    NearOrigin = ts.NearOrigin,
+                    ForcedRole = forcedRole,
+                };
+            }
+
+            BasisConstellationHand leftHand = ReadHandForClassifier(BasisBoneTrackedRole.LeftHand, bodyOrigin, bodyRotInv, eyeHeight);
+            BasisConstellationHand rightHand = ReadHandForClassifier(BasisBoneTrackedRole.RightHand, bodyOrigin, bodyRotInv, eyeHeight);
+
+            BasisConstellationResult classified = BasisConstellationClassifier.Classify(
+                classifierSamples, sampleCount, leftHand, rightHand, calibrationTolerance,
+                Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration);
+
+            ConstellationDebug.ArmReach = classified.ArmReach;
+
+            // Snapshot the full recentered prior set (pre enabled-filter) for the visualizer and
+            // in-VR spheres, exactly as the old inline path did before the toggle filter.
+            CapturePriorSnapshots(classified.Priors);
+
+            bool anyRoleEnabled = false;
+            for (int i = 0; i < classified.Priors.Length; i++)
+            {
+                if (Basis.BasisUI.BasisSettingsDefaults.IsRoleEnabledForCalibration(classified.Priors[i].Role))
+                {
+                    anyRoleEnabled = true;
+                    break;
                 }
             }
-            if (kept != priors.Length)
-            {
-                System.Array.Resize(ref priors, kept);
-            }
-            if (priors.Length == 0)
+            if (!anyRoleEnabled)
             {
                 ConstellationDebug.Status = "all FB roles disabled in calibration toggles";
                 ComputeBestAnyFits(samples);
@@ -405,156 +435,30 @@ namespace Basis.Scripts.Avatar
                 return;
             }
 
-            // Greedy global-best assignment: each iteration picks the (sample, role) pair
-            // with the highest score that still beats the threshold. One tracker per role,
-            // one role per tracker. Trackers that don't fit any role are left unassigned.
-            bool[] sampleUsed = new bool[samples.Count];
-            bool[] roleUsed = new bool[priors.Length];
-            int assignedCount = 0;
-
-            // User-forced overrides come first. Each sample whose tracker (or, for a
-            // virtual midpoint, either physical half) has a stored role override is
-            // bound straight to that role and removed from the candidate pool — the
-            // classifier never scores it. This lets a user lock e.g. a problem hip
-            // tracker to Hips so calibration can't reassign it under any pose.
-            assignedCount += ApplyForcedRoleOverrides(samples, priors, sampleUsed, roleUsed);
-            while (true)
+            // Apply the classifier's decisions. Devices were already unassigned in
+            // CollectFreeFbTrackerSamples, so one ApplyTrackerCalibration per device lands the
+            // final (post toe-swap) role; the bone controls are simulated by the caller next.
+            for (int i = 0; i < sampleCount; i++)
             {
-                float bestScore = ConstellationAcceptThreshold;
-                int bestSampleIdx = -1;
-                int bestRoleIdx = -1;
-                for (int s = 0; s < samples.Count; s++)
+                if (!classified.TryGetRole(i, out BasisBoneTrackedRole role))
                 {
-                    if (sampleUsed[s])
-                    {
-                        continue;
-                    }
-
-                    TrackerSample sample = samples[s];
-                    // A near-origin sample means the device never wrote a real pose into
-                    // UnscaledDeviceCoord (touch-only inputs, controllers polled before the
-                    // first render pose, etc.). At (0,0,0) body-local it scores well for
-                    // Toes and would silently win that role, flipping HasFBIKTrackers to
-                    // true and tricking the rig driver into engaging foot IK on legs that
-                    // have no real tracker.
-                    if (sample.NearOrigin)
-                    {
-                        continue;
-                    }
-                    for (int r = 0; r < priors.Length; r++)
-                    {
-                        if (roleUsed[r])
-                        {
-                            continue;
-                        }
-
-                        // Secondary-role ordering. The chains (Chest/LowerLeg wait on Hips,
-                        // Shoulder waits on LowerArm, Toes waits on Foot) keep a stray torso or
-                        // thigh tracker from sniping an anchor slot. Only feet→toes is enforced
-                        // everywhere; the rest are relaxed in the leftover pass so a well-placed
-                        // knee/shoulder still binds when its anchor never calibrated.
-                        BasisBoneTrackedRole priorrole = priors[r].Role;
-                        if (!IsAssignmentAllowed(priorrole, priors, roleUsed, leftoverPass: false))
-                        {
-                            continue;
-                        }
-
-                        float score = ScoreSampleAgainstRole(sample, priors[r]);
-                        if (score > bestScore)
-                        {
-                            bestScore = score;
-                            bestSampleIdx = s;
-                            bestRoleIdx = r;
-                        }
-                    }
+                    continue;
                 }
-                if (bestSampleIdx < 0)
+                BasisInput input = samples[i].Input;
+                if (input == null)
                 {
-                    break;
+                    continue;
                 }
-
-                BasisBoneTrackedRole role = priors[bestRoleIdx].Role;
-                TrackerSample chosen = samples[bestSampleIdx];
-                BasisDebug.Log($"FBIK constellation: '{chosen.Input.UniqueDeviceIdentifier}' -> {role} (h={chosen.HeightRatio:F2}, lat={chosen.LateralRatio:F2}, score={bestScore:F2})", BasisDebug.LogTag.Input);
-                chosen.Input.ApplyTrackerCalibration(role);
-                sampleUsed[bestSampleIdx] = true;
-                roleUsed[bestRoleIdx] = true;
+                float score = classified.AssignedScore[i];
+                BasisDebug.Log($"FBIK constellation: '{input.UniqueDeviceIdentifier}' -> {role} (h={samples[i].HeightRatio:F2}, lat={samples[i].LateralRatio:F2}, score={score:F2}, {classified.AssignedKind[i]})", BasisDebug.LogTag.Input);
+                input.ApplyTrackerCalibration(role);
                 HasFBIKTrackers = true;
-
-                RecordAssignment(bestSampleIdx, role, bestScore);
-                assignedCount++;
+                RecordAssignment(i, role, score);
             }
-
-            // Second pass: bind any still-free tracker to its nearest open role at a relaxed
-            // threshold, so an atypical-proportioned / off-pose tracker lands somewhere instead
-            // of being dropped. Still honors feet→toes; near-origin samples stay excluded.
-            assignedCount += AssignLeftoverTrackers(samples, priors, sampleUsed, roleUsed);
-
-            ApplyToeForwardConstraint(samples, BasisBoneTrackedRole.LeftFoot, BasisBoneTrackedRole.LeftToes);
-            ApplyToeForwardConstraint(samples, BasisBoneTrackedRole.RightFoot, BasisBoneTrackedRole.RightToes);
 
             ComputeBestAnyFits(samples);
-            ConstellationDebug.Status = $"{assignedCount} of {samples.Count} tracker(s) assigned";
+            ConstellationDebug.Status = $"{classified.AssignedCount} of {samples.Count} tracker(s) assigned";
             ConstellationDebug.HasSnapshot = true;
-        }
-
-        /// <summary>
-        /// Walks samples, applies any user-set role override for each tracker
-        /// directly (skipping the constellation scoring), and marks both the
-        /// sample and the chosen role as used so the greedy classifier can't
-        /// touch them. For virtual midpoint samples we also accept an override
-        /// recorded against either physical half — the user pairs trackers in
-        /// the UI by physical id, and the merged virtual is what calibration
-        /// sees, so we have to bridge between the two ids here.
-        /// </summary>
-        private static int ApplyForcedRoleOverrides(List<TrackerSample> samples, BoneRolePrior[] priors, bool[] sampleUsed, bool[] roleUsed)
-        {
-            int forced = 0;
-            for (int s = 0; s < samples.Count; s++)
-            {
-                if (sampleUsed[s]) continue;
-                TrackerSample sample = samples[s];
-                if (sample.Input == null) continue;
-                if (sample.NearOrigin) continue;
-
-                if (!TryResolveOverride(sample.Input, out BasisBoneTrackedRole forcedRole))
-                {
-                    continue;
-                }
-
-                int roleIdx = -1;
-                for (int r = 0; r < priors.Length; r++)
-                {
-                    if (priors[r].Role == forcedRole)
-                    {
-                        roleIdx = r;
-                        break;
-                    }
-                }
-                // Override targets a role the classifier wouldn't normally
-                // assign (toggled off, or off-list like Spine). The user
-                // explicitly asked for it, so honor the override and just skip
-                // the roleUsed bookkeeping — the classifier was never going to
-                // pick that role anyway.
-                if (roleIdx >= 0 && roleUsed[roleIdx])
-                {
-                    BasisDebug.Log($"FBIK constellation: override for '{sample.Input.UniqueDeviceIdentifier}' -> {forcedRole} skipped (role already taken by another override)", BasisDebug.LogTag.Input);
-                    continue;
-                }
-
-                BasisDebug.Log($"FBIK constellation: '{sample.Input.UniqueDeviceIdentifier}' -> {forcedRole} (forced override)", BasisDebug.LogTag.Input);
-                sample.Input.ApplyTrackerCalibration(forcedRole);
-                sampleUsed[s] = true;
-                if (roleIdx >= 0) roleUsed[roleIdx] = true;
-                HasFBIKTrackers = true;
-
-                // ConstellationDebug records the assignment with score=+inf to
-                // mark "this didn't go through scoring". Negative scores in the
-                // visualizer mean "tight fit"; +inf reads as "no fit needed".
-                RecordAssignment(s, forcedRole, float.PositiveInfinity);
-                forced++;
-            }
-            return forced;
         }
 
         /// <summary>
@@ -605,11 +509,11 @@ namespace Basis.Scripts.Avatar
             }
         }
 
-        private static void CapturePriorSnapshots(BoneRolePrior[] priors)
+        private static void CapturePriorSnapshots(BasisConstellationPrior[] priors)
         {
             for (int i = 0; i < priors.Length; i++)
             {
-                BoneRolePrior p = priors[i];
+                BasisConstellationPrior p = priors[i];
                 ConstellationDebug.Priors.Add(new ConstellationDebug.DebugPrior
                 {
                     Role = p.Role,
@@ -643,37 +547,6 @@ namespace Basis.Scripts.Avatar
                     break;
                 }
             }
-        }
-
-        private static void ApplyToeForwardConstraint(List<TrackerSample> samples, BasisBoneTrackedRole footRole, BasisBoneTrackedRole toeRole)
-        {
-            int footIdx = -1, toesIdx = -1;
-            for (int i = 0; i < ConstellationDebug.Samples.Count; i++)
-            {
-                ConstellationDebug.DebugSample ds = ConstellationDebug.Samples[i];
-                if (!ds.Assigned) continue;
-                if (ds.AssignedRole == footRole) footIdx = i;
-                else if (ds.AssignedRole == toeRole) toesIdx = i;
-            }
-            if (footIdx < 0 || toesIdx < 0) return;
-
-            float footZ = samples[footIdx].BodyLocal.z;
-            float toesZ = samples[toesIdx].BodyLocal.z;
-            if (footZ <= toesZ + ConstellationToeForwardEpsilon) return;
-
-            BasisInput footInput = samples[footIdx].Input;
-            BasisInput toesInput = samples[toesIdx].Input;
-            footInput.UnAssignFullBodyTrackers();
-            toesInput.UnAssignFullBodyTrackers();
-            footInput.ApplyTrackerCalibration(toeRole);
-            toesInput.ApplyTrackerCalibration(footRole);
-
-            ConstellationDebug.Samples[footIdx].AssignedRole = toeRole;
-            ConstellationDebug.Samples[toesIdx].AssignedRole = footRole;
-            UpdatePriorAssignment(toeRole, footIdx);
-            UpdatePriorAssignment(footRole, toesIdx);
-
-            BasisDebug.Log($"FBIK constellation: swap {footRole}/{toeRole} — '{footInput.UniqueDeviceIdentifier}' (z={footZ:F2}) sat forward of '{toesInput.UniqueDeviceIdentifier}' (z={toesZ:F2})", BasisDebug.LogTag.Input);
         }
 
         private static void ComputeBestAnyFits(List<TrackerSample> samples)
@@ -791,82 +664,8 @@ namespace Basis.Scripts.Avatar
         }
 
         /// <summary>
-        /// Returns the largest absolute lateral ratio among arm-height trackers, or a
-        /// typical-adult fallback. Adapts shoulder/elbow priors to the player's actual
-        /// arm length so the same code works for kids and tall adults.
-        /// </summary>
-        private static float EstimateArmReach(List<TrackerSample> samples)
-        {
-            float maxAbs = 0f;
-            int n = samples.Count;
-            for (int i = 0; i < n; i++)
-            {
-                TrackerSample s = samples[i];
-                if (s.HeightRatio < ConstellationArmHeightFloor) continue;
-                float lAbs = Mathf.Abs(s.LateralRatio);
-                if (lAbs < ConstellationArmLateralFloor) continue;
-                if (lAbs > maxAbs) maxAbs = lAbs;
-            }
-            return maxAbs > ConstellationArmLateralFloor ? maxAbs : ConstellationDefaultArmReachRatio;
-        }
-
-        private static BoneRolePrior[] BuildPriors(float armReach, float stanceReach, float toleranceScale)
-        {
-            // Heights are fractions of player eye height. Lateral is signed — negative is
-            // the body's left. Sigmas control how forgiving each axis is; bigger sigma
-            // means more permissive. Every sigma is multiplied by toleranceScale (the
-            // user-facing "calibration tolerance" knob, 1 = stock) so a player with
-            // atypical proportions can widen every acceptance region at once.
-            //
-            // Leg lateral tracks measured stance width the same way arm lateral tracks
-            // measured reach: a wide stance, a narrow stance, or a child's hips all put the
-            // foot/knee trackers at a different |x|, and a fixed ±0.10 prior pushes the
-            // outliers out of band. stanceReach is the measured value (falling back to the
-            // old 0.10 constant when no foot-height tracker is present), so a typical stance
-            // is unchanged while wide/narrow stances now fit. legLatSigma's floor keeps the
-            // default (stance ≈ 0.10) at the original 0.07 — it only ever widens from there.
-            //
-            // Toes sit slightly closer to the floor than a foot-strap tracker (which mounts on
-            // top of the shoe / over the laces). Tighter height sigma keeps a foot-strap tracker
-            // at h≈0.05 firmly on Foot, while a tracker on the toe at h≈0.02 wins Toes. Greedy
-            // global-best handles the disambiguation when both trackers exist on the same side.
-            float legLat = stanceReach;
-            float legLatSigma = Mathf.Max(stanceReach * 0.7f, 0.07f);
-            return new BoneRolePrior[]
-            {
-                // Centered torso bones — height is the discriminator.
-                new BoneRolePrior(BasisBoneTrackedRole.Hips,           h: 0.55f, lat: 0f,                 hSigma: 0.10f * toleranceScale, latSigma: 0.10f * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.Chest,          h: 0.78f, lat: 0f,                 hSigma: 0.08f * toleranceScale, latSigma: 0.10f * toleranceScale),
-
-                // Legs — toes near floor, feet just above, knees mid-shin. Lateral scales with stance.
-                new BoneRolePrior(BasisBoneTrackedRole.LeftToes,       h: 0.02f, lat: -legLat,            hSigma: 0.04f * toleranceScale, latSigma: legLatSigma * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.RightToes,      h: 0.02f, lat: +legLat,            hSigma: 0.04f * toleranceScale, latSigma: legLatSigma * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftFoot,       h: 0.05f, lat: -legLat,            hSigma: 0.08f * toleranceScale, latSigma: legLatSigma * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.RightFoot,      h: 0.05f, lat: +legLat,            hSigma: 0.08f * toleranceScale, latSigma: legLatSigma * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerLeg,   h: 0.27f, lat: -legLat,            hSigma: 0.10f * toleranceScale, latSigma: legLatSigma * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.RightLowerLeg,  h: 0.27f, lat: +legLat,            hSigma: 0.10f * toleranceScale, latSigma: legLatSigma * toleranceScale),
-
-                // Arms in T-pose share approximate height; lateral position discriminates
-                // shoulder vs elbow vs (the implied hand controller out past the elbow).
-                // Lateral priors scale with measured reach so this works for any arm length.
-                //
-                // Lateral sigma is also scaled by armReach (×0.08) so the 3σ acceptance
-                // band can never cross the body midline. Shoulder/lower-arm trackers are
-                // physically anchored to one side of the body — letting them score
-                // against the opposite-side prior is just noise. Concretely with
-                // ×0.08: shoulder 3σ extent = armReach × [0.06, 0.54], lower-arm 3σ
-                // extent = armReach × [0.41, 0.89] — both clear of the midline for
-                // any armReach value.
-                new BoneRolePrior(BasisBoneTrackedRole.LeftShoulder,   h: 0.88f, lat: -armReach * 0.30f,  hSigma: 0.08f * toleranceScale, latSigma: armReach * 0.08f * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.RightShoulder,  h: 0.88f, lat: +armReach * 0.30f,  hSigma: 0.08f * toleranceScale, latSigma: armReach * 0.08f * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.LeftLowerArm,   h: 0.88f, lat: -armReach * 0.65f,  hSigma: 0.10f * toleranceScale, latSigma: armReach * 0.12f * toleranceScale),
-                new BoneRolePrior(BasisBoneTrackedRole.RightLowerArm,  h: 0.88f, lat: +armReach * 0.65f,  hSigma: 0.10f * toleranceScale, latSigma: armReach * 0.12f * toleranceScale),
-            };
-        }
-
-        /// <summary>
         /// User-facing FBIK calibration tolerance: a multiplier applied to every prior's
-        /// sigma in <see cref="BuildPriors"/>. 1 = stock behavior (identical acceptance
+        /// sigma in <see cref="BasisConstellationClassifier.BuildPriors"/>. 1 = stock behavior (identical acceptance
         /// regions); higher widens every band for players whose proportions, tracker mounts,
         /// or calibration pose fall outside the typical envelope. Clamped so a maxed slider
         /// can't collapse role discrimination entirely.
@@ -877,163 +676,6 @@ namespace Basis.Scripts.Avatar
             if (t < ConstellationMinCalibrationTolerance) t = ConstellationMinCalibrationTolerance;
             if (t > ConstellationMaxCalibrationTolerance) t = ConstellationMaxCalibrationTolerance;
             return t;
-        }
-
-        /// <summary>
-        /// Largest absolute lateral ratio among foot-height trackers (the stance-defining
-        /// trackers), or the typical-adult fallback. Lets the leg priors track the player's
-        /// actual stance the way <see cref="EstimateArmReach"/> tracks arm length — a wide
-        /// or narrow stance otherwise pushes the foot/knee trackers out of a fixed ±0.10 band.
-        /// Knees (h≈0.27) and everything above are excluded by the height ceiling, so only
-        /// real feet/toes vote on stance width.
-        /// </summary>
-        private static float EstimateStanceWidth(List<TrackerSample> samples)
-        {
-            float maxAbs = 0f;
-            int n = samples.Count;
-            for (int i = 0; i < n; i++)
-            {
-                TrackerSample s = samples[i];
-                if (s.NearOrigin) continue;
-                if (s.HeightRatio > ConstellationFootHeightCeiling) continue;
-                float lAbs = Mathf.Abs(s.LateralRatio);
-                if (lAbs < ConstellationStanceLateralFloor) continue;
-                if (lAbs > maxAbs) maxAbs = lAbs;
-            }
-            return maxAbs > ConstellationStanceLateralFloor ? maxAbs : ConstellationDefaultStanceRatio;
-        }
-
-        /// <summary>
-        /// Re-centers the Foot/Toes height priors on the player's actually-measured
-        /// foot-tracker height. Ankle-strap height, boot height, and shin-mounted pucks all
-        /// shift where a "foot" tracker sits — a fixed h=0.05 prior with a tight sigma rejects
-        /// anything strapped high on the ankle. The two leg roles closest to the floor are the
-        /// tight, failure-prone ones, so anchoring them to measured data — while keeping the
-        /// toe band a fixed step below the foot band so feet still bind before toes — fixes
-        /// high-mounted setups without touching the knee/hip rows. No-op when no foot-height
-        /// tracker is present, and a no-op for a standard ~0.05 mount (so no regression there).
-        /// </summary>
-        private static void ApplyMeasuredFootHeightPriors(BoneRolePrior[] priors, List<TrackerSample> samples)
-        {
-            float sum = 0f;
-            int count = 0;
-            for (int i = 0; i < samples.Count; i++)
-            {
-                TrackerSample s = samples[i];
-                if (s.NearOrigin) continue;
-                if (s.HeightRatio > ConstellationFootHeightCeiling) continue;
-                if (s.HeightRatio < -ConstellationFootHeightCeiling) continue; // discard far-sub-floor (bad) reads
-                sum += s.HeightRatio;
-                count++;
-            }
-            if (count == 0) return;
-
-            float footH = Mathf.Clamp(sum / count, ConstellationFootHeightMin, ConstellationFootHeightMax);
-            float toeH = Mathf.Max(footH - ConstellationToeBelowFoot, 0f);
-
-            SetPriorHeight(priors, BasisBoneTrackedRole.LeftFoot, footH);
-            SetPriorHeight(priors, BasisBoneTrackedRole.RightFoot, footH);
-            SetPriorHeight(priors, BasisBoneTrackedRole.LeftToes, toeH);
-            SetPriorHeight(priors, BasisBoneTrackedRole.RightToes, toeH);
-        }
-
-        private static void SetPriorHeight(BoneRolePrior[] priors, BasisBoneTrackedRole role, float newHeight)
-        {
-            int idx = FindPriorIndex(priors, role);
-            if (idx < 0) return;
-            priors[idx] = new BoneRolePrior(role, newHeight, priors[idx].ExpectedLateralRatio, priors[idx].HeightSigma, priors[idx].LateralSigma);
-        }
-
-        /// <summary>
-        /// Overrides the LeftLowerArm / RightLowerArm prior centers with the midpoint
-        /// between that side's hand controller and shoulder. Hand controllers keep a pinned
-        /// role, so their pose is trustworthy even in a sloppy calibration stance — the elbow
-        /// sits roughly halfway down the arm, so the hand→shoulder midpoint tracks the real
-        /// forearm far better than a fixed T-pose point. No-ops per side when that hand isn't
-        /// present (hand-tracking off, tracker-only hand, or a stale poll): the static
-        /// <see cref="BuildPriors"/> center stands in.
-        /// </summary>
-        private static void ApplyElbowMidpointPriors(BoneRolePrior[] priors, List<TrackerSample> samples, Vector3 bodyOrigin, Quaternion bodyRotInv, float eyeHeight)
-        {
-            ApplyElbowMidpointForSide(priors, samples, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftShoulder, BasisBoneTrackedRole.LeftLowerArm, sideSign: -1, bodyOrigin, bodyRotInv, eyeHeight);
-            ApplyElbowMidpointForSide(priors, samples, BasisBoneTrackedRole.RightHand, BasisBoneTrackedRole.RightShoulder, BasisBoneTrackedRole.RightLowerArm, sideSign: +1, bodyOrigin, bodyRotInv, eyeHeight);
-        }
-
-        private static void ApplyElbowMidpointForSide(
-            BoneRolePrior[] priors,
-            List<TrackerSample> samples,
-            BasisBoneTrackedRole handRole,
-            BasisBoneTrackedRole shoulderRole,
-            BasisBoneTrackedRole lowerArmRole,
-            int sideSign,
-            Vector3 bodyOrigin, Quaternion bodyRotInv, float eyeHeight)
-        {
-            int elbowIdx = FindPriorIndex(priors, lowerArmRole);
-            if (elbowIdx < 0) return; // lower-arm role isn't in the prior set
-
-            if (!TryGetHandBodyLocalRatios(handRole, bodyOrigin, bodyRotInv, eyeHeight, out float handHeight, out float handLateral))
-            {
-                // No usable hand pose this side. The static BuildPriors center sits at
-                // armReach×0.65, but armReach is by construction the outermost arm-height
-                // tracker — i.e. the elbow itself — so that center lands ~3σ inboard of where
-                // the elbow actually is and the tracker fails to bind. Re-center on the
-                // measured outermost same-side arm tracker instead (clamped to its own side of
-                // the midline). Falls through to the static prior only when this side has no
-                // arm-height tracker at all.
-                if (TryGetOutermostArmSampleLateral(samples, sideSign, out float measuredLat))
-                {
-                    float latSigmaFallback = priors[elbowIdx].LateralSigma;
-                    float minMagFallback = ConstellationElbowMidlineSigmaGuard * latSigmaFallback;
-                    float clampedFallback = sideSign < 0 ? Mathf.Min(measuredLat, -minMagFallback) : Mathf.Max(measuredLat, minMagFallback);
-                    priors[elbowIdx] = new BoneRolePrior(
-                        lowerArmRole,
-                        priors[elbowIdx].ExpectedHeightRatio,
-                        clampedFallback,
-                        priors[elbowIdx].HeightSigma,
-                        latSigmaFallback);
-                    BasisDebug.Log($"FBIK constellation: {lowerArmRole} prior re-centered on measured arm tracker (lat={clampedFallback:F2}); no hand pose this side", BasisDebug.LogTag.Input);
-                }
-                return;
-            }
-
-            // Shoulder anchor: reuse the shoulder prior's expected position so the elbow
-            // stays consistent with the shoulder region. (Shoulders are always present in
-            // the freshly-built prior list — the calibration-toggle filter runs later — so
-            // the fallback is purely defensive.)
-            float shoulderHeight, shoulderLateral;
-            int shoulderIdx = FindPriorIndex(priors, shoulderRole);
-            if (shoulderIdx >= 0)
-            {
-                shoulderHeight = priors[shoulderIdx].ExpectedHeightRatio;
-                shoulderLateral = priors[shoulderIdx].ExpectedLateralRatio;
-            }
-            else
-            {
-                shoulderHeight = priors[elbowIdx].ExpectedHeightRatio;
-                shoulderLateral = priors[elbowIdx].ExpectedLateralRatio;
-            }
-
-            float t = ConstellationElbowShoulderBlend;
-            float elbowHeight = Mathf.Lerp(shoulderHeight, handHeight, t);
-            float elbowLateral = Mathf.Lerp(shoulderLateral, handLateral, t);
-
-            // Keep the elbow region on its own side of the midline. Pulling the center too
-            // far inward (hands held across the body) would let the 3σ band cross x=0 and
-            // pick up the opposite arm's tracker; clamp the magnitude so the band's inner
-            // edge stays at/beyond the centerline, matching BuildPriors' "never cross the
-            // midline" intent.
-            float latSigma = priors[elbowIdx].LateralSigma;
-            float minMag = ConstellationElbowMidlineSigmaGuard * latSigma;
-            float clampedLateral = sideSign < 0 ? Mathf.Min(elbowLateral, -minMag) : Mathf.Max(elbowLateral, minMag);
-
-            priors[elbowIdx] = new BoneRolePrior(
-                lowerArmRole,
-                elbowHeight,
-                clampedLateral,
-                priors[elbowIdx].HeightSigma,
-                latSigma);
-
-            BasisDebug.Log($"FBIK constellation: {lowerArmRole} prior re-centered on hand→shoulder midpoint (h={elbowHeight:F2}, lat={clampedLateral:F2}; hand h={handHeight:F2}, lat={handLateral:F2})", BasisDebug.LogTag.Input);
         }
 
         /// <summary>
@@ -1071,207 +713,24 @@ namespace Basis.Scripts.Avatar
             return false;
         }
 
-        private static int FindPriorIndex(BoneRolePrior[] priors, BasisBoneTrackedRole role)
-        {
-            for (int i = 0; i < priors.Length; i++)
-            {
-                if (priors[i].Role == role) return i;
-            }
-            return -1;
-        }
-
-        // Returns true when dependsOn is already taken, or isn't in the prior list at all
-        // (the toggle disabled it, so there's nothing for the dependent role to wait on).
-        private static bool IsRolePreconditionMet(BoneRolePrior[] priors, bool[] roleUsed, BasisBoneTrackedRole dependsOn)
-        {
-            for (int i = 0; i < priors.Length; i++)
-            {
-                if (priors[i].Role == dependsOn)
-                {
-                    return roleUsed[i];
-                }
-            }
-            return true;
-        }
-
         /// <summary>
-        /// Whether <paramref name="role"/> may be assigned given which roles are already taken.
-        /// Feet→toes is enforced in BOTH the main and leftover passes — a single low tracker
-        /// must never take a Toes slot and leave FootControl.HasTracked false (which kicks the
-        /// rig into procedural foot IK). The torso/arm ordering chains (Chest/LowerLeg wait on
-        /// Hips, Shoulder waits on LowerArm) only matter while the main greedy pass is still
-        /// placing best-fit trackers, so they're dropped in the leftover pass: a well-placed
-        /// knee or shoulder then still binds even when its anchor never calibrated.
+        /// Reads the live hand controller pose for the constellation classifier (the elbow
+        /// prior re-center), or returns <see cref="BasisConstellationHand.None"/> when the hand
+        /// isn't present / polled at the origin.
         /// </summary>
-        private static bool IsAssignmentAllowed(BasisBoneTrackedRole role, BoneRolePrior[] priors, bool[] roleUsed, bool leftoverPass)
+        private static BasisConstellationHand ReadHandForClassifier(BasisBoneTrackedRole handRole, Vector3 bodyOrigin, Quaternion bodyRotInv, float eyeHeight)
         {
-            if (role == BasisBoneTrackedRole.LeftToes
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.LeftFoot))
+            if (TryGetHandBodyLocalRatios(handRole, bodyOrigin, bodyRotInv, eyeHeight, out float h, out float lat))
             {
-                return false;
+                return new BasisConstellationHand { Present = true, HeightRatio = h, LateralRatio = lat };
             }
-            if (role == BasisBoneTrackedRole.RightToes
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.RightFoot))
-            {
-                return false;
-            }
-
-            if (leftoverPass)
-            {
-                return true;
-            }
-
-            if (role == BasisBoneTrackedRole.Chest
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
-            {
-                return false;
-            }
-            if (role == BasisBoneTrackedRole.LeftLowerLeg
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
-            {
-                return false;
-            }
-            if (role == BasisBoneTrackedRole.RightLowerLeg
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.Hips))
-            {
-                return false;
-            }
-            if (role == BasisBoneTrackedRole.LeftShoulder
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.LeftLowerArm))
-            {
-                return false;
-            }
-            if (role == BasisBoneTrackedRole.RightShoulder
-                && !IsRolePreconditionMet(priors, roleUsed, BasisBoneTrackedRole.RightLowerArm))
-            {
-                return false;
-            }
-            return true;
+            return BasisConstellationHand.None;
         }
 
-        /// <summary>
-        /// Largest-|lateral| arm-height sample on the requested side, used to re-center the
-        /// elbow prior when no hand controller pose is available. The elbow is the outermost
-        /// free tracker at arm height, so its measured lateral is a far better center than the
-        /// static armReach×0.65 guess. Returns false when this side has no arm-height tracker.
-        /// </summary>
-        private static bool TryGetOutermostArmSampleLateral(List<TrackerSample> samples, int sideSign, out float lateral)
-        {
-            lateral = 0f;
-            float bestAbs = 0f;
-            bool found = false;
-            for (int i = 0; i < samples.Count; i++)
-            {
-                TrackerSample s = samples[i];
-                if (s.NearOrigin) continue;
-                if (s.HeightRatio < ConstellationArmHeightFloor) continue;
-                if (sideSign < 0 && s.LateralRatio >= 0f) continue;
-                if (sideSign > 0 && s.LateralRatio <= 0f) continue;
-                float a = Mathf.Abs(s.LateralRatio);
-                if (a > bestAbs)
-                {
-                    bestAbs = a;
-                    lateral = s.LateralRatio;
-                    found = true;
-                }
-            }
-            return found;
-        }
-
-        /// <summary>
-        /// Second assignment pass: bind any still-free tracker to its nearest still-free role
-        /// at a relaxed threshold. The main greedy pass drops a tracker the instant it can't
-        /// clear a tight 3σ fit — common for atypical proportions, high-mounted ankle straps,
-        /// or a limb held off the calibration pose — and an unbound tracker is worse than a
-        /// slightly-off one. Feet still bind before toes here; near-origin (never-polled)
-        /// samples stay excluded so a stale device can't be force-fit onto the body.
-        /// </summary>
-        private static int AssignLeftoverTrackers(List<TrackerSample> samples, BoneRolePrior[] priors, bool[] sampleUsed, bool[] roleUsed)
-        {
-            float leftoverThreshold = ConstellationAcceptThreshold * ConstellationLeftoverThresholdScale;
-            int assigned = 0;
-            while (true)
-            {
-                float bestScore = leftoverThreshold;
-                int bestSampleIdx = -1;
-                int bestRoleIdx = -1;
-                for (int s = 0; s < samples.Count; s++)
-                {
-                    if (sampleUsed[s]) continue;
-                    TrackerSample sample = samples[s];
-                    if (sample.NearOrigin) continue;
-                    for (int r = 0; r < priors.Length; r++)
-                    {
-                        if (roleUsed[r]) continue;
-                        if (!IsAssignmentAllowed(priors[r].Role, priors, roleUsed, leftoverPass: true)) continue;
-                        float score = ScoreSampleAgainstRole(sample, priors[r]);
-                        if (score > bestScore)
-                        {
-                            bestScore = score;
-                            bestSampleIdx = s;
-                            bestRoleIdx = r;
-                        }
-                    }
-                }
-                if (bestSampleIdx < 0) break;
-
-                BasisBoneTrackedRole role = priors[bestRoleIdx].Role;
-                TrackerSample chosen = samples[bestSampleIdx];
-                BasisDebug.Log($"FBIK constellation (leftover): '{chosen.Input.UniqueDeviceIdentifier}' -> {role} (h={chosen.HeightRatio:F2}, lat={chosen.LateralRatio:F2}, score={bestScore:F2})", BasisDebug.LogTag.Input);
-                chosen.Input.ApplyTrackerCalibration(role);
-                sampleUsed[bestSampleIdx] = true;
-                roleUsed[bestRoleIdx] = true;
-                HasFBIKTrackers = true;
-                RecordAssignment(bestSampleIdx, role, bestScore);
-                assigned++;
-            }
-            return assigned;
-        }
-
-        private static float ScoreSampleAgainstRole(TrackerSample sample, BoneRolePrior prior)
-        {
-            float dh = (sample.HeightRatio - prior.ExpectedHeightRatio) / prior.HeightSigma;
-            float dl = (sample.LateralRatio - prior.ExpectedLateralRatio) / prior.LateralSigma;
-            return -(dh * dh + dl * dl);
-        }
-
-        // -9 ≈ a combined 3-sigma fit. A tracker that can't beat this against any role is
-        // left unassigned rather than forced into a bad slot.
-        private const float ConstellationAcceptThreshold = -9f;
-        private const float ConstellationArmHeightFloor = 0.65f;
-        private const float ConstellationArmLateralFloor = 0.20f;
         // Anything closer than 1 cm from world (0,0,0) is treated as "the device never wrote
         // a real pose into UnscaledDeviceCoord". A real tracker basically never sits exactly
         // on the playspace origin, so this is a safe smoke-test threshold.
         private const float ConstellationNearOriginEpsilonSqr = 1e-4f;
-        // Half arm-span as a fraction of eye height for a typical adult — used as a fallback
-        // when no arm-height tracker is present to measure the player's own reach.
-        private const float ConstellationDefaultArmReachRatio = 0.55f;
-        private const float ConstellationToeForwardEpsilon = 0.02f;
-        // Where the elbow prior sits along the hand→shoulder line. 0.5 = true midpoint (the
-        // elbow sits ~halfway down a roughly-straight arm); raise toward 1 to bias the
-        // region toward the hand, lower toward 0 to bias it toward the shoulder.
-        private const float ConstellationElbowShoulderBlend = 0.5f;
-        // Floor on the re-centered elbow's lateral magnitude, in units of its own lateral
-        // sigma, so the region's inner edge can't cross the body midline onto the other arm.
-        // 3σ matches the accept threshold.
-        private const float ConstellationElbowMidlineSigmaGuard = 3.0f;
-        // Leg lateral priors scale with measured stance the way arm priors scale with reach.
-        // Default matches the legacy fixed ±0.10 lateral, so a typical stance is unchanged.
-        private const float ConstellationDefaultStanceRatio = 0.10f;
-        // Trackers at/under this height ratio are treated as feet/toes when measuring stance
-        // width and foot-mount height (knees sit at ~0.27, so this cleanly excludes them).
-        private const float ConstellationFootHeightCeiling = 0.18f;
-        // Ignore near-centerline noise when measuring stance width.
-        private const float ConstellationStanceLateralFloor = 0.03f;
-        // Clamp range for the measured foot-mount height re-anchor.
-        private const float ConstellationFootHeightMin = 0.0f;
-        private const float ConstellationFootHeightMax = 0.16f;
-        // Toe band sits this far below the (measured) foot band so feet still bind first.
-        private const float ConstellationToeBelowFoot = 0.03f;
-        // Leftover pass accepts fits up to this multiple of the main threshold (−9 → −15.3,
-        // ≈3.9σ) so still-unbound trackers land on their nearest open role.
-        private const float ConstellationLeftoverThresholdScale = 1.7f;
         // Bounds for the user-facing calibration tolerance (a sigma multiplier).
         private const float ConstellationMinCalibrationTolerance = 1.0f;
         private const float ConstellationMaxCalibrationTolerance = 3.0f;
@@ -1522,16 +981,16 @@ namespace Basis.Scripts.Avatar
 
         private static IReadOnlyList<ConstellationDebug.DebugPrior> BuildDefaultPriorsList(float eyeHeight)
         {
-            float armReach = ConstellationDefaultArmReachRatio * eyeHeight;
+            float armReach = BasisConstellationClassifier.DefaultArmReachRatio * eyeHeight;
             // Re-build only when armReach moves enough to matter — guards against
             // every-frame allocations from the per-frame DrawGizmos path.
             if (_defaultPriorsArmReach < 0f || Mathf.Abs(armReach - _defaultPriorsArmReach) > 0.001f)
             {
                 _defaultPriorsCache.Clear();
-                BoneRolePrior[] built = BuildPriors(armReach, ConstellationDefaultStanceRatio * eyeHeight, GetCalibrationTolerance());
+                BasisConstellationPrior[] built = BasisConstellationClassifier.BuildPriors(armReach, BasisConstellationClassifier.DefaultStanceRatio * eyeHeight, GetCalibrationTolerance());
                 for (int i = 0; i < built.Length; i++)
                 {
-                    BoneRolePrior p = built[i];
+                    BasisConstellationPrior p = built[i];
                     _defaultPriorsCache.Add(new ConstellationDebug.DebugPrior
                     {
                         Role = p.Role,

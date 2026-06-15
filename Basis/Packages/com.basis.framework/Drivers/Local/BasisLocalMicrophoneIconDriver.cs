@@ -132,7 +132,7 @@ namespace Basis.Scripts.Drivers
             float u = Mathf.Clamp(VRdesiredNormXY.x + IconPositionOffset.x, -1f + marginU, 1f - marginU);
             float v = Mathf.Clamp(VRdesiredNormXY.y + IconPositionOffset.y, -1f + marginV, 1f - marginV);
 
-            Vector3 centerAtDepth = cam.transform.InverseTransformPoint(Position + cam.transform.forward * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale);
+            Vector3 centerAtDepth = cam.transform.InverseTransformPoint(Position + cam.transform.forward * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
 
             Vector3 rightLocal = (TR - TL).normalized;
             Vector3 upLocal = (TL - BL).normalized;

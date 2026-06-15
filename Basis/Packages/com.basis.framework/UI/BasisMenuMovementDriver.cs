@@ -114,7 +114,7 @@ namespace Basis.Scripts.UI.UI_Panels
                     Vector3 projectedPos = Vector3.ProjectOnPlane(newPos, LocalPlayer.transform.up).normalized;
 
                     // Calculate the base new position by considering the player's position, scale, and offset
-                    float d = 0.5f * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
+                    float d = 0.5f * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
                     newPos = LocalPlayer.transform.position + projectedPos * d;
 
                     // Transform the relative offsets by the rotation to apply them correctly in world space

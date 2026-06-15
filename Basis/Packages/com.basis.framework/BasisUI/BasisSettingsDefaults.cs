@@ -314,7 +314,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevDebugFaceTracking = new("devdebugfacetracking", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevDebugEyeTracking = new("devdebugeyetracking", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
@@ -1090,6 +1090,10 @@ namespace Basis.BasisUI
         // Spine relax: CCD solve smoothing + neck overbend cone limit
         public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax", new BasisPlatformDefault<float>(0.8f));
         public static BasisSettingsBinding<float> FBIKNeckMaxConeDeg = new("fbikneckmaxconedeg", new BasisPlatformDefault<float>(45f));
+        // Spine CCD axial-twist allowance, graded lumbar (lower) -> cervical (neck). Lower lumbar = a sideways
+        // head reach bends instead of corkscrewing. Key bumped to _v2 to re-default the grading on existing installs.
+        public static BasisSettingsBinding<float> FBIKSpineTwistKeep = new("fbikspinetwistkeep_v2", new BasisPlatformDefault<float>(0.25f));
+        public static BasisSettingsBinding<float> FBIKSpineNeckTwistKeep = new("fbikspinenecktwistkeep", new BasisPlatformDefault<float>(0.9f));
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
@@ -1211,8 +1215,11 @@ namespace Basis.BasisUI
         // midpoint snaps. Higher = more reactive (catches glitches faster but
         // jitters more); lower = smoother (longer to recover from a glitch).
         public static BasisSettingsBinding<float> PairingWeightSmoothing = new("pairing_weightsmoothing", new BasisPlatformDefault<float>(0.25f));
-        // Half-life (seconds) of the low-pass on the fused midpoint rotation; 0 = raw.
-        public static BasisSettingsBinding<float> PairingRotationHalfLife = new("pairing_rothalflife", new BasisPlatformDefault<float>(0.08f));
+        // Half-life (seconds) of the low-pass on the fused midpoint rotation; 0 = raw (default). Off by
+        // default because the bone sim already slerp-smooths the rotation -- a second low-pass here just
+        // lags the hip behind a fast turn (~46 deg at 0.08s), which a single tracker never does. Key bumped
+        // to _v2 so installs that persisted the old 0.08 pick up the new default.
+        public static BasisSettingsBinding<float> PairingRotationHalfLife = new("pairing_rothalflife_v2", new BasisPlatformDefault<float>(0f));
 
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled = new("np_enabled", new BasisPlatformDefault<bool>(true));
@@ -1722,6 +1729,8 @@ namespace Basis.BasisUI
             FBIKElbowSwingEnabled.LoadBindingValue();
             FBIKSpineCCDRelax.LoadBindingValue();
             FBIKNeckMaxConeDeg.LoadBindingValue();
+            FBIKSpineTwistKeep.LoadBindingValue();
+            FBIKSpineNeckTwistKeep.LoadBindingValue();
             FBIKChestArmSwingFactor.LoadBindingValue();
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
             FBIKLowerArmTwistFraction.LoadBindingValue();
