@@ -530,7 +530,9 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightLeft > 0.001f && footDriverReady)
                 {
                     data.LeftFootPosition = footDriver.LeftFootPosition;
-                    data.LeftFootRotation = BasisLocalBoneDriver.LeftFootControl.OutGoingData.rotation;
+                    // Position-only foot IK: zero-quaternion sentinel -> SolveLegs keeps the foot's correct
+                    // pre-solve (animation) rotation instead of applying target*offset (which came out toes-up).
+                    data.LeftFootRotation = new Quaternion(0f, 0f, 0f, 0f);
                     data.EnableLeftLeg = footIKBlendWeightLeft;
                 }
                 else
@@ -547,12 +549,30 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightRight > 0.001f && footDriverReady)
                 {
                     data.RightFootPosition = footDriver.RightFootPosition;
-                    data.RightFootRotation = BasisLocalBoneDriver.RightFootControl.OutGoingData.rotation;
+                    data.RightFootRotation = new Quaternion(0f, 0f, 0f, 0f);
                     data.EnableRightLeg = footIKBlendWeightRight;
                 }
                 else
                 {
                     data.EnableRightLeg = 0f;
+                }
+
+                if (BasisFootRotationDebug.Enabled)
+                {
+                    if (data.leftFoot != null)
+                        BasisFootRotationDebug.Record("L", Time.time, footIKBlendWeightLeft,
+                            !leftHasTracker && footIKBlendWeightLeft > 0.001f && footDriverReady,
+                            data.leftFoot.rotation, data.LeftFootRotation, data.M_CalibrationLeftFootRotation,
+                            BasisLocalBoneDriver.LeftFootControl.OutGoingData.rotation,
+                            BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation,
+                            (Quaternion)rOut[S_LeftFoot], footDriverReady ? footDriver.LeftFootRotation : Quaternion.identity);
+                    if (data.RightFoot != null)
+                        BasisFootRotationDebug.Record("R", Time.time, footIKBlendWeightRight,
+                            !rightHasTracker && footIKBlendWeightRight > 0.001f && footDriverReady,
+                            data.RightFoot.rotation, data.RightFootRotation, data.M_CalibrationRightFootRotation,
+                            BasisLocalBoneDriver.RightFootControl.OutGoingData.rotation,
+                            BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation,
+                            (Quaternion)rOut[S_RightFoot], footDriverReady ? footDriver.RightFootRotation : Quaternion.identity);
                 }
 
                 // ── HIP BOB ──
@@ -969,6 +989,8 @@ namespace Basis.Scripts.Drivers
                 ? Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue
                 : 0f;
             data.SpineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
+            data.SpineTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineTwistKeep.RawValue;
+            data.SpineNeckTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineNeckTwistKeep.RawValue;
             data.NeckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             data.ChestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
             data.ChestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;

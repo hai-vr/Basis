@@ -60,5 +60,31 @@ namespace UnityEngine.Animations.Rigging
             float invMag = 1f / Mathf.Sqrt(magSq);
             return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
         }
+
+        // Scales the component of 'delta' that rotates about 'axis' (unit) by 'keep' (1 = unchanged,
+        // 0 = removed), leaving the swing about every perpendicular axis intact. delta = swing * twist,
+        // so keep=1 reconstructs delta exactly and keep=0 returns the pure swing. The spine CCD uses it
+        // to stop a sideways head reach from being solved as axial twist about player-up (it bends instead).
+        public static Quaternion RelaxAroundAxis(Quaternion delta, Vector3 axis, float keep) => ShapeReachStep(delta, axis, keep, 1f);
+
+        // Splits 'delta' into swing (rotation about every axis perpendicular to 'axis') and twist (about
+        // 'axis'), and scales each: twist by 'twistKeep', swing by 'swingScale'. delta == swing * twist, so
+        // twistKeep=1, swingScale=1 reconstructs delta exactly. The spine CCD uses it to keep a sideways head
+        // reach a BEND -- twistKeep grades the axial twist (rigid lumbar -> free cervical), swingScale grades
+        // bend mobility (stiffer mid-thoracic) so the curve distributes -- instead of an axial corkscrew or
+        // a single-joint kink. 'axis' is the body's hips-up, so it is orientation-independent (works prone).
+        public static Quaternion ShapeReachStep(Quaternion delta, Vector3 axis, float twistKeep, float swingScale)
+        {
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+            {
+                return Quaternion.Slerp(Quaternion.identity, delta, Mathf.Clamp01(swingScale));
+            }
+            axis = axis.normalized;
+            Quaternion twist = ExtractTwist(delta, axis);
+            Quaternion swing = delta * Quaternion.Inverse(twist);
+            Quaternion scaledSwing = Quaternion.Slerp(Quaternion.identity, swing, Mathf.Clamp01(swingScale));
+            Quaternion scaledTwist = Quaternion.Slerp(Quaternion.identity, twist, Mathf.Clamp01(twistKeep));
+            return scaledSwing * scaledTwist;
+        }
     }
 }

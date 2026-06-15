@@ -375,6 +375,13 @@ namespace UnityEngine.Animations.Rigging
         // cone vs the chest→neck direction, which stops the short neck bone overbending.
         [SyncSceneToStream, SerializeField, Range(0.1f, 1f)] float m_SpineCCDRelax;
         [SyncSceneToStream, SerializeField, Min(0f)] float m_NeckMaxConeDeg;
+        // Axial twist the spine CCD reach may use, about the body's hips-up axis, graded down the chain:
+        // m_SpineTwistKeep is the lumbar (lower-back) end -- near-rigid in reality -- and m_SpineNeckTwistKeep
+        // the cervical (neck) end, which rotates freely; the joints between interpolate. Lower = a sideways
+        // head reach bends instead of corkscrewing (the corkscrew flips sign across center). Hips-up, not
+        // world-up, so it stays correct lying down.
+        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_SpineTwistKeep;
+        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_SpineNeckTwistKeep;
         public float minHeadSpineHeight{  get => m_MinHeadSpineHeight; set => m_MinHeadSpineHeight = value; }
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
@@ -588,6 +595,10 @@ namespace UnityEngine.Animations.Rigging
         public string LordosisExtremeChestDownLookUpFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisExtremeChestDownLookUp));
         public float SpineCCDRelax { get => m_SpineCCDRelax; set => m_SpineCCDRelax = value; }
         public string SpineCCDRelaxFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineCCDRelax));
+        public float SpineTwistKeep { get => m_SpineTwistKeep; set => m_SpineTwistKeep = value; }
+        public string SpineTwistKeepFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineTwistKeep));
+        public float SpineNeckTwistKeep { get => m_SpineNeckTwistKeep; set => m_SpineNeckTwistKeep = value; }
+        public string SpineNeckTwistKeepFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineNeckTwistKeep));
         public float NeckMaxConeDeg { get => m_NeckMaxConeDeg; set => m_NeckMaxConeDeg = value; }
         public string NeckMaxConeDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_NeckMaxConeDeg));
         bool IAnimationJobData.IsValid()
@@ -706,6 +717,8 @@ namespace UnityEngine.Animations.Rigging
             m_LordosisExtremeChestDownLookUp = 0.001f;
             m_SpineCCDRelax = 0.8f;
             m_NeckMaxConeDeg = 45f;
+            m_SpineTwistKeep = 0.25f;
+            m_SpineNeckTwistKeep = 0.9f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -1010,7 +1023,7 @@ w20, w54;
         public FloatProperty lordosisExtremeHipsHorizontalMax, lordosisExtremeChestHorizontalMax;
         public FloatProperty lordosisExtremeHipsDownMax, lordosisExtremeChestDownMax;
         public FloatProperty lordosisExtremeHipsDownLookUp, lordosisExtremeChestDownLookUp;
-        public FloatProperty spineCCDRelax, neckMaxConeDeg;
+        public FloatProperty spineCCDRelax, neckMaxConeDeg, spineTwistKeep, spineNeckTwistKeep;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -1266,6 +1279,14 @@ w20, w54;
             float tolSqr = tolerance * tolerance;
 
             float ccdRelax = spineCCDRelax.Get(stream);
+            float lumbarTwistKeep = spineTwistKeep.Get(stream);
+            float cervicalTwistKeep = spineNeckTwistKeep.Get(stream);
+            // Body-relative twist axis (hips-up), NOT world-up: vertical standing, horizontal lying down, so
+            // the relax strips the same anatomical axial-twist DOF in any orientation. Falls back to playerUp.
+            Quaternion hipsTwistRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
+            Vector3 ccdUp = hipsTwistRot * Vector3.up;
+            if (ccdUp.sqrMagnitude < k_SqrEpsilon) ccdUp = playerUp.Get(stream);
+            float jointSpan = Mathf.Max(1, lastJoint - firstJoint);
             float neckCone = neckMaxConeDeg.Get(stream);
             float chestCone = MaxChestDeltaProperty.Get(stream);
             Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
@@ -1290,6 +1311,13 @@ w20, w54;
                         continue;
 
                     Quaternion delta = QuaternionExt.FromToRotation(cur, tgt);
+                    // Shape the reach like a real spine: grade the axial-twist allowance from the rigid
+                    // lumbar root (t=1) to the free cervical tip (t=0), and stiffen the mid-thoracic swing so
+                    // the bend distributes into a smooth curve instead of corkscrewing or kinking at a joint.
+                    float t = (i - firstJoint) / jointSpan;
+                    float jointTwistKeep = Mathf.Lerp(cervicalTwistKeep, lumbarTwistKeep, t);
+                    float jointSwingScale = 1f - k_ThoracicBendStiffen * (1f - Mathf.Abs(2f * t - 1f));
+                    delta = BasisTwistSolveCore.ShapeReachStep(delta, ccdUp, jointTwistKeep, jointSwingScale);
                     delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
                     ChainHeadToSpine[i].SetRotation(stream, delta * ChainHeadToSpine[i].GetRotation(stream));
 
@@ -1337,6 +1365,13 @@ w20, w54;
             Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
             ChainHeadToSpine[neckIdx].SetRotation(stream, correction * ChainHeadToSpine[neckIdx].GetRotation(stream));
         }
+        // Mid-thoracic bend stiffness for the spine CCD: the swing of the mid joints is scaled down by this
+        // (ends unaffected) so a lean curves at the flexible lumbar + cervical and stays firm through the
+        // ribcage, distributing the bend instead of kinking at one joint. 0 = uniform (off).
+        const float k_ThoracicBendStiffen = 0.3f;
+        // Lateral bend -> a little same-side axial rotation in the pre-bend, so a sustained lean reads as an
+        // organic spinal coupling rather than a pure hinge. Small; clamped by the lateral limit downstream.
+        const float k_BendTwistCoupling = 0.15f;
         const float k_ChestPosPullMaxDeg = 20f;
         const float k_ChestPullMaxDistSqr = 0.25f;
         const float k_ChestFollowChestShare = 0.6f;
@@ -1425,6 +1460,7 @@ w20, w54;
             input.AnatPelvicTwistRouting = anatPelvicTwistRouting.Get(stream);
             input.SquishBoost = spineSquishBoost.Get(stream);
             input.RestLen = TposeLengthHeadToHips.magnitude;
+            input.BendTwistCoupling = k_BendTwistCoupling;
             input.HasSpine = hasSpine;
             input.HasUpper = hasUpper;
 
@@ -2233,6 +2269,10 @@ w20, w54;
 
             // Solve at full strength toward the IK target
             Quaternion tRot = V4ToQuat(targetRotProp.Get(stream));
+            // Zero-quaternion target = position-only foot IK: keep the foot's pre-solve (animation) rotation,
+            // which is already correct, instead of applying target*offset. Sidesteps the foot offset entirely.
+            bool preserveTip = (tRot.x * tRot.x + tRot.y * tRot.y + tRot.z * tRot.z + tRot.w * tRot.w) < 0.5f;
+            if (preserveTip) tRot = origTipRot;
             Quaternion hRot = V4ToQuat(hintRotProp.Get(stream));
             float hintW = hintWeightProp.Get(stream);
 
@@ -2249,6 +2289,7 @@ w20, w54;
                 tip.SetPosition(stream, Vector3.Lerp(origTipPos, tip.GetPosition(stream), posWeight));
                 tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), posWeight));
             }
+            if (preserveTip) tip.SetRotation(stream, origTipRot);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
@@ -2566,6 +2607,8 @@ w20, w54;
                 lordosisExtremeChestDownLookUp = FloatProperty.Bind(animator, component, data.LordosisExtremeChestDownLookUpFloatProperty),
                 spineCCDRelax = FloatProperty.Bind(animator, component, data.SpineCCDRelaxFloatProperty),
                 neckMaxConeDeg = FloatProperty.Bind(animator, component, data.NeckMaxConeDegFloatProperty),
+                spineTwistKeep = FloatProperty.Bind(animator, component, data.SpineTwistKeepFloatProperty),
+                spineNeckTwistKeep = FloatProperty.Bind(animator, component, data.SpineNeckTwistKeepFloatProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

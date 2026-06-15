@@ -234,6 +234,7 @@ namespace Basis.IK.Debugging
             input.UpperBendRoll = 1f;
             input.AnatDifferentialStiffness = diff;
             input.AnatPelvicTwistRouting = pelvic;
+            input.BendTwistCoupling = 0f;
             input.SquishBoost = boost;
             input.RestLen = k_RestLen;
             input.HasSpine = true;

@@ -1090,6 +1090,10 @@ namespace Basis.BasisUI
         // Spine relax: CCD solve smoothing + neck overbend cone limit
         public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax", new BasisPlatformDefault<float>(0.8f));
         public static BasisSettingsBinding<float> FBIKNeckMaxConeDeg = new("fbikneckmaxconedeg", new BasisPlatformDefault<float>(45f));
+        // Spine CCD axial-twist allowance, graded lumbar (lower) -> cervical (neck). Lower lumbar = a sideways
+        // head reach bends instead of corkscrewing. Key bumped to _v2 to re-default the grading on existing installs.
+        public static BasisSettingsBinding<float> FBIKSpineTwistKeep = new("fbikspinetwistkeep_v2", new BasisPlatformDefault<float>(0.25f));
+        public static BasisSettingsBinding<float> FBIKSpineNeckTwistKeep = new("fbikspinenecktwistkeep", new BasisPlatformDefault<float>(0.9f));
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
@@ -1725,6 +1729,8 @@ namespace Basis.BasisUI
             FBIKElbowSwingEnabled.LoadBindingValue();
             FBIKSpineCCDRelax.LoadBindingValue();
             FBIKNeckMaxConeDeg.LoadBindingValue();
+            FBIKSpineTwistKeep.LoadBindingValue();
+            FBIKSpineNeckTwistKeep.LoadBindingValue();
             FBIKChestArmSwingFactor.LoadBindingValue();
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
             FBIKLowerArmTwistFraction.LoadBindingValue();

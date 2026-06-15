@@ -18,6 +18,7 @@ namespace UnityEngine.Animations.Rigging
 
         public bool AnatDifferentialStiffness;
         public bool AnatPelvicTwistRouting;
+        public float BendTwistCoupling;  // lateral bend -> a little same-side axial rotation (organic spinal coupling)
 
         public float SquishBoost;
         public float RestLen;            // TposeLengthHeadToHips.magnitude
@@ -115,6 +116,7 @@ namespace UnityEngine.Animations.Rigging
                     twistY * spineYawEff * squishMult,
                     bendEuler.z * spineRollEff * squishMult * bendGate
                 );
+                e.y += i.BendTwistCoupling * e.z;
                 r.SpineEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteSpine = true;
             }
@@ -125,6 +127,7 @@ namespace UnityEngine.Animations.Rigging
                     twistY * upperYawEff * squishMult,
                     bendEuler.z * upperRollEff * squishMult * bendGate
                 );
+                e.y += i.BendTwistCoupling * e.z;
                 r.UpperEuler = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
                 r.WriteUpper = true;
             }

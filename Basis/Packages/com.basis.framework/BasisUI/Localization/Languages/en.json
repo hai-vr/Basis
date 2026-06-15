@@ -743,6 +743,14 @@
       "value": "How loosely the spine solves; lower makes it follow more strictly."
     },
     {
+      "key": "settings.bodyTracking.spineTwistKeep.title.tooltip",
+      "value": "How much the lower back may twist to reach. Lower bends sideways instead of corkscrewing when your head is off to one side."
+    },
+    {
+      "key": "settings.bodyTracking.spineNeckTwistKeep.title.tooltip",
+      "value": "How much the neck may twist to follow your head. Higher lets the neck turn freely."
+    },
+    {
       "key": "settings.bodyTracking.chestArmSwingFactor.title.tooltip",
       "value": "How much your chest turns along with arm swings."
     },
@@ -5033,6 +5041,22 @@
     {
       "key": "settings.bodyTracking.spineCcdRelax.description",
       "value": "Under-relaxation for the spine CCD aim. Lower = smoother but softer reach; 1 = full step. Default: 0.8"
+    },
+    {
+      "key": "settings.bodyTracking.spineTwistKeep.title",
+      "value": "Spine Twist – Lower Back"
+    },
+    {
+      "key": "settings.bodyTracking.spineTwistKeep.description",
+      "value": "Axial twist the lower back (lumbar) may use to reach an off-center head. A real lumbar barely twists — lower bends sideways instead of corkscrewing. Default: 0.25"
+    },
+    {
+      "key": "settings.bodyTracking.spineNeckTwistKeep.title",
+      "value": "Spine Twist – Neck"
+    },
+    {
+      "key": "settings.bodyTracking.spineNeckTwistKeep.description",
+      "value": "Axial twist the neck (cervical) may use; the joints between interpolate. Higher lets the neck turn freely like a real spine. Default: 0.9"
     },
     {
       "key": "settings.bodyTracking.chestArmSwingFactor.title",

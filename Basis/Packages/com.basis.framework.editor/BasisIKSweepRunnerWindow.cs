@@ -128,6 +128,7 @@ namespace Basis.IK.Debugging
             string chestSpringPath = BasisChestSpringSweep.DefaultPath();
             string crouchPath = BasisCrouchOffsetSweep.DefaultPath();
             string spineBendPath = BasisSpineBendSweep.DefaultPath();
+            string spineTwistPath = BasisSpineTwistSweep.DefaultPath();
             string swivelFilterPath = BasisSwivelFilterSweep.DefaultPath();
             string swingContinuityPath = BasisSwingContinuitySweep.DefaultPath();
             string footPath = BasisFootIKSweep.DefaultPath();
@@ -141,6 +142,8 @@ namespace Basis.IK.Debugging
             string legTrajPath = TrajPath("BasisLegIKTrajectory.csv");
             string legTempPath = TrajPath("BasisLegIKTemporal.csv");
             string legInvTempPath = TrajPath("BasisLegInversionTemporal.csv");
+            string legCrouchLPath = TrajPath("BasisLegCrouch_L.csv");
+            string legCrouchRPath = TrajPath("BasisLegCrouch_R.csv");
             string headTrajPath = TrajPath("BasisHeadTrajectory.csv");
 
             var jobs = new System.Collections.Generic.List<System.Func<Row[]>>();
@@ -192,6 +195,7 @@ namespace Basis.IK.Debugging
             jobs.Add(() => Job("Chest Spring", chestSpringPath, () => { var s = BasisChestSpringSweep.Run(BasisChestSpringSweepConfig.Default(), chestSpringPath); return BasisIKTestGates.GateChestSpring(s); }));
             jobs.Add(() => Job("Crouch Offset", crouchPath, () => { var s = BasisCrouchOffsetSweep.Run(BasisCrouchOffsetSweepConfig.Default(), crouchPath); return BasisIKTestGates.GateCrouchOffset(s); }));
             jobs.Add(() => Job("Spine Bend", spineBendPath, () => { var s = BasisSpineBendSweep.Run(BasisSpineBendSweepConfig.Default(), spineBendPath); return BasisIKTestGates.GateSpineBend(s); }));
+            jobs.Add(() => Job("Spine Twist", spineTwistPath, () => { var s = BasisSpineTwistSweep.Run(BasisSpineTwistSweepConfig.Default(), spineTwistPath); return BasisIKTestGates.GateSpineTwist(s); }));
             jobs.Add(() => Job("Swivel Filter", swivelFilterPath, () => { var s = BasisSwivelFilterSweep.Run(BasisSwivelFilterSweepConfig.Default(), swivelFilterPath); return BasisIKTestGates.GateSwivelFilter(s); }));
             jobs.Add(() => Job("Swing Continuity", swingContinuityPath, () => { var s = BasisSwingContinuitySweep.Run(BasisSwingContinuitySweepConfig.Default(), swingContinuityPath); return BasisIKTestGates.GateSwingContinuity(s); }));
 
@@ -214,6 +218,8 @@ namespace Basis.IK.Debugging
                 }
                 jobs.Add(() => Job("Head · traj", headTrajPath, () => { var s = BasisHeadSweep.RunTrajectories(BasisHeadSweepConfig.Default(), 0.3f, headTrajPath); return BasisIKTestGates.GateTrajectory(s.Ok, s.Error, s.WorstPopDeg, s.WorstRoughDeg); }));
                 jobs.Add(() => Job("Leg Inversion · temporal", legInvTempPath, () => { var c = BasisLegInversionConfig.Default(); c.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.RunTemporal(c, trajNoise, legInvTempPath); return BasisIKTestGates.GateLegInversionTemporal(s); }));
+                jobs.Add(() => Job("Leg Inversion · crouch (L)", legCrouchLPath, () => { var c = BasisLegInversionConfig.Default(); c.Base.IsLeft = true; var s = BasisLegInversionSweep.RunCrouch(c, legCrouchLPath); return BasisIKTestGates.GateLegCrouch(s); }));
+                jobs.Add(() => Job("Leg Inversion · crouch (R)", legCrouchRPath, () => { var c = BasisLegInversionConfig.Default(); c.Base.IsLeft = false; var s = BasisLegInversionSweep.RunCrouch(c, legCrouchRPath); return BasisIKTestGates.GateLegCrouch(s); }));
             }
 
             // Fan out: one worker thread per sweep (the .NET thread pool caps concurrency to the core count).

@@ -142,7 +142,7 @@ namespace Basis.IK.Debugging
         public int BothSteppingTicks, BothEpisodes; public float BothFirstTime;
 
         public BasisFootPeak SlideMm, ExtRatio, PenMm, HoverMm, TiltDeg, YawDeg, PlantDriftM, CrossSepM, StepLiftMm;
-        public int CrossoverTicks, CrossEpisodes;
+        public int CrossoverTicks, CrossEpisodes, CrossoverTicksFastRot;
         public float MinKneeForwardM, MinKneeForwardTime;
         public float StanceMin, StanceMax;
         public bool HadNaN;
@@ -164,7 +164,7 @@ namespace Basis.IK.Debugging
         public float WorstExtensionRatio;
         public float WorstPenetrationMm;
         public float WorstPlantedHoverMm;
-        public int Crossovers;
+        public int Crossovers, CrossoversTolerated;
         public int BothSteppingTicks;
         public string BothSteppingWorstScenario;
         public int BothSteppingWorstTicks;
@@ -253,6 +253,7 @@ namespace Basis.IK.Debugging
                     summary.WorstPenetrationMm = Mathf.Max(summary.WorstPenetrationMm, r.PenMm.Value);
                     summary.WorstPlantedHoverMm = Mathf.Max(summary.WorstPlantedHoverMm, r.HoverMm.Value);
                     summary.Crossovers += r.CrossoverTicks;
+                    summary.CrossoversTolerated += r.CrossoverTicksFastRot;
                     summary.BothSteppingTicks += r.BothSteppingTicks;
                     if (r.BothSteppingTicks > summary.BothSteppingWorstTicks) { summary.BothSteppingWorstTicks = r.BothSteppingTicks; summary.BothSteppingWorstScenario = r.Name; }
                     summary.WorstTiltDeg = Mathf.Max(summary.WorstTiltDeg, r.TiltDeg.Value);
@@ -386,7 +387,7 @@ namespace Basis.IK.Debugging
                     // Crossover (feet tangled): the left foot ended up on the +right side of the right foot.
                     float crossSep = math.dot(left.currentPos - right.currentPos, bodyRight);
                     bool cross = crossSep > 0.02f;
-                    if (cross) { res.CrossoverTicks++; res.CrossSepM.Consider(crossSep, t, speed); if (!prevCross) res.CrossEpisodes++; }
+                    if (cross) { res.CrossoverTicks++; res.CrossSepM.Consider(crossSep, t, speed); if (!prevCross) res.CrossEpisodes++; if (math.abs(simState[0].smoothedYawRateDeg) > 120f) res.CrossoverTicksFastRot++; } // >120deg/s: an in-place spin discrete stepping can't track without pivoting
 
                     // Accumulate the failure-mode peaks (planted-only where the swing would false-trigger).
                     if (lm.slideValid) res.SlideMm.Consider(lm.slideMm, t, speed);

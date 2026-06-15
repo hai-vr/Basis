@@ -69,6 +69,23 @@ namespace Basis.IK.Debugging
         public float NoisyMinFwdFrac;
     }
 
+    public struct BasisLegCrouchSummary
+    {
+        public bool Ok;
+        public string Path;
+        public string Error;
+        public int Steps;
+        public int Scenarios;
+        public int PosteriorInversions; // good-hint crouch steps with the knee bent backward (should be 0)
+        public int Snaps;               // good-hint crouch steps where the knee swivel jumped >90deg vs the previous step (the "random shoot up" -- a transient pole flip)
+        public int Episodes;            // entries into the inverted/snapped state
+        public float WorstSwivelJumpDeg;// largest single-step swivel jump on a bent leg
+        public float WorstSwivelDeg;    // worst |knee swivel from forward|
+        public float MinFwdFrac;        // most-posterior knee on the crouch paths
+        public float OnsetCrouchFrac;   // hip-height fraction (1=stand, ~0.25=deep) where the first flip appeared (NaN none)
+        public string WorstScenario;
+    }
+
     public static class BasisLegInversionSweep
     {
         public const string DefaultFileName = "BasisLegInversionSweep.csv";
@@ -368,6 +385,116 @@ namespace Basis.IK.Debugging
                 summary.MinFwdFrac = minFwd;
                 summary.NoisyCrossings = noisyCrossings;
                 summary.NoisyMinFwdFrac = noisyMinFwd;
+            }
+            catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
+            return summary;
+        }
+
+        public const string CrouchFileName = "BasisLegCrouchSweep.csv";
+        public static string CrouchPath() => System.IO.Path.Combine(Application.persistentDataPath, CrouchFileName);
+
+        // Foot placement relative to the hip's XZ (fractions of legLen): x lateral (mirrored), z forward.
+        // VR crouch plants the foot (foot IK) ~under/slightly-forward and lowers the hips -> the leg axis goes
+        // near-vertical at depth, the worst case for a pole flip ("leg shoots up inverted").
+        static readonly Vector3[] k_CrouchFoot =
+        {
+            new Vector3(0.02f, 0f, 0.04f),  // under: foot ~directly below the hip (vertical leg axis at depth)
+            new Vector3(0.04f, 0f, 0.18f),  // near-under, slight forward (typical VR crouch)
+            new Vector3(0.06f, 0f, 0.34f),  // forward: foot well ahead (squat)
+            new Vector3(0.06f, 0f, -0.22f), // back: foot behind the hip
+            new Vector3(0.38f, 0f, 0.06f),  // wide
+            new Vector3(0.28f, 0f, 0.30f),  // fwd-wide
+        };
+        static readonly string[] k_CrouchFootNames = { "under", "near-under", "forward", "back", "wide", "fwd-wide" };
+
+        // Lower the hips from standing to a deep crouch (foot planted) and back, feeding the previous solved
+        // knee/foot so transient pole flips show up -- the per-point grid can't see a mid-crouch snap. A good
+        // forward hint must keep the knee anterior with no swivel snap through the whole range.
+        public static BasisLegCrouchSummary RunCrouch(BasisLegInversionConfig cfg, string path)
+        {
+            var summary = new BasisLegCrouchSummary { Ok = false, Path = path };
+            BasisLegIKSweepConfig b = cfg.Base;
+            float mirror = b.IsLeft ? -1f : 1f;
+            float upper = Mathf.Max(1e-4f, b.UpperLength);
+            float lower = Mathf.Max(1e-4f, b.LowerLength);
+            float legLen = upper + lower;
+            Vector3 bendNormal = b.BendNormal;
+            if (bendNormal.sqrMagnitude < 1e-8f) bendNormal = Vector3.right;
+            Vector3 hintDir = Mirror(b.HintDir, mirror).normalized;
+            if (hintDir.sqrMagnitude < 1e-8f) hintDir = Vector3.forward;
+
+            int steps = 0, posterior = 0, snaps = 0, episodes = 0, scenarios = 0;
+            float worstJump = 0f, worstSwivel = 0f, minFwd = 1f, onset = float.NaN;
+            string worstScenario = "";
+
+            const int downSteps = 140;
+            const float standFrac = 0.97f, deepFrac = 0.25f;
+
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisLegCrouchSweep " + System.DateTime.UtcNow.ToString("o") +
+                                " side=" + (b.IsLeft ? "left" : "right") + " upper=" + F(upper) + " lower=" + F(lower));
+                    w.WriteLine("scenario,step,crouch_frac,hip_y,foot_x,foot_z,knee_x,knee_y,knee_z,flex_deg,swivel_deg,swivel_jump,fwd_frac,inverted");
+                    var sb = new StringBuilder(200);
+
+                    for (int si = 0; si < k_CrouchFoot.Length; si++)
+                    {
+                        scenarios++;
+                        Vector3 fo = k_CrouchFoot[si];
+                        Vector3 foot = new Vector3(fo.x * mirror, 0f, fo.z) * legLen;
+                        Vector3 hip0 = new Vector3(0f, standFrac * legLen, 0f);
+                        Vector3 cKnee = hip0 + Vector3.Normalize(foot - hip0) * upper;
+                        Vector3 cFoot = foot;
+                        float prevSwivel = float.NaN;
+                        bool prevInv = false;
+                        int total = downSteps * 2;
+                        for (int s = 0; s < total; s++)
+                        {
+                            float u = (s < downSteps) ? s / (float)(downSteps - 1) : 1f - (s - downSteps) / (float)(downSteps - 1);
+                            float crouchFrac = Mathf.Lerp(standFrac, deepFrac, u);
+                            Vector3 hip = new Vector3(0f, crouchFrac * legLen, 0f);
+                            Vector3 mid = (hip + foot) * 0.5f;
+                            Vector3 hint = mid + hintDir * (upper * 0.5f);
+
+                            BasisLegSolveResult r = SolveOne(hip, cKnee, cFoot, foot, hint, bendNormal);
+                            cKnee = r.KneeSolved; cFoot = r.FootSolved;
+                            ClassifyInverted(hip, r.KneeSolved, r.FootSolved, legLen, out float flex, out float swivel, out float fwd);
+
+                            bool bent = flex < 160f && !float.IsNaN(swivel);
+                            float jump = (bent && !float.IsNaN(prevSwivel)) ? Mathf.Abs(Mathf.DeltaAngle(prevSwivel, swivel)) : 0f;
+                            bool post = bent && fwd < k_InvertedFwdFrac;
+                            bool snap = jump > 90f;
+                            bool inv = post || snap;
+
+                            steps++;
+                            if (post) posterior++;
+                            if (snap) snaps++;
+                            if (inv && !prevInv) { episodes++; if (float.IsNaN(onset)) onset = crouchFrac; }
+                            if (jump > worstJump) { worstJump = jump; worstScenario = k_CrouchFootNames[si]; }
+                            worstSwivel = TrackWorst(worstSwivel, swivel);
+                            if (bent && fwd < minFwd) minFwd = fwd;
+                            prevInv = inv;
+                            prevSwivel = bent ? swivel : float.NaN;
+
+                            sb.Clear();
+                            sb.Append(k_CrouchFootNames[si]).Append(',').Append(s).Append(',');
+                            Append(sb, crouchFrac); Append(sb, hip.y);
+                            Append(sb, foot.x); Append(sb, foot.z);
+                            Append(sb, r.KneeSolved.x); Append(sb, r.KneeSolved.y); Append(sb, r.KneeSolved.z);
+                            Append(sb, flex); Append(sb, swivel); Append(sb, jump); Append(sb, fwd);
+                            sb.Append(inv ? '1' : '0');
+                            w.WriteLine(sb.ToString());
+                        }
+                    }
+                }
+                summary.Ok = true; summary.Steps = steps; summary.Scenarios = scenarios;
+                summary.PosteriorInversions = posterior; summary.Snaps = snaps; summary.Episodes = episodes;
+                summary.WorstSwivelJumpDeg = worstJump; summary.WorstSwivelDeg = worstSwivel;
+                summary.MinFwdFrac = minFwd; summary.OnsetCrouchFrac = onset; summary.WorstScenario = worstScenario;
             }
             catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
             return summary;

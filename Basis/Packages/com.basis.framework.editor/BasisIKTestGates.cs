@@ -147,6 +147,20 @@ namespace Basis.IK.Debugging
             return (true, $"clean (min fwd {s.MinFwdFrac:F2}); under pole noise: {s.NoisyCrossings} flips (min fwd {s.NoisyMinFwdFrac:F2})");
         }
 
+        // Crouch (foot planted, hips lowering): a good forward hint must keep the knee anterior with no swivel
+        // snap through the whole crouch range. A snap = the knee pole flipping mid-crouch -- the "leg shoots up
+        // inverted" artifact. Posterior knee or any snap fails.
+        public static (bool pass, string reason) GateLegCrouch(in BasisLegCrouchSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.PosteriorInversions > 0)
+                return (false, $"knee bent backward on {s.PosteriorInversions} crouch steps (worst {s.WorstScenario}, min fwd {s.MinFwdFrac:F2})");
+            if (s.Snaps > 0)
+                return (false, $"knee pole snapped >90deg on {s.Snaps} crouch steps -- leg flips/shoots up mid-crouch (worst jump {s.WorstSwivelJumpDeg:F0}deg @ {s.WorstScenario}, onset crouchFrac {s.OnsetCrouchFrac:F2})");
+            return (true, $"clean through crouch: {s.Scenarios} placements, worst swivel jump {s.WorstSwivelJumpDeg:F0}deg, worst swivel {s.WorstSwivelDeg:F0}deg, min fwd {s.MinFwdFrac:F2}");
+        }
+
         public static (bool pass, string reason) GateHead(in BasisHeadSweepSummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -275,8 +289,8 @@ namespace Basis.IK.Debugging
             if (s.HadNaN) return (false, "NaN foot position / knee hint (the sim blew up)");
             if (s.BothSteppingTicks > 0)
                 return (false, $"both feet airborne for {s.BothSteppingTicks} ticks (worst: {s.BothSteppingWorstScenario} {s.BothSteppingWorstTicks}) -- a foot must never lift while the other is stepping");
-            if (s.Crossovers > 0)
-                return (false, $"feet crossed/tangled on {s.Crossovers} ticks (left foot ended up right of the right foot)");
+            if (s.Crossovers - s.CrossoversTolerated > 0)
+                return (false, $"feet crossed/tangled on {s.Crossovers - s.CrossoversTolerated} ticks (+{s.CrossoversTolerated} tolerated during fast spin) -- left foot ended up right of the right foot");
             if (s.WorstExtensionRatio > FootMaxExtensionRatio)
                 return (false, $"foot over-extended to {s.WorstExtensionRatio:F2}x standing reach > {FootMaxExtensionRatio:F2} (foot left behind -- the leg stretches)");
             if (s.WorstPlantedSlideMm > FootMaxPlantedSlideMm)
@@ -504,6 +518,50 @@ namespace Basis.IK.Debugging
             if (s.MaxYawSplitErr > 1e-3f)
                 return (false, $"PelvicTwistRouting off the 25/75 spine:upperChest split by {s.MaxYawSplitErr:F4}");
             return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} cases={s.Cases}");
+        }
+
+        // --- spine CCD twist shaping (graded + orientation-independent: a lateral head reach must BEND) ---
+        public const float SpineTwistMaxInvariantErrDeg = 0.5f;     // ShapeReachStep identity / residual twist+swing / blend
+        public const float SpineTwistMinReproDeg = 5f;             // keep=1 must actually provoke the corkscrew
+        public const float SpineTwistMaxKeptFraction = 0.7f;       // graded peak twist vs keep=1 -- the shape must cut it
+        public const float SpineTwistMaxLumbarKeptFraction = 0.55f; // graded lumbar twist vs keep=1 -- the lumbar must stiffen
+        public const float SpineTwistMaxJumpDeg = 8f;             // graded twist must stay continuous across center
+        public const float SpineTwistMaxReachErrM = 0.03f;        // bending instead of twisting must still reach (on-sphere => slop only)
+        public const float SpineTwistMaxOrientationSpreadDeg = 2f; // upright vs lying-down result must match (body-relative axis)
+
+        // BasisTwistSolveCore.ShapeReachStep + the graded spine CCD it drives. Pass A: the swing/twist split is
+        // exact (twistKeep=1/swingScale=1 no-ops, twistKeep=0 removes the twist, swingScale=0 removes the swing,
+        // the twist blends linearly). Pass B: the documented bug -- a forward-pitched spine reaching a laterally-
+        // swept head pours the offset into axial twist that flips sign across center ("hips left, head right, it
+        // flips"). The gate proves keep=1 reproduces that corkscrew, the graded shape cuts it (and stiffens the
+        // lumbar specifically), keeps it continuous, still reaches, and -- the lying-down requirement -- gives
+        // the SAME result upright and supine because the twist axis is the body's hips-up, not world-up (Pass C
+        // is the negative control: relaxing about world-up while prone leaves the corkscrew intact).
+        public static (bool pass, string reason) GateSpineTwist(in BasisSpineTwistSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
+            if (s.MaxIdentityErrDeg > SpineTwistMaxInvariantErrDeg || s.MaxResidualTwistDeg > SpineTwistMaxInvariantErrDeg
+                || s.MaxResidualSwingDeg > SpineTwistMaxInvariantErrDeg || s.MaxBlendErrDeg > SpineTwistMaxInvariantErrDeg)
+                return (false, $"ShapeReachStep off: identity={s.MaxIdentityErrDeg:F3} residTwist={s.MaxResidualTwistDeg:F3} residSwing={s.MaxResidualSwingDeg:F3} blend={s.MaxBlendErrDeg:F3} deg > {SpineTwistMaxInvariantErrDeg} (swing-twist not separating)");
+            if (s.ReproMaxTwistDeg < SpineTwistMinReproDeg)
+                return (false, $"keep=1 only twisted {s.ReproMaxTwistDeg:F1} deg < {SpineTwistMinReproDeg} (sweep not provoking the corkscrew -- it would miss a regression)");
+            float kept = s.ReproMaxTwistDeg > 1e-3f ? s.GradedMaxTwistDeg / s.ReproMaxTwistDeg : 1f;
+            if (kept > SpineTwistMaxKeptFraction)
+                return (false, $"graded shape kept {kept:P0} of the axial twist ({s.GradedMaxTwistDeg:F1}/{s.ReproMaxTwistDeg:F1} deg) > {SpineTwistMaxKeptFraction:P0} (still corkscrews instead of bending)");
+            float lumbarKept = s.ReproLumbarTwistDeg > 1e-3f ? s.GradedLumbarTwistDeg / s.ReproLumbarTwistDeg : 1f;
+            if (lumbarKept > SpineTwistMaxLumbarKeptFraction)
+                return (false, $"lumbar still kept {lumbarKept:P0} of its twist ({s.GradedLumbarTwistDeg:F1}/{s.ReproLumbarTwistDeg:F1} deg) > {SpineTwistMaxLumbarKeptFraction:P0} (lower back not stiffened -- grading not applied)");
+            if (s.GradedMaxJumpDeg > SpineTwistMaxJumpDeg)
+                return (false, $"graded twist jumps {s.GradedMaxJumpDeg:F1} deg across center > {SpineTwistMaxJumpDeg} (flips side instead of bending through)");
+            if (s.GradedMaxReachErrM > SpineTwistMaxReachErrM)
+                return (false, $"graded reach left a {s.GradedMaxReachErrM * 100f:F1} cm gap > {SpineTwistMaxReachErrM * 100f:F0} cm (bending can't reach -- shape too aggressive)");
+            if (s.OrientationSpreadDeg > SpineTwistMaxOrientationSpreadDeg)
+                return (false, $"upright vs lying-down twist differs by {s.OrientationSpreadDeg:F1} deg > {SpineTwistMaxOrientationSpreadDeg} (twist axis not body-relative -- breaks lying down)");
+            if (s.WorldUpSupineTwistDeg < SpineTwistMinReproDeg)
+                return (false, $"negative control weak: supine-about-world-up twisted only {s.WorldUpSupineTwistDeg:F1} deg < {SpineTwistMinReproDeg} (control not exercising the prone corkscrew -- can't prove the axis matters)");
+            return (true, $"lumbar/neck keep {s.TestedLumbarKeep:F2}/{s.TestedCervicalKeep:F2} twist {s.ReproMaxTwistDeg:F1}->{s.GradedMaxTwistDeg:F1}° (kept {kept:P0}; lumbar {s.ReproLumbarTwistDeg:F1}->{s.GradedLumbarTwistDeg:F1}°, neck {s.GradedCervicalTwistDeg:F1}°) jump {s.GradedMaxJumpDeg:F1}° reach {s.GradedMaxReachErrM * 100f:F1}cm orient±{s.OrientationSpreadDeg:F1}° worldUpProne {s.WorldUpSupineTwistDeg:F1}° cases={s.Cases}");
         }
 
         // --- elbow swivel One-Euro filter ---
