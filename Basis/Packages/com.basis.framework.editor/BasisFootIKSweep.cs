@@ -34,7 +34,7 @@ namespace Basis.IK.Debugging
         public float PlantedLerpSpeed, RotationLerpSpeed, VelocitySmoothAccel, VelocitySmoothDecel, BodyFwdRateMoving, BodyFwdRateStationary, KneeHintLerpSpeed;
         public float MaxFootTiltDegrees, MaxFootYawDegrees;
         public float RaySphereRadiusMul, FootHeightOffsetMul, StepTriggerMul, StrideScaleMul, StepHeightMul, StepDurSlowMul, StepDurFastMul, FastSpeedMul;
-        public float StepArcLiftExp, StepArcDropExp, StepHeightMinFraction;
+        public float StepArcLiftExp, StepArcDropExp, StepHeightMinFraction, StepHeightStrideRefFraction;
         public float IdleSpeedThreshold, IdleBoostFraction, MaxPlantedYawDegrees;
         public float IdealSideEnforceFraction, StepTargetSideFraction, FootSideEnforceFraction;
         public float MaxVerticalDriftFraction;
@@ -47,6 +47,8 @@ namespace Basis.IK.Debugging
         public float Duration;      // seconds per scenario
         public float SlowSpeed, NormalSpeed, FastSpeed;   // locomotion speeds (m/s)
         public float TrackerNoise;  // per-axis head jitter (m) added to test jitter rejection
+        public float Scale;         // avatar scale this config represents (measurements + speeds already multiplied by it)
+        public float[] Scales;      // scales to run the full battery at -- the rescaling test (child → giant)
 
         public static BasisFootIKSweepConfig Default()
         {
@@ -86,6 +88,7 @@ namespace Basis.IK.Debugging
                 StepArcLiftExp = 0.6f,
                 StepArcDropExp = 1.4f,
                 StepHeightMinFraction = 0.4f,
+                StepHeightStrideRefFraction = 0.45f,
                 IdleSpeedThreshold = 0.05f,
                 IdleBoostFraction = 0.5f,
                 MaxPlantedYawDegrees = 35f,
@@ -106,6 +109,8 @@ namespace Basis.IK.Debugging
                 NormalSpeed = 1.3f,
                 FastSpeed = 2.6f,
                 TrackerNoise = 0f,
+                Scale = 1f,
+                Scales = new[] { 0.5f, 1f, 2f },
             };
         }
     }
@@ -136,7 +141,7 @@ namespace Basis.IK.Debugging
         public int AirborneTicks;
         public int BothSteppingTicks, BothEpisodes; public float BothFirstTime;
 
-        public BasisFootPeak SlideMm, ExtRatio, PenMm, HoverMm, TiltDeg, YawDeg, PlantDriftM, CrossSepM;
+        public BasisFootPeak SlideMm, ExtRatio, PenMm, HoverMm, TiltDeg, YawDeg, PlantDriftM, CrossSepM, StepLiftMm;
         public int CrossoverTicks, CrossEpisodes;
         public float MinKneeForwardM, MinKneeForwardTime;
         public float StanceMin, StanceMax;
@@ -167,6 +172,7 @@ namespace Basis.IK.Debugging
         public float WorstYawDeg;
         public float WorstPlantToIdealM;
         public float WorstKneeBackwardM;   // -min(MinKneeForwardM): positive = knee went behind by this much
+        public float WorstStepLiftMm;      // peak foot lift above the straight start->target line during a step
         public int TotalSteps;
         public bool HadNaN;
 
@@ -207,23 +213,33 @@ namespace Basis.IK.Debugging
                 string dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-                var scenarios = BuildScenarios(cfg);
-                var results = new BasisFootScenarioResult[scenarios.Length];
+                float[] scales = (cfg.Scales != null && cfg.Scales.Length > 0) ? cfg.Scales : new[] { 1f };
+                var resultsList = new System.Collections.Generic.List<BasisFootScenarioResult>();
                 int rows = 0;
 
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
                 {
                     w.WriteLine("# BasisFootIKSweep " + System.DateTime.UtcNow.ToString("o") +
-                                " dt=" + F(cfg.Dt) + " noise=" + F(cfg.TrackerNoise));
+                                " dt=" + F(cfg.Dt) + " noise=" + F(cfg.TrackerNoise) + " scales=" + string.Join("/", System.Array.ConvertAll(scales, x => x.ToString("0.##"))));
                     w.WriteLine(CsvHeader());
-                    for (int i = 0; i < scenarios.Length; i++)
-                        results[i] = RunOne(cfg, scenarios[i], w, ref rows);
+                    foreach (float scale in scales)
+                    {
+                        var cfgS = ScaleConfig(cfg, scale);
+                        var scenarios = BuildScenarios(cfgS);
+                        for (int i = 0; i < scenarios.Length; i++)
+                        {
+                            var sc = scenarios[i];
+                            if (scale != 1f) { sc.Name += "@" + scale.ToString("0.##") + "x"; sc.Group += " x" + scale.ToString("0.##"); }
+                            resultsList.Add(RunOne(cfgS, sc, w, ref rows));
+                        }
+                    }
                 }
 
+                var results = resultsList.ToArray();
                 summary.Ok = true;
                 summary.Path = path;
                 summary.Rows = rows;
-                summary.Scenarios = scenarios.Length;
+                summary.Scenarios = results.Length;
                 summary.Results = results;
                 summary.ConfiguredMaxTiltDeg = cfg.MaxFootTiltDegrees;
                 summary.ConfiguredMaxYawDeg = cfg.MaxFootYawDegrees;
@@ -243,6 +259,7 @@ namespace Basis.IK.Debugging
                     summary.WorstYawDeg = Mathf.Max(summary.WorstYawDeg, r.YawDeg.Value);
                     summary.WorstPlantToIdealM = Mathf.Max(summary.WorstPlantToIdealM, r.PlantDriftM.Value);
                     summary.WorstKneeBackwardM = Mathf.Max(summary.WorstKneeBackwardM, -r.MinKneeForwardM);
+                    summary.WorstStepLiftMm = Mathf.Max(summary.WorstStepLiftMm, r.StepLiftMm.Value);
                     summary.TotalSteps += r.Steps;
                     summary.HadNaN |= r.HadNaN;
                 }
@@ -387,6 +404,10 @@ namespace Basis.IK.Debugging
                     float stance = HDist(left.currentPos, right.currentPos);
                     res.StanceMin = Mathf.Min(res.StanceMin, stance); res.StanceMax = Mathf.Max(res.StanceMax, stance);
 
+                    // Step lift: vertical excursion of the stepping foot above the straight start->target line.
+                    if (left.phase == 1 && left.stepDur > 0f) res.StepLiftMm.Consider(StepLift(left) * 1000f, t, speed);
+                    if (right.phase == 1 && right.stepDur > 0f) res.StepLiftMm.Consider(StepLift(right) * 1000f, t, speed);
+
                     if (NaN(left.currentPos) || NaN(right.currentPos) || NaN(left.kneeHint) || NaN(right.kneeHint)) res.HadNaN = true;
 
                     // ── Wide per-tick CSV row ──
@@ -508,7 +529,7 @@ namespace Basis.IK.Debugging
             if (r.HadNaN) sb.Append("   !! NaN encountered\n");
             sb.Append($"   skate max {r.SlideMm.Value:F1}mm @t{r.SlideMm.Time:F2}(v{r.SlideMm.Speed:F1})   hover max {r.HoverMm.Value:F1}mm   pen max {r.PenMm.Value:F1}mm @t{r.PenMm.Time:F2}\n");
             sb.Append($"   ext max {r.ExtRatio.Value:F2}x @t{r.ExtRatio.Time:F2}(v{r.ExtRatio.Speed:F1})   plant->ideal drift max {r.PlantDriftM.Value * 100f:F0}cm @t{r.PlantDriftM.Time:F2}\n");
-            sb.Append($"   tilt max {r.TiltDeg.Value:F0}deg   yaw(late-step) max {r.YawDeg.Value:F0}deg   knee fwd min {Sane(r.MinKneeForwardM) * 100f:F0}cm @t{r.MinKneeForwardTime:F2}   stance {Sane(r.StanceMin):F2}..{r.StanceMax:F2}m");
+            sb.Append($"   tilt max {r.TiltDeg.Value:F0}deg   yaw(late-step) max {r.YawDeg.Value:F0}deg   knee fwd min {Sane(r.MinKneeForwardM) * 100f:F0}cm @t{r.MinKneeForwardTime:F2}   stance {Sane(r.StanceMin):F2}..{r.StanceMax:F2}m   stepLift max {r.StepLiftMm.Value:F0}mm @t{r.StepLiftMm.Time:F2}");
             return sb.ToString();
         }
 
@@ -522,7 +543,7 @@ namespace Basis.IK.Debugging
                     rw.WriteLine($"{s.Scenarios} scenarios, {s.Rows} ticks, {s.TotalSteps} steps total.");
                     rw.WriteLine($"WORST ACROSS ALL: skate {s.WorstPlantedSlideMm:F1}mm  ext {s.WorstExtensionRatio:F2}x  pen {s.WorstPenetrationMm:F1}mm  hover {s.WorstPlantedHoverMm:F1}mm  " +
                                  $"tilt {s.WorstTiltDeg:F0}deg  yaw {s.WorstYawDeg:F0}deg  drift {s.WorstPlantToIdealM * 100f:F0}cm");
-                    rw.WriteLine($"  crossover {s.Crossovers} ticks  bothAirborne {s.BothSteppingTicks} ticks (worst {s.BothSteppingWorstScenario} {s.BothSteppingWorstTicks})  kneeBehind {s.WorstKneeBackwardM * 100f:F1}cm  NaN {s.HadNaN}");
+                    rw.WriteLine($"  crossover {s.Crossovers} ticks  bothAirborne {s.BothSteppingTicks} ticks (worst {s.BothSteppingWorstScenario} {s.BothSteppingWorstTicks})  kneeBehind {s.WorstKneeBackwardM * 100f:F1}cm  stepLift {s.WorstStepLiftMm:F0}mm  NaN {s.HadNaN}");
                     rw.WriteLine();
                     string group = null;
                     foreach (var r in results)
@@ -737,6 +758,19 @@ namespace Basis.IK.Debugging
             return result;
         }
 
+        // Returns a copy of the config scaled to an avatar `s`x the nominal size: all measurements AND
+        // locomotion speeds multiply by s (a 2x avatar at 2x world speed has the same Froude number, so
+        // the gait is self-similar and the same gates must hold). Scale tags the config for the clamp math.
+        static BasisFootIKSweepConfig ScaleConfig(BasisFootIKSweepConfig c, float s)
+        {
+            if (s == 1f) { c.Scale = 1f; return c; }
+            c.StanceWidth *= s; c.HipToFoot *= s; c.HeadAboveHips *= s;
+            c.ThighLen *= s; c.ShinLen *= s; c.FootLength *= s; c.AnkleHeight *= s; c.UpperLegToFootVertical *= s;
+            c.SlowSpeed *= s; c.NormalSpeed *= s; c.FastSpeed *= s; c.TrackerNoise *= s;
+            c.Scale = s;
+            return c;
+        }
+
         // ───────────────────────── param derivation (mirror of DeriveStepParameters) ─────────────────────────
 
         static BasisFootSimParams BuildParams(BasisFootIKSweepConfig c)
@@ -745,17 +779,22 @@ namespace Basis.IK.Debugging
             float avgLeg = legLen;
             float avgShin = c.ShinLen;
 
-            float raySphereRadius = Mathf.Clamp(c.FootLength * c.RaySphereRadiusMul, 0.02f, 0.12f);
+            // Mirror the driver's scale-aware clamp bounds: lengths scale linearly with the avatar,
+            // gait time/speed as sqrt (pendulum/Froude). c.Scale is the scale this config represents.
+            float lengthScale = c.Scale > 1e-4f ? c.Scale : 1f;
+            float timeScale = Mathf.Sqrt(lengthScale);
+
+            float raySphereRadius = Mathf.Clamp(c.FootLength * c.RaySphereRadiusMul, 0.02f * lengthScale, 0.12f * lengthScale);
             float desiredOffset = c.AnkleHeight * c.FootHeightOffsetMul;
             float straightLegLimit = c.UpperLegToFootVertical + c.AnkleHeight - avgLeg;
-            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), 0.001f, 0.05f);
-            float stepTriggerDist = Mathf.Clamp(avgLeg * c.StepTriggerMul, 0.04f, 0.18f);
-            float strideScale = Mathf.Clamp(avgLeg * c.StrideScaleMul, 0.02f, 0.22f);
-            float stepHeightCalc = Mathf.Clamp(avgShin * c.StepHeightMul, 0.03f, 0.20f);
+            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), 0.001f * lengthScale, 0.05f * lengthScale);
+            float stepTriggerDist = Mathf.Clamp(avgLeg * c.StepTriggerMul, 0.04f * lengthScale, 0.18f * lengthScale);
+            float strideScale = Mathf.Clamp(avgLeg * c.StrideScaleMul, 0.02f * lengthScale, 0.22f * lengthScale);
+            float stepHeightCalc = Mathf.Clamp(avgShin * c.StepHeightMul, 0.03f * lengthScale, 0.20f * lengthScale);
             float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
-            float stepDurSlow = Mathf.Clamp(pendulum * c.StepDurSlowMul, 0.10f, 0.30f);
-            float stepDurFast = Mathf.Clamp(pendulum * c.StepDurFastMul, 0.06f, 0.18f);
-            float fastSpeedRef = Mathf.Clamp(c.FastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f, 3.5f);
+            float stepDurSlow = Mathf.Clamp(pendulum * c.StepDurSlowMul, 0.10f * timeScale, 0.30f * timeScale);
+            float stepDurFast = Mathf.Clamp(pendulum * c.StepDurFastMul, 0.06f * timeScale, 0.18f * timeScale);
+            float fastSpeedRef = Mathf.Clamp(c.FastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f * timeScale, 3.5f * timeScale);
             float rayCastRange = Mathf.Max(c.HipToFoot + c.AnkleHeight, legLen) + 1.0f;
 
             return new BasisFootSimParams
@@ -777,6 +816,7 @@ namespace Basis.IK.Debugging
                 stepArcLiftExp = c.StepArcLiftExp,
                 stepArcDropExp = c.StepArcDropExp,
                 stepHeightMinFraction = c.StepHeightMinFraction,
+                stepHeightStrideRefFraction = c.StepHeightStrideRefFraction,
                 idleSpeedThreshold = c.IdleSpeedThreshold,
                 idleBoostFraction = c.IdleBoostFraction,
                 maxPlantedYawDegrees = c.MaxPlantedYawDegrees,
@@ -853,6 +893,14 @@ namespace Basis.IK.Debugging
         static float3 ProjectFlat(float3 v) => v - Up * math.dot(v, Up);
         static float3 ProjectOnPlane(float3 v, float3 n) => v - math.dot(v, n) * n;
         static float HDist(float3 a, float3 b) => math.length(ProjectFlat(a - b));
+        // Foot lift above the straight start->target line at the current step phase (the arc height).
+        static float StepLift(in BasisFootNativeState f)
+        {
+            float te = math.saturate(f.stepTimer / f.stepDur);
+            float e = 1f - (1f - te) * (1f - te) * (1f - te);
+            float baseUp = math.lerp(math.dot(f.stepStartPos, Up), math.dot(f.stepTargetPos, Up), e);
+            return math.dot(f.currentPos, Up) - baseUp;
+        }
         static float Yaw(float3 fwd) { float3 f = ProjectFlat(fwd); return math.lengthsq(f) < 1e-6f ? 0f : math.degrees(math.atan2(f.x, f.z)); }
         static bool NaN(float3 v) => float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z);
         static float Sane(float v) => float.IsInfinity(v) ? 0f : v;
