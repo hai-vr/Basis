@@ -291,6 +291,11 @@ public static class SettingsProviderIK
             protectElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKProtectElbow);
             protectElbowToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.protectElbow.title.tooltip"));
 
+            var collideTrackedElbowToggle = PanelToggle.CreateNewEntry(collisionParent);
+            collideTrackedElbowToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.collideTrackedElbow.title"));
+            collideTrackedElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKCollideTrackedElbow);
+            collideTrackedElbowToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.collideTrackedElbow.title.tooltip"));
+
             var handCapsuleToggle = PanelToggle.CreateNewEntry(collisionParent);
             handCapsuleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.handCapsule.title"));
             handCapsuleToggle.AssignBinding(BasisSettingsDefaults.FBIKUseHandCapsule);
@@ -1152,6 +1157,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FootIKEnabled.ResetToDefault();
         BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
         BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
+        BasisSettingsDefaults.FBIKCollideTrackedElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKUseHandCapsule.ResetToDefault();
         BasisSettingsDefaults.FBIKChestRadius.ResetToDefault();
         BasisSettingsDefaults.FBIKCollisionSkin.ResetToDefault();

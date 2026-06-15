@@ -88,11 +88,21 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
             }
 
             // Unscaled device coord in *real* tracking space
-            ComputeUnscaledDeviceCoord(
-                ref UnscaledDeviceCoord,
-                devicePose.mDeviceToAbsoluteTracking.GetPosition()
-            );
-            UnscaledDeviceCoord.rotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
+            Vector3 devicePosition = devicePose.mDeviceToAbsoluteTracking.GetPosition();
+            Quaternion deviceRotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
+
+            // The HMD's tracked origin isn't the eyes. Cache the origin->center-eye vertical (from the
+            // runtime's eye-to-head transforms) so height calibration scales from the eyes; the rendered
+            // pose stays at the device origin because SteamVR applies its own per-eye offset at render.
+            if (Device.deviceIndex == Valve.VR.OpenVR.k_unTrackedDeviceIndex_Hmd
+                && SteamVR.instance != null && SteamVR.instance.eyes != null && SteamVR.instance.eyes.Length >= 2)
+            {
+                Vector3 centerEyeLocal = (SteamVR.instance.eyes[0].pos + SteamVR.instance.eyes[1].pos) * 0.5f;
+                CenterEyeVerticalOffset = (deviceRotation * centerEyeLocal).y;
+            }
+
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, devicePosition);
+            UnscaledDeviceCoord.rotation = deviceRotation;
 
             // Your existing scaling pipeline
             ConvertToScaledDeviceCoord();

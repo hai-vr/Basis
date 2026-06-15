@@ -16,6 +16,8 @@ public static class BasisHeightDriver
 
     public static float AdditionalPlayerHeight = 0f;
 
+    public static float PlayerCenterEyeVerticalOffset = 0f;
+
     // Pitch calibration: computed from up/down/forward HMD samples
     public static bool HasPitchCalibratedHeight = false;
     public static float PitchCalibratedEyeHeight = FallbackHeightInMeters;
@@ -334,6 +336,8 @@ public static class BasisHeightDriver
         // Current applied avatar scale (1 = unscaled).
         AppliedUpScale = SanitizePositive(avatarDriver.ScaleAvatarModification.ApplyScale, 1f);
 
+        float eyeScaleOffset = (Height == BasisSelectedHeightMode.EyeHeight) ? PlayerCenterEyeVerticalOffset : 0f;
+
         // AppliedUpScale multiplies BOTH player and avatar metrics.
         switch (Height)
         {
@@ -346,7 +350,7 @@ public static class BasisHeightDriver
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
-                SelectedScaledPlayerHeight = calY * ((AdditionalPlayerHeight + PlayerEyeHeight) * AppliedUpScale);
+                SelectedScaledPlayerHeight = calY * ((AdditionalPlayerHeight + eyeScaleOffset + PlayerEyeHeight) * AppliedUpScale);
                 SelectedScaledAvatarHeight = calY * (AvatarEyeHeight * AppliedUpScale);
 
                 SelectedUnScaledAvatarHeight = SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters);
@@ -382,7 +386,7 @@ public static class BasisHeightDriver
         // DeviceScale: keep your original intent/math, but make it safe.
         // avatarScaledMetric in meters-equivalent (unscaled metric * applied scale).
         float avatarScaledMetric = SanitizePositive(SelectedUnScaledAvatarHeight * AppliedUpScale, 1f);
-        float playerMetric = SanitizePositive(AdditionalPlayerHeight + SelectedUnScaledPlayerHeight, 1f);
+        float playerMetric = SanitizePositive(AdditionalPlayerHeight + eyeScaleOffset + SelectedUnScaledPlayerHeight, 1f);
 
         DeviceScale = SafeDivide(avatarScaledMetric, playerMetric, 1f);
         DeviceScale = SanitizePositive(DeviceScale, 1f);

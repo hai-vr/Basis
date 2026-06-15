@@ -130,10 +130,10 @@ namespace Basis.IK.Debugging
                 if (_traj.Ok && _traj.Results != null)
                 {
                     var sb = new System.Text.StringBuilder();
-                    sb.AppendLine("path:  clean max-jump deg / pops  |  noisy rough deg / zigzag");
+                    sb.AppendLine("path:  clean max-jump deg / pops  |  noisy rough deg / zigzag  |  singular jump deg");
                     foreach (var r in _traj.Results)
                     {
-                        sb.AppendLine($"{r.Name}:  {r.CleanMaxJumpDeg:F1} / {r.Pops}  |  {r.NoisyRoughDeg:F2} / {r.Zigzags}");
+                        sb.AppendLine($"{r.Name}:  {r.CleanMaxJumpDeg:F1} / {r.Pops}  |  {r.NoisyRoughDeg:F2} / {r.Zigzags}  |  {r.SingularMaxJumpDeg:F0}");
                     }
                     sb.Append(_traj.Path);
                     EditorGUILayout.HelpBox(sb.ToString(), MessageType.None);

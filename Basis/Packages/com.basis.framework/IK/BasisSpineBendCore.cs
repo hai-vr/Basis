@@ -55,6 +55,11 @@ namespace UnityEngine.Animations.Rigging
         const float k_Epsilon = 1e-5f;
         const float k_BendDeadbandDeg = 3f;
         const float k_BendDeadbandWidthDeg = 7f;
+        // Head-facing twist fade, expressed in horizontal head-forward magnitude (= |cos| of the gaze
+        // pitch off level). Full twist at/above ~70 deg of pitch (cos 70 = 0.342), faded to nothing by
+        // ~80 deg (cos 80 = 0.174) -- before the vertical-gaze pole where the facing azimuth is undefined.
+        const float k_TwistFadeFullHoriz = 0.342f;
+        const float k_TwistFadeZeroHoriz = 0.174f;
 
         public static void Solve(in BasisSpineBendInput i, out BasisSpineBendResult r)
         {
@@ -80,6 +85,12 @@ namespace UnityEngine.Animations.Rigging
             Vector3 headFwdLocal = headRotLocal * Vector3.forward;
             float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
             float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
+            // Fade the facing twist out as the gaze nears vertical. The azimuth flips ~180 deg across the
+            // straight-down/up pole, which snapped the chest/upperChest sideways the instant the gaze
+            // crossed vertical; horizMag collapses to 0 there, so smoothstep the twist off well before it.
+            // Pure horizontal turning keeps horizMag == 1, so ordinary look-around is untouched.
+            float twistFadeT = Mathf.Clamp01((Mathf.Sqrt(horizMagSq) - k_TwistFadeZeroHoriz) / (k_TwistFadeFullHoriz - k_TwistFadeZeroHoriz));
+            twistY *= Mathf.SmoothStep(0f, 1f, twistFadeT);
 
             float maxFwd = Mathf.Max(0f, i.SpineMaxForwardDeg);
             float maxBack = Mathf.Max(0f, i.SpineMaxBackwardDeg);

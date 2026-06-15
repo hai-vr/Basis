@@ -127,6 +127,7 @@
     <assembly fullname="VRC.Udon" preserve="all" />
     <assembly fullname="Valve.OpenXR.Utils" preserve="all" />
     <assembly fullname="XRSDKOpenVR" preserve="all" />
+    <assembly fullname="YtDlp.Runtime" preserve="all" />
     <assembly fullname="audioplugin_phonon" preserve="all" />
     <assembly fullname="basis_media_native" preserve="all" />
     <assembly fullname="com.cqf.urpvolumetricfog.runtime" preserve="all" />

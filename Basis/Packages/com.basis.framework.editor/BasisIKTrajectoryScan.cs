@@ -43,6 +43,27 @@ namespace Basis.IK.Debugging
             return p;
         }
 
+        // Great-circle arc between a and b about center: slerp the directions (constant-radius sweep) and
+        // lerp the radii. Unlike Line (a straight chord, whose midpoint dips toward center) this keeps
+        // |point-center| fixed, so a swept limb stays at a CONSTANT extension while only the pole rotates --
+        // the full-extension / full-flexion regime where the pole collapses and flips, which a chord glides
+        // out of. Pass endpoints already on the target sphere (radius reach*armLen) about the shoulder.
+        public static Vector3[] Arc(Vector3 center, Vector3 a, Vector3 b, int n)
+        {
+            n = Mathf.Max(2, n);
+            Vector3 da = a - center, db = b - center;
+            float ra = da.magnitude, rb = db.magnitude;
+            Vector3 ua = ra > 1e-6f ? da / ra : Vector3.forward;
+            Vector3 ub = rb > 1e-6f ? db / rb : Vector3.forward;
+            var p = new Vector3[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)(n - 1);
+                p[i] = center + Vector3.Slerp(ua, ub, t) * Mathf.Lerp(ra, rb, t);
+            }
+            return p;
+        }
+
         // eval: hand target -> output swivel (deg), or float.NaN if unreachable/undefined there.
         // noise: per-axis uniform tracking noise (m) added on the jitter pass. seed: deterministic.
         // isSingular (optional): target -> true at a kinematic singularity (folded/near-straight) where a

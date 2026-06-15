@@ -205,6 +205,7 @@ public static class BasisAnimationRiggingHelper
         data.CollisionsEnabled = true;
         data.UseHandCapsule = true;
         data.ProtectElbow = true;
+        data.CollideTrackedElbow = false;
         data.EnabledSpineIK = true;
         data.IKLockMode = (float)SMModuleCalibration.CurrentIKLockMode;
 

@@ -11,11 +11,13 @@ namespace Basis.Tests.IK
     /// These exercise the pure, stream-free elbow math directly -- <see cref="BasisArmBendLookup"/>
     /// (the chest-relative bend-direction lookup) and <see cref="BasisArmSolveCore"/> (the two-bone
     /// solve, a fork of Unity's SolveTwoBoneIK with the Basis pole-flip / rate-limit handling). They
-    /// guard the two failure modes the elbow used to have:
+    /// guard the failure modes the elbow used to have:
     ///
     ///   1. ELBOW FLIP   -- the pole snapping to the opposite side on smooth motion / tracker noise.
     ///   2. ELBOW IN FRONT -- the elbow winging up and forward instead of tucking naturally behind
     ///                        and below the hand.
+    ///   3. FULL-EXTENSION FLIP -- as the arm extends out fully the elbow pole collapses onto the
+    ///                        shoulder->hand axis; the elbow must ride along, not snap to the wrong side.
     ///
     /// Thresholds are intentionally looser than the values the current solver produces (each test
     /// notes the measured headroom) so they fail only on a real regression, not on float noise.
@@ -384,6 +386,34 @@ namespace Basis.Tests.IK
             AssertSmoothSweep(pts, "circle");
         }
 
+        // ----------------------------------------------------------------- full extension (pole collapse)
+
+        [Test]
+        public void Elbow_DoesNotFlip_OnFullExtensionAcrossSweep()
+        {
+            // Arm extended to ~0.95 reach (nearly straight), hand swung horizontally across the front. The
+            // shoulder->hand axis rotates while the elbow pole is nearly collapsed onto it -- the regime where
+            // "extend the arm out fully and the elbow flips to the wrong side". The elbow must ride along.
+            AssertFullExtensionArc(ExtArc(new Vector3(0.75f, -0.15f, 0.70f), new Vector3(-0.75f, -0.15f, 0.70f), 0.95f, 180), "ext-across");
+        }
+
+        [Test]
+        public void Elbow_DoesNotFlip_OnFullExtensionVerticalSweep()
+        {
+            // Extended ~0.95, hand swung from low-forward up to (non-overhead) high-forward, passing through
+            // straight-out where the pole is most ill-defined.
+            AssertFullExtensionArc(ExtArc(new Vector3(0.10f, -0.65f, 0.60f), new Vector3(0.10f, 0.35f, 0.70f), 0.95f, 180), "ext-vertical");
+        }
+
+        [Test]
+        public void Elbow_DoesNotFlip_OnReachOutToFullExtensionAndBack()
+        {
+            // The literal "extend the arm out fully and relax" motion: push a forward/slightly-down reach from
+            // 0.6 out to 0.97 (nearly straight) and back. The pole collapses toward the far end and must
+            // re-form on the SAME side -- not snap across as the arm straightens then unstraightens.
+            AssertFullExtensionArc(ReachOutAndBack(new Vector3(0.12f, -0.18f, 1.0f), 0.6f, 0.97f, 90), "reach-out-back");
+        }
+
         [Test]
         public void Elbow_StaysStable_UnderNoisyTrackerHint()
         {
@@ -478,6 +508,31 @@ namespace Basis.Tests.IK
 
         static Vector3 Frac(float fx, float fy, float fz) => Shoulder + new Vector3(fx, fy, fz) * ArmLen;
 
+        // Great-circle arc on the FULL-EXTENSION sphere (radius reach*ArmLen about the shoulder), sweeping
+        // direction a -> b. Mirror of BasisIKTrajectoryScan.Arc / the sweep's ext-* paths: |hand-shoulder|
+        // stays fixed so only the pole rotates, holding the arm at constant (near-straight) extension.
+        static Vector3[] ExtArc(Vector3 a, Vector3 b, float reach, int steps)
+        {
+            Vector3 ua = a.normalized, ub = b.normalized;
+            var pts = new Vector3[steps];
+            for (int s = 0; s < steps; s++)
+                pts[s] = Shoulder + Vector3.Slerp(ua, ub, s / (float)(steps - 1)) * (reach * ArmLen);
+            return pts;
+        }
+
+        // Radial push out to (near) full extension and back along a fixed direction: reach ramps lo->hi->lo.
+        // Exercises the pole collapsing as the arm straightens and re-forming as it folds.
+        static Vector3[] ReachOutAndBack(Vector3 dir, float reachLo, float reachHi, int stepsEachWay)
+        {
+            Vector3 u = dir.normalized;
+            var pts = new Vector3[stepsEachWay * 2];
+            for (int s = 0; s < stepsEachWay; s++)
+                pts[s] = Shoulder + u * (Mathf.Lerp(reachLo, reachHi, s / (float)(stepsEachWay - 1)) * ArmLen);
+            for (int s = 0; s < stepsEachWay; s++)
+                pts[stepsEachWay + s] = Shoulder + u * (Mathf.Lerp(reachHi, reachLo, s / (float)(stepsEachWay - 1)) * ArmLen);
+            return pts;
+        }
+
         Vector3 SampleLookup(Vector3 normalizedHandPos) => BasisArmBendLookup.SampleTrilinear(_table, normalizedHandPos);
 
         // Mirror of BasisArmIKSweep.ComputeLookupBend (right arm: no mirror).
@@ -563,6 +618,45 @@ namespace Basis.Tests.IK
                 $"'{name}' sweep: elbow popped {pops} times on smooth motion (pole flip).");
             Assert.That(worstStep, Is.LessThan(15f),
                 $"'{name}' sweep: worst per-frame swivel step {worstStep:0.0} deg (rate limit is {RateDegPerFrame:0.0}); elbow is jumping.");
+        }
+
+        // Same temporal lookup-hint drive as AssertSmoothSweep, but for a FULL-EXTENSION path where the elbow
+        // pole collapses onto the shoulder->hand axis -- the case the user sees as "extend the arm out fully
+        // and the elbow flips". Three guards: the live rate limiter must keep each step small (no snap), the
+        // swivel must not pop, and the elbow must never wing hard UP/to the wrong side (|swivel| < 120, the
+        // same flip threshold as Elbow_DoesNotFlipUp_OnExtendedForwardReaches) -- it stays tucked behind the hand.
+        void AssertFullExtensionArc(Vector3[] pts, string name)
+        {
+            Vector3 e = RestElbow, h = RestHand;
+            float prev = float.NaN, worstStep = 0f, maxAbsSwivel = 0f;
+            int pops = 0;
+            for (int s = 0; s < pts.Length; s++)
+            {
+                Vector3 bend = LookupBend(pts[s] - Shoulder);
+                Vector3 hint = Shoulder + 0.5f * ArmLen * bend;
+                var r = SolveOne(Shoulder, e, h, pts[s], hint, true, RateDegPerFrame);
+                e = r.ElbowSolved; h = r.HandSolved;
+
+                float swivel = Swivel(Shoulder, h, e);
+                if (!float.IsNaN(swivel))
+                {
+                    maxAbsSwivel = Mathf.Max(maxAbsSwivel, Mathf.Abs(swivel));
+                    if (!float.IsNaN(prev))
+                    {
+                        float d = Mathf.Abs(Mathf.DeltaAngle(prev, swivel));
+                        worstStep = Mathf.Max(worstStep, d);
+                        if (d > 8f) pops++;
+                    }
+                    prev = swivel;
+                }
+            }
+
+            Assert.That(pops, Is.EqualTo(0),
+                $"'{name}' full-extension sweep: elbow popped {pops} times (pole flip as the arm extends).");
+            Assert.That(worstStep, Is.LessThan(RateDegPerFrame + 6f),
+                $"'{name}' full-extension sweep: worst per-frame swivel step {worstStep:0.0} deg (rate limit {RateDegPerFrame:0.0}); the swivel is snapping, not easing.");
+            Assert.That(maxAbsSwivel, Is.LessThan(120f),
+                $"'{name}' full-extension sweep: elbow swung to |swivel| {maxAbsSwivel:0.0} deg (>120) -- it flipped up/wrong-side instead of staying tucked behind the hand.");
         }
     }
 }

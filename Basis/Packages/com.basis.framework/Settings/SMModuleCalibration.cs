@@ -149,6 +149,7 @@ public class SMModuleCalibration : BasisSettingsBase
     // IK Collider & Tuning keys
     private static string K_FBIK_COLLISIONS_ENABLED => BasisSettingsDefaults.FBIKCollisionsEnabled.BindingKey;
     private static string K_FBIK_PROTECT_ELBOW => BasisSettingsDefaults.FBIKProtectElbow.BindingKey;
+    private static string K_FBIK_COLLIDE_TRACKED_ELBOW => BasisSettingsDefaults.FBIKCollideTrackedElbow.BindingKey;
     private static string K_FBIK_USE_HAND_CAPSULE => BasisSettingsDefaults.FBIKUseHandCapsule.BindingKey;
     private static string K_FBIK_CHEST_RADIUS => BasisSettingsDefaults.FBIKChestRadius.BindingKey;
     private static string K_FBIK_COLLISION_SKIN => BasisSettingsDefaults.FBIKCollisionSkin.BindingKey;
@@ -592,6 +593,10 @@ public class SMModuleCalibration : BasisSettingsBase
 
             case var s when s == K_FBIK_PROTECT_ELBOW:
                 if (bool.TryParse(optionValue, out var peVal)) ApplyIKDataBool((ref BasisFullBodyData d) => d.ProtectElbow = peVal);
+                break;
+
+            case var s when s == K_FBIK_COLLIDE_TRACKED_ELBOW:
+                if (bool.TryParse(optionValue, out var cteVal)) ApplyIKDataBool((ref BasisFullBodyData d) => d.CollideTrackedElbow = cteVal);
                 break;
 
             case var s when s == K_FBIK_USE_HAND_CAPSULE:

@@ -62,8 +62,12 @@ public static class BasisLocalHeightCalculator
 
     public static void CalculatePlayerEyeHeight()
     {
+        var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;
+        BasisHeightDriver.PlayerCenterEyeVerticalOffset = headInput != null ? headInput.CenterEyeVerticalOffset : 0f;
+
         if (SMModuleSitStand.IsSteatedMode)
         {
+            BasisHeightDriver.PlayerCenterEyeVerticalOffset = 0f;
             BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
             BasisDebug.Log($"Seated mode; using standard eye height {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
         }

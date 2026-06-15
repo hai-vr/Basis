@@ -74,6 +74,13 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public BasisCalibratedCoords UnscaledDeviceCoord = new BasisCalibratedCoords();
 
+        /// <summary>
+        /// Signed vertical offset (tracking space, metres) from this device's tracked origin to the
+        /// runtime's center-eye. 0 unless a backend whose HMD origin differs from the eyes fills it
+        /// (OpenVR); height calibration uses it to scale from the eyes rather than the device origin.
+        /// </summary>
+        public float CenterEyeVerticalOffset = 0f;
+
         [Header("Final Data normally just modified by EyeHeight/AvatarEyeHeight)")]
         /// <summary>
         /// Device pose after scaling/elevation adjustments.

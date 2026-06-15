@@ -611,6 +611,10 @@
       "value": "Keep elbows from bending the wrong way during arm collisions."
     },
     {
+      "key": "settings.bodyTracking.collideTrackedElbow.title.tooltip",
+      "value": "Let body collision push the elbow even when an elbow tracker is driving it."
+    },
+    {
       "key": "settings.bodyTracking.handCapsule.title.tooltip",
       "value": "Use a capsule shape instead of a point for hand collisions."
     },
@@ -4795,6 +4799,14 @@
       "value": "Pushes elbows outward when they penetrate the chest capsule."
     },
     {
+      "key": "settings.bodyTracking.collideTrackedElbow.title",
+      "value": "Collide Tracked Elbow"
+    },
+    {
+      "key": "settings.bodyTracking.collideTrackedElbow.description",
+      "value": "Allow body collision to push the elbow even when an elbow tracker is driving it. Off lets the tracker fully control a tracked elbow."
+    },
+    {
       "key": "settings.bodyTracking.handCapsule.title",
       "value": "Use Hand Capsule"
     },
@@ -5316,7 +5328,7 @@
     },
     {
       "key": "settings.bodyTracking.smoothingStrength.title",
-      "value": "Smoothing Strength"
+      "value": "work"
     },
     {
       "key": "settings.bodyTracking.smoothingStrength.description",

@@ -674,7 +674,7 @@ namespace Basis.BasisUI
             new("fbikrotationsmoothinghz", new BasisPlatformDefault<float>(25f));
 
         public static BasisSettingsBinding<float> FBIKSmoothingStrength =
-            new("fbiksmoothingstrength", new BasisPlatformDefault<float>(1f));
+            new("fbiksmoothingstrength", new BasisPlatformDefault<float>(2.5f));
 
         // ---------------- HIPS ----------------
         public static BasisSettingsBinding<bool> FBIKHipsSmoothPos =
@@ -1044,6 +1044,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKAdvancedVisible = new("fbikadvancedvisible", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKCollisionsEnabled = new("fbikcollisionsenabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKProtectElbow = new("fbikprotectelbow", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKCollideTrackedElbow = new("fbikcollidetrackedelbow", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKUseHandCapsule = new("fbikusehandcapsule", new BasisPlatformDefault<bool>(true));
         // Collision capsule dimensions in meters at default (1.6m) avatar height; runtime
         // multiplies by AvatarToDefaultRatioScaledWithAvatarScale. Keys bumped to _v2 so existing
@@ -1697,6 +1698,7 @@ namespace Basis.BasisUI
             FBIKAdvancedVisible.LoadBindingValue();
             FBIKCollisionsEnabled.LoadBindingValue();
             FBIKProtectElbow.LoadBindingValue();
+            FBIKCollideTrackedElbow.LoadBindingValue();
             FBIKUseHandCapsule.LoadBindingValue();
             FBIKChestRadius.LoadBindingValue();
             FBIKCollisionSkin.LoadBindingValue();

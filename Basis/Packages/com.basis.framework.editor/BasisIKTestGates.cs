@@ -20,6 +20,14 @@ namespace Basis.IK.Debugging
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
         public const float TemporalMaxRoughDeg = 3f;        // clean 2nd-diff on smooth motion = stepping/jitter as the hand glides (per-frame feedback)
         public const float LegInvertHintSafeConeDeg = 50f;  // hint within this of nominal must never bend the knee backward. Measured onset is ~54 deg (lift pose + posterior down-hint, ~30-35 deg off the leg axis), so 50 is the data-driven safe envelope with margin; beyond it a grossly-wrong pole can still invert (solver forward-clamp would be needed to push it further).
+        public const float LegMaxSwivelRoundTripDeg = 12f;  // hint+foot both present: max "out and back" knee-pole swing on smooth foot motion (the twist/untwist). Measured 2 deg on the clean default paths (both sides), so 12 is a wide regression guard below a visible flip. A round trip that returns is a transient pole-axis blend flip the per-frame pop gate misses.
+        // --- leg hint quality (thresholds calibrated against the 2026-06-16 known-good run; measured value in each comment) ---
+        public const float LegMaxFootErrorM = 0.002f;       // reachable foot must land on target: the hint rotates ABOUT the hip->foot axis so reach is preserved (measured 0.0mm). 2mm guards a gross reach regression; a miss = the solve disturbed reach.
+        public const float LegMaxHintFollowDeg = 8f;        // mean angle the solved knee pole sits off the COMMANDED hint pole, well-conditioned (measured 0 deg, max 0 over 7445). 8 matches the arm elbow-align gate; above = the knee isn't following the knee tracker.
+        public const float LegMaxHintSensDegPerCm = 60f;    // 99.9th-pct knee-swivel change per cm of hint jitter (measured p99.9 28-30, max 69-138 at boundary outliers). Percentile not max -- the max chases pole-collapse outliers that climb with density (mirrors the arm/protect sens gates).
+        // --- leg straight-stance ("standing knees cave inward") -- UNCALIBRATED, calibrate after the first run ---
+        public const float LegStraightStanceMaxInwardFrac = 0.3f; // standing knee-pole inward (toward-centerline) component; >this = the knee caves in at full extension (forward ~0 expected).
+        public const float LegStraightStanceMaxFlipSens = 0.5f;   // how far a tiny uneven-feet/waist-tilt swings the standing knee inward; high = near-singular coin-flip (the asymmetric flicker).
         // --- tracker placement / discovery gates (calibrate against a known-good run) ---
         public const float TrackerPlacementCleanMinFraction = 0.85f; // overall clean (no-jitter) correctness floor across ALL archetypes incl. extreme; below = broken
         public const float TrackerPlacementCoreMinFraction = 1.0f;   // common "core" archetypes must classify every tracker cleanly
@@ -110,7 +118,17 @@ namespace Basis.IK.Debugging
             if (s.ReachablePoints <= 0) return (false, "no reachable points");
             if (float.IsNaN(s.MaxSwivelShiftDeg) || s.MaxSwivelShiftDeg > 180f)
                 return (false, $"knee swivel shift {s.MaxSwivelShiftDeg:F0} out of range");
-            return (true, $"reach={s.ReachablePoints} maxSwivelShift={s.MaxSwivelShiftDeg:F0}");
+            // Reach is primary: the weight-scaled hint only rotates the knee about the hip->foot axis, so a
+            // reachable foot must stay on target. A miss = the hint pass moved the foot (reach regressed).
+            if (s.MaxFootErrorReachableM > LegMaxFootErrorM)
+                return (false, $"foot misses a reachable target by {s.MaxFootErrorReachableM * 100f:F1}cm > {LegMaxFootErrorM * 100f:F0}cm (the hint pass disturbed reach)");
+            // The knee must actually go to the knee tracker: solved pole vs commanded hint pole, well-conditioned.
+            if (s.HintFollowSamples > 0 && s.MeanHintFollowDeg > LegMaxHintFollowDeg)
+                return (false, $"knee pole sits {s.MeanHintFollowDeg:F0}deg off the hint (mean over {s.HintFollowSamples}, max {s.MaxHintFollowDeg:F0}) > {LegMaxHintFollowDeg} -- knee doesn't follow the hint");
+            // Pole must not whip under a shaky knee tracker. Percentile (widespread), not the boundary-outlier max.
+            if (s.HintSensSamples > 0 && s.HintSensP999DegPerCm > LegMaxHintSensDegPerCm)
+                return (false, $"knee swivel sens p99.9 {s.HintSensP999DegPerCm:F0} > {LegMaxHintSensDegPerCm} deg/cm (widespread pole jitter; max {s.HintSensMaxDegPerCm:F0} at boundary outliers)");
+            return (true, $"reach={s.ReachablePoints} maxSwivelShift={s.MaxSwivelShiftDeg:F0} footErr={s.MaxFootErrorReachableM * 1000f:F1}mm follow(mean={s.MeanHintFollowDeg:F0} max={s.MaxHintFollowDeg:F0} n={s.HintFollowSamples}) sensP99.9={s.HintSensP999DegPerCm:F0}(max {s.HintSensMaxDegPerCm:F0})");
         }
 
         // Inhuman knee detection: the knee must never bend backward (posterior to the hip->ankle line).
@@ -159,6 +177,39 @@ namespace Basis.IK.Debugging
             if (s.Snaps > 0)
                 return (false, $"knee pole snapped >90deg on {s.Snaps} crouch steps -- leg flips/shoots up mid-crouch (worst jump {s.WorstSwivelJumpDeg:F0}deg @ {s.WorstScenario}, onset crouchFrac {s.OnsetCrouchFrac:F2})");
             return (true, $"clean through crouch: {s.Scenarios} placements, worst swivel jump {s.WorstSwivelJumpDeg:F0}deg, worst swivel {s.WorstSwivelDeg:F0}deg, min fwd {s.MinFwdFrac:F2}");
+        }
+
+        // Pole round-trip: with BOTH a knee hint and a moving foot target present, smooth foot motion must not
+        // make the knee pole swing out and rotate BACK to where it was -- the "knee twists then untwists"
+        // artifact the user sees when a hint tracker and a foot tracker are both live. This is distinct from a
+        // one-frame pop (GateTrajectory): the excursion can ramp out and back over many frames, each step tiny,
+        // so the pop gate misses it. Measured on the clean (noise-free) path, away from the fold/extension
+        // singularities; an excursion that returns is a transient pole-axis blend flip (pole-colinear or
+        // near-extension blend to the bend-normal engaging and releasing as the foot sweeps).
+        public static (bool pass, string reason) GateLegSwivelRoundTrip(bool ok, string error, float worstRoundTripDeg, string worstPath)
+        {
+            if (!ok) return (false, string.IsNullOrEmpty(error) ? "did not run" : error);
+            if (float.IsNaN(worstRoundTripDeg))
+                return (false, "round-trip NaN");
+            if (worstRoundTripDeg > LegMaxSwivelRoundTripDeg)
+                return (false, $"knee pole swings out {worstRoundTripDeg:F0} deg and rotates back > {LegMaxSwivelRoundTripDeg} on smooth motion ('{worstPath}') -- pole twists then untwists (transient blend flip with hint+foot both present)");
+            return (true, $"max round-trip {worstRoundTripDeg:F0} deg ('{worstPath}')");
+        }
+
+        // Standing knees caving inward: at full extension (standing) the knee pole is near-singular, so the
+        // solver leans on the BendNormal fallback and a tiny asymmetry (uneven feet / a few degrees of waist
+        // tilt) can swing the knee toward the body centerline -- the "knees bend inward, can't tell which side"
+        // artifact. The knee must point forward at standing, and must not be flip-sensitive to that tilt.
+        public static (bool pass, string reason) GateLegStraightStance(in BasisLegStraightStanceSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Samples <= 0) return (false, "no samples");
+            string onset = float.IsNaN(s.OnsetReach) ? "none" : $"{s.OnsetReach:F2}";
+            if (s.WorstInwardFrac > LegStraightStanceMaxInwardFrac)
+                return (false, $"knee caves INWARD at standing (inward frac {s.WorstInwardFrac:F2} > {LegStraightStanceMaxInwardFrac}, onset reach {onset}) -- knees bend toward the centerline at full extension");
+            if (s.FlipSensitivity > LegStraightStanceMaxFlipSens)
+                return (false, $"standing knee is flip-sensitive: a tiny uneven-feet/waist-tilt swings the pole inward by {s.FlipSensitivity:F2} (to {s.WorstPerturbedInwardFrac:F2}) > {LegStraightStanceMaxFlipSens} -- near-singular coin-flip (the L/R asymmetry)");
+            return (true, $"forward (minFwd {s.MinForwardFrac:F2}, worstInward {s.WorstInwardFrac:F2}); under tilt worstInward {s.WorstPerturbedInwardFrac:F2} flipSens {s.FlipSensitivity:F2}");
         }
 
         public static (bool pass, string reason) GateHead(in BasisHeadSweepSummary s)
@@ -520,6 +571,8 @@ namespace Basis.IK.Debugging
             if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
             if (s.TwistMaxJumpDeg > SpineBendTwistMaxJumpDeg)
                 return (false, $"spine twist jumps {s.TwistMaxJumpDeg:F0} deg across center > {SpineBendTwistMaxJumpDeg} (atan2 branch snap -- the hips-bind cancellation regressed)");
+            if (s.LookDownTwistMaxJumpDeg > SpineBendTwistMaxJumpDeg)
+                return (false, $"spine twist jumps {s.LookDownTwistMaxJumpDeg:F0} deg looking down through vertical > {SpineBendTwistMaxJumpDeg} (the vertical-gaze azimuth fade regressed -- chest snaps out of the way)");
             if (s.MaxClampOverDeg > 0.05f)
                 return (false, $"bend exceeds the asymmetric flexion clamp by {s.MaxClampOverDeg:F2} deg (limit not holding)");
             if (s.MaxDeadbandLeakDeg > 0.05f)
@@ -532,7 +585,7 @@ namespace Basis.IK.Debugging
                 return (false, $"a forward-facing lateral lean adds {s.MaxCouplingBaselineDeg:F3} deg of twist at coupling=0 > {SpineBendMaxCouplingErrDeg} (spurious yaw -- coupling not isolated)");
             if (s.MaxCouplingErrDeg > SpineBendMaxCouplingErrDeg)
                 return (false, $"bend->twist coupling off by {s.MaxCouplingErrDeg:F3} deg > {SpineBendMaxCouplingErrDeg} (euler.y != coupling * euler.z -- not a proportion of the lateral bend)");
-            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} coupling(err={s.MaxCouplingErrDeg:F3}° base={s.MaxCouplingBaselineDeg:F3}°) cases={s.Cases}");
+            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° lookDownTwistJump={s.LookDownTwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} coupling(err={s.MaxCouplingErrDeg:F3}° base={s.MaxCouplingBaselineDeg:F3}°) cases={s.Cases}");
         }
 
         // --- spine CCD twist shaping (graded + orientation-independent: a lateral head reach must BEND) ---
@@ -625,6 +678,181 @@ namespace Basis.IK.Debugging
             if (!s.TeleportAccepted)
                 return (false, "a target teleport did not re-seed instantly (limiter fights a re-pose)");
             return (true, $"rateOk easingStep={s.MaxEasingStepDeg:F2}° converged={s.ConvergeFrames}f freeAirLag={s.FreeAirMaxLagDeg:F2}° teleportOk");
+        }
+
+        // --- general-purpose One-Euro filter (Vector3 + Quaternion tracker/target smoothing) ---
+        public const float OneEuroMaxStepOvershootM = 0.02f;    // first-order low-pass must not overshoot a step
+        public const float OneEuroMaxStepFinalErrM = 0.02f;     // must converge to a held value
+        public const float OneEuroMaxNoiseRejectRatio = 0.9f;   // output must be smoother than the noisy input
+        public const float OneEuroMaxQuatNonUnit = 1e-3f;       // filtered quaternion must stay unit
+
+        // The Vector3/Quaternion One-Euro filter the rig runs on tracker/target inputs before IK (the swivel
+        // sweep only covers the scalar swivel filter). Same qualitative invariants (no calibration needed):
+        // never NaN, no overshoot on a step, converges to a held value, the smoothed vec3 output is
+        // rougher-than-input rejection ratio < 1, and the filtered quaternion stays unit. Ramp lag, glide
+        // jitter, and the quaternion smoothing ratio are reported for tuning.
+        public static (bool pass, string reason) GateOneEuro(in BasisOneEuroSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite samples (filter blew up)");
+            if (s.MaxStepOvershootM > OneEuroMaxStepOvershootM)
+                return (false, $"step overshoot {s.MaxStepOvershootM * 1000f:F0}mm > {OneEuroMaxStepOvershootM * 1000f:F0}mm (low-pass should not overshoot)");
+            if (s.StepFinalErrM > OneEuroMaxStepFinalErrM)
+                return (false, $"step did not converge: {s.StepFinalErrM * 1000f:F0}mm residual > {OneEuroMaxStepFinalErrM * 1000f:F0}mm");
+            if (s.NoiseRejectRatio >= OneEuroMaxNoiseRejectRatio)
+                return (false, $"vec3 output not smoother than the noisy input (reject ratio {s.NoiseRejectRatio:F2} >= {OneEuroMaxNoiseRejectRatio})");
+            if (s.QuatMaxNonUnit > OneEuroMaxQuatNonUnit)
+                return (false, $"filtered quaternion drifted off unit by {s.QuatMaxNonUnit:F4} > {OneEuroMaxQuatNonUnit} (re-normalization not holding)");
+            return (true, $"stepOvershoot={s.MaxStepOvershootM * 1000f:F1}mm final={s.StepFinalErrM * 1000f:F1}mm noiseReject={s.NoiseRejectRatio:F2} rampLag={s.MaxRampLagM * 1000f:F0}mm glide={s.MaxGlideJitterM * 1000f:F2}mm quat(reject={s.QuatNoiseRejectRatio:F2} glide={s.QuatMaxGlideJitterDeg:F3}° nonUnit={s.QuatMaxNonUnit:F4})");
+        }
+
+        // --- eye gaze / saccade / vergence (BasisEyeState.Update) ---
+        public const float EyeMaxClampOvershootDeg = 0.5f;  // gaze must stay under the maxAngle clamp
+        public const float EyeMaxJumpOvershootDeg = 1.0f;   // eyes must not overshoot a fast target jump
+        public const float EyeMaxSymmetryDeg = 2.0f;        // the two eyes must verge symmetrically about the focal
+
+        // The per-eye gaze driver: gaze must never leave the maxAngle clamp, both eyes must verge TOWARD the
+        // focal point (not away / not crossed), personality-driven idle saccades must hold within their bounds,
+        // and the two eyes must stay symmetric. Repro guards (vergence sampled, saccades measured) ensure the
+        // sweep actually exercised the state machine. Eye tracking is the maintainer's focus area.
+        public static (bool pass, string reason) GateEye(in BasisEyeSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite eye samples (gaze math blew up)");
+            if (s.ClampOvershootDeg > EyeMaxClampOvershootDeg)
+                return (false, $"gaze exceeds the maxAngle clamp by {s.ClampOvershootDeg:F1} deg > {EyeMaxClampOvershootDeg} (clamp not holding; maxGaze {s.MaxGazeAngleDeg:F0} vs {s.ClampDeg:F0})");
+            if (s.VergenceSamples <= 0) return (false, "vergence never sampled (sweep not exercising gaze)");
+            if (s.VergenceWrongSign > 0)
+                return (false, $"{s.VergenceWrongSign}/{s.VergenceSamples} eye-frames verged to the wrong side of the focal point (vergence sign inverted)");
+            if (s.JumpMovedTowardOk != 1)
+                return (false, "eyes moved AWAY from the jump target (diverged instead of converging)");
+            if (s.JumpMaxOvershootDeg > EyeMaxJumpOvershootDeg)
+                return (false, $"eyes overshoot the jump target by {s.JumpMaxOvershootDeg:F1} deg > {EyeMaxJumpOvershootDeg}");
+            if (s.SaccadeIntervals <= 0) return (false, "no idle saccades measured (state machine not advancing)");
+            if (s.SaccadeOutOfBounds > 0)
+                return (false, $"{s.SaccadeOutOfBounds} saccade holds fell outside the personality [{s.PersonalityHoldMinSec:F2},{s.PersonalityHoldMaxSec:F2}]s bounds (measured {s.SaccadeMinHoldSec:F2}..{s.SaccadeMaxHoldSec:F2}s)");
+            if (s.MaxSymmetryDeg > EyeMaxSymmetryDeg)
+                return (false, $"left/right gaze asymmetric by {s.MaxSymmetryDeg:F1} deg > {EyeMaxSymmetryDeg} (eyes not verging symmetrically about the focal)");
+            return (true, $"maxGaze={s.MaxGazeAngleDeg:F0}/{s.ClampDeg:F0}° vergenceWrong={s.VergenceWrongSign}/{s.VergenceSamples} jump(toward overshoot={s.JumpMaxOvershootDeg:F1}°) holds {s.SaccadeMinHoldSec:F2}..{s.SaccadeMaxHoldSec:F2}s in [{s.PersonalityHoldMinSec:F2},{s.PersonalityHoldMaxSec:F2}] sym={s.MaxSymmetryDeg:F1}°");
+        }
+
+        // --- secondary bone-chain sim stability (BasisBoneSimChainJob) ---
+        public const float BoneSimMaxQuatNonUnit = 1e-3f;   // outgoing quaternion must stay unit
+        public const float BoneSimMaxEnergyGain = 0.02f;    // output rotation must not grow past its drive
+        public const float BoneSimMaxRootPosLagM = 0.05f;   // smoothed root must catch its target
+        public const float BoneSimMaxChildPosLagM = 0.10f;  // target-follow child must catch its parent+offset
+        public const float BoneSimMaxOscResidualDeg = 3f;   // sustained osc must not overshoot the drive envelope
+        public const float BoneSimMaxOscResidualM = 0.02f;
+        public const float BoneSimMaxSettleRatio = 1.1f;    // late-window output/drive range (>this = ringing)
+
+        // The stateful per-frame smoother (lerp from LastRun toward destination). A feedback smoother fails by
+        // blowing up (NaN), de-normalizing or GROWING its quaternion (energy gain), never catching the target
+        // (unbounded lag), or ringing (output range exceeds the drive). This is a correctness/stability gate --
+        // the chain Simulate path is intentionally serial; nothing here is about parallelism.
+        public static (bool pass, string reason) GateBoneSim(in BasisBoneSimStabilitySweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0 || s.Scenarios <= 0) return (false, "no ticks");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} NaN/Inf in the bone-sim recurrence (the chain blew up)");
+            if (s.MaxQuatNonUnit > BoneSimMaxQuatNonUnit)
+                return (false, $"outgoing quaternion drifted {s.MaxQuatNonUnit:F4} off unit > {BoneSimMaxQuatNonUnit} (not renormalized)");
+            if (s.MaxQuatEnergyGain > BoneSimMaxEnergyGain)
+                return (false, $"output rotation grew {s.MaxQuatEnergyGain:F3}x past its drive > {BoneSimMaxEnergyGain} (energy gain / divergence)");
+            if (s.MaxRootPosLagM > BoneSimMaxRootPosLagM || s.MaxChildPosLagM > BoneSimMaxChildPosLagM)
+                return (false, $"chain never catches the target: lag root {s.MaxRootPosLagM * 1000f:F0}mm child {s.MaxChildPosLagM * 1000f:F0}mm (> {BoneSimMaxRootPosLagM * 1000f:F0}/{BoneSimMaxChildPosLagM * 1000f:F0}mm)");
+            if (s.OscResidualDeg > BoneSimMaxOscResidualDeg || s.OscResidualM > BoneSimMaxOscResidualM || s.SettleRatio > BoneSimMaxSettleRatio)
+                return (false, $"sustained self-oscillation/ringing: osc {s.OscResidualDeg:F1}° {s.OscResidualM * 1000f:F0}mm settleRatio {s.SettleRatio:F2} (> {BoneSimMaxOscResidualDeg}°/{BoneSimMaxOscResidualM * 1000f:F0}mm/{BoneSimMaxSettleRatio})");
+            return (true, $"nonUnit={s.MaxQuatNonUnit:F4} energyGain={s.MaxQuatEnergyGain:F3} lag(root={s.MaxRootPosLagM * 1000f:F0}mm child={s.MaxChildPosLagM * 1000f:F0}mm) settle(deg={s.StepSettleErrDeg:F1} m={s.StepSettleErrM * 1000f:F0}mm ratio={s.SettleRatio:F2})");
+        }
+
+        // --- procedural blink timing (BasisLocalFacialBlinkDriver) ---
+        public const float BlinkMaxIntervalTolS = 0.05f;  // slack on the random inter-blink band (quantization)
+        public const float BlinkMaxCloseDurErrS = 0.05f;  // measured close duration vs blinkDuration
+        public const float BlinkMaxRestWeight = 1f;       // eyelid must return to rest (0) between blinks (0..100 scale)
+
+        // The blink scheduler: every random inter-blink wait must land in [min,max], each close must match its
+        // configured duration, the eyelid weight must stay in range and return to rest between blinks, blinks
+        // must never overlap, and nothing goes NaN. (Faithful re-implementation of the driver's timing math.)
+        public static (bool pass, string reason) GateBlinkTiming(in BasisBlinkTimingSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.Blinks <= 0) return (false, "no blinks fired (scheduler not advancing)");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite eyelid samples (the blink sim blew up)");
+            if (s.IntervalUnderMinS > BlinkMaxIntervalTolS)
+                return (false, $"a blink fired {s.IntervalUnderMinS * 1000f:F0}ms below minBlinkInterval > {BlinkMaxIntervalTolS * 1000f:F0}ms");
+            if (s.IntervalOverMaxS > BlinkMaxIntervalTolS)
+                return (false, $"a blink wait ran {s.IntervalOverMaxS * 1000f:F0}ms over maxBlinkInterval > {BlinkMaxIntervalTolS * 1000f:F0}ms");
+            if (s.MaxCloseDurationErrS > BlinkMaxCloseDurErrS)
+                return (false, $"blink close duration off by {s.MaxCloseDurationErrS * 1000f:F0}ms from blinkDuration > {BlinkMaxCloseDurErrS * 1000f:F0}ms");
+            if (s.MaxWeight > 101f || s.MinWeight < -1f)
+                return (false, $"eyelid weight left [0,100]: min {s.MinWeight:F1} max {s.MaxWeight:F1}");
+            if (s.MaxRestWeight > BlinkMaxRestWeight)
+                return (false, $"eyelid not at rest between blinks ({s.MaxRestWeight:F1} weight) -- close/open didn't return to 0");
+            if (s.OverlapCount > 0)
+                return (false, $"{s.OverlapCount} blinks overlapped (a new blink fired mid-close)");
+            return (true, $"blinks={s.Blinks} interval={s.MinIntervalS:F1}..{s.MaxIntervalS:F1}s (under {s.IntervalUnderMinS * 1000f:F0}ms over {s.IntervalOverMaxS * 1000f:F0}ms) closeErr={s.MaxCloseDurationErrS * 1000f:F0}ms weight[{s.MinWeight:F0},{s.MaxWeight:F0}] rest={s.MaxRestWeight:F1} overlaps={s.OverlapCount}");
+        }
+
+        // --- locomotion vertical model (BasisLocalCharacterDriver, pure-kinematic re-implementation) ---
+        public const float LocomotionMaxApexErrM = 0.02f;          // jump apex must equal the configured jumpHeight
+        public const float LocomotionMaxCoyoteErrS = 0.03f;        // coyote window vs configured (one dt + slack)
+        public const float LocomotionMaxRecoveryReversalM = 1e-3f; // landing recovery must be monotone
+
+        // The deterministic vertical math: a ballistic jump must apex at jumpHeight (validates the
+        // gravity<->jumpHeight energy relation), the coyote window must equal its configured duration, and the
+        // landing dip must recover monotonically back to rest. Out of scope: CharacterController.Move/colliders.
+        public static (bool pass, string reason) GateLocomotion(in BasisLocomotionSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite samples (locomotion math blew up)");
+            // Semi-implicit Euler's SAMPLED apex undershoots the true apex by ~v0*dt/2 (the half-step sampling
+            // miss) -- the live FixedUpdate jump undershoots identically, so that's correct, not a broken
+            // relation. Tolerate that dt-scaled bound (with margin); a genuinely broken gravity<->jumpHeight
+            // relation is off by far more (e.g. a dropped *2 halves the apex).
+            float apexTol = s.ApexDiscretizationBoundM * 1.5f;
+            if (apexTol < LocomotionMaxApexErrM) apexTol = LocomotionMaxApexErrM;
+            if (s.ApexErrM > apexTol)
+                return (false, $"jump apex {s.SimApexHeightM:F3}m off the configured {s.ConfiguredJumpHeightM:F3}m by {s.ApexErrM * 1000f:F0}mm > {apexTol * 1000f:F0}mm tol (gravity<->jumpHeight relation broken; discretization bound {s.ApexDiscretizationBoundM * 1000f:F0}mm)");
+            if (s.CoyoteErrS > LocomotionMaxCoyoteErrS)
+                return (false, $"coyote window {s.MeasuredCoyoteS:F3}s off configured {s.ConfiguredCoyoteS:F3}s by {s.CoyoteErrS * 1000f:F0}ms > {LocomotionMaxCoyoteErrS * 1000f:F0}ms");
+            if (s.LandingRecoveryReversalM > LocomotionMaxRecoveryReversalM)
+                return (false, $"landing recovery re-deepened {s.LandingRecoveryReversalM * 1000f:F1}mm > {LocomotionMaxRecoveryReversalM * 1000f:F1}mm (non-monotone)");
+            if (!s.LandingSettled)
+                return (false, "landing dip never returned to rest within its recovery horizon");
+            return (true, $"apex={s.SimApexHeightM:F3}/{s.ConfiguredJumpHeightM:F3}m (err {s.ApexErrM * 1000f:F0}mm) v0={s.LaunchVelocity:F2}m/s coyote={s.MeasuredCoyoteS:F3}/{s.ConfiguredCoyoteS:F3}s dip={s.LandingPeakDipM:F3}m settle={s.LandingSettleTimeS:F2}s");
+        }
+
+        // --- virtual spine temporal dynamics (BasisVirtualSpineSolveJob, runtime per-frame solve) ---
+        public const float VSpineTemporalMaxStepDeg = 5f;       // torso yaw 2nd-diff on smooth head motion (stepping)
+        public const float VSpineTemporalMaxAboveHeadM = 1e-3f; // hips must never sit above the head (the flip)
+        public const float VSpineTemporalMaxCatchupDeg = 15f;   // torso must catch the head after it stops (relock)
+        public const float VSpineTemporalMinEngageFollow = 0.9f; // repro guard: the deadzone must actually break
+
+        // The runtime spine solve carries per-frame state the static spine sweeps can't reach: a yaw deadzone
+        // that holds the torso heading, eases a follow weight in to catch up past the cone, then relocks when the
+        // head stops; plus a hips counterbalance. The dynamics fail by SNAPPING as the deadzone relocks, STEPPING
+        // on smooth head motion, driving the hips ABOVE the head (flip), or failing to CATCH UP after the head
+        // stops. Reuses TrajMaxPopDeg for the snap threshold. Pop/step thresholds calibrate against a known-good run.
+        public static (bool pass, string reason) GateVirtualSpineTemporal(in BasisVirtualSpineTemporalSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite torso samples (the spine solve blew up)");
+            if (s.MaxTorsoFollow < VSpineTemporalMinEngageFollow)
+                return (false, $"torso never broke the yaw deadzone (follow peaked {s.MaxTorsoFollow:F2} < {VSpineTemporalMinEngageFollow}) -- sweep not exercising the catch-up");
+            if (s.MaxOutputPopDeg > TrajMaxPopDeg)
+                return (false, $"torso yaw snaps {s.MaxOutputPopDeg:F0}° in one frame > {TrajMaxPopDeg} (deadzone relock pop)");
+            if (s.MaxHipsYawStepDeg > VSpineTemporalMaxStepDeg || s.MaxChestYawStepDeg > VSpineTemporalMaxStepDeg)
+                return (false, $"torso yaw steps on smooth head motion (hips {s.MaxHipsYawStepDeg:F1}° chest {s.MaxChestYawStepDeg:F1}°/frame) > {VSpineTemporalMaxStepDeg} (stepping/jitter)");
+            if (s.MaxHipsAboveHeadM > VSpineTemporalMaxAboveHeadM)
+                return (false, $"hips driven {s.MaxHipsAboveHeadM * 100f:F1}cm above the head > {VSpineTemporalMaxAboveHeadM * 100f:F1}cm (torso flip)");
+            if (s.FinalCatchupErrDeg > VSpineTemporalMaxCatchupDeg)
+                return (false, $"torso {s.FinalCatchupErrDeg:F0}° off the head after it stopped > {VSpineTemporalMaxCatchupDeg} (relock didn't complete)");
+            return (true, $"follow={s.MaxTorsoFollow:F2} pop={s.MaxOutputPopDeg:F0}° step(hips={s.MaxHipsYawStepDeg:F1} chest={s.MaxChestYawStepDeg:F1})° aboveHead={s.MaxHipsAboveHeadM * 100f:F1}cm catchUp={s.FinalCatchupErrDeg:F0}°");
         }
     }
 }

@@ -292,6 +292,7 @@ namespace Basis.IK.Debugging
             public float WorstPopDeg;
             public float WorstRoughDeg;
             public float WorstElbowJitterM;  // worst |noisy elbow - clean elbow| in metres (temporal runs)
+            public float WorstSwivelRangeDeg; // worst per-path (max-min) elbow-swivel excursion (temporal); a full-extension pole flip swings the elbow far even when the per-frame rate limit keeps each step tiny
             public string Error;
         }
 
@@ -336,15 +337,39 @@ namespace Basis.IK.Debugging
                 {
                     return shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
                 }
+                // A point at a FIXED extension (reach * armLen) in the (fx,fy,fz) direction -- the seed for
+                // the full-extension arcs, where the elbow pole collapses onto the shoulder->hand axis.
+                Vector3 Sphere(float fx, float fy, float fz, float reach)
+                {
+                    Vector3 d = new Vector3(fx * mirror, fy, fz);
+                    float m = d.magnitude;
+                    d = m > 1e-6f ? d / m : Vector3.forward;
+                    return shoulder + d * (reach * armLen);
+                }
 
-                string[] pathNames = { "across", "vertical", "reach-up-across", "circle" };
+                // "ext-*" hold the hand near full extension (reach ~0.95, well-conditioned but nearly straight)
+                // and sweep its DIRECTION so the elbow pole has to rotate right where it is most ill-defined --
+                // the "extend the arm out fully and it flips" case the moderate-reach paths above never enter.
+                string[] pathNames = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach" };
                 Vector3[][] pathPts =
                 {
                     BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
                     BasisIKTrajectoryScan.Line(F3(0.10f, -0.80f, 0.30f), F3(0.10f, 0.70f, 0.30f), 160),
                     BasisIKTrajectoryScan.Line(F3(0.60f, -0.60f, 0.20f), F3(-0.50f, 0.50f, 0.30f), 160),
                     BasisIKTrajectoryScan.Circle(F3(0f, -0.10f, 0.40f), new Vector3(mirror, 0f, 0f), new Vector3(0f, 1f, 0f), 0.50f * armLen, 200),
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.75f, -0.15f, 0.70f, 0.95f), Sphere(-0.75f, -0.15f, 0.70f, 0.95f), 160),
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.10f, -0.65f, 0.60f, 0.95f), Sphere(0.10f, 0.55f, 0.60f, 0.95f), 160),
+                    // Radial push straight out to (near) full extension -- the elbow pole collapses at the far
+                    // end (>0.985 reported as the singularity below); the band up to it must not flip.
+                    BasisIKTrajectoryScan.Line(Sphere(0.12f, -0.18f, 1.0f, 0.55f), Sphere(0.12f, -0.18f, 1.0f, 0.99f), 160),
                 };
+
+                // At true full extension (arm dead straight) the pole is genuinely undefined, so a stateless
+                // solve must flip there -- the live rate limiter handles it (see RunTemporal / the NUnit
+                // sweeps). Report those samples as the singularity, not a gate-failing pop, the way the leg /
+                // elbow-protect scans do; the ext arcs stay at ~0.95 so the gate still fails on a flip in the
+                // well-conditioned extended band (the real bug).
+                System.Func<Vector3, bool> isSingular = t => (t - shoulder).magnitude > 0.985f * armLen;
 
                 var results = new BasisTrajectoryResult[pathNames.Length];
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
@@ -356,7 +381,7 @@ namespace Basis.IK.Debugging
                     var sb = new StringBuilder(128);
                     for (int pi = 0; pi < pathNames.Length; pi++)
                     {
-                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 4242 + pi);
+                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 4242 + pi, isSingular: isSingular);
                         Vector3[] pts = pathPts[pi];
                         for (int s = 0; s < pts.Length; s++)
                         {
@@ -425,16 +450,31 @@ namespace Basis.IK.Debugging
                 NativeArray<Vector3> tbl = table;
 
                 Vector3 F3(float fx, float fy, float fz) => shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
-                string[] names = { "across", "vertical", "reach-up-across", "circle" };
+                // Hand at a FIXED extension (reach * armLen); seeds the full-extension arcs (see RunTrajectories).
+                Vector3 Sphere(float fx, float fy, float fz, float reach)
+                {
+                    Vector3 d = new Vector3(fx * mirror, fy, fz);
+                    float m = d.magnitude;
+                    d = m > 1e-6f ? d / m : Vector3.forward;
+                    return shoulder + d * (reach * armLen);
+                }
+                // ext-* sweep the hand at ~0.95 reach (nearly straight): the live rate limiter must keep the
+                // elbow from snapping AND from slewing the whole way around -- the full-extension pole flip.
+                string[] names = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach" };
                 Vector3[][] paths =
                 {
                     BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
                     BasisIKTrajectoryScan.Line(F3(0.10f, -0.80f, 0.30f), F3(0.10f, 0.70f, 0.30f), 160),
                     BasisIKTrajectoryScan.Line(F3(0.60f, -0.60f, 0.20f), F3(-0.50f, 0.50f, 0.30f), 160),
                     BasisIKTrajectoryScan.Circle(F3(0f, -0.10f, 0.40f), new Vector3(mirror, 0f, 0f), new Vector3(0f, 1f, 0f), 0.50f * armLen, 200),
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.75f, -0.15f, 0.70f, 0.95f), Sphere(-0.75f, -0.15f, 0.70f, 0.95f), 160),
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.10f, -0.65f, 0.60f, 0.95f), Sphere(0.10f, 0.55f, 0.60f, 0.95f), 160),
+                    // Push straight out to near full extension: as the arm straightens the elbow pole collapses,
+                    // and the live rate-limited feed must keep the elbow tucked instead of slewing around.
+                    BasisIKTrajectoryScan.Line(Sphere(0.12f, -0.18f, 1.0f, 0.55f), Sphere(0.12f, -0.18f, 1.0f, 0.99f), 160),
                 };
                 var results = new BasisTrajectoryResult[names.Length];
-                float worstPop = 0f, worstRough = 0f, worstJitterM = 0f;
+                float worstPop = 0f, worstRough = 0f, worstJitterM = 0f, worstSwivelRange = 0f;
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
                 {
                     w.WriteLine("# BasisArmIKTemporal " + System.DateTime.UtcNow.ToString("o") +
@@ -449,6 +489,7 @@ namespace Basis.IK.Debugging
                         Vector3 cElbow = restElbow, cHand = restHand; // clean reference feedback state
                         var rng = new System.Random(9000 + pi);
                         float maxJump = 0f, prev = float.NaN, sdPrev = float.NaN, maxJitter = 0f;
+                        float swMin = float.PositiveInfinity, swMax = float.NegativeInfinity; // swivel excursion over the path
                         double roughSum = 0.0; int roughN = 0, pops = 0;
                         for (int s = 0; s < pts.Length; s++)
                         {
@@ -469,6 +510,7 @@ namespace Basis.IK.Debugging
                             float sw = Swivel(shoulder, nHand, noisyElbow);
                             float jitter = (noisyElbow - cleanElbow).magnitude;
                             if (jitter > maxJitter) maxJitter = jitter;
+                            if (!float.IsNaN(sw)) { if (sw < swMin) swMin = sw; if (sw > swMax) swMax = sw; }
 
                             sb.Clear();
                             sb.Append(names[pi]).Append(',').Append(s).Append(',');
@@ -496,10 +538,13 @@ namespace Basis.IK.Debugging
                         if (maxJump > worstPop) worstPop = maxJump;
                         if (results[pi].CleanRoughDeg > worstRough) worstRough = results[pi].CleanRoughDeg;
                         if (maxJitter > worstJitterM) worstJitterM = maxJitter;
+                        float swivelRange = swMax >= swMin ? swMax - swMin : 0f;
+                        if (swivelRange > worstSwivelRange) worstSwivelRange = swivelRange;
                     }
                 }
                 summary.Ok = true; summary.Results = results; summary.WorstPopDeg = worstPop;
                 summary.WorstRoughDeg = worstRough; summary.WorstElbowJitterM = worstJitterM;
+                summary.WorstSwivelRangeDeg = worstSwivelRange;
             }
             catch (System.Exception e) { summary.Ok = false; summary.Error = e.Message; }
             finally { if (table.IsCreated) table.Dispose(); }

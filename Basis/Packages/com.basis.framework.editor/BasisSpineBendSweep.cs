@@ -36,6 +36,7 @@ namespace Basis.IK.Debugging
         public float MaxSquishErr;        // squish multiplier outside [1-boost, 1+boost]
         public float MaxYawSplitErr;      // PelvicTwistRouting off the 25/75 spine:upperChest split
         public float TwistMaxJumpDeg;     // worst frame-to-frame raw twist jump across center (branch snap)
+        public float LookDownTwistMaxJumpDeg; // worst twist jump as the gaze pitches through vertical (look-down snap)
         public float MaxCouplingErrDeg;     // bend->twist coupling: euler.y vs coupling * euler.z (forward-facing lean)
         public float MaxCouplingBaselineDeg; // yaw produced at coupling=0 with a forward-facing lean (must be ~0)
         public int Failures;
@@ -65,7 +66,7 @@ namespace Basis.IK.Debugging
 
             int cases = 0, nan = 0, fails = 0;
             float mClamp = 0f, mLeak = 0f, mSquish = 0f, mSplit = 0f, mTwistJump = 0f;
-            float mCoupling = 0f, mCouplingBase = 0f;
+            float mCoupling = 0f, mCouplingBase = 0f, mLookDownJump = 0f;
 
             try
             {
@@ -236,6 +237,49 @@ namespace Basis.IK.Debugging
                             w.WriteLine(sb.ToString());
                         }
                     }
+
+                    // ---- Pass D: look-down twist continuity (head PITCH across vertical) ----
+                    // The facing azimuth (twistY) is singular at vertical gaze -- looking straight down
+                    // collapses the head-forward's horizontal projection, so the azimuth flips ~180 deg
+                    // across the pole and snapped the chest/upperChest sideways. The fade must keep the
+                    // applied twist continuous as the gaze pitches through straight-down. (Pass B covers
+                    // the same branch cut for horizontal turning; this is the look-DOWN axis.)
+                    {
+                        Vector3 chestD = hips + Vector3.up * 0.2f;
+                        Vector3 headD = hips + Vector3.up * k_RestLen; // above hips -> isolate twist
+                        foreach (float yaw in new[] { 0f, 20f, -20f })
+                        {
+                            float prevTwist = 0f; bool havePrev = false;
+                            for (int pi = 0; pi < ts; pi++)
+                            {
+                                float phi = Mathf.Lerp(-95f, 95f, pi / (float)(ts - 1));
+                                Quaternion headRot = Quaternion.AngleAxis(yaw, Vector3.up) * Quaternion.AngleAxis(phi, Vector3.right);
+                                BasisSpineBendInput input = MakeInput(Quaternion.identity, hips, chestD, headD,
+                                    Quaternion.identity, headRot, 0f, false, false, 90f); // weights 1, maxLat 90: read the raw twist
+                                BasisSpineBendCore.Solve(input, out BasisSpineBendResult r);
+
+                                bool hadNaN = float.IsNaN(r.TwistY) || float.IsInfinity(r.TwistY);
+                                float jump = 0f;
+                                if (havePrev && !hadNaN) jump = Mathf.Abs(r.TwistY - prevTwist);
+                                prevTwist = r.TwistY; havePrev = true;
+
+                                cases++;
+                                if (hadNaN) nan++;
+                                if (jump > mLookDownJump) mLookDownJump = jump;
+                                bool fail = hadNaN || jump > 30f;
+                                if (fail) fails++;
+
+                                sb.Clear();
+                                sb.Append("lookdown,");
+                                Append(sb, yaw); Append(sb, phi); Append(sb, 0f); Append(sb, 0f);
+                                Append(sb, r.BendGate); Append(sb, r.SquishMult); Append(sb, r.TwistY);
+                                Append(sb, 0f); Append(sb, 0f); Append(sb, 0f); Append(sb, 0f); Append(sb, 0f);
+                                Append(sb, jump);
+                                sb.Append(fail ? '1' : '0');
+                                w.WriteLine(sb.ToString());
+                            }
+                        }
+                    }
                 }
 
                 summary.Ok = true;
@@ -246,6 +290,7 @@ namespace Basis.IK.Debugging
                 summary.MaxSquishErr = mSquish;
                 summary.MaxYawSplitErr = mSplit;
                 summary.TwistMaxJumpDeg = mTwistJump;
+                summary.LookDownTwistMaxJumpDeg = mLookDownJump;
                 summary.MaxCouplingErrDeg = mCoupling;
                 summary.MaxCouplingBaselineDeg = mCouplingBase;
                 summary.Failures = fails;
