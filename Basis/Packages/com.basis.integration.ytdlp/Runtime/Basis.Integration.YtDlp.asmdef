@@ -1,0 +1,32 @@
+{
+    "name": "Basis.Integration.YtDlp",
+    "rootNamespace": "Basis.Integration.YtDlp",
+    "references": [
+        "BasisMediaPlayer",
+        "BasisDebug",
+        "YtDlp.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BASIS_MEDIAPLAYER_EXISTS",
+        "YTDLP_EXISTS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.basis.mediaplayer",
+            "expression": "",
+            "define": "BASIS_MEDIAPLAYER_EXISTS"
+        },
+        {
+            "name": "com.yewnyx.ytdlp",
+            "expression": "",
+            "define": "YTDLP_EXISTS"
+        }
+    ],
+    "noEngineReferences": false
+}
