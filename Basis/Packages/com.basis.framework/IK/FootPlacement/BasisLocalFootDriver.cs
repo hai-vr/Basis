@@ -101,6 +101,9 @@ public partial class BasisLocalFootDriver
     [Tooltip("Min dynamic step height at slow speed (fraction of max).")]
     [SerializeField, Range(0.0f, 1.0f)]
     private float stepHeightMinFraction = 0.4f;
+    [Tooltip("Stride length (fraction of leg) at which step lift reaches its full height.")]
+    [SerializeField, Range(0.2f, 0.8f)]
+    private float stepHeightStrideRefFraction = 0.45f;
 
     [Header("Idle Behavior")]
     [Tooltip("Speed below which player is considered idle.")]
