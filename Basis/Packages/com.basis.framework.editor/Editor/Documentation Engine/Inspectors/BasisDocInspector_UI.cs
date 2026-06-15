@@ -28,6 +28,7 @@ public class BasisDocInspector_UI : Editor
     private List<MemberRow> _all = new();
     private List<MemberRow> _view = new();
     private readonly List<NavFrame> _nav = new();
+    private readonly static Dictionary<Type, bool> _shouldHandleTypeCache = new();
 
     // ---------- UI ----------
     private VisualElement _breadcrumbs;
@@ -151,9 +152,15 @@ public class BasisDocInspector_UI : Editor
         if (_db == null) return false;
         if (!typeof(MonoBehaviour).IsAssignableFrom(t)) return false;
         if (!IsOurs(t, t)) return false;
+        if (_shouldHandleTypeCache.TryGetValue(t, out var cached)) return cached;
 
         foreach (var mi in ReflectMembersForProbe(t))
-            if (DbHasDocsFor(mi)) return true;
+            if (DbHasDocsFor(mi))
+            {
+                _shouldHandleTypeCache.Add(t, true);
+                return true;
+            }
+        _shouldHandleTypeCache.Add(t, false);
         return false;
     }
 
