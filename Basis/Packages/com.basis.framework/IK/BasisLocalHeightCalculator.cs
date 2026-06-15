@@ -156,7 +156,7 @@ public static class BasisLocalHeightCalculator
             return forward.y;
         }
 
-        BasisDebug.Log($"Pitch calibration: up=({up.x:F3},{up.y:F4}) down=({down.x:F3},{down.y:F4}) forward=({forward.x:F3},{forward.y:F4}) corrected={corrected:F4}", BasisDebug.LogTag.Avatar);
+     //   BasisDebug.Log($"Pitch calibration: up=({up.x:F3},{up.y:F4}) down=({down.x:F3},{down.y:F4}) forward=({forward.x:F3},{forward.y:F4}) corrected={corrected:F4}", BasisDebug.LogTag.Avatar);
         return corrected;
     }
     public static void CalculateAvatarEyeHeight()

@@ -30,6 +30,8 @@ public struct BasisFootSimState
     public float3 smoothedVelocity;
     public float3 smoothedBodyFwd;
     public float3 smoothedBodyRight;
+    public float3 prevBodyFwd;          // last frame's body forward, for yaw-rate
+    public float smoothedYawRateDeg;    // body turn rate (deg/s), paces stepping during turns/spins
 }
 
 public struct BasisFootSimInput

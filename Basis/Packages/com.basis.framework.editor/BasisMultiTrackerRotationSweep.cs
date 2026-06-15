@@ -184,9 +184,8 @@ namespace Basis.IK.Debugging
 
                         var state = BasisMidpointFusionState.Fresh();
                         var rng = new System.Random(5000 + ti);
-                        Quaternion fusedCalInv = Quaternion.identity, RcalInv = Quaternion.identity, prevFused = Quaternion.identity;
+                        Quaternion fusedCalInv = Quaternion.identity, RcalInv = Quaternion.identity, prevErrQ = Quaternion.identity;
                         bool haveCal = false;
-                        float prevStep = 0f;
                         int settleFrame = -1;
 
                         for (int f = 0; f < total; f++)
@@ -208,21 +207,24 @@ namespace Basis.IK.Debugging
                             {
                                 fusedCalInv = Quaternion.Inverse(fused);
                                 RcalInv = Quaternion.Inverse(R);
-                                prevFused = fused;
                                 haveCal = true;
                             }
 
                             Quaternion fusedDelta = fused * fusedCalInv;
                             Quaternion bodyDelta = R * RcalInv;
-                            float err = Quaternion.Angle(fusedDelta, bodyDelta);
+                            // The fusion's deviation from ideal rigid tracking. A clean tracker holds this at
+                            // identity through the body's own accelerations; only the fusion moves it.
+                            Quaternion errQ = fusedDelta * Quaternion.Inverse(bodyDelta);
+                            float err = Quaternion.Angle(errQ, Quaternion.identity);
                             float fusedYaw = YawOf(fusedDelta);
                             float bodyYaw = YawOf(bodyDelta);
                             float lag = Mathf.DeltaAngle(fusedYaw, bodyYaw); // + = fused behind body (lag); - = fused ahead (overshoot)
 
-                            // Snap metric: change in per-frame step size -- wrap-free (step is always a positive angle).
-                            float step = Quaternion.Angle(prevFused, fused);
-                            float jump = f >= 2 ? Mathf.Abs(step - prevStep) : 0f;
-                            prevStep = step; prevFused = fused;
+                            // Snap = how much that deviation moved this frame. Invariant to the body's own motion
+                            // profile (a perfect tracker reads 0 even on a hard start/stop), so it flags only
+                            // fusion-introduced discontinuities -- a tB-swing pop, a hemisphere flip, etc.
+                            float jump = f >= 2 ? Quaternion.Angle(prevErrQ, errQ) : 0f;
+                            prevErrQ = errQ;
 
                             trackErr[ti] = Mathf.Max(trackErr[ti], err);
                             if (lag > lagDeg[ti]) lagDeg[ti] = lag;

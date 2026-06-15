@@ -530,7 +530,7 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightLeft > 0.001f && footDriverReady)
                 {
                     data.LeftFootPosition = footDriver.LeftFootPosition;
-                    data.LeftFootRotation = footDriver.LeftFootRotation;
+                    data.LeftFootRotation = BasisLocalBoneDriver.LeftFootControl.OutGoingData.rotation;
                     data.EnableLeftLeg = footIKBlendWeightLeft;
                 }
                 else
@@ -547,7 +547,7 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightRight > 0.001f && footDriverReady)
                 {
                     data.RightFootPosition = footDriver.RightFootPosition;
-                    data.RightFootRotation = footDriver.RightFootRotation;
+                    data.RightFootRotation = BasisLocalBoneDriver.RightFootControl.OutGoingData.rotation;
                     data.EnableRightLeg = footIKBlendWeightRight;
                 }
                 else

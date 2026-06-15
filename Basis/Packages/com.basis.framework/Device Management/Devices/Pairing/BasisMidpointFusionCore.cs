@@ -35,7 +35,7 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
                 EmaAlpha = 0.1f,
                 DistanceEmaAlpha = 0.05f,
                 WeightSmoothing = 0.25f,
-                RotationHalfLife = 0.08f,
+                RotationHalfLife = 0f, // off by default -- the bone sim already smooths; a second low-pass lags fast turns
             };
         }
 
@@ -165,7 +165,11 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
                 float tB = wB / weightSum;
                 blendT = tB;
                 mid = aSoft * (1f - tB) + bSoft * tB;
-                midRot = BasisMidpointRotationFusion.ProjectAndSlerp(aRot, bRot, tB, s.HalfRestOffset);
+                // Rotation uses a FIXED 0.5 blend, decoupled from the position-confidence tB: the rest-offset
+                // projection makes it t-invariant for a rigid pair, and fixing it stops the fused rotation
+                // swinging across the midA/midB gap as tB shifts with motion under flex -- the snap the rotation
+                // low-pass used to mask. Position keeps the confidence blend (averaging two trackers helps there).
+                midRot = BasisMidpointRotationFusion.ProjectAndSlerp(aRot, bRot, 0.5f, s.HalfRestOffset);
 
                 // Update the velocity EMA only when the current sample isn't a clear outlier.
                 if (surpriseA <= t.SurpriseClamp) s.EmaVelA = Mathf.Lerp(s.EmaVelA, velA, t.EmaAlpha);

@@ -352,5 +352,202 @@ namespace Basis.IK.Debugging
                 return (false, $"remote FK off: comp={s.MaxCompErr:F4} segLen={s.MaxSegLenErr:F4} scale={s.MaxScaleErr:F4} m > {RemoteBoneMaxErr}");
             return (true, $"comp={s.MaxCompErr:F4} segLen={s.MaxSegLenErr:F4} scale={s.MaxScaleErr:F4} cases={s.Cases}");
         }
+
+        // --- body self-collision capsule geometry ---
+        public const float CapsuleMaxGeomErr = 1e-3f;      // closest-point param / fixed-point / symmetry (m, exact math)
+        public const float CapsuleMaxKktResidual = 1e-2f;  // interior closest point perpendicular to its segment (unit dot)
+        public const float CapsuleMaxDepthErrM = 1e-3f;    // reported push depth vs the real overlap (m)
+        public const float CapsuleMaxResidualPenMm = 2f;   // leftover penetration after the push must clear in one step
+        public const float CapsuleMaxPushOutMm = 1f;       // PushOutFromCapsule must land on the radius surface
+
+        // Capsule collision primitives (BasisFullIKConstraintJob.ClosestPointOnSegment /
+        // SegmentSegmentClosestPoints / CapsuleCapsuleResolve / PushOutFromCapsule): the geometry that
+        // keeps the hand/elbow out of the torso. These are exact, so the gate is on exact certificates --
+        // closest points on their segments and perpendicular (KKT), symmetric under swap, the push depth
+        // equals the overlap and resolves it, and never NaN at degenerate (point/parallel/coincident) inputs.
+        public static (bool pass, string reason) GateCapsuleCollision(in BasisCapsuleCollisionSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.OverlapCases <= 0) return (false, "no penetrating pairs (sweep not exercising the resolve)");
+            if (s.NaNCount > 0)
+                return (false, $"{s.NaNCount} cases produced non-finite closest points / push (degenerate input not handled)");
+            if (s.MaxClosestParamErr > CapsuleMaxGeomErr || s.MaxFixedPointErr > CapsuleMaxGeomErr || s.MaxSymmetryErr > CapsuleMaxGeomErr)
+                return (false, $"closest-point off: param={s.MaxClosestParamErr:F5} fixedPoint={s.MaxFixedPointErr:F5} sym={s.MaxSymmetryErr:F5} m > {CapsuleMaxGeomErr}");
+            if (s.MaxKktResidual > CapsuleMaxKktResidual)
+                return (false, $"interior closest point not perpendicular to its segment (kkt {s.MaxKktResidual:F4} > {CapsuleMaxKktResidual}) -- not the true minimum");
+            if (s.MaxPenetrationDepthErr > CapsuleMaxDepthErrM)
+                return (false, $"push depth off by {s.MaxPenetrationDepthErr:F5} m > {CapsuleMaxDepthErrM} (over/under-resolves penetration)");
+            if (s.MaxResidualPenMm > CapsuleMaxResidualPenMm)
+                return (false, $"{s.MaxResidualPenMm:F1}mm penetration left after the push on a shallow overlap > {CapsuleMaxResidualPenMm}mm (MTD push not separating its design regime)");
+            if (s.MaxPushOutSurfaceErrMm > CapsuleMaxPushOutMm)
+                return (false, $"push-out lands {s.MaxPushOutSurfaceErrMm:F1}mm off the radius surface > {CapsuleMaxPushOutMm}mm");
+            return (true, $"param={s.MaxClosestParamErr:F5} kkt={s.MaxKktResidual:F4} sym={s.MaxSymmetryErr:F5} depth={s.MaxPenetrationDepthErr:F5}m resid={s.MaxResidualPenMm:F1}mm pushout={s.MaxPushOutSurfaceErrMm:F1}mm overlap={s.OverlapCases}/{s.Cases} (deep/crossing {s.DeepOverlapCases}, worst {s.MaxDeepResidualPenMm:F0}mm, reported)");
+        }
+
+        // --- FBIK spine safety clamps ---
+        public const float SpineClampMaxPosErrM = 1e-4f;     // distance/idempotence (m, exact clamps)
+        public const float SpineClampMaxAngleErrDeg = 0.1f;  // bend/rotation limit overshoot + idempotence
+
+        // FBIK spine clamps (ClampHipsAroundHead / EnforceSpineBendLimit / AntiContortionist /
+        // MitigateSpineBuckling / ClampRotation): the guards that keep the torso from contorting. Each
+        // encodes a hard limit -- the gate proves the limit holds, the clamp is idempotent (re-clamping a
+        // clamped pose moves nothing) and a within-limit pose is left untouched. (Virtual-spine synthesis
+        // is GateSpine; this is the head/hips sanity layer.)
+        public static (bool pass, string reason) GateSpineClamp(in BasisSpineClampSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.NaNCount > 0)
+                return (false, $"{s.NaNCount} cases produced non-finite output");
+            if (s.MaxBendOverDeg > SpineClampMaxAngleErrDeg)
+                return (false, $"EnforceSpineBendLimit leaves a {s.MaxBendOverDeg:F2} deg over-bend > {SpineClampMaxAngleErrDeg} (limit not holding)");
+            if (s.MaxClampRotOverDeg > SpineClampMaxAngleErrDeg)
+                return (false, $"ClampRotation result {s.MaxClampRotOverDeg:F2} deg past the limit > {SpineClampMaxAngleErrDeg}");
+            if (s.MaxHipsClampOverErrM > SpineClampMaxPosErrM || s.MaxHipsClampDirErrDeg > SpineClampMaxAngleErrDeg)
+                return (false, $"ClampHipsAroundHead off: dist {s.MaxHipsClampOverErrM:F5} m / dir {s.MaxHipsClampDirErrDeg:F2} deg (distance clamp or ray drifted)");
+            if (s.MaxAntiContortDeficitM > SpineClampMaxPosErrM)
+                return (false, $"AntiContortionist left hips {s.MaxAntiContortDeficitM:F5} m inside its min distance > {SpineClampMaxPosErrM}");
+            if (s.MaxBucklingHorizM > SpineClampMaxPosErrM || s.MaxBucklingPushErrM > SpineClampMaxPosErrM)
+                return (false, $"MitigateSpineBuckling off: horiz drift {s.MaxBucklingHorizM:F5} / push err {s.MaxBucklingPushErrM:F5} m (not a pure vertical push)");
+            float idem = s.MaxHipsClampIdempotentM;
+            if (s.MaxBendIdempotentM > idem) idem = s.MaxBendIdempotentM;
+            if (s.MaxAntiContortIdempotentM > idem) idem = s.MaxAntiContortIdempotentM;
+            if (idem > SpineClampMaxPosErrM || s.MaxClampRotIdempotentDeg > SpineClampMaxAngleErrDeg)
+                return (false, $"a clamp is not idempotent: pos {idem:F5} m / rot {s.MaxClampRotIdempotentDeg:F2} deg (re-clamping a clamped pose moves it)");
+            return (true, $"bendOver={s.MaxBendOverDeg:F2}° rotOver={s.MaxClampRotOverDeg:F2}° hips={s.MaxHipsClampOverErrM:F5}m antiDef={s.MaxAntiContortDeficitM:F5}m idem={idem:F5}m cases={s.Cases}");
+        }
+
+        // --- hip hinge (pelvis pitch sharing forward lean) ---
+        // ApplyHipHinge must engage only past the onset, cap at the configured max, rotate the pelvis by
+        // exactly that much about a horizontal axis, grow monotonically with lean, and no-op when disabled
+        // or below onset. A disabled-but-moved or non-monotonic result is a tuning/structure regression.
+        public static (bool pass, string reason) GateHipHinge(in BasisHipHingeSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.EngagedCases <= 0) return (false, "hinge never engaged (sweep not exercising it)");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
+            if (s.DisabledMoves > 0)
+                return (false, $"{s.DisabledMoves} cases pitched the pelvis while disabled or below onset (must no-op)");
+            if (s.MaxOverAddDeg > 0.05f)
+                return (false, $"pelvis pitch {s.MaxOverAddDeg:F2} deg past the cap (MaxAddDeg not holding)");
+            if (s.MaxAngleMatchErrDeg > 0.05f)
+                return (false, $"applied rotation off the reported add by {s.MaxAngleMatchErrDeg:F2} deg");
+            if (s.MaxAxisDotUp > 1e-2f)
+                return (false, $"hinge axis not horizontal (axis·up {s.MaxAxisDotUp:F3}) -- pelvis yaws/rolls instead of pitching");
+            if (s.MonotonicViolations > 0)
+                return (false, $"{s.MonotonicViolations} cases where pitch dropped as lean grew (non-monotonic response)");
+            return (true, $"engaged={s.EngagedCases} over={s.MaxOverAddDeg:F2}° match={s.MaxAngleMatchErrDeg:F2}° axisUp={s.MaxAxisDotUp:F3} cases={s.Cases}");
+        }
+
+        // --- chest-follow spring (implicit Euler stability) ---
+        // The spring uses implicit Euler so it is unconditionally stable. The gate is exactly that claim:
+        // it must NEVER diverge across the hz/damping/fps grid (incl. low fps where explicit Euler would),
+        // well-damped configs must settle on the target, and over-damped configs must not overshoot.
+        public static (bool pass, string reason) GateChestSpring(in BasisChestSpringSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Configs <= 0) return (false, "no configs");
+            if (s.DivergedCount > 0)
+                return (false, $"{s.DivergedCount}/{s.Configs} configs diverged (NaN/blow-up) -- implicit Euler must be unconditionally stable");
+            if (s.MaxFinalErrSettling > 0.05f)
+                return (false, $"well-damped configs settle {s.MaxFinalErrSettling:F3} off the target > 0.05 (not converging)");
+            if (s.MaxOverdampedOvershoot > 0.1f)
+                return (false, $"over-damped configs overshoot by {s.MaxOverdampedOvershoot:F3} > 0.1 (should be monotone)");
+            return (true, $"stable {s.Configs}/{s.Configs} (explicit Euler would diverge on {s.ExplicitDivergedCount}); settleErr={s.MaxFinalErrSettling:F3} overdampedOvershoot={s.MaxOverdampedOvershoot:F3}");
+        }
+
+        // --- crouch body offset (sit-back when squatting) ---
+        // ApplyCrouchBodyOffset must move the hips back by exactly crouch*Factor, purely horizontally along
+        // hips-back, monotonically with crouch depth, and never while standing or disabled. A vertical leak
+        // or a standing-pose move is a regression.
+        public static (bool pass, string reason) GateCrouchOffset(in BasisCrouchOffsetSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.AppliedCases <= 0) return (false, "offset never engaged (sweep not exercising it)");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
+            if (s.StandingMoves > 0)
+                return (false, $"{s.StandingMoves} cases moved the hips while standing/disabled (must no-op)");
+            if (s.MaxMagErrM > 1e-5f)
+                return (false, $"offset magnitude off crouch*factor by {s.MaxMagErrM:F6} m");
+            if (s.MaxUpComponentM > 1e-5f)
+                return (false, $"offset has a {s.MaxUpComponentM:F6} m vertical component (must be purely horizontal)");
+            if (s.MaxDirErrDeg > 0.1f)
+                return (false, $"offset direction off hips-back by {s.MaxDirErrDeg:F2} deg");
+            if (s.MonotonicViolations > 0)
+                return (false, $"{s.MonotonicViolations} cases where the offset shrank as crouch grew (non-monotonic)");
+            return (true, $"applied={s.AppliedCases} magErr={s.MaxMagErrM:F6}m up={s.MaxUpComponentM:F6}m dir={s.MaxDirErrDeg:F2}° cases={s.Cases}");
+        }
+
+        // --- spine bend distribution (per-axis spine/upperChest) ---
+        public const float SpineBendTwistMaxJumpDeg = 30f; // raw twist step across center; a branch snap is ~180-360
+
+        // DistributeSpineBend: the asymmetric flexion clamp must hold per axis, the rest deadband must zero
+        // the bend (pitch/roll), the squish multiplier must stay in [1-boost, 1+boost], PelvicTwistRouting
+        // must keep the 25/75 spine:upperChest yaw split, and -- the documented bug -- the spine twist must
+        // stay CONTINUOUS as the head yaws across center with a yawed hips bind (no +/-360 snap).
+        public static (bool pass, string reason) GateSpineBend(in BasisSpineBendSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
+            if (s.TwistMaxJumpDeg > SpineBendTwistMaxJumpDeg)
+                return (false, $"spine twist jumps {s.TwistMaxJumpDeg:F0} deg across center > {SpineBendTwistMaxJumpDeg} (atan2 branch snap -- the hips-bind cancellation regressed)");
+            if (s.MaxClampOverDeg > 0.05f)
+                return (false, $"bend exceeds the asymmetric flexion clamp by {s.MaxClampOverDeg:F2} deg (limit not holding)");
+            if (s.MaxDeadbandLeakDeg > 0.05f)
+                return (false, $"{s.MaxDeadbandLeakDeg:F2} deg of bend leaks through the rest deadband (micro-misalignment amplified)");
+            if (s.MaxSquishErr > 1e-3f)
+                return (false, $"squish multiplier off the [1-boost,1+boost] range by {s.MaxSquishErr:F4}");
+            if (s.MaxYawSplitErr > 1e-3f)
+                return (false, $"PelvicTwistRouting off the 25/75 spine:upperChest split by {s.MaxYawSplitErr:F4}");
+            return (true, $"twistJump={s.TwistMaxJumpDeg:F1}° clampOver={s.MaxClampOverDeg:F2}° deadband={s.MaxDeadbandLeakDeg:F2}° squish={s.MaxSquishErr:F4} yawSplit={s.MaxYawSplitErr:F4} cases={s.Cases}");
+        }
+
+        // --- elbow swivel One-Euro filter ---
+        public const float SwivelMaxStepOvershootDeg = 2f;   // first-order low-pass must not overshoot a step
+        public const float SwivelMaxStepFinalErrDeg = 1f;    // must converge to a held value
+        public const float SwivelMaxNoiseRejectRatio = 0.9f; // output must be smoother than the noisy input
+
+        // SmoothElbowSwivel's One-Euro filter: it exists to kill elbow jitter without lag. The gate checks
+        // the qualitative invariants (no calibration needed): never NaN, no overshoot on a step, converges,
+        // and the smoothed output is rougher-than-input rejection ratio < 1. Ramp lag / glide jitter are
+        // reported for tuning.
+        public static (bool pass, string reason) GateSwivelFilter(in BasisSwivelFilterSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite samples (filter blew up)");
+            if (s.MaxStepOvershootDeg > SwivelMaxStepOvershootDeg)
+                return (false, $"step overshoot {s.MaxStepOvershootDeg:F2} deg > {SwivelMaxStepOvershootDeg} (low-pass should not overshoot)");
+            if (s.StepFinalErrDeg > SwivelMaxStepFinalErrDeg)
+                return (false, $"step did not converge: {s.StepFinalErrDeg:F2} deg residual > {SwivelMaxStepFinalErrDeg}");
+            if (s.NoiseRejectRatio >= SwivelMaxNoiseRejectRatio)
+                return (false, $"output not smoother than the noisy input (reject ratio {s.NoiseRejectRatio:F2} >= {SwivelMaxNoiseRejectRatio})");
+            return (true, $"overshoot={s.MaxStepOvershootDeg:F2}° final={s.StepFinalErrDeg:F2}° noiseReject={s.NoiseRejectRatio:F2} rampLag={s.MaxRampLagDeg:F1}° glide={s.MaxGlideJitterDeg:F3}°");
+        }
+
+        // --- swing continuity (collision-gated elbow swing rate limiter) ---
+        // ApplySwingContinuity must (1) never swing faster than rate*dt while easing a collision pop,
+        // (2) converge to the target, (3) follow instantly in free air (no collision change), and
+        // (4) re-seed on a target teleport. A rate violation or a stuck/laggy free-air swing is the live
+        // "elbow pop / lag" regression this guards.
+        public static (bool pass, string reason) GateSwingContinuity(in BasisSwingContinuitySweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite samples");
+            if (s.RateLimitViolations > 0)
+                return (false, $"{s.RateLimitViolations} frames swung faster than the rate limit (easing step up to {s.MaxEasingStepDeg:F1} deg)");
+            if (!s.Converged)
+                return (false, "easing never converged to the target (permanent lag after a collision pop)");
+            if (s.FreeAirMaxLagDeg > 0.5f)
+                return (false, $"free-air swing lags the target by {s.FreeAirMaxLagDeg:F2} deg > 0.5 (limiting non-collision motion)");
+            if (!s.TeleportAccepted)
+                return (false, "a target teleport did not re-seed instantly (limiter fights a re-pose)");
+            return (true, $"rateOk easingStep={s.MaxEasingStepDeg:F2}° converged={s.ConvergeFrames}f freeAirLag={s.FreeAirMaxLagDeg:F2}° teleportOk");
+        }
     }
 }

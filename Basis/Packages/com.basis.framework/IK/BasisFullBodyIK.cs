@@ -1403,124 +1403,48 @@ w20, w54;
                 return;
             }
 
-            Vector3 smoothedHead = ApplyChestSpring(stream, headTargetPos);
-
-            Vector3 hipsPos = HandleHips.GetPosition(stream);
             Quaternion hipsRot = HandleHips.GetRotation(stream);
-            Quaternion invHips = Quaternion.Inverse(hipsRot);
 
-            Vector3 chestPos = HandleChest.GetPosition(stream);
-            Vector3 localChestDir = invHips * (chestPos - hipsPos);
-            Vector3 localTargetDir = invHips * (smoothedHead - hipsPos);
+            BasisSpineBendInput input;
+            input.HipsRot = hipsRot;
+            input.HipsPos = HandleHips.GetPosition(stream);
+            input.ChestPos = HandleChest.GetPosition(stream);
+            input.SmoothedHead = ApplyChestSpring(stream, headTargetPos);
+            input.HipsBind = V4ToQuat(offsetRotationHips.Get(stream));
+            input.HeadTargetRot = V4ToQuat(targetRotationHead.Get(stream));
+            input.SpineMaxForwardDeg = spineMaxForwardDeg.Get(stream);
+            input.SpineMaxBackwardDeg = spineMaxBackwardDeg.Get(stream);
+            input.SpineMaxLateralDeg = spineMaxLateralDeg.Get(stream);
+            input.SpineBendPitch = spineBendPitch.Get(stream);
+            input.SpineBendYaw = spineBendYaw.Get(stream);
+            input.SpineBendRoll = spineBendRoll.Get(stream);
+            input.UpperBendPitch = upperChestBendPitch.Get(stream);
+            input.UpperBendYaw = upperChestBendYaw.Get(stream);
+            input.UpperBendRoll = upperChestBendRoll.Get(stream);
+            input.AnatDifferentialStiffness = anatDifferentialStiffness.Get(stream);
+            input.AnatPelvicTwistRouting = anatPelvicTwistRouting.Get(stream);
+            input.SquishBoost = spineSquishBoost.Get(stream);
+            input.RestLen = TposeLengthHeadToHips.magnitude;
+            input.HasSpine = hasSpine;
+            input.HasUpper = hasUpper;
 
-            if (localChestDir.sqrMagnitude < k_SqrEpsilon || localTargetDir.sqrMagnitude < k_SqrEpsilon)
+            BasisSpineBendCore.Solve(input, out BasisSpineBendResult r);
+            if (r.EarlyOut)
             {
                 return;
             }
 
-            Vector3 chestDirN = localChestDir.normalized;
-            Vector3 targetDirN = localTargetDir.normalized;
-            float bendPitchDeg = (Mathf.Atan2(targetDirN.z, targetDirN.y) - Mathf.Atan2(chestDirN.z, chestDirN.y)) * Mathf.Rad2Deg;
-            float bendRollDeg = (Mathf.Atan2(-targetDirN.x, targetDirN.y) - Mathf.Atan2(-chestDirN.x, chestDirN.y)) * Mathf.Rad2Deg;
-            Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
-
-            // Twist comes from head facing yaw, measured against the body's FACING (not the raw hips
-            // bone frame). The hips bone world rotation carries the calibrated bind; on rigs whose
-            // bind is yawed (~180° on some UGC avatars) the head-forward lands at z<0 in hips-local,
-            // putting atan2 on its branch cut so looking left/right across center snapped the spine
-            // twist ±360°. Removing the captured hips bind (offsetRotationHips) puts forward at +z so
-            // atan2 stays continuous. No-op when the bind ≈ identity. Forward-vector extraction also
-            // dodges the eulerAngles gimbal-lock that emits a phantom ±180° roll/yaw split at look-up/down.
-            Quaternion hipsBind = V4ToQuat(offsetRotationHips.Get(stream));
-            Quaternion headRotLocal = (hipsBind * invHips) * V4ToQuat(targetRotationHead.Get(stream));
-            Vector3 headFwdLocal = headRotLocal * Vector3.forward;
-            float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
-            float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;
-
-            float maxFwd = Mathf.Max(0f, spineMaxForwardDeg.Get(stream));
-            float maxBack = Mathf.Max(0f, spineMaxBackwardDeg.Get(stream));
-            float maxLat = Mathf.Max(0f, spineMaxLateralDeg.Get(stream));
-
-            // Squish coupling: compress → fold more, stretch → straighten.
-            float squishMult = ComputeSquishMultiplier(stream, smoothedHead - hipsPos);
-
-            // Deadband on the bend (pitch+roll) so tracker / rest-pose micro-misalignments don't
-            // get amplified into a visible chest tilt at rest. Twist is unaffected because it's
-            // driven by head facing — not by the small chest-vs-head positional offset.
-            float bendMag = Mathf.Sqrt(bendEuler.x * bendEuler.x + bendEuler.z * bendEuler.z);
-            float bendT = Mathf.Clamp01((bendMag - k_BendDeadbandDeg) / k_BendDeadbandWidthDeg);
-            float bendGate = Mathf.SmoothStep(0f, 1f, bendT);
-
-            // Effective per-axis fractions. Anatomy toggles re-route the user weights in two ways:
-            //   - DifferentialStiffness: lumbar (spine) is twist-resistant; route most twist to
-            //     upperChest by halving spine yaw and boosting upperChest yaw.
-            //   - PelvicTwistRouting: when hip vs chest twist is the dominant source, distribute
-            //     it ~75% upperChest / 25% spine, mimicking real thoracic-dominant axial rotation.
-            float spinePitchEff = Mathf.Clamp01(spineBendPitch.Get(stream));
-            float spineYawEff = Mathf.Clamp01(spineBendYaw.Get(stream));
-            float spineRollEff = Mathf.Clamp01(spineBendRoll.Get(stream));
-            float upperPitchEff = Mathf.Clamp01(upperChestBendPitch.Get(stream));
-            float upperYawEff = Mathf.Clamp01(upperChestBendYaw.Get(stream));
-            float upperRollEff = Mathf.Clamp01(upperChestBendRoll.Get(stream));
-            if (anatDifferentialStiffness.Get(stream))
+            Quaternion invHips = Quaternion.Inverse(hipsRot);
+            if (r.WriteSpine)
             {
-                spineYawEff *= 0.4f;
-                upperYawEff = Mathf.Clamp01(upperYawEff * 1.5f);
-            }
-            if (anatPelvicTwistRouting.Get(stream))
-            {
-                float total = spineYawEff + upperYawEff;
-                spineYawEff = total * 0.25f;
-                upperYawEff = total * 0.75f;
-            }
-
-            if (hasSpine)
-            {
-                Vector3 e = new Vector3(
-                    bendEuler.x * spinePitchEff * squishMult * bendGate,
-                    twistY * spineYawEff * squishMult,
-                    bendEuler.z * spineRollEff * squishMult * bendGate
-                );
-                e = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
-                Quaternion deltaWorld = hipsRot * Quaternion.Euler(e) * invHips;
+                Quaternion deltaWorld = hipsRot * Quaternion.Euler(r.SpineEuler) * invHips;
                 HandleSpine.SetRotation(stream, deltaWorld * HandleSpine.GetRotation(stream));
             }
-            if (hasUpper)
+            if (r.WriteUpper)
             {
-                Vector3 e = new Vector3(
-                    bendEuler.x * upperPitchEff * squishMult * bendGate,
-                    twistY * upperYawEff * squishMult,
-                    bendEuler.z * upperRollEff * squishMult * bendGate
-                );
-                e = ClampAsymmetric(e, maxFwd, maxBack, maxLat);
-                Quaternion deltaWorld = hipsRot * Quaternion.Euler(e) * invHips;
+                Quaternion deltaWorld = hipsRot * Quaternion.Euler(r.UpperEuler) * invHips;
                 HandleUpperChest.SetRotation(stream, deltaWorld * HandleUpperChest.GetRotation(stream));
             }
-        }
-        const float k_BendDeadbandDeg = 3f;
-        const float k_BendDeadbandWidthDeg = 7f;
-        // Maps the head-to-hips compression ratio to a per-axis weight multiplier. At rest the
-        // multiplier is 1; compressed → up to (1+boost), stretched → down to (1-boost). The 0.7→1.3
-        // window covers the range users actually hit (deep crouch to overhead reach).
-        float ComputeSquishMultiplier(AnimationStream stream, Vector3 hipsToHead)
-        {
-            float boost = Mathf.Clamp(spineSquishBoost.Get(stream), 0f, 2f);
-            if (boost <= 0f)
-            {
-                return 1f;
-            }
-
-            float restMag = TposeLengthHeadToHips.magnitude;
-            if (restMag < k_Epsilon)
-            {
-                return 1f;
-            }
-
-            float currentMag = hipsToHead.magnitude;
-            float squish = currentMag / restMag;
-
-            float t = Mathf.Clamp01((squish - 0.7f) / 0.6f);
-            return Mathf.Lerp(1f + boost, Mathf.Max(0f, 1f - boost), t);
         }
         // Critically-damped spring on the head target consumed by DistributeSpineBend. Lets the
         // body lag slightly behind quick head moves without affecting the head bone itself.
@@ -1553,20 +1477,8 @@ w20, w54;
             if (dt <= 0f)
                 return chestSpringState[0];
 
-            float damping = Mathf.Max(0f, chestSpringDamping.Get(stream));
-            float omega = 2f * Mathf.PI * hz;
-            float omegaSq = omega * omega;
-            float twoOmegaDamping = 2f * omega * damping;
-
-            Vector3 pos = chestSpringState[0];
-            Vector3 vel = chestSpringState[1];
-
-            // Implicit Euler: solve (vel_new, pos_new = pos + dt*vel_new) such that
-            //   vel_new = vel + dt * (omega² * (target - pos_new) - 2*omega*damping * vel_new)
-            // Substituting pos_new gives the closed-form denom below. Always stable.
-            float denom = 1f + dt * twoOmegaDamping + dt * dt * omegaSq;
-            Vector3 newVel = (vel + dt * omegaSq * (headTargetPos - pos)) / denom;
-            Vector3 newPos = pos + dt * newVel;
+            BasisChestSpringCore.Step(chestSpringState[0], chestSpringState[1], headTargetPos, dt, hz,
+                chestSpringDamping.Get(stream), out Vector3 newPos, out Vector3 newVel);
 
             // Defensive: if upstream input has produced a NaN, re-seed instead of poisoning the rig.
             if (!IsFinite(newPos) || !IsFinite(newVel))
@@ -1585,66 +1497,32 @@ w20, w54;
         // reach makes the spine swallow the entire bend and everything above the hips folds.
         Quaternion ApplyHipHinge(AnimationStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
         {
-            float startDeg = hipHingeStartDeg.Get(stream);
-            float maxAddDeg = hipHingeMaxAddDeg.Get(stream);
-            if (maxAddDeg <= 0f)
-            {
-                return hipsRot;
-            }
-
-            Vector3 hipsToHead = headPos - hipsPos;
-            float upDot = Vector3.Dot(hipsToHead, playerUp);
-            Vector3 horizontal = hipsToHead - playerUp * upDot;
-            float horizMag = horizontal.magnitude;
-            if (horizMag < k_Epsilon || upDot <= 0f)
-            {
-                return hipsRot;
-            }
-
-            float leanDeg = Mathf.Atan2(horizMag, upDot) * Mathf.Rad2Deg;
-            if (leanDeg <= startDeg)
-            {
-                return hipsRot;
-            }
-
-            float excess = leanDeg - startDeg;
-            float addDeg = Mathf.Min(excess * 0.5f, maxAddDeg);
-
-            Vector3 hingeAxis = Vector3.Cross(playerUp, horizontal / horizMag);
-            if (hingeAxis.sqrMagnitude < k_SqrEpsilon)
-            {
-                return hipsRot;
-            }
-
-            hingeAxis.Normalize();
-            return Quaternion.AngleAxis(addDeg, hingeAxis) * hipsRot;
+            BasisHipHingeInput input;
+            input.HeadPos = headPos;
+            input.HipsPos = hipsPos;
+            input.HipsRot = hipsRot;
+            input.PlayerUp = playerUp;
+            input.StartDeg = hipHingeStartDeg.Get(stream);
+            input.MaxAddDeg = hipHingeMaxAddDeg.Get(stream);
+            BasisHipHingeCore.Solve(input, out BasisHipHingeResult result);
+            return result.HipsRot;
         }
         Vector3 ApplyCrouchBodyOffset(AnimationStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir)
         {
-            float factor = moveBodyBackWhenCrouching.Get(stream);
-            if (factor <= 0f || HasChestTracker.Get(stream) || hasHipsTracker.Get(stream))
+            if (HasChestTracker.Get(stream) || hasHipsTracker.Get(stream))
             {
                 return hipsPos;
             }
 
-            Vector3 up = playerUpDir.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUpDir.normalized;
-
-            float restDist = MinHeadSpineHeight.Get(stream);
-            float crouch = restDist - (Vector3.Dot(headTargetPos, up) - Vector3.Dot(hipsPos, up));
-            crouch = Mathf.Clamp(crouch, 0f, restDist);
-            if (crouch <= 0f)
-            {
-                return hipsPos;
-            }
-
-            Vector3 forward = hipsRot * Vector3.forward;
-            forward -= up * Vector3.Dot(forward, up);
-            if (forward.sqrMagnitude < k_SqrEpsilon)
-            {
-                return hipsPos;
-            }
-
-            return hipsPos - forward.normalized * (crouch * factor);
+            BasisCrouchOffsetInput input;
+            input.HeadTargetPos = headTargetPos;
+            input.HipsPos = hipsPos;
+            input.HipsRot = hipsRot;
+            input.PlayerUp = playerUpDir;
+            input.Factor = moveBodyBackWhenCrouching.Get(stream);
+            input.RestDist = MinHeadSpineHeight.Get(stream);
+            BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
+            return result.HipsPos;
         }
         void ApplyCervicalLordosis(AnimationStream stream)
         {
@@ -1855,14 +1733,6 @@ w20, w54;
                 e.z > 180f ? e.z - 360f : e.z
             );
         }
-        static Vector3 ClampAsymmetric(Vector3 e, float maxFwd, float maxBack, float maxLat)
-        {
-            if (e.x > 0f) e.x = Mathf.Min(e.x, maxFwd);
-            else e.x = Mathf.Max(e.x, -maxBack);
-            e.y = Mathf.Clamp(e.y, -maxLat, maxLat);
-            e.z = Mathf.Clamp(e.z, -maxLat, maxLat);
-            return e;
-        }
         public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty enabledProp, Vector3Property handTargetPosProp,  Vector3 tposeLocalDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, bool isLeft)
         {
             if (!shoulderHandle.IsValid(stream) || !enabledProp.Get(stream))
@@ -1889,7 +1759,7 @@ w20, w54;
                 shoulderHandle.SetRotation(stream, result.ShoulderRotation);
             }
         }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
+        public static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
         {
             Vector3 headToHips = hipsPos - headPos;
             float sqrMag = headToHips.sqrMagnitude;
@@ -1921,7 +1791,7 @@ w20, w54;
 
             return headPos + vertical + lateral;
         }
-        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg, Vector3 playerUp)
+        public static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg, Vector3 playerUp)
         {
             if (maxBendDeg <= 0f)
             {
@@ -1973,7 +1843,7 @@ w20, w54;
         /// between head and hip facing directions. When facing same direction, min distance is near
         /// full rest length; facing opposite, it can compress more. From HVR-IK's HIKSpineSolver.
         /// </summary>
-        static Vector3 AntiContortionist(Vector3 headPos, Quaternion headRot, Vector3 hipsPos, Quaternion hipsRot, float restDistance)
+        public static Vector3 AntiContortionist(Vector3 headPos, Quaternion headRot, Vector3 hipsPos, Quaternion hipsRot, float restDistance)
         {
             Vector3 headFwd = headRot * Vector3.forward;
             Vector3 hipsFwd = hipsRot * Vector3.forward;
@@ -1996,7 +1866,7 @@ w20, w54;
         /// than rest pose, the FABRIK chain can buckle into unnatural S-curves. This pushes the
         /// hips downward to prevent oscillation. From HVR-IK's HIKSpineSolver.
         /// </summary>
-        static Vector3 MitigateSpineBuckling(Vector3 headPos, Quaternion hipsRot, Vector3 hipsPos, float restDistance, Vector3 playerUp)
+        public static Vector3 MitigateSpineBuckling(Vector3 headPos, Quaternion hipsRot, Vector3 hipsPos, float restDistance, Vector3 playerUp)
         {
             Vector3 diff = hipsPos - headPos;
             float currentDist = diff.magnitude;
@@ -2013,7 +1883,7 @@ w20, w54;
             float pushAmount = compression * tension * restDistance * 0.5f;
             return hipsPos - playerUp * pushAmount;
         }
-        static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
+        public static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
             // Angle between the two orientations
             float angle = Quaternion.Angle(reference, current);
@@ -2253,80 +2123,33 @@ w20, w54;
             Vector3 c = tip.GetPosition(stream);
             Vector3 b = mid.GetPosition(stream);
 
-            Vector3 ac = c - a;
-            float acSqr = ac.sqrMagnitude;
-            if (acSqr < k_SqrEpsilon)
-            {
-                return;
-            }
-            Vector3 axis = ac / Mathf.Sqrt(acSqr);
-
-            Vector3 perp = b - a;
-            perp -= axis * Vector3.Dot(perp, axis);
-            float perpSqr = perp.sqrMagnitude;
-            if (perpSqr < k_SqrEpsilon)
-            {
-                return; // chain near-straight: swing direction undefined this frame
-            }
-            Vector3 currentDir = perp / Mathf.Sqrt(perpSqr);
-
-            // Gate on a collision change. SolveHand tags this arm's torso push for the frame; we arm
-            // the limiter the moment that tag changes and stay armed (state = -1) until the pop has
-            // eased in. While disarmed, currentDir is accepted instantly so non-collision motion lags.
+            BasisSwingContinuityState state;
+            state.LastDir = swingLastDir[slot];
+            state.LastAxis = swingLastAxis[slot];
+            state.LastTarget = swingLastTarget[slot];
+            state.SmoothState = swingSmoothState[slot];
+            state.Seeded = swingContinuityInit[slot] != 0;
             int collided = swingCollided.IsCreated ? swingCollided[slot] : 0;
-            bool armed = swingSmoothState[slot] < 0;
-            bool collisionChanged = !armed && collided != swingSmoothState[slot];
 
-            // Re-seed (accept instantly) on first use, when disabled, when the target teleports, or
-            // when no collision pop is being absorbed.
-            bool seeded = swingContinuityInit[slot] != 0;
-            float chainLen = (b - a).magnitude + (c - b).magnitude;
-            float teleThresh = 0.6f * chainLen;
-            bool teleport = seeded && (targetPos - swingLastTarget[slot]).sqrMagnitude > teleThresh * teleThresh;
-            if (rateDegPerSec <= 0f || !seeded || teleport || (!armed && !collisionChanged))
+            BasisSwingContinuityCore.Step(state, a, b, c, targetPos, collided, rateDegPerSec, dt, out BasisSwingContinuityResult r);
+            if (!r.Valid)
             {
-                swingLastDir[slot] = currentDir;
-                swingLastAxis[slot] = axis;
-                swingLastTarget[slot] = targetPos;
-                swingContinuityInit[slot] = 1;
-                swingSmoothState[slot] = collided;
                 return;
             }
 
-            // A collision change just landed, or a prior one is still easing in: limit toward currentDir.
-            swingSmoothState[slot] = -1;
-
-            // Carry the stored swing with the axis change so only the *extra* swing is limited.
-            Vector3 carried = QuaternionExt.FromToRotation(swingLastAxis[slot], axis) * swingLastDir[slot];
-            carried -= axis * Vector3.Dot(carried, axis);
-            float carriedSqr = carried.sqrMagnitude;
-            bool easing = false;
-            if (carriedSqr >= k_SqrEpsilon)
+            if (r.ApplySwing)
             {
-                carried /= Mathf.Sqrt(carriedSqr);
-                float angleDeg = Vector3.Angle(carried, currentDir);
-                float maxStep = rateDegPerSec * dt;
-                if (angleDeg > maxStep && angleDeg > k_Epsilon)
-                {
-                    Vector3 newDir = Vector3.Slerp(carried, currentDir, maxStep / angleDeg);
-                    Quaternion preservedHandRot = tip.GetRotation(stream);
-                    SwingElbowAroundAC(stream, root, mid, tip, a + newDir);
-                    tip.SetPosition(stream, c);
-                    tip.SetRotation(stream, preservedHandRot);
-                    currentDir = newDir;
-                    easing = true;
-                }
+                Quaternion preservedHandRot = tip.GetRotation(stream);
+                SwingElbowAroundAC(stream, root, mid, tip, a + r.NewDir);
+                tip.SetPosition(stream, c);
+                tip.SetRotation(stream, preservedHandRot);
             }
 
-            // Caught up to the collided pose: settle on its tag so the next free-air frame is instant.
-            if (!easing)
-            {
-                swingSmoothState[slot] = collided;
-            }
-
-            swingLastDir[slot] = currentDir;
-            swingLastAxis[slot] = axis;
-            swingLastTarget[slot] = targetPos;
+            swingLastDir[slot] = r.State.LastDir;
+            swingLastAxis[slot] = r.State.LastAxis;
+            swingLastTarget[slot] = r.State.LastTarget;
+            swingSmoothState[slot] = r.State.SmoothState;
+            swingContinuityInit[slot] = 1;
         }
         public static Vector3 PushOutFromCapsule(Vector3 p, Vector3 a, Vector3 b, float radiusWithSkin, Vector3 playerUp)
         {
@@ -2450,14 +2273,6 @@ w20, w54;
         // FIRST, so frame-to-frame jitter (zero-mean swivel velocity) leaves the cutoff at its floor (heavy
         // smoothing -> the solve's amplification of tiny input noise is killed), while a real reach (sustained
         // swivel velocity) opens the cutoff so the elbow tracks with no lag. Per swing slot.
-        const float k_SwivelMinCutoff = 1.0f;    // Hz, held-still smoothing floor
-        const float k_SwivelDerivCutoff = 1.0f;  // Hz, derivative low-pass (rejects jitter velocity)
-        const float k_SwivelBeta = 0.05f;        // how fast the cutoff opens with sustained swivel speed (deg/s)
-        static float LookupAlpha(float cutoff, float dt)
-        {
-            float tau = 1f / (2f * Mathf.PI * Mathf.Max(cutoff, 1e-3f));
-            return 1f / (1f + tau / dt);
-        }
         void SmoothElbowSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt)
         {
             if (!armLookupInit.IsCreated || slot < 0 || slot >= armLookupInit.Length || dt <= 1e-6f)
@@ -2477,18 +2292,20 @@ w20, w54;
 
             if (armLookupInit[slot] == 0)
             {
-                armLookupRaw[slot] = new Vector3(curSwivel, 0f, 0f);
-                armLookupSmooth[slot] = new Vector3(curSwivel, 0f, 0f);
+                BasisSwivelFilterState seed = BasisSwivelFilterCore.Seed(curSwivel);
+                armLookupRaw[slot] = new Vector3(seed.Raw, seed.Vel, 0f);
+                armLookupSmooth[slot] = new Vector3(seed.Smooth, 0f, 0f);
                 armLookupInit[slot] = 1;
                 return;
             }
-            float prevRaw = armLookupRaw[slot].x, prevVel = armLookupRaw[slot].y, prevSmooth = armLookupSmooth[slot].x;
-            float vel = Mathf.DeltaAngle(prevRaw, curSwivel) / dt;
-            float velHat = Mathf.Lerp(prevVel, vel, LookupAlpha(k_SwivelDerivCutoff, dt));
-            float cutoff = k_SwivelMinCutoff + k_SwivelBeta * Mathf.Abs(velHat);
-            float smooth = prevSmooth + Mathf.DeltaAngle(prevSmooth, curSwivel) * LookupAlpha(cutoff, dt);
-            armLookupRaw[slot] = new Vector3(curSwivel, velHat, 0f);
-            armLookupSmooth[slot] = new Vector3(smooth, 0f, 0f);
+            BasisSwivelFilterState swivelState;
+            swivelState.Raw = armLookupRaw[slot].x;
+            swivelState.Vel = armLookupRaw[slot].y;
+            swivelState.Smooth = armLookupSmooth[slot].x;
+            swivelState = BasisSwivelFilterCore.Step(swivelState, curSwivel, dt);
+            float smooth = swivelState.Smooth;
+            armLookupRaw[slot] = new Vector3(swivelState.Raw, swivelState.Vel, 0f);
+            armLookupSmooth[slot] = new Vector3(swivelState.Smooth, 0f, 0f);
 
             Vector3 center = a + axis * Vector3.Dot(b - a, axis);
             float radius = (b - center).magnitude;

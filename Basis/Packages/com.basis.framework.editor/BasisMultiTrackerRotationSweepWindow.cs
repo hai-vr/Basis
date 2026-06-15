@@ -15,7 +15,7 @@ namespace Basis.IK.Debugging
         Vector2 _scroll;
 
         BasisMidpointFusionTunables _tun = BasisMidpointFusionTunables.Default();
-        float _temporalFlex = 6f;
+        float _temporalFlex = 0f;
         string _temporalPath;
         BasisMultiTrackerRotationTemporalSummary _lastTemporal;
         bool _hasTemporal;

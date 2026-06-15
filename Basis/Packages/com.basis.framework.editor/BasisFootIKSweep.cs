@@ -692,7 +692,8 @@ namespace Basis.IK.Debugging
         {
             float3 velFlat = ProjectFlat(sim.smoothedVelocity);
             float speed = math.length(velFlat);
-            float speedT = math.saturate(speed / p.fastSpeedRef);
+            float fastYawRef = math.max(1f, 0.5f * p.maxPlantedYawDegrees / math.max(0.01f, p.stepDurFast));
+            float speedT = math.max(math.saturate(speed / p.fastSpeedRef), math.saturate(math.abs(sim.smoothedYawRateDeg) / fastYawRef));
 
             f.phase = 1;
             f.stepStartPos = f.currentPos;

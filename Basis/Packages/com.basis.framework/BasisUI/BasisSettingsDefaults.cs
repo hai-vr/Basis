@@ -1211,8 +1211,11 @@ namespace Basis.BasisUI
         // midpoint snaps. Higher = more reactive (catches glitches faster but
         // jitters more); lower = smoother (longer to recover from a glitch).
         public static BasisSettingsBinding<float> PairingWeightSmoothing = new("pairing_weightsmoothing", new BasisPlatformDefault<float>(0.25f));
-        // Half-life (seconds) of the low-pass on the fused midpoint rotation; 0 = raw.
-        public static BasisSettingsBinding<float> PairingRotationHalfLife = new("pairing_rothalflife", new BasisPlatformDefault<float>(0.08f));
+        // Half-life (seconds) of the low-pass on the fused midpoint rotation; 0 = raw (default). Off by
+        // default because the bone sim already slerp-smooths the rotation -- a second low-pass here just
+        // lags the hip behind a fast turn (~46 deg at 0.08s), which a single tracker never does. Key bumped
+        // to _v2 so installs that persisted the old 0.08 pick up the new default.
+        public static BasisSettingsBinding<float> PairingRotationHalfLife = new("pairing_rothalflife_v2", new BasisPlatformDefault<float>(0f));
 
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled = new("np_enabled", new BasisPlatformDefault<bool>(true));

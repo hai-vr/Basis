@@ -852,7 +852,8 @@ public partial class BasisLocalFootDriver
         ref readonly BasisFootSimState sim = ref UnsafeUtility.AsRef<BasisFootSimState>(_nativeSimState.GetUnsafeReadOnlyPtr());
         float3 velFlat = (float3)ProjectHorizontal(sim.smoothedVelocity);
         float speed = math.length(velFlat);
-        float speedT = Mathf.Clamp01(speed / fastSpeedRef);
+        float fastYawRef = Mathf.Max(1f, 0.5f * maxPlantedYawDegrees / Mathf.Max(0.01f, stepDurFast));
+        float speedT = Mathf.Max(Mathf.Clamp01(speed / fastSpeedRef), Mathf.Clamp01(Mathf.Abs(sim.smoothedYawRateDeg) / fastYawRef));
 
         f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;
