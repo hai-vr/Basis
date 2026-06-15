@@ -30,6 +30,7 @@ namespace Basis.IK.Debugging
         void OnEnable()
         {
             if (string.IsNullOrEmpty(_path)) _path = BasisMultiTrackerRotationSweep.DefaultPath();
+            if (string.IsNullOrEmpty(_temporalPath)) _temporalPath = BasisMultiTrackerRotationSweep.DefaultTemporalPath();
         }
 
         void OnGUI()
@@ -91,8 +92,46 @@ namespace Basis.IK.Debugging
             }
 
             EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Temporal Sim (no play mode — simulates motion frame-by-frame)", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "Live capture (the offline sweep above can't see a dynamic snap/double): ENTER PLAY with the linked pair on, " +
+                "Drives synthetic turns/leans through the REAL stateful fusion (BasisMidpointFusionCore.Step) frame-by-frame -- " +
+                "the dynamic lag/snap the static sweep above can't see, with NO play mode. A single tracker tracks the body at " +
+                "~0 error, so whatever shows here is what the pairing low-pass + confidence blend ADD. PairingRotationHalfLife " +
+                "(the prime suspect) is exposed below -- set it to 0 to A/B the redundant low-pass.",
+                MessageType.Info);
+            _tun.RotationHalfLife = EditorGUILayout.Slider("Rotation Half-Life (s)", _tun.RotationHalfLife, 0f, 0.3f);
+            _temporalFlex = EditorGUILayout.Slider("Sim Strap Flex (deg)", _temporalFlex, 0f, 30f);
+            if (GUILayout.Button("Run Temporal Sim", GUILayout.Height(28)))
+            {
+                _lastTemporal = BasisMultiTrackerRotationSweep.RunTemporal(_cfg, _tun, 1f / 90f, _temporalFlex, _temporalPath);
+                _hasTemporal = true;
+                if (_lastTemporal.Ok) Debug.Log($"[MultiTrackerRotationTemporal] {_lastTemporal.Frames} frames -> {_lastTemporal.Path}");
+                else Debug.LogError($"[MultiTrackerRotationTemporal] failed: {_lastTemporal.Error}");
+            }
+            if (_hasTemporal && _lastTemporal.Ok)
+            {
+                var gt = BasisIKTestGates.GateMultiTrackerRotationTemporal(_lastTemporal);
+                var pt = GUI.color;
+                GUI.color = gt.pass ? new Color(0.5f, 1f, 0.5f) : new Color(1f, 0.5f, 0.5f);
+                EditorGUILayout.LabelField(gt.pass ? "PASS" : "FAIL", EditorStyles.boldLabel);
+                GUI.color = pt;
+                EditorGUILayout.HelpBox(gt.reason, MessageType.None);
+                EditorGUILayout.LabelField("Per-trajectory (deg): trackErr / lag / overshoot / snap / blendDev / settleFrames", EditorStyles.miniBoldLabel);
+                for (int i = 0; i < _lastTemporal.TrajNames.Length; i++)
+                {
+                    EditorGUILayout.LabelField(
+                        $"{_lastTemporal.TrajNames[i]}: {_lastTemporal.MaxTrackErrDeg[i]:F1} / {_lastTemporal.MaxLagDeg[i]:F1} / {_lastTemporal.MaxOvershootDeg[i]:F1} / {_lastTemporal.Max2ndDiffDeg[i]:F1} / {_lastTemporal.MaxBlendDevFromHalf[i]:F2} / {_lastTemporal.SettleFrames[i]:F0}");
+                }
+                if (GUILayout.Button("Reveal Temporal CSV")) EditorUtility.RevealInFinder(_lastTemporal.Path);
+            }
+            else if (_hasTemporal)
+            {
+                EditorGUILayout.HelpBox("Temporal sim failed: " + _lastTemporal.Error, MessageType.Error);
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.HelpBox(
+                "Live capture (a reality check against real hardware): ENTER PLAY with the linked pair on, " +
                 "click below, then turn/lean for ~10s. Writes per-frame partner vs fused vs hip-bone rotation deltas " +
                 "(+ confidence weights/blend) to persistentDataPath/PairingRotation. Reading it: ratio_fused_a~2 = the " +
                 "fusion doubles; ratio_bone_a~2 with ratio_fused_a~1 = a downstream (offset/calibration) double; a step in " +
