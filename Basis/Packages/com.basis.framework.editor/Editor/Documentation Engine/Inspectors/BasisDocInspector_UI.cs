@@ -28,7 +28,7 @@ public class BasisDocInspector_UI : Editor
     private List<MemberRow> _all = new();
     private List<MemberRow> _view = new();
     private readonly List<NavFrame> _nav = new();
-    private static Dictionary<Type, bool> _shouldHandleTypeCache = new();
+    private readonly static Dictionary<Type, bool> _shouldHandleTypeCache = new();
 
     // ---------- UI ----------
     private VisualElement _breadcrumbs;
