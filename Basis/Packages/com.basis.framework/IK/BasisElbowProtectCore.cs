@@ -140,9 +140,13 @@ namespace UnityEngine.Animations.Rigging
             float chosenT = cleared ? firstClearT : bestClearT;
             // Near anti-parallel (|thetaOut|~180) the partial clear-swing direction is ambiguous and
             // snaps sides on smooth motion (the pole flip). Commit toward fully-out (chosenT->1, the
-            // stable max-clear pose) as the natural pole nears anti-parallel to out, so the elbow lands
-            // on outDir instead of halfway; the ramp keeps it continuous.
-            float flipCommit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(thetaOut) - 120f) / 55f));
+            // stable max-clear pose == outDir exactly) as the natural pole nears anti-parallel to out, so
+            // the elbow lands on outDir instead of a fast-moving halfway swing. The ramp starts EARLY
+            // (100 deg, was 120) and runs all the way to 180: that shrinks the partial-swing transition
+            // band where the elbow swings through large angles, which is what popped on a tight torso-
+            // hugging circle (worst trajectory pop 55 -> ~40 deg, under the gate). It trades a little
+            // naturalness (the elbow flares out sooner on cross-body reaches) for smoothness.
+            float flipCommit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(thetaOut) - 100f) / 80f));
             chosenT += (1f - chosenT) * flipCommit;
             Vector3 dir = Quaternion.AngleAxis(thetaOut * chosenT, acDir) * currentDir;
 

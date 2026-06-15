@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -72,7 +73,7 @@ namespace Basis.IK.Debugging
                 // Reach across and around the body so the upper arm sweeps in and out of the torso.
                 MinFrac = new Vector3(-1.3f, -1.1f, -0.5f),
                 MaxFrac = new Vector3(0.9f, 0.8f, 1.1f),
-                Steps = new Vector3Int(11, 11, 9),
+                Steps = new Vector3Int(75, 75, 63),
             };
         }
     }
@@ -96,6 +97,7 @@ namespace Basis.IK.Debugging
         public int ElbowUpCount;         // engaged poses whose pushed elbow points up (chicken-wing)
         public float MeanSensDegPerCm;   // final elbow swivel deg per cm of hand-target error (twitch)
         public float MaxSensDegPerCm;
+        public float Sens99DegPerCm;     // 99.9th-percentile sens over well-conditioned poses (density-stable; ignores boundary-discontinuity outliers the max chases)
         public int JitteryCount;         // reachable poses with sensitivity > 20 deg/cm
         public string Error;
     }
@@ -139,6 +141,7 @@ namespace Basis.IK.Debugging
             double swingSum = 0.0, shiftSum = 0.0, sensSum = 0.0, residSum = 0.0;
             float swingMax = 0f, shiftMax = 0f, sensMax = 0f, residMax = 0f;
             int sensN = 0;
+            var sensValues = new List<float>(); // well-conditioned sens, for a density-stable percentile
 
             NativeArray<Vector3> table = default;
             try
@@ -149,7 +152,7 @@ namespace Basis.IK.Debugging
                     Directory.CreateDirectory(dir);
                 }
 
-                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent); // Persistent (not Temp): the sweep may run on a background thread (parallel Run All)
 
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
                 {
@@ -225,8 +228,19 @@ namespace Basis.IK.Debugging
                                 {
                                     sensSum += sens;
                                     sensN++;
-                                    if (sens > sensMax) sensMax = sens;
-                                    if (sens > k_JitterDegPerCm) jittery++;
+                                    // Exclude singularities from the MAX, where swivel-per-cm is geometrically
+                                    // unbounded (so a denser grid keeps finding higher spikes), like the
+                                    // trajectory isSingular: a folded/extended arm (short shoulder->hand lever)
+                                    // and the protect's own can't-clear cases (CollisionState 2, already tracked
+                                    // by WrongSideFlipCount). What remains is the protect's twitch on cleared,
+                                    // well-conditioned poses.
+                                    bool wellConditioned = arm.ReachRatio >= 0.40f && arm.ReachRatio <= 0.97f && protect.CollisionState != 2;
+                                    if (wellConditioned)
+                                    {
+                                        sensValues.Add(sens);
+                                        if (sens > sensMax) sensMax = sens;
+                                        if (sens > k_JitterDegPerCm) jittery++;
+                                    }
                                 }
 
                                 rows += WriteRow(w, sb, side, ti, tj, tk, target, armLen, arm, isReachable,
@@ -252,6 +266,7 @@ namespace Basis.IK.Debugging
                 summary.ElbowUpCount = elbowUp;
                 summary.MeanSensDegPerCm = sensN > 0 ? (float)(sensSum / sensN) : 0f;
                 summary.MaxSensDegPerCm = sensMax;
+                summary.Sens99DegPerCm = Percentile(sensValues, 0.999f);
                 summary.JitteryCount = jittery;
             }
             catch (System.Exception e)
@@ -320,7 +335,7 @@ namespace Basis.IK.Debugging
             {
                 string dir = System.IO.Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Temp);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent); // Persistent (not Temp): the sweep may run on a background thread (parallel Run All)
                 NativeArray<Vector3> tbl = table;
                 bool isLeft = cfg.IsLeft;
 
@@ -337,6 +352,17 @@ namespace Basis.IK.Debugging
                 {
                     return shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
                 }
+
+                // Folded/extended arm = kinematic singularity (elbow pole ill-defined), where a smooth hand
+                // path produces an unavoidable swivel pop. Report those separately instead of failing on them
+                // -- the same isSingular exclusion the leg/arm/head trajectory scans use; this one lacked it.
+                // 0.40 (not the leg's 0.35) matches this sweep's folded-sens cutoff -- the protect push keeps
+                // the pole sensitive a bit longer.
+                System.Func<Vector3, bool> isSingular = target =>
+                {
+                    float rr = (target - shoulder).magnitude / armLen;
+                    return rr < 0.40f || rr > 0.97f;
+                };
 
                 string[] pathNames = { "across-chest", "up-centerline", "reach-up-across", "tuck-circle" };
                 Vector3[][] pathPts =
@@ -356,7 +382,7 @@ namespace Basis.IK.Debugging
                     var sb = new StringBuilder(128);
                     for (int pi = 0; pi < pathNames.Length; pi++)
                     {
-                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 12345 + pi);
+                        results[pi] = BasisIKTrajectoryScan.Scan(pathNames[pi], pathPts[pi], eval, noise, 12345 + pi, isSingular: isSingular);
                         Vector3[] pts = pathPts[pi];
                         for (int s = 0; s < pts.Length; s++)
                         {
@@ -508,6 +534,16 @@ namespace Basis.IK.Debugging
 
         static void Append(StringBuilder sb, float v) { sb.Append(F(v)).Append(','); }
         static void AppendLast(StringBuilder sb, float v) { sb.Append(F(v)); }
+
+        // q-th percentile (0..1) of the values -- density-stable, unlike the raw max which chases the
+        // sharpening boundary-discontinuity outliers as the grid densifies.
+        static float Percentile(List<float> values, float q)
+        {
+            if (values == null || values.Count == 0) return 0f;
+            values.Sort();
+            int idx = Mathf.Clamp(Mathf.CeilToInt(q * values.Count) - 1, 0, values.Count - 1);
+            return values[idx];
+        }
 
         static string F(float v)
         {

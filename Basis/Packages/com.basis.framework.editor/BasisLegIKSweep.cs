@@ -36,7 +36,7 @@ namespace Basis.IK.Debugging
                 IsLeft = false,
                 MinFrac = new Vector3(-0.5f, -1.15f, -0.8f),
                 MaxFrac = new Vector3(0.7f, -0.2f, 0.9f),
-                Steps = new Vector3Int(9, 9, 9),
+                Steps = new Vector3Int(27, 27, 27),
                 HintDir = new Vector3(0.0f, -0.3f, 1.0f),
                 HintDistanceFrac = 0.5f,
             };

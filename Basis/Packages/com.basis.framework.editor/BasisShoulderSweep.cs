@@ -29,7 +29,7 @@ namespace Basis.IK.Debugging
                 IsLeft = false,
                 MinFrac = new Vector3(-1.1f, -1.1f, -1.1f),
                 MaxFrac = new Vector3(1.1f, 1.1f, 1.1f),
-                Steps = new Vector3Int(11, 11, 11),
+                Steps = new Vector3Int(33, 33, 33),
             };
         }
     }

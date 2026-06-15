@@ -43,6 +43,8 @@ namespace UnityEngine.Animations.Rigging
     {
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-8f;
+        const float k_PoleColinearSin = 0.5f; // sin(30deg): a hint nearer the leg axis than this is unreliable
+        public const float MinKneeInteriorDeg = 20f; // max human knee flexion ~160deg; folding past this drives the calf through the thigh
 
         public static void Solve(in BasisLegSolveInput i, out BasisLegSolveResult r)
         {
@@ -73,13 +75,20 @@ namespace UnityEngine.Animations.Rigging
             Vector3 atCorrected = tPosition - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
+            // Anatomical max-flexion clamp: a human knee can't fold past MinKneeInteriorDeg of interior
+            // angle (the calf would pass through the thigh). If the target would over-fold the knee, hold
+            // the foot at the max-flexion distance along the target direction instead of letting it intersect.
+            float minFlexReach = MinFlexionReach(abLen, bcLen);
+            if (atCorrectedLen < minFlexReach) atCorrectedLen = minFlexReach;
+
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
 
             byte axisSource;
             Vector3 axis;
             if (hasHint)
             {
-                axis = Vector3.Cross(i.HintPosition - aPosition, bc);
+                Vector3 hintFromRoot = i.HintPosition - aPosition;
+                axis = Vector3.Cross(hintFromRoot, bc);
                 axisSource = 0;
                 if (axis.sqrMagnitude < k_SqrEpsilon)
                 {
@@ -91,6 +100,23 @@ namespace UnityEngine.Animations.Rigging
                 {
                     axis = i.BendNormal;
                     axisSource = 2;
+                }
+                else if (axisSource == 0)
+                {
+                    // Pole-vector singularity: as the hint nears the leg axis the cross product shrinks and its
+                    // sign goes unreliable, snapping the knee backward. Blend to the forward BendNormal (the
+                    // fixed no-hint bend) as the pole closes on the limb so an aligned/inverted hint can't invert it.
+                    float denom = Mathf.Sqrt(hintFromRoot.sqrMagnitude * bc.sqrMagnitude);
+                    if (denom > k_Epsilon)
+                    {
+                        float poleSin = Mathf.Sqrt(axis.sqrMagnitude) / denom;
+                        if (poleSin < k_PoleColinearSin)
+                        {
+                            float blend = 1f - poleSin / k_PoleColinearSin;
+                            axis = Vector3.Slerp(axis.normalized, i.BendNormal.normalized, blend);
+                            axisSource = 4;
+                        }
+                    }
                 }
             }
             else
@@ -189,6 +215,15 @@ namespace UnityEngine.Animations.Rigging
 
             float c = Mathf.Clamp(Vector3.Dot(from, to) / denom, -1f, 1f);
             return Mathf.Acos(c) * Mathf.Rad2Deg;
+        }
+
+        // Chord (root->tip distance) at the max-flexion interior angle -- the closest the foot can get to
+        // the hip before the knee over-folds. Law of cosines on the two segments.
+        static float MinFlexionReach(float upper, float lower)
+        {
+            float c = Mathf.Cos(MinKneeInteriorDeg * Mathf.Deg2Rad);
+            float d2 = upper * upper + lower * lower - 2f * upper * lower * c;
+            return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
         }
 
         static float TriangleAngle(float aLen, float aLen1, float aLen2)

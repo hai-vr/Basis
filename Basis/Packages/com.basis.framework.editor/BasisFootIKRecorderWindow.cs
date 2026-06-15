@@ -22,7 +22,7 @@ namespace Basis.IK.Debugging
         {
             if (_rec == null)
             {
-                _rec = Object.FindFirstObjectByType<BasisFootIKDiagnostics>();
+                _rec = Object.FindAnyObjectByType<BasisFootIKDiagnostics>();
             }
             return _rec;
         }
