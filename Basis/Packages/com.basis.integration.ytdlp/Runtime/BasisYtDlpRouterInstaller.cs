@@ -15,6 +15,17 @@ namespace Basis.Integration.YtDlp
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Install()
         {
+            // The router holds a single resolver slot. Don't clobber another package's resolver
+            // if one is already installed — first-come wins, and the collision is surfaced rather
+            // than silently overwritten.
+            if (BasisMediaUrlRouter.Resolver != null)
+            {
+                BasisDebug.LogWarning(
+                    "A BasisMediaUrlRouter resolver is already installed; the yt-dlp resolver will not replace it.",
+                    BasisDebug.LogTag.Video);
+                return;
+            }
+
             BasisMediaUrlRouter.Resolver = (player, url) =>
             {
                 // Already directly playable (transport scheme or media-extension URL):
