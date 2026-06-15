@@ -55,10 +55,16 @@ namespace Basis.Integration.YtDlp
                 return;
             }
 
+            // Capture the player's load generation before the async resolve. If another
+            // LoadUrl bumps it while yt-dlp runs, this resolve is stale — drop it rather than
+            // overwrite the newer load (load A then B: A must not win if it finishes last).
+            int loadGen = player.LoadGeneration;
+
             try
             {
                 BasisMediaSource source = await ResolveSourceAsync(pageUrl, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
+                if (loadGen != player.LoadGeneration) return; // superseded by a newer load
                 // OPEN QUESTION (REQUIREMENTS.md §Trust & consent): the resolved CDN host
                 // (googlevideo, Twitch edge) differs from pageUrl, so LoadSource runs both
                 // Uri and AudioUri through BasisMediaPlayerSecurity.IsUrlAllowed — public
@@ -135,9 +141,16 @@ namespace Basis.Integration.YtDlp
                 return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Delivery = BasisMediaDelivery.OnDemand };
 
             Format muxed = BestMuxed(info.Formats);
-            string single = muxed?.Url;
-            if (string.IsNullOrEmpty(single)) single = info.DirectUrl;
-            return string.IsNullOrEmpty(single) ? null : new BasisMediaSource { Uri = single };
+            if (muxed != null) return new BasisMediaSource { Uri = muxed.Url };
+
+            // Last resort: yt-dlp's top-level URL — but only if the player can open it
+            // directly. An unvalidated DirectUrl can be an unsupported manifest/codec that
+            // would bypass the avc1/mp4a filtering above, so reject it and let
+            // ResolveSourceAsync fail loudly ("no player-ingestible format") instead.
+            if (!string.IsNullOrEmpty(info.DirectUrl) && BasisMediaUrlRouter.IsDirectlyPlayable(info.DirectUrl))
+                return new BasisMediaSource { Uri = info.DirectUrl };
+
+            return null;
         }
 
         // H.264 video-only, no higher than 1080p (avc1 is the player's ceiling — no
@@ -188,7 +201,9 @@ namespace Basis.Integration.YtDlp
                 Format f = formats[i];
                 if (f == null || string.IsNullOrEmpty(f.Url)) continue;
                 if (!HasCodec(f.VCodec) || !HasCodec(f.ACodec)) continue;        // muxed
-                if (!StartsWithCI(f.VCodec, "avc1")) continue;
+                if (!StartsWithCI(f.VCodec, "avc1")) continue;                   // H.264 only
+                if (!StartsWithCI(f.ACodec, "mp4a")) continue;                   // AAC only
+                if (!IsIngestibleProtocol(f.Protocol)) continue;                 // byte stream or HLS
                 if ((f.Height ?? 0) > 1080) continue;
                 if (best == null || VideoBetter(f, best)) best = f;
             }
@@ -214,6 +229,13 @@ namespace Basis.Integration.YtDlp
         // separately in BestMuxed (the player has its own HLS source).
         private static bool IsDirectByteStream(string protocol)
             => string.IsNullOrEmpty(protocol) || protocol == "https" || protocol == "http";
+
+        // Protocols the player can ingest as a single stream: a direct byte stream
+        // (http/https) or HLS (the player has its own HLS source). Excludes DASH /
+        // fragment manifests the demuxers can't open. Used for the muxed path, which
+        // covers both progressive (http) and HLS (Twitch / live) sources.
+        private static bool IsIngestibleProtocol(string protocol)
+            => IsDirectByteStream(protocol) || protocol == "m3u8" || protocol == "m3u8_native";
     }
 }
 #endif
