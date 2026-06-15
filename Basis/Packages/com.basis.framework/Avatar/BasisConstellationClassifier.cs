@@ -60,7 +60,7 @@ namespace Basis.Scripts.Avatar
         ToeSwap = 5,
     }
 
-    public struct BasisConstellationResult
+    public class BasisConstellationResult
     {
         public int[] AssignedRole;                       // per sample: -1 or (int)BasisBoneTrackedRole
         public float[] AssignedScore;                    // per sample: assigned score (+inf for forced), NaN if unassigned
@@ -250,7 +250,6 @@ namespace Basis.Scripts.Avatar
             for (int i = 0; i < count; i++)
             {
                 BasisConstellationSample s = samples[i];
-                if (s.NearOrigin) continue;
                 if (s.HeightRatio < ArmHeightFloor) continue;
                 float lAbs = Mathf.Abs(s.LateralRatio);
                 if (lAbs < ArmLateralFloor) continue;

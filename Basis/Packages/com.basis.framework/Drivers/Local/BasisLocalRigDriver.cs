@@ -179,12 +179,15 @@ namespace Basis.Scripts.Drivers
 
         public void SetBodySettings()
         {
-            // New rig build re-captures the setup rotation offsets; drop any prior FBT recalibration
-            // so the fresh avatar uses its own capture until the user calibrates again (issue #531).
+            // Drop the prior recalibration first: a never-calibrated avatar then uses its own uncalibrated
+            // (animator-relative) setup capture from CreateBasisFullBodyRIG.
             HasRecalibratedRotationOffsets = false;
             var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
             Spine(rigGO);
             BasisLocalBoneControl.HasEvents = true;
+            // Keep FBT rotation calibration across avatar swaps: re-derive this avatar's per-effector offsets
+            // from the stored calibration reference. No-op until the user has calibrated.
+            ApplyCalibrationToCurrentAvatar();
         }
 
         public void CleanupBeforeContinue()

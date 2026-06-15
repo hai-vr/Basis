@@ -115,6 +115,7 @@ namespace Basis.IK.Debugging
             string shoulderPath = BasisShoulderSweep.DefaultPath();
             string legPath = BasisLegIKSweep.DefaultPath();
             string legInvPath = BasisLegInversionSweep.DefaultPath();
+            string trackerPlacementPath = BasisTrackerPlacementSweep.DefaultPath();
             string headPath = BasisHeadSweep.DefaultPath();
             string protectPath = BasisElbowProtectSweep.DefaultPath();
             string armTrajPath = TrajPath("BasisArmIKTrajectory.csv");
@@ -163,6 +164,7 @@ namespace Basis.IK.Debugging
             // Head and Leg Inversion have no per-side config (symmetric) -- run once.
             jobs.Add(() => Job("Head", headPath, () => { var s = BasisHeadSweep.Run(BasisHeadSweepConfig.Default(), headPath); return BasisIKTestGates.GateHead(s); }));
             jobs.Add(() => Job("Leg Inversion", legInvPath, () => { var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.Run(cfg, legInvPath); return BasisIKTestGates.GateLegInversion(s); }));
+            jobs.Add(() => Job("Tracker Placement", trackerPlacementPath, () => { var s = BasisTrackerPlacementSweep.Run(BasisTrackerPlacementSweepConfig.Default(), trackerPlacementPath); return BasisIKTestGates.GateTrackerPlacement(s); }));
 
             if (includeTraj)
             {

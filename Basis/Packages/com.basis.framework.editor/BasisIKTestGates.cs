@@ -20,6 +20,9 @@ namespace Basis.IK.Debugging
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
         public const float TemporalMaxRoughDeg = 3f;        // clean 2nd-diff on smooth motion = stepping/jitter as the hand glides (per-frame feedback)
         public const float LegInvertHintSafeConeDeg = 50f;  // hint within this of nominal must never bend the knee backward. Measured onset is ~54 deg (lift pose + posterior down-hint, ~30-35 deg off the leg axis), so 50 is the data-driven safe envelope with margin; beyond it a grossly-wrong pole can still invert (solver forward-clamp would be needed to push it further).
+        // --- tracker placement / discovery gates (calibrate against a known-good run) ---
+        public const float TrackerPlacementCleanMinFraction = 0.85f; // overall clean (no-jitter) correctness floor across ALL archetypes incl. extreme; below = broken
+        public const float TrackerPlacementCoreMinFraction = 1.0f;   // common "core" archetypes must classify every tracker cleanly
 
         public static (bool pass, string reason) GateArm(in BasisArmIKSweepSummary s)
         {
@@ -163,6 +166,26 @@ namespace Basis.IK.Debugging
             if (worstRoughDeg > TemporalMaxRoughDeg)
                 return (false, $"glide-jitter {worstRoughDeg:F2} > {TemporalMaxRoughDeg} deg/step (elbow steps as the hand glides)");
             return (true, $"pop={worstPopDeg:F0} glideJitter={worstRoughDeg:F2}");
+        }
+
+        // Tracker placement DISCOVERY: synthetic constellations over many body archetypes must map
+        // each tracker to the role it was placed for. Hard invariants (a stale/origin tracker never
+        // binds; a tracker never crosses to the opposite body side) gate unconditionally. Correctness
+        // is gated strictly on the common "core" archetypes and at a tunable floor overall; extreme
+        // archetypes are reported (CSV + confusions) rather than failing the gate.
+        public static (bool pass, string reason) GateTrackerPlacement(in BasisTrackerPlacementSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Trackers <= 0) return (false, "no trackers");
+            if (s.NearOriginLeaks > 0)
+                return (false, $"{s.NearOriginLeaks} stale/origin tracker(s) bound to a role (must never happen)");
+            if (s.CrossSideLeaks > 0)
+                return (false, $"{s.CrossSideLeaks} tracker(s) bound to the opposite body side ({s.TopConfusions})");
+            if (s.CoreCleanFraction < TrackerPlacementCoreMinFraction)
+                return (false, $"core archetypes clean {s.CoreCleanFraction:P0} < {TrackerPlacementCoreMinFraction:P0} ({s.CoreCleanCorrect}/{s.CoreCleanTrackers}; {s.TopConfusions})");
+            if (s.CleanCorrectFraction < TrackerPlacementCleanMinFraction)
+                return (false, $"clean correctness {s.CleanCorrectFraction:P0} < {TrackerPlacementCleanMinFraction:P0} ({s.CleanCorrect}/{s.CleanTrackers}; {s.TopConfusions})");
+            return (true, $"clean {s.CleanCorrectFraction:P0} (core {s.CoreCleanFraction:P0}) overall {s.Correct}/{s.Trackers} misassign={s.Misassigned} unassigned={s.Unassigned} invDiffs={s.InvarianceDiffs} minMargin={s.MinCorrectMargin:F1}");
         }
     }
 }

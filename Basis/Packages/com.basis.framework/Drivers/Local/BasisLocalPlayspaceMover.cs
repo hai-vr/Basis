@@ -147,6 +147,16 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
+            // A hand aiming at UI means the user is driving the menu, not the play space — disable the
+            // whole mover (no drag/rotate/scale/vertical) while either hand is raycasting onto a UI
+            // target. Like the movement lock, keep the vertical offset + flip so opening a menu mid-air
+            // doesn't drop or un-tip you (issue #874).
+            if (AnyHandPointingAtUI())
+            {
+                Stop();
+                return;
+            }
+
             // Vertical drag turned off while lifted: settle back to the floor rather than leaving the
             // player stuck at a previous offset with no way to lower it short of Reset.
             if (BasisSettingsDefaults.PlayspaceMoverVertical.RawValue == false)
@@ -453,10 +463,9 @@ namespace Basis.Scripts.Drivers
                 if (device.TryGetRole(out BasisBoneTrackedRole r) == false || r != role) continue;
 
                 present = true;
-                // Grip is the pickup input and the trigger is the UI click input — while this hand is
-                // holding an interactable or pointing at UI it's driving that, not the mover. Don't let it
-                // grab the play space until it's released / pointed away (issue #874).
-                if (IsHandHoldingObject(device) || IsHandPointingAtUI(device))
+                // Grip is also the pickup input — while this hand is holding an interactable,
+                // don't let it drive the mover until the object is released.
+                if (IsHandHoldingObject(device))
                 {
                     mainHeld = false;
                     rotateHeld = false;
@@ -491,13 +500,26 @@ namespace Basis.Scripts.Drivers
             return false;
         }
 
-        // True while this hand's pointer is over a UI element this frame. Mirrors the HadRaycastUITarget
-        // gate the pickup/interaction system uses, so click-dragging a menu never drags the play space.
-        private static bool IsHandPointingAtUI(BasisInput device)
+        // True while either hand controller's pointer is over a UI element this frame. Mirrors the
+        // HadRaycastUITarget gate the pickup/interaction system uses so the menu, not the play space, gets
+        // the input. Checked for both hands regardless of hand mode — aiming at the menu with any hand
+        // means you're in the menu, so the whole mover is suppressed.
+        private static bool AnyHandPointingAtUI()
         {
-            return device.HasRaycaster
-                && device.BasisUIRaycast != null
-                && device.BasisUIRaycast.HadRaycastUITarget;
+            if (BasisDeviceManagement.Instance == null) return false;
+            var devices = BasisDeviceManagement.Instance.AllInputDevices;
+            if (devices == null) return false;
+
+            foreach (BasisInput device in devices)
+            {
+                if (device == null || device.HasControl == false) continue;
+                if (device.HasRaycaster == false || device.BasisUIRaycast == null) continue;
+                if (device.BasisUIRaycast.HadRaycastUITarget == false) continue;
+                if (device.TryGetRole(out BasisBoneTrackedRole r) == false) continue;
+                if (r != BasisBoneTrackedRole.LeftHand && r != BasisBoneTrackedRole.RightHand) continue;
+                return true;
+            }
+            return false;
         }
 
         private static bool IsHeld(BasisInputState state, string inputMode)
