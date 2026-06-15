@@ -12,6 +12,7 @@
         "BasisNetworkCore",
         "Unity.Mathematics",
         "Unity.Collections",
+        "Unity.Burst",
         "BasisDebug",
         "BasisBundleManagement",
         "BasisProfiler",

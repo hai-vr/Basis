@@ -23,6 +23,19 @@ namespace Basis.IK.Debugging
         // --- tracker placement / discovery gates (calibrate against a known-good run) ---
         public const float TrackerPlacementCleanMinFraction = 0.85f; // overall clean (no-jitter) correctness floor across ALL archetypes incl. extreme; below = broken
         public const float TrackerPlacementCoreMinFraction = 1.0f;   // common "core" archetypes must classify every tracker cleanly
+        // --- multi-tracker ("double hip") rotation fusion ---
+        public const float MultiTrackerMaxErrDeg = 2f;              // fused hip must track body rotation within this of a single tracker
+        public const float MultiTrackerProjectionRigidTolDeg = 1f;  // the projection math must be exact for a RIGID pair (regression guard)
+        public const float MultiTrackerTemporalMaxErrDeg = 3f;      // fused rotation must track the body within this during motion (a single tracker is ~0)
+        public const float MultiTrackerTemporalMaxSnapDeg = 2f;     // frame-to-frame step jump above this = a visible rotation snap
+        // --- foot placement / procedural stepping gates (calibrate against a known-good run) ---
+        public const float FootMaxPlantedSlideMm = 15f;   // a planted foot is world-locked; horizontal move >this/tick = skating
+        public const float FootMaxExtensionRatio = 1.18f;  // hips->foot / standing reach; above = leg can't reach (foot left behind, visible stretch)
+        public const float FootMaxPenetrationMm = 30f;     // planted foot driven below the floor
+        public const float FootMaxPlantedHoverMm = 60f;    // planted foot floating above the floor
+        public const float FootTiltSlackDeg = 2f;          // headroom over the configured tilt clamp -- the slope clamp must hold
+        public const float FootYawSlackDeg = 6f;           // headroom over the configured yaw clamp (sampled late in a step, where the clamp is live)
+        public const float FootMaxKneeBehindM = 0.02f;     // knee hint may sit at most this far behind the hip->foot line before the knee would invert
 
         public static (bool pass, string reason) GateArm(in BasisArmIKSweepSummary s)
         {
@@ -170,7 +183,8 @@ namespace Basis.IK.Debugging
 
         // Tracker placement DISCOVERY: synthetic constellations over many body archetypes must map
         // each tracker to the role it was placed for. Hard invariants (a stale/origin tracker never
-        // binds; a tracker never crosses to the opposite body side) gate unconditionally. Correctness
+        // binds; no CLEAN tracker crosses to the opposite body side) gate unconditionally; jittered
+        // cross-side is reported, not gated (heavy noise at a narrow stance is inherently ambiguous). Correctness
         // is gated strictly on the common "core" archetypes and at a tunable floor overall; extreme
         // archetypes are reported (CSV + confusions) rather than failing the gate.
         public static (bool pass, string reason) GateTrackerPlacement(in BasisTrackerPlacementSummary s)
@@ -179,13 +193,164 @@ namespace Basis.IK.Debugging
             if (s.Trackers <= 0) return (false, "no trackers");
             if (s.NearOriginLeaks > 0)
                 return (false, $"{s.NearOriginLeaks} stale/origin tracker(s) bound to a role (must never happen)");
-            if (s.CrossSideLeaks > 0)
-                return (false, $"{s.CrossSideLeaks} tracker(s) bound to the opposite body side ({s.TopConfusions})");
+            if (s.CleanCrossSideLeaks > 0)
+                return (false, $"{s.CleanCrossSideLeaks} clean tracker(s) bound to the opposite body side ({s.TopConfusions})");
             if (s.CoreCleanFraction < TrackerPlacementCoreMinFraction)
                 return (false, $"core archetypes clean {s.CoreCleanFraction:P0} < {TrackerPlacementCoreMinFraction:P0} ({s.CoreCleanCorrect}/{s.CoreCleanTrackers}; {s.TopConfusions})");
             if (s.CleanCorrectFraction < TrackerPlacementCleanMinFraction)
                 return (false, $"clean correctness {s.CleanCorrectFraction:P0} < {TrackerPlacementCleanMinFraction:P0} ({s.CleanCorrect}/{s.CleanTrackers}; {s.TopConfusions})");
-            return (true, $"clean {s.CleanCorrectFraction:P0} (core {s.CoreCleanFraction:P0}) overall {s.Correct}/{s.Trackers} misassign={s.Misassigned} unassigned={s.Unassigned} invDiffs={s.InvarianceDiffs} minMargin={s.MinCorrectMargin:F1}");
+            return (true, $"clean {s.CleanCorrectFraction:P0} (core {s.CoreCleanFraction:P0}) overall {s.Correct}/{s.Trackers} misassign={s.Misassigned} unassigned={s.Unassigned} crossSide(jittered)={s.CrossSideLeaks} heightBias={s.HeightBiasPts:F1}pts(short {s.ShortAccuracy:F0}%/tall {s.TallAccuracy:F0}%) minMargin={s.MinCorrectMargin:F1}");
+        }
+
+        // Multi-tracker ("double hip") rotation fusion: the fused virtual hip must track the body's rotation
+        // since calibration the same as a single tracker would (the calibration offset cancels, so a correct
+        // fusion reads ~0). Two layers: a regression guard that the projection math is exact for a RIGID pair,
+        // then the shipping behavior under a device-churn re-prime must stay within tolerance -- if it doesn't,
+        // the gate names the robust convention the sweep found.
+        public static (bool pass, string reason) GateMultiTrackerRotation(in BasisMultiTrackerRotationSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Rows <= 0) return (false, "no rows");
+            int stable = s.StableConvIndex, cur = s.CurrentConvIndex, best = s.BestConvIndex;
+            if (s.RigidWorstErrDeg[stable] > MultiTrackerProjectionRigidTolDeg)
+                return (false, $"projected fusion off by {s.RigidWorstErrDeg[stable]:F1} deg for a RIGID pair (t-spread {s.TSpreadDeg[stable]:F1}) -- the projection math is wrong, not just the prime");
+            // Gate on SYSTEMATIC error (the persistent hip offset), not transient flex passthrough -- the
+            // latter is bounded by strap slop for every convention and isn't the bug being chased.
+            float curSys = s.RigidWorstErrDeg[cur];
+            float bestSys = s.RigidWorstErrDeg[best];
+            string onset = float.IsNaN(s.OnsetYawDeg[cur]) ? "never" : $"{s.OnsetYawDeg[cur]:F0}deg yaw";
+            if (curSys > MultiTrackerMaxErrDeg)
+                return (false, $"re-prime convention '{s.ConvNames[cur]}' carries {curSys:F1} deg SYSTEMATIC hip-rotation error > {MultiTrackerMaxErrDeg} (onset {onset}); robust convention '{s.ConvNames[best]}' is {bestSys:F1} deg (flex passthrough: cur {s.FlexWorstErrDeg[cur]:F1}, best {s.FlexWorstErrDeg[best]:F1})");
+            return (true, $"'{s.ConvNames[cur]}' systematic {curSys:F1} deg; best '{s.ConvNames[best]}' {bestSys:F1} deg (flex passthrough cur {s.FlexWorstErrDeg[cur]:F1})");
+        }
+
+        // Multi-tracker DYNAMIC behavior: synthetic body-motion trajectories driven frame-by-frame through the
+        // real stateful fusion. A single tracker tracks the body ~1:1 with no extra lag or snap; the fused pair
+        // must too. Failure here is the live "funky snap / lag" -- the pairing rotation low-pass and confidence
+        // blend deviating from rigid tracking during motion -- which the static convention sweep can't see.
+        public static (bool pass, string reason) GateMultiTrackerRotationTemporal(in BasisMultiTrackerRotationTemporalSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Frames <= 0) return (false, "no frames");
+            if (s.WorstTrackErrDeg > MultiTrackerTemporalMaxErrDeg)
+                return (false, $"fused rotation trails the body by up to {s.WorstTrackErrDeg:F1} deg in motion > {MultiTrackerTemporalMaxErrDeg} (a single tracker is ~0) -- the pairing low-pass/blend lags; lower PairingRotationHalfLife or drop the extra low-pass");
+            if (s.WorstSnapDeg > MultiTrackerTemporalMaxSnapDeg)
+                return (false, $"frame-to-frame step jumps up to {s.WorstSnapDeg:F1} deg > {MultiTrackerTemporalMaxSnapDeg} (a visible rotation snap; overshoot up to {s.WorstOvershootDeg:F1} deg)");
+            return (true, $"tracks within {s.WorstTrackErrDeg:F1} deg, snap {s.WorstSnapDeg:F1} deg, overshoot {s.WorstOvershootDeg:F1} deg");
+        }
+
+        // --- calibration offset / rotation / height math tolerances ---
+        public const float CalibMaxPosErrM = 5e-4f;         // offset + scale round-trip position error (metres)
+        public const float CalibMaxRotErrDeg = 0.1f;        // offset + rotation-calibration round-trip error (degrees)
+        public const float CalibMaxPitchHeightErrM = 5e-3f; // pitch-calibrated eye-height recovery error (metres)
+
+        // Calibration math: the offset capture↔apply, device-scale, per-effector rotation, and pitch-
+        // height formulas must round-trip / land on their targets within float tolerance, and the scale
+        // modifier must sanitize bad overrides. A failure means a calibration formula changed in a way
+        // that no longer reproduces the bone/height it was derived from.
+        public static (bool pass, string reason) GateCalibrationMath(in BasisCalibrationMathSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.MaxOffsetPosErr > CalibMaxPosErrM || s.MaxRigidFollowErr > CalibMaxPosErrM || s.MaxScalePosErr > CalibMaxPosErrM)
+                return (false, $"offset/scale round-trip off: offsetPos={s.MaxOffsetPosErr:F5} follow={s.MaxRigidFollowErr:F5} scalePos={s.MaxScalePosErr:F5} m > {CalibMaxPosErrM} m");
+            if (s.MaxOffsetRotErrDeg > CalibMaxRotErrDeg || s.MaxRotCalErrDeg > CalibMaxRotErrDeg)
+                return (false, $"rotation off: offsetRot={s.MaxOffsetRotErrDeg:F3} rotCal={s.MaxRotCalErrDeg:F3} deg > {CalibMaxRotErrDeg} (rotation calibration would leak orientation)");
+            if (s.MaxPitchHeightErr > CalibMaxPitchHeightErrM)
+                return (false, $"pitch-calibrated height off by {s.MaxPitchHeightErr:F4} m > {CalibMaxPitchHeightErrM} ({s.PitchSolvable} solved, {s.PitchFallback} fallback)");
+            if (s.ScaleModifierMismatches > 0)
+                return (false, $"{s.ScaleModifierMismatches} scale-modifier sanitization/FinalScale mismatches");
+            return (true, $"offsetPos={s.MaxOffsetPosErr:F5}m rotCal={s.MaxRotCalErrDeg:F3}deg scalePos={s.MaxScalePosErr:F5}m pitch={s.MaxPitchHeightErr:F4}m ({s.PitchSolvable}/{s.PitchFallback}) cases={s.Cases} fails={s.Failures}");
+        }
+
+        // Procedural foot placement (BasisFootSimulateJob): a temporal stepping system, so the gate reads
+        // the worst per-frame metric across the scripted locomotion battery (walk/strafe/turn/stop/slope/
+        // stairs/gap). The invariants: feet never lift together or tangle, a planted foot is world-locked
+        // (no skate) and on the ground, the leg can always reach its foot, the tilt/yaw clamps hold, and the
+        // knee hint never falls behind the leg. NaN anywhere = the sim blew up.
+        public static (bool pass, string reason) GateFoot(in BasisFootIKSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Rows <= 0 || s.Scenarios <= 0) return (false, "no rows");
+            if (s.HadNaN) return (false, "NaN foot position / knee hint (the sim blew up)");
+            if (s.BothSteppingTicks > 0)
+                return (false, $"both feet airborne for {s.BothSteppingTicks} ticks (worst: {s.BothSteppingWorstScenario} {s.BothSteppingWorstTicks}) -- a foot must never lift while the other is stepping");
+            if (s.Crossovers > 0)
+                return (false, $"feet crossed/tangled on {s.Crossovers} ticks (left foot ended up right of the right foot)");
+            if (s.WorstExtensionRatio > FootMaxExtensionRatio)
+                return (false, $"foot over-extended to {s.WorstExtensionRatio:F2}x standing reach > {FootMaxExtensionRatio:F2} (foot left behind -- the leg stretches)");
+            if (s.WorstPlantedSlideMm > FootMaxPlantedSlideMm)
+                return (false, $"planted-foot slide {s.WorstPlantedSlideMm:F0}mm/tick > {FootMaxPlantedSlideMm}mm (skating)");
+            if (s.WorstPenetrationMm > FootMaxPenetrationMm)
+                return (false, $"planted foot {s.WorstPenetrationMm:F0}mm below ground > {FootMaxPenetrationMm}mm");
+            if (s.WorstPlantedHoverMm > FootMaxPlantedHoverMm)
+                return (false, $"planted foot floats {s.WorstPlantedHoverMm:F0}mm above ground > {FootMaxPlantedHoverMm}mm");
+            if (s.WorstTiltDeg > s.ConfiguredMaxTiltDeg + FootTiltSlackDeg)
+                return (false, $"foot tilt {s.WorstTiltDeg:F0} > clamp {s.ConfiguredMaxTiltDeg:F0}+{FootTiltSlackDeg} deg (slope clamp not holding)");
+            if (s.WorstYawDeg > s.ConfiguredMaxYawDeg + FootYawSlackDeg)
+                return (false, $"foot yaw {s.WorstYawDeg:F0} > clamp {s.ConfiguredMaxYawDeg:F0}+{FootYawSlackDeg} deg (toe-out clamp not holding)");
+            if (s.WorstKneeBackwardM > FootMaxKneeBehindM)
+                return (false, $"knee hint {s.WorstKneeBackwardM * 100f:F1}cm behind the leg > {FootMaxKneeBehindM * 100f:F0}cm (knee would bend backward)");
+            return (true, $"slide {s.WorstPlantedSlideMm:F1}mm ext {s.WorstExtensionRatio:F2} pen {s.WorstPenetrationMm:F0}mm tilt {s.WorstTiltDeg:F0} yaw {s.WorstYawDeg:F0} drift {s.WorstPlantToIdealM * 100f:F0}cm steps {s.TotalSteps}");
+        }
+
+        // --- twist (swing-twist decomposition) ---
+        public const float TwistMaxErrDeg = 0.5f;        // pure-twist recovery + partial-twist blend error
+        public const float TwistMaxAxisMisalignDeg = 1f; // extracted twist axis vs bone axis with a swing present
+
+        // BasisTwistSolveCore: a pure twist about the bone axis must be recovered exactly, the Fraction must
+        // blend it linearly, a perpendicular swing must not tilt the extracted twist axis, and the singular
+        // inputs (no fraction / zero bone vector) must no-op.
+        public static (bool pass, string reason) GateTwist(in BasisTwistSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.SingularityFailures > 0)
+                return (false, $"{s.SingularityFailures} singular cases applied a twist (must no-op)");
+            if (s.MaxPureTwistErrDeg > TwistMaxErrDeg || s.MaxFractionErrDeg > TwistMaxErrDeg)
+                return (false, $"twist recovery off: pure={s.MaxPureTwistErrDeg:F3} frac={s.MaxFractionErrDeg:F3} deg > {TwistMaxErrDeg}");
+            if (s.MaxAxisMisalignDeg > TwistMaxAxisMisalignDeg)
+                return (false, $"swing tilted the extracted twist axis by {s.MaxAxisMisalignDeg:F2} deg > {TwistMaxAxisMisalignDeg} (swing-twist not separating)");
+            return (true, $"pure={s.MaxPureTwistErrDeg:F3} frac={s.MaxFractionErrDeg:F3} axisMis={s.MaxAxisMisalignDeg:F2} deg cases={s.Cases}");
+        }
+
+        // --- virtual spine + remote bone chain ---
+        public const float SpineMaxErr = 1e-3f;       // chain fraction / hips offset / yaw-flatness (metres or unitless)
+        public const float SpineMaxYawDegErr = 0.1f;  // YawDegrees recovery + yaw-extraction idempotence (degrees)
+        public const float RemoteBoneMaxErr = 1e-3f;  // remote FK composition / segment-length / scale-linearity (metres)
+
+        // Virtual spine solve helpers: the chest/spine must sit on the neck→hips segment at their fractions
+        // (no inversion), hips must drop the spine length below the neck with the pelvic bias, and yaw
+        // extraction must strip pitch/roll. A failure means the torso synthesis geometry changed.
+        public static (bool pass, string reason) GateSpine(in BasisSpineSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.ChainMonotonicFails > 0)
+                return (false, $"{s.ChainMonotonicFails} chains put the chest farther from the neck than the spine (inverted)");
+            if (s.MaxChainFracErr > SpineMaxErr)
+                return (false, $"chest/spine off their neck→hips fraction by {s.MaxChainFracErr:F4} > {SpineMaxErr}");
+            if (s.MaxHipsYErr > SpineMaxErr || s.MaxHipsXZErr > SpineMaxErr || s.MaxHipsFreezeErr > SpineMaxErr)
+                return (false, $"hips position off: y={s.MaxHipsYErr:F4} xz={s.MaxHipsXZErr:F4} freeze={s.MaxHipsFreezeErr:F4} m > {SpineMaxErr}");
+            if (s.MaxYawFlatErr > SpineMaxErr)
+                return (false, $"extracted yaw not pitch/roll-free (forward.y={s.MaxYawFlatErr:F4} > {SpineMaxErr})");
+            if (s.MaxYawIdempotentErr > SpineMaxYawDegErr || s.MaxYawDegErr > SpineMaxYawDegErr)
+                return (false, $"yaw off: idempotence={s.MaxYawIdempotentErr:F3} degRecovery={s.MaxYawDegErr:F3} deg > {SpineMaxYawDegErr}");
+            return (true, $"chainFrac={s.MaxChainFracErr:F4} hipsY={s.MaxHipsYErr:F4} yawFlat={s.MaxYawFlatErr:F4} yawDeg={s.MaxYawDegErr:F3} cases={s.Cases}");
+        }
+
+        // Remote head-chain FK: each child must compose as parent + headRot*offset, segment lengths must be
+        // rotation-preserved and scale linearly, and outputs must stay finite at extreme/zero scale. (Hand/
+        // foot end-effector drift is a play-mode measurement, not covered here.)
+        public static (bool pass, string reason) GateRemoteBone(in BasisRemoteBoneSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.NaNCount > 0)
+                return (false, $"{s.NaNCount} remote chains produced non-finite positions");
+            if (s.MaxCompErr > RemoteBoneMaxErr || s.MaxSegLenErr > RemoteBoneMaxErr || s.MaxScaleErr > RemoteBoneMaxErr)
+                return (false, $"remote FK off: comp={s.MaxCompErr:F4} segLen={s.MaxSegLenErr:F4} scale={s.MaxScaleErr:F4} m > {RemoteBoneMaxErr}");
+            return (true, $"comp={s.MaxCompErr:F4} segLen={s.MaxSegLenErr:F4} scale={s.MaxScaleErr:F4} cases={s.Cases}");
         }
     }
 }

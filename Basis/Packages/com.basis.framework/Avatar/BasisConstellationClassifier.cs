@@ -105,6 +105,12 @@ namespace Basis.Scripts.Avatar
         public const float ToeBelowFoot = 0.03f;
         // Leftover pass accepts fits up to this multiple of the main threshold (−9 → −15.3, ≈3.9σ).
         public const float LeftoverThresholdScale = 1.7f;
+        // A tracker more than this far (eye-height ratio) onto the wrong side of the midline can't
+        // take a side-specific role — kills cross-side limb binds when noise pulls a tracker inward.
+        public const float MidlineGuardRatio = 0.02f;
+        // Foot-mount height re-center uses only samples at/above this ratio, so floor-hugging toe
+        // trackers don't drag the foot prior down into the toe band (keeps foot/toe discriminable).
+        public const float FootBandFloor = 0.035f;
 
         /// <summary>
         /// Classifies the given samples into roles. <paramref name="roleEnabled"/> is consulted
@@ -130,7 +136,7 @@ namespace Basis.Scripts.Avatar
                 result.AssignedScore[i] = float.NaN;
             }
 
-            float armReach = EstimateArmReach(samples, count);
+            float armReach = EstimateArmReach(samples, count, leftHand, rightHand);
             float stanceReach = EstimateStanceWidth(samples, count);
             result.ArmReach = armReach;
             result.StanceReach = stanceReach;
@@ -173,6 +179,7 @@ namespace Basis.Scripts.Avatar
                     {
                         if (roleUsed[r]) continue;
                         if (!IsAssignmentAllowed(priors[r].Role, priors, roleUsed, leftoverPass: false)) continue;
+                        if (!SideAllowed(samples[s], priors[r].Role)) continue;
                         float score = Score(samples[s], priors[r]);
                         if (score > bestScore)
                         {
@@ -204,6 +211,18 @@ namespace Basis.Scripts.Avatar
             float dh = (sample.HeightRatio - prior.ExpectedHeightRatio) / prior.HeightSigma;
             float dl = (sample.LateralRatio - prior.ExpectedLateralRatio) / prior.LateralSigma;
             return -(dh * dh + dl * dl);
+        }
+
+        // A tracker measured clearly on one side of the midline can't take the opposite side's
+        // role — prevents cross-side limb binds when noise pulls a tracker toward the center.
+        // Centerline roles (Hips/Chest) are unconstrained; forced overrides bypass this entirely.
+        public static bool SideAllowed(in BasisConstellationSample sample, BasisBoneTrackedRole role)
+        {
+            int side = role.SideSign();
+            if (side == 0) return true;
+            if (side < 0 && sample.LateralRatio > MidlineGuardRatio) return false;
+            if (side > 0 && sample.LateralRatio < -MidlineGuardRatio) return false;
+            return true;
         }
 
         /// <summary>
@@ -244,17 +263,23 @@ namespace Basis.Scripts.Avatar
         /// Largest absolute lateral ratio among arm-height trackers, or a typical-adult fallback.
         /// Adapts shoulder/elbow priors to the player's actual arm length.
         /// </summary>
-        public static float EstimateArmReach(BasisConstellationSample[] samples, int count)
+        public static float EstimateArmReach(BasisConstellationSample[] samples, int count, BasisConstellationHand leftHand, BasisConstellationHand rightHand)
         {
             float maxAbs = 0f;
             for (int i = 0; i < count; i++)
             {
                 BasisConstellationSample s = samples[i];
+                if (s.NearOrigin) continue;
                 if (s.HeightRatio < ArmHeightFloor) continue;
                 float lAbs = Mathf.Abs(s.LateralRatio);
                 if (lAbs < ArmLateralFloor) continue;
                 if (lAbs > maxAbs) maxAbs = lAbs;
             }
+            // The hand controllers are pinned and are the true outermost arm point. Including them
+            // sizes the shoulder/elbow priors to real arm length instead of the (inboard) elbow
+            // tracker — otherwise the shoulder prior stays too tight and shoulders drop out.
+            if (leftHand.Present) maxAbs = Mathf.Max(maxAbs, Mathf.Abs(leftHand.LateralRatio));
+            if (rightHand.Present) maxAbs = Mathf.Max(maxAbs, Mathf.Abs(rightHand.LateralRatio));
             return maxAbs > ArmLateralFloor ? maxAbs : DefaultArmReachRatio;
         }
 
@@ -284,20 +309,30 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         private static void ApplyMeasuredFootHeightPriors(BasisConstellationPrior[] priors, BasisConstellationSample[] samples, int count)
         {
+            // Foot-band samples (>= FootBandFloor) anchor the foot height so a toe in the set
+            // doesn't drag the foot prior down toward the toes and collapse the foot/toe height
+            // discrimination. Fall back to all low samples when no foot-band one is present.
             float sum = 0f;
             int n = 0;
+            float sumAll = 0f;
+            int nAll = 0;
             for (int i = 0; i < count; i++)
             {
                 BasisConstellationSample s = samples[i];
                 if (s.NearOrigin) continue;
                 if (s.HeightRatio > FootHeightCeiling) continue;
                 if (s.HeightRatio < -FootHeightCeiling) continue; // discard far-sub-floor (bad) reads
-                sum += s.HeightRatio;
-                n++;
+                sumAll += s.HeightRatio;
+                nAll++;
+                if (s.HeightRatio >= FootBandFloor)
+                {
+                    sum += s.HeightRatio;
+                    n++;
+                }
             }
-            if (n == 0) return;
+            if (nAll == 0) return;
 
-            float footH = Mathf.Clamp(sum / n, FootHeightMin, FootHeightMax);
+            float footH = Mathf.Clamp(n > 0 ? sum / n : sumAll / nAll, FootHeightMin, FootHeightMax);
             float toeH = Mathf.Max(footH - ToeBelowFoot, 0f);
 
             SetPriorHeight(priors, BasisBoneTrackedRole.LeftFoot, footH);
@@ -525,6 +560,7 @@ namespace Basis.Scripts.Avatar
                     {
                         if (roleUsed[r]) continue;
                         if (!IsAssignmentAllowed(priors[r].Role, priors, roleUsed, leftoverPass: true)) continue;
+                        if (!SideAllowed(samples[s], priors[r].Role)) continue;
                         float score = Score(samples[s], priors[r]);
                         if (score > bestScore)
                         {

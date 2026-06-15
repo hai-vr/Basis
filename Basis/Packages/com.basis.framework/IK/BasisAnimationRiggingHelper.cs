@@ -13,10 +13,18 @@ public static class BasisAnimationRiggingHelper
     /// leak in. FBT calibration recomputes these head-driven instead (FullBodyCalibration).</summary>
     public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
     {
-        Quaternion boneRelativeToRoot = animatorRoot != null
-            ? Quaternion.Inverse(animatorRoot.rotation) * avatarBone.rotation
-            : avatarBone.rotation;
-        return Quaternion.Inverse(control.OutGoingData.rotation) * boneRelativeToRoot;
+        return CalibratedRotationOffset(control.OutGoingData.rotation, animatorRoot != null ? animatorRoot.rotation : Quaternion.identity, avatarBone.rotation, animatorRoot != null);
+    }
+
+    /// <summary>Pure form: the per-effector bind offset from rotations alone. offset applied as
+    /// boneOutgoing*offset reproduces the avatar bone relative to its animator root, so a spawn
+    /// orientation can't leak across an avatar swap. Shared with the Calibration Math sweep.</summary>
+    public static Quaternion CalibratedRotationOffset(Quaternion boneOutgoingRotation, Quaternion animatorRootRotation, Quaternion avatarBoneRotation, bool hasAnimatorRoot)
+    {
+        Quaternion boneRelativeToRoot = hasAnimatorRoot
+            ? Quaternion.Inverse(animatorRootRotation) * avatarBoneRotation
+            : avatarBoneRotation;
+        return Quaternion.Inverse(boneOutgoingRotation) * boneRelativeToRoot;
     }
 
     /// <summary>

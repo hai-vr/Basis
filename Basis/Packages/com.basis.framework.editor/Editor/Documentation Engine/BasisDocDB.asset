@@ -836,6 +836,41 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: ApplyCalibrationToCurrentAvatar
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - Quaternion.Inverse(Mapping.AnimatorRoot.rotation
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Re-derives the per-effector FBT rotation offsets for the CURRENT avatar
+      from the stored\n calibration reference, so the calibration survives an avatar
+      swap (no T-pose redo). Called at\n calibration and again from the rig (re)build.
+      No-op until a calibration has been captured."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
     MemberName: GetAllRolesAsTransform
     Kind: Method
     ParamCount: 0
@@ -4109,6 +4144,45 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: OffsetCapture
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - input
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Records one FB tracker's offset capture (issue #531). Emits, under
+      stage \"OffsetCapture\"\n and label=role, the virtualized device/bone-local
+      poses BasisInput.CalculateOffset\n now uses (ScaledDeviceCoord, OutGoing local,
+      OutgoingWorld, TposeLocalScaled), the live Unity\n transform world pose the
+      old path read, the player root, and BOTH the legacy world-space\n inverse offset
+      and the virtualized local-space offset so the two can be compared pass-to-pass\n
+      after a tracker is moved and recalibrated."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
     MemberName: RuntimeBegin
     Kind: Method
     ParamCount: 1
@@ -4236,6 +4310,292 @@ MonoBehaviour:
     Summary: "Writes all recorded rows to a CSV and ends the session. No-op when
       the session was\n never enabled or nothing was recorded. Always clears state
       so the next Begin starts clean."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisConstellationPrior
+    MemberName: BasisConstellationPrior
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Pure, side-effect-free constellation classifier: the tracker\u2192role
+      matching math\n extracted out of BasisAvatarIKStageCalibration so it can be
+      driven by\n synthetic data (the editor Tracker Placement Sweep) as well as
+      by live devices. It\n takes a set of trackers described only by their body-relative
+      height/lateral ratios and\n returns a role per tracker \u2014 no avatar lookup,
+      no device mutation, no settings reads.\n The live calibration builds these
+      samples from real devices, calls Classify, then applies\n the returned roles;
+      the sweep generates them from body archetypes and checks the result."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisConstellationSample
+    MemberName: BasisConstellationSample
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: One tracker described purely by its position in the player's T-pose
+      body frame.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisConstellationHand
+    MemberName: BasisConstellationHand
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: A known hand-controller pose (body-relative ratios). Re-centers the
+      elbow prior.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisConstellationClassifier
+    MemberName: Classify
+    Kind: Method
+    ParamCount: 6
+    ParamNames:
+    - samples
+    - count
+    - leftHand
+    - rightHand
+    - tolerance
+    - roleEnabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Classifies the given samples into roles. `roleEnabled` is consulted\n
+      once to drop disabled roles from the candidate set (a forced override may still
+      bind a\n disabled / off-list role). Returns one role (or -1) per input sample,
+      plus the full\n recentered prior set for diagnostics."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: BuildPriors
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - armReach
+    - stanceReach
+    - 0.07f
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Heights are fractions of player eye height. Lateral is signed \u2014
+      negative is the body's\n left. Every sigma is multiplied by toleranceScale
+      (the user-facing \"calibration\n tolerance\" knob, 1 = stock). Leg lateral
+      tracks measured stance; arm lateral tracks\n measured reach, so the same priors
+      work for kids and tall adults."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: EstimateArmReach
+    Kind: Method
+    ParamCount: 4
+    ParamNames:
+    - samples
+    - count
+    - leftHand
+    - ArmHeightFloor
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Largest absolute lateral ratio among arm-height trackers, or a typical-adult
+      fallback.\n Adapts shoulder/elbow priors to the player's actual arm length."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: EstimateStanceWidth
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - samples
+    - FootHeightCeiling
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Largest absolute lateral ratio among foot-height trackers (the stance-defining\n
+      trackers), or the typical-adult fallback. Lets leg priors track the player's
+      stance."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.
+    MemberName: FindPriorIndex
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - priors
+    - role
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Re-centers the Foot/Toes height priors on the player's measured foot-tracker
+      height\n (ankle-strap / boot mount variance), keeping the toe band a fixed
+      step below the foot\n band. No-op when no foot-height tracker is present."
     Remarks: 
     Returns: 
     Value: 
@@ -12315,6 +12675,81 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisAnimationRiggingHelper
+    MemberName: CalibratedRotationOffset
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - control
+    - animatorRoot
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-effector bind offset for the uncalibrated rig build: bone-sim LOCAL
+      outgoing against the\n avatar bone RELATIVE TO the animator root (the avatar's
+      own forward), so its spawn orientation can't\n leak in. FBT calibration recomputes
+      these head-driven instead (FullBodyCalibration)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: CalibratedRotationOffset
+    Kind: Method
+    ParamCount: 4
+    ParamNames:
+    - boneOutgoingRotation
+    - animatorRootRotation
+    - avatarBoneRotation
+    - Quaternion.Inverse(boneOutgoingRotation
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Pure form: the per-effector bind offset from rotations alone. offset
+      applied as\n boneOutgoing*offset reproduces the avatar bone relative to its
+      animator root, so a spawn\n orientation can't leak across an avatar swap. Shared
+      with the Calibration Math sweep."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: CreateBasisFullBodyRIG
     Kind: Method
     ParamCount: 4
@@ -12844,6 +13279,159 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisCalibrationMath
+    MemberName: BasisCalibrationMath
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Pure calibration/offset math shared by the runtime (BasisInput offset
+      capture + device scaling)\n and the editor Calibration Math sweep, so the sweep
+      exercises the real formulas rather than a\n copy. All functions are side-effect-free
+      Vector3/Quaternion math."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisCalibrationMath
+    MemberName: ComputeInverseOffset
+    Kind: Method
+    ParamCount: 6
+    ParamNames:
+    - trackerPos
+    - trackerRot
+    - bonePos
+    - boneRot
+    - inverseOffsetPosition
+    - trackerPos
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Inverse-offset capture (BasisInput.CalculateOffset): store the bone
+      pose in the tracker's\n local frame so the bone can follow the tracker rigidly
+      at runtime. The stored offset is the\n bone position/rotation expressed relative
+      to the tracker at calibration time."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ApplyInverseOffset
+    Kind: Method
+    ParamCount: 6
+    ParamNames:
+    - trackerPos
+    - trackerRot
+    - inverseOffsetPosition
+    - inverseOffsetRotation
+    - bonePos
+    - boneRot
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Applies a captured inverse offset (the BasisBoneSimChainJob UseInverseOffset
+      path): land the\n bone at trackerPos + trackerRot*offsetPos with rotation trackerRot*offsetRot.
+      Exact inverse\n of ComputeInverseOffset for the same tracker pose."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ScaleDeviceCoord
+    Kind: Method
+    ParamCount: 7
+    ParamNames:
+    - unscaledPos
+    - unscaledRot
+    - deviceScale
+    - offsetPos
+    - offsetRot
+    - scaledPos
+    - deviceScale
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Unscaled device coord \u2192 scaled (BasisInput.ConvertToScaledDeviceCoord):
+      scale the position by\n DeviceScale, then apply the rigid OffsetCoords (R,t).
+      Rotation is offset*unscaled (scale-free)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: UnityEngine.Animations.Rigging.BasisFullBodyData
     MemberName: BasisFullBodyData
     Kind: Type
@@ -13171,10 +13759,11 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
-    MemberName: CaptureHMDHeightSample
+    MemberName: CaptureHMDPitchSample
     Kind: Method
-    ParamCount: 1
+    ParamCount: 2
     ParamNames:
+    - pitchRadians
     - lockToInput.BasisInput.LatePollData(
     ParamDocs: []
     BaseTypeName: 
@@ -13188,8 +13777,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Captures a single HMD position sample for pitch calibration.\n Returns
-      the Y height, or -1 if no device available."
+    Summary: "Captures one HMD sample for pitch calibration: pitchRadians is the
+      gaze pitch (positive =\n looking up), eyeY is the HMD height with the play-space
+      mover's vertical offset removed.\n Returns false when no HMD device is available."
     Remarks: 
     Returns: 
     Value: 
@@ -13206,11 +13796,14 @@ MonoBehaviour:
   - TypeFullName: 
     MemberName: ComputePitchCalibratedHeight
     Kind: Method
-    ParamCount: 3
+    ParamCount: 6
     ParamNames:
-    - upY
-    - downY
-    - forwardY
+    - up
+    - down
+    - Mathf.Sin(up.x)
+    - Mathf.Sin(down.x)
+    - Mathf.Sin(forward.x)
+    - Mathf.Cos(forward.x
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -13223,10 +13816,13 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Computes the corrected eye height from three pitch samples (up, down,
-      forward).\n The HMD traces an arc around the neck pivot when pitching. The
-      midpoint of\n up/down Y values approximates the neck pivot height. The forward
-      sample then\n gives the actual eye-to-pivot offset at neutral."
+    Summary: "Recovers the level-gaze eye height from three (pitch, height) HMD samples.
+      As the head\n pitches the HMD height follows Y(pitch) = P + A*sin(pitch) +
+      B*cos(pitch) about the neck\n pivot; solving that system gives the level-gaze
+      height Y(0) = P + B, independent of whether\n the \"forward\" pose was actually
+      level. Falls back to the forward sample when the samples\n are too close together
+      to solve or the result lands outside the up/down range.\n Each Vector2 is (x
+      = pitch radians, y = eye height)."
     Remarks: 
     Returns: 
     Value: 
@@ -17528,6 +18124,40 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.
+    MemberName: LoadDefaultAssetBundleAsync
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (BundledContentHolder.Instance.UseAddressablesToLoadScene
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Probes the server and returns the IPAddress string that actually\n
+      responded, or `fallback` if the probe cannot reach either family.\n A 2.5-second
+      budget is split: first half for IPv6, second half for IPv4."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisCrashReportStore
     MemberName: BasisCrashReportStore
     Kind: Type
@@ -20318,6 +20948,169 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: GlobalPlayspaceMoverLocked
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-pushed lock: while true, non-admin players cannot use the playspace
+      mover.\n Admins (basis.moderation.globallock) are exempt \u2014 see LocalPlayerHasGlobalLockBypass."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Action
+    Kind: Event
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Fired when the playspace-mover lockout flag changes.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: GlobalDirectConnectLocked
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-pushed lock: while true, the server refuses to broker direct
+      (P2P) connections for\n non-admin players and clients hide the direct-connect
+      control. Admins are exempt."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Action
+    Kind: Event
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Fired when the direct-connect lockout flag changes.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: LocalPlayerHasGlobalLockBypass
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - perms.Contains(BasisPermissions.PermNodes.ModerationGlobalLock)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "True when the local player holds the global-lock moderation permission
+      (or the '*' wildcard),\n which exempts them from the admin-controlled avatar-scale
+      clamp, playspace-mover lockout, and\n direct-connect lockout. Mirrors the server's
+      permission check; direct connect is still gated\n server-side, so this is just
+      UI/UX for that one."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: GlobalToggleAvatars
     Kind: Method
     ParamCount: 1
@@ -20502,6 +21295,74 @@ MonoBehaviour:
       avatar sync\n messages. Server flips the flag and starts dropping the additional-data
       payload\n from every inbound message; muscle/position/rotation still propagate
       normally."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: GlobalTogglePlayspaceMover
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - SendAdminRequest(AdminRequestMode.GlobalTogglePlayspaceMover
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Admin: toggle the global playspace-mover lockout. Server flips the
+      flag, persists it to\n config.xml, and broadcasts the new GlobalGetLockState
+      payload. Non-admins can't grab/drag\n their play space while set."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: GlobalToggleDirectConnect
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - SendAdminRequest(AdminRequestMode.GlobalToggleDirectConnect
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Admin: toggle the global direct-connect (P2P) lockout. Server flips
+      the flag, persists it,\n broadcasts the new lock state, and refuses to broker
+      P2P for non-admins while set."
     Remarks: 
     Returns: 
     Value: 
@@ -20731,6 +21592,134 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Admin: set the server-wide maximum microphone and hearing range (metres).
       Persisted to\n config.xml and broadcast to every client."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ServerMinAvatarEyeHeightMeters
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-pushed minimum avatar eye height (metres) for non-admin players.
+      Defaults to 0.1 m\n until a server pushes a value; admins bypass the clamp."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ServerMaxAvatarEyeHeightMeters
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Server-pushed maximum avatar eye height (metres) for non-admin players.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Action
+    Kind: Event
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Fired when the server pushes new avatar scale limits (min, max) in metres.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: SetGlobalAvatarScaleLimits
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - minMeters
+    - w.Put(minMeters
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Admin: set the server-wide min/max avatar eye height (metres). Persisted
+      to config.xml and\n broadcast to every client; non-admins are clamped to it."
     Remarks: 
     Returns: 
     Value: 
@@ -22809,7 +23798,45 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Registers the LiteNetLib server-info probe with BasisNetworkStackRegistry.\n
       Fires a single unconnected \"server info\" packet at the listening port (the
-      LiteNetLib\n equivalent of a Minecraft Server List Ping) and awaits the response."
+      LiteNetLib\n equivalent of a Minecraft Server List Ping) and awaits the response.\n\n
+      When the hostname resolves to both AAAA and A records, IPv6 is attempted first
+      with\n half the total timeout budget. If IPv6 times out or fails the probe
+      falls through to\n IPv4 with the remaining budget. The winning IPAddress is
+      stored in\n ServerProbeResult.ResolvedAddress so callers can connect directly
+      to the\n confirmed-reachable address family without re-resolving DNS."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.ResolvedAddresses
+    MemberName: ResolvedAddresses
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Sends a single probe packet to `address`:`port`\n and waits up to `timeoutMs`
+      for a matching response.\n The handler also checks the source endpoint to reject
+      stale packets from a\n previous attempt that arrive late."
     Remarks: 
     Returns: 
     Value: 
@@ -23015,6 +24042,74 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Called automatically before scene load to configure iOS audio session.\n
       Sets PlayAndRecord category with DefaultToSpeaker option."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisBootContentLoader
+    MemberName: BasisBootContentLoader
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Loads \"load on boot\" content (see BasisPreloadContentStore) at startup:
+      the first\n preloaded world becomes the initial world and any preloaded props
+      respawn at the placed transform\n they were saved with. Skipped when the app
+      is auto-joining a server (the server provides the world)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisPreloadContentStore
+    MemberName: BasisPreloadContentStore
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Persists the \"load on boot\" content list as XML at\n `Application.persistentDataPath/PreloadContent.xml`.
+      Each entry is a BEE location\n (local `file://` or remote http/https) + password
+      + content mode, loaded automatically\n on startup by BasisBootContentLoader.
+      Built on System.Xml.Linq so it stays\n IL2CPP-safe (no runtime serializer codegen)."
     Remarks: 
     Returns: 
     Value: 
@@ -23704,13 +24799,13 @@ MonoBehaviour:
       so it appears live in VR/desktop, not just the editor scene view.\n\n Three
       sub-toggles:\n  \u2022 Ranges     \u2014 the local listener's hearing-distance
       sphere (wireframe), plus a\n                 per-speaker full-volume ring at
-      the AudioSource minDistance.\n  \u2022 ListenerCone \u2014 the directional-dampening
-      cone (RAListenerConeAngle) projected\n                 from the listener: inside
-      the wedge a source plays at full volume,\n                 outside it is damped
-      toward RAListenerDampenAmount.\n  \u2022 Levels       \u2014 per speaker: an
-      arrow along the Steam Audio source-forward\n                 (directivity dipole)
-      axis with a vertical loudness meter on its tip.\n                 The arrow
-      + meter fill are tinted green\u2192red by the net loudness that\n                
+      the AudioSource minDistance.\n  \u2022 ListenerCone \u2014 the listener directional-dampening
+      pattern (RAListenerConeAngle /\n                 RAListenerDampenAmount) drawn
+      as a polar curve around the listener:\n                 full radius ahead,
+      near-full at the sides, pinching to the rear floor.\n  \u2022 Levels      
+      \u2014 per speaker: an arrow along the Steam Audio source-forward\n                
+      (directivity dipole) axis with a vertical loudness meter on its tip.\n                
+      The arrow + meter fill are tinted green\u2192red by the net loudness that\n                
       reaches you, so a red arrow on someone facing you is the \"facing me\n                
       but quiet\" test. The meter fill rises to the speaker's live output\n                
       (\"max volume\") under a fixed dim headroom up to full scale, and the\n                
@@ -24172,7 +25267,8 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Accessibility settings module that controls volumetric fog density\n
       by modifying VolumetricFogVolumeComponent overrides on all existing Volumes
-      in the scene.\n Only applies when the volumetric fog override toggle is enabled."
+      in the scene.\n When the override toggle is disabled the scene's authored fog
+      overrides are restored."
     Remarks: 
     Returns: 
     Value: 
@@ -33694,6 +34790,40 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: ClampToAdminEyeHeight
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (BasisNetworkModeration.LocalPlayerHasGlobalLockBypass()
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Clamp a target avatar eye height (metres) to the server-pushed admin
+      scale limits. Admins\n (basis.moderation.globallock) bypass it; the default
+      0.1..100 m range is effectively a no-op."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: ApplyAvatarScale
     Kind: Method
     ParamCount: 1
@@ -41471,12 +42601,122 @@ MonoBehaviour:
     Summary: "Lets a VR user grab and drag (and optionally rotate/scale) their play
       space by holding a\n configurable controller input, the way naelstrof's VRPlayspaceMover
       does. Gated behind the\n Body Tracking \"Playspace Mover\" toggle and driven
-      each frame after character movement.\n\n The drag is applied incrementally
-      through the character controller, so it composes with\n normal locomotion instead
-      of blocking it. One held hand drags (translation). Two hands holding\n the
-      main input scale (drives the custom avatar scale, not the play space); two
-      hands holding the\n rotation input rotate (yaw). The net drag is tracked so
-      ResetOffset can undo it\n while leaving normal locomotion intact."
+      each frame after character movement.\n\n Horizontal (X/Z) drag is applied incrementally
+      through the character controller, so it composes\n with normal locomotion instead
+      of blocking it and still resolves walls/floors. One held hand\n drags (translation).
+      Two hands holding the main input scale (drives the custom avatar scale, not\n
+      the play space); two hands holding the rotation input rotate (yaw). The net
+      horizontal drag is\n tracked so ResetOffset can undo it while leaving normal
+      locomotion intact.\n\n Vertical (Y) drag works like OVR Advanced Settings'
+      \"Space Drag\": you pull yourself up or down\n and stay where you let go. It
+      can't ride the character controller (gravity, applied earlier in\n the frame,
+      would claw it straight back), so instead it accumulates into VerticalOffset\n
+      \u2014 a tracking-space height offset injected into every device in\n Device_Management.Devices.BasisInput.ComputeUnscaledDeviceCoord,
+      the same hook seated\n mode uses for its height delta. That shifts the whole
+      tracking space (view, hands, avatar) without\n moving the capsule or touching
+      gravity, so it persists for free. Gated by the \"Vertical\" toggle."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalPlayspaceMover
+    MemberName: VerticalOffset
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Vertical play-space offset (OVRAS Space-Drag style), in unscaled (real-world)
+      metres. Injected\n into every device's Y in Device_Management.Devices.BasisInput.ComputeUnscaledDeviceCoord\n
+      \u2014 the same hook seated mode uses \u2014 so the whole tracking space (view,
+      hands, avatar) shifts up/\n down without moving the capsule or fighting gravity.
+      Persists until dragged back or reset."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalPlayspaceMover
+    MemberName: FlipRotation
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Active play-space flip rotation (OVRAS-style, but settings-driven not
+      grabbed). Applied about\n head height to the rig's final local->world pose
+      \u2014 the avatar via ApplyFlipToMatrix\n (localToWorldMatrix) and the view/controllers/trackers
+      via\n Device_Management.Devices.BasisInput.ApplyFinalMovement \u2014 so the
+      world appears\n rotated / upside down without rotating the character controller
+      capsule. Identity when the flip\n toggle is off or the angle is ~0/360."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalPlayspaceMover
+    MemberName: HasFlip
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True while FlipRotation is a non-identity rotation worth applying.
     Remarks: 
     Returns: 
     Value: 
@@ -41507,7 +42747,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Total play-space drag currently applied (world units).
+    Summary: Total horizontal play-space drag currently applied (world units).
     Remarks: 
     Returns: 
     Value: 
@@ -41541,6 +42781,75 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Undoes the net play-space drag (returns to where the user was before
       dragging),\n leaving custom scale and normal locomotion untouched."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: ApplyFlipToMatrix
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - Matrix4x4.Translate(-pivot
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Recomputes FlipRotation/HasFlip from the flip settings (toggle,\n angle
+      0-360, axis). The character controller is never rotated \u2014 only the rig's
+      render/tracking\n pose, applied via ApplyFlipToMatrix and\n Device_Management.Devices.BasisInput.ApplyFinalMovement."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: ApplyFlipToLocalPose
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - localPosition
+    - pivot)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Applies the active flip to a device's final local pose (camera, controllers,
+      trackers) so they\n tip in lockstep with the avatar. No-op unless a flip is
+      active."
     Remarks: 
     Returns: 
     Value: 
@@ -41701,6 +43010,45 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Global smoothing strength multiplier (1-100). Divides MinCutoff and
       Hz values\n to amplify filtering. Higher = stronger smoothing but more latency."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: RestoreAllTrackers
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Re-applies the full-body IK constraint weights from each bone's current
+      rig-layer\n state \u2014 the inverse of DisableAllTrackers. PutAvatarIntoTPose
+      disables\n these so the T-pose read isn't dragged by trackers; FullBodyCalibration
+      restores them\n as a side effect of (re)assigning roles, but any flow that
+      enters/exits T-pose WITHOUT\n a full calibration must call this or the arm
+      hints / chest / shoulders / legs stay\n stuck at zero weight (the avatar and
+      controller arms look broken until the next\n calibrate). HasHipsTracker is
+      omitted on purpose \u2014 the per-frame Simulate recomputes it."
     Remarks: 
     Returns: 
     Value: 
@@ -42252,6 +43600,44 @@ MonoBehaviour:
       length and bias,\n then fills chest/spine along the chain. Operates entirely
       on the IO buffer + params + state;\n no managed access. A faithful port of
       the former managed OnSimulate body."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ExtractYawBurst
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - rotation
+    - 0f)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Yaw deadzone for the torso: holds the chest/spine/hips heading at an
+      anchor until the head\n leaves the cone, then eases a 0..1 follow weight in
+      so the chain blends into the catch-up\n (and back out) instead of snapping
+      at the edge. Re-centers the anchor once fully engaged and\n the head stops,
+      so reversing has to re-cross the cone. While locomoting the cone is bypassed\n
+      so the torso re-aligns to the head. Head and neck are unaffected."
     Remarks: 
     Returns: 
     Value: 
@@ -45379,6 +46765,41 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisRemoteBoneMath
+    MemberName: BasisRemoteBoneMath
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Pure remote-avatar bone math shared by BasisRemoteBoneJob and the editor
+      Remote Bone sweep, so\n the sweep exercises the real forward-kinematics chain
+      rather than a copy. The head chain (neck \u2192\n chest \u2192 spine, plus
+      derived eye/mouth) is FK off the networked head pose and the scaled T-pose\n
+      offsets \u2014 each child is parent + headRotation * scaledOffset."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
     MemberName: BasisRemoteFaceDriver
     Kind: Type
@@ -47496,7 +48917,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - BasisAvatarBitPacking.MinScale
+    - DecodePositiveScalePosit16(value
     ParamDocs:
     - 
     - 
@@ -58043,6 +59464,49 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Tests.IK.BasisElbowDirectionTests
+    MemberName: BasisElbowDirectionTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Elbow-direction regression tests for the arm IK sweep system.\n\n These
+      exercise the pure, stream-free elbow math directly -- BasisArmBendLookup\n
+      (the chest-relative bend-direction lookup) and BasisArmSolveCore (the two-bone\n
+      solve, a fork of Unity's SolveTwoBoneIK with the Basis pole-flip / rate-limit
+      handling). They\n guard the two failure modes the elbow used to have:\n\n  
+      1. ELBOW FLIP   -- the pole snapping to the opposite side on smooth motion
+      / tracker noise.\n   2. ELBOW IN FRONT -- the elbow winging up and forward
+      instead of tucking naturally behind\n                        and below the
+      hand.\n\n Thresholds are intentionally looser than the values the current solver
+      produces (each test\n notes the measured headroom) so they fail only on a real
+      regression, not on float noise.\n\n This is the same geometry the offline BasisArmIKSweep
+      CSV harness scans, asserted here so the\n \"elbow behind the hand, never flipped\"
+      property is checked in CI instead of by eyeballing a CSV."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.UI.NamePlate.
     MemberName: Volatile.Read
     Kind: Method
@@ -60415,8 +61879,10 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "used to load a target item from a BasisDataStoreItemKeys.ItemKey\n
-      items are branched with a switch statement depending on item mode"
+    Summary: "Network types offered in the load dropdown. Local and Load-on-Boot
+      work offline; Networked\n only appears when connected to a server. Local-file
+      content is never networkable (it does\n not exist on other clients), so it
+      is restricted to Local and Load-on-Boot."
     Remarks: 
     Returns: 
     Value: 
@@ -63863,9 +65329,8 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: ApplyFinalMovement
     Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - ScaledDeviceCoord.rotation
+    ParamCount: 0
+    ParamNames: []
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -64461,7 +65926,7 @@ MonoBehaviour:
     ParamCount: 2
     ParamNames:
     - unscaled
-    - scaled
+    - scaled.rotation
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -67836,6 +69301,143 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: Generates a flavored rich-text display name (not guaranteed globally
       unique).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Pairing.BasisMidpointFusionTunables
+    MemberName: BasisMidpointFusionTunables
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The fusion tunables, read once per frame. Lives apart from the live
+      settings so the offline temporal\n sweep can drive the exact same math with
+      fixed numbers (and so the per-frame read stays cheap).\n Default mirrors the
+      BasisSettingsDefaults.Pairing* defaults; FromSettings\n is what the runtime
+      feeds."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Pairing.BasisMidpointFusionState
+    MemberName: BasisMidpointFusionState
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-pair fusion state carried across frames (velocity EMAs, smoothed
+      confidence weights, the captured\n rest distance + half-rest offset, and the
+      rotation low-pass). A fresh pair starts at Fresh."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Pairing.BasisMidpointFusionCore
+    MemberName: BasisMidpointFusionCore
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The exact per-frame fusion BasisVirtualMidpointInput runs: a confidence-weighted
+      position\n blend with a continuous pull toward the calibrated rest distance,
+      a rest-offset-projected rotation slerp,\n and a rotation low-pass. Pulled out
+      of the MonoBehaviour so the offline temporal sweep drives the\n identical stateful
+      math frame-by-frame with no scene or play mode."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Pairing.BasisMidpointRotationFusion
+    MemberName: BasisMidpointRotationFusion
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Pure rotation math for fusing two rigidly-linked tracker rotations
+      into a single\n midpoint orientation. Lives apart from BasisVirtualMidpointInput
+      (a\n MonoBehaviour wired to live devices and settings) so the offline multi-tracker\n
+      rotation sweep can exercise the exact math the live pair runs, with no scene."
     Remarks: 
     Returns: 
     Value: 
@@ -75678,6 +77280,39 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Settings.
+    MemberName: ReapplySettings
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - OnSettingsFinishedChanges?.Invoke(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Re-applies current settings to live targets without forcing a quality
+      refresh.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisBeeConstants
     MemberName: RemoteHeaderSize
     Kind: Field
@@ -75781,7 +77416,7 @@ MonoBehaviour:
     - wrapper
     - report
     - cancellationToken
-    - BasisLoadHandler.IsMetaDataOnDiscAsync(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation
+    - cancellationToken
     ParamDocs:
     - 
     - 
@@ -75818,7 +77453,7 @@ MonoBehaviour:
     ParamNames:
     - wrapper
     - report
-    - cancellationToken).ConfigureAwait(false
+    - '!string.IsNullOrEmpty(localErr)'
     ParamDocs:
     - 
     - 
@@ -75834,8 +77469,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Saves or updates on-disc metadata when it is missing or was refreshed
-      by a forced re-download.
+    Summary: "Loads a BEE that lives on the local filesystem (no download, no on-disc
+      cache copy).\n Reads connector + platform section directly and generates the
+      asset bundle."
     Remarks: 
     Returns: "A BasisMetaLoadResult describing whether the connector was obtained,\n
       and if not, whether the failure was transient (network/cancel) or fatal (missing/corrupt)."
@@ -76020,6 +77656,78 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: Task<
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - Generated
+    - BundleBytes
+    - wrapperErr
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Reads connector + platform section directly from a local BEE file.
+      Tries the remote-format\n layout (8-byte header, all platform sections \u2014
+      the SDK export) first, then falls back to the\n full-file cache layout (4-byte
+      header, single section), so either on-disk format loads."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Task<
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - Connector
+    - wrapperErr
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Reads only the connector from a local BEE file, trying the remote-format
+      layout first and\n falling back to the full-file cache layout. Used by meta-only
+      loads (library cards)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: DownloadBEEEx
     Kind: Method
     ParamCount: 5
@@ -76164,12 +77872,50 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
-    MemberName: CheckRemoteFileReachable
+    MemberName: ReadRemoteBeeFromDiskEx
     Kind: Method
-    ParamCount: 2
+    ParamCount: 5
     ParamNames:
-    - url
-    - '{urlErr}"'
+    - filePath
+    - vp
+    - progressCallback
+    - default
+    - empty."
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Reads a REMOTE-format BEE blob (8-byte Int64 header) from a local file,
+      parses the connector,\n and (when `includeSection` is true) returns the platform-matching
+      section.\n This is the on-disk equivalent of DownloadBEEEx for a BEE the SDK
+      exported\n straight to disk rather than to a HTTP host."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: IsLocalBeeUrl
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (string.IsNullOrWhiteSpace(location)
     ParamDocs:
     - 
     - 
@@ -76190,6 +77936,77 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: downloads a range of bytes
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: TryResolveLocalBeePath
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - location
+    - (string.IsNullOrWhiteSpace(location)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Returns true when `location` points at an existing local BEE file\n
+      (a `file://` URI or a raw filesystem path) rather than a HTTP/HTTPS download,\n
+      resolving it to an absolute local path. Used to route a dropped-in local BEE
+      through\n the on-disk reader instead of the network download path."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: CheckRemoteFileReachable
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - url
+    - '{urlErr}"'
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Sends an HTTP HEAD request to check if the remote file is reachable.\n
+      Returns success if the server responds with a 2xx status code,\n indicating
+      the file exists and is accessible."
     Remarks: 
     Returns: 
     Value: 
@@ -80918,6 +82735,40 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Sending method type
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Network.Core.ServerProbeResult
+    MemberName: ResolvedAddress
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The IP address that successfully responded to the probe. Null when
+      unreachable.\n Callers can use this to bypass DNS re-resolution and connect
+      directly to the\n confirmed-reachable address family (supporting IPv6\u2192IPv4
+      fallback)."
     Remarks: 
     Returns: 
     Value: 
@@ -93638,6 +95489,75 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.BasisAvatarScaleLimitManager
+    MemberName: BasisAvatarScaleLimitManager
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-defined minimum/maximum avatar eye height (in metres) a non-admin
+      player may scale to.\n Seeded from Configuration at boot and pushed to clients
+      via GlobalGetAvatarScaleLimits so they\n clamp their avatar scale to it. Admins
+      (basis.moderation.globallock) bypass the clamp client-side.\n Admins can change
+      the range live; the new values are persisted to config.xml and broadcast."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
+    MemberName: SetLimits
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - minMeters
+    - maxMeters
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Sanitize, order (min <= max), set, and report whether either bound actually
+      changed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisNetworkServer.Security.BasisCrashReportStateManager
     MemberName: BasisCrashReportStateManager
     Kind: Type
@@ -93932,6 +95852,72 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisNetworkServer.Security.
+    MemberName: TogglePlayspaceMover
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _playspaceMoverLocked
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Toggle the non-admin playspace-mover lockout. Returns the new state
+      (true = locked).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
+    MemberName: ToggleDirectConnect
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _directConnectLocked
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Toggle the non-admin direct-connect (P2P) lockout. Returns the new state
+      (true = locked).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
     MemberName: SetCameraMetadataDisallowMask
     Kind: Method
     ParamCount: 1
@@ -94211,6 +96197,41 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Clamp, set, and report whether the value actually changed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
+    MemberName: SendBackMessage
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - peer
+    - (string.IsNullOrEmpty(msg)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Reply to the toggling admin, broadcast a one-line notice to everyone,
+      then push the\n refreshed lock-state payload. Used by the restriction toggles
+      whose state rides on\n GlobalGetLockState (playspace mover, direct connect)."
     Remarks: 
     Returns: 
     Value: 

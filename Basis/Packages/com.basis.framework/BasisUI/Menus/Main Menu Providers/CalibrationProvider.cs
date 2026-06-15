@@ -43,8 +43,8 @@ namespace Basis.BasisUI
             WaitingForForward
         }
         private PitchCalibrationStep _pitchStep = PitchCalibrationStep.None;
-        private float _pitchUpY;
-        private float _pitchDownY;
+        private Vector2 _pitchUp;
+        private Vector2 _pitchDown;
 
         public PanelButton Button;
         public PanelElementDescriptor HeightDescription;
@@ -379,14 +379,14 @@ namespace Basis.BasisUI
             switch (_pitchStep)
             {
                 case PitchCalibrationStep.WaitingForUp:
-                    _pitchUpY = BasisLocalHeightCalculator.CaptureHMDHeightSample();
-                    if (_pitchUpY <= 0f)
+                    if (!BasisLocalHeightCalculator.CaptureHMDPitchSample(out float upPitch, out float upY) || upY <= 0f)
                     {
                         // No device, fall back to standard calibration
                         BasisDebug.LogWarning("Pitch calibration: no HMD for up sample, falling back to standard.", BasisDebug.LogTag.Avatar);
                         StartStandardCalibration();
                         return;
                     }
+                    _pitchUp = new Vector2(upPitch, upY);
                     _pitchStep = PitchCalibrationStep.WaitingForDown;
                     Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.pitch.down"));
                     // Reset trigger state for next step
@@ -395,13 +395,13 @@ namespace Basis.BasisUI
                     break;
 
                 case PitchCalibrationStep.WaitingForDown:
-                    _pitchDownY = BasisLocalHeightCalculator.CaptureHMDHeightSample();
-                    if (_pitchDownY <= 0f)
+                    if (!BasisLocalHeightCalculator.CaptureHMDPitchSample(out float downPitch, out float downY) || downY <= 0f)
                     {
                         BasisDebug.LogWarning("Pitch calibration: no HMD for down sample, falling back to standard.", BasisDebug.LogTag.Avatar);
                         StartStandardCalibration();
                         return;
                     }
+                    _pitchDown = new Vector2(downPitch, downY);
                     _pitchStep = PitchCalibrationStep.WaitingForForward;
                     Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.pitch.forward"));
                     _leftPressed = false;
@@ -409,15 +409,14 @@ namespace Basis.BasisUI
                     break;
 
                 case PitchCalibrationStep.WaitingForForward:
-                    float forwardY = BasisLocalHeightCalculator.CaptureHMDHeightSample();
-                    if (forwardY <= 0f)
+                    if (!BasisLocalHeightCalculator.CaptureHMDPitchSample(out float forwardPitch, out float forwardY) || forwardY <= 0f)
                     {
                         BasisDebug.LogWarning("Pitch calibration: no HMD for forward sample, falling back to standard.", BasisDebug.LogTag.Avatar);
                         StartStandardCalibration();
                         return;
                     }
                     // Compute corrected height and store it
-                    float corrected = BasisLocalHeightCalculator.ComputePitchCalibratedHeight(_pitchUpY, _pitchDownY, forwardY);
+                    float corrected = BasisLocalHeightCalculator.ComputePitchCalibratedHeight(_pitchUp, _pitchDown, new Vector2(forwardPitch, forwardY));
                     BasisHeightDriver.PitchCalibratedEyeHeight = corrected;
                     BasisHeightDriver.HasPitchCalibratedHeight = true;
                     _pitchStep = PitchCalibrationStep.None;

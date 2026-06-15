@@ -75,6 +75,7 @@ public struct BasisFootSimParams
     public float stepArcLiftExp;
     public float stepArcDropExp;
     public float stepHeightMinFraction;
+    public float stepHeightStrideRefFraction; // stride length (fraction of leg) at which lift reaches max
 
     // Idle / Turn
     public float idleSpeedThreshold;

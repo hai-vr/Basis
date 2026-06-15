@@ -175,11 +175,9 @@ public struct BasisRemoteBoneJob : IJobParallelFor
 
         // Forward chain from head using headR and scaled offsets — already in
         // world space because headP is world.
-        float3 neckP = headP + math.mul(headR, sc.offsets_scaled_Neck);
-        float3 chestP = neckP + math.mul(headR, sc.offsets_scaled_Chest);
-        float3 spineP = chestP + math.mul(headR, sc.offsets_scaled_Spine);
-        float3 eyeP = headP + math.mul(headR, sc.offsets_scaled_CenterEye);
-        float3 mouthP = headP + math.mul(headR, sc.offsets_scaled_Mouth);
+        BasisRemoteBoneMath.ComposeHeadChain(headP, headR,
+            sc.offsets_scaled_Neck, sc.offsets_scaled_Chest, sc.offsets_scaled_Spine, sc.offsets_scaled_CenterEye, sc.offsets_scaled_Mouth,
+            out float3 neckP, out float3 chestP, out float3 spineP, out float3 eyeP, out float3 mouthP);
 
 
         float3 difference = SafeDivide(nowScale, a.TposeScale);

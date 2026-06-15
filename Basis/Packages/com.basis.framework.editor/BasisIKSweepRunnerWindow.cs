@@ -116,6 +116,12 @@ namespace Basis.IK.Debugging
             string legPath = BasisLegIKSweep.DefaultPath();
             string legInvPath = BasisLegInversionSweep.DefaultPath();
             string trackerPlacementPath = BasisTrackerPlacementSweep.DefaultPath();
+            string multiTrackerRotPath = BasisMultiTrackerRotationSweep.DefaultPath();
+            string calibMathPath = BasisCalibrationMathSweep.DefaultPath();
+            string twistPath = BasisTwistSweep.DefaultPath();
+            string spinePath = BasisSpineSweep.DefaultPath();
+            string remoteBonePath = BasisRemoteBoneSweep.DefaultPath();
+            string footPath = BasisFootIKSweep.DefaultPath();
             string headPath = BasisHeadSweep.DefaultPath();
             string protectPath = BasisElbowProtectSweep.DefaultPath();
             string armTrajPath = TrajPath("BasisArmIKTrajectory.csv");
@@ -165,6 +171,11 @@ namespace Basis.IK.Debugging
             jobs.Add(() => Job("Head", headPath, () => { var s = BasisHeadSweep.Run(BasisHeadSweepConfig.Default(), headPath); return BasisIKTestGates.GateHead(s); }));
             jobs.Add(() => Job("Leg Inversion", legInvPath, () => { var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.Run(cfg, legInvPath); return BasisIKTestGates.GateLegInversion(s); }));
             jobs.Add(() => Job("Tracker Placement", trackerPlacementPath, () => { var s = BasisTrackerPlacementSweep.Run(BasisTrackerPlacementSweepConfig.Default(), trackerPlacementPath); return BasisIKTestGates.GateTrackerPlacement(s); }));
+            jobs.Add(() => Job("Multi-Tracker Rotation", multiTrackerRotPath, () => { var s = BasisMultiTrackerRotationSweep.Run(BasisMultiTrackerRotationConfig.Default(), multiTrackerRotPath); return BasisIKTestGates.GateMultiTrackerRotation(s); }));
+            jobs.Add(() => Job("Calibration Math", calibMathPath, () => { var s = BasisCalibrationMathSweep.Run(BasisCalibrationMathSweepConfig.Default(), calibMathPath); return BasisIKTestGates.GateCalibrationMath(s); }));
+            jobs.Add(() => Job("Twist", twistPath, () => { var s = BasisTwistSweep.Run(BasisTwistSweepConfig.Default(), twistPath); return BasisIKTestGates.GateTwist(s); }));
+            jobs.Add(() => Job("Spine", spinePath, () => { var s = BasisSpineSweep.Run(BasisSpineSweepConfig.Default(), spinePath); return BasisIKTestGates.GateSpine(s); }));
+            jobs.Add(() => Job("Remote Bone", remoteBonePath, () => { var s = BasisRemoteBoneSweep.Run(BasisRemoteBoneSweepConfig.Default(), remoteBonePath); return BasisIKTestGates.GateRemoteBone(s); }));
 
             if (includeTraj)
             {
@@ -196,6 +207,17 @@ namespace Basis.IK.Debugging
             foreach (var t in running)
                 foreach (var row in t.Result)
                     Record(row.Name, row.Ok, row.Detail, row.Path);
+
+            // Foot placement runs on the MAIN THREAD (not in the parallel fan-out above): it ticks the real
+            // Burst foot job over NativeArrays, which the editor's job-safety system won't let us allocate on
+            // a worker thread. It is a short temporal sim, so running it serially here costs almost nothing.
+            try
+            {
+                var fs = BasisFootIKSweep.Run(BasisFootIKSweepConfig.Default(), footPath);
+                var fg = BasisIKTestGates.GateFoot(fs);
+                Record("Foot Placement", fg.pass, fg.reason, footPath);
+            }
+            catch (System.Exception e) { Record("Foot Placement", false, e.Message, null); }
         }
 
         // One sweep job for the parallel Run All: runs body on a worker thread, turns its (pass, reason) into

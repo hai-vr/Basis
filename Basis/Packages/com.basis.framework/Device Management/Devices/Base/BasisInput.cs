@@ -344,9 +344,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(avatarBone.position);
             }
 
-            Vector3 Offset = referencePosition - tracker.position;
-            Vector3 InverseOffsetPosition = BasisInverseOffsetData.InitialInverseTrackRotation * Offset;
-            Quaternion InverseOffsetRotation = BasisInverseOffsetData.InitialInverseTrackRotation * bone.rotation;
+            BasisCalibrationMath.ComputeInverseOffset(tracker.position, tracker.rotation, referencePosition, bone.rotation, out Vector3 InverseOffsetPosition, out Quaternion InverseOffsetRotation);
             Control.SetInverseOffset(InverseOffsetPosition, InverseOffsetRotation);
             Control.UseInverseOffset = true;
 
@@ -758,24 +756,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ConvertToScaledDeviceCoord(ref BasisCalibratedCoords unscaled, ref BasisCalibratedCoords scaled)
         {
-            float s = BasisHeightDriver.DeviceScale;
-
-            Vector3 p = unscaled.position * s;
-            Quaternion r = unscaled.rotation;
-
-            scaled.position = OffsetCoords.position + (OffsetCoords.rotation * p);
-            scaled.rotation = OffsetCoords.rotation * r;
+            BasisCalibrationMath.ScaleDeviceCoord(unscaled.position, unscaled.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out scaled.position, out scaled.rotation);
         }
 
         public void ConvertToScaledDeviceCoord()
         {
-            float s = BasisHeightDriver.DeviceScale;
-
-            Vector3 p = UnscaledDeviceCoord.position * s;
-            Quaternion r = UnscaledDeviceCoord.rotation;
-
-            ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * p);
-            ScaledDeviceCoord.rotation = OffsetCoords.rotation * r;
+            BasisCalibrationMath.ScaleDeviceCoord(UnscaledDeviceCoord.position, UnscaledDeviceCoord.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out ScaledDeviceCoord.position, out ScaledDeviceCoord.rotation);
         }
 
         /// <summary>

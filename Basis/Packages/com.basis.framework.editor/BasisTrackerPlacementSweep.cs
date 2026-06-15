@@ -10,13 +10,17 @@ namespace Basis.IK.Debugging
 {
     // Offline sweep of the tracker-placement DISCOVERY pass (BasisConstellationClassifier — the
     // same code the live FullBodyCalibration runs). Generates synthetic tracker constellations for
-    // many body archetypes (heights, limb proportions, stance, mount variants) x tracker-set
-    // presets x placement jitter, runs the real classifier, and checks each tracker landed on the
-    // role it was placed for. One CSV row per (scenario, tracker). No avatar, no play mode.
+    // many body archetypes x tracker-set presets x EYE HEIGHTS x placement noise, runs the real
+    // classifier, and checks each tracker landed on the role it was placed for. One CSV row per
+    // (scenario, tracker). No avatar, no play mode.
+    //
+    // Heights are modelled correctly: bodies are built in METRES at each eye height, noise is
+    // specified in CENTIMETRES (absolute), and the classifier normalizes by a (possibly mis-
+    // measured) eye height — so a fixed-cm error becomes a proportionally larger ratio error for a
+    // short user (a child), exactly as in reality. The per-eye-height accuracy table surfaces any
+    // height bias.
 
-    // A body in eye-height-ratio space: where each tracker sits on a given person. The classifier
-    // is height-invariant (it works in ratios), so "different heights" = different proportions here,
-    // plus an explicit invariance pass that varies absolute eye height.
+    // A body's proportions in eye-height ratios. Multiplied by an eye height to get metres.
     public struct BasisBodyArchetype
     {
         public string Name;
@@ -37,27 +41,25 @@ namespace Basis.IK.Debugging
 
     public struct BasisTrackerPlacementSweepConfig
     {
-        public float[] JitterLevels;        // gaussian sigma added to each tracker's height/lateral ratio
-        public int SeedsPerJitter;          // repeats per (archetype, set, jitter>0) for statistics
-        public float EyeHeight;             // metres; only affects the toe-forward depth (the one absolute-scale path)
-        public float Tolerance;             // calibration tolerance (sigma multiplier), 1 = stock
-        public bool HandsPresent;           // feed hand-controller poses (drives the elbow-prior re-center)
-        public bool DumpFullScoreTable;     // also write a per-(scenario,tracker,role) score table
-        public bool IncludeInvariancePass;  // re-run clean scenarios across several eye heights, flag any assignment change
-        public float[] InvarianceEyeHeights;
+        public float[] EyeHeights;            // eye-height sweep axis in metres — the "different heights" axis
+        public float[] JitterCm;              // placement noise in centimetres (absolute); converted to ratio per eye height
+        public float EyeHeightMeasureErrorCm; // systematic floor / eye-height mis-measure (cm): classifier normalizes by trueEye + this
+        public int SeedsPerJitter;            // repeats per (archetype, set, height, jitter>0) for statistics
+        public float Tolerance;               // calibration tolerance (sigma multiplier), 1 = stock
+        public bool HandsPresent;             // feed hand-controller poses (drives the elbow-prior re-center)
+        public bool DumpFullScoreTable;       // also write a per-(scenario,tracker,role) score table
 
         public static BasisTrackerPlacementSweepConfig Default()
         {
             return new BasisTrackerPlacementSweepConfig
             {
-                JitterLevels = new[] { 0f, 0.02f, 0.04f },
-                SeedsPerJitter = 8,
-                EyeHeight = 1.7f,
+                EyeHeights = new[] { 0.9f, 1.2f, 1.5f, 1.8f, 2.1f }, // child → tall adult, ascending
+                JitterCm = new[] { 0f, 2f, 4f },                    // perfect, typical strap/tracking slop, sloppy
+                EyeHeightMeasureErrorCm = 0f,
+                SeedsPerJitter = 6,
                 Tolerance = 1f,
                 HandsPresent = true,
                 DumpFullScoreTable = false,
-                IncludeInvariancePass = true,
-                InvarianceEyeHeights = new[] { 0.95f, 1.3f, 1.7f, 2.0f },
             };
         }
     }
@@ -75,23 +77,29 @@ namespace Basis.IK.Debugging
         public int Misassigned;
         public int Unassigned;
 
-        public int CleanTrackers;       // jitter == 0
+        public int CleanTrackers;       // jitter == 0 (at every eye height)
         public int CleanCorrect;
         public int CoreCleanTrackers;   // jitter == 0 AND archetype.Core
         public int CoreCleanCorrect;
 
         public float MinCorrectMargin;  // smallest winning margin over the runner-up role among correct binds
         public int CrossSideLeaks;      // tracker placed on one side bound to the opposite side's role
+        public int CleanCrossSideLeaks; // cross-side leaks in zero-jitter scenarios (the gate-relevant subset)
         public int NearOriginLeaks;     // stale (origin) tracker that wrongly bound to a role
 
-        public int InvarianceChecks;
-        public int InvarianceDiffs;
+        // Height bias: accuracy on NOISY rows at the shortest vs tallest eye height. A large gap
+        // means short users (kids) degrade more under the same physical (cm) sloppiness.
+        public float ShortAccuracy;
+        public float TallAccuracy;
+        public string PerHeightAccuracy; // "0.90m:96.1% 1.20m:98.0% ..." (noisy rows)
+        public float MeasureErrorCm;
 
         public string TopConfusions;    // "Hips->Chest x3; LeftLowerArm->LeftShoulder x2"
         public int FullTableRows;
 
         public float CleanCorrectFraction => CleanTrackers > 0 ? (float)CleanCorrect / CleanTrackers : 0f;
         public float CoreCleanFraction => CoreCleanTrackers > 0 ? (float)CoreCleanCorrect / CoreCleanTrackers : 0f;
+        public float HeightBiasPts => TallAccuracy - ShortAccuracy;
     }
 
     public static class BasisTrackerPlacementSweep
@@ -163,9 +171,14 @@ namespace Basis.IK.Debugging
 
         public static BasisTrackerPlacementSummary Run(BasisTrackerPlacementSweepConfig cfg, string path)
         {
-            var summary = new BasisTrackerPlacementSummary { Ok = false, Path = path };
+            var summary = new BasisTrackerPlacementSummary { Ok = false, Path = path, MeasureErrorCm = cfg.EyeHeightMeasureErrorCm };
             var confusion = new Dictionary<long, int>();
             float minCorrectMargin = float.PositiveInfinity;
+
+            float[] eyeHeights = (cfg.EyeHeights != null && cfg.EyeHeights.Length > 0) ? cfg.EyeHeights : new[] { 1.5f };
+            float[] jitterCm = (cfg.JitterCm != null && cfg.JitterCm.Length > 0) ? cfg.JitterCm : new[] { 0f };
+            int[] hNoisyTot = new int[eyeHeights.Length];
+            int[] hNoisyCorr = new int[eyeHeights.Length];
 
             try
             {
@@ -177,15 +190,16 @@ namespace Basis.IK.Debugging
                 {
                     summary.FullTablePath = Path.Combine(dir ?? "", Path.GetFileNameWithoutExtension(path) + "_scores.csv");
                     ft = new StreamWriter(summary.FullTablePath, false, Encoding.UTF8);
-                    ft.WriteLine("scenario,archetype,set,jitter,seed,true_role,role,score");
+                    ft.WriteLine("scenario,archetype,set,eye_height,jitter_cm,seed,true_role,role,score");
                 }
 
                 using (var w = new StreamWriter(path, false, Encoding.UTF8))
                 {
                     w.WriteLine("# BasisTrackerPlacementSweep " + System.DateTime.UtcNow.ToString("o"));
-                    w.WriteLine("# eyeHeight=" + F(cfg.EyeHeight) + " tolerance=" + F(cfg.Tolerance) +
-                                " handsPresent=" + cfg.HandsPresent + " acceptThreshold=" + F(BasisConstellationClassifier.AcceptThreshold));
-                    w.WriteLine("scenario,archetype,core,set,jitter,seed,true_role,placed_h,placed_lat,placed_depth," +
+                    w.WriteLine("# tolerance=" + F(cfg.Tolerance) + " handsPresent=" + cfg.HandsPresent +
+                                " eyeHeightMeasureErrorCm=" + F(cfg.EyeHeightMeasureErrorCm) +
+                                " acceptThreshold=" + F(BasisConstellationClassifier.AcceptThreshold));
+                    w.WriteLine("scenario,archetype,core,set,eye_height,jitter_cm,seed,true_role,placed_h,placed_lat,placed_depth," +
                                 "assigned_role,assigned_kind,assigned_score,runnerup_role,runnerup_score,margin,correct,unassigned,cross_side");
 
                     int scenarioId = 0;
@@ -197,92 +211,102 @@ namespace Basis.IK.Debugging
                         for (int p = 0; p < Presets.Length; p++)
                         {
                             BasisTrackerSetPreset preset = Presets[p];
-                            for (int jl = 0; jl < cfg.JitterLevels.Length; jl++)
+                            for (int hi = 0; hi < eyeHeights.Length; hi++)
                             {
-                                float jitter = cfg.JitterLevels[jl];
-                                int reps = jitter <= 0f ? 1 : Mathf.Max(1, cfg.SeedsPerJitter);
-                                for (int rep = 0; rep < reps; rep++)
+                                float eyeHeight = eyeHeights[hi];
+                                for (int jl = 0; jl < jitterCm.Length; jl++)
                                 {
-                                    int seed = unchecked((a * 73856093) ^ (p * 19349663) ^ (jl * 83492791) ^ (rep * 2654435761u).GetHashCode());
-                                    var rng = new System.Random(seed);
-
-                                    BasisConstellationSample[] samples = BuildSamples(arc, preset.Roles, jitter, cfg.EyeHeight, rng, out BasisBoneTrackedRole[] trueRoles);
-                                    BasisConstellationHand lh = cfg.HandsPresent ? Hand(arc, -1) : BasisConstellationHand.None;
-                                    BasisConstellationHand rh = cfg.HandsPresent ? Hand(arc, +1) : BasisConstellationHand.None;
-
-                                    BasisConstellationResult result = BasisConstellationClassifier.Classify(
-                                        samples, samples.Length, lh, rh, cfg.Tolerance, AllRolesEnabled);
-
-                                    for (int i = 0; i < samples.Length; i++)
+                                    float jcm = jitterCm[jl];
+                                    bool clean = jcm <= 0f;
+                                    int reps = clean ? 1 : Mathf.Max(1, cfg.SeedsPerJitter);
+                                    for (int rep = 0; rep < reps; rep++)
                                     {
-                                        BasisBoneTrackedRole trueRole = trueRoles[i];
-                                        bool assigned = result.TryGetRole(i, out BasisBoneTrackedRole gotRole);
-                                        bool correct = assigned && gotRole == trueRole;
-                                        bool unassigned = !assigned;
+                                        int seed = unchecked(((((a * 397 + p) * 397 + hi) * 397 + jl) * 397 + rep) * 397 + 17);
+                                        var rng = new System.Random(seed);
 
-                                        FullScores(samples[i], result.Priors, gotRole, assigned,
-                                            out BasisBoneTrackedRole runnerRole, out float runnerScore, out float assignedScore);
-                                        float margin = assigned ? assignedScore - runnerScore : float.NaN;
+                                        BasisConstellationSample[] samples = BuildSamples(arc, preset.Roles, eyeHeight, jcm, cfg.EyeHeightMeasureErrorCm, rng, out BasisBoneTrackedRole[] trueRoles);
+                                        BasisConstellationHand lh = cfg.HandsPresent ? Hand(arc, -1, eyeHeight, cfg.EyeHeightMeasureErrorCm) : BasisConstellationHand.None;
+                                        BasisConstellationHand rh = cfg.HandsPresent ? Hand(arc, +1, eyeHeight, cfg.EyeHeightMeasureErrorCm) : BasisConstellationHand.None;
 
-                                        int trueSide = trueRole.SideSign();
-                                        int gotSide = assigned ? gotRole.SideSign() : 0;
-                                        bool crossSide = assigned && trueSide != 0 && gotSide != 0 && trueSide != gotSide;
+                                        BasisConstellationResult result = BasisConstellationClassifier.Classify(
+                                            samples, samples.Length, lh, rh, cfg.Tolerance, AllRolesEnabled);
 
-                                        summary.Trackers++;
-                                        if (correct) summary.Correct++;
-                                        else if (unassigned) summary.Unassigned++;
-                                        else summary.Misassigned++;
-                                        if (crossSide) summary.CrossSideLeaks++;
-
-                                        if (jitter <= 0f)
+                                        for (int i = 0; i < samples.Length; i++)
                                         {
-                                            summary.CleanTrackers++;
-                                            if (correct) summary.CleanCorrect++;
-                                            if (arc.Core) { summary.CoreCleanTrackers++; if (correct) summary.CoreCleanCorrect++; }
-                                        }
-                                        if (correct && !float.IsNaN(margin) && margin < minCorrectMargin) minCorrectMargin = margin;
-                                        if (!correct) AddConfusion(confusion, trueRole, assigned ? (int)gotRole : -1);
+                                            BasisBoneTrackedRole trueRole = trueRoles[i];
+                                            bool assigned = result.TryGetRole(i, out BasisBoneTrackedRole gotRole);
+                                            bool correct = assigned && gotRole == trueRole;
+                                            bool unassigned = !assigned;
 
-                                        sb.Clear();
-                                        sb.Append(scenarioId).Append(',').Append(arc.Name).Append(',').Append(arc.Core ? 1 : 0).Append(',')
-                                          .Append(preset.Name).Append(',').Append(F(jitter)).Append(',').Append(seed).Append(',')
-                                          .Append(trueRole).Append(',').Append(F(samples[i].HeightRatio)).Append(',').Append(F(samples[i].LateralRatio)).Append(',').Append(F(samples[i].DepthLocal)).Append(',')
-                                          .Append(assigned ? gotRole.ToString() : "(none)").Append(',').Append(result.AssignedKind[i]).Append(',').Append(F(assignedScore)).Append(',')
-                                          .Append(runnerRole).Append(',').Append(F(runnerScore)).Append(',').Append(F(margin)).Append(',')
-                                          .Append(correct ? 1 : 0).Append(',').Append(unassigned ? 1 : 0).Append(',').Append(crossSide ? 1 : 0);
-                                        w.WriteLine(sb.ToString());
+                                            FullScores(samples[i], result.Priors, gotRole, assigned,
+                                                out BasisBoneTrackedRole runnerRole, out float runnerScore, out float assignedScore);
+                                            float margin = assigned ? assignedScore - runnerScore : float.NaN;
 
-                                        if (ft != null)
-                                        {
-                                            for (int pr = 0; pr < result.Priors.Length; pr++)
+                                            int trueSide = trueRole.SideSign();
+                                            int gotSide = assigned ? gotRole.SideSign() : 0;
+                                            bool crossSide = assigned && trueSide != 0 && gotSide != 0 && trueSide != gotSide;
+
+                                            summary.Trackers++;
+                                            if (correct) summary.Correct++;
+                                            else if (unassigned) summary.Unassigned++;
+                                            else summary.Misassigned++;
+                                            if (crossSide) { summary.CrossSideLeaks++; if (clean) summary.CleanCrossSideLeaks++; }
+
+                                            if (clean)
                                             {
-                                                ft.Write(scenarioId); ft.Write(','); ft.Write(arc.Name); ft.Write(','); ft.Write(preset.Name); ft.Write(',');
-                                                ft.Write(F(jitter)); ft.Write(','); ft.Write(seed); ft.Write(','); ft.Write(trueRole.ToString()); ft.Write(',');
-                                                ft.Write(result.Priors[pr].Role.ToString()); ft.Write(',');
-                                                ft.WriteLine(F(BasisConstellationClassifier.Score(samples[i], result.Priors[pr])));
-                                                summary.FullTableRows++;
+                                                summary.CleanTrackers++;
+                                                if (correct) summary.CleanCorrect++;
+                                                if (arc.Core) { summary.CoreCleanTrackers++; if (correct) summary.CoreCleanCorrect++; }
+                                            }
+                                            else
+                                            {
+                                                hNoisyTot[hi]++;
+                                                if (correct) hNoisyCorr[hi]++;
+                                            }
+                                            if (correct && !float.IsNaN(margin) && margin < minCorrectMargin) minCorrectMargin = margin;
+                                            if (!correct) AddConfusion(confusion, trueRole, assigned ? (int)gotRole : -1);
+
+                                            sb.Clear();
+                                            sb.Append(scenarioId).Append(',').Append(arc.Name).Append(',').Append(arc.Core ? 1 : 0).Append(',')
+                                              .Append(preset.Name).Append(',').Append(F(eyeHeight)).Append(',').Append(F(jcm)).Append(',').Append(seed).Append(',')
+                                              .Append(trueRole).Append(',').Append(F(samples[i].HeightRatio)).Append(',').Append(F(samples[i].LateralRatio)).Append(',').Append(F(samples[i].DepthLocal)).Append(',')
+                                              .Append(assigned ? gotRole.ToString() : "(none)").Append(',').Append(result.AssignedKind[i]).Append(',').Append(F(assignedScore)).Append(',')
+                                              .Append(runnerRole).Append(',').Append(F(runnerScore)).Append(',').Append(F(margin)).Append(',')
+                                              .Append(correct ? 1 : 0).Append(',').Append(unassigned ? 1 : 0).Append(',').Append(crossSide ? 1 : 0);
+                                            w.WriteLine(sb.ToString());
+
+                                            if (ft != null)
+                                            {
+                                                for (int pr = 0; pr < result.Priors.Length; pr++)
+                                                {
+                                                    ft.Write(scenarioId); ft.Write(','); ft.Write(arc.Name); ft.Write(','); ft.Write(preset.Name); ft.Write(',');
+                                                    ft.Write(F(eyeHeight)); ft.Write(','); ft.Write(F(jcm)); ft.Write(','); ft.Write(seed); ft.Write(','); ft.Write(trueRole.ToString()); ft.Write(',');
+                                                    ft.Write(result.Priors[pr].Role.ToString()); ft.Write(',');
+                                                    ft.WriteLine(F(BasisConstellationClassifier.Score(samples[i], result.Priors[pr])));
+                                                    summary.FullTableRows++;
+                                                }
                                             }
                                         }
+                                        summary.Scenarios++;
+                                        scenarioId++;
                                     }
-                                    summary.Scenarios++;
-                                    scenarioId++;
                                 }
                             }
                         }
                     }
 
-                    summary.NearOriginLeaks = RunStressScenarios(w, sb, cfg, ref scenarioId);
-
-                    if (cfg.IncludeInvariancePass)
-                    {
-                        RunInvariancePass(cfg, ref summary);
-                    }
+                    float repEye = eyeHeights[eyeHeights.Length / 2];
+                    summary.NearOriginLeaks = RunStressScenarios(w, sb, cfg, repEye, ref scenarioId);
                 }
 
                 ft?.Dispose();
 
                 summary.MinCorrectMargin = float.IsPositiveInfinity(minCorrectMargin) ? 0f : minCorrectMargin;
                 summary.TopConfusions = FormatConfusions(confusion);
+                summary.PerHeightAccuracy = FormatPerHeight(eyeHeights, hNoisyTot, hNoisyCorr);
+                summary.ShortAccuracy = hNoisyTot[0] > 0 ? 100f * hNoisyCorr[0] / hNoisyTot[0] : 100f;
+                int last = eyeHeights.Length - 1;
+                summary.TallAccuracy = hNoisyTot[last] > 0 ? 100f * hNoisyCorr[last] / hNoisyTot[last] : 100f;
                 summary.Ok = true;
             }
             catch (System.Exception e)
@@ -296,7 +320,7 @@ namespace Basis.IK.Debugging
         // Stress cases that exercise the classifier's safety rails rather than ordinary placement:
         // a stale (origin) tracker must never bind, and an extra tracker crowding a taken role must
         // not displace it. Returns the near-origin leak count (assignments that should never happen).
-        private static int RunStressScenarios(StreamWriter w, StringBuilder sb, BasisTrackerPlacementSweepConfig cfg, ref int scenarioId)
+        private static int RunStressScenarios(StreamWriter w, StringBuilder sb, BasisTrackerPlacementSweepConfig cfg, float eyeHeight, ref int scenarioId)
         {
             int nearOriginLeaks = 0;
             BasisBodyArchetype arc = Archetypes[0];
@@ -304,25 +328,23 @@ namespace Basis.IK.Debugging
             // 1) A full set plus one stale device polled at the origin. The stale one must stay unassigned.
             {
                 var rng = new System.Random(1234567);
-                BasisConstellationSample[] samples = BuildSamples(arc, Presets[2].Roles, 0f, cfg.EyeHeight, rng, out BasisBoneTrackedRole[] trueRoles);
+                BasisConstellationSample[] samples = BuildSamples(arc, Presets[2].Roles, eyeHeight, 0f, 0f, rng, out _);
                 int n = samples.Length;
                 System.Array.Resize(ref samples, n + 1);
-                System.Array.Resize(ref trueRoles, n + 1);
                 samples[n] = new BasisConstellationSample { HeightRatio = 0f, LateralRatio = 0f, DepthLocal = 0f, NearOrigin = true, ForcedRole = -1 };
-                trueRoles[n] = BasisBoneTrackedRole.CenterEye; // sentinel "should not bind"
 
                 BasisConstellationResult r = BasisConstellationClassifier.Classify(samples, samples.Length,
-                    cfg.HandsPresent ? Hand(arc, -1) : BasisConstellationHand.None,
-                    cfg.HandsPresent ? Hand(arc, +1) : BasisConstellationHand.None, cfg.Tolerance, AllRolesEnabled);
+                    cfg.HandsPresent ? Hand(arc, -1, eyeHeight, 0f) : BasisConstellationHand.None,
+                    cfg.HandsPresent ? Hand(arc, +1, eyeHeight, 0f) : BasisConstellationHand.None, cfg.Tolerance, AllRolesEnabled);
 
                 if (r.TryGetRole(n, out BasisBoneTrackedRole leaked))
                 {
                     nearOriginLeaks++;
-                    WriteStressRow(w, sb, scenarioId, "stress-nearorigin", "stale-origin", leaked.ToString(), false);
+                    WriteStressRow(w, sb, scenarioId, "stress-nearorigin", eyeHeight, "stale-origin", leaked.ToString(), false);
                 }
                 else
                 {
-                    WriteStressRow(w, sb, scenarioId, "stress-nearorigin", "(none)", "(none)", true);
+                    WriteStressRow(w, sb, scenarioId, "stress-nearorigin", eyeHeight, "(none)", "(none)", true);
                 }
                 scenarioId++;
             }
@@ -343,69 +365,40 @@ namespace Basis.IK.Debugging
                 {
                     if (r.TryGetRole(i, out BasisBoneTrackedRole gr) && gr == BasisBoneTrackedRole.Chest) chestCount++;
                 }
-                WriteStressRow(w, sb, scenarioId, "stress-dupchest", "chestBinds=" + chestCount, chestCount <= 1 ? "ok" : "DUPLICATE", chestCount <= 1);
+                WriteStressRow(w, sb, scenarioId, "stress-dupchest", eyeHeight, "chestBinds=" + chestCount, chestCount <= 1 ? "ok" : "DUPLICATE", chestCount <= 1);
                 scenarioId++;
             }
 
             return nearOriginLeaks;
         }
 
-        // Re-runs every clean (jitter 0) archetype x set across the configured eye heights and counts
-        // any change in the assignment vector. The classifier is ratio-based, so the only height-
-        // sensitive path is the absolute toe-forward epsilon; a non-zero count localizes exactly that.
-        private static void RunInvariancePass(BasisTrackerPlacementSweepConfig cfg, ref BasisTrackerPlacementSummary summary)
+        // Builds the constellation in METRES at the body's true eye height, adds absolute (cm) noise,
+        // then normalizes by the (possibly mis-measured) eye height the classifier would use. This is
+        // what makes height handling correct: a fixed-cm error is a larger RATIO error for a short
+        // body, and an eye-height mis-measure distorts a short body's ratios more than a tall one's.
+        private static BasisConstellationSample[] BuildSamples(BasisBodyArchetype arc, BasisBoneTrackedRole[] roles, float eyeHeight, float jitterCm, float measErrCm, System.Random rng, out BasisBoneTrackedRole[] trueRoles)
         {
-            float[] eyes = cfg.InvarianceEyeHeights;
-            if (eyes == null || eyes.Length < 2) return;
-
-            for (int a = 0; a < Archetypes.Length; a++)
-            {
-                for (int p = 0; p < Presets.Length; p++)
-                {
-                    int[] baseline = null;
-                    for (int e = 0; e < eyes.Length; e++)
-                    {
-                        var rng = new System.Random(424242 + a * 131 + p);
-                        BasisConstellationSample[] samples = BuildSamples(Archetypes[a], Presets[p].Roles, 0f, eyes[e], rng, out _);
-                        BasisConstellationResult r = BasisConstellationClassifier.Classify(samples, samples.Length,
-                            cfg.HandsPresent ? Hand(Archetypes[a], -1) : BasisConstellationHand.None,
-                            cfg.HandsPresent ? Hand(Archetypes[a], +1) : BasisConstellationHand.None, cfg.Tolerance, AllRolesEnabled);
-
-                        if (baseline == null)
-                        {
-                            baseline = (int[])r.AssignedRole.Clone();
-                        }
-                        else
-                        {
-                            summary.InvarianceChecks++;
-                            for (int i = 0; i < baseline.Length && i < r.AssignedRole.Length; i++)
-                            {
-                                if (baseline[i] != r.AssignedRole[i]) { summary.InvarianceDiffs++; break; }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private static BasisConstellationSample[] BuildSamples(BasisBodyArchetype arc, BasisBoneTrackedRole[] roles, float jitter, float eyeHeight, System.Random rng, out BasisBoneTrackedRole[] trueRoles)
-        {
+            float measuredEye = Mathf.Max(eyeHeight + measErrCm * 0.01f, 0.3f);
+            float sigmaM = jitterCm * 0.01f;
             var samples = new BasisConstellationSample[roles.Length];
             trueRoles = new BasisBoneTrackedRole[roles.Length];
             for (int i = 0; i < roles.Length; i++)
             {
-                Placement(arc, roles[i], out float h, out float lat, out float depthRatio);
-                if (jitter > 0f)
+                Placement(arc, roles[i], out float hRatio, out float latRatio, out float depthRatio);
+                float yM = hRatio * eyeHeight;
+                float xM = latRatio * eyeHeight;
+                float zM = depthRatio * eyeHeight;
+                if (sigmaM > 0f)
                 {
-                    h += (float)NextGaussian(rng) * jitter;
-                    lat += (float)NextGaussian(rng) * jitter;
-                    depthRatio += (float)NextGaussian(rng) * jitter;
+                    yM += (float)NextGaussian(rng) * sigmaM;
+                    xM += (float)NextGaussian(rng) * sigmaM;
+                    zM += (float)NextGaussian(rng) * sigmaM;
                 }
                 samples[i] = new BasisConstellationSample
                 {
-                    HeightRatio = h,
-                    LateralRatio = lat,
-                    DepthLocal = depthRatio * eyeHeight,
+                    HeightRatio = yM / measuredEye,
+                    LateralRatio = xM / measuredEye,
+                    DepthLocal = zM, // metres — the toe-forward epsilon is absolute
                     NearOrigin = false,
                     ForcedRole = -1,
                 };
@@ -435,9 +428,13 @@ namespace Basis.IK.Debugging
             }
         }
 
-        private static BasisConstellationHand Hand(BasisBodyArchetype arc, int sideSign)
+        private static BasisConstellationHand Hand(BasisBodyArchetype arc, int sideSign, float eyeHeight, float measErrCm)
         {
-            return new BasisConstellationHand { Present = true, HeightRatio = arc.HandH, LateralRatio = sideSign * arc.HandLat };
+            // A tracked controller (low noise); only the eye-height normalization applies.
+            float measuredEye = Mathf.Max(eyeHeight + measErrCm * 0.01f, 0.3f);
+            float yM = arc.HandH * eyeHeight;
+            float xM = sideSign * arc.HandLat * eyeHeight;
+            return new BasisConstellationHand { Present = true, HeightRatio = yM / measuredEye, LateralRatio = xM / measuredEye };
         }
 
         private static void FullScores(BasisConstellationSample sample, BasisConstellationPrior[] priors, BasisBoneTrackedRole assignedRole, bool assigned,
@@ -483,10 +480,22 @@ namespace Basis.IK.Debugging
             return sb.ToString();
         }
 
-        private static void WriteStressRow(StreamWriter w, StringBuilder sb, int scenarioId, string set, string trueOrNote, string assigned, bool ok)
+        private static string FormatPerHeight(float[] eyeHeights, int[] tot, int[] corr)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < eyeHeights.Length; i++)
+            {
+                float acc = tot[i] > 0 ? 100f * corr[i] / tot[i] : 100f;
+                if (sb.Length > 0) sb.Append(' ');
+                sb.Append(eyeHeights[i].ToString("0.00", CultureInfo.InvariantCulture)).Append("m:").Append(acc.ToString("0.0", CultureInfo.InvariantCulture)).Append('%');
+            }
+            return sb.ToString();
+        }
+
+        private static void WriteStressRow(StreamWriter w, StringBuilder sb, int scenarioId, string set, float eyeHeight, string trueOrNote, string assigned, bool ok)
         {
             sb.Clear();
-            sb.Append(scenarioId).Append(",stress,0,").Append(set).Append(",0,0,").Append(trueOrNote)
+            sb.Append(scenarioId).Append(",stress,0,").Append(set).Append(',').Append(F(eyeHeight)).Append(",0,0,").Append(trueOrNote)
               .Append(",0,0,0,").Append(assigned).Append(",Stress,0,(none),0,0,").Append(ok ? 1 : 0).Append(",0,0");
             w.WriteLine(sb.ToString());
         }

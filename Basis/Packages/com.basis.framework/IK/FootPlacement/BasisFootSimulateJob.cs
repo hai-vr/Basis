@@ -148,6 +148,17 @@ public struct BasisFootSimulateJob : IJob
         UpdateFoot(ref left, ref right, rawFwd, speed, threshold, stepDur, dt, up);
         UpdateFoot(ref right, ref left, rawFwd, speed, threshold, stepDur, dt, up);
 
+        // One foot stays grounded: if both planted feet want to step the same tick, keep the
+        // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
+        // once (e.g. spinning in place), which reads as floating/moonwalking. The per-foot trigger
+        // already requires the other foot planted, so this only catches the same-tick double-want.
+        if (left.phase == 0 && right.phase == 0 && left.wantsStep && right.wantsStep)
+        {
+            float ld = HDist(left.plantedPos, left.idealPos, up);
+            float rd = HDist(right.plantedPos, right.idealPos, up);
+            if (ld >= rd) right.wantsStep = false; else left.wantsStep = false;
+        }
+
         // ── Knee hints ──
         float avgThigh = (p.leftThighLen + p.rightThighLen) * 0.5f;
         float3 hp = inp.hipsPos;
@@ -238,8 +249,13 @@ public struct BasisFootSimulateJob : IJob
 
             float3 pos = math.lerp(f.stepStartPos, f.stepTargetPos, ease);
 
-            float speedT2 = math.saturate(speed / p.fastSpeedRef);
-            float dynamicHeight = p.stepHeightCalc * math.lerp(p.stepHeightMinFraction, 1.0f, speedT2);
+            // Lift scales with stride length (a short shuffle barely lifts; a full stride lifts fully),
+            // floored so a tiny step still clears the ground and capped at the calibrated step height.
+            // Scales with the avatar automatically (avgLeg and stepHeightCalc both scale).
+            float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
+            float stepDist = HDist(f.stepStartPos, f.stepTargetPos, up);
+            float strideFrac = math.saturate(stepDist / math.max(1e-3f, avgLeg * p.stepHeightStrideRefFraction));
+            float dynamicHeight = p.stepHeightCalc * math.lerp(p.stepHeightMinFraction, 1.0f, strideFrac);
 
             float lift = math.pow(t, p.stepArcLiftExp) * math.pow(1f - t, p.stepArcDropExp) / 0.234f;
             pos += up * (math.saturate(lift) * dynamicHeight);

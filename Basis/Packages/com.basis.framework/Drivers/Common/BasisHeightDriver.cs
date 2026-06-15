@@ -240,8 +240,10 @@ public static class BasisHeightDriver
             float ratio = Mathf.Max(0.1f, Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatio.RawValue);
             PlayerArmSpan = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters) * ratio;
         }
-
-        BasisLocalHeightCalculator.ValidateEyeToArmSizesPlayer();
+        else
+        {
+            BasisLocalHeightCalculator.ValidateEyeToArmSizesPlayer();
+        }
 
         // Optional safety: sanitize captured values in case calculator produced junk.
         PlayerEyeHeight = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters);
