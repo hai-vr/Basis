@@ -28,7 +28,7 @@ public class BasisDocInspector_UI : Editor
     private List<MemberRow> _all = new();
     private List<MemberRow> _view = new();
     private readonly List<NavFrame> _nav = new();
-    private static readonly Dictionary<Type, bool> _shouldHandleTypeCache = new();
+    private static Dictionary<Type, bool> _shouldHandleTypeCache = new();
 
     // ---------- UI ----------
     private VisualElement _breadcrumbs;
@@ -1023,7 +1023,7 @@ public class BasisDocInspector_UI : Editor
     // ---------- Small UI helpers ----------
     private static VisualElement Divider() => new VisualElement
     {
-        style = { height = 1, backgroundColor = new Color(0, 0, 0, 0.2f) }
+        style = { height = 1, backgroundColor = new Color(0,0,0,0.2f) }
     };
 
     private static VisualElement Spacer(float px) => new VisualElement { style = { height = px } };
@@ -1588,20 +1588,20 @@ public class BasisDocInspector_UI : Editor
                     return sb.ToString();
 
                 case "Methods":
+                {
+                    var mm = (MethodInfo)d.Info;
+                    var ps = mm.GetParameters();
+                    sb.Append($"{declName}.{mm.Name}(");
+                    sb.Append(string.Join(", ", ps.Select(p =>
                     {
-                        var mm = (MethodInfo)d.Info;
-                        var ps = mm.GetParameters();
-                        sb.Append($"{declName}.{mm.Name}(");
-                        sb.Append(string.Join(", ", ps.Select(p =>
-                        {
-                            var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
-                            var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
-                                      p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
-                            return $"/* {mod}{NiceType(t)} {p.Name} */";
-                        })));
-                        sb.AppendLine(");");
-                        return sb.ToString();
-                    }
+                        var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
+                        var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
+                                  p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
+                        return $"/* {mod}{NiceType(t)} {p.Name} */";
+                    })));
+                    sb.AppendLine(");");
+                    return sb.ToString();
+                }
 
                 case "Events":
                     sb.AppendLine($"{declName}.{d.Name} += MyHandler;");
@@ -1636,28 +1636,28 @@ public class BasisDocInspector_UI : Editor
                 break;
 
             case "Properties":
-                {
-                    var canSet = (d.Info as PropertyInfo)?.SetMethod != null;
-                    sb.AppendLine($"var value = {chain}.{d.Name};");
-                    if (canSet) sb.AppendLine($"{chain}.{d.Name} = /* new {d.TypeName} */;");
-                    break;
-                }
+            {
+                var canSet = (d.Info as PropertyInfo)?.SetMethod != null;
+                sb.AppendLine($"var value = {chain}.{d.Name};");
+                if (canSet) sb.AppendLine($"{chain}.{d.Name} = /* new {d.TypeName} */;");
+                break;
+            }
 
             case "Methods":
+            {
+                var mm = (MethodInfo)d.Info;
+                var ps = mm.GetParameters();
+                sb.Append($"{chain}.{mm.Name}(");
+                sb.Append(string.Join(", ", ps.Select(p =>
                 {
-                    var mm = (MethodInfo)d.Info;
-                    var ps = mm.GetParameters();
-                    sb.Append($"{chain}.{mm.Name}(");
-                    sb.Append(string.Join(", ", ps.Select(p =>
-                    {
-                        var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
-                        var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
-                                  p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
-                        return $"/* {mod}{NiceType(t)} {p.Name} */";
-                    })));
-                    sb.AppendLine(");");
-                    break;
-                }
+                    var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
+                    var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
+                              p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
+                    return $"/* {mod}{NiceType(t)} {p.Name} */";
+                })));
+                sb.AppendLine(");");
+                break;
+            }
 
             case "Events":
                 sb.AppendLine($"{chain}.{d.Name} += MyHandler;");
