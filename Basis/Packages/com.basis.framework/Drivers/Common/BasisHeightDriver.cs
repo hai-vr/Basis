@@ -171,19 +171,13 @@ public static class BasisHeightDriver
             return false;
         }
 
-        // Mirror the REMOTE avatar's rendered eye height: its authored eye (× humanScale, omitted from
-        // the marker) at its current network root scale. Reading local measurements was the bug.
+        // Mirror the REMOTE avatar's rendered eye height: its authored (already rendered-space) eye height
+        // at its current network root scale. Reading local measurements was the bug.
         target.NetworkReceiver.GetLatestNetworkPose(out _, out _, out var networkScale);
         float remoteAuthoredEye = target.BasisAvatar.AvatarEyePosition.x;
         if (float.IsNaN(remoteAuthoredEye) || float.IsInfinity(remoteAuthoredEye) || remoteAuthoredEye <= 0f)
         {
             return false;
-        }
-
-        float remoteHumanScale = target.BasisAvatar.HumanScale;
-        if (float.IsNaN(remoteHumanScale) || float.IsInfinity(remoteHumanScale) || remoteHumanScale <= 0f)
-        {
-            remoteHumanScale = 1f;
         }
 
         float remoteRootScale = networkScale.y;
@@ -192,7 +186,7 @@ public static class BasisHeightDriver
             remoteRootScale = 1f;
         }
 
-        eyeHeightMeters = remoteAuthoredEye * remoteHumanScale * remoteRootScale;
+        eyeHeightMeters = remoteAuthoredEye * remoteRootScale;
         return !float.IsNaN(eyeHeightMeters) && !float.IsInfinity(eyeHeightMeters) && eyeHeightMeters > 0f;
     }
 
