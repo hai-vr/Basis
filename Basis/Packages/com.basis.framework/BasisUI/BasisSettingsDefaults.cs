@@ -408,6 +408,13 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> PitchCalibration = new("pitchcalibration", new BasisPlatformDefault<bool>(false));
 
+        // Systematic correction (metres) added to the measured standing eye height before DeviceScale.
+        // It bridges a backend's HMD-pose-origin vs true-eye gap that CenterEyeVerticalOffset under-reports
+        // (seen on OpenVR: avatar renders too tall, so users nudge up every calibration). Default 0 = no-op;
+        // unlike the per-session AdditionalPlayerHeight nudge this persists, so the gap is corrected once.
+        // Read the "true-eye estimate vs DeviceScale" calibration log to dial in the real value.
+        public static BasisSettingsBinding<float> CalibrationStandingEyeHeightMeters = new("calibrationstandingeyeheightmeters", new BasisPlatformDefault<float>(0f));
+
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
         public static BasisSettingsBinding<float> FoveatedRendering = new("foveatedrendering", new BasisPlatformDefault<float>
@@ -1066,6 +1073,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKStruggleEnd = new("fbikstruggleend", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> FBIKMaxChestDelta = new("fbikmaxchestdelta", new BasisPlatformDefault<float>(90f));
         public static BasisSettingsBinding<float> FBIKMaxHipDelta = new("fbikmaxhipdelta", new BasisPlatformDefault<float>(90f));
+        // Butterfly knees: laying on your back with foot trackers (no knee tracker), tilting the feet outward and
+        // pulling them in lets the knees fall open. MaxOpenDeg clamps the splay to the hip's natural abduction.
+        public static BasisSettingsBinding<bool> FBIKButterflyKnees = new("fbikbutterflyknees", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> FBIKButterflyKneeMaxOpenDeg = new("fbikbutterflykneemaxopendeg", new BasisPlatformDefault<float>(60f));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1080,6 +1091,16 @@ namespace Basis.BasisUI
         // Spine relax: chest follow spring (velocity lag)
         public static BasisSettingsBinding<float> FBIKChestSpringHz = new("fbikchestspringhz", new BasisPlatformDefault<float>(12f));
         public static BasisSettingsBinding<float> FBIKChestSpringDamping = new("fbikchestspringdamping", new BasisPlatformDefault<float>(1f));
+        // Hip relax: hip-frame follow spring -- decouples the no-elbow-tracker derived elbow pole from hip
+        // jitter/sway (lower Hz = more decoupling; 0 = off). No effect for users WITH elbow trackers.
+        public static BasisSettingsBinding<float> FBIKHipFrameSpringHz = new("fbikhipframespringhz", new BasisPlatformDefault<float>(8f));
+        public static BasisSettingsBinding<float> FBIKHipFrameSpringDamping = new("fbikhipframespringdamping", new BasisPlatformDefault<float>(1f));
+        // Arm: chicken-wing elbow flare (no elbow tracker) -- turning the controllers inward pushes the derived
+        // elbow OUT to the half-T-pose mark and caps it there. MaxDeg = the cap; InwardGain is signed (negative
+        // flips the roll direction, 0 = off); FullRollDeg = the controller roll that is a full chicken-wing.
+        public static BasisSettingsBinding<float> FBIKElbowFlareMaxDeg = new("fbikelbowflaremaxdeg", new BasisPlatformDefault<float>(45f));
+        public static BasisSettingsBinding<float> FBIKElbowFlareInwardGain = new("fbikelbowflareinwardgain", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> FBIKElbowFlareFullRollDeg = new("fbikelbowflarefullrolldeg", new BasisPlatformDefault<float>(70f));
         // Spine relax: asymmetric flexion clamps (apply to spine + upperChest contributions)
         public static BasisSettingsBinding<float> FBIKSpineMaxForwardDeg = new("fbikspinemaxforwarddeg", new BasisPlatformDefault<float>(60f));
         public static BasisSettingsBinding<float> FBIKSpineMaxBackwardDeg = new("fbikspinemaxbackwarddeg", new BasisPlatformDefault<float>(25f));
@@ -1392,6 +1413,7 @@ namespace Basis.BasisUI
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();
             PitchCalibration.LoadBindingValue();
+            CalibrationStandingEyeHeightMeters.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
             EnableOSC.LoadBindingValue();
@@ -1727,6 +1749,8 @@ namespace Basis.BasisUI
             FBIKStruggleEnd.LoadBindingValue();
             FBIKMaxChestDelta.LoadBindingValue();
             FBIKMaxHipDelta.LoadBindingValue();
+            FBIKButterflyKnees.LoadBindingValue();
+            FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();
@@ -1737,6 +1761,11 @@ namespace Basis.BasisUI
             FBIKHipHingeMaxAddDeg.LoadBindingValue();
             FBIKChestSpringHz.LoadBindingValue();
             FBIKChestSpringDamping.LoadBindingValue();
+            FBIKHipFrameSpringHz.LoadBindingValue();
+            FBIKHipFrameSpringDamping.LoadBindingValue();
+            FBIKElbowFlareMaxDeg.LoadBindingValue();
+            FBIKElbowFlareInwardGain.LoadBindingValue();
+            FBIKElbowFlareFullRollDeg.LoadBindingValue();
             FBIKSpineMaxForwardDeg.LoadBindingValue();
             FBIKSpineMaxBackwardDeg.LoadBindingValue();
             FBIKSpineMaxLateralDeg.LoadBindingValue();

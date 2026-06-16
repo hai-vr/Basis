@@ -12,6 +12,13 @@ namespace Basis.IK.Debugging
         public const float ArmMaxElbowMeanAlignErrDeg = 8f; // mean angle solved-elbow vs the LOOKUP (no-tracker) pole; drift off the natural down/back pole
         public const int ArmMaxElbowUpFlips = 0;            // forward, non-overhead, EXTENDED (reach>0.55) reaches whose elbow flips hard UP (|swivel|>120). Zero-tolerance: the fixed lookup is clean (0) at every density; folded near-body reaches are excluded (elbow-up is natural there). Pre-fix: 4-7.
         public const float ArmTrackerMaxDevDeg = 15f;       // a real elbow tracker (HintIsTracker) must reproduce the natural pose across realistic mounts/sizes. BasisArmSolveCore re-conditions its short-but-physical pole (positions-only -> pronation-safe), so it follows. Measured worst 0 deg / mean 0 over 360 combos (2026-06-16); 15 is a regression guard (a broken floor drags the elbow ~40-50 deg off).
+        // --- chicken-wing elbow flare (no elbow tracker): turning the controllers inward pushes the derived
+        //     elbow OUT toward the half-T-pose mark and clamps it there. It must never cross the halfway line to
+        //     straight-out-to-the-side, must be a no-op when not rolled in, and the push-out must engage. ---
+        public const float ChickenWingMaxSwivelDeg = 45f;   // the half-T-pose cap (matches the runtime ElbowFlareMaxDeg default): full flare lands the elbow here
+        public const float ChickenWingClampTolDeg = 8f;     // solver slack allowed over the cap at full flare (the hint is followed, not pinned exactly)
+        public const float ChickenWingMaxRegressDeg = 0.5f; // engagement 0 must reproduce the plain lookup solve (a true no-op off the chicken-wing)
+        public const float ChickenWingMinPushDeg = 5f;      // full inward roll must push a tucked elbow at least this far OUT (a dead/backwards coupling fails)
         public const float ElbowMinClearedFraction = 0.55f; // protect must clear most of the clearable set (ceiling ~0.64)
         public const float ElbowMaxMeanResidualPenMm = 25f; // mean leftover torso penetration after the push
         public const float ElbowMaxSensDegPerCm = 90f;      // final elbow swivel per cm hand jitter
@@ -109,6 +116,23 @@ namespace Basis.IK.Debugging
             if (s.LookupMinElbowAngleDeg < minFlex - 1f || s.LookupMaxElbowAngleDeg > maxFlex + 1f)
                 return (false, $"elbow flexion {s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0} deg leaves the human range [{minFlex:F0},{maxFlex:F0}] (over-flex / hyperextension)");
             return (true, $"extUpFlips={s.LookupElbowFlipCount} elbowUp={s.LookupElbowUpCount} alignMean={s.LookupMeanAlignErrDeg:F1} flex={s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0}");
+        }
+
+        // Chicken-wing flare (no elbow tracker): turning the controllers inward pushes the derived elbow OUT
+        // toward the half-T-pose mark and HARD-CLAMPS it there -- it must never cross the halfway line to
+        // straight-out-to-the-side ("won't feel right"), must be a no-op when the controller isn't rolled in,
+        // and the push-out must actually engage (a dead / backwards roll coupling fails). Driven by RunChickenWing.
+        public static (bool pass, string reason) GateArmChickenWing(in BasisArmChickenWingSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.ReachablePoints <= 0) return (false, "no reachable chicken-wing poses");
+            if (s.WorstOverCapDeg > ChickenWingClampTolDeg)
+                return (false, $"chicken-wing elbow reaches {s.MaxFullFlareSwivelDeg:F1} deg, {s.WorstOverCapDeg:F1} past the {s.CapDeg:F0} deg half-T-pose cap > {ChickenWingClampTolDeg} (crosses the halfway mark)");
+            if (s.MaxRegressDeg > ChickenWingMaxRegressDeg)
+                return (false, $"flare moved a neutral (no-roll) elbow by {s.MaxRegressDeg:F2} deg > {ChickenWingMaxRegressDeg} (must be a no-op off the chicken-wing)");
+            if (s.PushSamples > 0 && s.MeanPushDeg < ChickenWingMinPushDeg)
+                return (false, $"full inward roll pushed the elbow out only {s.MeanPushDeg:F1} deg < {ChickenWingMinPushDeg} (push-out coupling dead/backwards; {s.PushedOutCount}/{s.PushSamples} poses moved out)");
+            return (true, $"cap={s.CapDeg:F0} worstFlare={s.MaxFullFlareSwivelDeg:F1} (over {s.WorstOverCapDeg:F1}) push={s.MeanPushDeg:F1} ({s.PushedOutCount}/{s.PushSamples}) regress={s.MaxRegressDeg:F2}");
         }
 
         // A REAL elbow tracker must give a NATURAL bend for any reasonable mount / body size: a tracker strapped
@@ -408,6 +432,8 @@ namespace Basis.IK.Debugging
         public const float CalibMaxPosErrM = 5e-4f;         // offset + scale round-trip position error (metres)
         public const float CalibMaxRotErrDeg = 0.1f;        // offset + rotation-calibration round-trip error (degrees)
         public const float CalibMaxPitchHeightErrM = 5e-3f; // pitch-calibrated eye-height recovery error (metres)
+        public const float CalibMaxFeelHeightErrM = 1e-3f;  // DeviceScale feel: viewpoint must land on the avatar eye when the denominator is true/nudged (metres)
+        public const float CalibMaxFeelFactorErr = 1e-3f;   // too-tall ratio of an under-bridged eye reference must equal E/(E-shortfall)
 
         // Calibration math: the offset capture↔apply, device-scale, per-effector rotation, and pitch-
         // height formulas must round-trip / land on their targets within float tolerance, and the scale
@@ -425,7 +451,9 @@ namespace Basis.IK.Debugging
                 return (false, $"pitch-calibrated height off by {s.MaxPitchHeightErr:F4} m > {CalibMaxPitchHeightErrM} ({s.PitchSolvable} solved, {s.PitchFallback} fallback)");
             if (s.ScaleModifierMismatches > 0)
                 return (false, $"{s.ScaleModifierMismatches} scale-modifier sanitization/FinalScale mismatches");
-            return (true, $"offsetPos={s.MaxOffsetPosErr:F5}m rotCal={s.MaxRotCalErrDeg:F3}deg scalePos={s.MaxScalePosErr:F5}m pitch={s.MaxPitchHeightErr:F4}m ({s.PitchSolvable}/{s.PitchFallback}) cases={s.Cases} fails={s.Failures}");
+            if (s.MaxFeelHeightErr > CalibMaxFeelHeightErrM || s.MaxFeelFactorErr > CalibMaxFeelFactorErr)
+                return (false, $"feel height off: viewpoint err={s.MaxFeelHeightErr:F5} m > {CalibMaxFeelHeightErrM} or too-tall ratio err={s.MaxFeelFactorErr:F5} > {CalibMaxFeelFactorErr} (DeviceScale no longer lands the viewpoint on the avatar eye)");
+            return (true, $"offsetPos={s.MaxOffsetPosErr:F5}m rotCal={s.MaxRotCalErrDeg:F3}deg scalePos={s.MaxScalePosErr:F5}m pitch={s.MaxPitchHeightErr:F4}m ({s.PitchSolvable}/{s.PitchFallback}) feel={s.MaxFeelHeightErr:F5}m cases={s.Cases} fails={s.Failures}");
         }
 
         // --- pose-tolerant calibration (compensate for the player not holding a straight T-pose) ---

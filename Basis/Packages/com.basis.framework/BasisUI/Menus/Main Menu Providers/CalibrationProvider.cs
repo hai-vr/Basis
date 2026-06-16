@@ -86,7 +86,7 @@ namespace Basis.BasisUI
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             HeightDescription.SetTitle(BasisLocalization.Get("calibration.additionalHeight"));
-            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
+            HeightDescription.SetDescription(FormatAdditionalHeight());
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= RefreshAdditionalHeightLabel;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame += RefreshAdditionalHeightLabel;
 
@@ -114,6 +114,28 @@ namespace Basis.BasisUI
                 Description.gameObject.SetActive(visible);
                 layout.ForceRebuild();
             };
+
+            // Persistent standing eye-height correction: the once-and-done version of the +/- nudge above.
+            // Bridges a systematic measured-eye-height shortfall (seen on OpenVR: avatar feels too tall) so
+            // the gap is corrected once instead of nudged every calibration. 0 = off; survives restarts/swaps.
+            var eyeHeightCorrectionSlider = PanelSlider.CreateAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced("Standing Eye Height Correction", -0.20f, 0.20f, false, 2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.CalibrationStandingEyeHeightMeters);
+            if (eyeHeightCorrectionSlider != null)
+            {
+                eyeHeightCorrectionSlider.Descriptor.SetTooltip(
+                    "Persistent correction added to your measured standing eye height before scaling. If the avatar " +
+                    "feels too tall and you nudge up every calibration, set this once to that amount (e.g. +0.10 m). " +
+                    "0 = off. Unlike the +/- nudge, this survives restarts and avatar swaps.");
+            }
+
+            // Lock-in guides toggle (shrinking spheres + foot-forward guide while calibrating).
+            var lockInGuidesToggle = PanelToggle.CreateNewEntry(container);
+            lockInGuidesToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.lockInGuides"));
+            lockInGuidesToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.lockInGuides.tooltip"));
+            lockInGuidesToggle.SetValueWithoutNotify(BasisCalibrationLockInVisualizer.Enabled);
+            lockInGuidesToggle.OnValueChanged += value => BasisCalibrationLockInVisualizer.Enabled = value;
 
             // Avatar scale
             var customScaleToggle = PanelToggle.CreateNewEntry(container);
@@ -206,7 +228,7 @@ namespace Basis.BasisUI
             BasisHeightDriver.ApplyScaleAndHeight();
 
             // Refresh on-screen labels for the controls we just reset
-            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
+            HeightDescription.SetDescription(FormatAdditionalHeight());
             UpdatePitchToggleLabel();
         }
         /// <summary>
@@ -224,7 +246,7 @@ namespace Basis.BasisUI
         }
         public void ApplyAndUpdateUI()
         {
-            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
+            HeightDescription.SetDescription(FormatAdditionalHeight());
             BasisHeightDriver.ApplyScaleAndHeight();
         }
 
@@ -234,10 +256,23 @@ namespace Basis.BasisUI
             {
                 return;
             }
-            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
+            HeightDescription.SetDescription(FormatAdditionalHeight());
         }
 
         private static string FormatScaleMeters(float meters) => meters.ToString("0.##") + " m";
+
+        private const float NudgeWarnThreshold = 0.2f;
+
+        private static string FormatAdditionalHeight()
+        {
+            float height = BasisHeightDriver.AdditionalPlayerHeight;
+            string text = $"{height:F2}";
+            if (Mathf.Abs(height) > NudgeWarnThreshold)
+            {
+                text += "  " + BasisLocalization.Get("calibration.nudgeWarning");
+            }
+            return text;
+        }
 
         private void TogglePitchCalibration()
         {
@@ -283,6 +318,7 @@ namespace Basis.BasisUI
                 BasisHeightDriver.HasPitchCalibratedHeight = false;
                 Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrating"));
                 localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
+                BasisCalibrationLockInVisualizer.Begin();
                 SubscribeToTriggers();
             }
         }
@@ -333,6 +369,7 @@ namespace Basis.BasisUI
         {
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= RefreshAdditionalHeightLabel;
             UnsubscribeAll();
+            BasisCalibrationLockInVisualizer.End();
             _pitchStep = PitchCalibrationStep.None;
             _leftPressed = false;
             _rightPressed = false;
@@ -460,6 +497,7 @@ namespace Basis.BasisUI
             _pitchStep = PitchCalibrationStep.None;
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrating"));
             BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
+            BasisCalibrationLockInVisualizer.Begin();
             // Reset trigger state so they need to press again for final calibration
             _leftPressed = false;
             _rightPressed = false;
@@ -475,6 +513,7 @@ namespace Basis.BasisUI
             _calibrated = true;
 
             UnsubscribeAll();
+            BasisCalibrationLockInVisualizer.End();
             BasisAvatarIKStageCalibration.FullBodyCalibration();
             BasisUINeedsVisibleTrackers.Remove(BasisLocalPlayer.Instance);
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));

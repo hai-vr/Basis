@@ -84,6 +84,7 @@ namespace Basis.IK.Debugging
                         $"Rotation calibration (no-leak): {_last.MaxRotCalErrDeg:F3}°\n" +
                         $"Pitch height: {_last.MaxPitchHeightErr:F4} m err ({_last.PitchSolvable} solved, {_last.PitchFallback} fallback)\n" +
                         $"Scale modifier mismatches: {_last.ScaleModifierMismatches}\n" +
+                        $"Feel height: viewpoint err {_last.MaxFeelHeightErr:E2} m, too-tall ratio err {_last.MaxFeelFactorErr:E2}\n" +
                         _last.Path, MessageType.None);
 
                     EditorGUILayout.BeginHorizontal();

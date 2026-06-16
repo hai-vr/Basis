@@ -319,6 +319,20 @@ namespace UnityEngine.Animations.Rigging
         // is consumed by DistributeSpineBend, so quick head turns leave the body momentarily behind.
         [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestSpringHz;
         [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestSpringDamping;
+        // Hip-frame follow spring: critically-damped angular spring (rotational analogue of the chest spring)
+        // on the hips rotation that feeds the no-elbow-tracker bend frame (ArmBendFrame), so hip jitter/sway
+        // doesn't wobble the DERIVED elbow pole -- "more spring around the hip" for users without elbow
+        // trackers. Lower Hz = more decoupling/lag; damping 1 = critically damped (no overshoot); 0 disables.
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_HipFrameSpringHz;
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_HipFrameSpringDamping;
+        // Chicken-wing elbow flare (no elbow tracker): turning the controllers inward pushes the derived elbow
+        // OUT toward the half-T-pose mark and HARD-CLAMPS it there, so it never crosses the halfway line to
+        // straight-out-to-the-side nor wings up. MaxDeg is that cap (the swivel off straight-down); InwardGain
+        // is the signed roll->flare sensitivity (negative flips the roll direction, 0 disables); FullRollDeg is
+        // the controller roll that counts as a full chicken-wing. See BasisElbowFlareCore.
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_ElbowFlareMaxDeg;
+        [SyncSceneToStream, SerializeField, Range(-3f, 3f)] float m_ElbowFlareInwardGain;
+        [SyncSceneToStream, SerializeField, Min(1f)] float m_ElbowFlareFullRollDeg;
         // Asymmetric flexion clamps: humans flex forward much further than they extend backward.
         // Applied to the per-axis spine + upperChest contributions after distribution.
         [SyncSceneToStream, SerializeField, Min(0f)] float m_SpineMaxForwardDeg;
@@ -530,6 +544,11 @@ namespace UnityEngine.Animations.Rigging
         public float HipHingeMaxAddDeg { get => m_HipHingeMaxAddDeg; set => m_HipHingeMaxAddDeg = value; }
         public float ChestSpringHz { get => m_ChestSpringHz; set => m_ChestSpringHz = value; }
         public float ChestSpringDamping { get => m_ChestSpringDamping; set => m_ChestSpringDamping = value; }
+        public float HipFrameSpringHz { get => m_HipFrameSpringHz; set => m_HipFrameSpringHz = value; }
+        public float HipFrameSpringDamping { get => m_HipFrameSpringDamping; set => m_HipFrameSpringDamping = value; }
+        public float ElbowFlareMaxDeg { get => m_ElbowFlareMaxDeg; set => m_ElbowFlareMaxDeg = value; }
+        public float ElbowFlareInwardGain { get => m_ElbowFlareInwardGain; set => m_ElbowFlareInwardGain = value; }
+        public float ElbowFlareFullRollDeg { get => m_ElbowFlareFullRollDeg; set => m_ElbowFlareFullRollDeg = value; }
         public float SpineMaxForwardDeg { get => m_SpineMaxForwardDeg; set => m_SpineMaxForwardDeg = value; }
         public float SpineMaxBackwardDeg { get => m_SpineMaxBackwardDeg; set => m_SpineMaxBackwardDeg = value; }
         public float SpineMaxLateralDeg { get => m_SpineMaxLateralDeg; set => m_SpineMaxLateralDeg = value; }
@@ -554,6 +573,11 @@ namespace UnityEngine.Animations.Rigging
         public string HipHingeMaxAddDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HipHingeMaxAddDeg));
         public string ChestSpringHzFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestSpringHz));
         public string ChestSpringDampingFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestSpringDamping));
+        public string HipFrameSpringHzFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HipFrameSpringHz));
+        public string HipFrameSpringDampingFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HipFrameSpringDamping));
+        public string ElbowFlareMaxDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ElbowFlareMaxDeg));
+        public string ElbowFlareInwardGainFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ElbowFlareInwardGain));
+        public string ElbowFlareFullRollDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ElbowFlareFullRollDeg));
         public string SpineMaxForwardDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxForwardDeg));
         public string SpineMaxBackwardDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxBackwardDeg));
         public string SpineMaxLateralDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxLateralDeg));
@@ -690,6 +714,11 @@ namespace UnityEngine.Animations.Rigging
             m_HipHingeMaxAddDeg = 15f;
             m_ChestSpringHz = 12f;
             m_ChestSpringDamping = 1f;
+            m_HipFrameSpringHz = 8f;
+            m_HipFrameSpringDamping = 1f;
+            m_ElbowFlareMaxDeg = 45f;
+            m_ElbowFlareInwardGain = 1f;
+            m_ElbowFlareFullRollDeg = 70f;
             m_SpineMaxForwardDeg = 60f;
             m_SpineMaxBackwardDeg = 25f;
             m_SpineMaxLateralDeg = 25f;
@@ -1022,6 +1051,8 @@ w20, w54;
         public FloatProperty upperChestBendPitch, upperChestBendYaw, upperChestBendRoll;
         public FloatProperty hipHingeStartDeg, hipHingeMaxAddDeg;
         public FloatProperty chestSpringHz, chestSpringDamping;
+        public FloatProperty hipFrameSpringHz, hipFrameSpringDamping;
+        public FloatProperty elbowFlareMaxDeg, elbowFlareInwardGain, elbowFlareFullRollDeg;
         public FloatProperty spineMaxForwardDeg, spineMaxBackwardDeg, spineMaxLateralDeg;
         public FloatProperty spineSquishBoost;
         public FloatProperty moveBodyBackWhenCrouching;
@@ -1041,6 +1072,11 @@ w20, w54;
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
         public NativeArray<int> chestSpringInit;
+        // Persistent state for the hip-frame follow spring: [0] = spring-smoothed hips rotation and its
+        // world-space angular velocity. Allocated in CreateJob, disposed in Destroy, lazily seeded frame 1.
+        public NativeArray<Quaternion> hipFrameSpringRot;
+        public NativeArray<Vector3> hipFrameSpringVel;
+        public NativeArray<int> hipFrameSpringInit;
         // Swing continuity: persistent per-DOF state to rate-limit the mid-joint (elbow/knee) swing
         // around the root→tip axis, so a torso-collision change eases in instead of popping.
         // Slots: 0/1 = left/right elbow; 2/3 reserved for left/right knee.
@@ -1116,6 +1152,10 @@ w20, w54;
             // 3) Legs: two-bone IK with bend normal preference
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
+
+            // Smooth the hips rotation that feeds the no-elbow-tracker bend frame (ArmBendFrame) so hip
+            // jitter/sway doesn't wobble the derived elbows. Integrated once per frame, before the hands.
+            UpdateHipFrameSpring(stream);
 
             // 4) Hands: two-bone IK with collision + elbow protection
             SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, collideTrackedElbow, k_SwingLeftElbow);
@@ -1553,6 +1593,48 @@ w20, w54;
             return newPos;
         }
         static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
+        static bool IsFinite(Quaternion q) => !float.IsNaN(q.x) && !float.IsInfinity(q.x) && !float.IsNaN(q.y) && !float.IsInfinity(q.y) && !float.IsNaN(q.z) && !float.IsInfinity(q.z) && !float.IsNaN(q.w) && !float.IsInfinity(q.w);
+        // Critically-damped angular spring on the hips rotation that feeds ArmBendFrame, so hip jitter/sway
+        // doesn't wobble the no-elbow-tracker elbow pole (the rotational analogue of ApplyChestSpring). Stepped
+        // ONCE per frame and stored; ArmBendFrame reads the smoothed value. Disabled (hz<=0) tracks raw hips.
+        void UpdateHipFrameSpring(AnimationStream stream)
+        {
+            if (!hipFrameSpringRot.IsCreated || !hipFrameSpringVel.IsCreated || !hipFrameSpringInit.IsCreated)
+            {
+                return;
+            }
+            bool hipsValid = HandleHips.IsValid(stream);
+            Quaternion rawHips = hipsValid ? HandleHips.GetRotation(stream) : Quaternion.identity;
+            float hz = hipFrameSpringHz.Get(stream);
+            // Disabled, no hips, or first frame: snap to the raw rotation (no spring kick) and mark seeded.
+            if (!hipsValid || hz <= 0f || hipFrameSpringInit[0] == 0)
+            {
+                hipFrameSpringRot[0] = rawHips;
+                hipFrameSpringVel[0] = Vector3.zero;
+                hipFrameSpringInit[0] = 1;
+                return;
+            }
+
+            float dt = stream.deltaTime;
+            if (dt <= 0f)
+            {
+                return;
+            }
+
+            BasisHipFrameSpringCore.Step(hipFrameSpringRot[0], hipFrameSpringVel[0], rawHips, dt, hz,
+                hipFrameSpringDamping.Get(stream), out Quaternion newRot, out Vector3 newVel);
+
+            // Defensive: a NaN upstream re-seeds instead of poisoning the bend frame.
+            if (!IsFinite(newRot) || !IsFinite(newVel))
+            {
+                hipFrameSpringRot[0] = rawHips;
+                hipFrameSpringVel[0] = Vector3.zero;
+                return;
+            }
+
+            hipFrameSpringRot[0] = newRot;
+            hipFrameSpringVel[0] = newVel;
+        }
         // Pelvis tilts forward to share the lean past the threshold. Without this, a deep forward
         // reach makes the spine swallow the entire bend and everything above the hips folds.
         Quaternion ApplyHipHinge(AnimationStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
@@ -2005,7 +2087,7 @@ w20, w54;
         /// Computes arm bend direction using the 3D lookup table.
         /// Converts hand position to a yaw-stable torso frame, then samples the table.
         /// </summary>
-        Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, float armLength, bool isLeft)
+        Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, Quaternion handTargetRot, float armLength, bool isLeft)
         {
             if (!HandleChest.IsValid(stream) || armLength < k_Epsilon)
             {
@@ -2036,7 +2118,16 @@ w20, w54;
             }
 
             // Transform bend direction back to world space
-            return (frameRot * localBend).normalized;
+            Vector3 worldBend = (frameRot * localBend).normalized;
+
+            // Chicken-wing flare (no elbow tracker only -- this path): turning the controller inward pushes the
+            // derived elbow OUT toward the half-T-pose mark and hard-clamps it there. Outward = the arm's
+            // away-from-body side in the bend frame; engagement comes from the controller roll. A no-op when the
+            // controller isn't rolled in (so normal reaches are untouched).
+            Vector3 outward = frameRot * (isLeft ? Vector3.left : Vector3.right);
+            return BasisElbowFlareCore.ApplyChickenWingFlare(worldBend, handTargetPos - shoulderPos, outward,
+                playerUp.Get(stream), handTargetRot, elbowFlareInwardGain.Get(stream),
+                elbowFlareFullRollDeg.Get(stream), elbowFlareMaxDeg.Get(stream));
         }
         // Elbow-bend reference frame: chest pitch/roll with hips yaw, so head-gaze chest yaw
         // doesn't sweep the lookup and flip the elbow pole. Falls back to chest if no hips.
@@ -2048,7 +2139,11 @@ w20, w54;
                 return chestRot;
             }
 
-            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            // Spring-smoothed hips rotation (UpdateHipFrameSpring): hip jitter/sway no longer wobbles the
+            // derived elbow pole. Falls back to the raw hips before the spring is seeded / when disabled.
+            Quaternion hipsRot = (hipFrameSpringInit.IsCreated && hipFrameSpringRot.IsCreated && hipFrameSpringInit[0] != 0)
+                ? hipFrameSpringRot[0]
+                : HandleHips.GetRotation(stream);
             Quaternion chestRelative = Quaternion.Inverse(hipsRot) * chestRot;
             // Drop the chest's yaw (twist around hips-up), keep its swing (pitch/roll).
             Quaternion chestYaw = ExtractTwist(chestRelative, Vector3.up);
@@ -2413,7 +2508,7 @@ w20, w54;
                 float armLen = upperLen + lowerLen;
                 bool isLeft = Vector3.Dot(shoulderPos - HandleChest.GetPosition(stream), HandleChest.GetRotation(stream) * Vector3.right) < 0f;
 
-                Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
+                Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, tgtRot, armLen, isLeft);
                 hint = new AffineTransform(shoulderPos + 0.5f * armLen * lookupBend, hintRot);
                 hasHint = true;
                 usedLookup = true;
@@ -2603,6 +2698,11 @@ w20, w54;
                 hipHingeMaxAddDeg = FloatProperty.Bind(animator, component, data.HipHingeMaxAddDegFloatProperty),
                 chestSpringHz = FloatProperty.Bind(animator, component, data.ChestSpringHzFloatProperty),
                 chestSpringDamping = FloatProperty.Bind(animator, component, data.ChestSpringDampingFloatProperty),
+                hipFrameSpringHz = FloatProperty.Bind(animator, component, data.HipFrameSpringHzFloatProperty),
+                hipFrameSpringDamping = FloatProperty.Bind(animator, component, data.HipFrameSpringDampingFloatProperty),
+                elbowFlareMaxDeg = FloatProperty.Bind(animator, component, data.ElbowFlareMaxDegFloatProperty),
+                elbowFlareInwardGain = FloatProperty.Bind(animator, component, data.ElbowFlareInwardGainFloatProperty),
+                elbowFlareFullRollDeg = FloatProperty.Bind(animator, component, data.ElbowFlareFullRollDegFloatProperty),
                 spineMaxForwardDeg = FloatProperty.Bind(animator, component, data.SpineMaxForwardDegFloatProperty),
                 spineMaxBackwardDeg = FloatProperty.Bind(animator, component, data.SpineMaxBackwardDegFloatProperty),
                 spineMaxLateralDeg = FloatProperty.Bind(animator, component, data.SpineMaxLateralDegFloatProperty),
@@ -2765,6 +2865,10 @@ w20, w54;
             job.chestSpringState = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.chestSpringInit = new NativeArray<int>(1, Allocator.Persistent);
 
+            job.hipFrameSpringRot = new NativeArray<Quaternion>(1, Allocator.Persistent);
+            job.hipFrameSpringVel = new NativeArray<Vector3>(1, Allocator.Persistent);
+            job.hipFrameSpringInit = new NativeArray<int>(1, Allocator.Persistent);
+
             job.swingLastDir = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingLastAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingLastTarget = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
@@ -2852,6 +2956,10 @@ w20, w54;
 
             if (job.chestSpringState.IsCreated) job.chestSpringState.Dispose();
             if (job.chestSpringInit.IsCreated) job.chestSpringInit.Dispose();
+
+            if (job.hipFrameSpringRot.IsCreated) job.hipFrameSpringRot.Dispose();
+            if (job.hipFrameSpringVel.IsCreated) job.hipFrameSpringVel.Dispose();
+            if (job.hipFrameSpringInit.IsCreated) job.hipFrameSpringInit.Dispose();
 
             if (job.swingLastDir.IsCreated) job.swingLastDir.Dispose();
             if (job.swingLastAxis.IsCreated) job.swingLastAxis.Dispose();

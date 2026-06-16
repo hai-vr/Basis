@@ -39,4 +39,38 @@ public static class BasisCalibrationMath
         scaledPos = offsetPos + offsetRot * (unscaledPos * deviceScale);
         scaledRot = offsetRot * unscaledRot;
     }
+
+    /// <summary>
+    /// The DeviceScale denominator: the player's TRUE standing eye height in real-world metres -- the
+    /// height the HMD center-eye sits at when standing level. DeviceScale divides the avatar's rendered
+    /// eye height by this, so the avatar only feels right when this equals the real standing eye height.
+    /// <paramref name="eyeReference"/> lifts a backend's tracked point up to the eyes: OpenVR fills it
+    /// from SteamVR's eye-to-head transform (BasisInput.CenterEyeVerticalOffset) because it tracks the
+    /// HMD pose origin, while a backend whose tracked point is already the center-eye (OpenXR
+    /// centerEyePosition) passes 0. A shortfall in this denominator is exactly what the
+    /// AdditionalPlayerHeight "nudge" is bridging by hand.
+    /// </summary>
+    public static float StandingEyeDenominator(float playerMeasuredHeight, float eyeReference, float additionalPlayerHeight)
+    {
+        return additionalPlayerHeight + eyeReference + playerMeasuredHeight;
+    }
+
+    /// <summary>
+    /// DeviceScale: maps real HMD/tracker motion onto the avatar so the rendered first-person viewpoint
+    /// lands at the avatar's scaled eye height. Equals (avatarUnscaledMetric * appliedUpScale) divided by
+    /// <see cref="StandingEyeDenominator"/>. Feel is correct iff that denominator equals the player's true
+    /// standing eye height E: a denominator short by g yields E/(E-g) too-tall and is cancelled by a +g
+    /// nudge; a denominator long by g yields the matching too-short. Returns 1 for a degenerate
+    /// (near-zero) denominator so a bad measurement can never poison the bones.
+    /// </summary>
+    public static float ComputeDeviceScale(float avatarUnscaledMetric, float appliedUpScale, float playerMeasuredHeight, float eyeReference, float additionalPlayerHeight)
+    {
+        float avatarScaledMetric = avatarUnscaledMetric * appliedUpScale;
+        float denominator = StandingEyeDenominator(playerMeasuredHeight, eyeReference, additionalPlayerHeight);
+        if (denominator > -1e-5f && denominator < 1e-5f)
+        {
+            return 1f;
+        }
+        return avatarScaledMetric / denominator;
+    }
 }

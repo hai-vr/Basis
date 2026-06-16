@@ -45,6 +45,11 @@ namespace Basis.IK.Debugging
         // Avatar scale modifier (BasisAvatarScaleModifier).
         public int ScaleModifierMismatches; // sanitization / FinalScale = DuringCalibration*ApplyScale
 
+        // Feel height (BasisCalibrationMath.ComputeDeviceScale): a correctly measured denominator lands the
+        // viewpoint on the avatar eye; an under-bridged eye reference renders too tall by exactly E/(E-shortfall).
+        public float MaxFeelHeightErr;      // metres: |trueEye*DeviceScale - avatarEye| for a well-measured/nudged denominator
+        public float MaxFeelFactorErr;      // unitless: predicted vs observed too-tall ratio for an under-bridged eye reference
+
         public float WorstSummary;
     }
 
@@ -186,9 +191,45 @@ namespace Basis.IK.Debugging
                     s.ScaleModifierMismatches = RunScaleModifier(w, sb);
                     s.Cases += 9;
                     s.Failures += s.ScaleModifierMismatches;
+
+                    // 6) Feel height (BasisCalibrationMath.ComputeDeviceScale): the DeviceScale denominator must
+                    //    equal the player's true standing eye height E, else the avatar renders too tall/short
+                    //    (the "nudge once or twice to feel right" report). A correctly measured denominator lands
+                    //    the viewpoint (trueEye * DeviceScale) on the avatar eye; an under-bridged eye reference
+                    //    (OpenVR HMD pose-origin gap g not fully covered by CenterEyeVerticalOffset o) renders too
+                    //    tall by E/(E-shortfall) and is cancelled by AdditionalPlayerHeight == shortfall.
+                    for (int i = 0; i < cases; i++)
+                    {
+                        var rng = new System.Random(6000 + i);
+                        float E = Mathf.Lerp(1.35f, 1.95f, (float)rng.NextDouble());  // true standing eye height
+                        float A = Mathf.Lerp(1.25f, 1.80f, (float)rng.NextDouble());  // avatar authored eye height
+                        float u = Mathf.Lerp(0.6f, 2.0f, (float)rng.NextDouble());    // custom avatar scale
+                        float g = Mathf.Lerp(0f, 0.18f, (float)rng.NextDouble());     // device-origin -> eye gap
+                        float o = g * (float)rng.NextDouble();                        // captured (under-)bridge
+                        float shortfall = g - o;
+                        float avatarEye = A * u;
+
+                        float dsGood = BasisCalibrationMath.ComputeDeviceScale(A, u, E, 0f, 0f);
+                        float goodErr = Mathf.Abs(E * dsGood - avatarEye);
+
+                        float dsBias = BasisCalibrationMath.ComputeDeviceScale(A, u, E - g, o, 0f);
+                        float tallFactor = (E * dsBias) / avatarEye;
+                        float factorErr = Mathf.Abs(tallFactor - E / (E - shortfall));
+
+                        float dsNudged = BasisCalibrationMath.ComputeDeviceScale(A, u, E - g, o, shortfall);
+                        float nudgeErr = Mathf.Abs(E * dsNudged - avatarEye);
+
+                        s.MaxFeelHeightErr = Mathf.Max(s.MaxFeelHeightErr, Mathf.Max(goodErr, nudgeErr));
+                        s.MaxFeelFactorErr = Mathf.Max(s.MaxFeelFactorErr, factorErr);
+                        bool tallOk = shortfall < 1e-4f || E * dsBias > avatarEye - 1e-4f;
+                        bool pass = goodErr < 1e-3f && nudgeErr < 1e-3f && factorErr < 1e-3f && tallOk;
+                        if (!pass) s.Failures++;
+                        s.Cases++;
+                        if (!pass || i < 3) WriteRow(w, sb, "feelheight", i, goodErr, factorErr, $"short={F(shortfall)} tall={F(tallFactor)}", pass);
+                    }
                 }
 
-                s.WorstSummary = Mathf.Max(Mathf.Max(s.MaxOffsetPosErr, s.MaxScalePosErr), Mathf.Max(s.MaxRigidFollowErr, s.MaxPitchHeightErr));
+                s.WorstSummary = Mathf.Max(Mathf.Max(s.MaxOffsetPosErr, s.MaxScalePosErr), Mathf.Max(Mathf.Max(s.MaxRigidFollowErr, s.MaxPitchHeightErr), s.MaxFeelHeightErr));
                 s.Ok = true;
             }
             catch (System.Exception e)

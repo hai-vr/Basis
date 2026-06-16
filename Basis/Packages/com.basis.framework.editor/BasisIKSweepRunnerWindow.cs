@@ -160,6 +160,7 @@ namespace Basis.IK.Debugging
             string armTempPath = TrajPath("BasisArmIKTemporal.csv");
             string armTempHandPath = TrajPath("BasisArmIKTemporalHand.csv");
             string armTempTrackPath = TrajPath("BasisArmIKTemporalTracker.csv");
+            string chickenWingPath = TrajPath("BasisArmChickenWing.csv");
             string protectTrajPath = TrajPath("BasisElbowProtectTrajectory.csv");
             string legTrajPath = TrajPath("BasisLegIKTrajectory.csv");
             string legTempPath = TrajPath("BasisLegIKTemporal.csv");
@@ -202,6 +203,8 @@ namespace Basis.IK.Debugging
                     catch (System.Exception e) { return new[] { new Row { Name = $"Arm IK ({side})", Ok = false, Detail = e.Message, Path = null } }; }
                 });
                 jobs.Add(() => Job($"Arm IK · tracker naturalness ({side})", atnp, () => { var cfg = BasisArmIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisArmIKSweep.RunTrackerNaturalness(cfg, atnp); return BasisIKTestGates.GateArmTrackerNaturalness(s); }));
+                string cwp = SidePath(chickenWingPath, L);
+                jobs.Add(() => Job($"Arm IK · chicken wing ({side})", cwp, () => { var cfg = BasisArmIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisArmIKSweep.RunChickenWing(cfg, BasisIKTestGates.ChickenWingMaxSwivelDeg, cwp); return BasisIKTestGates.GateArmChickenWing(s); }));
                 jobs.Add(() => Job($"Shoulder ({side})", shp, () => { var cfg = BasisShoulderSweepConfig.Default(); cfg.IsLeft = L; cfg.AzSteps = Sc(cfg.AzSteps, density); cfg.ElSteps = Sc(cfg.ElSteps, density); cfg.ReachSteps = Sc(cfg.ReachSteps, density); var s = BasisShoulderSweep.Run(cfg, shp); return BasisIKTestGates.GateShoulder(s); }));
                 jobs.Add(() => Job($"Leg IK ({side})", lp, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; cfg.Steps = Sc(cfg.Steps, density); var s = BasisLegIKSweep.Run(cfg, lp); return BasisIKTestGates.GateLeg(s); }));
                 jobs.Add(() => Job($"Leg IK · straight stance ({side})", lss, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisLegIKSweep.RunStraightStance(cfg, lss); return BasisIKTestGates.GateLegStraightStance(s); }));

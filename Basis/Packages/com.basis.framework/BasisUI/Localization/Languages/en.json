@@ -2067,6 +2067,18 @@
       "value": "Manually raise or lower your calibrated standing height in small steps."
     },
     {
+      "key": "calibration.nudgeWarning",
+      "value": "Warning: nudging over 0.2 m can throw off tracker matching."
+    },
+    {
+      "key": "calibration.lockInGuides",
+      "value": "Show Lock-In Guides"
+    },
+    {
+      "key": "calibration.lockInGuides.tooltip",
+      "value": "While calibrating, show a shrinking sphere at each tracker's prime spot plus a foot-forward guide that turns green when the foot points forward and flat. Line trackers up before pulling the triggers."
+    },
+    {
       "key": "calibration.bodyTrackingSettings",
       "value": "Body Tracking Settings"
     },
@@ -4453,6 +4465,22 @@
     {
       "key": "settings.bodyTracking.disableAnimFbt",
       "value": "Disable Animations in FBT"
+    },
+    {
+      "key": "settings.bodyTracking.butterflyKnees",
+      "value": "Butterfly Knees"
+    },
+    {
+      "key": "settings.bodyTracking.butterflyKnees.tooltip",
+      "value": "When laying on your back with foot trackers (and no knee trackers), tilt your feet outward and pull them in to let your knees fall open. Default: On"
+    },
+    {
+      "key": "settings.bodyTracking.butterflyKneeMaxOpen.title",
+      "value": "Butterfly Knee Max Open (deg)"
+    },
+    {
+      "key": "settings.bodyTracking.butterflyKneeMaxOpen.title.tooltip",
+      "value": "How far the knees may fall open in the butterfly pose, clamped to the hip's natural range. Default: 60"
     },
     {
       "key": "settings.bodyTracking.playspaceMover.title",

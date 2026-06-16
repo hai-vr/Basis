@@ -133,6 +133,11 @@ namespace Basis.Scripts.Drivers
         private static Quaternion smoothedLeftKneeRot = Quaternion.identity;
         private static Quaternion smoothedRightKneeRot = Quaternion.identity;
 
+        // Smoothed butterfly-knee hint (laying-down knee splay from tracked feet; see BasisButterflyKneeCore)
+        private static Vector3 smoothedLeftButterflyHint, smoothedRightButterflyHint;
+        private static float smoothedLeftButterflyWeight, smoothedRightButterflyWeight;
+        private const float ButterflyKneeSmoothRate = 8f;
+
         // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
@@ -590,6 +595,13 @@ namespace Basis.Scripts.Drivers
                 data.ChestPosition = chestPos;
                 data.ChestRotation = chestRot;
 
+                // ── BUTTERFLY KNEES (laying-down knee splay from tracked feet with no knee tracker) ──
+                bool butterflyEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKnees.RawValue;
+                float butterflyMaxOpenDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.RawValue;
+                Vector3 playerUpDir = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up).normalized;
+                bool leftFootTracked = fbtEnabled && BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
+                bool rightFootTracked = fbtEnabled && BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
+
                 // ── LEFT LOWER LEG ──
                 if (leftLLHasTracker)
                 {
@@ -608,6 +620,16 @@ namespace Basis.Scripts.Drivers
                     data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
                     data.RotationLeftLowerLeg = smoothedLeftKneeRot;
                     data.EnableLeftLowerLeg = footIKBlendWeightLeft;
+                }
+                else if (butterflyEnabled && leftFootTracked && TryComputeButterflyKnee(
+                    true, hipsRot, playerUpDir, butterflyMaxOpenDeg, deltaTime,
+                    data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
+                    ref smoothedLeftButterflyHint, ref smoothedLeftButterflyWeight,
+                    out Vector3 lButterflyHint, out Quaternion lButterflyRot, out float lButterflyWeight))
+                {
+                    data.PositionLeftLowerLeg = lButterflyHint;
+                    data.RotationLeftLowerLeg = lButterflyRot;
+                    data.EnableLeftLowerLeg = lButterflyWeight;
                 }
                 else
                 {
@@ -632,6 +654,16 @@ namespace Basis.Scripts.Drivers
                     data.PositionRightLowerLeg = footDriver.RightKneeHint;
                     data.RotationRightLowerLeg = smoothedRightKneeRot;
                     data.EnableRightLowerLeg = footIKBlendWeightRight;
+                }
+                else if (butterflyEnabled && rightFootTracked && TryComputeButterflyKnee(
+                    false, hipsRot, playerUpDir, butterflyMaxOpenDeg, deltaTime,
+                    data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
+                    ref smoothedRightButterflyHint, ref smoothedRightButterflyWeight,
+                    out Vector3 rButterflyHint, out Quaternion rButterflyRot, out float rButterflyWeight))
+                {
+                    data.PositionRightLowerLeg = rButterflyHint;
+                    data.RotationRightLowerLeg = rButterflyRot;
+                    data.EnableRightLowerLeg = rButterflyWeight;
                 }
                 else
                 {
@@ -1002,6 +1034,11 @@ namespace Basis.Scripts.Drivers
             data.HipHingeMaxAddDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.RawValue;
             data.ChestSpringHz = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringHz.RawValue;
             data.ChestSpringDamping = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringDamping.RawValue;
+            data.HipFrameSpringHz = Basis.BasisUI.BasisSettingsDefaults.FBIKHipFrameSpringHz.RawValue;
+            data.HipFrameSpringDamping = Basis.BasisUI.BasisSettingsDefaults.FBIKHipFrameSpringDamping.RawValue;
+            data.ElbowFlareMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowFlareMaxDeg.RawValue;
+            data.ElbowFlareInwardGain = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowFlareInwardGain.RawValue;
+            data.ElbowFlareFullRollDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowFlareFullRollDeg.RawValue;
             data.SpineMaxForwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxForwardDeg.RawValue;
             data.SpineMaxBackwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.RawValue;
             data.SpineMaxLateralDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxLateralDeg.RawValue;
@@ -1170,6 +1207,70 @@ namespace Basis.Scripts.Drivers
                 up.Normalize();
 
             return Quaternion.LookRotation(fwd, up);
+        }
+
+        /// <summary>
+        /// Butterfly knees: laying on your back with a foot tracker but no knee tracker, the tracked foot tilts
+        /// outward (soles toward each other) and pulls in toward the pelvis, so the knee should fall open
+        /// laterally. Computes the outward knee pole via <see cref="BasisButterflyKneeCore"/>, smoothed to avoid
+        /// pops. Returns false (and the knee falls back to the default sagittal bend) when the pose isn't a
+        /// butterfly. The open angle is clamped to the hip's natural max-open inside the core.
+        /// </summary>
+        private static bool TryComputeButterflyKnee(
+            bool isLeft, Quaternion hipsRot, Vector3 playerUp, float maxOpenDeg, float dt,
+            Transform upperLeg, Transform lowerLeg, Vector3 footPos, Quaternion footRot,
+            ref Vector3 smoothedHint, ref float smoothedWeight,
+            out Vector3 hintPos, out Quaternion hintRot, out float weight)
+        {
+            hintPos = default;
+            hintRot = Quaternion.identity;
+            weight = 0f;
+            if (upperLeg == null || lowerLeg == null)
+            {
+                smoothedWeight = 0f;
+                return false;
+            }
+
+            Vector3 hipPos = upperLeg.position;
+            Vector3 hipsRight = hipsRot * Vector3.right;
+            Vector3 hipsForward = hipsRot * Vector3.forward;
+
+            BasisButterflyKneeInput input;
+            input.HipPosition = hipPos;
+            input.FootPosition = footPos;
+            input.FootInstepDir = footRot * Vector3.up;          // foot "up" = instep normal (the sole faces -this)
+            input.OutwardDir = isLeft ? -hipsRight : hipsRight;
+            input.DefaultBendDir = hipsForward;                  // sagittal knee dir (belly; toward ceiling when supine)
+            input.PlayerUp = playerUp;
+            input.TorsoFacingDir = hipsForward;                  // belly . playerUp -> on-your-back factor
+            input.UpperLength = Vector3.Distance(hipPos, lowerLeg.position);
+            input.LowerLength = Vector3.Distance(lowerLeg.position, footPos);
+            input.MaxOpenDeg = maxOpenDeg;
+            input.Strength = 1f;
+
+            BasisButterflyKneeCore.Solve(input, out BasisButterflyKneeResult result);
+
+            // Smooth the pole + weight so noisy tilt / recline signals can't pop the knee.
+            float alpha = 1f - Mathf.Exp(-ButterflyKneeSmoothRate * dt);
+            if (smoothedWeight <= 0.0001f && result.HintWeight <= 0.0001f)
+            {
+                // Fully inactive: track the rest pole so we don't lerp a stale hint in on the next engage.
+                smoothedHint = result.KneeHint;
+                smoothedWeight = 0f;
+                return false;
+            }
+            smoothedHint = Vector3.Lerp(smoothedHint, result.KneeHint, alpha);
+            smoothedWeight = Mathf.Lerp(smoothedWeight, result.HintWeight, alpha);
+
+            if (smoothedWeight <= 0.001f)
+            {
+                return false;
+            }
+
+            hintPos = smoothedHint;
+            hintRot = ComputeKneeHintRotation(hipPos, footPos, smoothedHint);
+            weight = smoothedWeight;
+            return true;
         }
 
         public GameObject CreateOrGetRig(string role, bool enabled, out Rig rig, out RigLayer rigLayer)

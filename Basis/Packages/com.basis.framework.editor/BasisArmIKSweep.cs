@@ -84,6 +84,24 @@ namespace Basis.IK.Debugging
         public string WorstWhere;   // descriptor of the worst combo
     }
 
+    // Summary of RunChickenWing: with no elbow tracker, turning the controllers inward (the chicken-wing) must
+    // push the derived elbow OUT toward the half-T-pose mark and HARD-CLAMP it there -- it must never cross the
+    // halfway line to straight-out-to-the-side. Measured in BasisElbowFlareCore's own swing-plane swivel basis.
+    public struct BasisArmChickenWingSummary
+    {
+        public bool Ok;
+        public string Path;
+        public string Error;
+        public int ReachablePoints;        // chicken-wing target poses swept (reach <= 1)
+        public float CapDeg;               // the configured half-T-pose cap, echoed
+        public float MaxFullFlareSwivelDeg;// worst |outward elbow swivel| at FULL engagement (must stay <= cap)
+        public float WorstOverCapDeg;      // max(0, MaxFullFlareSwivelDeg - cap): how far the worst full flare crosses the cap
+        public float MaxRegressDeg;        // worst engagement-0 change vs the plain lookup (must be ~0 -- a no-op)
+        public float MeanPushDeg;          // mean outward push (engage 1 - engage 0) for poses naturally inside the cap
+        public int PushedOutCount;         // those poses the full flare actually moved further out
+        public int PushSamples;            // denominator for MeanPushDeg
+    }
+
     public static class BasisArmIKSweep
     {
         public const string DefaultFileName = "BasisArmIKSweep.csv";
@@ -198,6 +216,143 @@ namespace Basis.IK.Debugging
             catch (System.Exception e) { s.Ok = false; s.Error = e.Message; }
             finally { if (table.IsCreated) table.Dispose(); }
             return s;
+        }
+
+        // Chicken-wing flare check (no elbow tracker). For hand targets drawn in toward the body -- the
+        // chicken-wing region -- sweep the flare engagement 0..1 and assert the derived elbow is pushed OUT but
+        // HARD-CLAMPED at the half-T-pose mark (capDeg of swivel off straight-down). Drives BasisElbowFlareCore
+        // with explicit engagement; the live rig derives engagement from the controller roll but the
+        // clamp/push geometry is identical (the same Core), so this verifies the part the user feels.
+        public static BasisArmChickenWingSummary RunChickenWing(BasisArmIKSweepConfig cfg, float capDeg, string path)
+        {
+            var s = new BasisArmChickenWingSummary { Ok = false, Path = path, CapDeg = capDeg };
+            float mirror = cfg.IsLeft ? -1f : 1f;
+            bool isLeft = cfg.IsLeft;
+            float upper = Mathf.Max(1e-4f, cfg.UpperLength);
+            float lower = Mathf.Max(1e-4f, cfg.LowerLength);
+            float armLen = upper + lower;
+            Vector3 shoulder = Vector3.zero;
+            Vector3 elbowDir = Mirror(cfg.RestElbowDir, mirror).normalized;
+            Vector3 forearmDir = Mirror(cfg.RestForearmDir, mirror).normalized;
+            if (elbowDir.sqrMagnitude < 1e-8f) elbowDir = Vector3.down;
+            if (forearmDir.sqrMagnitude < 1e-8f) forearmDir = Vector3.forward;
+            Vector3 restElbow = shoulder + elbowDir * upper;
+            Vector3 restHand = restElbow + forearmDir * lower;
+            Vector3 outward = isLeft ? Vector3.left : Vector3.right; // away-from-body side in this identity frame
+            Vector3 up = Vector3.up;
+
+            // Chicken-wing hand targets: drawn in toward the centerline, in front, belly..chest height, moderate
+            // reach (where the elbow pole is well-conditioned, so the hint is followed and the clamp is real).
+            float[] fxs = { -0.35f, -0.15f, 0.05f };
+            float[] fys = { -0.40f, -0.15f, 0.10f, 0.30f };
+            float[] fzs = { 0.35f, 0.55f };
+            float[] engages = { 0f, 0.25f, 0.5f, 0.75f, 1f };
+
+            int reachable = 0;
+            float maxFull = 0f, worstOver = 0f, maxRegress = 0f;
+            double pushSum = 0.0; int pushN = 0, pushedOut = 0;
+
+            NativeArray<Vector3> table = default;
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent);
+
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisArmChickenWing " + System.DateTime.UtcNow.ToString("o") + " side=" + (isLeft ? "left" : "right") + " cap=" + F(capDeg));
+                    w.WriteLine("target_x,target_y,target_z,reach,engage,flared_swivel,over_cap");
+                    var sb = new StringBuilder(160);
+
+                    foreach (float fx in fxs)
+                    foreach (float fy in fys)
+                    foreach (float fz in fzs)
+                    {
+                        Vector3 target = shoulder + new Vector3(fx * mirror, fy, fz) * armLen;
+                        float reach = (target - shoulder).magnitude / armLen;
+                        if (reach > 1f) continue; // unreachable; skip
+                        reachable++;
+
+                        Vector3 natBend = ComputeLookupBend(table, target - shoulder, armLen, isLeft);
+                        float swivelAt0 = float.NaN, swivelAt1 = float.NaN;
+
+                        foreach (float r in engages)
+                        {
+                            Vector3 flared = BasisElbowFlareCore.ApplyFlare(natBend, target - shoulder, outward, up, r, capDeg);
+                            Vector3 hint = shoulder + 0.5f * armLen * flared;
+                            BasisArmSolveResult res = SolveOne(shoulder, restElbow, restHand, target, hint, true);
+                            float sw = OutwardSwivel(shoulder, res.HandSolved, res.ElbowSolved, outward, up);
+
+                            if (r <= 0f)
+                            {
+                                swivelAt0 = sw;
+                                // Regression: engagement 0 must reproduce the plain (un-flared) lookup solve exactly.
+                                Vector3 plainHint = shoulder + 0.5f * armLen * natBend;
+                                BasisArmSolveResult plain = SolveOne(shoulder, restElbow, restHand, target, plainHint, true);
+                                float swPlain = OutwardSwivel(shoulder, plain.HandSolved, plain.ElbowSolved, outward, up);
+                                if (!float.IsNaN(sw) && !float.IsNaN(swPlain))
+                                    maxRegress = Mathf.Max(maxRegress, Mathf.Abs(Mathf.DeltaAngle(sw, swPlain)));
+                            }
+                            if (r >= 1f && !float.IsNaN(sw))
+                            {
+                                swivelAt1 = sw;
+                                float mag = Mathf.Abs(sw);
+                                if (mag > maxFull) maxFull = mag;
+                                if (mag - capDeg > worstOver) worstOver = mag - capDeg;
+                            }
+
+                            sb.Clear();
+                            sb.Append(F(target.x)).Append(',').Append(F(target.y)).Append(',').Append(F(target.z)).Append(',');
+                            sb.Append(F(reach)).Append(',').Append(F(r)).Append(',').Append(F(sw)).Append(',');
+                            sb.Append(F(float.IsNaN(sw) ? float.NaN : Mathf.Max(0f, Mathf.Abs(sw) - capDeg)));
+                            w.WriteLine(sb.ToString());
+                        }
+
+                        // Push-out: a pose whose natural elbow sits clearly INSIDE the cap must move further OUT
+                        // (toward +cap) at full engagement. Poses already at/over the cap get pulled IN, so they
+                        // are excluded from the push metric (they exercise the clamp, not the push).
+                        if (!float.IsNaN(swivelAt0) && !float.IsNaN(swivelAt1) && swivelAt0 < capDeg - 5f)
+                        {
+                            float push = swivelAt1 - swivelAt0;
+                            pushSum += push; pushN++;
+                            if (push > 1f) pushedOut++;
+                        }
+                    }
+                }
+
+                s.Ok = true;
+                s.ReachablePoints = reachable;
+                s.MaxFullFlareSwivelDeg = maxFull;
+                s.WorstOverCapDeg = Mathf.Max(0f, worstOver);
+                s.MaxRegressDeg = maxRegress;
+                s.MeanPushDeg = pushN > 0 ? (float)(pushSum / pushN) : 0f;
+                s.PushedOutCount = pushedOut;
+                s.PushSamples = pushN;
+            }
+            catch (System.Exception e) { s.Ok = false; s.Error = e.Message; }
+            finally { if (table.IsCreated) table.Dispose(); }
+            return s;
+        }
+
+        // Signed elbow swivel in the (down = 0 deg, outward = +90 deg) plane perpendicular to shoulder->hand:
+        // + = out to the body's outward side, - = across the body, +-180 = up. Mirrors BasisElbowFlareCore's
+        // basis so the clamp is measured in the exact frame it is applied.
+        static float OutwardSwivel(Vector3 shoulder, Vector3 hand, Vector3 elbow, Vector3 outwardDir, Vector3 up)
+        {
+            Vector3 axis = hand - shoulder;
+            if (axis.sqrMagnitude < 1e-8f) return float.NaN;
+            axis.Normalize();
+            Vector3 downPole = Vector3.ProjectOnPlane(-up, axis);
+            if (downPole.sqrMagnitude < 1e-8f) return float.NaN;
+            downPole.Normalize();
+            Vector3 outPole = Vector3.ProjectOnPlane(outwardDir, axis);
+            outPole -= downPole * Vector3.Dot(outPole, downPole);
+            if (outPole.sqrMagnitude < 1e-8f) return float.NaN;
+            outPole.Normalize();
+            Vector3 pole = Vector3.ProjectOnPlane(elbow - shoulder, axis);
+            if (pole.sqrMagnitude < 1e-8f) return float.NaN;
+            return Mathf.Atan2(Vector3.Dot(pole, outPole), Vector3.Dot(pole, downPole)) * Mathf.Rad2Deg;
         }
 
         public static BasisArmIKSweepSummary Run(BasisArmIKSweepConfig cfg, string path)

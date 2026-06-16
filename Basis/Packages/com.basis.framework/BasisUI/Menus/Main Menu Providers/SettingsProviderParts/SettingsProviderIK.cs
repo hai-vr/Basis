@@ -274,6 +274,11 @@ public static class SettingsProviderIK
             disableAnimInFBTToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.disableAnimFbt"));
             disableAnimInFBTToggle.AssignBinding(BasisSettingsDefaults.DisableAnimationsInFBT);
             disableAnimInFBTToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.disableAnimFbt.tooltip"));
+
+            var butterflyKneesToggle = PanelToggle.CreateNewEntry(trackingParent);
+            butterflyKneesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKnees"));
+            butterflyKneesToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKnees);
+            butterflyKneesToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKnees.tooltip"));
         });
 
         // ============== Body Collision ==============
@@ -458,6 +463,15 @@ public static class SettingsProviderIK
             if (maxHipDeltaSlider != null)
             {
                 maxHipDeltaSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.maxHipDelta.title.tooltip"));
+            }
+
+            var butterflyMaxOpenSlider = PanelSlider.CreateAndBind(
+                reachParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg);
+            if (butterflyMaxOpenSlider != null)
+            {
+                butterflyMaxOpenSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title.tooltip"));
             }
         });
 
@@ -1171,6 +1185,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKStruggleEnd.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxHipDelta.ResetToDefault();
+        BasisSettingsDefaults.FBIKButterflyKnees.ResetToDefault();
+        BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendRoll.ResetToDefault();

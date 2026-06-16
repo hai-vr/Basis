@@ -335,7 +335,13 @@ public static class BasisHeightDriver
         // Current applied avatar scale (1 = unscaled).
         AppliedUpScale = SanitizePositive(avatarDriver.ScaleAvatarModification.ApplyScale, 1f);
 
-        float eyeScaleOffset = (Height == BasisSelectedHeightMode.EyeHeight) ? PlayerCenterEyeVerticalOffset : 0f;
+        // eyeScaleOffset lifts the measured HMD height up to the player's TRUE standing eye height before
+        // DeviceScale divides by it. It carries the backend's device-origin->eye correction
+        // (PlayerCenterEyeVerticalOffset; non-zero on OpenVR, 0 when the tracked point is already the eye)
+        // plus the persisted systematic correction that bridges what that under-reports -- the gap that
+        // otherwise renders too tall on OpenVR and makes users nudge up every calibration.
+        float standingEyeCorrection = Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue;
+        float eyeScaleOffset = (Height == BasisSelectedHeightMode.EyeHeight) ? PlayerCenterEyeVerticalOffset + standingEyeCorrection : 0f;
 
         // AppliedUpScale multiplies BOTH player and avatar metrics.
         switch (Height)
@@ -385,7 +391,11 @@ public static class BasisHeightDriver
         // DeviceScale: keep your original intent/math, but make it safe.
         // avatarScaledMetric in meters-equivalent (unscaled metric * applied scale).
         float avatarScaledMetric = SanitizePositive(SelectedUnScaledAvatarHeight * AppliedUpScale, 1f);
-        float playerMetric = SanitizePositive(AdditionalPlayerHeight + eyeScaleOffset + SelectedUnScaledPlayerHeight, 1f);
+        // playerMetric is the player's TRUE standing eye height the avatar is scaled against. Assembled
+        // by the shared pure helper so this runtime path and BasisCalibrationMathSweep exercise the same
+        // formula. eyeScaleOffset already carries the device-origin->eye correction (OpenVR) plus the
+        // gated standing-eye-height correction applied above.
+        float playerMetric = SanitizePositive(BasisCalibrationMath.StandingEyeDenominator(SelectedUnScaledPlayerHeight, eyeScaleOffset, AdditionalPlayerHeight), 1f);
 
         DeviceScale = SafeDivide(avatarScaledMetric, playerMetric, 1f);
         DeviceScale = SanitizePositive(DeviceScale, 1f);
@@ -396,6 +406,14 @@ public static class BasisHeightDriver
             $"PlayerToAvatar: {PlayerToAvatarRatioScaled} | AvatarToPlayer: {AvatarToPlayerRatioScaled} | " +
             $"PlayerToDefault: {PlayerToDefaultRatioScaledWithAvatarScale} | AvatarToDefault: {AvatarToDefaultRatioScaledWithAvatarScale} | " +
             $"DeviceScale: {DeviceScale}",
+            BasisDebug.LogTag.Avatar
+        );
+        // Denominator breakdown so the systematic eye-height bias is readable in-headset: compare the
+        // true-eye estimate against your tape-measured standing eye height. If it reads low (avatar too
+        // tall), the shortfall is the value to put in CalibrationStandingEyeHeightMeters.
+        BasisDebug.Log(
+            $"Eye-height denominator (true standing eye estimate): {playerMetric:F3}m = raw {SelectedUnScaledPlayerHeight:F3} " +
+            $"+ device->eye {PlayerCenterEyeVerticalOffset:F3} + correction {standingEyeCorrection:F3} + nudge {AdditionalPlayerHeight:F3}",
             BasisDebug.LogTag.Avatar
         );
     }

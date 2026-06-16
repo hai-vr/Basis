@@ -47,6 +47,7 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_SELECTED_SCALE => BasisSettingsDefaults.SelectedScale.BindingKey;     // "selected scale"
     private static string K_REALWORLD_EYE_HEIGHT => BasisSettingsDefaults.realworldeyeheight.BindingKey; // "real world eye height"
     private static string K_PITCH_CALIBRATION => BasisSettingsDefaults.PitchCalibration.BindingKey;     // "pitchcalibration"
+    private static string K_STANDING_EYE_CORRECTION => BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.BindingKey; // "calibrationstandingeyeheightmeters"
 
     // One Euro globals
     private static string K_FBIK_MINCUTOFF => BasisSettingsDefaults.FBIKMinCutoff.BindingKey;                 // "fbikmincutoff"
@@ -304,6 +305,13 @@ public class SMModuleCalibration : BasisSettingsBase
                 {
                     PitchCalibrationEnabled = pitchVal;
                 }
+                break;
+
+            case var s when s == K_STANDING_EYE_CORRECTION:
+                // Persistent standing eye-height correction changed: re-apply height/scale now so
+                // DeviceScale picks up the new denominator. Applied directly (not via the _dirty path,
+                // which only re-applies on height-mode/scale/custom-scale changes).
+                BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 
             // ---------- GLOBAL ONE EURO PARAMS ----------
