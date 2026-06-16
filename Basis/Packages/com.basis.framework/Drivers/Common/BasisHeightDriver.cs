@@ -91,21 +91,13 @@ public static class BasisHeightDriver
     /// </summary>
     public static void ApplyScale(bool ScaleAvatar, float SelectedScale)
     {
-        // validate SelectedScale too.
         SelectedScale = SanitizePositive(SelectedScale, FallbackHeightInMeters);
 
-        // Prefer selected unscaled avatar metric; fall back if invalid.
-        float unscaled = SanitizePositive(SelectedUnScaledAvatarHeight, FallbackHeightInMeters);
-
-        // Target eye height (metres): the selected height when scaling, else the avatar's natural
-        // height. Clamp it to the admin-enforced range (a no-op for admins and the default range),
-        // then derive the scale factor. unscaled/unscaled == 1 exactly, so the "scaling off" case
-        // stays 1x unless an admin limit actually pulls it in.
-        float targetMeters = ScaleAvatar ? SelectedScale : unscaled;
-        targetMeters = ClampToAdminEyeHeight(targetMeters);
-
-        float denom = ScaleAvatar ? SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters) : unscaled;
-        ScaledToMatchValue = targetMeters / denom;
+        // Resolve target + denominator in eye-height metres (the space admin limits use) so the clamp
+        // is correct in every height mode. Scaling off keeps the factor at 1x unless a limit pulls in.
+        float avatarEye = SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters);
+        float targetEyeMeters = ClampToAdminEyeHeight(ScaleAvatar ? SelectedScale : avatarEye);
+        ScaledToMatchValue = targetEyeMeters / avatarEye;
 
         BasisDebug.Log($"Applying Scale to Avatar {ScaledToMatchValue}", BasisDebug.LogTag.Avatar);
 
@@ -174,20 +166,33 @@ public static class BasisHeightDriver
     public static bool TryGetMatchedEyeHeightOverrideMeters(BasisRemotePlayer target, out float eyeHeightMeters)
     {
         eyeHeightMeters = 0f;
-        if (target?.NetworkReceiver == null || BasisLocalPlayer.Instance?.LocalAvatarDriver == null)
+        if (target?.NetworkReceiver == null || target.BasisAvatar == null || BasisLocalPlayer.Instance?.LocalAvatarDriver == null)
         {
             return false;
         }
 
+        // Mirror the REMOTE avatar's rendered eye height: its authored eye (× humanScale, omitted from
+        // the marker) at its current network root scale. Reading local measurements was the bug.
         target.NetworkReceiver.GetLatestNetworkPose(out _, out _, out var networkScale);
-        float localCalibrationScale = BasisLocalPlayer.Instance.LocalAvatarDriver.ScaleAvatarModification.DuringCalibrationScale.y;
-        if (float.IsNaN(localCalibrationScale) || float.IsInfinity(localCalibrationScale) || localCalibrationScale <= 0f)
+        float remoteAuthoredEye = target.BasisAvatar.AvatarEyePosition.x;
+        if (float.IsNaN(remoteAuthoredEye) || float.IsInfinity(remoteAuthoredEye) || remoteAuthoredEye <= 0f)
         {
-            localCalibrationScale = 1f;
+            return false;
         }
 
-        float matchedApplyScale = networkScale.y / localCalibrationScale;
-        eyeHeightMeters = AvatarEyeHeight * matchedApplyScale;
+        float remoteHumanScale = target.BasisAvatar.HumanScale;
+        if (float.IsNaN(remoteHumanScale) || float.IsInfinity(remoteHumanScale) || remoteHumanScale <= 0f)
+        {
+            remoteHumanScale = 1f;
+        }
+
+        float remoteRootScale = networkScale.y;
+        if (float.IsNaN(remoteRootScale) || float.IsInfinity(remoteRootScale) || remoteRootScale <= 0f)
+        {
+            remoteRootScale = 1f;
+        }
+
+        eyeHeightMeters = remoteAuthoredEye * remoteHumanScale * remoteRootScale;
         return !float.IsNaN(eyeHeightMeters) && !float.IsInfinity(eyeHeightMeters) && eyeHeightMeters > 0f;
     }
 

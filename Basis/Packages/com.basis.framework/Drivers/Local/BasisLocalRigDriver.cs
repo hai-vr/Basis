@@ -663,6 +663,10 @@ namespace Basis.Scripts.Drivers
                 data.RotationRightHand = rOut[S_RightHand];
 
                 // ── LOWER ARMS (elbow hints) ──
+                // NOTE: no ApplyHintBias here -- a tracker-local lower-arm offset swings with forearm pronation
+                // (the forearm rolls about its own axis) and keys off a solver-overwritten bone, which pops the
+                // elbow. The knees keep their bias only because the knee is a hinge. Elbow-tracker conditioning
+                // is handled solver-side (BasisArmSolveCore HintIsTracker), not by a tracker-local offset.
                 llaPos = pOut[S_LeftLowerArm];
                 llaRot = rOut[S_LeftLowerArm];
                 data.LeftLowerArmPosition = llaPos;

@@ -4,6 +4,7 @@ using System.Text;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
 
 namespace Basis.IK.Debugging
 {
@@ -174,6 +175,8 @@ namespace Basis.IK.Debugging
         public float WorstKneeBackwardM;   // -min(MinKneeForwardM): positive = knee went behind by this much
         public float WorstStepLiftMm;      // peak foot lift above the straight start->target line during a step
         public int TotalSteps;
+        public int IdleSteps;              // steps fired during the idle group -- a gentle standing sway must not micro-step
+        public float IdleKneeGainFwd, IdleKneeGainVert;   // solved-knee travel / body travel over a gentle idle sway (foot driver + leg solver)
         public bool HadNaN;
 
         // Echoed config so the gate can compare against the clamp limits used.
@@ -245,6 +248,16 @@ namespace Basis.IK.Debugging
                 summary.ConfiguredMaxYawDeg = cfg.MaxFootYawDegrees;
                 summary.AvgLegLen = cfg.ThighLen + cfg.ShinLen;
 
+                // End-to-end idle check: sway the hip through the real foot driver + leg solver and record
+                // how far the SOLVED knee travels per unit of body sway (reported, not gated -- horizontal
+                // sway is naturally ~0.5x; a vertical bob near full extension is where it amplifies).
+                try
+                {
+                    summary.IdleKneeGainFwd = IdleKneeGain(cfg, t => new BodySample { RootXZ = Forward(0f) * (0.04f * Mathf.Sin(t * 1.1f)) });
+                    summary.IdleKneeGainVert = IdleKneeGain(cfg, t => new BodySample { BodyUp = 0.02f * Mathf.Sin(t * 1.3f) });
+                }
+                catch { }
+
                 for (int i = 0; i < results.Length; i++)
                 {
                     var r = results[i];
@@ -262,6 +275,7 @@ namespace Basis.IK.Debugging
                     summary.WorstKneeBackwardM = Mathf.Max(summary.WorstKneeBackwardM, -r.MinKneeForwardM);
                     summary.WorstStepLiftMm = Mathf.Max(summary.WorstStepLiftMm, r.StepLiftMm.Value);
                     summary.TotalSteps += r.Steps;
+                    if (r.Group != null && r.Group.StartsWith("idle")) summary.IdleSteps += r.Steps;
                     summary.HadNaN |= r.HadNaN;
                 }
 
@@ -596,8 +610,11 @@ namespace Basis.IK.Debugging
 
             return new[]
             {
-                // ── idle ──
+                // ── idle ── (a gentle standing weight-shift must keep the feet planted -- no micro-steps)
                 Mk("idle", "idle", BasisFootGroundKind.Flat, t => B(new float3(0.01f * Mathf.Sin(t * 2f), 0f, 0.01f * Mathf.Cos(t * 1.7f)), yaw: 8f * Mathf.Sin(t))),
+                Mk("idle-sway-fwd", "idle", BasisFootGroundKind.Flat, t => B(Forward(0f) * (0.04f * Mathf.Sin(t * 1.1f)))),
+                Mk("idle-sway-side", "idle", BasisFootGroundKind.Flat, t => B(Forward(90f) * (0.04f * Mathf.Sin(t * 1.1f)))),
+                Mk("idle-bob", "idle", BasisFootGroundKind.Flat, t => B(float3.zero, up: 0.02f * Mathf.Sin(t * 1.3f))),
 
                 // ── locomotion across the speed range (fast & slow) ──
                 Walk("creep", creep, 0f),
@@ -890,6 +907,79 @@ namespace Basis.IK.Debugging
         static float3 GroundPoint(in Scenario sc, float3 pos) { GroundRaycast(sc, pos, out float3 pt, out _); return pt; }
 
         // ───────────────────────── small math helpers ─────────────────────────
+
+        // ── Combined idle pipeline: sway the hip through the REAL foot driver (planted foot + knee hint)
+        //    AND the REAL leg solver (BasisLegSolveCore), returning solved-knee travel / body travel. The
+        //    driver keeps the feet planted at idle, so this isolates the two-bone solver's near-extension
+        //    sensitivity end-to-end -- the live leg gates only hold a steady pose, so a slow standing sway is
+        //    otherwise untested. Left leg (symmetric idle). Reported, not gated.
+        static float IdleKneeGain(BasisFootIKSweepConfig cfg, System.Func<float, BodySample> motion)
+        {
+            var p = BuildParams(cfg);
+            float dt = Mathf.Max(1e-4f, cfg.Dt);
+            var sc = new Scenario { Name = "idle-knee", Group = "idle", Ground = BasisFootGroundKind.Flat, Duration = Mathf.Max(3f, cfg.Duration), Sample = motion };
+            int n = Mathf.Max(2, Mathf.RoundToInt(sc.Duration / dt));
+
+            var feet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
+            var simState = new NativeArray<BasisFootSimState>(1, Allocator.Persistent);
+            var input = new NativeArray<BasisFootSimInput>(1, Allocator.Persistent);
+            var output = new NativeArray<BasisFootSimOutput>(1, Allocator.Persistent);
+            try
+            {
+                BodySample s0 = sc.Sample(0f);
+                Pose(cfg, sc, s0, out float3 hips0, out float3 head0, out float3 fwd0, out float3 right0);
+                feet[0] = InitFoot(cfg, sc, p, -1, hips0, fwd0, right0);
+                feet[1] = InitFoot(cfg, sc, p, +1, hips0, fwd0, right0);
+                simState[0] = new BasisFootSimState { prevHeadPos = head0, prevHeadYaw = Yaw(fwd0), smoothedVelocity = float3.zero, smoothedBodyFwd = fwd0, smoothedBodyRight = right0 };
+
+                float half = p.stanceWidth * 0.5f;
+                float3 root0 = hips0 + right0 * (-1f * half);   // left hip socket, sways rigidly with the body
+                float3 foot0 = feet[0].plantedPos;
+                float3 knee0 = RestKnee(root0, foot0, p.leftThighLen, p.leftShinLen, right0, fwd0);
+
+                float3 kMin = new float3(1e9f), kMax = new float3(-1e9f), hMin = kMin, hMax = kMax;
+                for (int tick = 0; tick < n; tick++)
+                {
+                    float t = tick * dt;
+                    Pose(cfg, sc, sc.Sample(t), out float3 hips, out float3 head, out float3 fwd, out float3 right);
+                    quaternion facing = quaternion.AxisAngle(Up, math.radians(0f));
+                    bool gh = GroundRaycast(sc, hips, out float3 gp, out _);
+                    input[0] = new BasisFootSimInput { dt = dt, headPos = head, hipsPos = hips, hipsRot = facing, chestRot = facing, headRot = facing, avatarForward = fwd, avatarRight = right, hasChest = true, groundHit = gh, groundPoint = gh ? gp : float3.zero, splayWhenCrouched = 1f, playerUp = Up };
+                    new BasisFootSimulateJob { p = p, feet = feet, simState = simState, input = input, output = output }.Execute();
+                    var lf = feet[0]; if (lf.wantsStep) { FinalizeStep(ref lf, simState[0], p, sc, hips); lf.wantsStep = false; feet[0] = lf; }
+                    var rf = feet[1]; if (rf.wantsStep) { FinalizeStep(ref rf, simState[0], p, sc, hips); rf.wantsStep = false; feet[1] = rf; }
+
+                    float3 d = hips - hips0;   // pre-IK leg translates with the body; the solver pulls the foot back to the plant
+                    BasisLegSolveInput li;
+                    li.Root = root0 + d; li.Mid = knee0 + d; li.Tip = foot0 + d;
+                    li.RootRotation = Quaternion.identity; li.MidRotation = Quaternion.identity;
+                    li.TargetPosition = feet[0].currentPos; li.TargetRotation = Quaternion.identity;
+                    li.HintPosition = feet[0].kneeHint; li.HintWeight = 1f; li.TargetOffset = Quaternion.identity;
+                    li.BendNormal = right;
+                    BasisLegSolveCore.Solve(li, out BasisLegSolveResult lr);
+
+                    float3 knee = lr.KneeSolved;
+                    kMin = math.min(kMin, knee); kMax = math.max(kMax, knee);
+                    hMin = math.min(hMin, hips); hMax = math.max(hMax, hips);
+                }
+                float body = math.length(hMax - hMin);
+                return body > 1e-5f ? math.length(kMax - kMin) / body : 0f;
+            }
+            finally { feet.Dispose(); simState.Dispose(); input.Dispose(); output.Dispose(); }
+        }
+
+        // Planar two-bone rest knee, bulged toward fwd (the natural slight standing bend).
+        static float3 RestKnee(float3 hip, float3 foot, float u, float l, float3 hingeRight, float3 fwd)
+        {
+            float3 chord = foot - hip;
+            float d = math.min(math.length(chord), (u + l) * 0.999f);
+            float3 along = math.normalizesafe(chord);
+            float proj = (u * u + d * d - l * l) / (2f * math.max(1e-4f, d));
+            float h = math.sqrt(math.max(0f, u * u - proj * proj));
+            float3 perp = math.normalizesafe(math.cross(along, hingeRight));
+            if (math.dot(perp, fwd) < 0f) perp = -perp;
+            return hip + along * proj + perp * h;
+        }
 
         static float3 Forward(float yawDeg) { float r = math.radians(yawDeg); return new float3(Mathf.Sin(r), 0f, Mathf.Cos(r)); }
         static float3 ProjectFlat(float3 v) => v - Up * math.dot(v, Up);

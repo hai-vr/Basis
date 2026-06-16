@@ -1867,6 +1867,10 @@
       "value": "Pair with another tracker. Calibration uses their midpoint."
     },
     {
+      "key": "trackerLinking.linkUnlinked",
+      "value": "(unlinked)"
+    },
+    {
       "key": "trackerLinking.roleOverrideLabel",
       "value": "Force role"
     },

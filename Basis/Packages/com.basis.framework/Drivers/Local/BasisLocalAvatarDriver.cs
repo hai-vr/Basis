@@ -399,10 +399,8 @@ namespace Basis.Scripts.Drivers
             var localPlayer = BasisLocalPlayer.Instance;
             if (localPlayer?.BasisAvatar != null)
             {
-                // Use the authored/avatar-configured eye height here.
-                // This value is user-editable and survives avatar swap ordering,
-                // while rig/control data can be stale during recalibration.
-                return localPlayer.BasisAvatar.AvatarEyePosition.x;
+                // Authored eye height lifted into rendered-rig space by humanScale.
+                return localPlayer.BasisAvatar.AvatarEyePosition.x * BasisHelpers.SafeHumanScale(localPlayer.BasisAvatar.HumanScale);
             }
             else
             {
@@ -504,7 +502,7 @@ namespace Basis.Scripts.Drivers
                     case BasisBoneTrackedRole.CenterEye:
                         {
                             // Convert avatar-local eye position to world and apply
-                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarEyePosition), RootPosition, out float3 world);
+                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarEyePosition) * BasisHelpers.SafeHumanScale(animator.humanScale), RootPosition, out float3 world);
                             SetInitialData(rootTransform, control, role, world, RootRotation);
                             break;
                         }
@@ -512,7 +510,7 @@ namespace Basis.Scripts.Drivers
                     case BasisBoneTrackedRole.Mouth:
                         {
                             // Convert avatar-local mouth position to world and apply
-                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarMouthPosition), RootPosition, out float3 world);
+                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarMouthPosition) * BasisHelpers.SafeHumanScale(animator.humanScale), RootPosition, out float3 world);
                             SetInitialData(rootTransform, control, role, world, RootRotation);
                             break;
                         }

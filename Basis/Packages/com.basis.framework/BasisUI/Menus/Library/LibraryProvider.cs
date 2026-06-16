@@ -2152,7 +2152,7 @@ namespace Basis.BasisUI
                                 offsetTarget.y = offsetTarget.y + itemKey.bundleConnector.Bounds.max.y;
                             }
 
-                            BasisLocalPlayer.Instance.Teleport( offsetTarget, Quaternion.identity );
+                            BasisLocalPlayer.Instance.Teleport( offsetTarget, Quaternion.identity, mode: BasisTeleportMode.WorldFeet );
                         }
 
                     break;

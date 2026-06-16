@@ -93,16 +93,11 @@ namespace HVR.Basis.Comms
                 return;
             }
 
-            float eyeHeightMeters = Mathf.Min(requestedEyeHeightMeters, OscMaximumEyeHeightMeters);
+            float eyeHeightMeters = Mathf.Clamp(requestedEyeHeightMeters, SupportedMinimumEyeHeightMeters, SupportedMaximumEyeHeightMeters);
             if (!Mathf.Approximately(eyeHeightMeters, requestedEyeHeightMeters))
             {
-                BasisDebug.LogWarning($"Clamped OSC avatar eye height from {requestedEyeHeightMeters}m to {eyeHeightMeters}m.", BasisDebug.LogTag.LocalNetwork);
-            }
-
-            if (eyeHeightMeters < SupportedMinimumEyeHeightMeters || eyeHeightMeters > SupportedMaximumEyeHeightMeters)
-            {
                 BasisDebug.LogWarning(
-                    $"OSC avatar eye height {eyeHeightMeters}m is outside the supported {SupportedMinimumEyeHeightMeters}m..{SupportedMaximumEyeHeightMeters}m range.",
+                    $"Clamped OSC avatar eye height from {requestedEyeHeightMeters}m to {eyeHeightMeters}m (supported {SupportedMinimumEyeHeightMeters}m..{SupportedMaximumEyeHeightMeters}m).",
                     BasisDebug.LogTag.LocalNetwork);
             }
 

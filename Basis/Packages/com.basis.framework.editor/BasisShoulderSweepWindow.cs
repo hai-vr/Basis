@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Basis.IK.Debugging
 {
-    // Basis ▸ Debug ▸ Shoulder Sweep.
+    // Basis ▸ Debug ▸ IK ▸ Shoulder Sweep.
     public class BasisShoulderSweepWindow : EditorWindow
     {
         BasisShoulderSweepConfig _cfg = BasisShoulderSweepConfig.Default();
@@ -16,7 +16,7 @@ namespace Basis.IK.Debugging
         public static void ShowWindow()
         {
             var w = GetWindow<BasisShoulderSweepWindow>("Shoulder Sweep");
-            w.minSize = new Vector2(360, 430);
+            w.minSize = new Vector2(380, 520);
         }
 
         void OnEnable()
@@ -32,23 +32,39 @@ namespace Basis.IK.Debugging
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
             EditorGUILayout.HelpBox(
-                "Sweeps the hand target around the shoulder and records the shoulder engagement curve " +
-                "(reach/elevation/protraction) and applied angle. Same math as the live SolveShoulder.",
+                "Sweeps the upper-arm direction around the shoulder (both elbow-driven and hand-driven) and " +
+                "records the scapulohumeral engagement curve and applied girdle rotation. Same math as the live " +
+                "SolveShoulder; checks the BasisIKTestGates.GateShoulder invariants.",
                 MessageType.Info);
 
             EditorGUILayout.LabelField("Shoulder", EditorStyles.boldLabel);
-            _cfg.TposeArmLength = EditorGUILayout.FloatField("T-pose Arm Length (m)", _cfg.TposeArmLength);
-            _cfg.ElevationFactor = EditorGUILayout.FloatField("Elevation Factor", _cfg.ElevationFactor);
-            _cfg.ProtractionFactor = EditorGUILayout.FloatField("Protraction Factor", _cfg.ProtractionFactor);
+            _cfg.ArmLength = EditorGUILayout.FloatField("Arm Length (m)", _cfg.ArmLength);
+            _cfg.ElevationFactor = EditorGUILayout.Slider("Elevation Factor", _cfg.ElevationFactor, 0f, 1f);
+            _cfg.ProtractionFactor = EditorGUILayout.Slider("Protraction Factor", _cfg.ProtractionFactor, 0f, 1f);
+            _cfg.CoupleRatio = EditorGUILayout.Slider("Couple Ratio", _cfg.CoupleRatio, 0f, 1f);
+            _cfg.MaxShoulderDeg = EditorGUILayout.FloatField("Max Girdle (deg)", _cfg.MaxShoulderDeg);
             _cfg.IsLeft = EditorGUILayout.Toggle("Left Shoulder (mirror X)", _cfg.IsLeft);
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Target Grid (fractions of arm length)", EditorStyles.boldLabel);
-            _cfg.MinFrac = EditorGUILayout.Vector3Field("Min Frac", _cfg.MinFrac);
-            _cfg.MaxFrac = EditorGUILayout.Vector3Field("Max Frac", _cfg.MaxFrac);
-            _cfg.Steps = EditorGUILayout.Vector3IntField("Steps (X,Y,Z)", _cfg.Steps);
-            int pts = Mathf.Max(1, _cfg.Steps.x) * Mathf.Max(1, _cfg.Steps.y) * Mathf.Max(1, _cfg.Steps.z);
-            EditorGUILayout.LabelField("Points", pts.ToString());
+            EditorGUILayout.LabelField("Direction Grid (chest-local)", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            _cfg.AzMin = EditorGUILayout.FloatField("Azimuth", _cfg.AzMin);
+            _cfg.AzMax = EditorGUILayout.FloatField("…", _cfg.AzMax);
+            _cfg.AzSteps = EditorGUILayout.IntField(_cfg.AzSteps, GUILayout.Width(48));
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            _cfg.ElMin = EditorGUILayout.FloatField("Elevation", _cfg.ElMin);
+            _cfg.ElMax = EditorGUILayout.FloatField("…", _cfg.ElMax);
+            _cfg.ElSteps = EditorGUILayout.IntField(_cfg.ElSteps, GUILayout.Width(48));
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            _cfg.ReachMin = EditorGUILayout.FloatField("Reach", _cfg.ReachMin);
+            _cfg.ReachMax = EditorGUILayout.FloatField("…", _cfg.ReachMax);
+            _cfg.ReachSteps = EditorGUILayout.IntField(_cfg.ReachSteps, GUILayout.Width(48));
+            EditorGUILayout.EndHorizontal();
+
+            int pts = Mathf.Max(1, _cfg.AzSteps) * Mathf.Max(1, _cfg.ElSteps) * Mathf.Max(1, _cfg.ReachSteps) * 2;
+            EditorGUILayout.LabelField("Grid points (×2 modes)", pts.ToString());
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Output", EditorStyles.boldLabel);
@@ -76,9 +92,21 @@ namespace Basis.IK.Debugging
                 EditorGUILayout.Space();
                 if (_last.Ok)
                 {
-                    EditorGUILayout.HelpBox(
-                        $"Wrote {_last.Rows} rows. Engaged (reachRatio>0): {_last.Engaged}. " +
-                        $"Max shoulder angle: {_last.MaxShoulderAngleDeg:F1}°\n{_last.Path}", MessageType.None);
+                    var gate = BasisIKTestGates.GateShoulder(_last);
+                    var prev = GUI.color;
+                    GUI.color = gate.pass ? new Color(0.5f, 1f, 0.5f) : new Color(1f, 0.5f, 0.5f);
+                    EditorGUILayout.LabelField(gate.pass ? "GATE PASS" : "GATE FAIL", EditorStyles.boldLabel);
+                    GUI.color = prev;
+                    EditorGUILayout.HelpBox(gate.reason, gate.pass ? MessageType.Info : MessageType.Error);
+
+                    EditorGUILayout.LabelField($"Rows {_last.Rows}   Engaged {_last.Engaged}");
+                    EditorGUILayout.LabelField($"Max girdle {_last.MaxShoulderAngleDeg:F1}°   clamp overshoot {_last.ClampOvershootDeg:F2}°");
+                    EditorGUILayout.LabelField($"Rest-pose move {_last.RestPoseMaxDeg:F2}°   twist leak {_last.MaxTwistLeakDeg:F2}°");
+                    EditorGUILayout.LabelField($"Frame-rigidity err {_last.MaxFrameInvarErrDeg:F2}°   symmetry err {_last.SymmetryMaxErrDeg:F2}°");
+                    EditorGUILayout.LabelField($"Monotonic violations {_last.MonotonicViolations}   smooth jump {_last.MaxAdjacentJumpDeg:F1}°");
+                    EditorGUILayout.LabelField($"Noisy-elbow jitter {_last.NoisyMaxJitterDeg:F1}°");
+                    EditorGUILayout.LabelField($"Bent-arm elevation: elbow {_last.BentArmElbowElevationDeg:F1}° vs hand {_last.BentArmHandElevationDeg:F1}°");
+
                     if (GUILayout.Button("Reveal CSV"))
                     {
                         EditorUtility.RevealInFinder(_last.Path);

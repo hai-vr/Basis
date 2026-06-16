@@ -97,6 +97,12 @@ namespace Basis.Scripts.BasisSdk.Helpers
         {
             return new Vector2(input.y, input.z);
         }
+
+        /// <summary>Animator.humanScale guarded to a safe positive multiplier (1 when invalid).</summary>
+        public static float SafeHumanScale(float humanScale)
+        {
+            return (humanScale > 1e-4f && !float.IsNaN(humanScale) && !float.IsInfinity(humanScale)) ? humanScale : 1f;
+        }
         public static bool TryGetVector3Bone(Animator animator, HumanBodyBones bone, out Vector3 position)
         {
             if (animator.avatar != null && animator.avatar.isHuman)

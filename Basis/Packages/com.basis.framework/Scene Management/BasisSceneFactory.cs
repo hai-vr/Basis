@@ -255,7 +255,7 @@ public static class BasisSceneFactory
         {
             if (localPlayer != null)
             {
-                localPlayer.Teleport(position, rotation);
+                localPlayer.Teleport(position, rotation, mode: BasisTeleportMode.WorldFeet);
             }
             else
             {

@@ -1156,7 +1156,7 @@ public static class BasisNetworkModeration
                 BasisDebug.LogError($"Teleport failed: Avatar has no Hips bone for player {netId}");
                 return false;
             }
-            BasisLocalPlayer.Instance.Teleport(hips.position, Quaternion.identity);
+            BasisLocalPlayer.Instance.Teleport(hips.position, Quaternion.identity, mode: BasisTeleportMode.WorldFeet);
             return true;
         }
 

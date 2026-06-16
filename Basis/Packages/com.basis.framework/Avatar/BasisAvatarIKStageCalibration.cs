@@ -1102,6 +1102,10 @@ namespace Basis.Scripts.Avatar
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerLeg, localOffset);
                 }
             }
+            // NOTE: no elbow (lower-arm) hint bias baked here on purpose. A tracker-local offset swings with
+            // forearm pronation and pops the elbow (the knees can keep theirs because the knee is a hinge).
+            // Elbow-tracker conditioning is handled solver-side (BasisArmSolveCore HintIsTracker trusts a real
+            // tracker further before the down-stabilizer overrides), not by a tracker-local offset.
         }
         // Helper local function to compute a tracker-local offset vector that points "up and out"
         static Vector3 ComputeHintBiasLocal(

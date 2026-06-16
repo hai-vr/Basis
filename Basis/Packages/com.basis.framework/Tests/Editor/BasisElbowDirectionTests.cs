@@ -495,6 +495,187 @@ namespace Basis.Tests.IK
         }
 
         [Test]
+        public void Elbow_DoesNotFlip_AcrossForwardWorkspace()
+        {
+            // Forward twin of Elbow_DoesNotFlip_AcrossBackwardWorkspace: dense FRONT-hemisphere lock-in for
+            // the straight-forward flip. Azimuth sweeps (out to the side -> straight in front) at several
+            // elevations, and elevation sweeps (level-front -> down-front) at several azimuths, each at
+            // several near-full reaches. Stateless (live model); the swivel must stay continuous everywhere
+            // in front of the body, ending at straight-forward where the user reports the flip. Same tight
+            // bound as the backward region (measured worst single digits there).
+            float worst = 0f; string where = "";
+            foreach (float reach in new[] { 0.85f, 0.90f, 0.92f })
+            {
+                foreach (float ev in new[] { 0.05f, -0.30f, -0.65f })
+                {
+                    float j = StatelessWorstArcJump(ExtArc(new Vector3(0.90f, ev, 0.30f), new Vector3(0.05f, ev, 0.95f), reach, 140));
+                    if (j > worst) { worst = j; where = $"azimuth reach {reach:0.00} ev {ev:0.0}"; }
+                }
+                foreach (float az in new[] { 0.10f, 0.45f, 0.85f })
+                {
+                    float j = StatelessWorstArcJump(ExtArc(new Vector3(az, 0.05f, 0.90f), new Vector3(az, -0.85f, 0.45f), reach, 140));
+                    if (j > worst) { worst = j; where = $"elevation reach {reach:0.00} az {az:0.0}"; }
+                }
+            }
+            Assert.That(worst, Is.LessThan(25f),
+                $"forward elbow swivel jumps {worst:0.0} deg between adjacent samples at {where} (>25) -- the arm flips reaching straight forward.");
+        }
+
+        [Test]
+        public void Elbow_DoesNotFlip_OnForwardFullStretch()
+        {
+            // Forward twin of Elbow_DoesNotFlip_OnBackwardFullStretch. The live arm solve is STATELESS and
+            // unclamped, so a smooth straight-out-FRONT hand path must give a CONTINUOUS elbow swivel AND a
+            // continuous forearm orientation. The forearm carries the hand, so a 180 deg pole flip rolls the
+            // forearm (and the hand mesh) over -- the wrist "flips" the user sees is the same event as the
+            // elbow flip, so both are asserted on the same path. Solve each sample the way the live rig does
+            // (fresh rest pose, no rate limit).
+            foreach (var arc in new[]
+            {
+                (a: new Vector3(0.85f, -0.20f, 0.30f), b: new Vector3(0.10f, -0.20f, 0.85f), name: "fwd-swing"),
+                (a: new Vector3(0.45f, -0.05f, 0.80f), b: new Vector3(0.30f, -0.75f, 0.55f), name: "fwd-lower"),
+            })
+            {
+                Vector3[] pts = ExtArc(arc.a, arc.b, 0.92f, 200);
+                float prevSw = float.NaN, worstSw = 0f;
+                Quaternion prevMid = Quaternion.identity; bool hasMid = false; float worstRoll = 0f;
+                foreach (var pt in pts)
+                {
+                    var r = SolveWithLookupHint(pt, out _); // stateless, MaxValue -- exactly the live rig
+                    float sw = Swivel(Shoulder, r.HandSolved, r.ElbowSolved);
+                    if (!float.IsNaN(sw) && !float.IsNaN(prevSw))
+                        worstSw = Mathf.Max(worstSw, Mathf.Abs(Mathf.DeltaAngle(prevSw, sw)));
+                    prevSw = sw;
+                    if (hasMid) worstRoll = Mathf.Max(worstRoll, Quaternion.Angle(prevMid, r.MidRotationSolved));
+                    prevMid = r.MidRotationSolved; hasMid = true;
+                }
+                Assert.That(worstSw, Is.LessThan(45f),
+                    $"'{arc.name}' forward full-stretch: elbow swivel jumps {worstSw:0.0} deg between adjacent samples (>45) -- the arm flips reaching straight forward.");
+                Assert.That(worstRoll, Is.LessThan(45f),
+                    $"'{arc.name}' forward full-stretch: forearm orientation jumps {worstRoll:0.0} deg between adjacent samples (>45) -- the wrist/forearm rolls over as the elbow flips.");
+            }
+        }
+
+        // ----------------------------------------------------------------- elbow tracker placement / body size
+
+        [Test]
+        public void Elbow_TrackerReproducesNaturalBend_AcrossPlacementsAndSizes()
+        {
+            // A REAL elbow tracker feeds the lower-arm tracker WORLD POSITION as the hint -- and unlike the
+            // knees (which ComputeHints biases "out and up" so they look natural), elbows get NO hint bias:
+            // BasisLocalRigDriver forwards data.LeftLowerArmPosition raw. The two-bone solve projects
+            // (hint - shoulder) onto the swing plane for the pole, so the MOUNT (upper-arm vs forearm), how
+            // far along the segment it sits, how far it stands off the bone, and the body's arm proportions
+            // all decide how well-conditioned that pole is. Strap a tracker rigidly to the NATURAL (production
+            // lookup) arm across a spread of placements and sizes: the solved elbow must reproduce the natural
+            // pose -- a tracker must never make the bend LESS natural than no tracker. A large deviation is the
+            // "looks unnatural in some setups": a weak pole fades out (hintFade) or trips the pole-collapse
+            // stabilizer, which drags the elbow toward world-down instead of where the tracker actually is.
+            Vector3 restElbowDir = new Vector3(0.15f, -0.95f, 0.27f).normalized;
+            Vector3 restForearmDir = new Vector3(0f, -0.30f, 0.95f).normalized;
+
+            float worst = 0f; string where = "";
+            int tested = 0;
+            foreach (var size in new[] { (up: 0.22f, lo: 0.20f), (up: 0.28f, lo: 0.26f), (up: 0.34f, lo: 0.30f), (up: 0.32f, lo: 0.22f) })
+            {
+                float upper = size.up, lower = size.lo, armLen = upper + lower;
+                Vector3 restElbow = Shoulder + restElbowDir * upper;
+                Vector3 restHand = restElbow + restForearmDir * lower;
+
+                foreach (var dirReach in new[]
+                {
+                    (d: new Vector3(0.05f, -0.05f, 1f), r: 0.82f),    // straight forward
+                    (d: new Vector3(0.55f, -0.10f, 0.70f), r: 0.85f), // forward + out to the side
+                    (d: new Vector3(0.10f, 0.40f, 0.80f), r: 0.85f),  // up-forward (raised reach)
+                    (d: new Vector3(-0.35f, -0.10f, 0.65f), r: 0.80f),// across the body
+                    (d: new Vector3(0.10f, -0.55f, 0.70f), r: 0.82f), // low-forward
+                })
+                {
+                    Vector3 target = Shoulder + dirReach.d.normalized * (dirReach.r * armLen);
+                    // Natural (production) elbow: lookup hint, no tracker.
+                    Vector3 bend = BasisArmBendLookup.SampleTrilinear(_table, (target - Shoulder) / armLen).normalized;
+                    Vector3 lookupHint = Shoulder + 0.5f * armLen * bend;
+                    var nat = SolveOne(Shoulder, restElbow, restHand, target, lookupHint, true, float.MaxValue);
+                    Vector3 axis = nat.HandSolved - Shoulder;
+                    if (axis.sqrMagnitude < 1e-8f) continue;
+                    axis.Normalize();
+                    Vector3 natPole = Vector3.ProjectOnPlane(nat.ElbowSolved - Shoulder, axis);
+                    if (natPole.sqrMagnitude < 1e-6f) continue; // natural elbow on the axis (singular) -- skip
+                    Vector3 poleDir = natPole.normalized;
+                    float natSwivel = Swivel(Shoulder, nat.HandSolved, nat.ElbowSolved);
+                    if (float.IsNaN(natSwivel)) continue;
+
+                    foreach (bool upperMount in new[] { true, false })
+                    foreach (float frac in new[] { 0.4f, 0.5f, 0.6f })          // realistic mid-bone mounts
+                    foreach (float radius in new[] { 0.05f, 0.07f, 0.09f })     // realistic strap stand-off
+                    {
+                        // Tracker strapped to the natural arm: a point along the upper-arm or forearm segment,
+                        // standing off the bone along the elbow pole by the limb radius + strap (the tracker
+                        // sits proud of the bone on the elbow side). Fed raw as the hint, exactly like the rig.
+                        Vector3 bonePoint = upperMount
+                            ? Vector3.Lerp(Shoulder, nat.ElbowSolved, frac)
+                            : Vector3.Lerp(nat.ElbowSolved, nat.HandSolved, frac);
+                        Vector3 trackerPos = bonePoint + poleDir * radius;
+
+                        var s = SolveOne(Shoulder, restElbow, restHand, target, trackerPos, true, float.MaxValue, hintIsTracker: true);
+                        float sw = Swivel(Shoulder, s.HandSolved, s.ElbowSolved);
+                        if (float.IsNaN(sw)) continue;
+                        tested++;
+                        float dev = Mathf.Abs(Mathf.DeltaAngle(natSwivel, sw));
+                        if (dev > worst)
+                        {
+                            worst = dev;
+                            where = $"size({upper:0.00},{lower:0.00}) target({dirReach.d.x:0.0},{dirReach.d.y:0.0},{dirReach.d.z:0.0})@{dirReach.r:0.00} mount={(upperMount ? "upper" : "fore")} frac={frac:0.00} radius={radius * 100f:0}cm (natSwivel {natSwivel:0.0} -> {sw:0.0})";
+                        }
+                    }
+                }
+            }
+
+            Assert.That(tested, Is.GreaterThan(300), $"only {tested} placement/size combos exercised.");
+            // Uncalibrated guard: a real elbow tracker (HintIsTracker) must reproduce the natural pose across
+            // realistic mounts/sizes. BasisArmSolveCore re-conditions the short-but-physical tracker pole
+            // (positions-only -> pronation-safe), so realistic stand-offs follow; only a tracker on the bone
+            // line still drifts. Gates gross drift and reports the residual; tighten after an in-headset run.
+            Assert.That(worst, Is.LessThan(70f),
+                $"elbow tracker moves the bend {worst:0.0} deg off the natural pose at {where} (>70) -- the strapped tracker yields a grossly unnatural elbow for that placement/body size.");
+        }
+
+        [Test]
+        public void Elbow_TrackerNotDraggedToDown_WhenPoleModeratelyCollapsed()
+        {
+            // The pole-collapse stabilizer eases the elbow toward world-DOWN when the hint pole is weakly
+            // conditioned. For the lookup (no tracker) that is correct, but a REAL tracker IS the user's elbow,
+            // so HintIsTracker must trust it further before the down-drag takes over. Build an elbow clearly OUT
+            // to the side (not down) at an extended reach, feed a weakly-conditioned tracker pole on that out
+            // side, and confirm the tracker path (HintIsTracker=true) follows it BETTER than the lookup path
+            // (false) -- and never worse. This is the solver half of the tracker-naturalness fix.
+            Vector3 hand = Shoulder + new Vector3(0.15f, -0.05f, 0.9f).normalized * (0.9f * ArmLen);
+            Vector3 axis = (hand - Shoulder).normalized;
+            Vector3 downPole = Vector3.ProjectOnPlane(Vector3.down, axis).normalized;
+            Vector3 outPole = (Quaternion.AngleAxis(70f, axis) * downPole).normalized; // elbow flared OUT, not down
+
+            // Seed the commanded pose with a strong (well-conditioned) out hint -- no override either way.
+            var seed = SolveOne(Shoulder, RestElbow, RestHand, hand, Shoulder + 0.5f * ArmLen * outPole, true, float.MaxValue, hintIsTracker: true);
+            float commanded = Swivel(Shoulder, seed.HandSolved, seed.ElbowSolved);
+
+            // Weakly conditioned tracker pole: small perpendicular projection (~0.18 arm-len) on the out side --
+            // inside the lookup stabilizer's collapse window but within the tracker-trust window.
+            Vector3 weakHint = Shoulder + 0.5f * (hand - Shoulder) + 0.18f * ArmLen * outPole;
+            var tracked = SolveOne(Shoulder, RestElbow, RestHand, hand, weakHint, true, float.MaxValue, hintIsTracker: true);
+            var lookupish = SolveOne(Shoulder, RestElbow, RestHand, hand, weakHint, true, float.MaxValue, hintIsTracker: false);
+
+            float devTracked = Mathf.Abs(Mathf.DeltaAngle(commanded, Swivel(Shoulder, tracked.HandSolved, tracked.ElbowSolved)));
+            float devLookup = Mathf.Abs(Mathf.DeltaAngle(commanded, Swivel(Shoulder, lookupish.HandSolved, lookupish.ElbowSolved)));
+
+            Assert.That(devTracked, Is.LessThanOrEqualTo(devLookup + 1f),
+                $"HintIsTracker followed the tracker WORSE than the lookup path (tracked {devTracked:0.0} vs lookup {devLookup:0.0}) -- the tracker-trust window regressed.");
+            Assert.That(devTracked, Is.LessThan(35f),
+                $"a real tracker pole was not followed (off by {devTracked:0.0} deg) -- the elbow was dragged toward world-down instead of the tracker.");
+            Assert.That(tracked.HandError, Is.LessThanOrEqualTo(0.01f * ArmLen),
+                $"reach must be preserved: the tracker swivel moved the hand by {tracked.HandError:0.0000} m.");
+        }
+
+        [Test]
         public void Elbow_StraightArmInput_PicksStableDownPole_NoThrash()
         {
             // Locks the dead-straight axis fallback (Part A): when the INPUT arm is exactly straight the
@@ -686,7 +867,7 @@ namespace Basis.Tests.IK
         // Mirror of BasisArmIKSweep.SolveOne: drive BasisArmSolveCore with identity rotations (positions
         // are unaffected by the rest rotations) so the result is pure geometry.
         static BasisArmSolveResult SolveOne(Vector3 shoulder, Vector3 elbow, Vector3 hand,
-            Vector3 target, Vector3 hint, bool hintOn, float maxStep)
+            Vector3 target, Vector3 hint, bool hintOn, float maxStep, bool hintIsTracker = false)
         {
             BasisArmSolveInput input;
             input.Shoulder = shoulder;
@@ -698,6 +879,7 @@ namespace Basis.Tests.IK
             input.TargetRotation = Quaternion.identity;
             input.HintPosition = hint;
             input.HintWeight = hintOn;
+            input.HintIsTracker = hintIsTracker;
             input.TargetOffset = Quaternion.identity;
             input.PlayerUp = Vector3.up;
             input.HintMaxStepDeg = maxStep;

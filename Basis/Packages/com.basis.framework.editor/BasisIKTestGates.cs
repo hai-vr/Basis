@@ -11,10 +11,19 @@ namespace Basis.IK.Debugging
         public const float ArmMaxMeanAlignErrDeg = 12f;     // mean angle solved-elbow vs tracker pole (follow)
         public const float ArmMaxElbowMeanAlignErrDeg = 8f; // mean angle solved-elbow vs the LOOKUP (no-tracker) pole; drift off the natural down/back pole
         public const int ArmMaxElbowUpFlips = 0;            // forward, non-overhead, EXTENDED (reach>0.55) reaches whose elbow flips hard UP (|swivel|>120). Zero-tolerance: the fixed lookup is clean (0) at every density; folded near-body reaches are excluded (elbow-up is natural there). Pre-fix: 4-7.
+        public const float ArmTrackerMaxDevDeg = 70f;       // UNCALIBRATED guard: a real elbow tracker (HintIsTracker) must reproduce the natural pose. BasisArmSolveCore re-conditions a real tracker's short-but-physical pole (positions-only -> pronation-safe), so realistic mounts follow it; only a tracker essentially on the bone line still drifts. Gates gross drift; reports worst/mean. Tighten after an in-headset run.
         public const float ElbowMinClearedFraction = 0.55f; // protect must clear most of the clearable set (ceiling ~0.64)
         public const float ElbowMaxMeanResidualPenMm = 25f; // mean leftover torso penetration after the push
         public const float ElbowMaxSensDegPerCm = 90f;      // final elbow swivel per cm hand jitter
         public const float ShoulderMaxAngleDeg = 60f;
+        public const float ShoulderMaxRestPoseDeg = 2f;        // girdle at the bind arm direction must be ~0 (no idle shoulder shift)
+        public const float ShoulderMaxTwistLeakDeg = 1f;       // girdle must not rotate about the arm axis (clavicle following humeral roll -- the reverted artifact); projected to ~0, so 1 deg is a real guard
+        public const float ShoulderMaxClampOvershootDeg = 0.5f;// applied girdle must hold under the configured clamp
+        public const float ShoulderMaxFrameInvarErrDeg = 0.5f; // chest-frame rotation must carry the result rigidly (no world-orientation leak)
+        public const float ShoulderMaxSymmetryErrDeg = 1f;     // left mirrors right
+        public const float ShoulderMaxAdjacentJumpDeg = 8f;    // smooth arm motion -> smooth girdle (the solve is a continuous function of direction)
+        public const float ShoulderMaxNoisyJitterDeg = 8f;     // a jittery elbow tracker must not whip the girdle
+        public const float ShoulderMinBentArmGainDeg = 4f;     // the elbow tracker must elevate a bent-arm raise MORE than the hand fallback can (the headline win)
         public const float HeadMaxNeckDeg = 90f;
         public const float TrajMaxPopDeg = 45f;             // swivel jump on smooth motion (discontinuity)
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
@@ -50,6 +59,7 @@ namespace Basis.IK.Debugging
         public const float FootTiltSlackDeg = 2f;          // headroom over the configured tilt clamp -- the slope clamp must hold
         public const float FootYawSlackDeg = 6f;           // headroom over the configured yaw clamp (sampled late in a step, where the clamp is live)
         public const float FootMaxKneeBehindM = 0.02f;     // knee hint may sit at most this far behind the hip->foot line before the knee would invert
+        public const int FootMaxIdleSteps = 0;             // a gentle standing weight-shift must not trigger a step (the foot stays planted)
 
         public static (bool pass, string reason) GateArm(in BasisArmIKSweepSummary s)
         {
@@ -89,6 +99,19 @@ namespace Basis.IK.Debugging
             return (true, $"extUpFlips={s.LookupElbowFlipCount} elbowUp={s.LookupElbowUpCount} alignMean={s.LookupMeanAlignErrDeg:F1} flex={s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0}");
         }
 
+        // A REAL elbow tracker must give a NATURAL bend for any reasonable mount / body size: a tracker strapped
+        // to the no-tracker natural arm must reproduce that pose (it must never make the elbow LESS natural than
+        // no tracker). A large worst deviation is the "elbow tracker looks unnatural in some setups" -- the raw
+        // tracker pole is weakly conditioned for that placement and the elbow collapses toward world-down.
+        public static (bool pass, string reason) GateArmTrackerNaturalness(in BasisArmTrackerNaturalnessSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Combos <= 0) return (false, "no placement/size combos");
+            if (s.WorstDevDeg > ArmTrackerMaxDevDeg)
+                return (false, $"a strapped elbow tracker drives the bend {s.WorstDevDeg:F0} deg off the natural pose at {s.WorstWhere} > {ArmTrackerMaxDevDeg} ({s.OverCount}/{s.Combos} combos over; mean {s.MeanDevDeg:F1}) -- unnatural for that mount/body size");
+            return (true, $"worst {s.WorstDevDeg:F0} deg off natural at {s.WorstWhere} (mean {s.MeanDevDeg:F1}, {s.Combos} combos)");
+        }
+
         public static (bool pass, string reason) GateElbow(in BasisElbowProtectSweepSummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -107,6 +130,11 @@ namespace Basis.IK.Debugging
             return (true, $"cleared={clearedFrac:P0} resid={s.MeanResidualPenMm:F0}mm sensP99.9={s.Sens99DegPerCm:F0} (max {s.MaxSensDegPerCm:F0})");
         }
 
+        // Scapulohumeral shoulder pre-solve: the girdle must engage, stay under the clamp, sit still at
+        // the bind pose (no idle shift), never twist about the arm (the reverted clavicle-roll artifact),
+        // stay rigid in the chest frame, mirror left/right, rise monotonically as the arm raises, move
+        // smoothly under smooth/ noisy arm input, and -- the headline -- the elbow tracker must change a
+        // bent-arm result the hand fallback can't see.
         public static (bool pass, string reason) GateShoulder(in BasisShoulderSweepSummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -114,7 +142,26 @@ namespace Basis.IK.Debugging
             if (s.Engaged <= 0) return (false, "shoulder never engaged");
             if (s.MaxShoulderAngleDeg > ShoulderMaxAngleDeg)
                 return (false, $"max shoulder {s.MaxShoulderAngleDeg:F0} > {ShoulderMaxAngleDeg} deg");
-            return (true, $"engaged={s.Engaged} maxAngle={s.MaxShoulderAngleDeg:F0}");
+            if (s.ClampOvershootDeg > ShoulderMaxClampOvershootDeg)
+                return (false, $"girdle exceeds its clamp by {s.ClampOvershootDeg:F1} deg > {ShoulderMaxClampOvershootDeg} (clamp not holding)");
+            if (s.RestPoseMaxDeg > ShoulderMaxRestPoseDeg)
+                return (false, $"girdle moves {s.RestPoseMaxDeg:F1} deg at the bind arm pose > {ShoulderMaxRestPoseDeg} (idle shoulder would shift)");
+            if (s.MaxTwistLeakDeg > ShoulderMaxTwistLeakDeg)
+                return (false, $"girdle twists {s.MaxTwistLeakDeg:F1} deg about the arm axis > {ShoulderMaxTwistLeakDeg} (clavicle following humeral roll -- the reverted artifact)");
+            if (s.MaxFrameInvarErrDeg > ShoulderMaxFrameInvarErrDeg)
+                return (false, $"chest-frame rigidity off by {s.MaxFrameInvarErrDeg:F1} deg > {ShoulderMaxFrameInvarErrDeg} (solve leaks world orientation)");
+            if (s.SymmetryMaxErrDeg > ShoulderMaxSymmetryErrDeg)
+                return (false, $"left/right asymmetry {s.SymmetryMaxErrDeg:F1} deg > {ShoulderMaxSymmetryErrDeg}");
+            if (s.MonotonicViolations > 0)
+                return (false, $"{s.MonotonicViolations} reversals: raising the arm reduced girdle elevation below the clamp");
+            if (s.MaxAdjacentJumpDeg > ShoulderMaxAdjacentJumpDeg)
+                return (false, $"girdle jumps {s.MaxAdjacentJumpDeg:F0} deg on smooth arm motion > {ShoulderMaxAdjacentJumpDeg}");
+            if (s.NoisyMaxJitterDeg > ShoulderMaxNoisyJitterDeg)
+                return (false, $"girdle jitters {s.NoisyMaxJitterDeg:F0} deg under elbow-tracker noise > {ShoulderMaxNoisyJitterDeg}");
+            float bentGain = s.BentArmElbowElevationDeg - s.BentArmHandElevationDeg;
+            if (bentGain < ShoulderMinBentArmGainDeg)
+                return (false, $"elbow tracker barely changes a bent-arm shoulder (elbow {s.BentArmElbowElevationDeg:F1} vs hand {s.BentArmHandElevationDeg:F1} deg; gain {bentGain:F1} < {ShoulderMinBentArmGainDeg})");
+            return (true, $"engaged={s.Engaged} maxAngle={s.MaxShoulderAngleDeg:F0} rest={s.RestPoseMaxDeg:F1} twist={s.MaxTwistLeakDeg:F1} frame={s.MaxFrameInvarErrDeg:F1} sym={s.SymmetryMaxErrDeg:F1} jump={s.MaxAdjacentJumpDeg:F0} jitter={s.NoisyMaxJitterDeg:F0} bentGain={bentGain:F1}");
         }
 
         public static (bool pass, string reason) GateLeg(in BasisLegIKSweepSummary s)
@@ -383,6 +430,8 @@ namespace Basis.IK.Debugging
                 return (false, $"both feet airborne for {s.BothSteppingTicks} ticks (worst: {s.BothSteppingWorstScenario} {s.BothSteppingWorstTicks}) -- a foot must never lift while the other is stepping");
             if (s.Crossovers - s.CrossoversTolerated > 0)
                 return (false, $"feet crossed/tangled on {s.Crossovers - s.CrossoversTolerated} ticks (+{s.CrossoversTolerated} tolerated during fast spin) -- left foot ended up right of the right foot");
+            if (s.IdleSteps > FootMaxIdleSteps)
+                return (false, $"foot micro-stepped {s.IdleSteps} times during a gentle standing sway > {FootMaxIdleSteps} (an idle weight-shift should not lift a foot -- the leg should stay planted)");
             if (s.WorstExtensionRatio > FootMaxExtensionRatio)
                 return (false, $"foot over-extended to {s.WorstExtensionRatio:F2}x standing reach > {FootMaxExtensionRatio:F2} (foot left behind -- the leg stretches)");
             if (s.WorstPlantedSlideMm > FootMaxPlantedSlideMm)
@@ -397,7 +446,7 @@ namespace Basis.IK.Debugging
                 return (false, $"foot yaw {s.WorstYawDeg:F0} > clamp {s.ConfiguredMaxYawDeg:F0}+{FootYawSlackDeg} deg (toe-out clamp not holding)");
             if (s.WorstKneeBackwardM > FootMaxKneeBehindM)
                 return (false, $"knee hint {s.WorstKneeBackwardM * 100f:F1}cm behind the leg > {FootMaxKneeBehindM * 100f:F0}cm (knee would bend backward)");
-            return (true, $"slide {s.WorstPlantedSlideMm:F1}mm ext {s.WorstExtensionRatio:F2} pen {s.WorstPenetrationMm:F0}mm tilt {s.WorstTiltDeg:F0} yaw {s.WorstYawDeg:F0} drift {s.WorstPlantToIdealM * 100f:F0}cm steps {s.TotalSteps}");
+            return (true, $"slide {s.WorstPlantedSlideMm:F1}mm ext {s.WorstExtensionRatio:F2} pen {s.WorstPenetrationMm:F0}mm tilt {s.WorstTiltDeg:F0} yaw {s.WorstYawDeg:F0} drift {s.WorstPlantToIdealM * 100f:F0}cm steps {s.TotalSteps} idleSteps {s.IdleSteps} idleKneeGain(fwd {s.IdleKneeGainFwd:F1} vert {s.IdleKneeGainVert:F1})");
         }
 
         // --- twist (swing-twist decomposition) ---

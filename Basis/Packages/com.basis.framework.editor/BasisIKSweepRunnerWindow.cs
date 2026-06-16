@@ -112,6 +112,7 @@ namespace Basis.IK.Debugging
             bool includeTraj = _includeTraj;
 
             string armPath = BasisArmIKSweep.DefaultPath();
+            string armTrackerPath = BasisArmIKSweep.TrackerNaturalnessDefaultPath();
             string shoulderPath = BasisShoulderSweep.DefaultPath();
             string legPath = BasisLegIKSweep.DefaultPath();
             string legStancePath = TrajPath("BasisLegStraightStance.csv");
@@ -166,6 +167,7 @@ namespace Basis.IK.Debugging
                 string side = L ? "L" : "R";
                 string ap = SidePath(armPath, L), shp = SidePath(shoulderPath, L), lp = SidePath(legPath, L), pp = SidePath(protectPath, L);
                 string lss = SidePath(legStancePath, L);
+                string atnp = SidePath(armTrackerPath, L);
 
                 jobs.Add(() =>
                 {
@@ -185,6 +187,7 @@ namespace Basis.IK.Debugging
                     }
                     catch (System.Exception e) { return new[] { new Row { Name = $"Arm IK ({side})", Ok = false, Detail = e.Message, Path = null } }; }
                 });
+                jobs.Add(() => Job($"Arm IK · tracker naturalness ({side})", atnp, () => { var cfg = BasisArmIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisArmIKSweep.RunTrackerNaturalness(cfg, atnp); return BasisIKTestGates.GateArmTrackerNaturalness(s); }));
                 jobs.Add(() => Job($"Shoulder ({side})", shp, () => { var cfg = BasisShoulderSweepConfig.Default(); cfg.IsLeft = L; var s = BasisShoulderSweep.Run(cfg, shp); return BasisIKTestGates.GateShoulder(s); }));
                 jobs.Add(() => Job($"Leg IK ({side})", lp, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisLegIKSweep.Run(cfg, lp); return BasisIKTestGates.GateLeg(s); }));
                 jobs.Add(() => Job($"Leg IK · straight stance ({side})", lss, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisLegIKSweep.RunStraightStance(cfg, lss); return BasisIKTestGates.GateLegStraightStance(s); }));

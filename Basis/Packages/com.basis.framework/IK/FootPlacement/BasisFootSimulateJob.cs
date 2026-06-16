@@ -158,8 +158,8 @@ public struct BasisFootSimulateJob : IJob
         }
 
         // ── Update feet ──
-        UpdateFoot(ref left, ref right, rawFwd, speed, threshold, stepDur, dt, up);
-        UpdateFoot(ref right, ref left, rawFwd, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref left, ref right, rawFwd, rawRight, hipsGround, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref right, ref left, rawFwd, rawRight, hipsGround, speed, threshold, stepDur, dt, up);
 
         // One foot stays grounded: if both planted feet want to step the same tick, keep the
         // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
@@ -220,7 +220,7 @@ public struct BasisFootSimulateJob : IJob
     }
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
-        float3 rawFwd, float speed, float threshold, float stepDur, float dt, float3 up)
+        float3 rawFwd, float3 rawRight, float3 center, float speed, float threshold, float stepDur, float dt, float3 up)
     {
         if (f.phase == 0) // Planted
         {
@@ -243,7 +243,13 @@ public struct BasisFootSimulateJob : IJob
                 yawTrigger = yawDiff > p.maxPlantedYawDegrees;
             }
 
-            if ((dist > threshold || yawTrigger) && other.phase == 0)
+            // Crossing guard: planted feet aren't side-snapped (that pops -- see Execute), so re-step one
+            // that has drifted toward/over the body centerline before the feet tangle. Clearance mirrors the
+            // stepping-foot side enforcement so a freshly landed foot keeps margin and won't re-trigger.
+            float ownSideClearance = math.dot(f.plantedPos - center, rawRight) * f.sideSign;
+            bool crossTrigger = ownSideClearance < p.stanceWidth * 0.5f * p.footSideEnforceFraction;
+
+            if ((dist > threshold || yawTrigger || crossTrigger) && other.phase == 0)
             {
                 f.wantsStep = true;
                 f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, speed, stepDur, up);

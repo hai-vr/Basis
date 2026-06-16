@@ -928,6 +928,11 @@ namespace UnityEngine.Animations.Rigging
         // still gates whether a swing happens at all, so 0.5 doesn't mean
         // "always 50% inside" — only "ease in by 50% of the remaining angle".
         const float k_ElbowCollisionBlend = 0.5f;
+        // Scapulohumeral coupling: the shoulder girdle follows this share of the humeral swing
+        // (real scapula contributes ~1/3 of total elevation); the per-axis Elevation/Protraction
+        // settings trim it. Clamp the applied girdle rotation below the GateShoulder ceiling.
+        const float k_ShoulderCoupleRatio = 0.8f;
+        const float k_ShoulderMaxDeg = 40f;
 
         public ReadWriteTransformHandle HandleChest, HandleNeck, HandleHead,
   HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
@@ -1092,8 +1097,8 @@ w20, w54;
             // 2) Shoulder pre-solve: elevate/protract based on hand targets before arm IK
             if (shoulderSolveEnabled.Get(stream))
             {
-                SolveShoulder(stream, HandleLeftShoulder, enabledLeftShoulder, targetPositionLeftHand,TposeLeftShoulderLocalDir, TposeLeftShoulderRot, TposeChestRot, TposeShoulderToHandLeft, true);
-                SolveShoulder(stream, HandleRightShoulder, enabledRightShoulder, targetPositionRightHand,TposeRightShoulderLocalDir, TposeRightShoulderRot, TposeChestRot, TposeShoulderToHandRight, false);
+                SolveShoulder(stream, HandleLeftShoulder, enabledLeftShoulder, targetPositionLeftHand, hintPositionLeftHand, hintWeightLeftHand, TposeLeftShoulderLocalDir, TposeLeftShoulderRot, TposeChestRot, TposeShoulderToHandLeft, true);
+                SolveShoulder(stream, HandleRightShoulder, enabledRightShoulder, targetPositionRightHand, hintPositionRightHand, hintWeightRightHand, TposeRightShoulderLocalDir, TposeRightShoulderRot, TposeChestRot, TposeShoulderToHandRight, false);
             }
             else
             {
@@ -1785,9 +1790,13 @@ w20, w54;
                 e.z > 180f ? e.z - 360f : e.z
             );
         }
-        public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty enabledProp, Vector3Property handTargetPosProp,  Vector3 tposeLocalDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, bool isLeft)
+        // Shoulder pre-solve. Runs whenever the shoulder bone exists and the global toggle is on — a
+        // dedicated shoulder tracker is no longer required. hasShoulderTrackerProp (the shoulder rig
+        // layer) selects the base: the tracker when present, else the chest-anchored rest. The elbow
+        // hint drives the upper-arm direction when an elbow tracker is present, hand target otherwise.
+        public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty hasShoulderTrackerProp, Vector3Property handTargetPosProp, Vector3Property hintPosProp, BoolProperty hintWeightProp, Vector3 tposeArmDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, bool isLeft)
         {
-            if (!shoulderHandle.IsValid(stream) || !enabledProp.Get(stream))
+            if (!shoulderHandle.IsValid(stream))
             {
                 return;
             }
@@ -1797,11 +1806,18 @@ w20, w54;
             BasisShoulderSolveInput input;
             input.ShoulderPos = shoulderHandle.GetPosition(stream);
             input.HandTargetPos = handTargetPosProp.Get(stream);
+            input.ElbowPos = hintPosProp.Get(stream);
+            input.HasElbow = hintWeightProp.Get(stream);
+            input.HasShoulderTracker = hasShoulderTrackerProp.Get(stream);
             input.ChestRot = HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity;
+            input.TposeChestRot = tposeChestRot;
             input.TposeShoulderRot = tposeShoulderRot;
+            input.TposeArmDirWorld = tposeArmDir;
             input.TposeArmLength = tposeArmLength;
             input.ElevationFactor = shoulderElevationFactor.Get(stream);
             input.ProtractionFactor = shoulderProtractionFactor.Get(stream);
+            input.CoupleRatio = k_ShoulderCoupleRatio;
+            input.MaxShoulderDeg = k_ShoulderMaxDeg;
             input.TrackerFinal = trackerRot * (isLeft ? targetOffsetLeftShoulder : targetOffsetRightShoulder);
             input.IsLeft = isLeft;
 
@@ -1942,7 +1958,7 @@ w20, w54;
                 handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
             }
         }
-        public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
+        public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset)
         {
             // Geometry lives in BasisArmSolveCore so the offline sweep harness solves the
             // exact same elbow math. The core returns incremental deltas; apply them through
@@ -1965,6 +1981,7 @@ w20, w54;
             // (6deg/frame). Offline always ran unclamped (MaxValue) and its tests pass, so full swivel is the
             // proven-safe path. The anti-parallel flip is held off by the commit + hand-reach reduction in
             // BasisArmSolveCore (reach stays exact), not by clamping the swivel.
+            input.HintIsTracker = hintIsTracker;
             input.HintMaxStepDeg = float.MaxValue;
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
@@ -2391,7 +2408,7 @@ w20, w54;
                 hasHint = true;
                 usedLookup = true;
             }
-            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
+            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedLookup, targetOffset);
             // Only damp the elbow on the lookup (no-tracker) path. A real elbow tracker is the user's
             // intentional input -- smoothing it just mutes the hint they're moving (the knee has no such
             // damper, which is why it feels far more responsive). Tracker present => drive the elbow directly.

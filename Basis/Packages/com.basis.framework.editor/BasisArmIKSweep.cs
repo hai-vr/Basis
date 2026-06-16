@@ -70,6 +70,20 @@ namespace Basis.IK.Debugging
         public string Error;
     }
 
+    // Summary of RunTrackerNaturalness: how far a REAL elbow tracker, strapped to the natural arm across
+    // mounts / positions / stand-off radii / body sizes, drives the elbow off the no-tracker natural pose.
+    public struct BasisArmTrackerNaturalnessSummary
+    {
+        public bool Ok;
+        public string Path;
+        public string Error;
+        public int Combos;          // placement×size×target solves measured
+        public float WorstDevDeg;   // worst |solved swivel - natural swivel| over a strapped tracker
+        public float MeanDevDeg;
+        public int OverCount;       // combos exceeding the naturalness threshold
+        public string WorstWhere;   // descriptor of the worst combo
+    }
+
     public static class BasisArmIKSweep
     {
         public const string DefaultFileName = "BasisArmIKSweep.csv";
@@ -77,6 +91,113 @@ namespace Basis.IK.Debugging
         public static string DefaultPath()
         {
             return System.IO.Path.Combine(Application.persistentDataPath, DefaultFileName);
+        }
+
+        public const string TrackerNaturalnessFileName = "BasisArmTrackerNaturalness.csv";
+        public static string TrackerNaturalnessDefaultPath() => System.IO.Path.Combine(Application.persistentDataPath, TrackerNaturalnessFileName);
+
+        // Offline check that a REAL elbow tracker yields a NATURAL elbow across mounts (upper-arm vs forearm),
+        // positions along the bone, stand-off radii, and body sizes. A tracker strapped rigidly to the natural
+        // (lookup, no-tracker) arm must reproduce that pose -- it must never make the bend LESS natural than no
+        // tracker. Solves the tracker case with HintIsTracker=true so it exercises the tracker-trust window in
+        // BasisArmSolveCore. The offline twin of
+        // BasisElbowDirectionTests.Elbow_TrackerReproducesNaturalBend_AcrossPlacementsAndSizes.
+        public static BasisArmTrackerNaturalnessSummary RunTrackerNaturalness(BasisArmIKSweepConfig cfg, string path)
+        {
+            var s = new BasisArmTrackerNaturalnessSummary { Ok = false, Path = path };
+            float mirror = cfg.IsLeft ? -1f : 1f;
+            bool isLeft = cfg.IsLeft;
+            Vector3 shoulder = Vector3.zero;
+            Vector3 restElbowDir = Mirror(cfg.RestElbowDir, mirror).normalized;
+            Vector3 restForearmDir = Mirror(cfg.RestForearmDir, mirror).normalized;
+            if (restElbowDir.sqrMagnitude < 1e-8f) restElbowDir = Vector3.down;
+            if (restForearmDir.sqrMagnitude < 1e-8f) restForearmDir = Vector3.forward;
+
+            NativeArray<Vector3> table = default;
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                table = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent);
+
+                int combos = 0, over = 0;
+                double devSum = 0.0;
+                float worst = 0f; string worstWhere = "";
+
+                var sizes = new (float up, float lo)[] { (0.22f, 0.20f), (0.28f, 0.26f), (0.34f, 0.30f), (0.32f, 0.22f) };
+                var dirs = new (Vector3 d, float r)[]
+                {
+                    (new Vector3(0.05f, -0.05f, 1f), 0.82f),    // straight forward
+                    (new Vector3(0.55f, -0.10f, 0.70f), 0.85f), // forward + out to the side
+                    (new Vector3(0.10f, 0.40f, 0.80f), 0.85f),  // up-forward (raised reach)
+                    (new Vector3(-0.35f, -0.10f, 0.65f), 0.80f),// across the body
+                    (new Vector3(0.10f, -0.55f, 0.70f), 0.82f), // low-forward
+                };
+                float[] fracs = { 0.4f, 0.5f, 0.6f };       // realistic mid-bone mounts
+                float[] radii = { 0.05f, 0.07f, 0.09f };    // realistic strap stand-off
+
+                using (var w = new StreamWriter(path, false, Encoding.UTF8))
+                {
+                    w.WriteLine("# BasisArmTrackerNaturalness " + System.DateTime.UtcNow.ToString("o") + " side=" + (isLeft ? "left" : "right"));
+                    w.WriteLine("upper,lower,target_x,target_y,target_z,reach,mount,frac,radius_cm,nat_swivel,solved_swivel,dev_deg");
+                    var sb = new StringBuilder(160);
+                    foreach (var size in sizes)
+                    {
+                        float upper = size.up, lower = size.lo, armLen = upper + lower;
+                        Vector3 restElbow = shoulder + restElbowDir * upper;
+                        Vector3 restHand = restElbow + restForearmDir * lower;
+                        foreach (var dr in dirs)
+                        {
+                            Vector3 ldir = dr.d; ldir.x *= mirror;
+                            Vector3 target = shoulder + ldir.normalized * (dr.r * armLen);
+                            Vector3 bend = ComputeLookupBend(table, target - shoulder, armLen, isLeft);
+                            Vector3 lookupHint = shoulder + 0.5f * armLen * bend;
+                            BasisArmSolveResult nat = SolveOne(shoulder, restElbow, restHand, target, lookupHint, true, false);
+                            Vector3 axis = nat.HandSolved - shoulder;
+                            if (axis.sqrMagnitude < 1e-8f) continue;
+                            axis.Normalize();
+                            Vector3 natPole = Vector3.ProjectOnPlane(nat.ElbowSolved - shoulder, axis);
+                            if (natPole.sqrMagnitude < 1e-6f) continue;
+                            Vector3 poleDir = natPole.normalized;
+                            float natSwivel = Swivel(shoulder, nat.HandSolved, nat.ElbowSolved);
+                            if (float.IsNaN(natSwivel)) continue;
+
+                            foreach (bool upperMount in new[] { true, false })
+                            foreach (float frac in fracs)
+                            foreach (float radius in radii)
+                            {
+                                Vector3 bonePoint = upperMount
+                                    ? Vector3.Lerp(shoulder, nat.ElbowSolved, frac)
+                                    : Vector3.Lerp(nat.ElbowSolved, nat.HandSolved, frac);
+                                Vector3 trackerPos = bonePoint + poleDir * radius;
+                                BasisArmSolveResult sv = SolveOne(shoulder, restElbow, restHand, target, trackerPos, true, true);
+                                float sw = Swivel(shoulder, sv.HandSolved, sv.ElbowSolved);
+                                if (float.IsNaN(sw)) continue;
+                                float dev = Mathf.Abs(Mathf.DeltaAngle(natSwivel, sw));
+                                combos++; devSum += dev;
+                                if (dev > BasisIKTestGates.ArmTrackerMaxDevDeg) over++;
+                                if (dev > worst) { worst = dev; worstWhere = $"size({upper:0.00},{lower:0.00}) reach{dr.r:0.00} mount={(upperMount ? "upper" : "fore")} frac{frac:0.00} r{radius * 100f:0}cm"; }
+                                sb.Clear();
+                                sb.Append(F(upper)).Append(',').Append(F(lower)).Append(',');
+                                sb.Append(F(target.x)).Append(',').Append(F(target.y)).Append(',').Append(F(target.z)).Append(',').Append(F(dr.r)).Append(',');
+                                sb.Append(upperMount ? "upper" : "fore").Append(',').Append(F(frac)).Append(',').Append(F(radius * 100f)).Append(',');
+                                sb.Append(F(natSwivel)).Append(',').Append(F(sw)).Append(',').Append(F(dev));
+                                w.WriteLine(sb.ToString());
+                            }
+                        }
+                    }
+                }
+
+                s.Ok = true;
+                s.Combos = combos;
+                s.WorstDevDeg = worst;
+                s.MeanDevDeg = combos > 0 ? (float)(devSum / combos) : 0f;
+                s.OverCount = over;
+                s.WorstWhere = worstWhere;
+            }
+            catch (System.Exception e) { s.Ok = false; s.Error = e.Message; }
+            finally { if (table.IsCreated) table.Dispose(); }
+            return s;
         }
 
         public static BasisArmIKSweepSummary Run(BasisArmIKSweepConfig cfg, string path)
@@ -166,7 +287,7 @@ namespace Basis.IK.Debugging
                                 points++;
 
                                 BasisArmSolveResult noHint = SolveOne(shoulder, restElbow, restHand, target, hintPos, false);
-                                BasisArmSolveResult hint = SolveOne(shoulder, restElbow, restHand, target, hintPos, true);
+                                BasisArmSolveResult hint = SolveOne(shoulder, restElbow, restHand, target, hintPos, true, true);
 
                                 Vector3 lookupBend = ComputeLookupBend(table, target - shoulder, armLen, cfg.IsLeft);
                                 Vector3 lookupHintPos = shoulder + 0.5f * armLen * lookupBend;
@@ -180,8 +301,8 @@ namespace Basis.IK.Debugging
                                 float swivelLookup = Swivel(shoulder, lookup.HandSolved, lookup.ElbowSolved);
 
                                 // Tracker jitter: how far the elbow swings per cm of tracker position error.
-                                float sensHint = TrackerSensitivity(shoulder, restElbow, restHand, target, hintPos, swivelHint);
-                                float sensLookup = TrackerSensitivity(shoulder, restElbow, restHand, target, lookupHintPos, swivelLookup);
+                                float sensHint = TrackerSensitivity(shoulder, restElbow, restHand, target, hintPos, swivelHint, true);
+                                float sensLookup = TrackerSensitivity(shoulder, restElbow, restHand, target, lookupHintPos, swivelLookup, false);
                                 // Tracker follow: angle between solved elbow pole and where the tracker says (0 = perfect follow).
                                 float alignHint = TrackerAlignErr(shoulder, target, hint.ElbowSolved, hintPos);
                                 float alignLookup = TrackerAlignErr(shoulder, target, lookup.ElbowSolved, lookupHintPos);
@@ -353,7 +474,7 @@ namespace Basis.IK.Debugging
                 // "back-*" do the same BEHIND the body (z<0): there the arm axis, the lookup bend and the
                 // forearm all point backward, so Cross(ab,bc) AND the hint/target axis fallbacks all collapse
                 // and the bend-plane axis thrashes -- the "fully stretched backward, flips rapidly" case.
-                string[] pathNames = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach", "back-swing", "back-lower", "back-reach" };
+                string[] pathNames = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach", "fwd-swing", "fwd-lower", "back-swing", "back-lower", "back-reach" };
                 Vector3[][] pathPts =
                 {
                     BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
@@ -365,6 +486,11 @@ namespace Basis.IK.Debugging
                     // Radial push straight out to (near) full extension -- the elbow pole collapses at the far
                     // end (>0.985 reported as the singularity below); the band up to it must not flip.
                     BasisIKTrajectoryScan.Line(Sphere(0.12f, -0.18f, 1.0f, 0.55f), Sphere(0.12f, -0.18f, 1.0f, 0.99f), 160),
+                    // Fully extended in FRONT, swung in azimuth from out-to-the-side to straight-forward --
+                    // the forward twin of back-swing, where the user reports the straight-forward flip.
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.85f, -0.20f, 0.30f, 0.92f), Sphere(0.10f, -0.20f, 0.85f, 0.92f), 160),
+                    // Fully extended in front, lowered from level-forward to down-forward.
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.45f, -0.05f, 0.80f, 0.92f), Sphere(0.30f, -0.75f, 0.55f, 0.92f), 160),
                     // Fully extended BEHIND, swung in azimuth from out-to-the-side back to straight-behind --
                     // the hand crosses behind the shoulder line where the backward pole reorganizes (flip).
                     BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.85f, -0.20f, -0.30f, 0.92f), Sphere(0.10f, -0.20f, -0.85f, 0.92f), 160),
@@ -471,7 +597,7 @@ namespace Basis.IK.Debugging
                 // ext-* sweep the hand at ~0.95 reach (nearly straight): the live rate limiter must keep the
                 // elbow from snapping AND from slewing the whole way around -- the full-extension pole flip.
                 // back-* do it BEHIND the body, where the bend-plane axis fallbacks all collapse (rapid flip).
-                string[] names = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach", "back-swing", "back-lower", "back-reach" };
+                string[] names = { "across", "vertical", "reach-up-across", "circle", "ext-across", "ext-vertical", "ext-reach", "fwd-swing", "fwd-lower", "back-swing", "back-lower", "back-reach" };
                 Vector3[][] paths =
                 {
                     BasisIKTrajectoryScan.Line(F3(0.70f, -0.20f, 0.40f), F3(-0.70f, -0.20f, 0.40f), 160),
@@ -483,6 +609,10 @@ namespace Basis.IK.Debugging
                     // Push straight out to near full extension: as the arm straightens the elbow pole collapses,
                     // and the live rate-limited feed must keep the elbow tucked instead of slewing around.
                     BasisIKTrajectoryScan.Line(Sphere(0.12f, -0.18f, 1.0f, 0.55f), Sphere(0.12f, -0.18f, 1.0f, 0.99f), 160),
+                    // Fully extended in FRONT, swung in azimuth side -> straight-forward (the forward flip region).
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.85f, -0.20f, 0.30f, 0.92f), Sphere(0.10f, -0.20f, 0.85f, 0.92f), 160),
+                    // Fully extended in front, lowered from level-forward to down-forward.
+                    BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.45f, -0.05f, 0.80f, 0.92f), Sphere(0.30f, -0.75f, 0.55f, 0.92f), 160),
                     // Fully extended BEHIND, swung in azimuth side -> straight-behind (crosses the flip region).
                     BasisIKTrajectoryScan.Arc(shoulder, Sphere(0.85f, -0.20f, -0.30f, 0.92f), Sphere(0.10f, -0.20f, -0.85f, 0.92f), 160),
                     // Fully extended behind, lowered from level-back to down-back.
@@ -579,7 +709,7 @@ namespace Basis.IK.Debugging
             input.Shoulder = shoulder; input.Elbow = curElbow; input.Hand = curHand;
             input.RootRotation = Quaternion.identity; input.MidRotation = Quaternion.identity;
             input.TargetPosition = target; input.TargetRotation = Quaternion.identity;
-            input.HintPosition = hint; input.HintWeight = true; input.TargetOffset = Quaternion.identity;
+            input.HintPosition = hint; input.HintWeight = true; input.HintIsTracker = false; input.TargetOffset = Quaternion.identity;
             input.PlayerUp = Vector3.up; input.HintMaxStepDeg = maxStep;
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
             curElbow = r.ElbowSolved; curHand = r.HandSolved;
@@ -588,7 +718,7 @@ namespace Basis.IK.Debugging
 
         // Degrees of elbow swivel produced per 1 cm of lateral tracker position error at this pose.
         // High values = a tracker here will look jittery/unstable for tiny tracking noise.
-        static float TrackerSensitivity(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hintPos, float baseSwivel)
+        static float TrackerSensitivity(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hintPos, float baseSwivel, bool hintIsTracker)
         {
             if (float.IsNaN(baseSwivel)) return float.NaN;
             Vector3 ac = target - shoulder;
@@ -598,7 +728,7 @@ namespace Basis.IK.Debugging
             if (dir.sqrMagnitude < 1e-8f) return float.NaN;
             dir.Normalize();
             const float eps = 0.01f; // 1 cm
-            BasisArmSolveResult p = SolveOne(shoulder, elbow, hand, target, hintPos + dir * eps, true);
+            BasisArmSolveResult p = SolveOne(shoulder, elbow, hand, target, hintPos + dir * eps, true, hintIsTracker);
             float s2 = Swivel(shoulder, p.HandSolved, p.ElbowSolved);
             if (float.IsNaN(s2)) return float.NaN;
             return Mathf.Abs(Mathf.DeltaAngle(baseSwivel, s2));
@@ -626,7 +756,7 @@ namespace Basis.IK.Debugging
             return localBend.normalized;
         }
 
-        static BasisArmSolveResult SolveOne(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hint, bool hintOn)
+        static BasisArmSolveResult SolveOne(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hint, bool hintOn, bool hintIsTracker = false)
         {
             BasisArmSolveInput input;
             input.Shoulder = shoulder;
@@ -638,6 +768,7 @@ namespace Basis.IK.Debugging
             input.TargetRotation = Quaternion.identity;
             input.HintPosition = hint;
             input.HintWeight = hintOn;
+            input.HintIsTracker = hintIsTracker;
             input.TargetOffset = Quaternion.identity;
             input.PlayerUp = Vector3.up;
             input.HintMaxStepDeg = float.MaxValue;

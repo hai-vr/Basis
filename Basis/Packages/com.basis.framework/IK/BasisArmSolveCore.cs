@@ -14,6 +14,7 @@ namespace UnityEngine.Animations.Rigging
         public Quaternion TargetOffset;
         public Vector3 PlayerUp;
         public float HintMaxStepDeg;   // max elbow-swivel change this solve; float.MaxValue = unclamped (offline)
+        public bool HintIsTracker;     // hint is a REAL elbow tracker (trust it further before the down-stabilizer overrides); false = lookup-derived
     }
 
     public struct BasisArmSolveResult
@@ -182,6 +183,14 @@ namespace UnityEngine.Animations.Rigging
                     // keyed on the projection magnitude itself, not raw extension (which discarded
                     // tracker follow on 21% of the workspace).
                     float projNorm = (totalLen > k_Epsilon) ? ahProj.magnitude / totalLen : 0f;
+                    // A real elbow tracker sits a physical stand-off (limb radius + strap) OFF the bone, so even
+                    // a short swing-plane projection is genuine out-direction signal, not noise. Re-condition it
+                    // (floor the effective projection) so the elbow FOLLOWS the tracker instead of fading toward
+                    // the rest bend -- the "tracker looks unnatural for some mounts/body sizes" fix. Keyed only
+                    // on ahProj (shoulder/hand/hint positions), so unlike a tracker-LOCAL offset it does NOT
+                    // swing with forearm pronation. Below a small floor the tracker is essentially on the bone
+                    // line (direction is noise) so it still fades. Lookup (no-tracker) path is untouched.
+                    if (i.HintIsTracker && projNorm > 0.05f) projNorm = Mathf.Max(projNorm, 0.30f);
                     hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
                     if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
@@ -259,6 +268,11 @@ namespace UnityEngine.Animations.Rigging
             if (i.HintWeight)
             {
                 float poleCond = totalLen > k_Epsilon ? hintProjMag / totalLen : 1f;
+                // Same physical-stand-off reasoning as the hintFade floor above: a real tracker's short pole is
+                // real out-direction, so re-condition it (positions only -> pronation-safe) and the world-down
+                // stabilizer backs off, letting the elbow follow the tracker. Lookup path keeps the wider window
+                // (the backward full-stretch flip fix). Below the floor (tracker on the bone line) it still acts.
+                if (i.HintIsTracker && poleCond > 0.05f) poleCond = Mathf.Max(poleCond, 0.30f);
                 float collapse = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((poleCond - 0.15f) / 0.15f));
                 Vector3 acStab = cPosition - aPosition;
                 if (collapse > 0f && acStab.sqrMagnitude > k_SqrEpsilon)

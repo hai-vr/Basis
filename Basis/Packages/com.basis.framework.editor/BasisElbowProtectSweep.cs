@@ -483,6 +483,7 @@ namespace Basis.IK.Debugging
             input.TargetRotation = Quaternion.identity;
             input.HintPosition = hint;
             input.HintWeight = true;
+            input.HintIsTracker = false;
             input.TargetOffset = Quaternion.identity;
             input.PlayerUp = Vector3.up;
             input.HintMaxStepDeg = float.MaxValue;

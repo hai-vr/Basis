@@ -8,6 +8,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -340,28 +341,18 @@ namespace Basis.BasisUI
             state.SuppressDropdownEvents[0] = true;
             for (int i = 0; i < trackers.Count; i++)
             {
-                BuildEntryFor(state, trackers[i], newIds);
+                BuildEntryFor(state, trackers[i], trackers, newIds);
             }
             state.SuppressDropdownEvents[0] = false;
         }
 
-        private static void BuildEntryFor(TabState state, BasisInput input, List<string> allIds)
+        private static void BuildEntryFor(TabState state, BasisInput input, List<BasisInput> trackers, List<string> allIds)
         {
             string id = input.UniqueDeviceIdentifier;
 
-            // SetTitle deactivates the label GameObject when given an empty string,
-            // which is why some trackers were rendering with no visible name at all.
-            // Fall back through other identifying fields so there's always something
-            // to show; the pair-link dropdown still uses the raw id for matching.
-            string title = id;
-            if (string.IsNullOrEmpty(title)) title = input.CommonDeviceIdentifier;
-            if (string.IsNullOrEmpty(title)) title = input.ClassName;
-            if (string.IsNullOrEmpty(title) && input != null) title = input.gameObject.name;
-            if (string.IsNullOrEmpty(title)) title = "Tracker";
-
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, state.TrackersContainer);
-            group.SetTitle(title);
+            group.SetTitle(BuildTrackerLabel(input));
             group.SetDescription(BuildEntryDescription(input));
 
             PanelButton identifyButton = PanelButton.CreateNew(group.ContentParent);
@@ -378,13 +369,16 @@ namespace Basis.BasisUI
             linkDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.linkLabel"));
             linkDropdown.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.linkLabel.tooltip"));
 
-            List<string> linkEntries = new List<string>(allIds.Count) { UnlinkedLabel };
-            for (int i = 0; i < allIds.Count; i++)
+            List<string> linkEntries = new List<string>(trackers.Count + 1) { UnlinkedLabel };
+            List<string> linkLabels = new List<string>(trackers.Count + 1) { UnlinkedDisplayLabel() };
+            for (int i = 0; i < trackers.Count; i++)
             {
-                if (allIds[i] == id) continue;
-                linkEntries.Add(allIds[i]);
+                string otherId = trackers[i].UniqueDeviceIdentifier;
+                if (otherId == id) continue;
+                linkEntries.Add(otherId);
+                linkLabels.Add(BuildTrackerLabel(trackers[i]));
             }
-            linkDropdown.AssignEntries(linkEntries);
+            linkDropdown.AssignEntries(linkEntries, linkLabels);
             linkDropdown.SetValueWithoutNotify(ResolveCurrentLink(id, allIds));
 
             string capturedId = id;
@@ -406,8 +400,7 @@ namespace Basis.BasisUI
             roleDropdown.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.roleOverrideLabel"));
             roleDropdown.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.roleOverrideLabel.tooltip"));
 
-            List<string> roleEntries = BuildRoleEntries();
-            roleDropdown.AssignEntries(roleEntries);
+            roleDropdown.AssignEntries(BuildRoleEntries(), BuildRoleDisplayLabels());
             roleDropdown.SetValueWithoutNotify(ResolveCurrentRoleOverride(id));
 
             roleDropdown.OnValueChanged += newValue =>
@@ -454,7 +447,7 @@ namespace Basis.BasisUI
 
             if (input != null && input.TryGetRole(out BasisBoneTrackedRole role))
             {
-                label += $" <size=85%>{BasisLocalization.Get("trackerLinking.identifyCalibratedRole", role.ToString())}</size>";
+                label += $" <size=85%>{BasisLocalization.Get("trackerLinking.identifyCalibratedRole", FormatRole(role))}</size>";
             }
 
             descriptor.SetTitle(label);
@@ -470,7 +463,7 @@ namespace Basis.BasisUI
         {
             if (input.TryGetRole(out BasisBoneTrackedRole role))
             {
-                return BasisLocalization.Get("trackerLinking.entry.role", role.ToString());
+                return BasisLocalization.Get("trackerLinking.entry.role", FormatRole(role));
             }
             return BasisLocalization.Get("trackerLinking.entry.unassigned");
         }
@@ -503,6 +496,53 @@ namespace Basis.BasisUI
                 list.Add(OverrideableRoles[i].ToString());
             }
             return list;
+        }
+
+        private static List<string> BuildRoleDisplayLabels()
+        {
+            List<string> list = new List<string>(OverrideableRoles.Length + 1) { AutoRoleLabel() };
+            for (int i = 0; i < OverrideableRoles.Length; i++)
+            {
+                list.Add(FormatRole(OverrideableRoles[i]));
+            }
+            return list;
+        }
+
+        private static string UnlinkedDisplayLabel() => BasisLocalization.Get("trackerLinking.linkUnlinked");
+
+        private static string FormatRole(BasisBoneTrackedRole role)
+        {
+            string raw = role.ToString();
+            StringBuilder sb = new StringBuilder(raw.Length + 4);
+            for (int i = 0; i < raw.Length; i++)
+            {
+                char c = raw[i];
+                if (i > 0 && char.IsUpper(c) && char.IsLower(raw[i - 1]))
+                {
+                    sb.Append(' ');
+                }
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        private static string BuildTrackerLabel(BasisInput input)
+        {
+            if (input == null) return "Tracker";
+
+            string name = input.CommonDeviceIdentifier;
+            if (string.IsNullOrEmpty(name)) name = input.ClassName;
+            if (string.IsNullOrEmpty(name) && input.gameObject != null) name = input.gameObject.name;
+
+            string id = input.UniqueDeviceIdentifier;
+            if (string.IsNullOrEmpty(name)) name = string.IsNullOrEmpty(id) ? "Tracker" : id;
+
+            if (!string.IsNullOrEmpty(id) && !string.Equals(name, id))
+            {
+                string shortId = id.Length > 6 ? id.Substring(id.Length - 6) : id;
+                name = $"{name} ({shortId})";
+            }
+            return name;
         }
 
         private static bool TryParseOverrideRole(string value, out BasisBoneTrackedRole role)

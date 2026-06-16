@@ -225,11 +225,11 @@ namespace Basis.Scripts.Drivers
                 tposeHipsLocalPos: tposeHipsLocalPos,
                 tposeHipsLocalRot: tposeHipsLocalRot,
                 authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
+                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition) * BasisHelpers.SafeHumanScale(RemotePlayer.BasisAvatar.Animator.humanScale),
                     animatorRootPos
                 ),
                 authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
+                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition) * BasisHelpers.SafeHumanScale(RemotePlayer.BasisAvatar.Animator.humanScale),
                     animatorRootPos
                 ),
                 NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
