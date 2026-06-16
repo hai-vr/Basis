@@ -66,6 +66,9 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
         public bool HasLastPositions;
         public Vector3 LastA;
         public Vector3 LastB;
+        // Last published midpoint, carried so a partner dropping out can keep the midpoint
+        // anchored to the live partner instead of collapsing toward origin.
+        public Vector3 LastMid;
         public float EmaVelA;
         public float EmaVelB;
         public float ExpectedDistance;
@@ -107,19 +110,28 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
         {
             blendT = 0.5f;
 
+            bool aUsable = BasisMidpointRotationFusion.IsUsable(aRot);
+            bool bUsable = BasisMidpointRotationFusion.IsUsable(bRot);
+
             if (!s.HasLastPositions)
             {
-                s.ExpectedDistance = Vector3.Distance(a, b);
-                s.EmaVelA = 0f;
-                s.EmaVelB = 0f;
-                s.SmoothedWA = 1f;
-                s.SmoothedWB = 1f;
-                s.HalfRestOffset = BasisMidpointRotationFusion.ComputeHalfRestOffset(aRot, bRot);
-                s.HasLastPositions = true;
                 mid = (a + b) * 0.5f;
                 midRot = BasisMidpointRotationFusion.ProjectAndSlerp(aRot, bRot, 0.5f, s.HalfRestOffset);
                 wA = s.SmoothedWA;
                 wB = s.SmoothedWB;
+                // Defer the one-shot prime (rest distance + half-rest offset) until both
+                // partners actually have a pose, so a pair created mid-dropout can't
+                // capture a garbage baseline that biases every later frame.
+                if (aUsable && bUsable)
+                {
+                    s.ExpectedDistance = Vector3.Distance(a, b);
+                    s.EmaVelA = 0f;
+                    s.EmaVelB = 0f;
+                    s.SmoothedWA = 1f;
+                    s.SmoothedWB = 1f;
+                    s.HalfRestOffset = BasisMidpointRotationFusion.ComputeHalfRestOffset(aRot, bRot);
+                    s.HasLastPositions = true;
+                }
             }
             else
             {
@@ -149,22 +161,42 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
                 float distanceError = currentDistance - s.ExpectedDistance;
                 float absDistanceError = Mathf.Abs(distanceError);
 
-                // Soft pull toward the rigid rest-distance solution, ramping continuously with the divergence;
-                // disabled when weights are imbalanced so the symmetric pull can't drag the trusted tracker.
                 float weightSum = Mathf.Max(wA + wB, 1e-6f);
-                float weightBalance = 4f * wA * wB / (weightSum * weightSum);
-                float correctionStrength = t.MaxCorrectionStrength
-                                           * weightBalance
-                                           * (1f - 1f / (1f + absDistanceError / softSnapHalfLife));
-                Vector3 dir = currentDistance > 1e-6f ? (b - a) / currentDistance : Vector3.zero;
-                Vector3 aIdeal = a + dir * (distanceError * 0.5f);
-                Vector3 bIdeal = b - dir * (distanceError * 0.5f);
-                Vector3 aSoft = Vector3.Lerp(a, aIdeal, correctionStrength);
-                Vector3 bSoft = Vector3.Lerp(b, bIdeal, correctionStrength);
+                if (aUsable && bUsable)
+                {
+                    // Soft pull toward the rigid rest-distance solution, ramping continuously with the divergence;
+                    // disabled when weights are imbalanced so the symmetric pull can't drag the trusted tracker.
+                    float weightBalance = 4f * wA * wB / (weightSum * weightSum);
+                    float correctionStrength = t.MaxCorrectionStrength
+                                               * weightBalance
+                                               * (1f - 1f / (1f + absDistanceError / softSnapHalfLife));
+                    Vector3 dir = currentDistance > 1e-6f ? (b - a) / currentDistance : Vector3.zero;
+                    Vector3 aIdeal = a + dir * (distanceError * 0.5f);
+                    Vector3 bIdeal = b - dir * (distanceError * 0.5f);
+                    Vector3 aSoft = Vector3.Lerp(a, aIdeal, correctionStrength);
+                    Vector3 bSoft = Vector3.Lerp(b, bIdeal, correctionStrength);
 
-                float tB = wB / weightSum;
-                blendT = tB;
-                mid = aSoft * (1f - tB) + bSoft * tB;
+                    float tB = wB / weightSum;
+                    blendT = tB;
+                    mid = aSoft * (1f - tB) + bSoft * tB;
+                }
+                else if (!aUsable && !bUsable)
+                {
+                    // Whole pair dark -- hold the last midpoint instead of collapsing toward origin.
+                    mid = s.LastMid;
+                }
+                else if (aUsable)
+                {
+                    // One partner dark -- follow the live one, carrying the last good midpoint offset so
+                    // there is no jump at the dropout (the live partner is still where it just was).
+                    blendT = 0f;
+                    mid = a + (s.LastMid - s.LastA);
+                }
+                else
+                {
+                    blendT = 1f;
+                    mid = b + (s.LastMid - s.LastB);
+                }
                 // Rotation uses a FIXED 0.5 blend, decoupled from the position-confidence tB: the rest-offset
                 // projection makes it t-invariant for a rigid pair, and fixing it stops the fused rotation
                 // swinging across the midA/midB gap as tB shifts with motion under flex -- the snap the rotation
@@ -182,8 +214,16 @@ namespace Basis.Scripts.Device_Management.Devices.Pairing
                 }
             }
 
-            s.LastA = a;
-            s.LastB = b;
+            if (aUsable) s.LastA = a;
+            if (bUsable) s.LastB = b;
+            s.LastMid = mid;
+
+            // Neither partner had a pose this frame -- hold the last published rotation
+            // instead of snapping the hip to identity.
+            if (s.HasSmoothedRot && !aUsable && !bUsable)
+            {
+                midRot = s.SmoothedMidRot;
+            }
 
             // Low-pass the fused rotation. Half-life <= 0 disables.
             if (!s.HasSmoothedRot || t.RotationHalfLife <= 1e-5f)
