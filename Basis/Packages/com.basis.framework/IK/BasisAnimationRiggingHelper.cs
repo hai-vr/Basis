@@ -67,7 +67,7 @@ public static class BasisAnimationRiggingHelper
         data.LeftToe = Mapping.leftToe;
         data.RightToe = Mapping.rightToe;
         // Head
-        data.m_CalibratedRotationHead = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.HeadControl, Mapping.AnimatorRoot, Mapping.head) : Quaternion.identity;
+        data.m_CalibratedRotationHead = Mapping.Hashead ? Quaternion.Inverse(player.AvatarTransform.rotation) * Mapping.head.rotation : Quaternion.identity;
         // Feet
         data.M_CalibrationLeftFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.AnimatorRoot, Mapping.leftFoot) : Quaternion.identity;
         data.M_CalibrationRightFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.AnimatorRoot, Mapping.rightFoot) : Quaternion.identity;
@@ -101,7 +101,7 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftHand = Quaternion.Inverse(leftLandmarkBind) * leftBoneBind;
         data.m_CalibratedRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
-        data.m_CalibratedRotationChest = Mapping.Haschest ? CalibratedRotationOffset(BasisLocalBoneDriver.ChestControl, Mapping.AnimatorRoot, Mapping.chest) : Quaternion.identity;
+        data.m_CalibratedRotationChest = Mapping.Haschest ? Quaternion.Inverse(player.AvatarTransform.rotation) * Mapping.chest.rotation : Quaternion.identity;
         data.m_CalibratedRotationNeck = Mapping.Hasneck ? Mapping.neck.rotation : Quaternion.identity;
         data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.AnimatorRoot, Mapping.leftToe) : Quaternion.identity;
         data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? CalibratedRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.AnimatorRoot, Mapping.rightToe) : Quaternion.identity;
@@ -110,7 +110,7 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftShoulderControl, Mapping.AnimatorRoot, Mapping.leftShoulder) : Quaternion.identity;
         data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.RightShoulderControl, Mapping.AnimatorRoot, Mapping.RightShoulder) : Quaternion.identity;
         // Hips reference rotation
-        data.OffsetRotationHips = Mapping.HasHips ? CalibratedRotationOffset(BasisLocalBoneDriver.HipsControl, Mapping.AnimatorRoot, Mapping.Hips) : Quaternion.identity;
+        data.OffsetRotationHips = Mapping.HasHips ? Quaternion.Inverse(player.AvatarTransform.rotation) * Mapping.Hips.rotation : Quaternion.identity;
         // Head
         data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
         data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;

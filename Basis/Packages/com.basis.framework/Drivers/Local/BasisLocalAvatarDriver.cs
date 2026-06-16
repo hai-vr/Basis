@@ -191,8 +191,7 @@ namespace Basis.Scripts.Drivers
 
             CollectHeadChopEntries(harvestedHeadChop);
 
-            player.LocalBoneDriver.SimulateAndApplyWithoutLerp(player);
-            player.DriveTpose();
+            player.AvatarTransform.rotation = player.transform.rotation;
             player.LocalBoneDriver.SimulateAndApplyWithoutLerp(player);
             player.LocalRigDriver.SetBodySettings();
 
