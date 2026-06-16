@@ -2103,6 +2103,10 @@
       "value": "Username"
     },
     {
+      "key": "menu.servers.username.hint",
+      "value": "Enter a username to connect"
+    },
+    {
       "key": "menu.servers.connect",
       "value": "Connect"
     },

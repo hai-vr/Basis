@@ -87,6 +87,8 @@ namespace Basis.BasisUI
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             HeightDescription.SetTitle(BasisLocalization.Get("calibration.additionalHeight"));
             HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= RefreshAdditionalHeightLabel;
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame += RefreshAdditionalHeightLabel;
 
             var nudgeHeightToggle = PanelToggle.CreateNewEntry(container);
             nudgeHeightToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.nudgeStandingHeight"));
@@ -226,6 +228,15 @@ namespace Basis.BasisUI
             BasisHeightDriver.ApplyScaleAndHeight();
         }
 
+        private void RefreshAdditionalHeightLabel(BasisHeightDriver.HeightModeChange _)
+        {
+            if (HeightDescription == null || HeightDescription.IsReleased)
+            {
+                return;
+            }
+            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
+        }
+
         private static string FormatScaleMeters(float meters) => meters.ToString("0.##") + " m";
 
         private void TogglePitchCalibration()
@@ -320,6 +331,7 @@ namespace Basis.BasisUI
 
         private void CancelActiveCalibration()
         {
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= RefreshAdditionalHeightLabel;
             UnsubscribeAll();
             _pitchStep = PitchCalibrationStep.None;
             _leftPressed = false;

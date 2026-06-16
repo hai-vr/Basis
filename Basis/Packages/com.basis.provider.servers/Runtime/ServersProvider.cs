@@ -72,6 +72,8 @@ namespace Basis.BasisUI
         private PanelButton _editShareButton;
         private PanelButton _editRemoveButton;
         private PanelTextField _usernameField;
+        private ServerDirectoryEntry _pendingUsernameEntry;
+        private bool _pendingUsernameHostMode;
         private PanelButton _addServerButton;
         private PanelButton _refreshAllButton;
         private PanelToggle _advancedToggle;
@@ -134,6 +136,7 @@ namespace Basis.BasisUI
             _queryCts = null;
             _rows.Clear();
             _entries.Clear();
+            _pendingUsernameEntry = null;
             UnsubscribeSourceEvents();
             _panel = null;
         }
@@ -211,6 +214,9 @@ namespace Basis.BasisUI
             _usernameField = PanelTextField.CreateNewEntry(container);
             _usernameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.username"));
             _usernameField.SetValueWithoutNotify(BasisDataStore.LoadString(BasisConnectionService.UsernameFileName, string.Empty));
+            if (_usernameField._placeholderLabel != null)
+                _usernameField._placeholderLabel.text = BasisLocalization.Get("menu.servers.username.hint");
+            _usernameField._inputField.onSubmit.AddListener(_ => OnUsernameSubmitted());
 
             RectTransform headerActions = BuildActionRow(container);
 
@@ -904,9 +910,10 @@ namespace Basis.BasisUI
                 : BasisDataStore.LoadString(BasisConnectionService.UsernameFileName, string.Empty);
             if (string.IsNullOrEmpty(userName))
             {
-                BasisConnectionService.ReportConnectionError(BasisLocalization.Get("menu.servers.error.emptyName"));
+                PromptForUsername(entry, isHostMode);
                 return;
             }
+            _pendingUsernameEntry = null;
 
             if (isHostMode)
             {
@@ -927,6 +934,28 @@ namespace Basis.BasisUI
             BasisCursorManagement.OnReset();
 
             await BasisConnectionService.ConnectAsync(entry, userName, isHostMode);
+        }
+
+        private void PromptForUsername(ServerDirectoryEntry entry, bool isHostMode)
+        {
+            _pendingUsernameEntry = entry;
+            _pendingUsernameHostMode = isHostMode;
+
+            if (_usernameField == null) return;
+
+            _usernameField._inputField.Select();
+            _usernameField._inputField.ActivateInputField();
+        }
+
+        private void OnUsernameSubmitted()
+        {
+            if (_pendingUsernameEntry == null) return;
+            if (_usernameField == null || string.IsNullOrEmpty(_usernameField._inputField.text)) return;
+
+            ServerDirectoryEntry entry = _pendingUsernameEntry;
+            bool isHostMode = _pendingUsernameHostMode;
+            _pendingUsernameEntry = null;
+            _ = ConnectToAsync(entry, isHostMode);
         }
 
 
