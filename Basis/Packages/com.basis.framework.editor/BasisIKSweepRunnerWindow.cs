@@ -133,6 +133,7 @@ namespace Basis.IK.Debugging
             string multiTrackerRotPath = BasisMultiTrackerRotationSweep.DefaultPath();
             string multiTrackerTemporalPath = BasisMultiTrackerRotationSweep.DefaultTemporalPath();
             string calibMathPath = BasisCalibrationMathSweep.DefaultPath();
+            string calibPosePath = BasisCalibrationPoseSweep.DefaultPath();
             string twistPath = BasisTwistSweep.DefaultPath();
             string spinePath = BasisSpineSweep.DefaultPath();
             string remoteBonePath = BasisRemoteBoneSweep.DefaultPath();
@@ -213,6 +214,7 @@ namespace Basis.IK.Debugging
             jobs.Add(() => Job("Multi-Tracker Rotation", multiTrackerRotPath, () => { var c = BasisMultiTrackerRotationConfig.Default(); c.YawSteps = Sc(c.YawSteps, density); c.PitchSteps = Sc(c.PitchSteps, density); c.RollSteps = Sc(c.RollSteps, density); var s = BasisMultiTrackerRotationSweep.Run(c, multiTrackerRotPath); return BasisIKTestGates.GateMultiTrackerRotation(s); }));
             jobs.Add(() => Job("Multi-Tracker Rotation · temporal", multiTrackerTemporalPath, () => { var s = BasisMultiTrackerRotationSweep.RunTemporal(BasisMultiTrackerRotationConfig.Default(), Basis.Scripts.Device_Management.Devices.Pairing.BasisMidpointFusionTunables.Default(), 1f / 90f, 0f, multiTrackerTemporalPath); return BasisIKTestGates.GateMultiTrackerRotationTemporal(s); }));
             jobs.Add(() => Job("Calibration Math", calibMathPath, () => { var c = BasisCalibrationMathSweepConfig.Default(); c.CasesPerSection = Sc(c.CasesPerSection, density); var s = BasisCalibrationMathSweep.Run(c, calibMathPath); return BasisIKTestGates.GateCalibrationMath(s); }));
+            jobs.Add(() => Job("Calibration Pose", calibPosePath, () => { var c = BasisCalibrationPoseSweepConfig.Default(); c.BendSteps = Sc(c.BendSteps, density); var s = BasisCalibrationPoseSweep.Run(c, calibPosePath); return BasisIKTestGates.GateCalibrationPose(s); }));
             jobs.Add(() => Job("Twist", twistPath, () => { var c = BasisTwistSweepConfig.Default(); c.Cases = Sc(c.Cases, density); var s = BasisTwistSweep.Run(c, twistPath); return BasisIKTestGates.GateTwist(s); }));
             jobs.Add(() => Job("Spine", spinePath, () => { var c = BasisSpineSweepConfig.Default(); c.Cases = Sc(c.Cases, density); var s = BasisSpineSweep.Run(c, spinePath); return BasisIKTestGates.GateSpine(s); }));
             jobs.Add(() => Job("Remote Bone", remoteBonePath, () => { var c = BasisRemoteBoneSweepConfig.Default(); c.Cases = Sc(c.Cases, density); var s = BasisRemoteBoneSweep.Run(c, remoteBonePath); return BasisIKTestGates.GateRemoteBone(s); }));
