@@ -11,7 +11,7 @@ namespace Basis.IK.Debugging
         public const float ArmMaxMeanAlignErrDeg = 12f;     // mean angle solved-elbow vs tracker pole (follow)
         public const float ArmMaxElbowMeanAlignErrDeg = 8f; // mean angle solved-elbow vs the LOOKUP (no-tracker) pole; drift off the natural down/back pole
         public const int ArmMaxElbowUpFlips = 0;            // forward, non-overhead, EXTENDED (reach>0.55) reaches whose elbow flips hard UP (|swivel|>120). Zero-tolerance: the fixed lookup is clean (0) at every density; folded near-body reaches are excluded (elbow-up is natural there). Pre-fix: 4-7.
-        public const float ArmTrackerMaxDevDeg = 70f;       // UNCALIBRATED guard: a real elbow tracker (HintIsTracker) must reproduce the natural pose. BasisArmSolveCore re-conditions a real tracker's short-but-physical pole (positions-only -> pronation-safe), so realistic mounts follow it; only a tracker essentially on the bone line still drifts. Gates gross drift; reports worst/mean. Tighten after an in-headset run.
+        public const float ArmTrackerMaxDevDeg = 15f;       // a real elbow tracker (HintIsTracker) must reproduce the natural pose across realistic mounts/sizes. BasisArmSolveCore re-conditions its short-but-physical pole (positions-only -> pronation-safe), so it follows. Measured worst 0 deg / mean 0 over 360 combos (2026-06-16); 15 is a regression guard (a broken floor drags the elbow ~40-50 deg off).
         public const float ElbowMinClearedFraction = 0.55f; // protect must clear most of the clearable set (ceiling ~0.64)
         public const float ElbowMaxMeanResidualPenMm = 25f; // mean leftover torso penetration after the push
         public const float ElbowMaxSensDegPerCm = 90f;      // final elbow swivel per cm hand jitter

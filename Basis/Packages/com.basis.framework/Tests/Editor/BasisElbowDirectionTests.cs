@@ -632,12 +632,12 @@ namespace Basis.Tests.IK
             }
 
             Assert.That(tested, Is.GreaterThan(300), $"only {tested} placement/size combos exercised.");
-            // Uncalibrated guard: a real elbow tracker (HintIsTracker) must reproduce the natural pose across
-            // realistic mounts/sizes. BasisArmSolveCore re-conditions the short-but-physical tracker pole
-            // (positions-only -> pronation-safe), so realistic stand-offs follow; only a tracker on the bone
-            // line still drifts. Gates gross drift and reports the residual; tighten after an in-headset run.
-            Assert.That(worst, Is.LessThan(70f),
-                $"elbow tracker moves the bend {worst:0.0} deg off the natural pose at {where} (>70) -- the strapped tracker yields a grossly unnatural elbow for that placement/body size.");
+            // A real elbow tracker (HintIsTracker) must reproduce the natural pose across realistic mounts/sizes.
+            // BasisArmSolveCore re-conditions the short-but-physical tracker pole (positions-only -> pronation-
+            // safe), so it follows -- measured worst 0 deg / mean 0 over these combos. 15 is a regression guard
+            // (a broken floor drags the elbow ~40-50 deg off toward world-down).
+            Assert.That(worst, Is.LessThan(15f),
+                $"elbow tracker moves the bend {worst:0.0} deg off the natural pose at {where} (>15) -- the strapped tracker is being dragged off natural for that placement/body size (re-conditioning floor regressed?).");
         }
 
         [Test]

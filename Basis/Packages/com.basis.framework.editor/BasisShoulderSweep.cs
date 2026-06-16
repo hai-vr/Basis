@@ -188,18 +188,20 @@ namespace Basis.IK.Debugging
             return worst;
         }
 
-        // Raising the arm (increasing elevation) must never REDUCE the girdle elevation in the raising
-        // region -- a reversal would read as the shoulder dropping while the arm goes up.
+        // Raising the arm in the abduction / forward-flexion plane (up the side or front, within the
+        // physical range -- not past vertical, not cross-body, where elevation legitimately trades with
+        // protraction) must never REDUCE the girdle elevation below the clamp: that would read as the
+        // shoulder dropping while the arm goes up.
         static int MonotonicScan(BasisShoulderSweepConfig cfg, Vector3 shoulder)
         {
             int violations = 0;
-            foreach (float az in new[] { 0f, 45f, 90f, 135f })
+            foreach (float az in new[] { 0f, 45f, 90f })
             foreach (bool elbow in s_modes)
             {
                 float prevElev = -1f, prevApplied = -1f;
                 for (int e = 0; e <= 60; e++)
                 {
-                    float el = Mathf.Lerp(0f, 120f, e / 60f); // raising from the bind horizontal to overhead
+                    float el = Mathf.Lerp(0f, 88f, e / 60f); // raising from the bind horizontal to (just below) overhead
                     Vector3 dir = DirFromAzEl(az, el, cfg.IsLeft);
                     BasisShoulderSolveInput input = BuildInputDir(cfg, shoulder, dir, 0.9f, elbow, Quaternion.identity);
                     BasisShoulderSolveCore.Solve(input, out BasisShoulderSolveResult res);

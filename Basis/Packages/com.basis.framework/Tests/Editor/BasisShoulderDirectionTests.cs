@@ -71,14 +71,15 @@ namespace Basis.Tests.IK
         [Test]
         public void Shoulder_Elevation_IsMonotonic_WhileRaising()
         {
-            // Raising the arm from the bind horizontal to overhead must never REDUCE girdle elevation
-            // (below the clamp). A reversal reads as the shoulder dropping while the arm goes up.
+            // Raising the arm up the side / front (abduction or forward flexion, within the physical range
+            // -- not past vertical, where the arm crosses overhead) must never REDUCE girdle elevation
+            // below the clamp. A reversal reads as the shoulder dropping while the arm goes up.
             foreach (float az in new[] { 0f, 45f, 90f })
             {
                 float prevElev = -1f, prevApplied = -1f;
                 for (int e = 0; e <= 60; e++)
                 {
-                    float el = Mathf.Lerp(0f, 120f, e / 60f);
+                    float el = Mathf.Lerp(0f, 88f, e / 60f);
                     var r = SolveDir(DirFromAzEl(az, el, false), 0.9f, true, false);
                     bool belowClamp = r.AppliedAngleDeg < MaxShoulderDeg - 1f && prevApplied < MaxShoulderDeg - 1f;
                     if (prevElev >= 0f && belowClamp)
