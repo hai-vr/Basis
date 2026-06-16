@@ -55,9 +55,79 @@ public static class BasisLocalHeightCalculator
 
         Vector3 lFlat = new Vector3(l.x, 0f, l.z);
         Vector3 rFlat = new Vector3(r.x, 0f, r.z);
-        BasisHeightDriver.PlayerArmSpan = Vector3.Distance(lFlat, rFlat);
+        float span = Vector3.Distance(lFlat, rFlat);
 
+        // Pose-tolerant span: wrist-to-wrist shrinks when the elbows are bent at calibration, which then
+        // mis-scales the avatar. With elbow trackers we reconstruct the STRAIGHTENED span -- (elbow-to-elbow)
+        // + each rigid forearm -- which is invariant to forearm bend and needs no shoulder. The elbows are
+        // not role-assigned yet at scale time, so each is found as the nearest tracker on that hand's side
+        // within forearm range; ambiguous -> fall back to wrist-to-wrist. Only ever extends the span (a bend
+        // cannot make the true span shorter). Gated; off by default. See BasisCalibrationLimbCompensation.
+        if (Basis.BasisUI.BasisSettingsDefaults.CalibrationPoseCompensation.RawValue)
+        {
+            BasisInput leftElbow = FindElbowNearHand(l, left, right);
+            BasisInput rightElbow = FindElbowNearHand(r, right, left);
+            if (leftElbow != null && rightElbow != null)
+            {
+                Vector3 le = leftElbow.UnscaledDeviceCoord.position;
+                Vector3 re = rightElbow.UnscaledDeviceCoord.position;
+                Vector3 leFlat = new Vector3(le.x, 0f, le.z);
+                Vector3 reFlat = new Vector3(re.x, 0f, re.z);
+                float straightened = Vector3.Distance(leFlat, reFlat) + Vector3.Distance(l, le) + Vector3.Distance(r, re);
+                if (straightened > span)
+                {
+                    span = straightened;
+                    BasisDebug.Log($"Player arm span (elbow-reconstructed, bend-invariant): {span}", BasisDebug.LogTag.Avatar);
+                }
+            }
+        }
+
+        BasisHeightDriver.PlayerArmSpan = span;
         BasisDebug.Log($"Player hand-to-hand arm span: {BasisHeightDriver.PlayerArmSpan}", BasisDebug.LogTag.Avatar);
+    }
+
+    // Find the elbow tracker for a hand BEFORE role classification: the nearest device to the hand within a
+    // forearm-length range that sits clearly on that hand's side (closer to this hand than the other), which
+    // excludes centre-line trackers (hips/chest) and the far hand/feet. Null if none qualifies.
+    static BasisInput FindElbowNearHand(Vector3 handPos, BasisInput hand, BasisInput otherHand)
+    {
+        const float minForearm = 0.18f;
+        const float maxForearm = 0.45f;
+        var devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
+        if (devices == null)
+        {
+            return null;
+        }
+
+        Vector3 otherHandPos = otherHand != null ? otherHand.UnscaledDeviceCoord.position : Vector3.zero;
+        BasisInput best = null;
+        float bestDist = float.MaxValue;
+        for (int i = 0; i < devices.Count; i++)
+        {
+            BasisInput d = devices[i];
+            if (d == null || d == hand || d == otherHand)
+            {
+                continue;
+            }
+            d.LatePollData();
+            Vector3 p = d.UnscaledDeviceCoord.position;
+            if (p == Vector3.zero)
+            {
+                continue; // stale / unpolled
+            }
+            float dist = Vector3.Distance(p, handPos);
+            if (dist < minForearm || dist > maxForearm || dist >= bestDist)
+            {
+                continue;
+            }
+            if (otherHand != null && Vector3.Distance(p, otherHandPos) <= dist)
+            {
+                continue; // centre-line tracker (hip/chest), not this arm's elbow
+            }
+            best = d;
+            bestDist = dist;
+        }
+        return best;
     }
 
     public static void CalculatePlayerEyeHeight()

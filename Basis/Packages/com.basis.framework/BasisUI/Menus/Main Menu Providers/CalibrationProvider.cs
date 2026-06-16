@@ -49,6 +49,7 @@ namespace Basis.BasisUI
         public PanelButton Button;
         public PanelElementDescriptor HeightDescription;
         private PanelButton _pitchToggleButton;
+        private PanelElementDescriptor _reportGroup;
         public override void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
@@ -77,6 +78,11 @@ namespace Basis.BasisUI
             Button.OnClicked += Calibrate;
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
             Button.Descriptor.SetTooltip(BasisLocalization.Get("calibration.calibrate.tooltip"));
+
+            // Calibration quality report — filled in after a calibration completes.
+            _reportGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            _reportGroup.SetTitle("Calibration Report");
+            _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : "Calibrate to see a quality report.");
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             HeightDescription.SetTitle(BasisLocalization.Get("calibration.additionalHeight"));
@@ -128,6 +134,12 @@ namespace Basis.BasisUI
                     layout.ForceRebuild();
                 };
             }
+
+            // Pose-tolerant calibration (experimental): reconstruct a bent calibration from elbow/knee trackers.
+            var poseCompToggle = PanelToggle.CreateNewEntry(container);
+            poseCompToggle.Descriptor.SetTitle("Pose Compensation (elbow/knee)");
+            poseCompToggle.Descriptor.SetTooltip("Use elbow/knee trackers to reconstruct a bent calibration pose, so you don't have to hold a perfect straight T-pose. Experimental — A/B test it.");
+            poseCompToggle.AssignBinding(BasisSettingsDefaults.CalibrationPoseCompensation);
 
             // Playspace Mover quick enable (full options live under Body Tracking settings)
             var playspaceMoverToggle = PanelToggle.CreateNewEntry(container);
@@ -454,6 +466,13 @@ namespace Basis.BasisUI
             BasisAvatarIKStageCalibration.FullBodyCalibration();
             BasisUINeedsVisibleTrackers.Remove(BasisLocalPlayer.Instance);
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
+
+            BasisCalibrationQualityReport.Capture();
+            if (_reportGroup != null)
+            {
+                _reportGroup.SetTitle(BasisCalibrationQualityReport.HasReport ? $"Calibration Report  —  {BasisCalibrationQualityReport.Grade}" : "Calibration Report");
+                _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : "Calibration report unavailable.");
+            }
         }
 
         public override void OnButtonCreated(PanelButton button)

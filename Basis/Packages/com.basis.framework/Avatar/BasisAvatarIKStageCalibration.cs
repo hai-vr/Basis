@@ -145,6 +145,12 @@ namespace Basis.Scripts.Avatar
                     ClassifyAndAssignTrackersFromTPose();
                     LogConstellation();
 
+                    // Pose-tolerant pass: records each limb's calibration bend for the report and, when
+                    // CalibrationPoseCompensation is on, re-captures arm/leg offsets against the avatar
+                    // posed to the player's actual bend. Runs here -- avatar still in T-pose, trackers just
+                    // assigned, same bone state the per-tracker capture used -- so the recapture is consistent.
+                    BasisCalibrationLimbCompensation.Process();
+
                     // IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
                     BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 

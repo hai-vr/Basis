@@ -323,6 +323,10 @@ namespace Basis.BasisUI
         // rotation eulers + offsets to a CSV under persistentDataPath/CalibrationDebug. Read once
         // at the start of each calibration; leave off in normal play.
         public static BasisSettingsBinding<bool> DumpCalibrationCsv = new("devdumpcalibrationcsv", new BasisPlatformDefault<bool>(false));
+        // Pose-tolerant calibration: when on, a mid-joint (elbow/knee) tracker lets a bent calibration
+        // pose be reconstructed so the avatar limb mirrors it instead of snapping to the straight T-pose
+        // bone. Default off until validated in-headset; flip per-user to A/B it.
+        public static BasisSettingsBinding<bool> CalibrationPoseCompensation = new("calibrationposecompensation", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> EnableShaderPrewarm = new("enableshaderprewarm", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> EnableMaterialCorrection = new("enablematerialcorrection", new BasisPlatformDefault<bool>(false));
@@ -1441,6 +1445,7 @@ namespace Basis.BasisUI
             DevShowEuroFilter.LoadBindingValue();
             DevShowNetStats.LoadBindingValue();
             DumpCalibrationCsv.LoadBindingValue();
+            CalibrationPoseCompensation.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;

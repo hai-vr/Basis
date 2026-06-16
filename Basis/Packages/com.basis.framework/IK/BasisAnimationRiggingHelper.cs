@@ -67,7 +67,8 @@ public static class BasisAnimationRiggingHelper
         data.LeftToe = Mapping.leftToe;
         data.RightToe = Mapping.rightToe;
         // Head
-        data.m_CalibratedRotationHead = Mapping.Hashead ? Quaternion.Inverse(player.AvatarTransform.rotation) * Mapping.head.rotation : Quaternion.identity;
+        Quaternion avatarRootInv = Quaternion.Inverse(player.AvatarTransform.rotation);
+        data.m_CalibratedRotationHead = Mapping.Hashead ? avatarRootInv * Mapping.head.rotation : Quaternion.identity;
         // Feet
         data.M_CalibrationLeftFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.AnimatorRoot, Mapping.leftFoot) : Quaternion.identity;
         data.M_CalibrationRightFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.AnimatorRoot, Mapping.rightFoot) : Quaternion.identity;
@@ -101,7 +102,7 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftHand = Quaternion.Inverse(leftLandmarkBind) * leftBoneBind;
         data.m_CalibratedRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
-        data.m_CalibratedRotationChest = Mapping.Haschest ? Quaternion.Inverse(player.AvatarTransform.rotation) * Mapping.chest.rotation : Quaternion.identity;
+        data.m_CalibratedRotationChest = Mapping.Haschest ? avatarRootInv * Mapping.chest.rotation : Quaternion.identity;
         data.m_CalibratedRotationNeck = Mapping.Hasneck ? Mapping.neck.rotation : Quaternion.identity;
         data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.AnimatorRoot, Mapping.leftToe) : Quaternion.identity;
         data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? CalibratedRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.AnimatorRoot, Mapping.rightToe) : Quaternion.identity;
@@ -110,29 +111,35 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftShoulderControl, Mapping.AnimatorRoot, Mapping.leftShoulder) : Quaternion.identity;
         data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? CalibratedRotationOffset(BasisLocalBoneDriver.RightShoulderControl, Mapping.AnimatorRoot, Mapping.RightShoulder) : Quaternion.identity;
         // Hips reference rotation
-        data.OffsetRotationHips = Mapping.HasHips ? Quaternion.Inverse(player.AvatarTransform.rotation) * Mapping.Hips.rotation : Quaternion.identity;
+        data.OffsetRotationHips = Mapping.HasHips ? avatarRootInv * Mapping.Hips.rotation : Quaternion.identity;
         // Head
-        data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
-        data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
+        var head = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
+        data.PositionHead = head.position;
+        data.RotationHead = head.rotation;
 
         // Left foot
-        data.LeftFootPosition = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position;
-        data.LeftFootRotation = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation;
+        var leftFoot = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
+        data.LeftFootPosition = leftFoot.position;
+        data.LeftFootRotation = leftFoot.rotation;
 
         // Right  foot
-        data.RightFootPosition = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
-        data.RightFootRotation = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
+        var rightFoot = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+        data.RightFootPosition = rightFoot.position;
+        data.RightFootRotation = rightFoot.rotation;
 
         // Hips
-        data.PositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
-        data.RotationHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
+        var hips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
+        data.PositionHips = hips.position;
+        data.RotationHips = hips.rotation;
 
         // Hands
-        data.PositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
-        data.RotationLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
+        var leftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
+        data.PositionLeftHand = leftHand.position;
+        data.RotationLeftHand = leftHand.rotation;
 
-        data.PositionRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
-        data.RotationRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
+        var rightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
+        data.PositionRightHand = rightHand.position;
+        data.RotationRightHand = rightHand.rotation;
 
         // Cache world data once per control (less property spam, easier to read)
         var leftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
