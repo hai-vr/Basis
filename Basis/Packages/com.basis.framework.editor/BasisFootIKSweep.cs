@@ -279,6 +279,8 @@ namespace Basis.IK.Debugging
                     summary.HadNaN |= r.HadNaN;
                 }
 
+                Debug.Log($"[Foot idle] idleSteps={summary.IdleSteps} idleKneeGain fwd={summary.IdleKneeGainFwd:F2} vert={summary.IdleKneeGainVert:F2} (non-tolerated crossover {summary.Crossovers - summary.CrossoversTolerated})");
+
                 summary.ReportPath = Path.ChangeExtension(path, null) + ".report.txt";
                 WriteReport(summary, results);
             }
@@ -401,7 +403,15 @@ namespace Basis.IK.Debugging
                     // Crossover (feet tangled): the left foot ended up on the +right side of the right foot.
                     float crossSep = math.dot(left.currentPos - right.currentPos, bodyRight);
                     bool cross = crossSep > 0.02f;
-                    if (cross) { res.CrossoverTicks++; res.CrossSepM.Consider(crossSep, t, speed); if (!prevCross) res.CrossEpisodes++; if (math.abs(simState[0].smoothedYawRateDeg) > 120f) res.CrossoverTicksFastRot++; } // >120deg/s: an in-place spin discrete stepping can't track without pivoting
+                    if (cross)
+                    {
+                        res.CrossoverTicks++; res.CrossSepM.Consider(crossSep, t, speed); if (!prevCross) res.CrossEpisodes++;
+                        // Discrete stepping (no flight phase) can't avoid a brief scissor when the foot's ideal is
+                        // swept faster than a step can cover -- by a fast spin (>120deg/s) or by translation+rotation
+                        // combined (turn-while-strafe). Tolerate both; idealSweep is the foot-target speed, Froude-scaled by the gait.
+                        float idealSweep = speed + math.abs(math.radians(simState[0].smoothedYawRateDeg)) * (p.stanceWidth * 0.5f);
+                        if (math.abs(simState[0].smoothedYawRateDeg) > 120f || idealSweep > 0.3f * p.fastSpeedRef) res.CrossoverTicksFastRot++;
+                    }
 
                     // Accumulate the failure-mode peaks (planted-only where the swing would false-trigger).
                     if (lm.slideValid) res.SlideMm.Consider(lm.slideMm, t, speed);
@@ -785,7 +795,8 @@ namespace Basis.IK.Debugging
             if (s == 1f) { c.Scale = 1f; return c; }
             c.StanceWidth *= s; c.HipToFoot *= s; c.HeadAboveHips *= s;
             c.ThighLen *= s; c.ShinLen *= s; c.FootLength *= s; c.AnkleHeight *= s; c.UpperLegToFootVertical *= s;
-            c.SlowSpeed *= s; c.NormalSpeed *= s; c.FastSpeed *= s; c.TrackerNoise *= s;
+            float vScale = Mathf.Sqrt(s);   // Froude: locomotion speed scales as sqrt(size) to match BuildParams' sqrt gait-time scaling; a linear *s over-drove scaled avatars (the strafe@2x scissor)
+            c.SlowSpeed *= vScale; c.NormalSpeed *= vScale; c.FastSpeed *= vScale; c.TrackerNoise *= s;
             c.Scale = s;
             return c;
         }

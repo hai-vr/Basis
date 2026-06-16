@@ -61,6 +61,19 @@ namespace UnityEngine.Animations.Rigging
             return new Quaternion(twist.x * invMag, twist.y * invMag, twist.z * invMag, twist.w * invMag);
         }
 
+        // Fractional position of the twist bone along its parent->child segment (projected onto the segment),
+        // clamped to [0,1]. A single twist bone that absorbs THIS fraction of the child's roll yields a LINEAR
+        // (even) twist gradient from parent (0) to child (full): the parent->bone and bone->child spans then
+        // twist at the same rate, instead of the roll piling up in the short span between a wrist-end twist
+        // bone and the hand (the "candy-wrapper" concentration).
+        public static float SegmentPositionFraction(Vector3 parentPos, Vector3 childPos, Vector3 twistPos)
+        {
+            Vector3 seg = childPos - parentPos;
+            float segLen2 = seg.sqrMagnitude;
+            if (segLen2 < k_SqrEpsilon) return 0f;
+            return Mathf.Clamp01(Vector3.Dot(twistPos - parentPos, seg) / segLen2);
+        }
+
         // Scales the component of 'delta' that rotates about 'axis' (unit) by 'keep' (1 = unchanged,
         // 0 = removed), leaving the swing about every perpendicular axis intact. delta = swing * twist,
         // so keep=1 reconstructs delta exactly and keep=0 returns the pure swing. The spine CCD uses it

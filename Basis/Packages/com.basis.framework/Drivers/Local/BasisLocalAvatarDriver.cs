@@ -191,7 +191,8 @@ namespace Basis.Scripts.Drivers
 
             CollectHeadChopEntries(harvestedHeadChop);
 
-            player.AvatarTransform.rotation = player.transform.rotation;
+            player.LocalBoneDriver.SimulateAndApplyWithoutLerp(player);
+            player.DriveTpose();
             player.LocalBoneDriver.SimulateAndApplyWithoutLerp(player);
             player.LocalRigDriver.SetBodySettings();
 
@@ -234,6 +235,10 @@ namespace Basis.Scripts.Drivers
             {
                 AddJiggleRigColliders(Mapping);
             }
+            // Re-measure the player's eye height from the live HMD on every avatar load so DeviceScale is
+            // built from current truth instead of a stale/fallback value carried across the swap (which made
+            // you enter the new avatar scrunched). Avatar height was captured fresh in PutAvatarIntoTPose.
+            BasisHeightDriver.CapturePlayerHeight();
             BasisHeightDriver.ApplyScaleAndHeight();
 
             RecordCalibrationStage("Final", player);

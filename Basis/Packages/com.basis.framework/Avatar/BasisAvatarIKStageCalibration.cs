@@ -132,6 +132,12 @@ namespace Basis.Scripts.Avatar
                 BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
                 BasisLocalPlayer.Instance.DriveTpose();
 
+                // PutAvatarIntoTPose just re-captured the avatar eye height; recompute height/scale now so
+                // DeviceScale uses it on THIS pass and classification below runs at the final scale. The
+                // OnAvatarFBCalibration() at the top ran against the pre-calibration (often previous-avatar)
+                // height, which left the nudge wrong after one calibration and only settled on a second pass.
+                BasisHeightDriver.ApplyScaleAndHeight();
+
                 Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
 
                 try

@@ -17,7 +17,13 @@ namespace Basis.IK.Debugging
         bool _includeTraj = true;
         float _trajNoise = 0.003f;
         [System.NonSerialized] int _armGridSteps = 75;   // per-axis reach-target density for the arm grid sweep. NonSerialized so this code default wins on every recompile (Unity otherwise persists the open window's slider value).
+        [System.NonSerialized] float _density = 1f;      // global multiplier on every sweep's grid/case resolution (1 = each sweep's own default). NonSerialized so the code default wins on recompile.
         Vector2 _scroll;
+
+        // Scale a sweep's resolution by the global density multiplier. Per-axis (1D step counts, Cases),
+        // so a 3D grid grows by ~density^3 and a 2D grid by ~density^2 -- the per-sweep readouts show it.
+        static int Sc(int n, float m) => Mathf.Max(1, Mathf.RoundToInt(n * m));
+        static Vector3Int Sc(Vector3Int s, float m) => new Vector3Int(Sc(s.x, m), Sc(s.y, m), Sc(s.z, m));
 
         [MenuItem("Basis/Debug/IK/Run All Sweeps")]
         public static void ShowWindow()
@@ -40,9 +46,13 @@ namespace Basis.IK.Debugging
                 _trajNoise = EditorGUILayout.Slider("Trajectory Noise (m)", _trajNoise, 0f, 0.01f);
             }
 
-            _armGridSteps = EditorGUILayout.IntSlider("Arm Grid Steps (per axis)", _armGridSteps, 9, 99);
-            long armPts = (long)_armGridSteps * _armGridSteps * _armGridSteps;
-            EditorGUILayout.LabelField($"    arm grid = {armPts:n0} reach targets ({_armGridSteps}^3); higher = finer flip detection, slower", EditorStyles.miniLabel);
+            _density = EditorGUILayout.Slider("Validation Density ×", _density, 1f, 4f);
+            EditorGUILayout.LabelField($"    scales EVERY sweep's grid/case resolution ×{_density:0.00} (per dimension: ~×{_density * _density:0.0} on 2D grids, ~×{_density * _density * _density:0.0} on the 3D arm/leg/elbow grids). Higher = more thorough, slower.", EditorStyles.miniLabel);
+
+            _armGridSteps = EditorGUILayout.IntSlider("Arm Grid Steps (per axis, base)", _armGridSteps, 9, 99);
+            int armEff = Sc(_armGridSteps, _density);
+            long armPts = (long)armEff * armEff * armEff;
+            EditorGUILayout.LabelField($"    arm grid = {armPts:n0} targets ({armEff}^3 = {_armGridSteps}×{_density:0.0}); the densest sweep, sets the runtime", EditorStyles.miniLabel);
 
             if (GUILayout.Button("Run All IK Tests", GUILayout.Height(32)))
             {
@@ -108,12 +118,14 @@ namespace Basis.IK.Debugging
             // they finish (the editor is busy during the run, same as before -- just shorter), then log in
             // submission order so the console/list read the same as the serial version.
             int armSteps = _armGridSteps;
+            float density = _density;
             float trajNoise = _trajNoise;
             bool includeTraj = _includeTraj;
 
             string armPath = BasisArmIKSweep.DefaultPath();
             string armTrackerPath = BasisArmIKSweep.TrackerNaturalnessDefaultPath();
             string shoulderPath = BasisShoulderSweep.DefaultPath();
+            string shoulderCouplePath = BasisShoulderCoupleSweep.DefaultPath();
             string legPath = BasisLegIKSweep.DefaultPath();
             string legStancePath = TrajPath("BasisLegStraightStance.csv");
             string legInvPath = BasisLegInversionSweep.DefaultPath();
@@ -129,6 +141,7 @@ namespace Basis.IK.Debugging
             string hipHingePath = BasisHipHingeSweep.DefaultPath();
             string chestSpringPath = BasisChestSpringSweep.DefaultPath();
             string crouchPath = BasisCrouchOffsetSweep.DefaultPath();
+            string spineCompPath = BasisSpineCompressionSweep.DefaultPath();
             string spineBendPath = BasisSpineBendSweep.DefaultPath();
             string spineTwistPath = BasisSpineTwistSweep.DefaultPath();
             string swivelFilterPath = BasisSwivelFilterSweep.DefaultPath();
@@ -174,7 +187,7 @@ namespace Basis.IK.Debugging
                     try
                     {
                         var cfg = BasisArmIKSweepConfig.Default();
-                        cfg.Steps = new Vector3Int(armSteps, armSteps, armSteps);
+                        cfg.Steps = Sc(new Vector3Int(armSteps, armSteps, armSteps), density);
                         cfg.IsLeft = L;
                         var s = BasisArmIKSweep.Run(cfg, ap);
                         var g = BasisIKTestGates.GateArm(s);
@@ -188,28 +201,30 @@ namespace Basis.IK.Debugging
                     catch (System.Exception e) { return new[] { new Row { Name = $"Arm IK ({side})", Ok = false, Detail = e.Message, Path = null } }; }
                 });
                 jobs.Add(() => Job($"Arm IK · tracker naturalness ({side})", atnp, () => { var cfg = BasisArmIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisArmIKSweep.RunTrackerNaturalness(cfg, atnp); return BasisIKTestGates.GateArmTrackerNaturalness(s); }));
-                jobs.Add(() => Job($"Shoulder ({side})", shp, () => { var cfg = BasisShoulderSweepConfig.Default(); cfg.IsLeft = L; var s = BasisShoulderSweep.Run(cfg, shp); return BasisIKTestGates.GateShoulder(s); }));
-                jobs.Add(() => Job($"Leg IK ({side})", lp, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisLegIKSweep.Run(cfg, lp); return BasisIKTestGates.GateLeg(s); }));
+                jobs.Add(() => Job($"Shoulder ({side})", shp, () => { var cfg = BasisShoulderSweepConfig.Default(); cfg.IsLeft = L; cfg.AzSteps = Sc(cfg.AzSteps, density); cfg.ElSteps = Sc(cfg.ElSteps, density); cfg.ReachSteps = Sc(cfg.ReachSteps, density); var s = BasisShoulderSweep.Run(cfg, shp); return BasisIKTestGates.GateShoulder(s); }));
+                jobs.Add(() => Job($"Leg IK ({side})", lp, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; cfg.Steps = Sc(cfg.Steps, density); var s = BasisLegIKSweep.Run(cfg, lp); return BasisIKTestGates.GateLeg(s); }));
                 jobs.Add(() => Job($"Leg IK · straight stance ({side})", lss, () => { var cfg = BasisLegIKSweepConfig.Default(); cfg.IsLeft = L; var s = BasisLegIKSweep.RunStraightStance(cfg, lss); return BasisIKTestGates.GateLegStraightStance(s); }));
-                jobs.Add(() => Job($"Elbow Protect ({side})", pp, () => { var cfg = BasisElbowProtectSweepConfig.Default(); cfg.IsLeft = L; var s = BasisElbowProtectSweep.Run(cfg, pp); return BasisIKTestGates.GateElbow(s); }));
+                jobs.Add(() => Job($"Elbow Protect ({side})", pp, () => { var cfg = BasisElbowProtectSweepConfig.Default(); cfg.IsLeft = L; cfg.Steps = Sc(cfg.Steps, density); var s = BasisElbowProtectSweep.Run(cfg, pp); return BasisIKTestGates.GateElbow(s); }));
             }
             // Head and Leg Inversion have no per-side config (symmetric) -- run once.
-            jobs.Add(() => Job("Head", headPath, () => { var s = BasisHeadSweep.Run(BasisHeadSweepConfig.Default(), headPath); return BasisIKTestGates.GateHead(s); }));
-            jobs.Add(() => Job("Leg Inversion", legInvPath, () => { var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; var s = BasisLegInversionSweep.Run(cfg, legInvPath); return BasisIKTestGates.GateLegInversion(s); }));
+            jobs.Add(() => Job("Head", headPath, () => { var c = BasisHeadSweepConfig.Default(); c.PitchSteps = Sc(c.PitchSteps, density); var s = BasisHeadSweep.Run(c, headPath); return BasisIKTestGates.GateHead(s); }));
+            jobs.Add(() => Job("Leg Inversion", legInvPath, () => { var cfg = BasisLegInversionConfig.Default(); cfg.SafeConeDeg = BasisIKTestGates.LegInvertHintSafeConeDeg; cfg.HintAzSteps = Sc(cfg.HintAzSteps, density); cfg.HintElSteps = Sc(cfg.HintElSteps, density); var s = BasisLegInversionSweep.Run(cfg, legInvPath); return BasisIKTestGates.GateLegInversion(s); }));
             jobs.Add(() => Job("Tracker Placement", trackerPlacementPath, () => { var s = BasisTrackerPlacementSweep.Run(BasisTrackerPlacementSweepConfig.Default(), trackerPlacementPath); return BasisIKTestGates.GateTrackerPlacement(s); }));
-            jobs.Add(() => Job("Multi-Tracker Rotation", multiTrackerRotPath, () => { var s = BasisMultiTrackerRotationSweep.Run(BasisMultiTrackerRotationConfig.Default(), multiTrackerRotPath); return BasisIKTestGates.GateMultiTrackerRotation(s); }));
+            jobs.Add(() => Job("Multi-Tracker Rotation", multiTrackerRotPath, () => { var c = BasisMultiTrackerRotationConfig.Default(); c.YawSteps = Sc(c.YawSteps, density); c.PitchSteps = Sc(c.PitchSteps, density); c.RollSteps = Sc(c.RollSteps, density); var s = BasisMultiTrackerRotationSweep.Run(c, multiTrackerRotPath); return BasisIKTestGates.GateMultiTrackerRotation(s); }));
             jobs.Add(() => Job("Multi-Tracker Rotation · temporal", multiTrackerTemporalPath, () => { var s = BasisMultiTrackerRotationSweep.RunTemporal(BasisMultiTrackerRotationConfig.Default(), Basis.Scripts.Device_Management.Devices.Pairing.BasisMidpointFusionTunables.Default(), 1f / 90f, 0f, multiTrackerTemporalPath); return BasisIKTestGates.GateMultiTrackerRotationTemporal(s); }));
-            jobs.Add(() => Job("Calibration Math", calibMathPath, () => { var s = BasisCalibrationMathSweep.Run(BasisCalibrationMathSweepConfig.Default(), calibMathPath); return BasisIKTestGates.GateCalibrationMath(s); }));
-            jobs.Add(() => Job("Twist", twistPath, () => { var s = BasisTwistSweep.Run(BasisTwistSweepConfig.Default(), twistPath); return BasisIKTestGates.GateTwist(s); }));
-            jobs.Add(() => Job("Spine", spinePath, () => { var s = BasisSpineSweep.Run(BasisSpineSweepConfig.Default(), spinePath); return BasisIKTestGates.GateSpine(s); }));
-            jobs.Add(() => Job("Remote Bone", remoteBonePath, () => { var s = BasisRemoteBoneSweep.Run(BasisRemoteBoneSweepConfig.Default(), remoteBonePath); return BasisIKTestGates.GateRemoteBone(s); }));
-            jobs.Add(() => Job("Capsule Collision", capsulePath, () => { var s = BasisCapsuleCollisionSweep.Run(BasisCapsuleCollisionSweepConfig.Default(), capsulePath); return BasisIKTestGates.GateCapsuleCollision(s); }));
-            jobs.Add(() => Job("Spine Clamp", spineClampPath, () => { var s = BasisSpineClampSweep.Run(BasisSpineClampSweepConfig.Default(), spineClampPath); return BasisIKTestGates.GateSpineClamp(s); }));
-            jobs.Add(() => Job("Hip Hinge", hipHingePath, () => { var s = BasisHipHingeSweep.Run(BasisHipHingeSweepConfig.Default(), hipHingePath); return BasisIKTestGates.GateHipHinge(s); }));
+            jobs.Add(() => Job("Calibration Math", calibMathPath, () => { var c = BasisCalibrationMathSweepConfig.Default(); c.CasesPerSection = Sc(c.CasesPerSection, density); var s = BasisCalibrationMathSweep.Run(c, calibMathPath); return BasisIKTestGates.GateCalibrationMath(s); }));
+            jobs.Add(() => Job("Twist", twistPath, () => { var c = BasisTwistSweepConfig.Default(); c.Cases = Sc(c.Cases, density); var s = BasisTwistSweep.Run(c, twistPath); return BasisIKTestGates.GateTwist(s); }));
+            jobs.Add(() => Job("Spine", spinePath, () => { var c = BasisSpineSweepConfig.Default(); c.Cases = Sc(c.Cases, density); var s = BasisSpineSweep.Run(c, spinePath); return BasisIKTestGates.GateSpine(s); }));
+            jobs.Add(() => Job("Remote Bone", remoteBonePath, () => { var c = BasisRemoteBoneSweepConfig.Default(); c.Cases = Sc(c.Cases, density); var s = BasisRemoteBoneSweep.Run(c, remoteBonePath); return BasisIKTestGates.GateRemoteBone(s); }));
+            jobs.Add(() => Job("Capsule Collision", capsulePath, () => { var c = BasisCapsuleCollisionSweepConfig.Default(); c.OffsetSteps = Sc(c.OffsetSteps, density); var s = BasisCapsuleCollisionSweep.Run(c, capsulePath); return BasisIKTestGates.GateCapsuleCollision(s); }));
+            jobs.Add(() => Job("Spine Clamp", spineClampPath, () => { var c = BasisSpineClampSweepConfig.Default(); c.VerticalSteps = Sc(c.VerticalSteps, density); c.LateralSteps = Sc(c.LateralSteps, density); var s = BasisSpineClampSweep.Run(c, spineClampPath); return BasisIKTestGates.GateSpineClamp(s); }));
+            jobs.Add(() => Job("Hip Hinge", hipHingePath, () => { var c = BasisHipHingeSweepConfig.Default(); c.LeanSteps = Sc(c.LeanSteps, density); c.AzimuthSteps = Sc(c.AzimuthSteps, density); var s = BasisHipHingeSweep.Run(c, hipHingePath); return BasisIKTestGates.GateHipHinge(s); }));
             jobs.Add(() => Job("Chest Spring", chestSpringPath, () => { var s = BasisChestSpringSweep.Run(BasisChestSpringSweepConfig.Default(), chestSpringPath); return BasisIKTestGates.GateChestSpring(s); }));
-            jobs.Add(() => Job("Crouch Offset", crouchPath, () => { var s = BasisCrouchOffsetSweep.Run(BasisCrouchOffsetSweepConfig.Default(), crouchPath); return BasisIKTestGates.GateCrouchOffset(s); }));
-            jobs.Add(() => Job("Spine Bend", spineBendPath, () => { var s = BasisSpineBendSweep.Run(BasisSpineBendSweepConfig.Default(), spineBendPath); return BasisIKTestGates.GateSpineBend(s); }));
-            jobs.Add(() => Job("Spine Twist", spineTwistPath, () => { var s = BasisSpineTwistSweep.Run(BasisSpineTwistSweepConfig.Default(), spineTwistPath); return BasisIKTestGates.GateSpineTwist(s); }));
+            jobs.Add(() => Job("Shoulder Couple (elbow trail)", shoulderCouplePath, () => { var c = BasisShoulderCoupleSweepConfig.Default(); c.SwingSteps = Sc(c.SwingSteps, density); var s = BasisShoulderCoupleSweep.Run(c, shoulderCouplePath); return BasisIKTestGates.GateShoulderCouple(s); }));
+            jobs.Add(() => Job("Crouch Offset", crouchPath, () => { var c = BasisCrouchOffsetSweepConfig.Default(); c.DepthSteps = Sc(c.DepthSteps, density); c.YawSteps = Sc(c.YawSteps, density); var s = BasisCrouchOffsetSweep.Run(c, crouchPath); return BasisIKTestGates.GateCrouchOffset(s); }));
+            jobs.Add(() => Job("Spine Compression", spineCompPath, () => { var c = BasisSpineCompressionSweepConfig.Default(); c.HeadDropSteps = Sc(c.HeadDropSteps, density); var s = BasisSpineCompressionSweep.Run(c, spineCompPath); return BasisIKTestGates.GateSpineCompression(s); }));
+            jobs.Add(() => Job("Spine Bend", spineBendPath, () => { var c = BasisSpineBendSweepConfig.Default(); c.HeadGridSteps = Sc(c.HeadGridSteps, density); c.TwistYawSteps = Sc(c.TwistYawSteps, density); var s = BasisSpineBendSweep.Run(c, spineBendPath); return BasisIKTestGates.GateSpineBend(s); }));
+            jobs.Add(() => Job("Spine Twist", spineTwistPath, () => { var c = BasisSpineTwistSweepConfig.Default(); c.InvariantCases = Sc(c.InvariantCases, density); c.LeanSteps = Sc(c.LeanSteps, density); var s = BasisSpineTwistSweep.Run(c, spineTwistPath); return BasisIKTestGates.GateSpineTwist(s); }));
             jobs.Add(() => Job("Swivel Filter", swivelFilterPath, () => { var s = BasisSwivelFilterSweep.Run(BasisSwivelFilterSweepConfig.Default(), swivelFilterPath); return BasisIKTestGates.GateSwivelFilter(s); }));
             jobs.Add(() => Job("Swing Continuity", swingContinuityPath, () => { var s = BasisSwingContinuitySweep.Run(BasisSwingContinuitySweepConfig.Default(), swingContinuityPath); return BasisIKTestGates.GateSwingContinuity(s); }));
             jobs.Add(() => Job("One-Euro Filter", oneEuroPath, () => { var s = BasisOneEuroSweep.Run(BasisOneEuroSweepConfig.Default(), oneEuroPath); return BasisIKTestGates.GateOneEuro(s); }));

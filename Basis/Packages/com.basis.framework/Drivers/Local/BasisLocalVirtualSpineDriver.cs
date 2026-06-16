@@ -62,6 +62,9 @@ public class BasisLocalVirtualSpineDriver
     private float _tChest;
     /// <summary>tSpine = (lenNeckToChest + lenChestToSpine) / lenTotal, cached alongside lengths.</summary>
     private float _tSpine;
+    /// <summary>Standing hips local Y = rest neck Y − total spine length: the rigid model's hips height
+    /// when the head is at rest. Spine compression measures the head drop relative to this.</summary>
+    private float _standingHipsLocalY;
 
     /// <summary>Set whenever cached lengths need to be recomputed (scale or TPose changed).</summary>
     private bool _lengthsDirty = true;
@@ -246,6 +249,10 @@ public class BasisLocalVirtualSpineDriver
             LenTotal = _lenTotal,
             TChest = _tChest,
             TSpine = _tSpine,
+
+            StandingHipsLocalY = _standingHipsLocalY,
+            HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
+            HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
         };
 
         new BasisVirtualSpineSolveJob
@@ -291,6 +298,8 @@ public class BasisLocalVirtualSpineDriver
         _lenTotal = math.max(1e-4f, _lenNeckToChest + _lenChestToSpine + _lenSpineToHips);
         _tChest = math.saturate(_lenNeckToChest / _lenTotal);
         _tSpine = math.saturate((_lenNeckToChest + _lenChestToSpine) / _lenTotal);
+        // Rigid-model hips Y at rest (neck at rest height): drop below this drives spine compression.
+        _standingHipsLocalY = pNeck.y - _lenTotal;
     }
 
     /// <summary>Per-frame solver inputs packed on the main thread (settings, cues, calibration).</summary>
@@ -343,6 +352,10 @@ public class BasisLocalVirtualSpineDriver
         public float LenTotal;
         public float TChest;
         public float TSpine;
+
+        public float StandingHipsLocalY;
+        public float HipsCompressionStrength;
+        public float HipsMaxDropMeters;
     }
 
     /// <summary>Persistent spine solver state carried across frames (low-pass + yaw deadzone).</summary>
@@ -430,6 +443,9 @@ public class BasisLocalVirtualSpineDriver
                 in desiredHipsXZ,
                 freeze,
                 in tposeHips,
+                P.StandingHipsLocalY,
+                P.HipsCompressionStrength,
+                P.HipsMaxDropMeters,
                 out float3 hipsPos);
 
             quaternion hipsRotTarget = freeze ? quaternion.identity : torsoYawTarget;
@@ -690,6 +706,9 @@ public class BasisLocalVirtualSpineDriver
         in float3 desiredHipsXZ,
         bool freezeToTpose,
         in float3 tposeHips,
+        float standingHipsLocalY,
+        float compressionStrength,
+        float maxDrop,
         out float3 result)
     {
         // Match original semantics: when frozen, bias direction is world-aligned (identity yaw),
@@ -705,7 +724,18 @@ public class BasisLocalVirtualSpineDriver
             return;
         }
 
-        // Y from neck-minus-spine-length, XZ from the realistic model, plus pelvic-tilt forward bias.
+        // Spine compression: the rigid model sinks the pelvis by the full head drop (neck − lenTotal),
+        // so leaning to touch toes or sitting buries the hips and the leg IK folds the knees. Saturate
+        // the downward travel toward maxDrop so the spine shortens (chest scrunches) and the pelvis
+        // holds near standing height. drop ≤ 0 (head at/above standing) leaves the rigid pose untouched.
+        float drop = standingHipsLocalY - hipsBase.y;
+        if (drop > 0f && compressionStrength > 0f && maxDrop > 1e-4f)
+        {
+            float softDrop = maxDrop * (1f - math.exp(-drop / maxDrop));
+            hipsBase.y = standingHipsLocalY - math.lerp(drop, softDrop, math.saturate(compressionStrength));
+        }
+
+        // Y from neck-minus-spine-length (now compressed), XZ from the realistic model, plus pelvic bias.
         result = new float3(desiredHipsXZ.x, hipsBase.y, desiredHipsXZ.z) + forwardBias;
     }
 

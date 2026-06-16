@@ -24,6 +24,10 @@ namespace Basis.IK.Debugging
         public const float ShoulderMaxAdjacentJumpDeg = 8f;    // smooth arm motion -> smooth girdle (the solve is a continuous function of direction)
         public const float ShoulderMaxNoisyJitterDeg = 8f;     // a jittery elbow tracker must not whip the girdle
         public const float ShoulderMinBentArmGainDeg = 4f;     // the elbow tracker must elevate a bent-arm raise MORE than the hand fallback can (the headline win)
+        // --- scapulohumeral coupling reduction (the floaty/trailing-elbow regression fix). The girdle -- and the
+        //     elbow riding it -- must swing a BOUNDED, REDUCED amount vs the pre-fix coupling. ---
+        public const float ShoulderCoupleMaxAppliedDeg = 27f;     // shipped girdle-swing ceiling (clamp 25 + slack). Above = the elbow can trail far.
+        public const float ShoulderCoupleMinReductionFrac = 0.3f; // shipped must swing the root >=30% less than the legacy coupling across the engaged raise (computed ~0.375).
         public const float HeadMaxNeckDeg = 90f;
         public const float TrajMaxPopDeg = 45f;             // swivel jump on smooth motion (discontinuity)
         public const float TrajMaxRoughDeg = 15f;           // swivel roughness under tracking noise (jitter)
@@ -43,6 +47,14 @@ namespace Basis.IK.Debugging
         public const float LegStraightStanceMaxFlipSens = 0.5f;   // how far a tiny uneven-feet/waist-tilt swings the standing knee inward; high = near-singular coin-flip (the asymmetric flicker).
         public const float LegStanceFlickerMaxStepDeg = 3f;       // STATEFUL: worst per-frame knee-swivel jump under 3mm foot noise at a near-straight reach (measured 0.1deg -- the solver is stable offline). 3 is a wide guard against a solver destabilization.
         public const float LegStanceFlickerMaxRangeDeg = 8f;      // STATEFUL: total knee-swivel wander over the run (measured 0deg). 8 catches a slow drift (e.g. an un-anchoring fix); two metrics so a fix can't trade flicker for drift.
+        // --- virtual-spine hips compression (the touch-toes-folds-knees + seated-hips-too-low fix). The pelvis no
+        //     longer sinks the full head drop; the spine shortens instead. Thresholds derive from the deterministic
+        //     sweep geometry + the saturating model (computed values in comments). ---
+        public const float SpineCompMinKneeStraighterDeg = 5f;    // engaged band: compression must keep the planted-foot knee this much straighter than rigid (computed ~10 at the engage boundary). <this = not engaging.
+        public const float SpineCompMinDeepLeanKneeDeg = 70f;     // deepest lean: knee interior angle must hold >= this (computed ~75 on; rigid folds to the 20 clamp). <this = still buckling.
+        public const float SpineCompMaxSinkFracOfDrop = 0.6f;     // peak pelvis sink must stay under this fraction of the rigid full-drop sink (computed ~0.45). >this = pelvis still chases the head down.
+        public const float SpineCompMaxAboveStandingDevM = 1e-4f; // head at/above standing must leave the rigid pose untouched (no idle posture change).
+        public const float SpineCompMaxStepDiscontinuityM = 0.05f;// compressed hips height moves smoothly over the head ramp (computed ~0.014/step). >this = a pop.
         // --- tracker placement / discovery gates (calibrate against a known-good run) ---
         public const float TrackerPlacementCleanMinFraction = 0.85f; // overall clean (no-jitter) correctness floor across ALL archetypes incl. extreme; below = broken
         public const float TrackerPlacementCoreMinFraction = 1.0f;   // common "core" archetypes must classify every tracker cleanly
@@ -452,6 +464,8 @@ namespace Basis.IK.Debugging
         // --- twist (swing-twist decomposition) ---
         public const float TwistMaxErrDeg = 0.5f;        // pure-twist recovery + partial-twist blend error
         public const float TwistMaxAxisMisalignDeg = 1f; // extracted twist axis vs bone axis with a swing present
+        public const float TwistMaxConcentrationRatio = 1.25f; // even-distribution: worst per-span twist rate / the even ideal (1 = perfect). >this = roll piling up at one joint (candy-wrapper). Old fixed-fraction hit ~5-9x at wrist-end bones.
+        public const float TwistMaxEvennessErrDeg = 2f;  // twist bone's deviation from the linear (even) roll gradient
 
         // BasisTwistSolveCore: a pure twist about the bone axis must be recovered exactly, the Fraction must
         // blend it linearly, a perpendicular swing must not tilt the extracted twist axis, and the singular
@@ -466,7 +480,13 @@ namespace Basis.IK.Debugging
                 return (false, $"twist recovery off: pure={s.MaxPureTwistErrDeg:F3} frac={s.MaxFractionErrDeg:F3} deg > {TwistMaxErrDeg}");
             if (s.MaxAxisMisalignDeg > TwistMaxAxisMisalignDeg)
                 return (false, $"swing tilted the extracted twist axis by {s.MaxAxisMisalignDeg:F2} deg > {TwistMaxAxisMisalignDeg} (swing-twist not separating)");
-            return (true, $"pure={s.MaxPureTwistErrDeg:F3} frac={s.MaxFractionErrDeg:F3} axisMis={s.MaxAxisMisalignDeg:F2} deg cases={s.Cases}");
+            // Even distribution: a single twist bone must take a share == its position along the bone, so the
+            // roll spreads as a linear gradient instead of piling up at one joint (the candy-wrapper).
+            if (s.DistributionCases > 0 && s.MaxConcentrationRatio > TwistMaxConcentrationRatio)
+                return (false, $"twist piles up at one joint: concentration {s.MaxConcentrationRatio:F2}x the even rate > {TwistMaxConcentrationRatio} (candy-wrapper -- distribution not position-proportional)");
+            if (s.DistributionCases > 0 && s.MaxEvennessErrDeg > TwistMaxEvennessErrDeg)
+                return (false, $"twist gradient off linear by {s.MaxEvennessErrDeg:F1} deg > {TwistMaxEvennessErrDeg} (uneven distribution)");
+            return (true, $"pure={s.MaxPureTwistErrDeg:F3} frac={s.MaxFractionErrDeg:F3} axisMis={s.MaxAxisMisalignDeg:F2} deg conc={s.MaxConcentrationRatio:F2}x even={s.MaxEvennessErrDeg:F1} cases={s.Cases}/{s.DistributionCases}");
         }
 
         // --- virtual spine + remote bone chain ---
@@ -644,6 +664,45 @@ namespace Basis.IK.Debugging
             if (s.MonotonicViolations > 0)
                 return (false, $"{s.MonotonicViolations} cases where the offset shrank as crouch grew (non-monotonic)");
             return (true, $"applied={s.AppliedCases} magErr={s.MaxMagErrM:F6}m up={s.MaxUpComponentM:F6}m dir={s.MaxDirErrDeg:F2}° cases={s.Cases}");
+        }
+
+        // Virtual-spine hips compression: a deep head drop (touch toes / sit) must NOT sink the pelvis the full
+        // rigid distance -- the spine shortens so the planted-foot knee stays straighter and the seated hips stay
+        // up. Verified end-to-end through the leg solve. At/above standing it must be a no-op.
+        public static (bool pass, string reason) GateSpineCompression(in BasisSpineCompressionSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no engaged cases (sweep not exercising the compression band)");
+            if (s.NanCount > 0) return (false, $"{s.NanCount} non-finite hips results");
+            if (s.AboveStandingMaxDevM > SpineCompMaxAboveStandingDevM)
+                return (false, $"pose shifted {s.AboveStandingMaxDevM:F5} m while head >= standing > {SpineCompMaxAboveStandingDevM} (idle posture must not change)");
+            if (s.MinKneeStraighterDeg < SpineCompMinKneeStraighterDeg)
+                return (false, $"knee only {s.MinKneeStraighterDeg:F1} deg straighter than rigid in the engaged band < {SpineCompMinKneeStraighterDeg} (compression not engaging)");
+            if (s.KneeAtDeepLeanOnDeg < SpineCompMinDeepLeanKneeDeg)
+                return (false, $"deep-lean knee folds to {s.KneeAtDeepLeanOnDeg:F0} deg < {SpineCompMinDeepLeanKneeDeg} (still buckling; rigid was {s.KneeAtDeepLeanOffDeg:F0})");
+            float sinkFrac = s.MaxPelvisSinkRigidM > 1e-4f ? s.MaxPelvisSinkM / s.MaxPelvisSinkRigidM : 0f;
+            if (sinkFrac > SpineCompMaxSinkFracOfDrop)
+                return (false, $"pelvis sinks {s.MaxPelvisSinkM:F3} m = {sinkFrac:P0} of the rigid drop > {SpineCompMaxSinkFracOfDrop:P0} (hips still pulled down)");
+            if (s.MaxStepDiscontinuityM > SpineCompMaxStepDiscontinuityM)
+                return (false, $"compressed hips jump {s.MaxStepDiscontinuityM:F3} m between steps > {SpineCompMaxStepDiscontinuityM} (pop)");
+            return (true, $"deepLeanKnee={s.KneeAtDeepLeanOnDeg:F0}/{s.KneeAtDeepLeanOffDeg:F0}deg(on/rigid) kneeGain>={s.MinKneeStraighterDeg:F1}deg sink={s.MaxPelvisSinkM:F3}m({sinkFrac:P0} of rigid) cases={s.Cases}");
+        }
+
+        // Scapulohumeral coupling: with no shoulder tracker the girdle swing the elbow rides must stay bounded and
+        // be meaningfully smaller than the pre-fix coupling, so the elbow tracks the hand instead of trailing.
+        public static (bool pass, string reason) GateShoulderCouple(in BasisShoulderCoupleSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Cases <= 0) return (false, "no cases");
+            if (s.EngagedCases <= 0) return (false, "girdle never engaged (sweep not raising the arm)");
+            if (s.NanCount > 0) return (false, $"{s.NanCount} non-finite results");
+            if (s.MaxAppliedShippedDeg > ShoulderCoupleMaxAppliedDeg)
+                return (false, $"girdle swings {s.MaxAppliedShippedDeg:F0} deg > {ShoulderCoupleMaxAppliedDeg} (elbow can trail far)");
+            if (s.MinReductionFrac < ShoulderCoupleMinReductionFrac)
+                return (false, $"shipped girdle only {s.MinReductionFrac:P0} less than legacy < {ShoulderCoupleMinReductionFrac:P0} (coupling not reduced enough)");
+            if (s.MonotonicViolations > 0)
+                return (false, $"{s.MonotonicViolations} non-monotonic steps as the arm raises (girdle pop)");
+            return (true, $"appliedMax={s.MaxAppliedShippedDeg:F0}deg(legacy {s.MaxAppliedLegacyDeg:F0}) reduction>={s.MinReductionFrac:P0} engaged={s.EngagedCases}");
         }
 
         // --- spine bend distribution (per-axis spine/upperChest) ---

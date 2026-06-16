@@ -157,9 +157,21 @@ public struct BasisFootSimulateJob : IJob
             }
         }
 
+        // Idle leg stiffening: a world-locked foot + a head-driven hip force the knee to track ~half the body
+        // sway (the leg tilts rigidly about the foot). When stationary, let each planted foot gently give toward
+        // the body's drift so the leg tilts less and the knee stays stiller -- a direct trade (stiffer knee = more
+        // idle foot give). Walking is untouched (idle-only). idleStiffenRate 0 = off (locked feet, knee tracks ~0.5x).
+        const float idleStiffenRate = 0.5f;
+        if (stationary && idleStiffenRate > 0f)
+        {
+            float g = 1f - math.exp(-idleStiffenRate * dt);
+            if (left.phase == 0) left.plantedPos += ProjectOntoUpPlane(left.idealPos - left.plantedPos, up) * g;
+            if (right.phase == 0) right.plantedPos += ProjectOntoUpPlane(right.idealPos - right.plantedPos, up) * g;
+        }
+
         // ── Update feet ──
-        UpdateFoot(ref left, ref right, rawFwd, rawRight, hipsGround, speed, threshold, stepDur, dt, up);
-        UpdateFoot(ref right, ref left, rawFwd, rawRight, hipsGround, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref left, ref right, rawFwd, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref right, ref left, rawFwd, speed, threshold, stepDur, dt, up);
 
         // One foot stays grounded: if both planted feet want to step the same tick, keep the
         // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
@@ -220,7 +232,7 @@ public struct BasisFootSimulateJob : IJob
     }
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
-        float3 rawFwd, float3 rawRight, float3 center, float speed, float threshold, float stepDur, float dt, float3 up)
+        float3 rawFwd, float speed, float threshold, float stepDur, float dt, float3 up)
     {
         if (f.phase == 0) // Planted
         {
@@ -243,13 +255,7 @@ public struct BasisFootSimulateJob : IJob
                 yawTrigger = yawDiff > p.maxPlantedYawDegrees;
             }
 
-            // Crossing guard: planted feet aren't side-snapped (that pops -- see Execute), so re-step one
-            // that has drifted toward/over the body centerline before the feet tangle. Clearance mirrors the
-            // stepping-foot side enforcement so a freshly landed foot keeps margin and won't re-trigger.
-            float ownSideClearance = math.dot(f.plantedPos - center, rawRight) * f.sideSign;
-            bool crossTrigger = ownSideClearance < p.stanceWidth * 0.5f * p.footSideEnforceFraction;
-
-            if ((dist > threshold || yawTrigger || crossTrigger) && other.phase == 0)
+            if ((dist > threshold || yawTrigger) && other.phase == 0)
             {
                 f.wantsStep = true;
                 f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, speed, stepDur, up);

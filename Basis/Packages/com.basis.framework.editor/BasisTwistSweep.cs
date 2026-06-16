@@ -27,6 +27,9 @@ namespace Basis.IK.Debugging
         public float MaxFractionErrDeg;    // partial-twist angle vs Fraction*angle
         public float MaxAxisMisalignDeg;   // extracted twist axis vs the bone axis, with a perpendicular swing present
         public int SingularityFailures;    // Fraction<=0 or zero bone vector must return Apply=false
+        public float MaxConcentrationRatio; // worst per-span twist rate / the even ideal (1 = perfectly even, >1 = roll piling up at one joint)
+        public float MaxEvennessErrDeg;     // worst deviation of the twist bone from the linear (even) gradient
+        public int DistributionCases;       // position×roll combos checked for even distribution
     }
 
     public static class BasisTwistSweep
@@ -119,6 +122,44 @@ namespace Basis.IK.Debugging
                         }
                     }
                 }
+
+                // Even-distribution check: a single twist bone must take a share equal to its POSITION along
+                // the bone (BasisTwistSolveCore.SegmentPositionFraction), so the roll spreads as a LINEAR
+                // gradient. Concentration ratio = worst per-span twist rate / the uniform ideal (1 = perfectly
+                // even; >1 = the roll piling up at one joint -- the "candy-wrapper" the position-proportional
+                // share fixes). With distribution strength 1, the bone's share == its position fraction.
+                float worstConc = 1f, worstEvenErr = 0f;
+                int distCases = 0;
+                Vector3 axis = Vector3.forward;
+                Vector3 parentPos = Vector3.zero;
+                Vector3 childPos = axis * 0.26f;
+                for (int pi = 1; pi <= 17; pi++)
+                {
+                    float p = pi / 18f;
+                    Vector3 twistPos = axis * (p * 0.26f);
+                    float pMeas = BasisTwistSolveCore.SegmentPositionFraction(parentPos, childPos, twistPos);
+                    foreach (float roll in new[] { 30f, 75f, 120f, 160f })
+                    {
+                        var di = new BasisTwistSolveInput
+                        {
+                            ParentRotation = Quaternion.identity,
+                            ChildRotation = Quaternion.AngleAxis(roll, axis),
+                            ParentToChild = childPos - parentPos,
+                            Fraction = pMeas, // strength 1 -> even share == position fraction
+                        };
+                        BasisTwistSolveCore.Solve(di, out BasisTwistSolveResult dr);
+                        float boneRoll = dr.Apply ? Quaternion.Angle(Quaternion.identity, dr.TwistWorldRotation) : 0f;
+                        float effMeas = roll > 1e-4f ? boneRoll / roll : 0f;
+                        float rate1 = p > 1e-4f ? effMeas / p : 0f;
+                        float rate2 = (1f - p) > 1e-4f ? (1f - effMeas) / (1f - p) : 0f;
+                        worstConc = Mathf.Max(worstConc, Mathf.Max(rate1, rate2));
+                        worstEvenErr = Mathf.Max(worstEvenErr, Mathf.Abs(boneRoll - p * roll));
+                        distCases++;
+                    }
+                }
+                s.MaxConcentrationRatio = worstConc;
+                s.MaxEvennessErrDeg = worstEvenErr;
+                s.DistributionCases = distCases;
 
                 s.Ok = true;
             }

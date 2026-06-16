@@ -4704,19 +4704,19 @@
     },
     {
       "key": "settings.bodyTracking.lowerArmTwist.title",
-      "value": "Forearm Twist Fraction"
+      "value": "Forearm Twist Distribution"
     },
     {
       "key": "settings.bodyTracking.lowerArmTwist.description",
-      "value": "Fraction of the wrist's roll absorbed by the forearm twist bone. Default: 0.5"
+      "value": "How evenly the forearm twist bone spreads the wrist's roll along the bone. 1 = even gradient (no wrist pinch); 0 = off. Default: 1.0"
     },
     {
       "key": "settings.bodyTracking.upperArmTwist.title",
-      "value": "Upper Arm Twist Fraction"
+      "value": "Upper Arm Twist Distribution"
     },
     {
       "key": "settings.bodyTracking.upperArmTwist.description",
-      "value": "Fraction of the elbow's roll absorbed by the upper arm twist bone. Default: 0.3"
+      "value": "How evenly the upper arm twist bone spreads the elbow's roll along the bone. 1 = even gradient; 0 = off. Default: 1.0"
     },
     {
       "key": "settings.bodyTracking.section.anatomy.title",

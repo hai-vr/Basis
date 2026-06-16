@@ -931,8 +931,11 @@ namespace UnityEngine.Animations.Rigging
         // Scapulohumeral coupling: the shoulder girdle follows this share of the humeral swing
         // (real scapula contributes ~1/3 of total elevation); the per-axis Elevation/Protraction
         // settings trim it. Clamp the applied girdle rotation below the GateShoulder ceiling.
-        const float k_ShoulderCoupleRatio = 0.8f;
-        const float k_ShoulderMaxDeg = 40f;
+        // Kept conservative because the elbow rides the girdle root: with no shoulder tracker a high
+        // coupling swings the arm root on a ramped curve the hand has already left, reading as a
+        // floaty / trailing elbow. ~0.4 keeps the anatomical girdle motion without the lag.
+        const float k_ShoulderCoupleRatio = 0.4f;
+        const float k_ShoulderMaxDeg = 25f;
 
         public ReadWriteTransformHandle HandleChest, HandleNeck, HandleHead,
   HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
@@ -1769,11 +1772,18 @@ w20, w54;
             if (!parent.IsValid(stream) || !child.IsValid(stream))
                 return;
 
+            Vector3 parentPos = parent.GetPosition(stream);
+            Vector3 childPos = child.GetPosition(stream);
+            // Even distribution: the twist bone absorbs a share equal to its POSITION along the segment, so the
+            // roll spreads as a linear gradient instead of piling up between a wrist-end twist bone and the hand
+            // (the candy-wrapper). 'fraction' is the distribution strength (1 = fully even, 0 = no twist bone).
+            float positionFraction = BasisTwistSolveCore.SegmentPositionFraction(parentPos, childPos, twist.GetPosition(stream));
+
             BasisTwistSolveInput input;
             input.ParentRotation = parent.GetRotation(stream);
             input.ChildRotation = child.GetRotation(stream);
-            input.ParentToChild = child.GetPosition(stream) - parent.GetPosition(stream);
-            input.Fraction = fraction;
+            input.ParentToChild = childPos - parentPos;
+            input.Fraction = positionFraction * fraction;
 
             BasisTwistSolveCore.Solve(input, out BasisTwistSolveResult result);
             if (result.Apply)

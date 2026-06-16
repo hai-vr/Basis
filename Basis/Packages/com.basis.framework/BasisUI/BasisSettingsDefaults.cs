@@ -1098,9 +1098,11 @@ namespace Basis.BasisUI
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
-        // Arm twist distribution: fraction of wrist/elbow roll absorbed by twist bones
-        public static BasisSettingsBinding<float> FBIKLowerArmTwistFraction = new("fbiklowerarmtwistfraction", new BasisPlatformDefault<float>(0.5f));
-        public static BasisSettingsBinding<float> FBIKUpperArmTwistFraction = new("fbikupperarmtwistfraction", new BasisPlatformDefault<float>(0.3f));
+        // Arm twist DISTRIBUTION STRENGTH (1 = fully even: each twist bone takes a share equal to its position
+        // along the bone -> linear roll gradient; 0 = no twist bone, roll piles up at the wrist). Key bumped to
+        // _v2 because the meaning changed from a raw roll fraction (old 0.5/0.3) to a position-scaled strength.
+        public static BasisSettingsBinding<float> FBIKLowerArmTwistFraction = new("fbiklowerarmtwistfraction_v2", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> FBIKUpperArmTwistFraction = new("fbikupperarmtwistfraction_v2", new BasisPlatformDefault<float>(1f));
 
         // Anatomy — IK refinements modeled on real biomechanics. Persistence keys are versioned
         // (_v2) so existing installs with the old off-by-default values saved pick up the new
@@ -1162,6 +1164,14 @@ namespace Basis.BasisUI
         // hard-coded counterbalance/pendulum model in the virtual spine driver — see
         // BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
         public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias", new BasisPlatformDefault<float>(0.02f));
+
+        // Spine compression: the synthesized hips Y is neck - rigid spine length, so lowering the head
+        // (leaning to touch toes, sitting) drags the pelvis straight down the full rest length and the
+        // leg IK folds the knees to keep the planted feet. These two let the spine SHORTEN instead:
+        // once the head drops below standing, the hips' downward travel saturates toward MaxDrop so the
+        // chest scrunches and the pelvis stays up. Strength 0 = rigid (legacy), 1 = full saturation.
+        public static BasisSettingsBinding<float> VSpineHipsCompressionStrength = new("vspinehipscompressionstrength", new BasisPlatformDefault<float>(0.85f));
+        public static BasisSettingsBinding<float> VSpineHipsMaxDropMeters = new("vspinehipsmaxdropmeters", new BasisPlatformDefault<float>(0.3f));
 
         // Torso yaw "play": degrees the head can turn before the synthesized chest/spine/hips begin
         // following. The torso holds inside this cone, catches up once the head leaves it, then the
