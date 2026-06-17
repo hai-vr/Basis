@@ -598,6 +598,7 @@ namespace Basis.Scripts.Drivers
                 // ── BUTTERFLY KNEES (laying-down knee splay from tracked feet with no knee tracker) ──
                 bool butterflyEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKnees.RawValue;
                 float butterflyMaxOpenDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.RawValue;
+                float butterflySupineFloor = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKneesUpright.RawValue ? 1f : 0f;
                 Vector3 playerUpDir = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up).normalized;
                 bool leftFootTracked = fbtEnabled && BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
                 bool rightFootTracked = fbtEnabled && BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
@@ -622,7 +623,7 @@ namespace Basis.Scripts.Drivers
                     data.EnableLeftLowerLeg = footIKBlendWeightLeft;
                 }
                 else if (butterflyEnabled && leftFootTracked && TryComputeButterflyKnee(
-                    true, hipsRot, playerUpDir, butterflyMaxOpenDeg, deltaTime,
+                    true, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime,
                     data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
                     ref smoothedLeftButterflyHint, ref smoothedLeftButterflyWeight,
                     out Vector3 lButterflyHint, out Quaternion lButterflyRot, out float lButterflyWeight))
@@ -656,7 +657,7 @@ namespace Basis.Scripts.Drivers
                     data.EnableRightLowerLeg = footIKBlendWeightRight;
                 }
                 else if (butterflyEnabled && rightFootTracked && TryComputeButterflyKnee(
-                    false, hipsRot, playerUpDir, butterflyMaxOpenDeg, deltaTime,
+                    false, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime,
                     data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
                     ref smoothedRightButterflyHint, ref smoothedRightButterflyWeight,
                     out Vector3 rButterflyHint, out Quaternion rButterflyRot, out float rButterflyWeight))
@@ -1059,6 +1060,7 @@ namespace Basis.Scripts.Drivers
             data.AnatShoulderSlide = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatShoulderSlide.RawValue;
             data.AnatCervicalLordosis = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatCervicalLordosis.RawValue;
             data.AnatPelvicTwistRouting = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.RawValue;
+            data.LegSwivelSmoothing = Basis.BasisUI.BasisSettingsDefaults.FBIKLegSwivelSmoothing.RawValue;
             data.LordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
             data.LordosisBaseDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisBaseDeg.RawValue;
             data.LordosisNeckShare = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisNeckShare.RawValue;
@@ -1217,7 +1219,7 @@ namespace Basis.Scripts.Drivers
         /// butterfly. The open angle is clamped to the hip's natural max-open inside the core.
         /// </summary>
         private static bool TryComputeButterflyKnee(
-            bool isLeft, Quaternion hipsRot, Vector3 playerUp, float maxOpenDeg, float dt,
+            bool isLeft, Quaternion hipsRot, Vector3 playerUp, float maxOpenDeg, float supineFloor, float dt,
             Transform upperLeg, Transform lowerLeg, Vector3 footPos, Quaternion footRot,
             ref Vector3 smoothedHint, ref float smoothedWeight,
             out Vector3 hintPos, out Quaternion hintRot, out float weight)
@@ -1247,6 +1249,7 @@ namespace Basis.Scripts.Drivers
             input.LowerLength = Vector3.Distance(lowerLeg.position, footPos);
             input.MaxOpenDeg = maxOpenDeg;
             input.Strength = 1f;
+            input.SupineFloor = supineFloor;
 
             BasisButterflyKneeCore.Solve(input, out BasisButterflyKneeResult result);
 

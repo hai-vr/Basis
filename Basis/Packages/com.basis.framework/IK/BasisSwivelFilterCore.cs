@@ -30,9 +30,14 @@ namespace UnityEngine.Animations.Rigging
 
         public static BasisSwivelFilterState Step(BasisSwivelFilterState s, float curSwivel, float dt)
         {
+            return Step(s, curSwivel, dt, MinCutoffHz, Beta, DerivCutoffHz);
+        }
+
+        public static BasisSwivelFilterState Step(BasisSwivelFilterState s, float curSwivel, float dt, float minCutoffHz, float beta, float derivCutoffHz)
+        {
             float vel = Mathf.DeltaAngle(s.Raw, curSwivel) / dt;
-            float velHat = Mathf.Lerp(s.Vel, vel, Alpha(DerivCutoffHz, dt));
-            float cutoff = MinCutoffHz + Beta * Mathf.Abs(velHat);
+            float velHat = Mathf.Lerp(s.Vel, vel, Alpha(derivCutoffHz, dt));
+            float cutoff = minCutoffHz + beta * Mathf.Abs(velHat);
             float smooth = s.Smooth + Mathf.DeltaAngle(s.Smooth, curSwivel) * Alpha(cutoff, dt);
             return new BasisSwivelFilterState { Raw = curSwivel, Vel = velHat, Smooth = smooth };
         }

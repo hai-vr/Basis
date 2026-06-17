@@ -907,6 +907,10 @@
       "value": "Route pelvic twist through the spine for more lifelike turning."
     },
     {
+      "key": "settings.bodyTracking.anat.legSwivelSmoothing.title.tooltip",
+      "value": "Stop the legs twisting when you stand still."
+    },
+    {
       "key": "settings.bodyTracking.debugInfo.tooltip",
       "value": "Show live body tracking measurements for troubleshooting."
     },
@@ -4475,6 +4479,14 @@
       "value": "When laying on your back with foot trackers (and no knee trackers), tilt your feet outward and pull them in to let your knees fall open. Default: On"
     },
     {
+      "key": "settings.bodyTracking.butterflyKneesUpright",
+      "value": "Butterfly Knees While Upright"
+    },
+    {
+      "key": "settings.bodyTracking.butterflyKneesUpright.tooltip",
+      "value": "Also allow the butterfly knees to fall open while sitting upright (cross-legged), not only when laying on your back. Default: On"
+    },
+    {
       "key": "settings.bodyTracking.butterflyKneeMaxOpen.title",
       "value": "Butterfly Knee Max Open (deg)"
     },
@@ -4789,6 +4801,14 @@
     {
       "key": "settings.bodyTracking.anat.pelvicTwistRouting.description",
       "value": "Forces hip-to-chest twist to distribute 75% upper chest / 25% spine — the real anatomical ratio for axial rotation."
+    },
+    {
+      "key": "settings.bodyTracking.anat.legSwivelSmoothing.title",
+      "value": "Leg Swivel Smoothing"
+    },
+    {
+      "key": "settings.bodyTracking.anat.legSwivelSmoothing.description",
+      "value": "Damps the leg's roll about the hip-to-foot axis so a still, near-straight standing leg doesn't twist with tracking jitter. Real turning still tracks without lag."
     },
     {
       "key": "settings.bodyTracking.fbt.description",

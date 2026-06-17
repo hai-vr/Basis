@@ -1077,6 +1077,8 @@ namespace Basis.BasisUI
         // pulling them in lets the knees fall open. MaxOpenDeg clamps the splay to the hip's natural abduction.
         public static BasisSettingsBinding<bool> FBIKButterflyKnees = new("fbikbutterflyknees", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKButterflyKneeMaxOpenDeg = new("fbikbutterflykneemaxopendeg", new BasisPlatformDefault<float>(60f));
+        // Also let the knees fall open while upright (sitting cross-legged), not just when laying on your back.
+        public static BasisSettingsBinding<bool> FBIKButterflyKneesUpright = new("fbikbutterflykneesupright", new BasisPlatformDefault<bool>(true));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1136,6 +1138,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKAnatShoulderSlide = new("fbikanatshoulderslide_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting_v2", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
 
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
@@ -1751,6 +1754,7 @@ namespace Basis.BasisUI
             FBIKMaxHipDelta.LoadBindingValue();
             FBIKButterflyKnees.LoadBindingValue();
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
+            FBIKButterflyKneesUpright.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();
@@ -1785,6 +1789,7 @@ namespace Basis.BasisUI
             FBIKAnatShoulderSlide.LoadBindingValue();
             FBIKAnatCervicalLordosis.LoadBindingValue();
             FBIKAnatPelvicTwistRouting.LoadBindingValue();
+            FBIKLegSwivelSmoothing.LoadBindingValue();
             FBIKLordosisPitchGainDeg.LoadBindingValue();
             FBIKLordosisBaseDeg.LoadBindingValue();
             FBIKLordosisNeckShare.LoadBindingValue();

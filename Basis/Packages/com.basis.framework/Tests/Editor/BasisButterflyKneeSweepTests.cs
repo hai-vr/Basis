@@ -102,6 +102,27 @@ namespace Basis.Tests.IK
         }
 
         [Test]
+        public void Upright_ButterflyEngages_WithSupineFloor_ButStillNeedsFootTilt()
+        {
+            // "Butterfly Knees While Upright": sitting cross-legged (torso vertical, NOT supine) with the soles
+            // pressed together should still open the knees once SupineFloor relaxes the on-your-back requirement.
+            var upright = MakeInput(supineDot: 0f, tiltDeg: 90f, dist: DeepFoldDist, maxOpenDeg: DefaultMax, strength: 1f, isLeft: false);
+            upright.SupineFloor = 1f;
+            BasisButterflyKneeCore.Solve(upright, out var rUp);
+            Assert.That(rUp.HintWeight, Is.GreaterThan(0f), "upright butterfly should engage when SupineFloor is set.");
+            Assert.That(rUp.OpenAngleDeg, Is.GreaterThan(DefaultMax * 0.9f), "upright + full tilt should open the knee near the cap.");
+            Assert.That(rUp.OpenAngleDeg, Is.LessThanOrEqualTo(DefaultMax + 0.01f), "upright open angle must still respect the cap.");
+
+            // The foot-tilt gate is what keeps normal standing/walking safe: flat feet upright -> still nothing,
+            // even with the floor fully open.
+            var flatUpright = MakeInput(supineDot: 0f, tiltDeg: 0f, dist: DeepFoldDist, maxOpenDeg: DefaultMax, strength: 1f, isLeft: false);
+            flatUpright.SupineFloor = 1f;
+            BasisButterflyKneeCore.Solve(flatUpright, out var rFlat);
+            Assert.That(rFlat.HintWeight, Is.EqualTo(0f).Within(1e-4f), "flat feet upright must not engage even with SupineFloor on.");
+            Assert.That(rFlat.OpenAngleDeg, Is.EqualTo(0f).Within(1e-4f), "flat feet upright must not open the knee.");
+        }
+
+        [Test]
         public void OpenAngle_RisesMonotonically_WithFootTilt_WhenSupine()
         {
             // The control the user described: tilting the feet outward opens the knees. Supine + folded; sweep the
@@ -260,6 +281,7 @@ namespace Basis.Tests.IK
             i.LowerLength = Shin;
             i.MaxOpenDeg = maxOpenDeg;
             i.Strength = strength;
+            i.SupineFloor = 0f;                         // default: laying-down gated (upright tests opt in)
             return i;
         }
 

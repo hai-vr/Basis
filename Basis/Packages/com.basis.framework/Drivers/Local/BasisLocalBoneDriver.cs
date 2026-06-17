@@ -163,6 +163,12 @@ namespace Basis.Scripts.Drivers
         private const float LabelBaseScale = 0.02f;
         private static readonly Color SkeletonLabelColor = Color.white;
         private static readonly Color CalibrationLabelColor = new Color(1f, 0.85f, 0.4f, 1f);
+        // Calibration balls are anchored to the avatar BONE (not the floating body-frame prior), with a line
+        // from the ball to the expected-tracker region so the offset reads as "how latched to the bone it is".
+        private const float CalibrationBallScale = 1.6f;            // bump over the acceptance-ellipsoid size ("radius should be bigger")
+        private const float CalibrationBallMinDiameterFrac = 0.06f; // floor diameter as a fraction of eye height, so every ball stays clearly visible
+        private const float CalibrationLatchLineWidthFrac = 0.004f; // latch-line width as a fraction of eye height
+        private static readonly Color CalibrationLatchColor = new Color(0.4f, 1f, 0.6f, 1f); // soft green connector
 
         private static readonly BasisBoneTrackedRole[] SpineChainOrder =
         {
@@ -645,44 +651,66 @@ namespace Basis.Scripts.Drivers
                 {
                     GizmoBone GizmoBone = GizmoBones[i];
 
-                    // Center of the acceptance region in body-local playspace:
-                    // X = lateral * eye, Y = vertical * eye, Z = 0 (depth is not
-                    // scored, so we anchor on the body-frame plane).
+                    // Expected-tracker region center in body-local playspace (where the ball used to float):
+                    // X = lateral * eye, Y = vertical * eye, Z = 0 (depth is not scored).
                     Vector3 localOffset = new Vector3(
                         GizmoBone.ExpectedLateral * eyeHeight,
                         GizmoBone.ExpectedHeight * eyeHeight,
                         0f);
-                    Vector3 worldPos = bodyOrigin + bodyRot * localOffset;
+                    Vector3 priorPos = bodyOrigin + bodyRot * localOffset;
 
-                    // 3σ acceptance radius in each scoring axis × 2 = diameter for
-                    // the unit-diameter sphere mesh. Depth is unconstrained by
-                    // ScoreSampleAgainstRole, so we use the larger of the two
-                    // scoring axes — keeps the ellipsoid visible from any angle
-                    // without implying depth gates classification.
+                    // Anchor the ball ON the avatar bone this role drives, so it reads as "latched to the bone"
+                    // instead of floating in front of the avatar; a line to the expected region then shows how
+                    // far the bone sits from the prior (short = well-aligned). Roles with no 1:1 bone (e.g. some
+                    // arm roles) fall back to the old body-frame position with no line.
+                    Vector3 bonePos = GizmoBone.BoneControl != null ? GizmoBone.BoneControl.OutgoingWorldData.position : Vector3.zero;
+                    bool hasBone = GizmoBone.BoneControl != null && bonePos.sqrMagnitude > 1e-8f;
+                    Vector3 spherePos = hasBone ? bonePos : priorPos;
+
+                    // Acceptance-region sigma still drives the ball size (bigger sigma = bigger ball), bumped and
+                    // floored so every ball is clearly visible, and rendered as a uniform sphere (a "ball").
                     float latDiameter = 6f * GizmoBone.LateralSigma * eyeHeight;
                     float vertDiameter = 6f * GizmoBone.HeightSigma * eyeHeight;
-                    float depthDiameter = Mathf.Max(latDiameter, vertDiameter);
-
-                    // Per-bone CalibSphereScale stays useful as a visualization
-                    // size knob — multiplies all three axes uniformly.
                     float vizMul = SMModuleCalibration.GetSphereScale(GizmoBone.Control);
-                    Vector3 scale = new Vector3(latDiameter, vertDiameter, depthDiameter) * vizMul;
+                    float ballDiameter = Mathf.Max(Mathf.Max(latDiameter, vertDiameter), CalibrationBallMinDiameterFrac * eyeHeight) * CalibrationBallScale * vizMul;
+                    Vector3 scale = Vector3.one * ballDiameter;
 
                     BasisGizmoManager.UpdateSphereGizmo(
                         GizmoBone.GizmoReference,
-                        worldPos,
+                        spherePos,
                         bodyRot,
                         scale);
 
+                    // Latch line: bone ball -> expected-tracker region. Its length is the visual feedback for
+                    // "how latched to the bone it is". Only drawn when the ball sits on a real bone.
+                    if (hasBone)
+                    {
+                        float lineWidth = Mathf.Max(0.001f, CalibrationLatchLineWidthFrac * eyeHeight);
+                        if (GizmoBone.LineReference <= 0)
+                        {
+                            BasisGizmoManager.CreateLineGizmo($"CalibLatch_{GizmoBone.Control}",
+                                out GizmoBone.LineReference, spherePos, priorPos, lineWidth, CalibrationLatchColor);
+                        }
+                        else
+                        {
+                            BasisGizmoManager.UpdateLineGizmo(GizmoBone.LineReference, spherePos, priorPos);
+                        }
+                    }
+                    else if (GizmoBone.LineReference > 0)
+                    {
+                        BasisGizmoManager.DestroyGizmo(GizmoBone.LineReference);
+                        GizmoBone.LineReference = -1;
+                    }
+
                     if (labels)
                     {
-                        Quaternion rot = BasisGizmoManager.BillboardRotation(worldPos, camPos);
+                        Quaternion rot = BasisGizmoManager.BillboardRotation(spherePos, camPos);
                         if (GizmoBone.LabelReference <= 0)
                         {
                             BasisGizmoManager.CreateTextGizmo($"CalibLabel_{GizmoBone.Control}",
-                                out GizmoBone.LabelReference, worldPos, GizmoBone.Control.ToString(), CalibrationLabelColor);
+                                out GizmoBone.LabelReference, spherePos, GizmoBone.Control.ToString(), CalibrationLabelColor);
                         }
-                        BasisGizmoManager.UpdateTextGizmo(GizmoBone.LabelReference, worldPos, rot, labelScale,
+                        BasisGizmoManager.UpdateTextGizmo(GizmoBone.LabelReference, spherePos, rot, labelScale,
                             GizmoBone.Control.ToString(), CalibrationLabelColor);
                     }
                     else if (GizmoBone.LabelReference > 0)
@@ -1079,6 +1107,10 @@ namespace Basis.Scripts.Drivers
                     {
                         BasisGizmoManager.DestroyGizmo(GizmoBones[i].LabelReference);
                     }
+                    if (GizmoBones[i].LineReference > 0)
+                    {
+                        BasisGizmoManager.DestroyGizmo(GizmoBones[i].LineReference);
+                    }
                 }
             }
             GizmoBones.Clear();
@@ -1122,8 +1154,9 @@ namespace Basis.Scripts.Drivers
                 // could opt in to (e.g. shoulders, which default off). Skipping them
                 // hides parts of the body the user might want to enable.
 
+                controlByRole.TryGetValue(prior.Role, out BasisLocalBoneControl Control);
                 Color regionColor;
-                if (controlByRole.TryGetValue(prior.Role, out BasisLocalBoneControl Control))
+                if (Control != null)
                 {
                     // GizmoMaterial uses additive blending — RGB intensity directly
                     // controls brightness. Bone colors at full intensity stack
@@ -1140,6 +1173,7 @@ namespace Basis.Scripts.Drivers
                 AddCalibrationRegion(
                     $"{prior.Role} Calibration Region",
                     prior.Role,
+                    Control,
                     prior.ExpectedHeight,
                     prior.ExpectedLateral,
                     prior.HeightSigma,
@@ -1163,6 +1197,10 @@ namespace Basis.Scripts.Drivers
             for (int i = 0; i < GizmoBones.Count; i++)
             {
                 BasisGizmoManager.SetGizmoActive(GizmoBones[i].GizmoReference, visible);
+                if (GizmoBones[i].LineReference > 0)
+                {
+                    BasisGizmoManager.SetGizmoActive(GizmoBones[i].LineReference, visible);
+                }
             }
         }
 
@@ -1252,7 +1290,9 @@ namespace Basis.Scripts.Drivers
         {
             public int GizmoReference;
             public int LabelReference;   // text label (role name); 0/-1 = none
+            public int LineReference;    // latch line (bone -> expected region); 0/-1 = none
             public BasisBoneTrackedRole Control;
+            public BasisLocalBoneControl BoneControl; // the avatar bone this role drives; null = no 1:1 bone (use the body-frame prior)
             public float ExpectedHeight;   // ratio: y / eyeHeight at the role's expected position
             public float ExpectedLateral;  // ratio: signed x / eyeHeight (+x = body right)
             public float HeightSigma;      // 1σ in HeightRatio space
@@ -1285,17 +1325,19 @@ namespace Basis.Scripts.Drivers
         /// representing one role's calibration acceptance region. The mesh is unit
         /// diameter, so per-frame scale will be in meters across each axis.
         /// </summary>
-        public void AddCalibrationRegion(string Name, BasisBoneTrackedRole role, float expectedHeight, float expectedLateral, float heightSigma, float lateralSigma, Color color)
+        public void AddCalibrationRegion(string Name, BasisBoneTrackedRole role, BasisLocalBoneControl control, float expectedHeight, float expectedLateral, float heightSigma, float lateralSigma, Color color)
         {
-            // Initial pose is a placeholder; DrawGizmos overwrites it next frame from
-            // ConstellationDebug.BodyOrigin/BodyRotation. Scale of 1 keeps the placeholder
-            // visually inert if the first DrawGizmos pass is delayed.
+            // Initial pose is a placeholder; DrawGizmos overwrites it next frame from the avatar bone (or the
+            // body-frame prior when the role has no bone). Scale of 1 keeps the placeholder visually inert if
+            // the first DrawGizmos pass is delayed.
             if (BasisGizmoManager.CreateSphereGizmo(Name, out int LinkedID, Vector3.zero, 1f, color))
             {
                 GizmoBones.Add(new GizmoBone
                 {
                     GizmoReference = LinkedID,
+                    LineReference = -1,
                     Control = role,
+                    BoneControl = control,
                     ExpectedHeight = expectedHeight,
                     ExpectedLateral = expectedLateral,
                     HeightSigma = heightSigma,

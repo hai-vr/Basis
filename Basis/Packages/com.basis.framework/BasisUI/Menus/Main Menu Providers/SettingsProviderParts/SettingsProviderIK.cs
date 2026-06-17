@@ -279,6 +279,11 @@ public static class SettingsProviderIK
             butterflyKneesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKnees"));
             butterflyKneesToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKnees);
             butterflyKneesToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKnees.tooltip"));
+
+            var butterflyKneesUprightToggle = PanelToggle.CreateNewEntry(trackingParent);
+            butterflyKneesUprightToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKneesUpright"));
+            butterflyKneesUprightToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKneesUpright);
+            butterflyKneesUprightToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKneesUpright.tooltip"));
         });
 
         // ============== Body Collision ==============
@@ -413,6 +418,9 @@ public static class SettingsProviderIK
             AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
                 "settings.bodyTracking.anat.pelvicTwistRouting.title",
                 "settings.bodyTracking.anat.pelvicTwistRouting.description");
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKLegSwivelSmoothing,
+                "settings.bodyTracking.anat.legSwivelSmoothing.title",
+                "settings.bodyTracking.anat.legSwivelSmoothing.description");
         });
 
         // ============== Spine: Reach Limits ==============
@@ -1186,6 +1194,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxHipDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKButterflyKnees.ResetToDefault();
+        BasisSettingsDefaults.FBIKButterflyKneesUpright.ResetToDefault();
         BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
@@ -1242,6 +1251,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKAnatShoulderSlide.ResetToDefault();
         BasisSettingsDefaults.FBIKAnatCervicalLordosis.ResetToDefault();
         BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.ResetToDefault();
+        BasisSettingsDefaults.FBIKLegSwivelSmoothing.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)

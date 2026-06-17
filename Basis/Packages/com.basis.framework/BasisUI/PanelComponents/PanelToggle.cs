@@ -44,6 +44,17 @@ namespace Basis.BasisUI
         public static PanelToggle CreateNew(Component parent, string style) =>
             CreateNew<PanelToggle>(style, parent);
 
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            if (SettingsBinding != null)
+            {
+                Value = SettingsBinding.RawValue;
+                ToggleComponent.SetIsOnWithoutNotify(SettingsBinding.RawValue);
+                SetVisualInstant(SettingsBinding.RawValue);
+            }
+        }
+
         public override void AssignBinding(BasisSettingsBinding<bool> binding)
         {
             base.AssignBinding(binding);
@@ -75,9 +86,9 @@ namespace Basis.BasisUI
             if (ToggleVisual)
             {
                 // Kill active tweens
-                if (_toggleTween && _toggleTween.Active) _toggleTween.Reset();
-                if (_knobScaleTween && _knobScaleTween.Active) _knobScaleTween.Reset();
-                if (_knobSquishTween && _knobSquishTween.Active) _knobSquishTween.Reset();
+                if (_toggleTween && _toggleTween.Active && _toggleTween.Target == ToggleVisual) _toggleTween.Reset();
+                if (_knobScaleTween && _knobScaleTween.Active && _knobScaleTween.Target == ToggleVisual) _knobScaleTween.Reset();
+                if (_knobSquishTween && _knobSquishTween.Active && _knobSquishTween.Target == ToggleVisual) _knobSquishTween.Reset();
 
                 // Slide the knob with a springy overshoot
                 _toggleTween = ToggleVisual.TweenAnchorPosition(TweenDuration, new Vector2(targetX, 0))
@@ -99,7 +110,7 @@ namespace Basis.BasisUI
 
             if (Background)
             {
-                if (_backgroundTween && _backgroundTween.Active) _backgroundTween.Reset();
+                if (_backgroundTween && _backgroundTween.Active && _backgroundTween.Target == Background) _backgroundTween.Reset();
                 _backgroundTween = Background.TweenColor(TweenDuration, Background.color, targetColor)
                     .SetEase(Easing.OutCubic);
             }

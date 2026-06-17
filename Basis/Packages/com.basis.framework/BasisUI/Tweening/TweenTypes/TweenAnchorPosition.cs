@@ -43,6 +43,7 @@ namespace Basis.BTween
         {
             if (Target == null)
             {
+                Reset();
                 return false;
             }
 
@@ -60,8 +61,14 @@ namespace Basis.BTween
 
         public override void Finish()
         {
-            Target.anchoredPosition = EndValue;
+            if (Target != null) Target.anchoredPosition = EndValue;
             base.Finish();
+        }
+
+        public override void Reset()
+        {
+            base.Reset();
+            Target = null;
         }
 
     }

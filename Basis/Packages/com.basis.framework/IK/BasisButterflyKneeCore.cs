@@ -14,6 +14,7 @@ namespace UnityEngine.Animations.Rigging
         public float LowerLength;       // shin length
         public float MaxOpenDeg;        // hip natural max open (abduction) clamp; <=0 falls back to DefaultMaxOpenDeg
         public float Strength;          // external enable / scale 0..1 (global setting * tracked confidence)
+        public float SupineFloor;       // 0 = require laying-down; 1 = also allow upright (sitting cross-legged butterfly)
     }
 
     public struct BasisButterflyKneeResult
@@ -91,7 +92,10 @@ namespace UnityEngine.Animations.Rigging
             r.PullIn01 = pullIn01;
 
             float strength = Saturate(i.Strength);
-            float engage = supine01 * footTilt01;          // laying back AND actively tilting the feet out
+            // Upright butterfly (sitting cross-legged): SupineFloor relaxes the on-your-back requirement. The
+            // foot-tilt + pull-in signals still gate it, so flat-footed standing/walking can't false-engage.
+            float supineGate = Mathf.Max(supine01, Saturate(i.SupineFloor));
+            float engage = supineGate * footTilt01;         // (laying back OR upright-allowed) AND tilting the feet out
             if (engage <= k_Epsilon || strength <= k_Epsilon || axis == Vector3.zero)
             {
                 r.HintWeight = 0f;

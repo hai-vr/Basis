@@ -362,6 +362,9 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_AnatShoulderSlide;
         [SyncSceneToStream, SerializeField] bool m_AnatCervicalLordosis;
         [SyncSceneToStream, SerializeField] bool m_AnatPelvicTwistRouting;
+        // Low-pass the knee swivel (leg roll about the hip->foot axis) on the no-foot-tracker path so a
+        // near-straight standing leg doesn't twist with hips-yaw jitter. Off => identical to before.
+        [SyncSceneToStream, SerializeField] bool m_LegSwivelSmoothing;
         // Cervical lordosis pitch coupling: extra forward bend per unit of head pitch-down (0..1
         // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
         // AnatCervicalLordosis is on.
@@ -563,6 +566,7 @@ namespace UnityEngine.Animations.Rigging
         public bool AnatShoulderSlide { get => m_AnatShoulderSlide; set => m_AnatShoulderSlide = value; }
         public bool AnatCervicalLordosis { get => m_AnatCervicalLordosis; set => m_AnatCervicalLordosis = value; }
         public bool AnatPelvicTwistRouting { get => m_AnatPelvicTwistRouting; set => m_AnatPelvicTwistRouting = value; }
+        public bool LegSwivelSmoothing { get => m_LegSwivelSmoothing; set => m_LegSwivelSmoothing = value; }
         public string SpineBendPitchFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendPitch));
         public string SpineBendYawFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendYaw));
         public string SpineBendRollFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendRoll));
@@ -592,6 +596,7 @@ namespace UnityEngine.Animations.Rigging
         public string AnatShoulderSlideProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatShoulderSlide));
         public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
+        public string LegSwivelSmoothingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LegSwivelSmoothing));
         public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
         public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
         public float LordosisBaseDeg { get => m_LordosisBaseDeg; set => m_LordosisBaseDeg = value; }
@@ -734,6 +739,7 @@ namespace UnityEngine.Animations.Rigging
             m_AnatShoulderSlide = false;
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
+            m_LegSwivelSmoothing = true;
             m_LordosisPitchGainDeg = 8f;
             m_LordosisBaseDeg = 5f;
             m_LordosisNeckShare = 0.65f;
@@ -1059,7 +1065,7 @@ w20, w54;
         public FloatProperty swingSmoothRateDeg;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
-        public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting;
+        public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting, legSwivelSmoothing;
         public FloatProperty lordosisPitchGainDeg;
         public FloatProperty lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
         public FloatProperty lordosisExtremeStartDeg, lordosisExtremeFullDeg;
@@ -1096,6 +1102,10 @@ w20, w54;
         public NativeArray<Vector3> armLookupRaw;
         public NativeArray<Vector3> armLookupSmooth;
         public NativeArray<int> armLookupInit;
+        // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing, mirroring armLookup*.
+        public NativeArray<Vector3> legSwivelRaw;
+        public NativeArray<Vector3> legSwivelSmooth;
+        public NativeArray<int> legSwivelInit;
         public FloatProperty ikLockMode;
         public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
@@ -1150,8 +1160,8 @@ w20, w54;
             }
 
             // 3) Legs: two-bone IK with bend normal preference
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, 0);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, 1);
 
             // Smooth the hips rotation that feeds the no-elbow-tracker bend frame (ArmBendFrame) so hip
             // jitter/sway doesn't wobble the derived elbows. Integrated once per frame, before the hands.
@@ -1318,7 +1328,8 @@ w20, w54;
             int chainLen = ChainHeadToSpine.Length;
             const int tipIdx = 0;
             const int firstJoint = 1;
-            int lastJoint = chainLen - 2;
+            // A tracked chest anchors the reach (bend only chest->head, don't pitch the tracked chest/spine).
+            int lastJoint = BasisSpineReachCore.LastJoint(chainLen, firstJoint, HasChestTracker.Get(stream));
 
             for (int i = 0; i < chainLen; i++)
             {
@@ -2369,7 +2380,7 @@ w20, w54;
             tip.SetRotation(stream, result.TipRotation);
         }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        public void SolveLegs(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, FloatProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
+        public void SolveLegs(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, FloatProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp, int legSlot)
         {
             float posWeight = enabledProp.Get(stream);
             if (posWeight <= 0f)
@@ -2410,6 +2421,11 @@ w20, w54;
                 tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), posWeight));
             }
             if (preserveTip) tip.SetRotation(stream, origTipRot);
+
+            if (preserveTip && legSwivelSmoothing.Get(stream))
+            {
+                SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime);
+            }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
@@ -2477,6 +2493,57 @@ w20, w54;
             SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
             tip.SetPosition(stream, preHand);
             tip.SetRotation(stream, preHandRot);
+        }
+        // Leg analog of SmoothElbowSwivel: OneEuro low-pass of the knee swivel (leg roll about the
+        // hip->foot axis), foot kept exactly on target. Standing legs run near full extension where the
+        // solver's bend axis is the raw hips-yaw bend normal, so hips-yaw jitter rolls the near-straight
+        // leg; this damps that without lagging a real turn. Per-leg slot. Only called on the foot-IK path.
+        void SmoothKneeSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt)
+        {
+            if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || dt <= 1e-6f)
+            {
+                return;
+            }
+            Vector3 a = root.GetPosition(stream), b = mid.GetPosition(stream), c = tip.GetPosition(stream);
+            Vector3 ac = c - a;
+            float acSqr = ac.sqrMagnitude;
+            if (acSqr < k_SqrEpsilon) return;
+            Vector3 axis = ac / Mathf.Sqrt(acSqr);
+            // A standing leg hangs along the AC axis, so Vector3.down (the arm's ref) is colinear and
+            // degenerate here. Reference off forward (the knee bulges forward); right as the fallback.
+            Vector3 refDir = Vector3.forward - axis * Vector3.Dot(Vector3.forward, axis);
+            if (refDir.sqrMagnitude < k_SqrEpsilon) refDir = Vector3.right - axis * Vector3.Dot(Vector3.right, axis);
+            Vector3 pole = (b - a) - axis * Vector3.Dot(b - a, axis);
+            if (refDir.sqrMagnitude < k_SqrEpsilon || pole.sqrMagnitude < k_SqrEpsilon) return;
+            refDir.Normalize();
+            float curSwivel = Vector3.SignedAngle(refDir, pole, axis);
+
+            if (legSwivelInit[slot] == 0)
+            {
+                BasisSwivelFilterState seed = BasisSwivelFilterCore.Seed(curSwivel);
+                legSwivelRaw[slot] = new Vector3(seed.Raw, seed.Vel, 0f);
+                legSwivelSmooth[slot] = new Vector3(seed.Smooth, 0f, 0f);
+                legSwivelInit[slot] = 1;
+                return;
+            }
+            BasisSwivelFilterState swivelState;
+            swivelState.Raw = legSwivelRaw[slot].x;
+            swivelState.Vel = legSwivelRaw[slot].y;
+            swivelState.Smooth = legSwivelSmooth[slot].x;
+            swivelState = BasisSwivelFilterCore.Step(swivelState, curSwivel, dt);
+            float smooth = swivelState.Smooth;
+            legSwivelRaw[slot] = new Vector3(swivelState.Raw, swivelState.Vel, 0f);
+            legSwivelSmooth[slot] = new Vector3(swivelState.Smooth, 0f, 0f);
+
+            Vector3 center = a + axis * Vector3.Dot(b - a, axis);
+            float radius = (b - center).magnitude;
+            if (radius < k_Epsilon) return;
+            Vector3 desiredKnee = center + (Quaternion.AngleAxis(smooth, axis) * refDir) * radius;
+            Vector3 preFoot = c;
+            Quaternion preFootRot = tip.GetRotation(stream);
+            SwingElbowAroundAC(stream, root, mid, tip, desiredKnee);
+            tip.SetPosition(stream, preFoot);
+            tip.SetRotation(stream, preFootRot);
         }
         public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow, BoolProperty collideTrackedElbow, int swingSlot)
         {
@@ -2718,6 +2785,7 @@ w20, w54;
                 anatShoulderSlide = BoolProperty.Bind(animator, component, data.AnatShoulderSlideProperty),
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
+                legSwivelSmoothing = BoolProperty.Bind(animator, component, data.LegSwivelSmoothingProperty),
                 lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
                 lordosisBaseDeg = FloatProperty.Bind(animator, component, data.LordosisBaseDegFloatProperty),
                 lordosisNeckShare = FloatProperty.Bind(animator, component, data.LordosisNeckShareFloatProperty),
@@ -2878,6 +2946,9 @@ w20, w54;
             job.armLookupRaw = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.armLookupSmooth = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.armLookupInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
+            job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
+            job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
 
 
 
@@ -2970,6 +3041,9 @@ w20, w54;
             if (job.armLookupRaw.IsCreated) job.armLookupRaw.Dispose();
             if (job.armLookupSmooth.IsCreated) job.armLookupSmooth.Dispose();
             if (job.armLookupInit.IsCreated) job.armLookupInit.Dispose();
+            if (job.legSwivelRaw.IsCreated) job.legSwivelRaw.Dispose();
+            if (job.legSwivelSmooth.IsCreated) job.legSwivelSmooth.Dispose();
+            if (job.legSwivelInit.IsCreated) job.legSwivelInit.Dispose();
 
             job.spineCache.Dispose();
         }
