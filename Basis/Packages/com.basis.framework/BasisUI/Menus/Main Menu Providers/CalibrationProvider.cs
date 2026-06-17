@@ -225,6 +225,7 @@ namespace Basis.BasisUI
 
             // Per-user additional height adjustment
             BasisHeightDriver.AdditionalPlayerHeight = 0f;
+            BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.ResetToDefault();
             BasisHeightDriver.ApplyScaleAndHeight();
 
             // Refresh on-screen labels for the controls we just reset
@@ -236,13 +237,13 @@ namespace Basis.BasisUI
         /// </summary>
         public void IncreasePlayerSize()
         {
-            BasisHeightDriver.AdditionalPlayerHeight += 0.1f;
-            ApplyAndUpdateUI();
+            BasisHeightDriver.NudgeStandingHeight(0.1f);
+            HeightDescription.SetDescription(FormatAdditionalHeight());
         }
         public void DecreasePlayerSize()
         {
-            BasisHeightDriver.AdditionalPlayerHeight -= 0.1f;
-            ApplyAndUpdateUI();
+            BasisHeightDriver.NudgeStandingHeight(-0.1f);
+            HeightDescription.SetDescription(FormatAdditionalHeight());
         }
         public void ApplyAndUpdateUI()
         {
@@ -265,7 +266,7 @@ namespace Basis.BasisUI
 
         private static string FormatAdditionalHeight()
         {
-            float height = BasisHeightDriver.AdditionalPlayerHeight;
+            float height = BasisHeightDriver.CurrentStandingHeightNudge;
             string text = $"{height:F2}";
             if (Mathf.Abs(height) > NudgeWarnThreshold)
             {

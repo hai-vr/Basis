@@ -236,7 +236,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 LeftLowerArmPosition;
         [SyncSceneToStream, SerializeField] public Quaternion LeftLowerArmRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHand;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHandHint;
 
         // Right Hand
         [SyncSceneToStream, SerializeField] public Vector3 PositionRightHand;
@@ -461,6 +460,8 @@ namespace UnityEngine.Animations.Rigging
         public string OffsetRotationPropertyRightToe => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationRightToe));
         public string OffsetRotationPropertyLeftShoulder => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationLeftShoulder));
         public string OffsetRotationPropertyRightShoulder => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationRightShoulder));
+        public string OffsetRotationPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationLeftHand));
+        public string OffsetRotationPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationRightHand));
         public string LeftToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftToeEnabled));
         public string RightToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightToeEnabled));
         public string LeftDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToePosition));
@@ -1001,6 +1002,7 @@ targetRotationRightLowerLeg, hintRotationRightLowerLeg,
 targetRotationHips, offsetRotationHips,
 offsetRotationHead, offsetRotationChest, offsetRotationLeftFoot, offsetRotationRightFoot,
 offsetRotationLeftToe, offsetRotationRightToe, offsetRotationLeftShoulder, offsetRotationRightShoulder,
+offsetRotationLeftHand, offsetRotationRightHand,
 leftDrivenTargetRot, rightDrivenTargetRot,
 targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
@@ -1017,7 +1019,7 @@ o20, o54;
         public NativeArray<Vector3> ArmBendLookupRight;
         public bool HasArmBendLookup;
 
-        public Quaternion targetOffsetNeck, targetOffsetHead, targetOffsetChest, targetOffsetLeftToe,
+        public Quaternion targetOffsetHead, targetOffsetChest, targetOffsetLeftToe,
             targetOffsetRightToe, targetOffsetLeftShoulder, targetOffsetRightShoulder, targetOffsetLeftFoot,
             targetOffsetRightFoot, targetOffsetLeftHand, targetOffsetRightHand;
 
@@ -1037,19 +1039,11 @@ collisionsEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
-        public NativeArray<ReadWriteTransformHandle> ChainChestToHead;
         public NativeArray<ReadWriteTransformHandle> ChainHeadToSpine;
-        public NativeArray<float> ChainChestToHeadLengths;
-        public NativeArray<float> ChainHeadToSpineLengths;
-        public NativeArray<Vector3> ChainChestToHeadLinkPositions;
-        public NativeArray<Vector3> ChainHeadToSpineLinkPositions;
-        public float MaxReachSpineTohead;
-        public float MaxReachHeadToChest;
         // optional tuning (can be constants or properties)
         public CacheIndex spineToleranceIdx;
         public CacheIndex spineMaxIterationsIdx;
         public AnimationJobCache spineCache;
-        public Vector3 TposeLengthHeadToChest;
         public Vector3 TposeLengthHeadToHips;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty shoulderElevationFactor, shoulderProtractionFactor;
@@ -1133,6 +1127,8 @@ w20, w54;
             targetOffsetRightToe = V4ToQuat(offsetRotationRightToe.Get(stream));
             targetOffsetLeftShoulder = V4ToQuat(offsetRotationLeftShoulder.Get(stream));
             targetOffsetRightShoulder = V4ToQuat(offsetRotationRightShoulder.Get(stream));
+            targetOffsetLeftHand = V4ToQuat(offsetRotationLeftHand.Get(stream));
+            targetOffsetRightHand = V4ToQuat(offsetRotationRightHand.Get(stream));
 
             // 1) Spine: hips + chest/neck/head chain
             SolveSpine(stream);
@@ -1305,7 +1301,7 @@ w20, w54;
                 BiasSpineTowardChest(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
-            else if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+            else if (HandleChest.IsValid(stream) && HandleNeck.IsValid(stream) && HandleHead.IsValid(stream))
             {
                 Vector3 headPos = targetPositionHead.Get(stream);
                 Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream));
@@ -2567,7 +2563,7 @@ w20, w54;
             bool hasHint = hintWeightProp.Get(stream);
             bool usedLookup = false;
 
-            if (!hasHint && HasArmBendLookup)
+            if (!hasHint && HasArmBendLookup && HandleChest.IsValid(stream))
             {
                 Vector3 shoulderPos = root.GetPosition(stream);
                 float upperLen = (mid.GetPosition(stream) - shoulderPos).magnitude;
@@ -2738,15 +2734,14 @@ w20, w54;
                 enabledRightShoulder = BoolProperty.Bind(animator, component, data.EnabledRightShoulderProperty),
                 offsetRotationLeftShoulder = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftShoulder),
                 offsetRotationRightShoulder = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightShoulder),
-                targetOffsetNeck = data.m_CalibratedRotationNeck,
                 offsetRotationHead = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyHead),
                 offsetRotationChest = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyChest),
                 offsetRotationLeftToe = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftToe),
                 offsetRotationRightToe = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightToe),
                 offsetRotationLeftFoot = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftFoot),
                 offsetRotationRightFoot = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightFoot),
-                targetOffsetLeftHand = data.m_CalibratedRotationLeftHand,
-                targetOffsetRightHand = data.m_CalibratedRotationRightHand,
+                offsetRotationLeftHand = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyLeftHand),
+                offsetRotationRightHand = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyRightHand),
                 MinHeadSpineHeight = FloatProperty.Bind(animator, component, data.MinHeadSpineHeightFloatProperty),
 
                 // Shoulder solve bindings
@@ -2916,7 +2911,6 @@ w20, w54;
 
 
             GenerateHeadToSpine(animator, ref job, ref data);
-            GenerateChestToHead(animator, ref job, ref data);
 
             // Generate arm bend lookup tables. The sampler mirrors X per-arm, so one table serves both.
             var bendTable = BasisArmBendLookup.GenerateDefaultTable();
@@ -2961,18 +2955,10 @@ w20, w54;
                 : new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
             int SpineToHeadLength = HeadToSpine.Length;
             job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
-            job.ChainHeadToSpineLengths = new NativeArray<float>(SpineToHeadLength, Allocator.Persistent);
-            job.ChainHeadToSpineLinkPositions = new NativeArray<Vector3>(SpineToHeadLength, Allocator.Persistent);
 
-            job.MaxReachSpineTohead = 0f;
-
-            int tip = SpineToHeadLength - 1;
             for (int i = 0; i < SpineToHeadLength; i++)
             {
                 job.ChainHeadToSpine[i] = ReadWriteTransformHandle.Bind(animator, HeadToSpine[i]);
-                job.ChainHeadToSpineLengths[i] = (i != tip) ? Vector3.Distance(HeadToSpine[i].position, HeadToSpine[i + 1].position) : 0f;
-
-                job.MaxReachSpineTohead += job.ChainHeadToSpineLengths[i];
             }
             if (data.hips != null && data.head != null)
             {
@@ -2983,44 +2969,10 @@ w20, w54;
                 job.TposeLengthHeadToHips = Vector3.zero;
             }
         }
-        public void GenerateChestToHead(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
-        {
-
-            var ChestToHead = new Transform[] { data.chest, data.neck, data.head };
-            int ChestToHeadLength = ChestToHead.Length;
-            job.ChainChestToHead = new NativeArray<ReadWriteTransformHandle>(ChestToHeadLength, Allocator.Persistent);
-            job.ChainChestToHeadLengths = new NativeArray<float>(ChestToHeadLength, Allocator.Persistent);
-            job.ChainChestToHeadLinkPositions = new NativeArray<Vector3>(ChestToHeadLength, Allocator.Persistent);
-            job.MaxReachHeadToChest = 0f;
-
-            int tip = ChestToHeadLength - 1;
-            for (int i = 0; i < ChestToHeadLength; i++)
-            {
-                job.ChainChestToHead[i] = ReadWriteTransformHandle.Bind(animator, ChestToHead[i]);
-
-                job.ChainChestToHeadLengths[i] = (i != tip) ? Vector3.Distance(ChestToHead[i].position, ChestToHead[i + 1].position) : 0f;
-
-                job.MaxReachHeadToChest += job.ChainChestToHeadLengths[i];
-            }
-            if (data.head != null && data.chest != null)
-            {
-                job.TposeLengthHeadToChest = (data.head.position - data.chest.position);
-            }
-            else
-            {
-                job.TposeLengthHeadToChest = Vector3.zero;
-            }
-        }
         static ReadWriteTransformHandle BindHandle(Animator animator, Transform t) => (t != null) ? ReadWriteTransformHandle.Bind(animator, t) : default;
         public override void Destroy(BasisFullIKConstraintJob job)
         {
             if (job.ChainHeadToSpine.IsCreated) job.ChainHeadToSpine.Dispose();
-            if (job.ChainHeadToSpineLengths.IsCreated) job.ChainHeadToSpineLengths.Dispose();
-            if (job.ChainHeadToSpineLinkPositions.IsCreated) job.ChainHeadToSpineLinkPositions.Dispose();
-
-            if (job.ChainChestToHead.IsCreated) job.ChainChestToHead.Dispose();
-            if (job.ChainChestToHeadLengths.IsCreated) job.ChainChestToHeadLengths.Dispose();
-            if (job.ChainChestToHeadLinkPositions.IsCreated) job.ChainChestToHeadLinkPositions.Dispose();
 
             if (job.ArmBendLookupLeft.IsCreated) job.ArmBendLookupLeft.Dispose();
             if (job.ArmBendLookupRight.IsCreated) job.ArmBendLookupRight.Dispose();

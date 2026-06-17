@@ -135,6 +135,8 @@ public static class BasisLocalHeightCalculator
         var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;
         BasisHeightDriver.PlayerCenterEyeVerticalOffset = headInput != null ? headInput.CenterEyeVerticalOffset : 0f;
 
+        bool genuine = true;
+
         if (SMModuleSitStand.IsSteatedMode)
         {
             BasisHeightDriver.PlayerCenterEyeVerticalOffset = 0f;
@@ -163,6 +165,7 @@ public static class BasisLocalHeightCalculator
                 float fallback = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
 
                 BasisHeightDriver.PlayerEyeHeight = fallback;
+                genuine = false;
 
                 BasisDebug.LogWarning("No attached input found for BasisLockToInput. Using fallback player eye height.", BasisDebug.LogTag.Avatar);
             }
@@ -170,8 +173,11 @@ public static class BasisLocalHeightCalculator
         if (BasisHeightDriver.PlayerEyeHeight <= 0f)
         {
             BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
+            genuine = false;
             BasisDebug.LogWarning($"Player eye height was invalid. Set to default: {BasisHeightDriver.FallbackHeightInMeters}", BasisDebug.LogTag.Avatar);
         }
+
+        BasisHeightDriver.HasGenuinePlayerEyeHeight = genuine;
     }
 
     /// <summary>

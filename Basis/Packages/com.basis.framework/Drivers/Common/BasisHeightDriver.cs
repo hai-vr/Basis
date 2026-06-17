@@ -30,6 +30,7 @@ public static class BasisHeightDriver
     public static float ScaledToMatchValue = 1f;
 
     public static float PlayerEyeHeight = FallbackHeightInMeters;
+    public static bool HasGenuinePlayerEyeHeight = false;
     public static float AvatarEyeHeight = FallbackHeightInMeters;
 
     public static float PlayerArmSpan = FallbackHeightInMeters;
@@ -230,10 +231,13 @@ public static class BasisHeightDriver
         }
     }
 
-    public static void CapturePlayerHeight()
+    public static void CapturePlayerHeight(bool recaptureEyeHeight = true)
     {
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
-        BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
+        if (recaptureEyeHeight || !HasGenuinePlayerEyeHeight)
+        {
+            BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
+        }
         BasisLocalHeightCalculator.CalculatePlayerArmSpan();
 
         if (Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatioEnabled.RawValue)
@@ -249,6 +253,29 @@ public static class BasisHeightDriver
         // Optional safety: sanitize captured values in case calculator produced junk.
         PlayerEyeHeight = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters);
         PlayerArmSpan = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
+    }
+
+    public static bool EyeHeightCorrectionIsActiveMode()
+    {
+        return BasisDeviceManagement.IsUserInDesktop() || SMModuleCalibration.HeightMode == BasisSelectedHeightMode.EyeHeight;
+    }
+
+    public static float CurrentStandingHeightNudge => EyeHeightCorrectionIsActiveMode()
+        ? Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue
+        : AdditionalPlayerHeight;
+
+    public static void NudgeStandingHeight(float deltaMeters)
+    {
+        if (EyeHeightCorrectionIsActiveMode())
+        {
+            var correction = Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters;
+            correction.SetValue(Mathf.Clamp(correction.RawValue + deltaMeters, -0.20f, 0.20f));
+        }
+        else
+        {
+            AdditionalPlayerHeight += deltaMeters;
+        }
+        ApplyScaleAndHeight();
     }
 
     public static void CaptureAvatarHeightDuringTpose()

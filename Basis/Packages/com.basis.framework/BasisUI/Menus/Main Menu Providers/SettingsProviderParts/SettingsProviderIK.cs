@@ -1116,7 +1116,7 @@ public static class SettingsProviderIK
     {
         "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
         "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
-        "Additional Player Height" => $"{BasisHeightDriver.AdditionalPlayerHeight:F4} m",
+        "Additional Player Height" => $"{BasisHeightDriver.CurrentStandingHeightNudge:F4} m",
         "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
         "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
         "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
