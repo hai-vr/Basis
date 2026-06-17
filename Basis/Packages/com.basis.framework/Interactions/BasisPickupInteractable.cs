@@ -607,12 +607,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 if (wrapper.GetState() == BasisInteractInputState.Interacting)
                 {
                     UpdateHeldPoseFromInput(wrapper, false);
+                    if (_pickupUseLastEffectiveState)
+                    {
+                        OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseUp);
+                    }
+                    _pickupUseLastEffectiveState = false;
+                    _pickupUsePendingReleaseAfterUI = false;
 
                     Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Ignored);
 
                     RequiresUpdateLoop = false;
-                    _pickupUseLastEffectiveState = false;
-                    _pickupUsePendingReleaseAfterUI = false;
                     // cleanup Desktop Manipulation since InputUpdate isn't run again till next pickup
                     targetOffset = Vector3.zero;
                     if (pauseHead)
