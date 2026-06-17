@@ -756,7 +756,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         private void UpdateHeldPoseFromInput(BasisInputWrapper interactingInput, bool pollControls)
         {
-            if (_lerping)
+            if (pollControls && _lerping)
             {
                 _lerpElapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(_lerpElapsed / lerpToHandDuration);
