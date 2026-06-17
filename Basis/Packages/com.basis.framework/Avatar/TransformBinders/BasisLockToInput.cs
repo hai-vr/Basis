@@ -112,10 +112,6 @@ namespace Basis.Scripts.TransformBinders
                             return;
                         }
                     }
-                    else
-                    {
-                        BasisDebug.LogError("Missing Role " + role);
-                    }
                 }
                 else
                 {

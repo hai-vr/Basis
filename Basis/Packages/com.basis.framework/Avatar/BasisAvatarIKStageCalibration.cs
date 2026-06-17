@@ -632,6 +632,9 @@ namespace Basis.Scripts.Avatar
                     BasisDebug.LogError("Missing Input this should never occur!", BasisDebug.LogTag.IK);
                     continue;
                 }
+                // Screen-touch finger inputs aren't spatial trackers — they never populate
+                // UnscaledDeviceCoord, so they'd only trip the near-origin diagnostic below.
+                if (input is BasisTouchInputDevice) continue;
                 // Never reassign the HMD itself — even if it has no role assigned, its
                 // position would otherwise score against Chest and we'd happily glue the
                 // headset to the player's torso.

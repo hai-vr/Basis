@@ -250,7 +250,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 {
                     role = BasisBoneTrackedRole.LeftHand;
                     source = SteamVR_Input_Sources.LeftHand;
-                    BasisDebug.LogError($"Unable to discover Correctly using Name for role lookup {source} device in Index was {controllerRole}");
+                    BasisDebug.LogWarning($"Resolved {source} via name fallback; SteamVR controller role was {controllerRole}");
                     return true;
                 }
                 else
@@ -259,7 +259,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     {
                         role = BasisBoneTrackedRole.RightHand;
                         source = SteamVR_Input_Sources.RightHand;
-                        BasisDebug.LogError($"Unable to discover Correctly using Name for role lookup {source} device in Index was {controllerRole}");
+                        BasisDebug.LogWarning($"Resolved {source} via name fallback; SteamVR controller role was {controllerRole}");
                         return true;
                     }
                 }

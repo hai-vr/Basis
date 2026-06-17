@@ -118,10 +118,14 @@ namespace Basis.BasisUI
         /// </summary>
         public void ReleaseInstance()
         {
+            if (_isReleased) return;
             _isReleased = true;
             OnReleaseEvent();
             OnInstanceReleased?.Invoke();
-            Addressables.ReleaseInstance(gameObject);
+            // gameObject may already be destroyed when this is driven by teardown (e.g. a menu
+            // rebuild releasing stale buttons); the Unity-null check avoids the dead-component
+            // gameObject getter that would otherwise throw a NullReferenceException.
+            if (this != null) Addressables.ReleaseInstance(gameObject);
         }
 
         protected override void OnDestroy()
