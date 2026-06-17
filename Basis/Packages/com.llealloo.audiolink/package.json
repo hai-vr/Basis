@@ -13,13 +13,6 @@
   "legacyFolders": {
     "Assets\\AudioLink": ""
   },
-  "samples": [
-    {
-      "displayName": "AudioLinkExampleScene",
-      "description": "An example scene showing off the capabilities of AudioLink.",
-      "path": "Samples~/AudioLinkExampleScene"
-    }
-  ],
   "legacyFiles": {},
   "license": "MIT"
 }

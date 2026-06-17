@@ -16,7 +16,16 @@ namespace UnityEditor.Rendering.Universal
                 (serialized, owner) => IsAnyRendererHasPostProcessingEnabled(serialized, UniversalRenderPipeline.asset) && serialized.renderPostProcessing.boolValue,
                 (serialized, owner) =>
                 {
-                    EditorGUILayout.HelpBox(Styles.disabledPostprocessing, MessageType.Warning);
+                    int selectedRendererOption = serialized.renderer.intValue;
+                    
+                    var rendererData = selectedRendererOption == -1 ? UniversalRenderPipeline.asset.scriptableRendererData : UniversalRenderPipeline.asset.m_RendererDataList[selectedRendererOption];
+
+                    CoreEditorUtils.DrawFixMeBox(
+                       string.Format(Styles.disabledPostprocessing),
+                       MessageType.Warning,
+                       "Open",
+                       () => AssetDatabase.OpenAsset(rendererData));
+
                     s_PostProcessingWarningShown = true;
                 });
 
@@ -133,7 +142,8 @@ namespace UnityEditor.Rendering.Universal
                         OverlayCameraRenderTypeDrawer,
                         CED.Group(
                             CameraUI.Rendering.Drawer_Rendering_CullingMask,
-                            CameraUI.Rendering.Drawer_Rendering_OcclusionCulling
+                            CameraUI.Rendering.Drawer_Rendering_OcclusionCulling,
+                            OcclusionCullingWithWarningTileOnlyMode
                         )
                     ),
                     CED.noop,
@@ -148,7 +158,8 @@ namespace UnityEditor.Rendering.Universal
                     FoldoutOption.Indent,
                     CED.Group(
                         CameraUI.Rendering.Drawer_Rendering_CullingMask,
-                        CameraUI.Rendering.Drawer_Rendering_OcclusionCulling
+                        CameraUI.Rendering.Drawer_Rendering_OcclusionCulling,
+                        OcclusionCullingWithWarningTileOnlyMode
                     )
                 );
             }
@@ -195,7 +206,7 @@ namespace UnityEditor.Rendering.Universal
                 var rendererData = selectedRendererOption == -1 ? rpAsset.scriptableRendererData : rpAsset.m_RendererDataList[selectedRendererOption];
 
                 var forwardRendererData = rendererData as UniversalRendererData;
-                if (forwardRendererData != null && forwardRendererData.postProcessData == null)
+                if (forwardRendererData != null && !rpAsset.GetRenderer(selectedRendererOption).supportedRenderingFeatures.postProcessing)
                     return true;
 
                 var renderer2DData = rendererData as UnityEngine.Rendering.Universal.Renderer2DData;
@@ -236,8 +247,13 @@ namespace UnityEditor.Rendering.Universal
 
                 {
                     // FSR overrides TAA CAS settings. Disable this setting when FSR is enabled.
-                    bool disableSharpnessControl = UniversalRenderPipeline.asset != null ?
-                        (UniversalRenderPipeline.asset.upscalingFilter == UpscalingFilterSelection.FSR) : false;
+                    bool disableSharpnessControl = UniversalRenderPipeline.asset != null
+#if ENABLE_UPSCALER_FRAMEWORK
+                        ? (UniversalRenderPipeline.asset.upscalerName == UniversalRenderPipeline.k_UpscalerName_FSR1)
+#else
+                        ? (UniversalRenderPipeline.asset.upscalingFilter == UpscalingFilterSelection.FSR)
+#endif
+                        : false;
                     using var disable = new EditorGUI.DisabledScope(disableSharpnessControl);
 
                     EditorGUILayout.Slider(p.taaContrastAdaptiveSharpening, 0.0f, 1.0f, Styles.taaContrastAdaptiveSharpening);
@@ -272,24 +288,31 @@ namespace UnityEditor.Rendering.Universal
                 }
             }
 
-            static void DrawerRenderingRenderPostProcessing(UniversalRenderPipelineSerializedCamera p, Editor owner)
+            static void DrawerRenderingRenderPostProcessing(UniversalRenderPipelineSerializedCamera serialized, Editor owner)
             {
-                EditorGUILayout.PropertyField(p.renderPostProcessing, Styles.renderPostProcessing);
+                EditorGUILayout.PropertyField(serialized.renderPostProcessing, Styles.renderPostProcessing);
             }
 
-            static void DrawerRenderingPriority(UniversalRenderPipelineSerializedCamera p, Editor owner)
+            static void DrawerRenderingPriority(UniversalRenderPipelineSerializedCamera serialized, Editor owner)
             {
-                EditorGUILayout.PropertyField(p.baseCameraSettings.depth, Styles.priority);
+                EditorGUILayout.PropertyField(serialized.baseCameraSettings.depth, Styles.priority);
             }
 
-            static void DrawerRenderingDepthTexture(UniversalRenderPipelineSerializedCamera p, Editor owner)
+            static void DrawerRenderingDepthTexture(UniversalRenderPipelineSerializedCamera serialized, Editor owner)
             {
-                EditorGUILayout.PropertyField(p.renderDepth, Styles.requireDepthTexture);
+                EditorGUILayout.PropertyField(serialized.renderDepth, Styles.requireDepthTexture);
+                DisplayTileOnlyModeWarning(serialized.renderDepth, p => p.intValue == (int)CameraOverrideOption.On, Styles.requireDepthTexture, serialized);
             }
 
-            static void DrawerRenderingOpaqueTexture(UniversalRenderPipelineSerializedCamera p, Editor owner)
+            static void DrawerRenderingOpaqueTexture(UniversalRenderPipelineSerializedCamera serialized, Editor owner)
             {
-                EditorGUILayout.PropertyField(p.renderOpaque, Styles.requireOpaqueTexture);
+                EditorGUILayout.PropertyField(serialized.renderOpaque, Styles.requireOpaqueTexture);
+                DisplayTileOnlyModeWarning(serialized.renderOpaque, p => p.intValue == (int)CameraOverrideOption.On, Styles.requireOpaqueTexture, serialized);
+            }
+            
+            static void OcclusionCullingWithWarningTileOnlyMode(UniversalRenderPipelineSerializedCamera serialized, Editor owner)
+            {
+                DisplayTileOnlyModeWarning(serialized.baseCameraSettings.occlusionCulling, p => p.boolValue, CameraUI.Rendering.Styles.occlusionCulling, serialized);
             }
         }
     }

@@ -15,7 +15,7 @@
 RWStructuredBuffer<uint> _RingConfigBuffer;
 RWStructuredBuffer<PatchUtil::PatchGeometry> _PatchGeometries;
 RWStructuredBuffer<uint> _PatchCellIndices;
-RWStructuredBuffer<PatchUtil::PatchCounterSet> _PatchCounterSets;
+RWStructuredBuffer<PatchUtil::PatchStatisticsSet> _PatchStatistics;
 RWStructuredBuffer<SphericalHarmonics::RGBL1> _PatchIrradiances0;
 RWStructuredBuffer<SphericalHarmonics::RGBL1> _PatchIrradiances1;
 RWStructuredBuffer<uint> _CellAllocationMarks;
@@ -33,13 +33,13 @@ Texture2D<float3> _PreviousLowResScreenIrradiancesL12;
 Texture2D<float> _PreviousLowResScreenNdcDepths;
 
 uint _FrameIdx;
-uint _GridSize;
-float _VoxelMinSize;
+uint _VolumeSpatialResolution;
+float _VolumeVoxelMinSize;
 uint _CascadeCount;
 uint _RingConfigOffset;
 float4x4 _CurrentClipToWorldTransform;
 float4x4 _PreviousClipToWorldTransform;
-float3 _GridTargetPos;
+float3 _VolumeTargetPos;
 uint2 _LowResScreenSize;
 uint2 _FullResPixelOffset;
 int _UseMotionVectorSeeding;
@@ -117,13 +117,13 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
     const float3 sourceWorldPosition = ComputeWorldSpacePosition(sourceUvPos, ndcDepth, _CurrentClipToWorldTransform);
     const float3 sourceWorldFlatNormal = _CurrentFullResScreenFlatNormals[fullResPixelPos];
 
-    PatchUtil::VolumePositionResolution patchPosResolution = PatchUtil::ResolveVolumePosition(sourceWorldPosition, _GridTargetPos, _GridSize, _CascadeOffsets, _CascadeCount, _VoxelMinSize);
+    PatchUtil::VolumePositionResolution patchPosResolution = PatchUtil::ResolveVolumePosition(sourceWorldPosition, _VolumeTargetPos, _VolumeSpatialResolution, _CascadeOffsets, _CascadeCount, _VolumeVoxelMinSize);
 
     if (patchPosResolution.isValid())
     {
-        const uint directionIdx = PatchUtil::GetDirectionIndex(sourceWorldFlatNormal, PatchUtil::gridCellAngularResolution);
-        const uint3 positionStorageSpace = PatchUtil::ConvertGridSpaceToStorageSpace(patchPosResolution.positionGridSpace, _GridSize, _CascadeOffsets[patchPosResolution.cascadeIdx]);
-        const uint cellIdx = PatchUtil::GetCellIndex(patchPosResolution.cascadeIdx, positionStorageSpace, directionIdx, _GridSize, PatchUtil::gridCellAngularResolution);
+        const uint directionIdx = PatchUtil::GetDirectionIndex(sourceWorldFlatNormal, PatchUtil::volumeAngularResolution);
+        const uint3 positionStorageSpace = PatchUtil::ConvertVolumeSpaceToStorageSpace(patchPosResolution.positionVolumeSpace, _VolumeSpatialResolution, _CascadeOffsets[patchPosResolution.cascadeIdx]);
+        const uint cellIdx = PatchUtil::GetCellIndex(patchPosResolution.cascadeIdx, positionStorageSpace, directionIdx, _VolumeSpatialResolution, PatchUtil::volumeAngularResolution);
 
         PatchUtil::PatchIndexResolutionResult resolutionResult = PatchUtil::ResolvePatchIndex(
             _RingConfigBuffer,
@@ -165,7 +165,7 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
                         {
                             const float2 seedFullResUvPos = PixelPosToUvPos(seedLowResPixelPos * lowResScreenScaling, rcpFullResScreenSize);
                             const float3 seedWorldPosition = ComputeWorldSpacePosition(seedFullResUvPos, seedNdcDepth, _PreviousClipToWorldTransform);
-                            const float voxelSize = PatchUtil::GetVoxelSize(_VoxelMinSize, patchPosResolution.cascadeIdx);
+                            const float voxelSize = PatchUtil::GetVoxelSize(_VolumeVoxelMinSize, patchPosResolution.cascadeIdx);
                             const float patchPlaneToSeedPositionDistance = dot(sourceWorldFlatNormal, seedWorldPosition - sourceWorldPosition);
                             if (patchPlaneToSeedPositionDistance < voxelSize)
                             {
@@ -221,7 +221,11 @@ void Allocate(uint2 lowResPixelPos : SV_DispatchThreadID)
 
             _PatchIrradiances0[resolutionResult.patchIdx] = irradianceSeed;
             _PatchIrradiances1[resolutionResult.patchIdx] = irradianceSeed;
-            _PatchCounterSets[resolutionResult.patchIdx] = counterSet;
+            PatchUtil::PatchStatisticsSet stats;
+            stats.mean = irradianceSeed.l0;
+            stats.variance = 0;
+            stats.patchCounters = counterSet;
+            _PatchStatistics[resolutionResult.patchIdx] = stats;
         }
     }
 }

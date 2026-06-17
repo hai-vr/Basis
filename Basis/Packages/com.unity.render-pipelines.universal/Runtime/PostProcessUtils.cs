@@ -240,20 +240,13 @@ namespace UnityEngine.Rendering.Universal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool IsFsrEnabled(UniversalCameraData cameraData)
         {
-            return ((cameraData.imageScalingMode == ImageScalingMode.Upscaling) && (cameraData.upscalingFilter == ImageUpscalingFilter.FSR));
-        }
-
-        // TODO: Should these methods be in UniversalCameraData?
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool IsTaaSharpeningEnabled(UniversalCameraData cameraData)
-        {
-            return (cameraData.IsTemporalAAEnabled() && cameraData.taaSettings.contrastAdaptiveSharpening > 0.0f) && !IsFsrEnabled(cameraData) && !cameraData.IsSTPEnabled() &&
+            return ((cameraData.imageScalingMode == ImageScalingMode.Upscaling) &&
 #if ENABLE_UPSCALER_FRAMEWORK
-                cameraData.upscalingFilter != ImageUpscalingFilter.IUpscaler
+                (cameraData.resolvedUpscalerHash == UniversalRenderPipeline.k_UpscalerHash_FSR1)
 #else
-                true
+                (cameraData.upscalingFilter == ImageUpscalingFilter.FSR)
 #endif
-                ;
+            );
         }
 
 #region HDR Output
@@ -278,12 +271,38 @@ namespace UnityEngine.Rendering.Universal
         }
 #endregion
 
+#if ENABLE_VR && ENABLE_XR_MODULE
+        /// <summary>
+        /// Configures UV remapping for Quad View multi-resolution rendering in XR.
+        /// Sets shader parameters for screen-space effects to align with inner view coordinates.
+        /// </summary>
+        /// <param name="material">The material to configure.</param>
+        /// <param name="xrPass">The XR pass containing UV scale/offset parameters.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void SetupXRUVRemapping(Material material, XRPass xrPass)
+        {
+            material.SetVector(ShaderConstants._Quad_View_Uv_Remap_scalesXR, xrPass.uvScales);
+            material.SetVector(ShaderConstants._Quad_View_Uv_Remap_offsetsXR, xrPass.uvOffsets);
+        }
+#endif
+
 #region Blit
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Vector4 CalcShaderSourceSize(float width, float height, RenderTexture rt)
         {
             if (rt != null && rt.useDynamicScale)
+            {
+                width *= ScalableBufferManager.widthScaleFactor;
+                height *= ScalableBufferManager.heightScaleFactor;
+            }
+            return new Vector4(width, height, 1.0f / width, 1.0f / height);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Vector4 CalcShaderSourceSize(float width, float height, bool useDynamicScale)
+        {
+            if (useDynamicScale)
             {
                 width *= ScalableBufferManager.widthScaleFactor;
                 height *= ScalableBufferManager.heightScaleFactor;
@@ -302,6 +321,14 @@ namespace UnityEngine.Rendering.Universal
             cmd.SetGlobalVector(ShaderConstants._SourceSize, CalcShaderSourceSize(width, height, rt));
         }
 
+        /// <summary>
+        /// Sets the global shader _SourceSize vector from width, height and dynamic scale flag. Use this when no texture/RTHandle is available (e.g. in Render Graph to avoid UseTexture on camera color).
+        /// </summary>
+        internal static void SetGlobalShaderSourceSize(RasterCommandBuffer cmd, float width, float height, bool useDynamicScale)
+        {
+            cmd.SetGlobalVector(ShaderConstants._SourceSize, CalcShaderSourceSize(width, height, useDynamicScale));
+        }
+
         internal static void SetGlobalShaderSourceSize(CommandBuffer cmd, float width, float height, RenderTexture rt)
         {
             SetGlobalShaderSourceSize(CommandBufferHelpers.GetRasterCommandBuffer(cmd), width, height, rt);
@@ -317,7 +344,7 @@ namespace UnityEngine.Rendering.Universal
             SetGlobalShaderSourceSize(CommandBufferHelpers.GetRasterCommandBuffer(cmd), source);
         }
 
-        internal static void ScaleViewport(RasterCommandBuffer cmd, RTHandle dest, UniversalCameraData cameraData, bool isFinalPass)
+        internal static void ScaleViewport(RasterCommandBuffer cmd, RTHandle dest, UniversalCameraData cameraData, bool isActiveTargetBackBuffer)
         {
             RenderTargetIdentifier cameraTarget = BuiltinRenderTextureType.CameraTarget;
 #if ENABLE_VR && ENABLE_XR_MODULE
@@ -326,7 +353,7 @@ namespace UnityEngine.Rendering.Universal
 #endif
             if (dest.nameID == cameraTarget || cameraData.targetTexture != null)
             {
-                if (!isFinalPass || !cameraData.resolveFinalTarget)
+                if (!isActiveTargetBackBuffer)
                 {
                     // Inside the camera stack the target is the shared intermediate target, which can be scaled with render scale.
                     // camera.pixelRect is the viewport of the final target in pixels, so it cannot be used for the intermediate target.
@@ -350,19 +377,19 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        internal static void ScaleViewportAndBlit(RasterGraphContext context, in TextureHandle sourceTexture, in TextureHandle destTexture, UniversalCameraData cameraData, Material material, bool isFinalPass)
+        internal static void ScaleViewportAndBlit(RasterGraphContext context, in TextureHandle sourceTexture, in TextureHandle destTexture, UniversalCameraData cameraData, Material material, bool isActiveTargetBackBuffer)
         {
             Vector4 scaleBias = RenderingUtils.GetFinalBlitScaleBias(context, sourceTexture, destTexture);
-            ScaleViewport(context.cmd, destTexture, cameraData, isFinalPass);
+            ScaleViewport(context.cmd, destTexture, cameraData, isActiveTargetBackBuffer);
 
             Blitter.BlitTexture(context.cmd, sourceTexture, scaleBias, material, 0);
         }
 
-        internal static void ScaleViewportAndDrawVisibilityMesh(RasterGraphContext context, in TextureHandle sourceTexture, in TextureHandle destTexture, UniversalCameraData cameraData, Material material, bool isFinalPass)
+        internal static void ScaleViewportAndDrawVisibilityMesh(RasterGraphContext context, in TextureHandle sourceTexture, in TextureHandle destTexture, UniversalCameraData cameraData, Material material, bool isActiveTargetBackBuffer)
         {
 #if ENABLE_VR && ENABLE_XR_MODULE
             Vector4 scaleBias = RenderingUtils.GetFinalBlitScaleBias(context, sourceTexture, destTexture);
-            ScaleViewport(context.cmd, destTexture, cameraData, isFinalPass);
+            ScaleViewport(context.cmd, destTexture, cameraData, isActiveTargetBackBuffer);
 
             // Set property block for blit shader
             MaterialPropertyBlock xrPropertyBlock = XRSystemUniversal.GetMaterialPropertyBlock();
@@ -382,6 +409,9 @@ namespace UnityEngine.Rendering.Universal
 
             public static readonly int _BlueNoise_Texture = Shader.PropertyToID("_BlueNoise_Texture");
             public static readonly int _Dithering_Params = Shader.PropertyToID("_Dithering_Params");
+
+            public static readonly int _Quad_View_Uv_Remap_scalesXR = Shader.PropertyToID("_Quad_View_Uv_Remap_scalesXR");
+            public static readonly int _Quad_View_Uv_Remap_offsetsXR = Shader.PropertyToID("_Quad_View_Uv_Remap_offsetsXR");
 
             public static readonly int _SourceSize = Shader.PropertyToID("_SourceSize");
         }

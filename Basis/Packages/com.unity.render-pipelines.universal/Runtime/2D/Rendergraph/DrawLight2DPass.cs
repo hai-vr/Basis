@@ -1,4 +1,3 @@
-using System;
 using UnityEngine.Rendering.RenderGraphModule;
 using CommonResourceData = UnityEngine.Rendering.Universal.UniversalResourceData;
 
@@ -46,7 +45,6 @@ namespace UnityEngine.Rendering.Universal
             return false;
         }
 
-
         private static void Execute(RasterCommandBuffer cmd, PassData passData, LayerBatch layerBatch, int lightTextureIndex)
         {
             cmd.SetGlobalFloat(k_InverseHDREmulationScaleID, 1.0f / passData.rendererData.hdrEmulationScale);
@@ -78,7 +76,8 @@ namespace UnityEngine.Rendering.Universal
                     layerBatch.endLayerValue != light.GetTopMostLitLayer()))
                     continue;
 
-                var useShadows = passData.layerBatch.lightStats.useShadows && layerBatch.shadowIndices.Contains(j);
+                var useShadows = (!passData.isVolumetric && passData.layerBatch.lightStats.useShadows) || (passData.isVolumetric && passData.layerBatch.lightStats.useVolumetricShadowLights);
+                useShadows &= layerBatch.shadowIndices.Contains(j);
                 var lightMaterial = passData.rendererData.GetLightMaterial(light, passData.isVolumetric, useShadows);
                 var lightMesh = light.lightMesh;
 
@@ -175,20 +174,12 @@ namespace UnityEngine.Rendering.Universal
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
             var layerBatch = frameData.Get<Universal2DRenderingData>().layerBatches[batchIndex];
 
-            DebugHandler debugHandler = GetActiveDebugHandler(cameraData);
-            var isDebugLightingActive = debugHandler?.IsLightingActive ?? true;
-
-#if UNITY_EDITOR
-            if (cameraData.isSceneViewCamera && UnityEditor.SceneView.currentDrawingSceneView != null)
-                isDebugLightingActive &= UnityEditor.SceneView.currentDrawingSceneView.sceneLighting;
-
-            if (cameraData.camera.cameraType == CameraType.Preview)
-                isDebugLightingActive = false;
-#endif
+            // Check for lighting in scene/prefab/preview camera 
+            var isLightingActive = Renderer2D.IsSceneViewOrPreviewLightingActive(cameraData);
 
             if (!layerBatch.lightStats.useLights ||
                 isVolumetric && !layerBatch.lightStats.useVolumetricLights ||
-                !isDebugLightingActive)
+                !isLightingActive)
                 return;
 
             // Render single RTs by for apis that don't support MRTs

@@ -184,13 +184,7 @@ namespace Valve.VR
 
         private IEnumerator DoInitializeSteamVR(bool forceUnityVRToOpenVR = false)
         {
-            XRDevice.deviceLoaded += XRDevice_deviceLoaded;
-            XRSettings.LoadDeviceByName(new string[1] { openVRDeviceName });
-            while (loadedOpenVRDeviceSuccess == false)
-            {
-                yield return null;
-            }
-            XRDevice.deviceLoaded -= XRDevice_deviceLoaded;
+            yield return null;
             EnableOpenVR();
         }
 

@@ -15,7 +15,7 @@ public class ShaderVariantFinderWindow : EditorWindow
     // Foldouts (persist during window lifetime)
     private readonly Dictionary<string, bool> shaderFoldout = new();
     private readonly Dictionary<string, bool> variantFoldout = new();
-    private readonly Dictionary<int, bool> materialFoldout = new();
+    private readonly Dictionary<EntityId, bool> materialFoldout = new();
 
     // Data
     private readonly List<ShaderGroup> shaderGroups = new();
@@ -140,7 +140,7 @@ public class ShaderVariantFinderWindow : EditorWindow
                     {
                         if (mat == null) continue;
 
-                        int id = mat.GetEntityId();
+                        EntityId id = mat.GetEntityId();
                         bool mOpen = GetFoldout(materialFoldout, id);
                         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                         {
@@ -375,7 +375,7 @@ public class ShaderVariantFinderWindow : EditorWindow
         return false;
     }
 
-    private bool GetFoldout(Dictionary<int, bool> map, int key)
+    private bool GetFoldout(Dictionary<EntityId, bool> map, EntityId key)
     {
         if (map.TryGetValue(key, out var v)) return v;
         map[key] = false;

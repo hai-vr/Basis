@@ -247,22 +247,6 @@ namespace UnityEngine.Rendering.Universal
     }
 
     /// <summary>
-    /// Defines if profiling is logged or not. This enum is not longer in use, use the Profiler instead.
-    /// </summary>
-    [Obsolete("PipelineDebugLevel is replaced to use the profiler and has no effect. #from(2022.2) #breakingFrom(2023.1)", true)]
-    public enum PipelineDebugLevel
-    {
-        /// <summary>
-        /// Disabled logging for profiling.
-        /// </summary>
-        Disabled,
-        /// <summary>
-        /// Enabled logging for profiling.
-        /// </summary>
-        Profiling,
-    }
-
-    /// <summary>
     /// Options to select the type of Renderer to use.
     /// </summary>
     public enum RendererType
@@ -340,6 +324,10 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// Defines the upscaling filter selected by the user the universal render pipeline asset.
     /// </summary>
+    /// 
+#if ENABLE_UPSCALER_FRAMEWORK
+    [Obsolete("UpscalingFilterSelection is obsolete. #from(6000.3)", false)]
+#endif
     public enum UpscalingFilterSelection
     {
         /// <summary>
@@ -370,11 +358,7 @@ namespace UnityEngine.Rendering.Universal
         /// Unity uses the Spatial-Temporal Post-Processing technique to perform upscaling.
         /// </summary>
         [InspectorName("Spatial-Temporal Post-Processing"), Tooltip("If the target device does not support compute shaders or is running GLES, Unity falls back to the Automatic option.")]
-        STP,
-
-#if ENABLE_UPSCALER_FRAMEWORK
-        IUpscaler // Should always be last
-#endif
+        STP
     }
 
     /// <summary>
@@ -465,11 +449,14 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] HDRColorBufferPrecision m_HDRColorBufferPrecision = HDRColorBufferPrecision._32Bits;
         [SerializeField] MsaaQuality m_MSAA = MsaaQuality.Disabled;
         [SerializeField] float m_RenderScale = 1.0f;
+#if ENABLE_UPSCALER_FRAMEWORK
+        [Obsolete("m_UpscalingFilter is replaced by m_SelectedUpscalerName #from(6000.3)")]
+#endif
         [SerializeField] UpscalingFilterSelection m_UpscalingFilter = UpscalingFilterSelection.Auto;
         // The upscaler name is null if the upscaling filter is coming from a built-in upscaler. It will be non-null if
         // the upscaling filter is coming from an IUpscaler, which can be a separate package, or part of Unity code.
 #if ENABLE_UPSCALER_FRAMEWORK
-        [SerializeField] string m_IUpscalerName = string.Empty;
+        [SerializeField] string m_SelectedUpscalerName = "Bilinear";
 
         [SerializeField]
         [SerializeReference]
@@ -518,6 +505,12 @@ namespace UnityEngine.Rendering.Universal
 
         // Additional lights settings
         [SerializeField] LightRenderingMode m_AdditionalLightsRenderingMode = LightRenderingMode.PerPixel;
+
+#if UNITY_META_QUEST
+#if UNITY_EDITOR // multi_compile _ META_QUEST_LIGHTUNROLL (only on  meta platforms)
+        [ShaderKeywordFilter.RemoveIfNot(1, keywordNames: ShaderKeywordStrings.META_QUEST_LIGHTUNROLL)]
+#endif
+#endif
         [SerializeField] int m_AdditionalLightsPerObjectLimit = 4;
         [SerializeField] bool m_AdditionalLightShadowsSupported = false;
         [SerializeField] ShadowResolution m_AdditionalLightsShadowmapResolution = ShadowResolution._2048;
@@ -576,7 +569,6 @@ namespace UnityEngine.Rendering.Universal
         [ShaderKeywordFilter.SelectOrRemove(true, keywordNames: ShaderKeywordStrings.LightLayers)]
 #endif
         [SerializeField] bool m_SupportsLightLayers = false;
-        [SerializeField][Obsolete("#from(2022.1) #breakingFrom(2023.1)", true)] PipelineDebugLevel m_DebugLevel;
         [SerializeField][Obsolete("#from(6000.0) #breakingFrom(6000.4)", true)] StoreActionsOptimization m_StoreActionsOptimization = StoreActionsOptimization.Auto;
 
         // Adaptive performance settings
@@ -947,6 +939,24 @@ namespace UnityEngine.Rendering.Universal
         }
 
 #if UNITY_EDITOR
+        internal bool TryGetRendererData(int index, out ScriptableRendererData result)
+        {
+            result = null;
+            if (m_RendererDataList == null || m_RendererDataList.Length == 0)
+                return false;
+
+            if (index < 0 || index >= m_RendererDataList.Length)
+            {
+                if (m_DefaultRendererIndex < 0 || m_DefaultRendererIndex >= m_RendererDataList.Length)
+                    return false;
+
+                index = m_DefaultRendererIndex; //out of range index fallback on default
+            }
+            
+            result = m_RendererDataList[index];
+            return result != null;
+        }
+
         internal GUIContent[] rendererDisplayList
         {
             get
@@ -1116,6 +1126,10 @@ namespace UnityEngine.Rendering.Universal
         /// Note: Filter selections differ from actual filters in that they may include "meta-filters" such as
         ///       "Automatic" which resolve to an actual filter at a later time.
         /// </summary>
+
+#if ENABLE_UPSCALER_FRAMEWORK
+        [Obsolete("upscalingFilter is replaced by upscalerName #from(6000.3)", false)]
+#endif
         public UpscalingFilterSelection upscalingFilter
         {
             get => m_UpscalingFilter;
@@ -1129,26 +1143,35 @@ namespace UnityEngine.Rendering.Universal
         public string upscalerName
         {
 #if ENABLE_UPSCALER_FRAMEWORK
-            get => m_IUpscalerName;
+            get => m_SelectedUpscalerName;
+            set => m_SelectedUpscalerName = value;
 #else
             get => string.Empty;
 #endif
         }
 
 #if ENABLE_UPSCALER_FRAMEWORK
-
-        public List<UpscalerOptions> iUpscalerOptions
+        /// <summary>
+        /// Gets the list of configuration options for all registered upscalers.
+        /// These are typically auto-populated as sub-assets within the Render Pipeline Asset.
+        /// </summary>
+        public List<UpscalerOptions> upscalerOptions
         {
             get => m_UpscalerOptions;
         }
 
-        public UpscalerOptions GetIUpscalerOptions(string UpscalerName)
+        /// <summary>
+        /// Retrieves the specific configuration options for an upscaler by its unique name.
+        /// </summary>
+        /// <param name="upscalerName">The unique ID or name of the upscaler (e.g., "DLSS", "FSR2").</param>
+        /// <returns>The matching <see cref="UpscalerOptions"/> asset if found; otherwise, null.</returns>
+        public UpscalerOptions GetUpscalerOptions(string UpscalerName)
         {
             foreach(UpscalerOptions option in m_UpscalerOptions)
             {
                 if (option == null)
                     continue;
-                if (option.UpscalerName == UpscalerName)
+                if (option.upscalerName == UpscalerName)
                     return option;
             }
             return null;
@@ -1540,6 +1563,7 @@ namespace UnityEngine.Rendering.Universal
         /// Specifies if this <c>UniversalRenderPipelineAsset</c> should use dynamic batching.
         /// </summary>
         /// <see href="https://docs.unity3d.com/Manual/DrawCallBatching.html"/>
+        [Obsolete("supportsDynamicBatching is deprecated and will be removed in a future release. #from(6000.5)", false)]
         public bool supportsDynamicBatching
         {
             get => m_SupportsDynamicBatching;
@@ -1582,12 +1606,6 @@ namespace UnityEngine.Rendering.Universal
             get => m_VolumeProfile;
             set => m_VolumeProfile = value;
         }
-
-        /// <summary>
-        /// Previously returned the debug level for this Render Pipeline Asset but is now deprecated. Replaced to use the profiler and is no longer used.
-        /// </summary>
-        [Obsolete("PipelineDebugLevel is deprecated and replaced to use the profiler. Calling debugLevel is not necessary. #from(2022.2) #breakingFrom(2023.1)", true)]
-        public PipelineDebugLevel debugLevel => PipelineDebugLevel.Disabled;
 
         /// <summary>
         /// Specifies if SRPBacher is used by this <c>UniversalRenderPipelineAsset</c>.
@@ -1721,7 +1739,8 @@ namespace UnityEngine.Rendering.Universal
 
         static class Strings
         {
-            public static readonly string notURPRenderer = $"{nameof(GPUResidentDrawer)} Disabled due to some configured Universal Renderers not being {nameof(UniversalRendererData)}.";
+            public static readonly string nullRenderer = $"{nameof(GPUResidentDrawer)} Disabled. One or more Scriptable Renderer in the Render Pipeline Asset is null.";
+            public static readonly string notURPRenderer = $"{nameof(GPUResidentDrawer)} Disabled. One or more Scriptable Renderer in the Render Pipeline Asset is not of the type {nameof(UniversalRendererData)}.";
             public static readonly string renderingModeIncompatible = $"{nameof(GPUResidentDrawer)} Disabled due to some configured Universal Renderers not using the Forward+ or Deferred+ rendering paths.";
         }
 
@@ -1735,6 +1754,12 @@ namespace UnityEngine.Rendering.Universal
             // since BiRP-style per-object lights and reflection probes are incompatible with DOTS instancing.
             foreach (var rendererData in m_RendererDataList)
             {
+                if (rendererData == null)
+                {
+                    message = Strings.nullRenderer;
+                    return false;
+                }
+
                 if (rendererData is not UniversalRendererData universalRendererData)
                 {
                     message = Strings.notURPRenderer;
@@ -2033,11 +2058,11 @@ namespace UnityEngine.Rendering.Universal
         {
             get
             {
-                return m_UpscalingFilter == UpscalingFilterSelection.STP
 #if ENABLE_UPSCALER_FRAMEWORK
-                || m_UpscalingFilter == UpscalingFilterSelection.IUpscaler
+                return m_SelectedUpscalerName == STPIUpscaler.upscalerName;
+#else
+                return m_UpscalingFilter == UpscalingFilterSelection.STP;
 #endif
-                ;
             }
         }
 

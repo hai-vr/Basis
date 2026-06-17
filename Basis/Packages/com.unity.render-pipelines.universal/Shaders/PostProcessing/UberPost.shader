@@ -1,6 +1,7 @@
 Shader "Hidden/Universal Render Pipeline/UberPost"
 {
     HLSLINCLUDE
+        #pragma multi_compile_local_fragment _ _POINT_SAMPLING
         #pragma multi_compile_local_fragment _ _DISTORTION
         #pragma multi_compile_local_fragment _ _CHROMATIC_ABERRATION
         #pragma multi_compile_local_fragment _ _BLOOM_LQ _BLOOM_HQ _BLOOM_LQ_DIRT _BLOOM_HQ_DIRT
@@ -64,6 +65,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         float4 _Vignette_Params2;
     #ifdef USING_STEREO_MATRICES
         float4 _Vignette_ParamsXR;
+        float4 _Quad_View_Uv_Remap_scalesXR;  // xy = Eye0 scale, zw = Eye1 scale
+        float4 _Quad_View_Uv_Remap_offsetsXR; // xy = Eye0 offset, zw = Eye1 offset
     #endif
         float2 _Grain_Params;
         float4 _Grain_TilingParams;
@@ -91,6 +94,10 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
     #ifdef USING_STEREO_MATRICES
         #define VignetteCenterEye0      _Vignette_ParamsXR.xy
         #define VignetteCenterEye1      _Vignette_ParamsXR.zw
+        #define QuadViewUvRemapEye0Scale  _Quad_View_Uv_Remap_scalesXR.xy
+        #define QuadViewUvRemapEye1Scale  _Quad_View_Uv_Remap_scalesXR.zw
+        #define QuadViewUvRemapEye0Offset  _Quad_View_Uv_Remap_offsetsXR.xy
+        #define QuadViewUvRemapEye1Offset  _Quad_View_Uv_Remap_offsetsXR.zw
     #else
         #define VignetteCenter          _Vignette_Params2.xy
     #endif
@@ -146,16 +153,37 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             return uv;
         }
 
+        half4 SampleColor(float2 uv)
+        {
+            #if _POINT_SAMPLING
+            return SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_PointClamp, uv);
+            #else
+            return SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
+            #endif
+        }
+
         half4 FragUberPost(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
+            // Original UV for back buffer sampling (no Quad View remapping)
             float2 uv = SCREEN_COORD_APPLY_SCALEBIAS(UnityStereoTransformScreenSpaceTex(input.texcoord));
             float2 uvDistorted = DistortUV(uv);
 
+            // Remapped UV for screen-space effects in Quad View (vignette, bloom, grain, etc.)
+            float2 uvRemapped = uv;
+            float2 uvRemappedDistorted = uvDistorted;
+            #ifdef USING_STEREO_MATRICES
+                // Select per-eye scale and offset for robust handling of asymmetric projection matrices
+                const float2 quadViewScale = unity_StereoEyeIndex == 0 ? QuadViewUvRemapEye0Scale : QuadViewUvRemapEye1Scale;
+                const float2 quadViewOffset = unity_StereoEyeIndex == 0 ? QuadViewUvRemapEye0Offset : QuadViewUvRemapEye1Offset;
+                uvRemapped = uv * quadViewScale + quadViewOffset;
+                uvRemappedDistorted = DistortUV(uvRemapped);
+            #endif
+
             // NOTE: Hlsl specifies missing input.a to fill 1 (0 for .rgb).
             // InputColor is a "bottom" layer for alpha output.
-            half4 inputColor = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, ClampUVForBilinear(SCREEN_COORD_REMOVE_SCALEBIAS(uvDistorted), _BlitTexture_TexelSize.xy));
+            half4 inputColor = SampleColor(ClampUVForBilinear(SCREEN_COORD_REMOVE_SCALEBIAS(uvDistorted), _BlitTexture_TexelSize.xy));
             half3 color = inputColor.rgb;
 
             #if _CHROMATIC_ABERRATION
@@ -167,8 +195,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                 float2 delta = (end - uv) / 3.0;
 
                 half r = color.r;
-                half g = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, ClampUVForBilinear(SCREEN_COORD_REMOVE_SCALEBIAS(DistortUV(delta + uv)      ), _BlitTexture_TexelSize.xy)).y;
-                half b = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, ClampUVForBilinear(SCREEN_COORD_REMOVE_SCALEBIAS(DistortUV(delta * 2.0 + uv)), _BlitTexture_TexelSize.xy)).z;
+                half g = SampleColor(ClampUVForBilinear(SCREEN_COORD_REMOVE_SCALEBIAS(DistortUV(delta + uv)      ), _BlitTexture_TexelSize.xy)).y;
+                half b = SampleColor(ClampUVForBilinear(SCREEN_COORD_REMOVE_SCALEBIAS(DistortUV(delta * 2.0 + uv)), _BlitTexture_TexelSize.xy)).z;
 
                 color = half3(r, g, b);
             }
@@ -211,7 +239,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                     // considering we use a cover-style scale on the dirt texture the difference
                     // isn't massive so we chose to save a few ALUs here instead in case lens
                     // distortion is active.
-                    half3 dirt = SAMPLE_TEXTURE2D(_LensDirt_Texture, sampler_LinearClamp, uvDistorted * LensDirtScale + LensDirtOffset).xyz;
+                    half3 dirt = SAMPLE_TEXTURE2D(_LensDirt_Texture, sampler_LinearClamp, uvRemappedDistorted * LensDirtScale + LensDirtOffset).xyz;
                     dirt *= LensDirtIntensity;
                     color += dirt * bloom.xyz;
                 }
@@ -237,7 +265,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                 const float2 VignetteCenter = unity_StereoEyeIndex == 0 ? VignetteCenterEye0 : VignetteCenterEye1;
             #endif
 
-                color = ApplyVignette(color, uvDistorted, VignetteCenter, VignetteIntensity, VignetteRoundness, VignetteSmoothness, VignetteColor);
+                color = ApplyVignette(color, uvRemappedDistorted, VignetteCenter, VignetteIntensity, VignetteRoundness, VignetteSmoothness, VignetteColor);
             }
 
             // Color grading is always enabled when post-processing/uber is active
@@ -247,7 +275,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             #if _FILM_GRAIN
             {
-                color = ApplyGrain(color, uv, TEXTURE2D_ARGS(_Grain_Texture, sampler_LinearRepeat), GrainIntensity, GrainResponse, GrainScale, GrainOffset, OneOverPaperWhite);
+                color = ApplyGrain(color, uvRemapped, TEXTURE2D_ARGS(_Grain_Texture, sampler_LinearRepeat), GrainIntensity, GrainResponse, GrainScale, GrainOffset, OneOverPaperWhite);
             }
             #endif
 
@@ -267,7 +295,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             #if _DITHERING
             {
-                color = ApplyDithering(color, uv, TEXTURE2D_ARGS(_BlueNoise_Texture, sampler_PointRepeat), DitheringScale, DitheringOffset, PaperWhite, OneOverPaperWhite);
+                color = ApplyDithering(color, uvRemapped, TEXTURE2D_ARGS(_BlueNoise_Texture, sampler_PointRepeat), DitheringScale, DitheringOffset, PaperWhite, OneOverPaperWhite);
                 // Assume color > 0 and prevent 0 - ditherNoise.
                 // Negative colors can cause problems if fed back to the postprocess via render to FP16 texture.
                 color = max(color, 0);
@@ -307,7 +335,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             #if defined(DEBUG_DISPLAY)
             half4 debugColor = 0;
 
-            if(CanDebugOverrideOutputColor(half4(color, 1), uv, debugColor))
+            if(CanDebugOverrideOutputColor(half4(color, 1), uvRemapped, debugColor))
             {
                 return debugColor;
             }

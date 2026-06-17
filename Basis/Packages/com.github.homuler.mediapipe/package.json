@@ -25,17 +25,5 @@
     "com.unity.test-framework": "1.0.0"
   },
   "license": "MIT",
-  "licenseUrl": "https://github.com/homuler/MediaPipeUnityPlugin/blob/master/LICENSE",
-  "samples": [
-    {
-      "displayName": "Official Solutions",
-      "description": "MediaPipe Official Solutions Sample",
-      "path": "Samples~/Solutions"
-    },
-    {
-      "displayName": "Tutorial",
-      "description": "Sample Scenes for Tutorial",
-      "path": "Samples~/Tutorial"
-    }
-  ]
+  "licenseUrl": "https://github.com/homuler/MediaPipeUnityPlugin/blob/master/LICENSE"
 }

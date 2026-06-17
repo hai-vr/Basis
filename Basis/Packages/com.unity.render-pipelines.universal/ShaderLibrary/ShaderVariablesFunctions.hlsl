@@ -48,7 +48,18 @@ float4 GetScaledScreenParams()
 // Returns 'true' if the current view performs a perspective projection.
 bool IsPerspectiveProjection()
 {
+#if defined(UNITY_PLATFORM_META_QUEST)
+    #if defined(META_QUEST_ORTHO_PROJ_KEYWORD_DECLARED)
+    if (META_QUEST_ORTHO_PROJ)
+        return false;
+    else
+        return true;
+    #else
+    return true;
+    #endif
+#else
     return (unity_OrthoParams.w == 0);
+#endif
 }
 
 float3 GetCameraPositionWS()
@@ -560,9 +571,22 @@ void TransformNormalizedScreenUV(inout float2 uv)
     #endif
 }
 
-float2 GetNormalizedScreenSpaceUV(float2 positionCS)
+void TransformNormalizedScreenUVPreTransform(inout float2 uv)
 {
-    float2 normalizedScreenSpaceUV = positionCS.xy * rcp(GetScaledScreenParams().xy);
+    #if defined(UNITY_PRETRANSFORM_TO_DISPLAY_ORIENTATION)
+        if(UNITY_DISPLAY_ORIENTATION_PRETRANSFORM % 2 > 0)
+        {
+            uv = uv.yx;
+        }
+    #endif
+}
+
+float2 GetNormalizedScreenSpaceUV(float2 positionCS)
+{ 
+    float2 screenParamUV = GetScaledScreenParams().xy;
+    TransformNormalizedScreenUVPreTransform(screenParamUV);
+
+    float2 normalizedScreenSpaceUV = positionCS.xy * rcp(screenParamUV);
     TransformNormalizedScreenUV(normalizedScreenSpaceUV);
     return normalizedScreenSpaceUV;
 }
