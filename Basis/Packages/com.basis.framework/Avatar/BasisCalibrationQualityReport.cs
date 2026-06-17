@@ -7,9 +7,8 @@ namespace Basis.Scripts.Avatar
     /// <summary>
     /// Read-only "how good was this calibration" summary. Tracker coverage / fit / staleness come from the
     /// reliable constellation snapshot the role classifier already fills (BasisAvatarIKStageCalibration.
-    /// ConstellationDebug); the per-limb bend angle comes from the pose-tolerant pass
-    /// (BasisCalibrationLimbCompensation). It never changes avatar behaviour, and the whole capture is
-    /// wrapped so a report failure can never break calibration.
+    /// ConstellationDebug). It never changes avatar behaviour, and the whole capture is wrapped so a report
+    /// failure can never break calibration.
     /// </summary>
     public static class BasisCalibrationQualityReport
     {
@@ -24,7 +23,6 @@ namespace Basis.Scripts.Avatar
 
         // Fit margin (assigned score above the accept threshold) below which a tracker counts as marginal.
         const float k_MarginalBand = 3f;
-        const float k_BentDeg = 20f;   // deviation from straight worth flagging in the report
 
         public static void Capture()
         {
@@ -102,28 +100,6 @@ namespace Basis.Scripts.Avatar
             if (TrackersMarginal > 0) sb.Append("   marginal: ").Append(TrackersMarginal);
             if (EyeHeight > 0f) sb.Append("   eye ").Append(EyeHeight.ToString("0.00")).Append('m');
             sb.Append('\n');
-
-            foreach (var l in BasisCalibrationLimbCompensation.LastLimbs)
-            {
-                sb.Append(l.Name).Append(": ");
-                if (!l.EndPresent)
-                {
-                    sb.Append("not tracked");
-                }
-                else if (l.MidPresent)
-                {
-                    int bend = Mathf.RoundToInt(l.BendDeg);
-                    bool bent = Mathf.Abs(180f - l.BendDeg) > k_BentDeg;
-                    if (l.Applied) sb.Append("bend ").Append(bend).Append("°, compensated");
-                    else if (bent) sb.Append("bend ").Append(bend).Append("° — enable Pose Compensation to correct");
-                    else sb.Append("bend ").Append(bend).Append("°, ok");
-                }
-                else
-                {
-                    sb.Append("no elbow/knee tracker — calibrate this limb straight");
-                }
-                sb.Append('\n');
-            }
 
             if (TrackersStale > 0)
             {

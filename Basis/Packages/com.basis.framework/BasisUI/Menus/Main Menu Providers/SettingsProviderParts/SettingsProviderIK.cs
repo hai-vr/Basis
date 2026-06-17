@@ -8,10 +8,6 @@ using UnityEngine;
 
 public static class SettingsProviderIK
 {
-    private static PanelDropdown dropdownIKMode;
-    private static PanelDropdown dropdownIKLockMode;
-    private static PanelDropdown dropdownSeatedMode;
-
     public const string SeatedMode_Seated = "Seated Mode";
     public const string SeatedMode_Standing = "Standing Mode";
 
@@ -63,46 +59,6 @@ public static class SettingsProviderIK
 
         var ikParent = ikGroup.ContentParent;
 
-        // --- Seated Mode dropdown ---
-        dropdownSeatedMode = PanelDropdown.CreateNewEntry(ikParent);
-        dropdownSeatedMode.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.seatedMode"));
-        dropdownSeatedMode.Descriptor.SetDescription(
-            "Select the reference pose used for body scaling"
-        );
-        dropdownSeatedMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.seatedMode.tooltip"));
-        dropdownSeatedMode.AssignLocalizedEntries(
-            new List<string> { SeatedMode_Standing, SeatedMode_Seated },
-            new List<string> { "settings.bodyTracking.seatedMode.standing", "settings.bodyTracking.seatedMode.seated" });
-        dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SitStand);
-
-        // --- IK mode dropdown ---
-        dropdownIKMode = PanelDropdown.CreateNewEntry(ikParent);
-        dropdownIKMode.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikMode"));
-        dropdownIKMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikMode.tooltip"));
-        dropdownIKMode.AssignLocalizedEntries(
-            new List<string> { "Eye Height", "Arm Distance" },
-            new List<string> { "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
-        dropdownIKMode.AssignBinding(BasisSettingsDefaults.IKMode);
-        dropdownIKMode.Descriptor.SetDescription(
-            "Determines how body scale is calculated."
-        );
-
-        // --- IK Lock Mode dropdown ---
-        dropdownIKLockMode = PanelDropdown.CreateNewEntry(ikParent);
-        dropdownIKLockMode.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.spineLockMode"));
-        dropdownIKLockMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineLockMode.tooltip"));
-        dropdownIKLockMode.AssignLocalizedEntries(
-            new List<string> { "Lock Hips", "Lock Head", "Lock Both" },
-            new List<string> { "settings.bodyTracking.spineLock.hips", "settings.bodyTracking.spineLock.head", "settings.bodyTracking.spineLock.both" });
-        dropdownIKLockMode.AssignBinding(BasisSettingsDefaults.IKLockMode);
-        dropdownIKLockMode.Descriptor.SetDescription(
-            "Lock Hips: Hips are the anchor, Lock Head: Head is the anchor."
-        //"Controls how the spine IK chain resolves the relationship between head and hips.\n\n"// +
-        //  "Lock Hips: Hips are the anchor. Prevents spine curvature from leg movement. Best for full-body tracking.\n" +
-        //  "Lock Head: Head is the anchor. Hips are derived below head. Best for HMD-only or 3-point tracking.\n" +
-        //  "Lock Both: Both head and hips are independent. Spine stretches to connect them."
-        );
-
         // --- Custom scale toggle ---
         var customScaleToggle = PanelToggle.CreateNewEntry(ikParent);
         customScaleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.customScale"));
@@ -118,10 +74,6 @@ public static class SettingsProviderIK
 
         if (avatarScaleSlider != null)
         {
-            avatarScaleSlider.Descriptor.SetDescription(
-                "Manually adjusts avatar height when Custom Scale is enabled. " +
-                "This affects perceived size only and does not change tracking accuracy."
-            );
             avatarScaleSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale.tooltip"));
 
             avatarScaleSlider.gameObject.SetActive(BasisSettingsDefaults.CustomScale.RawValue);
@@ -132,10 +84,6 @@ public static class SettingsProviderIK
                 ikGroup.ForceRebuild();
             };
         }
-
-        dropdownIKMode.OnValueChanged += _ => EvaluateInteractables();
-        dropdownSeatedMode.OnValueChanged += _ => EvaluateInteractables();
-        EvaluateInteractables();
 
         _trackerLerpToggleUIs.Clear();
         _euroToggleUIs.Clear();
@@ -279,11 +227,6 @@ public static class SettingsProviderIK
             butterflyKneesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKnees"));
             butterflyKneesToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKnees);
             butterflyKneesToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKnees.tooltip"));
-
-            var butterflyKneesUprightToggle = PanelToggle.CreateNewEntry(trackingParent);
-            butterflyKneesUprightToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKneesUpright"));
-            butterflyKneesUprightToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKneesUpright);
-            butterflyKneesUprightToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKneesUpright.tooltip"));
         });
 
         // ============== Body Collision ==============
@@ -1053,7 +996,7 @@ public static class SettingsProviderIK
         _debugCategories.Clear();
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.playerMetrics"),
-            "Player Eye Height", "Player Arm Span", "Standing Eye Correction");
+            "Player Eye Height", "Player Arm Span", "Eye Height Modifier");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.avatarMetrics"),
             "Avatar Eye Height", "Avatar Arm Span");
@@ -1119,7 +1062,7 @@ public static class SettingsProviderIK
     {
         "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
         "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
-        "Standing Eye Correction" => $"{Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue:F4} m",
+        "Eye Height Modifier" => $"{Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue:F4} m",
         "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
         "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
         "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
@@ -1197,7 +1140,6 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxHipDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKButterflyKnees.ResetToDefault();
-        BasisSettingsDefaults.FBIKButterflyKneesUpright.ResetToDefault();
         BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
@@ -1268,9 +1210,8 @@ public static class SettingsProviderIK
             b.CalibSphereScale?.ResetToDefault();
         }
 
-        // Refresh the editor bindings + derived master state + interactables
+        // Refresh the editor bindings + derived master state
         RebindBoneEditor();
-        EvaluateInteractables();
         SyncMasterEuroFromChildren();
     }
 
@@ -1330,7 +1271,6 @@ public static class SettingsProviderIK
         _boneDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.bone"));
         _boneDropdown.AssignEntries(boneNames);
         _boneDropdown.AssignBinding(BasisSettingsDefaults.SelectedBone);
-        _boneDropdown.Descriptor.SetDescription("Select which bone’s smoothing and filtering settings are shown below.");
         _boneDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.ik.title.bone.tooltip"));
         _boneDropdown.OnValueChanged += _ => RebindBoneEditor();
 
@@ -1346,30 +1286,22 @@ public static class SettingsProviderIK
 
         _uiUseCalibration = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiUseCalibration.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.useForCalibration"));
-        _uiUseCalibration.Descriptor.SetDescription(
-            "When enabled, this role participates in full-body tracker calibration. " +
-            "Disable to keep trackers from being assigned to it during the constellation pass."
-        );
         _uiUseCalibration.Descriptor.SetTooltip(BasisLocalization.Get("settings.ik.title.useForCalibration.tooltip"));
 
         _uiSmoothPos = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiSmoothPos.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.smoothPosition"));
-        _uiSmoothPos.Descriptor.SetDescription("Blends this bone’s position over time to reduce jitter.");
         _uiSmoothPos.Descriptor.SetTooltip(BasisLocalization.Get("settings.ik.title.smoothPosition.tooltip"));
 
         _uiSmoothRot = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiSmoothRot.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.smoothRotation"));
-        _uiSmoothRot.Descriptor.SetDescription("Blends this bone’s rotation over time to reduce wobble.");
         _uiSmoothRot.Descriptor.SetTooltip(BasisLocalization.Get("settings.ik.title.smoothRotation.tooltip"));
 
         _uiEuroPos = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiEuroPos.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.euroFilteringPosition"));
-        _uiEuroPos.Descriptor.SetDescription("Steady at rest with minimal lag during motion. ");
         _uiEuroPos.Descriptor.SetTooltip(BasisLocalization.Get("settings.ik.title.euroFilteringPosition.tooltip"));
 
         _uiEuroRot = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiEuroRot.Descriptor.SetTitle(BasisLocalization.Get("settings.ik.title.euroFilteringRotation"));
-        _uiEuroRot.Descriptor.SetDescription("Reduces micro-wobble while remaining responsive.");
         _uiEuroRot.Descriptor.SetTooltip(BasisLocalization.Get("settings.ik.title.euroFilteringRotation.tooltip"));
 
         _uiCalibSphereScale = PanelSlider.CreateAndBind(
@@ -1379,11 +1311,6 @@ public static class SettingsProviderIK
 
         if (_uiCalibSphereScale != null)
         {
-            _uiCalibSphereScale.Descriptor.SetDescription(
-                "Adjusts the calibration sphere size for this bone. " +
-                "Larger spheres make it easier for trackers to attach during calibration. " +
-                "1.0 = default size."
-            );
             _uiCalibSphereScale.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.calibSphereScale.tooltip"));
         }
 
@@ -1436,8 +1363,8 @@ public static class SettingsProviderIK
     {
         var toggle = PanelToggle.CreateNewEntry(parent);
         toggle.Descriptor.SetTitle(BasisLocalization.Get(titleKey));
-        toggle.Descriptor.SetDescription(BasisLocalization.Get(descriptionKey));
-        toggle.Descriptor.SetTooltip(BasisLocalization.Get(titleKey + ".tooltip"));
+        // Explanatory text on hover (tooltip) instead of inline, to keep the page compact.
+        toggle.Descriptor.SetTooltip(BasisLocalization.Get(descriptionKey));
         toggle.AssignBinding(binding);
     }
 
@@ -1447,13 +1374,13 @@ public static class SettingsProviderIK
 
         var sectionToggle = PanelToggle.CreateNewEntry(parent);
         sectionToggle.Descriptor.SetTitle(title);
-        sectionToggle.Descriptor.SetDescription(description);
+        // Section blurb on hover (tooltip) instead of inline, to keep the page compact.
+        sectionToggle.Descriptor.SetTooltip(description);
 
         var sectionGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             parent);
         sectionGroup.SetTitle(title);
-        sectionGroup.SetDescription(description);
         sectionGroup.SetIcon(AddressableAssets.Sprites.Settings);
 
         // Add content while the group is still active so child component Awake/Start runs and
@@ -1471,16 +1398,4 @@ public static class SettingsProviderIK
         };
     }
 
-    private static void EvaluateInteractables()
-    {
-        if (dropdownSeatedMode == null || dropdownIKMode == null)
-            return;
-
-        bool isSeated = GetCurrentText(dropdownSeatedMode) == SeatedMode_Seated;
-        dropdownIKMode.SetInteractable(!isSeated,
-            isSeated ? BasisLocalization.Get("settings.bodyTracking.ikMode.disabledSeated") : null);
-    }
-
-    private static string GetCurrentText(PanelDropdown dd)
-        => dd.DropdownComponent.options[dd.DropdownComponent.value].text;
 }

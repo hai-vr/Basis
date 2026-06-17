@@ -324,10 +324,6 @@ namespace Basis.BasisUI
         // rotation eulers + offsets to a CSV under persistentDataPath/CalibrationDebug. Read once
         // at the start of each calibration; leave off in normal play.
         public static BasisSettingsBinding<bool> DumpCalibrationCsv = new("devdumpcalibrationcsv", new BasisPlatformDefault<bool>(false));
-        // Pose-tolerant calibration: when on, a mid-joint (elbow/knee) tracker lets a bent calibration
-        // pose be reconstructed so the avatar limb mirrors it instead of snapping to the straight T-pose
-        // bone. Default off until validated in-headset; flip per-user to A/B it.
-        public static BasisSettingsBinding<bool> CalibrationPoseCompensation = new("calibrationposecompensation", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> EnableShaderPrewarm = new("enableshaderprewarm", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> EnableMaterialCorrection = new("enablematerialcorrection", new BasisPlatformDefault<bool>(false));
@@ -414,6 +410,19 @@ namespace Basis.BasisUI
         // (seen on OpenVR: avatar renders too tall). Default 0 = no-op; persists, so the gap is corrected once.
         // Read the "true-eye estimate vs DeviceScale" calibration log to dial in the real value.
         public static BasisSettingsBinding<float> CalibrationStandingEyeHeightMeters = new("calibrationstandingeyeheightmeters", new BasisPlatformDefault<float>(0f));
+
+        // Gate for the standing eye-height correction above. When off, the correction is ignored (treated as 0)
+        // regardless of the stored metres, and the slider is hidden in the calibration panel. Off by default.
+        public static BasisSettingsBinding<bool> EnableStandingEyeHeightCorrection = new("enablestandingeyeheightcorrection", new BasisPlatformDefault<bool>(false));
+
+        // Gate for the standing-height nudge in the calibration window: shows the ± buttons AND applies the value
+        // below. Off by default.
+        public static BasisSettingsBinding<bool> EnableStandingHeightNudge = new("enablestandingheightnudge", new BasisPlatformDefault<bool>(false));
+
+        // Standing-height nudge (the historical "AdditionalPlayerHeight"): metres fed straight into the DeviceScale
+        // denominator (BasisCalibrationMath.StandingEyeDenominator), separate from the eye-height modifier. The ±
+        // buttons step this; gated by EnableStandingHeightNudge.
+        public static BasisSettingsBinding<float> AdditionalPlayerHeight = new("additionalplayerheight", new BasisPlatformDefault<float>(0f));
 
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
@@ -1077,12 +1086,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKStruggleEnd = new("fbikstruggleend", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> FBIKMaxChestDelta = new("fbikmaxchestdelta", new BasisPlatformDefault<float>(90f));
         public static BasisSettingsBinding<float> FBIKMaxHipDelta = new("fbikmaxhipdelta", new BasisPlatformDefault<float>(90f));
-        // Butterfly knees: laying on your back with foot trackers (no knee tracker), tilting the feet outward and
-        // pulling them in lets the knees fall open. MaxOpenDeg clamps the splay to the hip's natural abduction.
+        // Butterfly knees: with foot trackers (no knee tracker), tilting the feet outward and pulling them in lets
+        // the knees fall open -- both laying on your back and sitting upright (cross-legged). MaxOpenDeg clamps the
+        // splay to the hip's natural abduction.
         public static BasisSettingsBinding<bool> FBIKButterflyKnees = new("fbikbutterflyknees", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKButterflyKneeMaxOpenDeg = new("fbikbutterflykneemaxopendeg", new BasisPlatformDefault<float>(60f));
-        // Also let the knees fall open while upright (sitting cross-legged), not just when laying on your back.
-        public static BasisSettingsBinding<bool> FBIKButterflyKneesUpright = new("fbikbutterflykneesupright", new BasisPlatformDefault<bool>(true));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1422,6 +1430,9 @@ namespace Basis.BasisUI
             IKLockMode.LoadBindingValue();
             PitchCalibration.LoadBindingValue();
             CalibrationStandingEyeHeightMeters.LoadBindingValue();
+            EnableStandingEyeHeightCorrection.LoadBindingValue();
+            EnableStandingHeightNudge.LoadBindingValue();
+            AdditionalPlayerHeight.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
@@ -1477,7 +1488,6 @@ namespace Basis.BasisUI
             DevShowNetStats.LoadBindingValue();
             DevShowCalibrationDebug.LoadBindingValue();
             DumpCalibrationCsv.LoadBindingValue();
-            CalibrationPoseCompensation.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
@@ -1761,7 +1771,6 @@ namespace Basis.BasisUI
             FBIKMaxHipDelta.LoadBindingValue();
             FBIKButterflyKnees.LoadBindingValue();
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
-            FBIKButterflyKneesUpright.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();

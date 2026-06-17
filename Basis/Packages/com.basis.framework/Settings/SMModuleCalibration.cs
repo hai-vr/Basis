@@ -48,6 +48,9 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_REALWORLD_EYE_HEIGHT => BasisSettingsDefaults.realworldeyeheight.BindingKey; // "real world eye height"
     private static string K_PITCH_CALIBRATION => BasisSettingsDefaults.PitchCalibration.BindingKey;     // "pitchcalibration"
     private static string K_STANDING_EYE_CORRECTION => BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.BindingKey; // "calibrationstandingeyeheightmeters"
+    private static string K_ENABLE_STANDING_EYE_CORRECTION => BasisSettingsDefaults.EnableStandingEyeHeightCorrection.BindingKey; // "enablestandingeyeheightcorrection"
+    private static string K_ADDITIONAL_PLAYER_HEIGHT => BasisSettingsDefaults.AdditionalPlayerHeight.BindingKey; // "additionalplayerheight"
+    private static string K_ENABLE_STANDING_HEIGHT_NUDGE => BasisSettingsDefaults.EnableStandingHeightNudge.BindingKey; // "enablestandingheightnudge"
 
     // One Euro globals
     private static string K_FBIK_MINCUTOFF => BasisSettingsDefaults.FBIKMinCutoff.BindingKey;                 // "fbikmincutoff"
@@ -311,6 +314,16 @@ public class SMModuleCalibration : BasisSettingsBase
                 // Persistent standing eye-height correction changed: re-apply height/scale now so
                 // DeviceScale picks up the new denominator. Applied directly (not via the _dirty path,
                 // which only re-applies on height-mode/scale/custom-scale changes).
+                BasisHeightDriver.ApplyScaleAndHeight();
+                break;
+
+            case var s when s == K_ENABLE_STANDING_EYE_CORRECTION:
+                // Toggling the correction on/off flips whether the stored metres apply; re-apply now.
+                BasisHeightDriver.ApplyScaleAndHeight();
+                break;
+
+            case var s when s == K_ADDITIONAL_PLAYER_HEIGHT || s == K_ENABLE_STANDING_HEIGHT_NUDGE:
+                // Standing-height nudge value or its gate changed: re-apply so the DeviceScale denominator updates.
                 BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 

@@ -4428,15 +4428,15 @@
     },
     {
       "key": "settings.bodyTracking.seatedMode",
-      "value": "Seated / Standing Mode"
+      "value": "Seated / Standing"
     },
     {
       "key": "settings.bodyTracking.ikMode",
-      "value": "Full Body IK Mode"
+      "value": "Avatar Scaling"
     },
     {
       "key": "settings.bodyTracking.spineLockMode",
-      "value": "Spine Lock Mode"
+      "value": "Spine Lock"
     },
     {
       "key": "settings.bodyTracking.customScale",
@@ -4480,15 +4480,7 @@
     },
     {
       "key": "settings.bodyTracking.butterflyKnees.tooltip",
-      "value": "When laying on your back with foot trackers (and no knee trackers), tilt your feet outward and pull them in to let your knees fall open. Default: On"
-    },
-    {
-      "key": "settings.bodyTracking.butterflyKneesUpright",
-      "value": "Butterfly Knees While Upright"
-    },
-    {
-      "key": "settings.bodyTracking.butterflyKneesUpright.tooltip",
-      "value": "Also allow the butterfly knees to fall open while sitting upright (cross-legged), not only when laying on your back. Default: On"
+      "value": "With foot trackers (and no knee trackers), tilt your feet outward and pull them in to let your knees fall open — both laying on your back and sitting upright (cross-legged). Default: On"
     },
     {
       "key": "settings.bodyTracking.butterflyKneeMaxOpen.title",

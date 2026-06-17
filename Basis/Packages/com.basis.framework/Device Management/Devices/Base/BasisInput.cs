@@ -382,23 +382,6 @@ namespace Basis.Scripts.Device_Management.Devices
         }
 
         /// <summary>
-        /// Re-capture this tracker's inverse offset against a supplied WORLD reference position instead of
-        /// the avatar's straight T-pose bone (the BasisCalibrationLimbCompensation pose-tolerant path).
-        /// Rotation handling is identical to <see cref="CalculateOffset"/> (the simulated bone rotation);
-        /// only the bone POSITION reference is overridden -- that is what a bent calibration pose misplaces.
-        /// </summary>
-        public void RecaptureOffsetWithReference(Vector3 worldReferencePosition)
-        {
-            BasisCalibratedCoords tracker = ScaledDeviceCoord;
-            BasisCalibratedCoords bone = Control.OutGoingData;
-            Vector3 referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(worldReferencePosition);
-            BasisCalibrationMath.ComputeInverseOffset(tracker.position, tracker.rotation, referencePosition, bone.rotation, out Vector3 InverseOffsetPosition, out Quaternion InverseOffsetRotation);
-            Control.SetInverseOffset(InverseOffsetPosition, InverseOffsetRotation);
-            Control.UseInverseOffset = true;
-            BasisCalibrationDebugRecorder.OffsetCapture(this, Control);
-        }
-
-        /// <summary>
         /// Clears role and control binding and resets tracker state, unless the role was forced by a device matcher.
         /// </summary>
         public void UnAssignRoleAndTracker()

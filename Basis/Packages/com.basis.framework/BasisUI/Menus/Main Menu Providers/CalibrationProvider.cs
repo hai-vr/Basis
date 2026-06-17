@@ -87,19 +87,115 @@ namespace Basis.BasisUI
                 _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : "Calibrate to see a quality report.");
             }
 
-            // Persistent standing eye-height correction. Bridges a systematic measured-eye-height shortfall
-            // (seen on OpenVR: avatar feels too tall) so the gap is corrected once. 0 = off; survives restarts/swaps.
+            // Calibration modes (moved here from Body Tracking settings): seated/standing, avatar scaling, spine lock.
+            var seatedModeDropdown = PanelDropdown.CreateNewEntry(container);
+            seatedModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.seatedMode"));
+            seatedModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.seatedMode.tooltip"));
+            seatedModeDropdown.AssignLocalizedEntries(
+                new List<string> { SettingsProviderIK.SeatedMode_Standing, SettingsProviderIK.SeatedMode_Seated },
+                new List<string> { "settings.bodyTracking.seatedMode.standing", "settings.bodyTracking.seatedMode.seated" });
+            seatedModeDropdown.AssignBinding(BasisSettingsDefaults.SitStand);
+
+            var scalingModeDropdown = PanelDropdown.CreateNewEntry(container);
+            scalingModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikMode"));
+            scalingModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikMode.tooltip"));
+            scalingModeDropdown.AssignLocalizedEntries(
+                new List<string> { "Eye Height", "Arm Distance" },
+                new List<string> { "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
+            scalingModeDropdown.AssignBinding(BasisSettingsDefaults.IKMode);
+
+            var spineLockModeDropdown = PanelDropdown.CreateNewEntry(container);
+            spineLockModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.spineLockMode"));
+            spineLockModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineLockMode.tooltip"));
+            spineLockModeDropdown.AssignLocalizedEntries(
+                new List<string> { "Lock Hips", "Lock Head", "Lock Both" },
+                new List<string> { "settings.bodyTracking.spineLock.hips", "settings.bodyTracking.spineLock.head", "settings.bodyTracking.spineLock.both" });
+            spineLockModeDropdown.AssignBinding(BasisSettingsDefaults.IKLockMode);
+
+            // Slim calibration panel: inset each dropdown control's left edge so its label isn't squished.
+            NarrowDropdownForPanel(seatedModeDropdown);
+            NarrowDropdownForPanel(scalingModeDropdown);
+            NarrowDropdownForPanel(spineLockModeDropdown);
+
+            // Avatar Scaling Mode is moot in seated mode (a fixed height is used), so disable it there.
+            void UpdateScalingModeInteractable()
+            {
+                bool isSeated = seatedModeDropdown.DropdownComponent.options[seatedModeDropdown.DropdownComponent.value].text == SettingsProviderIK.SeatedMode_Seated;
+                scalingModeDropdown.SetInteractable(!isSeated,
+                    isSeated ? BasisLocalization.Get("settings.bodyTracking.ikMode.disabledSeated") : null);
+            }
+            seatedModeDropdown.OnValueChanged += _ => UpdateScalingModeInteractable();
+            UpdateScalingModeInteractable();
+
+            // Persistent Eye Height Modifier, gated behind a toggle. Bridges a systematic measured-eye-height
+            // shortfall (seen on OpenVR: avatar feels too tall) so the gap is corrected once. Survives restarts/swaps.
+            var eyeHeightCorrectionToggle = PanelToggle.CreateNewEntry(container);
+            eyeHeightCorrectionToggle.Descriptor.SetTitle("Eye Height Modifier");
+            eyeHeightCorrectionToggle.Descriptor.SetTooltip(
+                "Enable a persistent modifier added to your measured standing eye height before scaling. If the " +
+                "avatar feels too tall, turn this on and raise the slider to bridge the gap. Survives restarts and avatar swaps.");
+            eyeHeightCorrectionToggle.AssignBinding(BasisSettingsDefaults.EnableStandingEyeHeightCorrection);
+
             var eyeHeightCorrectionSlider = PanelSlider.CreateAndBind(
                 container,
-                PanelSlider.SliderSettings.Advanced("Standing Eye Height Correction", BasisHeightDriver.StandingHeightCorrectionMin, BasisHeightDriver.StandingHeightCorrectionMax, false, 2, ValueDisplayMode.Meters),
+                PanelSlider.SliderSettings.Advanced("Eye Height Modifier", BasisHeightDriver.StandingHeightCorrectionMin, BasisHeightDriver.StandingHeightCorrectionMax, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.CalibrationStandingEyeHeightMeters);
             if (eyeHeightCorrectionSlider != null)
             {
                 eyeHeightCorrectionSlider.Descriptor.SetTooltip(
-                    "Persistent correction added to your measured standing eye height before scaling. If the avatar " +
-                    "feels too tall, raise this to bridge the gap (e.g. +0.10 m). " +
-                    "0 = off. Survives restarts and avatar swaps.");
+                    "Persistent modifier added to your measured standing eye height before scaling. If the avatar " +
+                    "feels too tall, raise this to bridge the gap (e.g. +0.10 m). Survives restarts and avatar swaps.");
+                eyeHeightCorrectionSlider.gameObject.SetActive(BasisSettingsDefaults.EnableStandingEyeHeightCorrection.RawValue);
+                eyeHeightCorrectionToggle.OnValueChanged += visible =>
+                {
+                    eyeHeightCorrectionSlider.gameObject.SetActive(visible);
+                    layout.ForceRebuild();
+                };
             }
+
+            // Nudge Standing Height: gated behind its own toggle. Quick ± buttons for a SEPARATE standing-height
+            // nudge (the old AdditionalPlayerHeight), fed through DeviceScale independently of the Eye Height Modifier.
+            var nudgeToggle = PanelToggle.CreateNewEntry(container);
+            nudgeToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.nudgeStandingHeight"));
+            nudgeToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.nudgeStandingHeight.tooltip"));
+            nudgeToggle.AssignBinding(BasisSettingsDefaults.EnableStandingHeightNudge);
+
+            var nudgeGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+
+            // Show the live nudge value (read fresh from the persisted setting) instead of a static warning, so it
+            // always matches the real value — including after avatar swaps or closing/reopening the menu.
+            void UpdateNudgeReadout() => nudgeGroup.SetDescription(FormatNudgeMeters(BasisSettingsDefaults.AdditionalPlayerHeight.RawValue));
+            UpdateNudgeReadout();
+
+            void NudgeStandingHeight(float deltaMeters)
+            {
+                float next = Mathf.Clamp(
+                    BasisSettingsDefaults.AdditionalPlayerHeight.RawValue + deltaMeters,
+                    -NudgeStandingHeightLimitMeters,
+                    NudgeStandingHeightLimitMeters);
+
+                // Adjusts only the nudge (AdditionalPlayerHeight) — fed through the DeviceScale denominator,
+                // separate from the Eye Height Modifier. SetValue persists and re-applies height via SMModuleCalibration.
+                BasisSettingsDefaults.AdditionalPlayerHeight.SetValue(next);
+                UpdateNudgeReadout();
+            }
+
+            var decreaseHeightButton = PanelButton.CreateNew(nudgeGroup.ContentParent);
+            decreaseHeightButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.decreaseHeight"));
+            decreaseHeightButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.decreaseHeight.tooltip"));
+            decreaseHeightButton.OnClicked += () => NudgeStandingHeight(-NudgeStandingHeightStepMeters);
+
+            var increaseHeightButton = PanelButton.CreateNew(nudgeGroup.ContentParent);
+            increaseHeightButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.increaseHeight"));
+            increaseHeightButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.increaseHeight.tooltip"));
+            increaseHeightButton.OnClicked += () => NudgeStandingHeight(NudgeStandingHeightStepMeters);
+
+            nudgeGroup.gameObject.SetActive(BasisSettingsDefaults.EnableStandingHeightNudge.RawValue);
+            nudgeToggle.OnValueChanged += visible =>
+            {
+                nudgeGroup.gameObject.SetActive(visible);
+                layout.ForceRebuild();
+            };
 
             // Lock-in guides toggle (shrinking spheres + foot-forward guide while calibrating).
             if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
@@ -133,41 +229,11 @@ namespace Basis.BasisUI
                 };
             }
 
-            // Auto-estimate scale before calibrating: guess standing height from the live HMD so an uncalibrated
-            // VR session is roughly the right size. Superseded the moment you calibrate.
-            var autoScaleToggle = PanelToggle.CreateNewEntry(container);
-            autoScaleToggle.Descriptor.SetTitle("Auto-estimate scale (uncalibrated)");
-            autoScaleToggle.Descriptor.SetTooltip("Before you calibrate, guess your height from the headset so the avatar isn't wildly mis-scaled. A real calibration overrides it.");
-            autoScaleToggle.AssignBinding(BasisSettingsDefaults.AutoScaleEstimateEnabled);
-
-            // Pose-tolerant calibration (experimental): reconstruct a bent calibration from elbow/knee trackers.
-            var poseCompToggle = PanelToggle.CreateNewEntry(container);
-            poseCompToggle.Descriptor.SetTitle("Pose Compensation (elbow/knee)");
-            poseCompToggle.Descriptor.SetTooltip("Use elbow/knee trackers to reconstruct a bent calibration pose, so you don't have to hold a perfect straight T-pose. Experimental — A/B test it.");
-            poseCompToggle.AssignBinding(BasisSettingsDefaults.CalibrationPoseCompensation);
-
-            // Playspace Mover quick enable (full options live under Body Tracking settings)
-            var playspaceMoverToggle = PanelToggle.CreateNewEntry(container);
-            playspaceMoverToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.title"));
-            playspaceMoverToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.enable.tooltip"));
-            playspaceMoverToggle.AssignBinding(BasisSettingsDefaults.EnablePlayspaceMover);
-
-            var playspaceResetButton = PanelButton.CreateNew(container);
-            playspaceResetButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset"));
-            playspaceResetButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.playspaceMover.reset.tooltip"));
-            playspaceResetButton.OnClicked += BasisLocalPlayspaceMover.ResetOffset;
-
             // Pitch calibration toggle
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             _pitchToggleButton.OnClicked += TogglePitchCalibration;
             _pitchToggleButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.pitchLabel.tooltip"));
             UpdatePitchToggleLabel();
-
-            // Navigate to Body Tracking settings
-            var bodyTrackingSettingsButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
-            bodyTrackingSettingsButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.bodyTrackingSettings"));
-            bodyTrackingSettingsButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.bodyTrackingSettings.tooltip"));
-            bodyTrackingSettingsButton.OnClicked += () => SettingsProvider.OpenBodyTrackingTab();
 
             // Reset Calibration (restores defaults for calibration-only state, including hidden pitch data)
             var resetButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
@@ -205,6 +271,9 @@ namespace Basis.BasisUI
             BasisHeightDriver.PitchCalibratedEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
 
             BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.ResetToDefault();
+            BasisSettingsDefaults.EnableStandingEyeHeightCorrection.ResetToDefault();
+            BasisSettingsDefaults.EnableStandingHeightNudge.ResetToDefault();
+            BasisSettingsDefaults.AdditionalPlayerHeight.ResetToDefault();
             BasisHeightDriver.HasUserCalibratedHeight = false;
             BasisAutoScaleEstimator.Reset();
             BasisHeightDriver.ApplyScaleAndHeight();
@@ -212,6 +281,24 @@ namespace Basis.BasisUI
             UpdatePitchToggleLabel();
         }
         private static string FormatScaleMeters(float meters) => meters.ToString("0.##") + " m";
+        private static string FormatNudgeMeters(float meters) => "Current: " + meters.ToString("+0.00;-0.00;0.00") + " m";
+
+        // The dropdown control prefab is sized for the wide settings page; in the slim calibration panel its
+        // label gets squished. Inset the control's left edge (the RectTransform "Left" field) so the title has room.
+        private const float CalibrationDropdownLeftInset = 200f;
+        private const float NudgeStandingHeightStepMeters = 0.05f;
+        private const float NudgeStandingHeightLimitMeters = 0.5f;
+        private static void NarrowDropdownForPanel(PanelDropdown dropdown)
+        {
+            if (dropdown == null || dropdown.DropdownComponent == null)
+            {
+                return;
+            }
+            if (dropdown.DropdownComponent.transform is RectTransform rt)
+            {
+                rt.offsetMin = new Vector2(CalibrationDropdownLeftInset, rt.offsetMin.y);
+            }
+        }
 
         private void TogglePitchCalibration()
         {

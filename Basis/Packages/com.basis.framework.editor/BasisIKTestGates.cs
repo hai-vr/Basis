@@ -504,40 +504,6 @@ namespace Basis.IK.Debugging
             return (true, $"offsetPos={s.MaxOffsetPosErr:F5}m rotCal={s.MaxRotCalErrDeg:F3}deg scalePos={s.MaxScalePosErr:F5}m pitch={s.MaxPitchHeightErr:F4}m ({s.PitchSolvable}/{s.PitchFallback}) feel={s.MaxFeelHeightErr:F5}m cases={s.Cases} fails={s.Failures}");
         }
 
-        // --- pose-tolerant calibration (compensate for the player not holding a straight T-pose) ---
-        public const float CalibPoseMaxScaleDevMm = 1f;       // bend-invariant limb length must equal the true length at every bend
-        public const float CalibPoseMinScaleShortfallMm = 30f;// wrist-to-wrist must visibly underestimate at a bend (sweep is exercising the scale bug)
-        public const float CalibPoseMaxCompErrMm = 1f;        // the pose-matched reference must place the avatar bone exactly at the calibration pose
-        public const float CalibPoseMinUncompErrMm = 30f;     // the T-pose reference must visibly misplace it (sweep is exercising the offset bug)
-        public const float CalibPoseMaxRuntimeCompErrMm = 150f;// compensated runtime tracking, incl. the deep-fold inverse-offset articulation limit (a blow-up guard, not the headline)
-        public const float CalibPoseMinImprovement = 1.5f;    // over realistic bends, compensation must beat the T-pose reference at runtime by this factor
-
-        // Pose-tolerant calibration: a mid-joint tracker (elbow/knee) lets us reconstruct the limb's true
-        // straightened geometry and pose the avatar bone to mirror the player's actual bend. The sweep
-        // proves the bend-invariant length is exact, the pose-matched offset reference places the bone
-        // where the T-pose reference drifts, compensation tracks better at runtime, and the quality score
-        // reflects when a mid tracker is missing (the un-fixable case).
-        public static (bool pass, string reason) GateCalibrationPose(in BasisCalibrationPoseSweepSummary s)
-        {
-            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
-            if (s.Rows <= 0) return (false, "no rows");
-            if (s.ScaleMaxLimbDeviationMm > CalibPoseMaxScaleDevMm)
-                return (false, $"bend-invariant limb length drifts {s.ScaleMaxLimbDeviationMm:F2}mm with bend > {CalibPoseMaxScaleDevMm} (scale would still depend on the pose)");
-            if (s.ScaleWorstBentShortfallMm < CalibPoseMinScaleShortfallMm)
-                return (false, $"sweep not exercising the scale bug (wrist-to-wrist shortfall only {s.ScaleWorstBentShortfallMm:F0}mm < {CalibPoseMinScaleShortfallMm})");
-            if (s.CalibMaxCompErrMm > CalibPoseMaxCompErrMm)
-                return (false, $"pose-matched reference misplaces the avatar bone by {s.CalibMaxCompErrMm:F2}mm > {CalibPoseMaxCompErrMm} (compensation is wrong)");
-            if (s.CalibMaxUncompErrMm < CalibPoseMinUncompErrMm)
-                return (false, $"sweep not exercising the offset bug (T-pose reference drift only {s.CalibMaxUncompErrMm:F0}mm < {CalibPoseMinUncompErrMm})");
-            if (s.RuntimeMaxCompErrMm > CalibPoseMaxRuntimeCompErrMm)
-                return (false, $"compensated runtime tracking {s.RuntimeMaxCompErrMm:F0}mm > {CalibPoseMaxRuntimeCompErrMm} (a blow-up, beyond the inverse-offset articulation limit)");
-            if (s.RuntimeImprovementFactor < CalibPoseMinImprovement)
-                return (false, $"compensation only {s.RuntimeImprovementFactor:F1}x better than the T-pose reference at runtime < {CalibPoseMinImprovement} (not fixing the bent-at-runtime case)");
-            if (s.QualNoMidBent >= s.QualMidBent)
-                return (false, $"quality score doesn't reflect the mid-tracker advantage (no-mid bent {s.QualNoMidBent:F2} >= mid bent {s.QualMidBent:F2})");
-            return (true, $"scaleDev={s.ScaleMaxLimbDeviationMm:F2}mm (shortfall {s.ScaleWorstBentShortfallMm:F0}mm) calibErr comp={s.CalibMaxCompErrMm:F2}/uncomp={s.CalibMaxUncompErrMm:F0}mm runtime comp={s.RuntimeMaxCompErrMm:F0}/uncomp={s.RuntimeMaxUncompErrMm:F0}mm ({s.RuntimeImprovementFactor:F1}x) qual mid={s.QualMidBent:F2}/noMid={s.QualNoMidBent:F2}");
-        }
-
         // Procedural foot placement (BasisFootSimulateJob): a temporal stepping system, so the gate reads
         // the worst per-frame metric across the scripted locomotion battery (walk/strafe/turn/stop/slope/
         // stairs/gap). The invariants: feet never lift together or tangle, a planted foot is world-locked

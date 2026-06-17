@@ -600,7 +600,7 @@ namespace Basis.Scripts.Drivers
                 // ── BUTTERFLY KNEES (laying-down knee splay from tracked feet with no knee tracker) ──
                 bool butterflyEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKnees.RawValue;
                 float butterflyMaxOpenDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.RawValue;
-                float butterflySupineFloor = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKneesUpright.RawValue ? 1f : 0f;
+                float butterflySupineFloor = 1f; // merged toggle: butterfly knees works both supine and upright when enabled
                 Vector3 playerUpDir = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up).normalized;
                 bool leftFootTracked = fbtEnabled && BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
                 bool rightFootTracked = fbtEnabled && BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;

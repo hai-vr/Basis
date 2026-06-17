@@ -2385,6 +2385,13 @@ namespace Basis.BasisUI
             toggleCalibrationDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationDebug.tooltip"));
             toggleCalibrationDebug.AssignBinding(BasisSettingsDefaults.DevShowCalibrationDebug);
 
+            // Auto-estimate scale before calibrating: guess standing height from the live HMD so an uncalibrated
+            // VR session is roughly the right size. Superseded the moment you calibrate. (Developer-only.)
+            PanelToggle toggleAutoScale = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
+            toggleAutoScale.Descriptor.SetTitle("Auto-estimate scale (uncalibrated)");
+            toggleAutoScale.Descriptor.SetTooltip("Before you calibrate, guess your height from the headset so the avatar isn't wildly mis-scaled. A real calibration overrides it.");
+            toggleAutoScale.AssignBinding(BasisSettingsDefaults.AutoScaleEstimateEnabled);
+
             PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
             toggleFaceTrackLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip"));
@@ -2720,6 +2727,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DevShowNetStats.ResetToDefault();
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
+            BasisSettingsDefaults.AutoScaleEstimateEnabled.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
             BasisSettingsDefaults.ForceGridSnap.ResetToDefault();
