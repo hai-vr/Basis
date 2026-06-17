@@ -216,7 +216,7 @@ namespace Basis.BasisUI
             _isDragging = true;
             if (_handleRect != null)
             {
-                if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
+                if (_handleScaleTween != null && _handleScaleTween.Active && _handleScaleTween.Target == _handleRect) _handleScaleTween.Reset();
                 _handleScaleTween = _handleRect.TweenScale(0.12f, _handleRect.localScale, Vector3.one * 1.25f)
                     .SetEase(Easing.OutBack);
             }
@@ -228,7 +228,7 @@ namespace Basis.BasisUI
             _isDragging = false;
             if (_handleRect != null)
             {
-                if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
+                if (_handleScaleTween != null && _handleScaleTween.Active && _handleScaleTween.Target == _handleRect) _handleScaleTween.Reset();
                 _handleScaleTween = _handleRect.TweenScale(0.2f, _handleRect.localScale, Vector3.one)
                     .SetEase(Easing.OutBack);
             }
@@ -272,7 +272,7 @@ namespace Basis.BasisUI
             // Punch the value label when user confirms
             if (Application.isPlaying && CurrentValueLabel != null)
             {
-                if (_labelPunchTween != null && _labelPunchTween.Active) _labelPunchTween.Reset();
+                if (_labelPunchTween != null && _labelPunchTween.Active && _labelPunchTween.Target == CurrentValueLabel.transform) _labelPunchTween.Reset();
                 Transform labelTransform = CurrentValueLabel.transform;
                 _labelPunchTween = labelTransform.TweenScale(0.06f, labelTransform.localScale, Vector3.one * 1.15f)
                     .SetEase(Easing.OutCubic)
@@ -366,7 +366,7 @@ namespace Basis.BasisUI
                 }
                 else
                 {
-                    if (_fillColorTween != null && _fillColorTween.Active) _fillColorTween.Reset();
+                    if (_fillColorTween != null && _fillColorTween.Active && _fillColorTween.Target == FillGraphic) _fillColorTween.Reset();
                     _fillColorTween = FillGraphic.TweenColor(0.15f, FillGraphic.color, targetFillColor)
                         .SetEase(Easing.OutCubic);
                     if (_roundedFrontGraphic != null) _roundedFrontGraphic.color = targetFillColor;

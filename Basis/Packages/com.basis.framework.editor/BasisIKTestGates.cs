@@ -54,6 +54,11 @@ namespace Basis.IK.Debugging
         public const float LegStraightStanceMaxFlipSens = 0.5f;   // how far a tiny uneven-feet/waist-tilt swings the standing knee inward; high = near-singular coin-flip (the asymmetric flicker).
         public const float LegStanceFlickerMaxStepDeg = 3f;       // STATEFUL: worst per-frame knee-swivel jump under 3mm foot noise at a near-straight reach (measured 0.1deg -- the solver is stable offline). 3 is a wide guard against a solver destabilization.
         public const float LegStanceFlickerMaxRangeDeg = 8f;      // STATEFUL: total knee-swivel wander over the run (measured 0deg). 8 catches a slow drift (e.g. an un-anchoring fix); two metrics so a fix can't trade flicker for drift.
+        // --- leg twist when standing still/straight (knee-swivel smoothing) -- calibrate after the first run ---
+        public const float LegTwistMinRawDeg = 2f;          // standing yaw jitter must visibly roll the RAW near-straight leg (sweep is exercising the bug)
+        public const float LegTwistMaxSmoothedFrac = 0.6f;  // smoothing must cut the worst standing twist below this fraction of raw
+        public const float LegTwistMinTurnTrackFrac = 0.7f; // a real turn must still carry the smoothed swivel (not frozen)
+        public const float LegTwistMaxTurnLagDeg = 20f;     // steady turn-tracking lag ceiling (over-smoothing guard)
         // --- virtual-spine hips compression (the touch-toes-folds-knees + seated-hips-too-low fix). The pelvis no
         //     longer sinks the full head drop; the spine shortens instead. Thresholds derive from the deterministic
         //     sweep geometry + the saturating model (computed values in comments). ---
@@ -334,6 +339,26 @@ namespace Basis.IK.Debugging
             if (rawM > LegMaxKneeJitterRawM)
                 return (false, $"raw knee jitter {rawM * 1000f:F0}mm (incl. near-singular) from {noiseM * 1000f:F0}mm foot noise > {LegMaxKneeJitterRawM * 1000f:F0}mm (near-extension knee destabilized -- straight-leg flicker/drift)");
             return (true, $"wellCond {wellCondM * 1000f:F0}mm raw {rawM * 1000f:F0}mm from {noiseM * 1000f:F0}mm foot noise");
+        }
+
+        // Standing leg twist: with no foot trackers the leg runs near full extension, where the solver's bend
+        // axis is the raw hips-yaw bend normal and the knee pole follows the hips-derived hint -- so hips-yaw
+        // jitter rolls the near-straight leg about the hip->foot axis ("legs twist when I stand still/straight").
+        // SmoothKneeSwivel (One-Euro on the OUTPUT knee swivel) must collapse that jitter yet still track a real
+        // turn. UNCALIBRATED -- calibrate the thresholds against the first known-good run.
+        public static (bool pass, string reason) GateLegTwist(in BasisLegTwistSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Rows <= 0) return (false, "no rows");
+            if (s.WorstRawP2PDeg < LegTwistMinRawDeg)
+                return (false, $"standing yaw jitter barely rolled the raw leg (worst {s.WorstRawP2PDeg:F1} deg @ ext {s.WorstExt:F2} < {LegTwistMinRawDeg}) -- sweep not exercising the twist");
+            if (s.WorstSmoothedP2PDeg > s.WorstRawP2PDeg * LegTwistMaxSmoothedFrac)
+                return (false, $"knee-swivel smoothing left {s.WorstSmoothedP2PDeg:F1} deg of standing twist > {LegTwistMaxSmoothedFrac:P0} of raw {s.WorstRawP2PDeg:F1} (@ ext {s.WorstExt:F2})");
+            if (s.TurnSmoothChangeDeg < s.TurnRawChangeDeg * LegTwistMinTurnTrackFrac)
+                return (false, $"smoothed knee swivel doesn't track a real turn ({s.TurnSmoothChangeDeg:F0} of {s.TurnRawChangeDeg:F0} deg < {LegTwistMinTurnTrackFrac:P0}) -- over-smoothed/frozen");
+            if (s.TurnMaxLagDeg > LegTwistMaxTurnLagDeg)
+                return (false, $"turn-tracking lag {s.TurnMaxLagDeg:F0} deg > {LegTwistMaxTurnLagDeg} (over-smoothed)");
+            return (true, $"standing twist raw {s.WorstRawP2PDeg:F1}->smoothed {s.WorstSmoothedP2PDeg:F1} deg @ ext {s.WorstExt:F2} ({s.WorstReductionFrac:P0}); turn tracks {s.TurnSmoothChangeDeg:F0}/{s.TurnRawChangeDeg:F0} deg lag {s.TurnMaxLagDeg:F0}");
         }
 
         public static (bool pass, string reason) GateHead(in BasisHeadSweepSummary s)

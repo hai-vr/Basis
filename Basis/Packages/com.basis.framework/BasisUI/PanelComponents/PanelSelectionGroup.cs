@@ -40,7 +40,7 @@ namespace Basis.BasisUI
             if (selected == null) return;
 
             // Scale emphasis on the newly selected tab
-            if (_tabPunchTween != null && _tabPunchTween.Active) _tabPunchTween.Reset();
+            if (_tabPunchTween != null && _tabPunchTween.Active && _tabPunchTween.Target == selected.transform) _tabPunchTween.Reset();
             _tabPunchTween = selected.transform.TweenScale(0.1f, selected.transform.localScale, Vector3.one * 1.08f)
                 .SetEase(Easing.OutCubic)
                 .AddCallback(() =>

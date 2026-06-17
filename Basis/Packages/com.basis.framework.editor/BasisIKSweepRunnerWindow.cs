@@ -134,6 +134,8 @@ namespace Basis.IK.Debugging
             string multiTrackerTemporalPath = BasisMultiTrackerRotationSweep.DefaultTemporalPath();
             string calibMathPath = BasisCalibrationMathSweep.DefaultPath();
             string calibPosePath = BasisCalibrationPoseSweep.DefaultPath();
+            string calibLockInPath = BasisCalibrationLockInSweep.DefaultPath();
+            string legTwistPath = BasisLegTwistSweep.DefaultPath();
             string twistPath = BasisTwistSweep.DefaultPath();
             string spinePath = BasisSpineSweep.DefaultPath();
             string remoteBonePath = BasisRemoteBoneSweep.DefaultPath();
@@ -236,6 +238,8 @@ namespace Basis.IK.Debugging
             jobs.Add(() => Job("Eye Gaze", eyePath, () => { var s = BasisEyeSweep.Run(BasisEyeSweepConfig.Default(), eyePath); return BasisIKTestGates.GateEye(s); }));
             jobs.Add(() => Job("Blink Timing", blinkPath, () => { var s = BasisBlinkTimingSweep.Run(BasisBlinkTimingSweepConfig.Default(), blinkPath); return BasisIKTestGates.GateBlinkTiming(s); }));
             jobs.Add(() => Job("Locomotion", locomotionPath, () => { var s = BasisLocomotionSweep.Run(BasisLocomotionSweepConfig.Default(), locomotionPath); return BasisIKTestGates.GateLocomotion(s); }));
+            jobs.Add(() => Job("Leg Twist (standing)", legTwistPath, () => { var s = BasisLegTwistSweep.Run(BasisLegTwistSweepConfig.Default(), legTwistPath); return BasisIKTestGates.GateLegTwist(s); }));
+            jobs.Add(() => Job("Calibration Lock-In", calibLockInPath, () => { var s = BasisCalibrationLockInSweep.Run(BasisCalibrationLockInSweepConfig.Default(), calibLockInPath); bool ok = BasisCalibrationLockInSweep.Gate(s, out string reason); return (ok, reason); }));
 
             if (includeTraj)
             {

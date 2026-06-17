@@ -161,7 +161,7 @@ public struct BasisFootSimulateJob : IJob
         // sway (the leg tilts rigidly about the foot). When stationary, let each planted foot gently give toward
         // the body's drift so the leg tilts less and the knee stays stiller -- a direct trade (stiffer knee = more
         // idle foot give). Walking is untouched (idle-only). idleStiffenRate 0 = off (locked feet, knee tracks ~0.5x).
-        const float idleStiffenRate = 0.5f;
+        const float idleStiffenRate = 0f;
         if (stationary && idleStiffenRate > 0f)
         {
             float g = 1f - math.exp(-idleStiffenRate * dt);

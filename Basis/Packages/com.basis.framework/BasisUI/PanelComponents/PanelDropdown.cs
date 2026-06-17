@@ -111,7 +111,7 @@ namespace Basis.BasisUI
             _previousIndex = currentIndex;
 
             // Punch the dropdown itself to give selection feedback
-            if (_selectionPunchTween != null && _selectionPunchTween.Active) _selectionPunchTween.Reset();
+            if (_selectionPunchTween != null && _selectionPunchTween.Active && _selectionPunchTween.Target == transform) _selectionPunchTween.Reset();
 
             _selectionPunchTween = transform.TweenScale(0.06f, transform.localScale, Vector3.one * 0.96f)
                 .SetEase(Easing.OutCubic)
@@ -160,7 +160,7 @@ namespace Basis.BasisUI
                 cg = _dropdownList.gameObject.AddComponent<CanvasGroup>();
             }
 
-            if (_listFadeTween != null && _listFadeTween.Active) _listFadeTween.Reset();
+            if (_listFadeTween != null && _listFadeTween.Active && _listFadeTween.Target == cg) _listFadeTween.Reset();
 
             cg.alpha = 0f;
             _listFadeTween = cg.TweenAlpha(0.15f, 0f, 1f).SetEase(Easing.OutCubic);

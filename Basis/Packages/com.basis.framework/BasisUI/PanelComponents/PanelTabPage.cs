@@ -85,7 +85,7 @@ namespace Basis.BasisUI
             CanvasGroup cg = GetCanvasGroup();
 
             // Cancel any active tween without completing it
-            if (_fadeTween != null && _fadeTween.Active) _fadeTween.Reset();
+            if (_fadeTween != null && _fadeTween.Active && _fadeTween.Target == cg) _fadeTween.Reset();
 
             if (value)
             {

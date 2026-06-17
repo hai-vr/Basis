@@ -64,7 +64,7 @@ namespace Basis.BasisUI
         private void OnFieldFocused()
         {
             if (!Application.isPlaying) return;
-            if (_focusTween != null && _focusTween.Active) _focusTween.Reset();
+            if (_focusTween != null && _focusTween.Active && _focusTween.Target == transform) _focusTween.Reset();
 
             _focusTween = transform.TweenScale(0.12f, transform.localScale, Vector3.one * 1.02f)
                 .SetEase(Easing.OutCubic);
@@ -73,7 +73,7 @@ namespace Basis.BasisUI
         private void OnFieldUnfocused()
         {
             if (!Application.isPlaying) return;
-            if (_focusTween != null && _focusTween.Active) _focusTween.Reset();
+            if (_focusTween != null && _focusTween.Active && _focusTween.Target == transform) _focusTween.Reset();
 
             _focusTween = transform.TweenScale(0.15f, transform.localScale, Vector3.one)
                 .SetEase(Easing.OutCubic);
@@ -91,7 +91,7 @@ namespace Basis.BasisUI
             // Punch on submit
             if (Application.isPlaying)
             {
-                if (_focusTween != null && _focusTween.Active) _focusTween.Reset();
+                if (_focusTween != null && _focusTween.Active && _focusTween.Target == transform) _focusTween.Reset();
                 _focusTween = transform.TweenScale(0.06f, transform.localScale, Vector3.one * 1.03f)
                     .SetEase(Easing.OutCubic)
                     .AddCallback(() =>
@@ -117,7 +117,7 @@ namespace Basis.BasisUI
             // Punch the toggle on visibility change
             if (Application.isPlaying && _showToggle != null)
             {
-                if (_togglePunchTween != null && _togglePunchTween.Active) _togglePunchTween.Reset();
+                if (_togglePunchTween != null && _togglePunchTween.Active && _togglePunchTween.Target == _showToggle.transform) _togglePunchTween.Reset();
                 Transform toggleTransform = _showToggle.transform;
                 _togglePunchTween = toggleTransform.TweenScale(0.08f, toggleTransform.localScale, Vector3.one * 1.2f)
                     .SetEase(Easing.OutCubic)
