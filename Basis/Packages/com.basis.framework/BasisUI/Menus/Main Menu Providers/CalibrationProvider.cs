@@ -79,9 +79,13 @@ namespace Basis.BasisUI
             Button.Descriptor.SetTooltip(BasisLocalization.Get("calibration.calibrate.tooltip"));
 
             // Calibration quality report — filled in after a calibration completes.
-            _reportGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            _reportGroup.SetTitle("Calibration Report");
-            _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : "Calibrate to see a quality report.");
+            _reportGroup = null;
+            if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
+            {
+                _reportGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                _reportGroup.SetTitle("Calibration Report");
+                _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : "Calibrate to see a quality report.");
+            }
 
             // Persistent standing eye-height correction. Bridges a systematic measured-eye-height shortfall
             // (seen on OpenVR: avatar feels too tall) so the gap is corrected once. 0 = off; survives restarts/swaps.
@@ -98,11 +102,14 @@ namespace Basis.BasisUI
             }
 
             // Lock-in guides toggle (shrinking spheres + foot-forward guide while calibrating).
-            var lockInGuidesToggle = PanelToggle.CreateNewEntry(container);
-            lockInGuidesToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.lockInGuides"));
-            lockInGuidesToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.lockInGuides.tooltip"));
-            lockInGuidesToggle.SetValueWithoutNotify(BasisCalibrationLockInVisualizer.Enabled);
-            lockInGuidesToggle.OnValueChanged += value => BasisCalibrationLockInVisualizer.Enabled = value;
+            if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
+            {
+                var lockInGuidesToggle = PanelToggle.CreateNewEntry(container);
+                lockInGuidesToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.lockInGuides"));
+                lockInGuidesToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.lockInGuides.tooltip"));
+                lockInGuidesToggle.SetValueWithoutNotify(BasisCalibrationLockInVisualizer.Enabled);
+                lockInGuidesToggle.OnValueChanged += value => BasisCalibrationLockInVisualizer.Enabled = value;
+            }
 
             // Avatar scale
             var customScaleToggle = PanelToggle.CreateNewEntry(container);
@@ -125,6 +132,13 @@ namespace Basis.BasisUI
                     layout.ForceRebuild();
                 };
             }
+
+            // Auto-estimate scale before calibrating: guess standing height from the live HMD so an uncalibrated
+            // VR session is roughly the right size. Superseded the moment you calibrate.
+            var autoScaleToggle = PanelToggle.CreateNewEntry(container);
+            autoScaleToggle.Descriptor.SetTitle("Auto-estimate scale (uncalibrated)");
+            autoScaleToggle.Descriptor.SetTooltip("Before you calibrate, guess your height from the headset so the avatar isn't wildly mis-scaled. A real calibration overrides it.");
+            autoScaleToggle.AssignBinding(BasisSettingsDefaults.AutoScaleEstimateEnabled);
 
             // Pose-tolerant calibration (experimental): reconstruct a bent calibration from elbow/knee trackers.
             var poseCompToggle = PanelToggle.CreateNewEntry(container);
@@ -191,6 +205,8 @@ namespace Basis.BasisUI
             BasisHeightDriver.PitchCalibratedEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
 
             BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.ResetToDefault();
+            BasisHeightDriver.HasUserCalibratedHeight = false;
+            BasisAutoScaleEstimator.Reset();
             BasisHeightDriver.ApplyScaleAndHeight();
 
             UpdatePitchToggleLabel();

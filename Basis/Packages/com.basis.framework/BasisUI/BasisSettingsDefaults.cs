@@ -318,6 +318,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevShowCalibrationDebug = new("devshowcalibrationdebug", new BasisPlatformDefault<bool>(false));
 
         // When on, the local avatar calibration pipeline dumps every stage's scales/positions/
         // rotation eulers + offsets to a CSV under persistentDataPath/CalibrationDebug. Read once
@@ -413,6 +414,10 @@ namespace Basis.BasisUI
         // (seen on OpenVR: avatar renders too tall). Default 0 = no-op; persists, so the gap is corrected once.
         // Read the "true-eye estimate vs DeviceScale" calibration log to dial in the real value.
         public static BasisSettingsBinding<float> CalibrationStandingEyeHeightMeters = new("calibrationstandingeyeheightmeters", new BasisPlatformDefault<float>(0f));
+
+        // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
+        // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
+        public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
@@ -1417,6 +1422,7 @@ namespace Basis.BasisUI
             IKLockMode.LoadBindingValue();
             PitchCalibration.LoadBindingValue();
             CalibrationStandingEyeHeightMeters.LoadBindingValue();
+            AutoScaleEstimateEnabled.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
             EnableOSC.LoadBindingValue();
@@ -1469,6 +1475,7 @@ namespace Basis.BasisUI
             DevShowConsole.LoadBindingValue();
             DevShowEuroFilter.LoadBindingValue();
             DevShowNetStats.LoadBindingValue();
+            DevShowCalibrationDebug.LoadBindingValue();
             DumpCalibrationCsv.LoadBindingValue();
             CalibrationPoseCompensation.LoadBindingValue();
             DisableLogging.LoadBindingValue();

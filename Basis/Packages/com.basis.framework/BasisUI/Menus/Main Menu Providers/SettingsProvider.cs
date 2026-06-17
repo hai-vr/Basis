@@ -2380,6 +2380,11 @@ namespace Basis.BasisUI
             toggleCalibrationCsv.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationCsv.tooltip"));
             toggleCalibrationCsv.AssignBinding(BasisSettingsDefaults.DumpCalibrationCsv);
 
+            PanelToggle toggleCalibrationDebug = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
+            toggleCalibrationDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationDebug"));
+            toggleCalibrationDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationDebug.tooltip"));
+            toggleCalibrationDebug.AssignBinding(BasisSettingsDefaults.DevShowCalibrationDebug);
+
             PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
             toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
             toggleFaceTrackLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip"));
@@ -2714,6 +2719,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DevShowEuroFilter.ResetToDefault();
             BasisSettingsDefaults.DevShowNetStats.ResetToDefault();
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
+            BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
             BasisSettingsDefaults.ForceGridSnap.ResetToDefault();

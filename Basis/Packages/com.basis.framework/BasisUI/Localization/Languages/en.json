@@ -6211,6 +6211,14 @@
       "value": "Write a CSV of every calibration stage (scales, positions, rotation eulers and offsets) to persistentDataPath/CalibrationDebug on the next avatar calibration. Use to debug flipped/inverted bones."
     },
     {
+      "key": "settings.developer.calibrationDebug",
+      "value": "Calibration Debug Tools"
+    },
+    {
+      "key": "settings.developer.calibrationDebug.tooltip",
+      "value": "Show the calibration report and lock-in guide controls in the Calibration panel."
+    },
+    {
       "key": "settings.developer.remoteAudioDebug.title",
       "value": "Remote Audio Debug"
     },

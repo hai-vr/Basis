@@ -606,6 +606,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void Simulate(float DeltaTime)
         {
+            BasisAutoScaleEstimator.Tick(DeltaTime);
             if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 this.transform.GetPositionAndRotation(out Position, out Rotation);

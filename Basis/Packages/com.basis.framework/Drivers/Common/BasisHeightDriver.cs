@@ -32,6 +32,7 @@ public static class BasisHeightDriver
 
     public static float PlayerEyeHeight = FallbackHeightInMeters;
     public static bool HasGenuinePlayerEyeHeight = false;
+    public static bool HasUserCalibratedHeight = false;
     public static float AvatarEyeHeight = FallbackHeightInMeters;
 
     public static float PlayerArmSpan = FallbackHeightInMeters;
@@ -77,6 +78,7 @@ public static class BasisHeightDriver
 
     public static void OnAvatarFBCalibration()
     {
+        HasUserCalibratedHeight = true;
         CapturePlayerHeight();
         ApplyScaleAndHeight();
         ScheduleHeightChangeCallback(HeightModeChange.OnAvatarFBCalibration);

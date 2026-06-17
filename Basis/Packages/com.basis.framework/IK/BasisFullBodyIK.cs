@@ -1324,8 +1324,7 @@ w20, w54;
             int chainLen = ChainHeadToSpine.Length;
             const int tipIdx = 0;
             const int firstJoint = 1;
-            // A tracked chest anchors the reach (bend only chest->head, don't pitch the tracked chest/spine).
-            int lastJoint = BasisSpineReachCore.LastJoint(chainLen, firstJoint, HasChestTracker.Get(stream));
+            int lastJoint = chainLen - 2;
 
             for (int i = 0; i < chainLen; i++)
             {
