@@ -519,6 +519,7 @@ namespace Basis.MediaPipe
             move.parent = BasisLocalPlayer.Instance.transform;
 
             BasisInputXRSimulate input = go.AddComponent<BasisInputXRSimulate>();
+            input.IsCameraTracked = true;
             input.FollowMovement = move;
             input.InitializeTracking(id, SubSystem, SubSystem, false, role);
             input.AssignRoleAndTracker(role);

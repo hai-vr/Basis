@@ -91,14 +91,13 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
             Vector3 devicePosition = devicePose.mDeviceToAbsoluteTracking.GetPosition();
             Quaternion deviceRotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
 
-            // The HMD's tracked origin isn't the eyes. Cache the origin->center-eye vertical (from the
-            // runtime's eye-to-head transforms) so height calibration scales from the eyes; the rendered
-            // pose stays at the device origin because SteamVR applies its own per-eye offset at render.
+            // The HMD's tracked origin isn't the eyes. Cache the full head-local origin->center-eye offset
+            // (averaged eye-to-head; head-local so head pitch can't leak the forward term into the height).
             if (Device.deviceIndex == Valve.VR.OpenVR.k_unTrackedDeviceIndex_Hmd
                 && SteamVR.instance != null && SteamVR.instance.eyes != null && SteamVR.instance.eyes.Length >= 2)
             {
-                Vector3 centerEyeLocal = (SteamVR.instance.eyes[0].pos + SteamVR.instance.eyes[1].pos) * 0.5f;
-                CenterEyeVerticalOffset = (deviceRotation * centerEyeLocal).y;
+                CenterEyeOffset = (SteamVR.instance.eyes[0].pos + SteamVR.instance.eyes[1].pos) * 0.5f;
+                CenterEyeVerticalOffset = CenterEyeOffset.y;
             }
 
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, devicePosition);
@@ -106,6 +105,10 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
 
             // Your existing scaling pipeline
             ConvertToScaledDeviceCoord();
+
+            // Place the avatar eye bone at the true center-eye (Control only -- the camera keeps the device-
+            // origin pose so SteamVR's per-eye render offset isn't doubled), scaled with the avatar.
+            ScaledControlPositionOffset = ScaledDeviceCoord.rotation * (CenterEyeOffset * BasisHeightDriver.DeviceScale);
 
             // CenterEye extra simulation path
             if (TryGetRole(out var currentRole) && currentRole == BasisBoneTrackedRole.CenterEye)

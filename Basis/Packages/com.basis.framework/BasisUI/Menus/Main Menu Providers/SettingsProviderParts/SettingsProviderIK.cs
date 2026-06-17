@@ -421,6 +421,9 @@ public static class SettingsProviderIK
             AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKLegSwivelSmoothing,
                 "settings.bodyTracking.anat.legSwivelSmoothing.title",
                 "settings.bodyTracking.anat.legSwivelSmoothing.description");
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKTrackerBendNormal,
+                "settings.bodyTracking.anat.trackerBendNormal.title",
+                "settings.bodyTracking.anat.trackerBendNormal.description");
         });
 
         // ============== Spine: Reach Limits ==============
@@ -1050,7 +1053,7 @@ public static class SettingsProviderIK
         _debugCategories.Clear();
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.playerMetrics"),
-            "Player Eye Height", "Player Arm Span", "Additional Player Height");
+            "Player Eye Height", "Player Arm Span", "Standing Eye Correction");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.avatarMetrics"),
             "Avatar Eye Height", "Avatar Arm Span");
@@ -1116,7 +1119,7 @@ public static class SettingsProviderIK
     {
         "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
         "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
-        "Additional Player Height" => $"{BasisHeightDriver.CurrentStandingHeightNudge:F4} m",
+        "Standing Eye Correction" => $"{Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue:F4} m",
         "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
         "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
         "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
@@ -1252,6 +1255,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKAnatCervicalLordosis.ResetToDefault();
         BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.ResetToDefault();
         BasisSettingsDefaults.FBIKLegSwivelSmoothing.ResetToDefault();
+        BasisSettingsDefaults.FBIKTrackerBendNormal.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)

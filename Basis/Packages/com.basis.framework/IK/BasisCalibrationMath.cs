@@ -73,4 +73,14 @@ public static class BasisCalibrationMath
         }
         return avatarScaledMetric / denominator;
     }
+
+    /// <summary>
+    /// Avatar-swap eye-height reuse decision (BasisHeightDriver.CapturePlayerHeight). Re-poll the live HMD
+    /// only while no genuine standing eye height exists yet; once one does, an avatar load reuses it so fit no
+    /// longer shifts with head pose at swap time. Explicit recalibration passes recapture=true to re-measure.
+    /// </summary>
+    public static bool ShouldRecaptureEyeHeight(bool recapture, bool hasGenuine)
+    {
+        return recapture || !hasGenuine;
+    }
 }

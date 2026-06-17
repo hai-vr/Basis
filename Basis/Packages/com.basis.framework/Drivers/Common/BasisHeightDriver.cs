@@ -11,10 +11,11 @@ public static class BasisHeightDriver
 {
     public const float FallbackHeightInMeters = 1.61f;
 
+    public const float StandingHeightCorrectionMin = -0.20f;
+    public const float StandingHeightCorrectionMax = 0.20f;
+
     // Small epsilon to prevent divide-by-zero and ratio explosions.
     private const float Epsilon = 1e-5f;
-
-    public static float AdditionalPlayerHeight = 0f;
 
     public static float PlayerCenterEyeVerticalOffset = 0f;
 
@@ -234,7 +235,7 @@ public static class BasisHeightDriver
     public static void CapturePlayerHeight(bool recaptureEyeHeight = true)
     {
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
-        if (recaptureEyeHeight || !HasGenuinePlayerEyeHeight)
+        if (BasisCalibrationMath.ShouldRecaptureEyeHeight(recaptureEyeHeight, HasGenuinePlayerEyeHeight))
         {
             BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
         }
@@ -253,29 +254,6 @@ public static class BasisHeightDriver
         // Optional safety: sanitize captured values in case calculator produced junk.
         PlayerEyeHeight = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters);
         PlayerArmSpan = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
-    }
-
-    public static bool EyeHeightCorrectionIsActiveMode()
-    {
-        return BasisDeviceManagement.IsUserInDesktop() || SMModuleCalibration.HeightMode == BasisSelectedHeightMode.EyeHeight;
-    }
-
-    public static float CurrentStandingHeightNudge => EyeHeightCorrectionIsActiveMode()
-        ? Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue
-        : AdditionalPlayerHeight;
-
-    public static void NudgeStandingHeight(float deltaMeters)
-    {
-        if (EyeHeightCorrectionIsActiveMode())
-        {
-            var correction = Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters;
-            correction.SetValue(Mathf.Clamp(correction.RawValue + deltaMeters, -0.20f, 0.20f));
-        }
-        else
-        {
-            AdditionalPlayerHeight += deltaMeters;
-        }
-        ApplyScaleAndHeight();
     }
 
     public static void CaptureAvatarHeightDuringTpose()
@@ -374,7 +352,7 @@ public static class BasisHeightDriver
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
-                SelectedScaledPlayerHeight = calY * ((AdditionalPlayerHeight + PlayerArmSpan) * AppliedUpScale);
+                SelectedScaledPlayerHeight = calY * (PlayerArmSpan * AppliedUpScale);
                 SelectedScaledAvatarHeight = calY * (AvatarArmSpan * AppliedUpScale);
 
                 SelectedUnScaledAvatarHeight = SanitizePositive(AvatarArmSpan, FallbackHeightInMeters);
@@ -382,7 +360,7 @@ public static class BasisHeightDriver
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
-                SelectedScaledPlayerHeight = calY * ((AdditionalPlayerHeight + eyeScaleOffset + PlayerEyeHeight) * AppliedUpScale);
+                SelectedScaledPlayerHeight = calY * ((eyeScaleOffset + PlayerEyeHeight) * AppliedUpScale);
                 SelectedScaledAvatarHeight = calY * (AvatarEyeHeight * AppliedUpScale);
 
                 SelectedUnScaledAvatarHeight = SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters);
@@ -422,7 +400,7 @@ public static class BasisHeightDriver
         // by the shared pure helper so this runtime path and BasisCalibrationMathSweep exercise the same
         // formula. eyeScaleOffset already carries the device-origin->eye correction (OpenVR) plus the
         // gated standing-eye-height correction applied above.
-        float playerMetric = SanitizePositive(BasisCalibrationMath.StandingEyeDenominator(SelectedUnScaledPlayerHeight, eyeScaleOffset, AdditionalPlayerHeight), 1f);
+        float playerMetric = SanitizePositive(BasisCalibrationMath.StandingEyeDenominator(SelectedUnScaledPlayerHeight, eyeScaleOffset, 0f), 1f);
 
         DeviceScale = SafeDivide(avatarScaledMetric, playerMetric, 1f);
         DeviceScale = SanitizePositive(DeviceScale, 1f);
@@ -440,7 +418,7 @@ public static class BasisHeightDriver
         // tall), the shortfall is the value to put in CalibrationStandingEyeHeightMeters.
         BasisDebug.Log(
             $"Eye-height denominator (true standing eye estimate): {playerMetric:F3}m = raw {SelectedUnScaledPlayerHeight:F3} " +
-            $"+ device->eye {PlayerCenterEyeVerticalOffset:F3} + correction {standingEyeCorrection:F3} + nudge {AdditionalPlayerHeight:F3}",
+            $"+ device->eye {PlayerCenterEyeVerticalOffset:F3} + correction {standingEyeCorrection:F3}",
             BasisDebug.LogTag.Avatar
         );
     }

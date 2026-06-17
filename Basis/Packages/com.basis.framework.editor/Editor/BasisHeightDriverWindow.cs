@@ -167,9 +167,6 @@ public class BasisHeightDriverWindow : EditorWindow
             {
                 EditorGUILayout.LabelField("FallbackHeightInMeters", BasisHeightDriver.FallbackHeightInMeters.ToString("0.###"));
 
-                BasisHeightDriver.AdditionalPlayerHeight =
-                    EditorGUILayout.FloatField("AdditionalPlayerHeight", BasisHeightDriver.AdditionalPlayerHeight);
-
                 BasisHeightDriver.AppliedUpScale =
                     EditorGUILayout.FloatField("AppliedUpScale", BasisHeightDriver.AppliedUpScale);
 
@@ -274,7 +271,6 @@ public class BasisHeightDriverWindow : EditorWindow
     {
         return
             "=== BasisHeightDriver Snapshot ===\n" +
-            $"AdditionalPlayerHeight: {BasisHeightDriver.AdditionalPlayerHeight:0.######}\n" +
             $"AppliedUpScale: {BasisHeightDriver.AppliedUpScale:0.######}\n" +
             $"ScaledToMatchValue: {BasisHeightDriver.ScaledToMatchValue:0.######}\n" +
             $"DeviceScale: {BasisHeightDriver.DeviceScale:0.######}\n" +

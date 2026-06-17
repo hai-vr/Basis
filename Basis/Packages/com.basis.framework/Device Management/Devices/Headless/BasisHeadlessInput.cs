@@ -170,7 +170,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
 
         private float GetBaseUnscaledHeight()
         {
-            float height = BasisHeightDriver.SelectedUnScaledPlayerHeight + BasisHeightDriver.AdditionalPlayerHeight;
+            float height = BasisHeightDriver.SelectedUnScaledPlayerHeight;
             if (float.IsNaN(height) || float.IsInfinity(height) || height <= 0f)
             {
                 height = BasisHeightDriver.FallbackHeightInMeters;

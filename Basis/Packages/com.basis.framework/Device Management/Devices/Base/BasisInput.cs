@@ -49,6 +49,15 @@ namespace Basis.Scripts.Device_Management.Devices
         public bool IsLinked;
 
         /// <summary>
+        /// True when this device's pose comes from camera/optical tracking (e.g. the MediaPipe
+        /// webcam source) rather than a worn or handheld tracker. Camera-tracked devices don't
+        /// count as body trackers for the desktop calibration entry — webcam tracking alone
+        /// shouldn't surface the calibration panel.
+        /// </summary>
+        [SerializeField]
+        public bool IsCameraTracked;
+
+        /// <summary>
         /// The bone control this input drives (e.g., left hand, right foot).
         /// </summary>
         public BasisLocalBoneControl Control = null;
@@ -81,11 +90,25 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public float CenterEyeVerticalOffset = 0f;
 
+        /// <summary>
+        /// Full tracking-space offset (metres) from this device's tracked origin to the runtime's center-eye
+        /// (averaged left/right eye-to-head). Zero unless a backend whose HMD origin differs from the eyes
+        /// fills it (OpenVR). <see cref="CenterEyeVerticalOffset"/> is its vertical component.
+        /// </summary>
+        public Vector3 CenterEyeOffset = Vector3.zero;
+
         [Header("Final Data normally just modified by EyeHeight/AvatarEyeHeight)")]
         /// <summary>
         /// Device pose after scaling/elevation adjustments.
         /// </summary>
         public BasisCalibratedCoords ScaledDeviceCoord = new BasisCalibratedCoords();
+
+        /// <summary>
+        /// World-space position offset added to the bone Control only (not the camera/raycast/transform), so a
+        /// device can place its avatar bone at the true eye while the rendered pose stays where the compositor
+        /// expects. Zero except on the OpenVR HMD.
+        /// </summary>
+        public Vector3 ScaledControlPositionOffset = Vector3.zero;
         /// <summary>
         /// Common/normalized device identifier (used for matching visual models, capabilities).
         /// </summary>
@@ -795,7 +818,7 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             if (hasRoleAssigned && Control.HasTracked != BasisHasTracked.HasNoTracker)
             {
-                Control.SetIncoming(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation);
+                Control.SetIncoming(ScaledDeviceCoord.position + ScaledControlPositionOffset, ScaledDeviceCoord.rotation);
             }
 
         }

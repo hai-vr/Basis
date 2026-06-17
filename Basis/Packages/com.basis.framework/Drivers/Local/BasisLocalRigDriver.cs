@@ -492,6 +492,7 @@ namespace Basis.Scripts.Drivers
             bool leftLLHasTracker = fbtEnabled && BasisLocalBoneDriver.LeftLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
             bool rightLLHasTracker = fbtEnabled && BasisLocalBoneDriver.RightLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
             bool hipsHaveTracker = fbtEnabled && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
+            bool trackerBendNormal = Basis.BasisUI.BasisSettingsDefaults.FBIKTrackerBendNormal.RawValue;
 
             // ── 7. Wait for jobs ──
             JobHandle.CombineDependencies(posHandle, rotHandle).Complete();
@@ -591,7 +592,8 @@ namespace Basis.Scripts.Drivers
                 // ── CHEST (head hint) ──
                 chestPos = pOut[S_Chest];
                 chestRot = rOut[S_Chest];
-                chestPos = ApplyHintBias(BasisBoneTrackedRole.Chest, chestPos, chestRot);
+                if (!trackerBendNormal)
+                    chestPos = ApplyHintBias(BasisBoneTrackedRole.Chest, chestPos, chestRot);
                 data.ChestPosition = chestPos;
                 data.ChestRotation = chestRot;
 
@@ -608,7 +610,8 @@ namespace Basis.Scripts.Drivers
                 {
                     Vector3 lllPos = pOut[S_LeftLowerLeg];
                     Quaternion lllRot = rOut[S_LeftLowerLeg];
-                    lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
+                    if (!trackerBendNormal)
+                        lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
                     data.PositionLeftLowerLeg = lllPos;
                     data.RotationLeftLowerLeg = lllRot;
                     data.EnableLeftLowerLeg = 1f;
@@ -642,7 +645,8 @@ namespace Basis.Scripts.Drivers
                 {
                     Vector3 rllPos = pOut[S_RightLowerLeg];
                     Quaternion rllRot = rOut[S_RightLowerLeg];
-                    rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
+                    if (!trackerBendNormal)
+                        rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
                     data.PositionRightLowerLeg = rllPos;
                     data.RotationRightLowerLeg = rllRot;
                     data.EnableRightLowerLeg = 1f;
@@ -730,8 +734,20 @@ namespace Basis.Scripts.Drivers
             Vector3 outR = hipsRot * Vector3.right;
             Vector3 up = hipsRot * Vector3.up;
             Vector3 hipsRight = hipsRot * Vector3.right;
-            data.KneeBendPrefLeft = hipsRight;
-            data.KneeBendPrefRight = hipsRight;
+            if (trackerBendNormal)
+            {
+                data.KneeBendPrefLeft = (leftLLHasTracker && BasisBendNormalStore.TryGet(BasisBoneTrackedRole.LeftLowerLeg, out var leftAxis))
+                    ? BasisTrackerBendNormalCore.ResolveWorldNormal(BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.rotation, leftAxis, hipsRight)
+                    : hipsRight;
+                data.KneeBendPrefRight = (rightLLHasTracker && BasisBendNormalStore.TryGet(BasisBoneTrackedRole.RightLowerLeg, out var rightAxis))
+                    ? BasisTrackerBendNormalCore.ResolveWorldNormal(BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation, rightAxis, hipsRight)
+                    : hipsRight;
+            }
+            else
+            {
+                data.KneeBendPrefLeft = hipsRight;
+                data.KneeBendPrefRight = hipsRight;
+            }
             data.SpineBendNormal = (fwd * spineBendNormalWeights.x
                 + outR * spineBendNormalWeights.y
                 + up * spineBendNormalWeights.z).normalized;

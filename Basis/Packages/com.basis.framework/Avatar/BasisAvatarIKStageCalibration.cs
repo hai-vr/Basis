@@ -22,6 +22,18 @@ namespace Basis.Scripts.Avatar
             public static void Clear() => LocalOffset.Clear();
         }
 
+        // Per-role limb bend-plane normal captured in the tracker's local frame at calibration. Consumed by
+        // BasisLocalRigDriver via BasisTrackerBendNormalCore.ResolveWorldNormal so the knee bend plane follows
+        // the lower-leg tracker's rotation instead of a fixed hips-frame axis (flip-free, natural bending).
+        public static class BasisBendNormalStore
+        {
+            public static readonly Dictionary<BasisBoneTrackedRole, Vector3> LocalAxis = new();
+
+            public static void Set(BasisBoneTrackedRole role, Vector3 localAxis) => LocalAxis[role] = localAxis;
+            public static bool TryGet(BasisBoneTrackedRole role, out Vector3 localAxis) => LocalAxis.TryGetValue(role, out localAxis);
+            public static void Clear() => LocalAxis.Clear();
+        }
+
         /// <summary>
         /// Read-only snapshot of the most recent constellation calibration pass. Populated
         /// each time FullBodyCalibration runs and consumed by the editor visualizer. Live
@@ -124,6 +136,7 @@ namespace Basis.Scripts.Avatar
                 BasisHeightDriver.OnAvatarFBCalibration();//avatar height is good,player height is needed
                 HasFBIKTrackers = false;
                 BasisHintBiasStore.Clear();
+                BasisBendNormalStore.Clear();
                 BasisDeviceManagement.UnassignFBTrackers();
                 BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 
@@ -1099,6 +1112,12 @@ namespace Basis.Scripts.Avatar
                     Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: true, distanceMeters: kneePush, outWeight: 0, upWeight: 0.25f, fwdWeight);
                     localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerLeg, localOffset);
+
+                    if (lll.HasTracked == BasisHasTracked.HasTracker)
+                    {
+                        BasisBendNormalStore.Set(BasisBoneTrackedRole.LeftLowerLeg,
+                            UnityEngine.Animations.Rigging.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
+                    }
                 }
 
                 var rll = BasisLocalBoneDriver.RightLowerLegControl;
@@ -1112,6 +1131,12 @@ namespace Basis.Scripts.Avatar
                     Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: false, distanceMeters: kneePush, outWeight: 0, upWeight: 0.25f, fwdWeight);
                     localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerLeg, localOffset);
+
+                    if (rll.HasTracked == BasisHasTracked.HasTracker)
+                    {
+                        BasisBendNormalStore.Set(BasisBoneTrackedRole.RightLowerLeg,
+                            UnityEngine.Animations.Rigging.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
+                    }
                 }
             }
             // NOTE: no elbow (lower-arm) hint bias baked here on purpose. A tracker-local offset swings with

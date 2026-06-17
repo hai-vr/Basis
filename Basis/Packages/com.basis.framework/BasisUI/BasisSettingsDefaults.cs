@@ -410,8 +410,7 @@ namespace Basis.BasisUI
 
         // Systematic correction (metres) added to the measured standing eye height before DeviceScale.
         // It bridges a backend's HMD-pose-origin vs true-eye gap that CenterEyeVerticalOffset under-reports
-        // (seen on OpenVR: avatar renders too tall, so users nudge up every calibration). Default 0 = no-op;
-        // unlike the per-session AdditionalPlayerHeight nudge this persists, so the gap is corrected once.
+        // (seen on OpenVR: avatar renders too tall). Default 0 = no-op; persists, so the gap is corrected once.
         // Read the "true-eye estimate vs DeviceScale" calibration log to dial in the real value.
         public static BasisSettingsBinding<float> CalibrationStandingEyeHeightMeters = new("calibrationstandingeyeheightmeters", new BasisPlatformDefault<float>(0f));
 
@@ -1139,6 +1138,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKAnatCervicalLordosis = new("fbikanatcervicallordosis_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKAnatPelvicTwistRouting = new("fbikanatpelvictwistrouting_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKTrackerBendNormal = new("fbiktrackerbendnormal", new BasisPlatformDefault<bool>(true));
 
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
@@ -1790,6 +1790,7 @@ namespace Basis.BasisUI
             FBIKAnatCervicalLordosis.LoadBindingValue();
             FBIKAnatPelvicTwistRouting.LoadBindingValue();
             FBIKLegSwivelSmoothing.LoadBindingValue();
+            FBIKTrackerBendNormal.LoadBindingValue();
             FBIKLordosisPitchGainDeg.LoadBindingValue();
             FBIKLordosisBaseDeg.LoadBindingValue();
             FBIKLordosisNeckShare.LoadBindingValue();

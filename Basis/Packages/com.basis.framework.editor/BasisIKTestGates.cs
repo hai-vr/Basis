@@ -59,6 +59,10 @@ namespace Basis.IK.Debugging
         public const float LegTwistMaxSmoothedFrac = 0.6f;  // smoothing must cut the worst standing twist below this fraction of raw
         public const float LegTwistMinTurnTrackFrac = 0.7f; // a real turn must still carry the smoothed swivel (not frozen)
         public const float LegTwistMaxTurnLagDeg = 20f;     // steady turn-tracking lag ceiling (over-smoothing guard)
+        // --- tracker-driven bend normal (the knee bend plane rides the lower-leg tracker instead of fixed hips-right) ---
+        public const float BendNormalParityMaxDeg = 0.5f;        // at the calibration pose the tracker normal must reproduce the fixed normal exactly -- a no-op there
+        public const float BendNormalMaxTrackingErrDeg = 1f;     // the tracker normal must stay on the shin's medial axis as the shin yaws (it rides the tracker)
+        public const float BendNormalMinDemonstratedErrDeg = 20f;// the fixed hips-right normal it replaces must drift at least this far off the shin axis under yaw, or the sweep range isn't exercising the fix
         // --- virtual-spine hips compression (the touch-toes-folds-knees + seated-hips-too-low fix). The pelvis no
         //     longer sinks the full head drop; the spine shortens instead. Thresholds derive from the deterministic
         //     sweep geometry + the saturating model (computed values in comments). ---
@@ -276,6 +280,25 @@ namespace Basis.IK.Debugging
             if (s.Snaps > 0)
                 return (false, $"knee pole snapped >90deg on {s.Snaps} crouch steps -- leg flips/shoots up mid-crouch (worst jump {s.WorstSwivelJumpDeg:F0}deg @ {s.WorstScenario}, onset crouchFrac {s.OnsetCrouchFrac:F2})");
             return (true, $"clean through crouch: {s.Scenarios} placements, worst swivel jump {s.WorstSwivelJumpDeg:F0}deg, worst swivel {s.WorstSwivelDeg:F0}deg, min fwd {s.MinFwdFrac:F2}");
+        }
+
+        // Tracker-driven bend normal: the knee bend plane must follow the lower-leg tracker so a yawed shin
+        // still bends in its OWN plane (the fix for the pole flip the forward-pole offset was patching). Gate
+        // the deterministic core contract -- a no-op at the calibration pose (parity ~0), the tracker normal
+        // stays on the shin's medial axis as the shin yaws, and the fixed normal it replaces visibly drifts
+        // off that axis (or the sweep range isn't exercising the fix). The degenerate-pole solved-knee plane
+        // error is reported for insight, not hard-gated (it depends on solver-internal blend behavior).
+        public static (bool pass, string reason) GateBendNormal(in BasisBendNormalSweepSummary s)
+        {
+            if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
+            if (s.Steps <= 0) return (false, "no steps");
+            if (s.ParityMaxDeg > BendNormalParityMaxDeg)
+                return (false, $"not a no-op at calibration: tracker normal differs {s.ParityMaxDeg:F1}deg from the fixed normal at yaw 0 (> {BendNormalParityMaxDeg})");
+            if (s.WorstTrackingErrNewDeg > BendNormalMaxTrackingErrDeg)
+                return (false, $"tracker normal not following the leg: {s.WorstTrackingErrNewDeg:F1}deg off the shin medial axis (> {BendNormalMaxTrackingErrDeg})");
+            if (s.WorstTrackingErrOldDeg < BendNormalMinDemonstratedErrDeg)
+                return (false, $"sweep range too small: fixed normal only drifts {s.WorstTrackingErrOldDeg:F0}deg off the shin axis (< {BendNormalMinDemonstratedErrDeg}) -- fix not exercised");
+            return (true, $"no-op@calib ({s.ParityMaxDeg:F1}deg); tracker normal tracks shin within {s.WorstTrackingErrNewDeg:F1}deg vs fixed {s.WorstTrackingErrOldDeg:F0}deg drift; degenerate-pole knee plane err new {s.WorstNormalNewPlaneErrDeg:F0} vs old {s.WorstNormalOldPlaneErrDeg:F0}deg");
         }
 
         // Pole round-trip: with BOTH a knee hint and a moving foot target present, smooth foot motion must not

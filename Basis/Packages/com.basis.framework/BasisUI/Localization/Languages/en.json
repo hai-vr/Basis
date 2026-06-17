@@ -911,6 +911,10 @@
       "value": "Stop the legs twisting when you stand still."
     },
     {
+      "key": "settings.bodyTracking.anat.trackerBendNormal.title.tooltip",
+      "value": "Bend the knee the way your leg tracker is actually facing."
+    },
+    {
       "key": "settings.bodyTracking.debugInfo.tooltip",
       "value": "Show live body tracking measurements for troubleshooting."
     },
@@ -4809,6 +4813,14 @@
     {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.description",
       "value": "Damps the leg's roll about the hip-to-foot axis so a still, near-straight standing leg doesn't twist with tracking jitter. Real turning still tracks without lag."
+    },
+    {
+      "key": "settings.bodyTracking.anat.trackerBendNormal.title",
+      "value": "Tracker Bend Direction"
+    },
+    {
+      "key": "settings.bodyTracking.anat.trackerBendNormal.description",
+      "value": "Bends the knee in the plane your lower-leg tracker is actually facing instead of a fixed body-relative guess, so the knee stops snapping backward and follows your leg as you turn it. Also drops an old upward nudge on the chest so the spine follows your real chest position. Off restores the previous forward-pole behavior."
     },
     {
       "key": "settings.bodyTracking.fbt.description",
