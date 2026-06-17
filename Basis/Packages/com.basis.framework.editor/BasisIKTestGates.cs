@@ -354,8 +354,8 @@ namespace Basis.IK.Debugging
                 return (false, $"standing yaw jitter barely rolled the raw leg (worst {s.WorstRawP2PDeg:F1} deg @ ext {s.WorstExt:F2} < {LegTwistMinRawDeg}) -- sweep not exercising the twist");
             if (s.WorstSmoothedP2PDeg > s.WorstRawP2PDeg * LegTwistMaxSmoothedFrac)
                 return (false, $"knee-swivel smoothing left {s.WorstSmoothedP2PDeg:F1} deg of standing twist > {LegTwistMaxSmoothedFrac:P0} of raw {s.WorstRawP2PDeg:F1} (@ ext {s.WorstExt:F2})");
-            if (s.TurnSmoothChangeDeg < s.TurnRawChangeDeg * LegTwistMinTurnTrackFrac)
-                return (false, $"smoothed knee swivel doesn't track a real turn ({s.TurnSmoothChangeDeg:F0} of {s.TurnRawChangeDeg:F0} deg < {LegTwistMinTurnTrackFrac:P0}) -- over-smoothed/frozen");
+            if (System.Math.Abs(s.TurnSmoothChangeDeg) < System.Math.Abs(s.TurnRawChangeDeg) * LegTwistMinTurnTrackFrac)
+                return (false, $"smoothed knee swivel doesn't track a real turn (|{s.TurnSmoothChangeDeg:F0}| of |{s.TurnRawChangeDeg:F0}| deg < {LegTwistMinTurnTrackFrac:P0}) -- over-smoothed/frozen");
             if (s.TurnMaxLagDeg > LegTwistMaxTurnLagDeg)
                 return (false, $"turn-tracking lag {s.TurnMaxLagDeg:F0} deg > {LegTwistMaxTurnLagDeg} (over-smoothed)");
             return (true, $"standing twist raw {s.WorstRawP2PDeg:F1}->smoothed {s.WorstSmoothedP2PDeg:F1} deg @ ext {s.WorstExt:F2} ({s.WorstReductionFrac:P0}); turn tracks {s.TurnSmoothChangeDeg:F0}/{s.TurnRawChangeDeg:F0} deg lag {s.TurnMaxLagDeg:F0}");
