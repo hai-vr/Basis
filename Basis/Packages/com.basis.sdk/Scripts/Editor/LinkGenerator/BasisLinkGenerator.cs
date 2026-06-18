@@ -131,6 +131,8 @@ namespace LinkerGenerator
                 if (!string.IsNullOrWhiteSpace(name) && IsValidPlayerAssemblyName(name))
                     output.Add(name);
             }
+
+            output.Add("UnityEngine.CoreModule");
         }
 
         private static void AddDllNamesUnderRoot(string root, HashSet<string> output, float progressBase, float progressSpan)
