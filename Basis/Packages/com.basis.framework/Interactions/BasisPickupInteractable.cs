@@ -827,7 +827,46 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (pollControls)
             {
-                PollPickupUse(interactingInput.Source);
+                // Pickup use is normal input polling, so release-time pose sampling skips it.
+                // UI interaction suppresses use until the input is released away from UI.
+                BasisInput useSource = interactingInput.Source;
+                bool uiActive =
+                    (useSource.BasisUIRaycast != null && useSource.BasisUIRaycast.HadRaycastUITarget) ||
+                    (BasisDirectTouch.Instance != null && BasisDirectTouch.Instance.IsDeviceTouching(useSource));
+                bool rawState = HasState(useSource.CurrentInputState, InputKey);
+
+                bool effectiveState;
+                if (uiActive)
+                {
+                    // If the button is held while entering/on UI, require a release before the next use fire
+                    // so dragging the hand off UI while still held doesn't phantom-fire UseDown.
+                    if (rawState) _pickupUsePendingReleaseAfterUI = true;
+                    effectiveState = false;
+                }
+                else if (_pickupUsePendingReleaseAfterUI)
+                {
+                    if (!rawState) _pickupUsePendingReleaseAfterUI = false;
+                    effectiveState = false;
+                }
+                else
+                {
+                    effectiveState = rawState;
+                }
+
+                bool lastEffective = _pickupUseLastEffectiveState;
+                if (effectiveState && !lastEffective)
+                {
+                    OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseDown);
+                }
+                else if (!effectiveState && lastEffective)
+                {
+                    OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseUp);
+                }
+                else if (effectiveState)
+                {
+                    OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpStillDown);
+                }
+                _pickupUseLastEffectiveState = effectiveState;
             }
 
             InputConstraint.UpdateSourcePositionAndRotation(0, inPos, inRot);
@@ -907,50 +946,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
                 CalculateVelocity(pos, rot);
             }
-        }
-
-        private void PollPickupUse(BasisInput useSource)
-        {
-            // Trigger state machine for OnPickupUse.
-            // Suppressed while the holding input is targeting UI (ray or direct touch) so
-            // clicking a UI panel with a pickup in hand doesn't fire the pickup's use action.
-            bool uiActive =
-                (useSource.BasisUIRaycast != null && useSource.BasisUIRaycast.HadRaycastUITarget) ||
-                (BasisDirectTouch.Instance != null && BasisDirectTouch.Instance.IsDeviceTouching(useSource));
-            bool rawState = HasState(useSource.CurrentInputState, InputKey);
-
-            bool effectiveState;
-            if (uiActive)
-            {
-                // If the button is held while entering/on UI, require a release before the next use fire
-                // so dragging the hand off UI while still held doesn't phantom-fire UseDown.
-                if (rawState) _pickupUsePendingReleaseAfterUI = true;
-                effectiveState = false;
-            }
-            else if (_pickupUsePendingReleaseAfterUI)
-            {
-                if (!rawState) _pickupUsePendingReleaseAfterUI = false;
-                effectiveState = false;
-            }
-            else
-            {
-                effectiveState = rawState;
-            }
-
-            bool lastEffective = _pickupUseLastEffectiveState;
-            if (effectiveState && !lastEffective)
-            {
-                OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseDown);
-            }
-            else if (!effectiveState && lastEffective)
-            {
-                OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseUp);
-            }
-            else if (effectiveState)
-            {
-                OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpStillDown);
-            }
-            _pickupUseLastEffectiveState = effectiveState;
         }
 
         /// <summary>
