@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 401896220113419955}
   - component: {fileID: 9117071990022795960}
   - component: {fileID: 4027323447008904767}
+  - component: {fileID: 4751682587561902773}
   m_Layer: 10
   m_Name: Background
   m_TagString: Untagged
@@ -90,6 +91,21 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &4751682587561902773
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5473333605824874842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e6d1c9ef7154b33bededb40f40e8255, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.BasisSdk.Highlight.BasisHighlightOverride
+  overrideType: 2
+  maskMaterial: {fileID: 0}
+  cachedRenderer: {fileID: 4027323447008904767}
 --- !u!1 &6605923727707009212
 GameObject:
   m_ObjectHideFlags: 0
@@ -219,9 +235,12 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   InteractRange: 0.1
+  AllowDirectGrab: 1
+  GrabRadius: 0.15
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
-  ShowHighlightOnHover: 0
+  LerpToHandOnPickup: 1
+  ShowHighlightOnHover: 1
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -244,6 +263,10 @@ MonoBehaviour:
   constrainToAxis: 3
   positiveTravelLimit: 0.2
   negativeTravelLimit: 0
+  enableGridSnap: 0
+  gridSnapSize: 0.25
+  enableRotationSnap: 0
+  rotationSnapDegrees: 15
   enableAutoReturn: 0
   delay: 3
   duration: 0

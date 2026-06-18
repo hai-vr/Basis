@@ -267,26 +267,32 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     if (input.lastTarget != null && input.lastTarget.IsHoveredBy(input.input))
                     {
                         Vector3 origin = input.input.RaycastCoord.position;
-                        Vector3 start;
+                        Vector3 startPos, endPos;
+                        float dominantHandFactor = BasisDominantHand.IsLeftHanded ? -1f : 1f;
 
-                        // Desktop offset for center eye (a little to the bottom right)
+                        // Desktop offset for center eye (a little to the bottom in the direction of the dominant hand)
                         if (IsDesktopCenterEye(input.input))
                         {
-                            start =
+                            Vector3 camDir = input.input.RaycastCoord.rotation * Vector3.right * dominantHandFactor;
+                            startPos =
                                 input.input.RaycastCoord.position +
                                 (input.input.RaycastCoord.rotation * Vector3.forward * 0.1f) +
                                 Vector3.down * 0.1f +
-                                (input.input.RaycastCoord.rotation * Vector3.right * 0.1f);
+                                (camDir * 0.125f);
+                            // Move the line a bit further out of the way for desktop players by finding the closest
+                            // point to the line origin biased towards the edge of the object in the direction of
+                            // the dominant hand
+                            endPos = input.lastTarget.GetClosestPoint(startPos + camDir * 1000f);
                         }
                         else
                         {
-                            start = origin;
+                            startPos = origin;
+                            endPos = input.lastTarget.GetClosestPoint(startPos);
                         }
 
                         if (input.input.InteractionLineRenderer != null)
                         {
-                            Vector3 endPos = input.lastTarget.GetClosestPoint(start);
-                            input.input.InteractionLineRenderer.SetPosition(0, start);
+                            input.input.InteractionLineRenderer.SetPosition(0, startPos);
                             input.input.InteractionLineRenderer.SetPosition(1, endPos);
                             input.input.InteractionLineRenderer.enabled = true;
                         }

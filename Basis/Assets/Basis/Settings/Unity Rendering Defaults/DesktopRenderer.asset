@@ -49,7 +49,8 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: 8304327589836468309}
   - {fileID: 7574712923221662252}
-  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69
+  - {fileID: 5645032907223894177}
+  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69a188783c852f574e
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -93,6 +94,20 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+--- !u!114 &5645032907223894177
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81b0beab58c84cc99fcc3ff19bd91dde, type: 3}
+  m_Name: BasisHighlightFeature
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.BasisSdk.Highlight.BasisHighlightFeature
+  m_Active: 1
+  settings: {fileID: 11400000, guid: c301ac59f1dce524f8e770032f059e8f, type: 2}
 --- !u!114 &7574712923221662252
 MonoBehaviour:
   m_ObjectHideFlags: 0
