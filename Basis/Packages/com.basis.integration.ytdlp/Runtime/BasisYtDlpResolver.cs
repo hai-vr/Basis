@@ -141,16 +141,34 @@ namespace Basis.Integration.YtDlp
                 return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Delivery = BasisMediaDelivery.OnDemand };
 
             Format muxed = BestMuxed(info.Formats);
-            if (muxed != null) return new BasisMediaSource { Uri = muxed.Url };
+            if (muxed != null) return new BasisMediaSource { Uri = muxed.Url, Delivery = DeliveryFor(info) };
 
             // Last resort: yt-dlp's top-level URL — but only if the player can open it
             // directly. An unvalidated DirectUrl can be an unsupported manifest/codec that
             // would bypass the avc1/mp4a filtering above, so reject it and let
             // ResolveSourceAsync fail loudly ("no player-ingestible format") instead.
             if (!string.IsNullOrEmpty(info.DirectUrl) && BasisMediaUrlRouter.IsDirectlyPlayable(info.DirectUrl))
-                return new BasisMediaSource { Uri = info.DirectUrl };
+                return new BasisMediaSource { Uri = info.DirectUrl, Delivery = DeliveryFor(info) };
 
             return null;
+        }
+
+        // Maps yt-dlp's live-status metadata onto the engine's delivery hint, so the
+        // live-vs-VOD clock is chosen at open instead of sniffed from the byte stream.
+        // Absent/unknown status falls back to Auto (the engine detects a seekable,
+        // finite body as VOD and an open-ended stream as live). The split avc1+mp4a
+        // path doesn't consult this — that pairing is only ever adaptive VOD.
+        private static BasisMediaDelivery DeliveryFor(VideoInfo info)
+        {
+            if (info.IsLive == true) return BasisMediaDelivery.Live;
+            switch (info.LiveStatus)
+            {
+                case "is_live":
+                case "is_upcoming": return BasisMediaDelivery.Live;
+                case "was_live":
+                case "not_live":    return BasisMediaDelivery.OnDemand;
+                default:            return BasisMediaDelivery.Auto;
+            }
         }
 
         // H.264 video-only, no higher than 1080p (avc1 is the player's ceiling — no
