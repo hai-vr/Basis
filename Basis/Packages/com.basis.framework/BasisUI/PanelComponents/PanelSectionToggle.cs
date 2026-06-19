@@ -2,6 +2,7 @@ using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Basis.BasisUI.Styling;
 
 namespace Basis.BasisUI
 {
@@ -33,6 +34,11 @@ namespace Basis.BasisUI
         private GameObject _breaklineObject;
         private Image _breaklineImage;
         private string _title = string.Empty;
+        private PanelSectionToggleMarker _marker;
+        private bool _ownsBreakline;
+        private PanelSectionToggle _breaklineOwnerRef;
+        private GameObject _originalBreaklineObject;
+        private Image _originalBreaklineImage;
 
         protected override Selectable InteractableTarget => ToggleComponent;
         public bool Expanded => Value;
@@ -62,14 +68,33 @@ namespace Basis.BasisUI
             MarkSectionToggleRow();
             ConfigureArrowIndicator();
             ApplyCompactHeight();
-            CreateCollapsedBreakline();
+            CreateBreaklineAbove();
             UpdateArrow();
-            RefreshSiblingBreaklines();
+            UpdateBreakline();
         }
 
         public override void OnReleaseEvent()
         {
-            ReleaseBreakline();
+            // Tell the owner of the breakline above us to release it
+            if (_breaklineOwnerRef != null)
+            {
+                _breaklineOwnerRef.ReleaseBreaklineForToggle(this);
+                _breaklineOwnerRef = null;
+            }
+
+            if (_breaklineObject != null)
+            {
+                ReleaseBreakline();
+            }
+
+            // Release the original breakline that was overwritten
+            if (_originalBreaklineObject != null)
+            {
+                UnityEngine.Object.Destroy(_originalBreaklineObject);
+                _originalBreaklineObject = null;
+                _originalBreaklineImage = null;
+            }
+
             base.OnReleaseEvent();
         }
 
@@ -77,7 +102,7 @@ namespace Basis.BasisUI
         {
             base.AssignBinding(binding);
             ToggleComponent?.SetIsOnWithoutNotify(binding.RawValue);
-            RefreshSiblingBreaklines();
+            UpdateBreakline();
         }
 
         public override void SetValue(bool value)
@@ -85,14 +110,14 @@ namespace Basis.BasisUI
             base.SetValue(value);
             ToggleComponent?.SetIsOnWithoutNotify(value);
             OnExpandedChanged?.Invoke(value);
-            RefreshSiblingBreaklines();
+            UpdateBreakline();
         }
 
         public override void SetValueWithoutNotify(bool value)
         {
             base.SetValueWithoutNotify(value);
             ToggleComponent?.SetIsOnWithoutNotify(value);
-            RefreshSiblingBreaklines();
+            UpdateBreakline();
         }
 
         public override void OnComponentUsed()
@@ -138,13 +163,12 @@ namespace Basis.BasisUI
 
         private void MarkSectionToggleRow()
         {
-            PanelSectionToggleMarker marker = GetComponent<PanelSectionToggleMarker>();
-            if (marker == null)
+            if (!TryGetComponent(out _marker))
             {
-                marker = gameObject.AddComponent<PanelSectionToggleMarker>();
+                _marker = gameObject.AddComponent<PanelSectionToggleMarker>();
             }
 
-            marker.Toggle = this;
+            _marker.Toggle = this;
         }
 
         private void ConfigureArrowIndicator()
@@ -232,11 +256,29 @@ namespace Basis.BasisUI
             rectTransform.sizeDelta = size;
         }
 
-        private void CreateCollapsedBreakline()
+        /// <summary>
+        /// Create a breakline above this toggle. If the previous sibling is a
+        /// PanelSectionToggle, the breakline goes between them and ownership
+        /// is passed to that previous toggle. Otherwise the breakline sits
+        /// above the first toggle in the group and this toggle owns it.
+        /// </summary>
+        private void CreateBreaklineAbove()
         {
             if (rectTransform == null || rectTransform.parent == null)
             {
                 return;
+            }
+
+            int currentIndex = rectTransform.GetSiblingIndex();
+            Transform previousSibling = currentIndex > 0
+                ? rectTransform.parent.GetChild(currentIndex - 1)
+                : null;
+
+            PanelSectionToggle owner = null;
+
+            if (previousSibling != null && previousSibling.TryGetComponent(out PanelSectionToggle prevToggle))
+            {
+                owner = prevToggle;
             }
 
             GameObject breaklineObject = new GameObject("Section Breakline", typeof(RectTransform), typeof(LayoutElement), typeof(PanelSectionBreaklineMarker));
@@ -244,7 +286,7 @@ namespace Basis.BasisUI
 
             RectTransform breaklineTransform = breaklineObject.GetComponent<RectTransform>();
             breaklineTransform.SetParent(rectTransform.parent, false);
-            breaklineTransform.SetSiblingIndex(rectTransform.GetSiblingIndex() + 1);
+            breaklineTransform.SetSiblingIndex(currentIndex); // Above current toggle
             breaklineTransform.anchorMin = new Vector2(0f, 0.5f);
             breaklineTransform.anchorMax = new Vector2(1f, 0.5f);
             breaklineTransform.pivot = new Vector2(0.5f, 0.5f);
@@ -265,27 +307,45 @@ namespace Basis.BasisUI
             lineTransform.offsetMin = new Vector2(BreaklineHorizontalInset, -BreaklineHeight * 0.5f);
             lineTransform.offsetMax = new Vector2(-BreaklineHorizontalInset, BreaklineHeight * 0.5f);
 
-            _breaklineImage = lineObject.GetComponent<Image>();
-            _breaklineImage.raycastTarget = false;
-            ApplyBreaklineImageStyle();
-            UpdateBreaklineColor();
+            Image breaklineImage = lineObject.GetComponent<Image>();
+            breaklineImage.raycastTarget = false;
 
-            _breaklineObject = breaklineObject;
+            // Apply style from the source toggle's Background image.
+            // When owner != null, owner is the source; otherwise self is the source.
+            Image sourceImage = (owner?.Background as Image) ?? Background as Image;
+            ApplyBreaklineImageStyleFrom(breaklineImage, sourceImage);
+
+            Color color = UiStyleSettings.GetActivePalette()?.LayerColor ?? Color.white;
+            breaklineImage.color = color;
+            // Preserve the original breakline
+            _originalBreaklineObject = _breaklineObject;
+            _originalBreaklineImage = _breaklineImage;
+            if (owner != null)
+            {
+                owner.TakeBreaklineOwnership(breaklineObject, breaklineImage);
+                _breaklineOwnerRef = owner;
+            }
+            else
+            {
+                _breaklineObject = breaklineObject;
+                _breaklineImage = breaklineImage;
+                _ownsBreakline = false;
+            }
         }
 
-        private void ApplyBreaklineImageStyle()
+        private void ApplyBreaklineImageStyleFrom(Image targetImage, Image sourceImage)
         {
-            if (_breaklineImage == null || Background is not Image sourceImage)
+            if (targetImage == null || sourceImage == null)
             {
                 return;
             }
 
-            _breaklineImage.sprite = sourceImage.sprite;
-            _breaklineImage.material = sourceImage.material;
-            _breaklineImage.type = sourceImage.type;
-            _breaklineImage.fillCenter = sourceImage.fillCenter;
-            _breaklineImage.pixelsPerUnitMultiplier = sourceImage.pixelsPerUnitMultiplier;
-            _breaklineImage.preserveAspect = false;
+            targetImage.sprite = sourceImage.sprite;
+            targetImage.material = sourceImage.material;
+            targetImage.type = sourceImage.type;
+            targetImage.fillCenter = sourceImage.fillCenter;
+            targetImage.pixelsPerUnitMultiplier = sourceImage.pixelsPerUnitMultiplier;
+            targetImage.preserveAspect = false;
         }
 
         private void UpdateBreaklineColor()
@@ -295,67 +355,30 @@ namespace Basis.BasisUI
                 return;
             }
 
-            Color color = Descriptor?.TitleLabel != null ? Descriptor.TitleLabel.color : Color.white;
-            color.a = Mathf.Max(color.a * 0.6f, 0.45f);
+            Color color = UiStyleSettings.GetActivePalette()?.AccentColor ?? Color.white;
             _breaklineImage.color = color;
         }
 
         private void UpdateBreakline()
         {
-            if (_breaklineObject != null)
-            {
-                _breaklineObject.SetActive(!Expanded && HasNextSectionToggle());
-            }
-        }
-
-        private bool HasNextSectionToggle()
-        {
-            RectTransform row = rectTransform;
-            if (row == null || row.parent == null)
-            {
-                return false;
-            }
-
-            Transform parent = row.parent;
-            int startIndex = row.GetSiblingIndex() + 1;
-            for (int i = startIndex; i < parent.childCount; i++)
-            {
-                Transform sibling = parent.GetChild(i);
-                if (sibling == null)
-                {
-                    continue;
-                }
-
-                if (sibling.GetComponent<PanelSectionBreaklineMarker>() != null)
-                {
-                    continue;
-                }
-
-                if (!sibling.gameObject.activeSelf)
-                {
-                    continue;
-                }
-
-                return sibling.GetComponent<PanelSectionToggleMarker>() != null;
-            }
-
-            return false;
-        }
-
-        private void RefreshSiblingBreaklines()
-        {
-            Transform parent = rectTransform != null ? rectTransform.parent : null;
-            if (parent == null)
+            if (_breaklineObject == null)
             {
                 return;
             }
 
-            for (int i = 0; i < parent.childCount; i++)
+            if (_ownsBreakline)
             {
-                PanelSectionToggleMarker marker = parent.GetChild(i).GetComponent<PanelSectionToggleMarker>();
-                marker?.Toggle?.UpdateBreakline();
+                // Breakline is below this toggle — apply expand check.
+                _breaklineObject.SetActive(!Expanded);
+            }
+            else
+            {
+                // Breakline is above this toggle — always visible.
+                _breaklineObject.SetActive(true);
             }
         }
+
+
 
         private void ReleaseBreakline()
         {
@@ -367,6 +390,44 @@ namespace Basis.BasisUI
             UnityEngine.Object.Destroy(_breaklineObject);
             _breaklineObject = null;
             _breaklineImage = null;
+        }
+
+        /// <summary>
+        /// Called by a sibling when it assigns a breakline to us. We take ownership.
+        /// </summary>
+        internal void TakeBreaklineOwnership(GameObject breaklineObject, Image breaklineImage)
+        {
+            _breaklineObject = breaklineObject;
+            _breaklineImage = breaklineImage;
+            _ownsBreakline = true;
+        }
+
+        /// <summary>
+        /// Called by a sibling when it is being destroyed. Releases the breakline
+        /// that this toggle owns (the one above us, between us and the caller).
+        /// </summary>
+        internal void ReleaseBreaklineForToggle(PanelSectionToggle caller)
+        {
+            if (_ownsBreakline && _breaklineObject != null)
+            {
+                UnityEngine.Object.Destroy(_breaklineObject);
+                _breaklineObject = null;
+                _breaklineImage = null;
+                _ownsBreakline = false;
+            }
+
+            // Also release the original breakline that was overwritten
+            if (_originalBreaklineObject != null)
+            {
+                UnityEngine.Object.Destroy(_originalBreaklineObject);
+                _originalBreaklineObject = null;
+                _originalBreaklineImage = null;
+            }
+
+            // Clear the caller's references so it doesn't keep a Missing ref.
+            caller._breaklineObject = null;
+            caller._breaklineImage = null;
+            caller._breaklineOwnerRef = null;
         }
 
         private RectTransform ResolveArrowParent()
