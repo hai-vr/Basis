@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Basis.BasisUI.Styling;
 using TMPro;
 using UnityEngine;
@@ -34,11 +35,14 @@ namespace Basis.BasisUI
         private GameObject _generatedArrowObject;
         private string _title = string.Empty;
         private PanelSectionToggleMarker _marker;
+        private readonly List<PanelSectionContentMarker> _contentMarkers = new();
 
         private GameObject _dividerAbove;
         private Image _dividerAboveImage;
+        private PanelSectionToggle _dividerAboveController;
         private GameObject _dividerBelow;
         private Image _dividerBelowImage;
+        private bool _ownsDividerBelow;
 
         private bool _created;
         private bool _compactHeightApplied;
@@ -87,9 +91,21 @@ namespace Basis.BasisUI
         {
             ClearSiblingReferenceTo(_dividerAbove);
             DestroyDivider(ref _dividerAbove, ref _dividerAboveImage);
+            _dividerAboveController = null;
 
-            _dividerBelow = null;
-            _dividerBelowImage = null;
+            if (_ownsDividerBelow)
+            {
+                DestroyDivider(ref _dividerBelow, ref _dividerBelowImage);
+            }
+            else
+            {
+                // Shared _dividerBelow is the next section's _dividerAbove and
+                // is owned by that next toggle.
+                _dividerBelow = null;
+                _dividerBelowImage = null;
+            }
+
+            _ownsDividerBelow = false;
 
             if (_generatedArrowObject != null)
             {
@@ -102,6 +118,8 @@ namespace Basis.BasisUI
                 _marker.Toggle = null;
                 _marker = null;
             }
+
+            ClearRegisteredContentMarkers();
 
             _created = false;
 
@@ -185,6 +203,10 @@ namespace Basis.BasisUI
             }
 
             marker.Owner = this;
+            if (!_contentMarkers.Contains(marker))
+            {
+                _contentMarkers.Add(marker);
+            }
         }
 
         protected override void ApplyValue()
@@ -316,15 +338,23 @@ namespace Basis.BasisUI
             }
 
             int currentIndex = rectTransform.GetSiblingIndex();
-            PanelSectionToggle previousToggle = ResolvePreviousSectionToggle(currentIndex);
+            PanelSectionToggle previousToggle = ResolvePreviousSectionToggle(currentIndex, out bool previousToggleIsDirectNeighbor);
+            if (previousToggle != null && !previousToggleIsDirectNeighbor)
+            {
+                // Content separates these sections, so the previous section needs
+                // its own bottom divider instead of sharing this section's top divider.
+                previousToggle.EnsureOwnedDividerBelow(currentIndex);
+                currentIndex++;
+            }
 
             GameObject divider = CreateDividerObject(currentIndex, previousToggle);
             Image dividerImage = ResolveDividerImage(divider);
 
             _dividerAbove = divider;
             _dividerAboveImage = dividerImage;
+            _dividerAboveController = previousToggleIsDirectNeighbor ? previousToggle : null;
 
-            if (previousToggle != null)
+            if (previousToggle != null && previousToggleIsDirectNeighbor)
             {
                 previousToggle.SetDividerBelow(divider, dividerImage);
             }
@@ -373,16 +403,41 @@ namespace Basis.BasisUI
             return divider != null ? divider.GetComponentInChildren<Image>(true) : null;
         }
 
-        private void SetDividerBelow(GameObject divider, Image image)
+        private void EnsureOwnedDividerBelow(int siblingIndex)
         {
+            if (_dividerBelow != null)
+            {
+                UpdateDividerVisibility();
+                return;
+            }
+
+            GameObject divider = CreateDividerObject(siblingIndex, this);
+            SetDividerBelow(divider, ResolveDividerImage(divider), true);
+        }
+
+        private void SetDividerBelow(GameObject divider, Image image, bool ownsDivider = false)
+        {
+            if (_dividerBelow != null && _dividerBelow != divider)
+            {
+                if (_ownsDividerBelow)
+                {
+                    DestroyDivider(ref _dividerBelow, ref _dividerBelowImage);
+                }
+                else
+                {
+                    Debug.LogWarning($"{nameof(PanelSectionToggle)} divider below was replaced.");
+                }
+            }
+
             _dividerBelow = divider;
             _dividerBelowImage = image;
+            _ownsDividerBelow = ownsDivider;
             UpdateDividerVisibility();
         }
 
         private void UpdateDividerVisibility()
         {
-            if (_dividerAbove != null)
+            if (_dividerAbove != null && _dividerAboveController == null)
             {
                 _dividerAbove.SetActive(true);
             }
@@ -393,19 +448,23 @@ namespace Basis.BasisUI
             }
         }
 
-        private PanelSectionToggle ResolvePreviousSectionToggle(int currentIndex)
+        private PanelSectionToggle ResolvePreviousSectionToggle(int currentIndex, out bool isDirectNeighbor)
         {
+            isDirectNeighbor = false;
             Transform parent = rectTransform.parent;
+            bool skippedSibling = false;
             for (int i = currentIndex - 1; i >= 0; i--)
             {
                 Transform sibling = parent.GetChild(i);
                 if (sibling == null || sibling.GetComponent<PanelSectionBreaklineMarker>() != null)
                 {
+                    skippedSibling = true;
                     continue;
                 }
 
                 if (sibling.TryGetComponent(out PanelSectionToggle previousToggle))
                 {
+                    isDirectNeighbor = !skippedSibling;
                     return previousToggle;
                 }
 
@@ -442,6 +501,20 @@ namespace Basis.BasisUI
                     markerOwner.UpdateDividerVisibility();
                 }
             }
+        }
+
+        private void ClearRegisteredContentMarkers()
+        {
+            for (int i = 0; i < _contentMarkers.Count; i++)
+            {
+                PanelSectionContentMarker marker = _contentMarkers[i];
+                if (marker != null && marker.Owner == this)
+                {
+                    marker.Owner = null;
+                }
+            }
+
+            _contentMarkers.Clear();
         }
 
         private void ApplyDividerImageStyle(Image targetImage, PanelSectionToggle styleSource)

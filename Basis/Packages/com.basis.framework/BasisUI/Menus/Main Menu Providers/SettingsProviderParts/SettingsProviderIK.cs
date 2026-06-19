@@ -185,6 +185,7 @@ public static class SettingsProviderIK
 
         colliderGroup.SetTitle(BasisLocalization.Get("settings.bodyTracking.colliders.title"));
         colliderGroup.SetIcon(AddressableAssets.Sprites.Settings);
+        advancedToggle.RegisterContentContainer(colliderGroup);
 
         var colliderParent = colliderGroup.ContentParent;
 
@@ -990,6 +991,7 @@ public static class SettingsProviderIK
 
         debugGroup.SetTitle(BasisLocalization.Get("settings.bodyTracking.heightDebug.title"));
         debugGroup.SetIcon(AddressableAssets.Sprites.Settings);
+        debugToggle.RegisterContentContainer(debugGroup);
 
         var debugParent = debugGroup.ContentParent;
 

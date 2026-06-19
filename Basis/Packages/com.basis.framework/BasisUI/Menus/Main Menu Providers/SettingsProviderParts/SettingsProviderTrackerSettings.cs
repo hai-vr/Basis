@@ -128,6 +128,7 @@ namespace Basis.BasisUI
             PanelElementDescriptor tuningGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             tuningGroup.SetTitle(BasisLocalization.Get("trackerLinking.tuning.title"));
+            advancedToggle.RegisterContentContainer(tuningGroup);
             BuildTuningSliders(tuningGroup.ContentParent);
 
             // Dynamic per-tracker section — updates on device/pair/override changes.
@@ -135,6 +136,7 @@ namespace Basis.BasisUI
             PanelElementDescriptor trackersGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             trackersGroup.SetTitle(BasisLocalization.Get("trackerLinking.trackers.title"));
+            connectorToggle.RegisterContentContainer(trackersGroup);
 
             TabState state = new TabState
             {

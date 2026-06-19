@@ -415,6 +415,7 @@ namespace Basis.BasisUI
             toggleAvatarPreviewMirror.AssignBinding(BasisSettingsDefaults.AvatarPreviewMirror);
             toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
             toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
+            toggleAvatarPreview.RegisterContentContainer(toggleAvatarPreviewMirror);
 
             toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Expanded);
             toggleAvatarPreview.OnExpandedChanged += (val) =>
@@ -445,6 +446,7 @@ namespace Basis.BasisUI
                 toggleAudioFromHead.AssignBinding(BasisSettingsDefaults.AudioListenerFollowsHead);
                 toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
                 toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
+                toggleThirdPerson.RegisterContentContainer(toggleAudioFromHead);
 
                 toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Expanded);
                 toggleThirdPerson.OnExpandedChanged += (val) =>
@@ -1603,6 +1605,13 @@ namespace Basis.BasisUI
             toggleLocalHeadBlendShapes.AssignBinding(BasisSettingsDefaults.LocalHeadBlendShapes);
             toggleLocalHeadBlendShapes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.localHeadBlendShapes"));
             toggleLocalHeadBlendShapes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.localHeadBlendShapes.tooltip"));
+            toggleAdvanced.RegisterContentContainer(sliderRenderResolution);
+            toggleAdvanced.RegisterContentContainer(dropdownHDR);
+            toggleAdvanced.RegisterContentContainer(sliderFoveatedRendering);
+            toggleAdvanced.RegisterContentContainer(sliderFieldOfView);
+            toggleAdvanced.RegisterContentContainer(sliderMeshLOD);
+            toggleAdvanced.RegisterContentContainer(sliderGlobalMeshLOD);
+            toggleAdvanced.RegisterContentContainer(toggleLocalHeadBlendShapes);
 
             sliderRenderResolution.Descriptor.SetActive(false);
             dropdownHDR.Descriptor.SetActive(false);
