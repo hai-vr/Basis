@@ -273,6 +273,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 91d6c9e2a4fa4ff28d51ab0d8788b99e
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Section Toggle.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 7e571c64d9cdd834a90133d8db72c649
     m_Address: Packages/com.basis.sdk/Textures/Runtime/search.png
     m_ReadOnly: 0
@@ -488,6 +493,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ec70b894fa918244fa23d2bbd2f1b5bd
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Toggle - Entry Variant.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9b76bc86253e4a7c9d6c9f8a0b1e2d3c
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Section Toggle - Entry Variant.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
