@@ -1382,6 +1382,7 @@ public static class SettingsProviderIK
             parent);
         sectionGroup.SetTitle(title);
         sectionGroup.SetIcon(AddressableAssets.Sprites.Settings);
+        sectionToggle.RegisterContentContainer(sectionGroup);
 
         // Add content while the group is still active so child component Awake/Start runs and
         // their text initializes. SetActive(false) before attach would orphan their lifecycle.
