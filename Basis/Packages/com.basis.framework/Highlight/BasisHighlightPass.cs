@@ -49,6 +49,18 @@ namespace Basis.Scripts.BasisSdk.Highlight
             _settings = settings;
             _outlineColor = settings.outlineColor;
             profilingSampler = new ProfilingSampler("BasisHighlight");
+
+            // The composite hardware-blends a full-screen pass over the camera
+            // color. On untethered VR (Quest/Adreno) URP renders the camera
+            // straight to the backbuffer; our mask/dilate/blur passes split the
+            // render pass, so the composite would have to reload the backbuffer
+            // to blend over it — backbuffers aren't reloadable across that split,
+            // so the scene is lost (black) and only the freshly-drawn ring shows.
+            // Forcing an intermediate color texture gives a reloadable target so
+            // the prior scene survives. Desktop already uses an intermediate
+            // texture, which is why the bug was Quest-only. Same flag URP's own
+            // FullScreenPassRendererFeature sets for its blend-over-color case.
+            requiresIntermediateTexture = true;
         }
 
         internal void SetOutlineColor(Color color)

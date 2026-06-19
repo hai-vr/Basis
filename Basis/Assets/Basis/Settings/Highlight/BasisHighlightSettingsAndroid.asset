@@ -17,14 +17,14 @@ MonoBehaviour:
   compositeMaterial: {fileID: 2100000, guid: 44865722780e16b4bb2b7de1dfa10b68, type: 2}
   outlineColor: {r: 0.4117647, g: 0.28235295, b: 0.8509804, a: 1}
   outlineWidth: 1
-  maskDownsample: 2
-  maskMsaa: 4
+  maskDownsample: 3
+  maskMsaa: 2
   ringSoftness: 0.15
   ringSoftenRadius: 1
   innerSoftenRadius: 0.5
-  glowIntensity: 0.6
+  glowIntensity: 0
   glowRadius: 1.25
-  glowIterations: 2
+  glowIterations: 0
   interiorFill: 0
-  injectionPoint: 600
+  injectionPoint: 500
   debugMode: 0
