@@ -243,6 +243,14 @@ namespace Basis.BasisUI
             Action reopen = notification.Reopen;
             _all.Remove(notification);
             Changed?.Invoke();
+
+            // Close the open menu page (e.g. the Notifications tab) so the re-opened
+            // modal isn't raycast-blocked by its large canvas collider underneath.
+            if (BasisMainMenu.Instance != null)
+            {
+                BasisMainMenu.CloseActivePanel();
+            }
+
             reopen?.Invoke();
         }
 
