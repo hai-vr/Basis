@@ -158,8 +158,11 @@ float3 GetStepAdditionalLightsColor(float2 uv, float3 currPosWS, float3 rd, floa
             continue;
 
         Light additionalLight = GetAdditionalPerObjectLight(lightIndex, currPosWS);
-    //here
-    additionalLight.shadowAttenuation = 0; //VolumetricAdditionalLightRealtimeShadow(lightIndex, currPosWS, additionalLight.direction);
+#if defined(_CLUSTER_LIGHT_LOOP)
+        additionalLight.shadowAttenuation = 1.0;
+#else
+        additionalLight.shadowAttenuation = VolumetricAdditionalLightRealtimeShadow(lightIndex, currPosWS, additionalLight.direction);
+#endif
 #if _LIGHT_COOKIES
         additionalLight.color *= SampleAdditionalLightCookie(lightIndex, currPosWS);
 #endif
