@@ -426,7 +426,7 @@ namespace Basis.BasisUI
 
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
-        public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled_v2", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
