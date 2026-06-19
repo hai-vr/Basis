@@ -47,7 +47,7 @@ namespace AudioLink
         {
             _Delay = PropertyToID("_Delay");
             _Band = PropertyToID("_Band");
-            _HueShift = PropertyToID("_HueShift");
+            _HueShift = PropertyToID("_AudioHueShift");
             _EmissionColor = PropertyToID("_EmissionColor");
             _Emission = PropertyToID("_Emission");
             _Pulse = PropertyToID("_Pulse");

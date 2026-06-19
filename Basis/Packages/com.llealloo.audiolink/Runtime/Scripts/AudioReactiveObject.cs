@@ -34,7 +34,7 @@ namespace AudioLink
 
         void Update()
         {
-            if (audioLink.AudioDataIsAvailable()) // Check for AudioLink initialization
+            if (audioLink != null && audioLink.AudioDataIsAvailable()) // Check for AudioLink initialization
             {
                 float amplitude = AudioLink.ToGrayscale(audioLink.GetBandAsSmooth(band, delay, smooth));
 
