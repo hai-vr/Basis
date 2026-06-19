@@ -406,9 +406,9 @@ namespace Basis.BasisUI
             toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
             toggleDesktopReticle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.desktopReticle.tooltip"));
 
-            PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(hudGroup);
-            toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
-            toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
+            PanelSectionToggle toggleAvatarPreview = PanelSectionToggle.CreateNewEntry(hudGroup);
+            toggleAvatarPreview.BindToToggle(BasisSettingsDefaults.AvatarPreview);
+            toggleAvatarPreview.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
             toggleAvatarPreview.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreview.tooltip"));
 
             PanelToggle toggleAvatarPreviewMirror = PanelToggle.CreateNewEntry(hudGroup);
@@ -416,8 +416,8 @@ namespace Basis.BasisUI
             toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
             toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
 
-            toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Value);
-            toggleAvatarPreview.OnValueChanged += (val) =>
+            toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Expanded);
+            toggleAvatarPreview.OnExpandedChanged += (val) =>
             {
                 toggleAvatarPreviewMirror.Descriptor.SetActive(val);
                 hudGroup.ForceRebuild();
@@ -436,9 +436,9 @@ namespace Basis.BasisUI
                     PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
                 cameraGroup.SetTitle(BasisLocalization.Get("settings.general.camera.title"));
 
-                PanelToggle toggleThirdPerson = PanelToggle.CreateNewEntry(cameraGroup);
-                toggleThirdPerson.AssignBinding(BasisSettingsDefaults.EnableThirdPersonCamera);
-                toggleThirdPerson.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
+                PanelSectionToggle toggleThirdPerson = PanelSectionToggle.CreateNewEntry(cameraGroup);
+                toggleThirdPerson.BindToToggle(BasisSettingsDefaults.EnableThirdPersonCamera);
+                toggleThirdPerson.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
                 toggleThirdPerson.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.tooltip"));
 
                 PanelToggle toggleAudioFromHead = PanelToggle.CreateNewEntry(cameraGroup);
@@ -446,8 +446,8 @@ namespace Basis.BasisUI
                 toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
                 toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
 
-                toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Value);
-                toggleThirdPerson.OnValueChanged += (val) =>
+                toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Expanded);
+                toggleThirdPerson.OnExpandedChanged += (val) =>
                 {
                     toggleAudioFromHead.Descriptor.SetActive(val);
                     cameraGroup.ForceRebuild();
@@ -1549,9 +1549,9 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             advancedGroup.SetTitle(BasisLocalization.Get("ui.advanced"));
 
-            PanelToggle toggleAdvanced = PanelToggle.CreateNewEntry(advancedGroup.ContentParent);
-            toggleAdvanced.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.advanced.showAdvanced"));
-            toggleAdvanced.SetValueWithoutNotify(false);
+            PanelSectionToggle toggleAdvanced = PanelSectionToggle.CreateNewEntry(advancedGroup.ContentParent);
+            toggleAdvanced.SetTitle(BasisLocalization.Get("settings.graphics.advanced.showAdvanced"));
+            toggleAdvanced.SetExpandedWithoutNotify(false);
 
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1612,7 +1612,7 @@ namespace Basis.BasisUI
             sliderGlobalMeshLOD.Descriptor.SetActive(false);
             toggleLocalHeadBlendShapes.Descriptor.SetActive(false);
 
-            toggleAdvanced.OnValueChanged += (val) =>
+            toggleAdvanced.OnExpandedChanged += (val) =>
             {
                 sliderRenderResolution.Descriptor.SetActive(val);
                 dropdownHDR.Descriptor.SetActive(val);

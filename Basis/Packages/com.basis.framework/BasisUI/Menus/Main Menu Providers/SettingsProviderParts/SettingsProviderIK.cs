@@ -174,10 +174,10 @@ public static class SettingsProviderIK
         // ------------------
         // Advanced IK toggle
         // ------------------
-        var advancedToggle = PanelToggle.CreateNewEntry(tabDesc.ContentParent);
-        advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.advanced"));
+        var advancedToggle = PanelSectionToggle.CreateNewEntry(tabDesc.ContentParent);
+        advancedToggle.SetTitle(BasisLocalization.Get("settings.bodyTracking.advanced"));
         advancedToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.advanced.tooltip"));
-        advancedToggle.AssignBinding(BasisSettingsDefaults.FBIKAdvancedVisible);
+        advancedToggle.BindToToggle(BasisSettingsDefaults.FBIKAdvancedVisible);
 
         var colliderGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
@@ -945,7 +945,7 @@ public static class SettingsProviderIK
 
 
         colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
-        advancedToggle.OnValueChanged += visible =>
+        advancedToggle.OnExpandedChanged += visible =>
         {
             colliderGroup.gameObject.SetActive(visible);
             tabDesc.ForceRebuild();
@@ -980,8 +980,8 @@ public static class SettingsProviderIK
 
     private static void BuildDebugSection(PanelElementDescriptor tabDesc)
     {
-        var debugToggle = PanelToggle.CreateNewEntry(tabDesc.ContentParent);
-        debugToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.debugInfo"));
+        var debugToggle = PanelSectionToggle.CreateNewEntry(tabDesc.ContentParent);
+        debugToggle.SetTitle(BasisLocalization.Get("settings.bodyTracking.debugInfo"));
         debugToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.debugInfo.tooltip"));
 
         var debugGroup = PanelElementDescriptor.CreateNew(
@@ -1021,8 +1021,8 @@ public static class SettingsProviderIK
         RefreshDebugData();
 
         debugGroup.gameObject.SetActive(false);
-        debugToggle.SetValueWithoutNotify(false);
-        debugToggle.OnValueChanged += visible =>
+        debugToggle.SetExpandedWithoutNotify(false);
+        debugToggle.OnExpandedChanged += visible =>
         {
             debugGroup.gameObject.SetActive(visible);
             if (visible)
@@ -1372,8 +1372,8 @@ public static class SettingsProviderIK
     {
         var parent = parentGroup.ContentParent;
 
-        var sectionToggle = PanelToggle.CreateNewEntry(parent);
-        sectionToggle.Descriptor.SetTitle(title);
+        var sectionToggle = PanelSectionToggle.CreateNewEntry(parent);
+        sectionToggle.SetTitle(title);
         // Section blurb on hover (tooltip) instead of inline, to keep the page compact.
         sectionToggle.Descriptor.SetTooltip(description);
 
@@ -1388,9 +1388,9 @@ public static class SettingsProviderIK
         addContent(sectionGroup.ContentParent);
 
         sectionGroup.gameObject.SetActive(defaultOpen);
-        sectionToggle.SetValueWithoutNotify(defaultOpen);
+        sectionToggle.SetExpandedWithoutNotify(defaultOpen);
 
-        sectionToggle.OnValueChanged += visible =>
+        sectionToggle.OnExpandedChanged += visible =>
         {
             sectionGroup.gameObject.SetActive(visible);
             tabDesc.ForceRebuild();
