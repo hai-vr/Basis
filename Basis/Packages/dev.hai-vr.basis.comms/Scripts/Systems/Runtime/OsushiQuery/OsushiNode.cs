@@ -93,7 +93,7 @@ namespace HVR.Osushi
                         {
                             ["input"] = new()
                             {
-                                DESCRIPTION = "Accepted signatures: (string [, shouldOpenKeyboard [, playNotificationSound]]) and (bool typing).",
+                                DESCRIPTION = "Accepted signatures: (string [, sendImmediately [, playNotificationSound]]) and (bool typing).",
                                 FULL_PATH = "/chatbox/input",
                                 ACCESS = 2,
                             }
