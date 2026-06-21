@@ -20,11 +20,12 @@ Shader "Hidden/VolumetricFog"
 
             #include "./VolumetricFog.hlsl"
 
-            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
            // #pragma enable_d3d11_debug_symbols
+            // URP realtime additional (point/spot) lights are NOT applied to the fog: their Forward+
+            // cluster light loop (_CLUSTER_LIGHT_LOOP + _ADDITIONAL_LIGHT_SHADOWS) overflows the D3D11
+            // FXC register allocator on build (issue #25). The fog is lit by the main light + LTCGI +
+            // VRSL instead, none of which need that loop, so those keywords are not compiled.
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-            #pragma multi_compile _ _ADDITIONAL_LIGHTS
-            #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _LIGHT_COOKIES
 #if UNITY_VERSION >= 202310
             #pragma multi_compile_fragment _ PROBE_VOLUMES_L1 PROBE_VOLUMES_L2

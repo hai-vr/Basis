@@ -30,6 +30,17 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 
 	private SerializedDataParameter enableAdditionalLightsContribution;
 
+	private SerializedDataParameter enableLTCGIContribution;
+	private SerializedDataParameter LTCGIScattering;
+
+	private SerializedDataParameter enableVRSLContribution;
+	private SerializedDataParameter VRSLScattering;
+	private SerializedDataParameter VRSLAnisotropy;
+	private SerializedDataParameter VRSLSourceDistance;
+	private SerializedDataParameter VRSLSpotConeSharpness;
+	private SerializedDataParameter VRSLPointConeSharpness;
+	private SerializedDataParameter VRSLPointBeamAxis;
+
 	private SerializedDataParameter maxSteps;
 	private SerializedDataParameter blurIterations;
 	private SerializedDataParameter enabled;
@@ -67,6 +78,17 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		tint = Unpack(pf.Find(x => x.tint));
 
 		enableAdditionalLightsContribution = Unpack(pf.Find(x => x.enableAdditionalLightsContribution));
+
+		enableLTCGIContribution = Unpack(pf.Find(x => x.enableLTCGIContribution));
+		LTCGIScattering = Unpack(pf.Find(x => x.LTCGIScattering));
+
+		enableVRSLContribution = Unpack(pf.Find(x => x.enableVRSLContribution));
+		VRSLScattering = Unpack(pf.Find(x => x.VRSLScattering));
+		VRSLAnisotropy = Unpack(pf.Find(x => x.VRSLAnisotropy));
+		VRSLSourceDistance = Unpack(pf.Find(x => x.VRSLSourceDistance));
+		VRSLSpotConeSharpness = Unpack(pf.Find(x => x.VRSLSpotConeSharpness));
+		VRSLPointConeSharpness = Unpack(pf.Find(x => x.VRSLPointConeSharpness));
+		VRSLPointBeamAxis = Unpack(pf.Find(x => x.VRSLPointBeamAxis));
 
 		maxSteps = Unpack(pf.Find(x => x.maxSteps));
 		blurIterations = Unpack(pf.Find(x => x.blurIterations));
@@ -118,6 +140,23 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		}
 
 		PropertyField(enableAdditionalLightsContribution);
+
+		bool enabledLTCGIContribution = enableLTCGIContribution.overrideState.boolValue && enableLTCGIContribution.value.boolValue;
+		PropertyField(enableLTCGIContribution);
+		if (enabledLTCGIContribution)
+			PropertyField(LTCGIScattering);
+
+		bool enabledVRSLContribution = enableVRSLContribution.overrideState.boolValue && enableVRSLContribution.value.boolValue;
+		PropertyField(enableVRSLContribution);
+		if (enabledVRSLContribution)
+		{
+			PropertyField(VRSLScattering);
+			PropertyField(VRSLAnisotropy);
+			PropertyField(VRSLSourceDistance);
+			PropertyField(VRSLSpotConeSharpness);
+			PropertyField(VRSLPointConeSharpness);
+			PropertyField(VRSLPointBeamAxis);
+		}
 
 		PropertyField(maxSteps);
 		PropertyField(blurIterations);

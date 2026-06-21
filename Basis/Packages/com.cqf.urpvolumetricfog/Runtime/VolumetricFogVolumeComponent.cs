@@ -58,6 +58,28 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	[Tooltip("Disabling this will avoid computing additional lights contribution to fog, which in most cases will lead to better performance.")]
 	public BoolParameter enableAdditionalLightsContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 
+	[Header("LTCGI")]
+	[Tooltip("When enabled, LTCGI area lights (screens, video) contribute to fog. Requires the LTCGI package installed and a baked LTCGI controller in the scene; otherwise this has no effect.")]
+	public BoolParameter enableLTCGIContribution = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("Higher values will make fog affected by LTCGI screens appear brighter.")]
+	public ClampedFloatParameter LTCGIScattering = new ClampedFloatParameter(1.0f, 0.0f, 16.0f);
+
+	[Header("VRSL")]
+	[Tooltip("When enabled, VRSL DMX/AudioLink stage lights contribute to fog as atmospheric fill, on top of VRSL's own beams. Requires the VRSL-URP package installed and an active light manager in the scene; otherwise this has no effect.")]
+	public BoolParameter enableVRSLContribution = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("Higher values will make fog affected by VRSL fixtures appear brighter.")]
+	public ClampedFloatParameter VRSLScattering = new ClampedFloatParameter(1.0f, 0.0f, 16.0f);
+	[Tooltip("Higher positive values brighten fog when looking toward a VRSL fixture; lower negative values brighten when looking away from it.")]
+	public ClampedFloatParameter VRSLAnisotropy = new ClampedFloatParameter(0.4f, -1.0f, 1.0f);
+	[Tooltip("Distance over which a VRSL fixture's brightness softens out from its source. Higher removes the dense hotspot at the fixture and stretches the beam further. 0 = VRSL's native, very bright at the source.")]
+	public ClampedFloatParameter VRSLSourceDistance = new ClampedFloatParameter(1.0f, 0.0f, 10.0f);
+	[Tooltip("Cone tightness for VRSL spot fixtures (sharpens their real cone into a defined beam). 1 = native cone.")]
+	public ClampedFloatParameter VRSLSpotConeSharpness = new ClampedFloatParameter(1.0f, 1.0f, 16.0f);
+	[Tooltip("Beam tightness for VRSL point fixtures, which have no cone of their own (a forward beam is synthesized along the fixture's aim). Higher = narrower beam; 1 = wide forward glow.")]
+	public ClampedFloatParameter VRSLPointConeSharpness = new ClampedFloatParameter(4.0f, 1.0f, 16.0f);
+	[Tooltip("World-space direction to beam VRSL point fixtures, which have no usable per-fixture aim. e.g. (0,-1,0) aims all point beams straight down. Leave at (0,0,0) for an omnidirectional glow. Beam tightness is set by Point Cone Sharpness.")]
+	public Vector3Parameter VRSLPointBeamAxis = new Vector3Parameter(Vector3.zero, true);
+
 	[Header("Performance & Quality")]
 	[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]
 	public ClampedIntParameter maxSteps = new ClampedIntParameter(128, 8, 256);

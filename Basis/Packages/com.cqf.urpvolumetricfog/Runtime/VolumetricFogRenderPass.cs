@@ -83,6 +83,14 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static readonly int TintId = Shader.PropertyToID("_Tint");
     private static readonly int MaxStepsId = Shader.PropertyToID("_MaxSteps");
 
+    private static readonly int LTCGIScatteringId = Shader.PropertyToID("_LTCGIScattering");
+    private static readonly int VRSLScatteringId = Shader.PropertyToID("_VRSLScattering");
+    private static readonly int VRSLAnisotropyId = Shader.PropertyToID("_VRSLAnisotropy");
+    private static readonly int VRSLSourceDistanceId = Shader.PropertyToID("_VRSLSourceDistance");
+    private static readonly int VRSLSpotConeSharpnessId = Shader.PropertyToID("_VRSLSpotConeSharpness");
+    private static readonly int VRSLPointConeSharpnessId = Shader.PropertyToID("_VRSLPointConeSharpness");
+    private static readonly int VRSLPointBeamAxisId = Shader.PropertyToID("_VRSLPointBeamAxis");
+
     private static readonly int AnisotropiesArrayId = Shader.PropertyToID("_Anisotropies");
     private static readonly int ScatteringsArrayId = Shader.PropertyToID("_Scatterings");
     private static readonly int RadiiSqArrayId = Shader.PropertyToID("_RadiiSq");
@@ -267,6 +275,13 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         volumetricFogMaterial.SetFloat(APVContributionWeigthId, fogVolume.enableAPVContribution.value ? fogVolume.APVContributionWeight.value : 0.0f);
         volumetricFogMaterial.SetColor(TintId, fogVolume.tint.value);
         volumetricFogMaterial.SetInteger(MaxStepsId, fogVolume.maxSteps.value);
+        volumetricFogMaterial.SetFloat(LTCGIScatteringId, fogVolume.enableLTCGIContribution.value ? fogVolume.LTCGIScattering.value : 0.0f);
+        volumetricFogMaterial.SetFloat(VRSLScatteringId, fogVolume.enableVRSLContribution.value ? fogVolume.VRSLScattering.value : 0.0f);
+        volumetricFogMaterial.SetFloat(VRSLAnisotropyId, fogVolume.VRSLAnisotropy.value);
+        volumetricFogMaterial.SetFloat(VRSLSourceDistanceId, fogVolume.VRSLSourceDistance.value);
+        volumetricFogMaterial.SetFloat(VRSLSpotConeSharpnessId, fogVolume.VRSLSpotConeSharpness.value);
+        volumetricFogMaterial.SetFloat(VRSLPointConeSharpnessId, fogVolume.VRSLPointConeSharpness.value);
+        volumetricFogMaterial.SetVector(VRSLPointBeamAxisId, fogVolume.VRSLPointBeamAxis.value);
     }
 
     /// <summary>
