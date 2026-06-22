@@ -18,6 +18,7 @@ namespace Basis.BasisUI
 
         // Avoid scaling inappropriately large or sentinel preferred-height values.
         private const float MaxPreferredHeightThreshold = 1000f;
+        private static readonly Color FallbackDividerColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
 
         public static class Styles
         {
@@ -40,6 +41,7 @@ namespace Basis.BasisUI
         private GameObject _dividerAbove;
         private Image _dividerAboveImage;
         private PanelSectionToggle _dividerAboveController;
+        private bool _ownsDividerAbove;
         private GameObject _dividerBelow;
         private Image _dividerBelowImage;
         private bool _ownsDividerBelow;
@@ -73,6 +75,11 @@ namespace Basis.BasisUI
         {
             base.OnCreateEvent();
 
+            if (ToggleComponent == null)
+            {
+                BasisDebug.LogError($"{nameof(PanelSectionToggle)} requires {nameof(ToggleComponent)} to be assigned.");
+            }
+
             if (_created)
             {
                 RefreshVisualState();
@@ -89,9 +96,19 @@ namespace Basis.BasisUI
 
         public override void OnReleaseEvent()
         {
-            ClearSiblingReferenceTo(_dividerAbove);
-            DestroyDivider(ref _dividerAbove, ref _dividerAboveImage);
+            if (_ownsDividerAbove)
+            {
+                ClearSiblingReferenceTo(_dividerAbove);
+                DestroyDivider(ref _dividerAbove, ref _dividerAboveImage);
+            }
+            else
+            {
+                _dividerAbove = null;
+                _dividerAboveImage = null;
+            }
+
             _dividerAboveController = null;
+            _ownsDividerAbove = false;
 
             if (_ownsDividerBelow)
             {
@@ -130,7 +147,7 @@ namespace Basis.BasisUI
         {
             if (binding == null)
             {
-                Debug.LogError($"{nameof(PanelSectionToggle)} requires a non-null binding.");
+                BasisDebug.LogError($"{nameof(PanelSectionToggle)} requires a non-null binding.");
                 SetExpandedWithoutNotify(false);
                 return;
             }
@@ -171,7 +188,7 @@ namespace Basis.BasisUI
         {
             if (binding == null)
             {
-                Debug.LogError($"{nameof(PanelSectionToggle)} requires a non-null binding.");
+                BasisDebug.LogError($"{nameof(PanelSectionToggle)} requires a non-null binding.");
                 SetExpandedWithoutNotify(false);
                 return;
             }
@@ -196,10 +213,14 @@ namespace Basis.BasisUI
                 return;
             }
 
-            PanelSectionContentMarker marker = contentContainer.GetComponent<PanelSectionContentMarker>();
-            if (marker == null)
+            if (!contentContainer.TryGetComponent(out PanelSectionContentMarker marker))
             {
                 marker = contentContainer.gameObject.AddComponent<PanelSectionContentMarker>();
+            }
+
+            if (marker.Owner != null && marker.Owner != this)
+            {
+                marker.Owner.UnregisterContentMarker(marker);
             }
 
             marker.Owner = this;
@@ -258,7 +279,7 @@ namespace Basis.BasisUI
             _generatedArrowObject = new GameObject("Section Arrow", typeof(RectTransform));
             _generatedArrowObject.layer = arrowParent.gameObject.layer;
 
-            RectTransform arrowTransform = _generatedArrowObject.GetComponent<RectTransform>();
+            _generatedArrowObject.TryGetComponent(out RectTransform arrowTransform);
             arrowTransform.SetParent(arrowParent, false);
             arrowTransform.anchorMin = Vector2.zero;
             arrowTransform.anchorMax = Vector2.one;
@@ -343,8 +364,10 @@ namespace Basis.BasisUI
             {
                 // Content separates these sections, so the previous section needs
                 // its own bottom divider instead of sharing this section's top divider.
-                previousToggle.EnsureOwnedDividerBelow(currentIndex);
-                currentIndex++;
+                if (previousToggle.EnsureOwnedDividerBelow())
+                {
+                    return;
+                }
             }
 
             GameObject divider = CreateDividerObject(currentIndex, previousToggle);
@@ -353,6 +376,7 @@ namespace Basis.BasisUI
             _dividerAbove = divider;
             _dividerAboveImage = dividerImage;
             _dividerAboveController = previousToggleIsDirectNeighbor ? previousToggle : null;
+            _ownsDividerAbove = true;
 
             if (previousToggle != null && previousToggleIsDirectNeighbor)
             {
@@ -367,7 +391,7 @@ namespace Basis.BasisUI
             GameObject dividerObject = new GameObject("Section Divider", typeof(RectTransform), typeof(LayoutElement), typeof(PanelSectionBreaklineMarker));
             dividerObject.layer = gameObject.layer;
 
-            RectTransform dividerTransform = dividerObject.GetComponent<RectTransform>();
+            dividerObject.TryGetComponent(out RectTransform dividerTransform);
             dividerTransform.SetParent(rectTransform.parent, false);
             dividerTransform.SetSiblingIndex(siblingIndex);
             dividerTransform.anchorMin = new Vector2(0f, 0.5f);
@@ -375,14 +399,14 @@ namespace Basis.BasisUI
             dividerTransform.pivot = new Vector2(0.5f, 0.5f);
             dividerTransform.sizeDelta = new Vector2(0f, DividerContainerHeight);
 
-            LayoutElement layout = dividerObject.GetComponent<LayoutElement>();
+            dividerObject.TryGetComponent(out LayoutElement layout);
             layout.minHeight = DividerContainerHeight;
             layout.preferredHeight = DividerContainerHeight;
 
             GameObject lineObject = new GameObject("Line", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             lineObject.layer = dividerObject.layer;
 
-            RectTransform lineTransform = lineObject.GetComponent<RectTransform>();
+            lineObject.TryGetComponent(out RectTransform lineTransform);
             lineTransform.SetParent(dividerTransform, false);
             lineTransform.anchorMin = new Vector2(0f, 0.5f);
             lineTransform.anchorMax = new Vector2(1f, 0.5f);
@@ -390,7 +414,7 @@ namespace Basis.BasisUI
             lineTransform.offsetMin = new Vector2(DividerHorizontalInset, -DividerHeight * 0.5f);
             lineTransform.offsetMax = new Vector2(-DividerHorizontalInset, DividerHeight * 0.5f);
 
-            Image dividerImage = lineObject.GetComponent<Image>();
+            lineObject.TryGetComponent(out Image dividerImage);
             dividerImage.raycastTarget = false;
             ApplyDividerImageStyle(dividerImage, styleSource);
             dividerImage.color = GetDividerColor();
@@ -403,16 +427,55 @@ namespace Basis.BasisUI
             return divider != null ? divider.GetComponentInChildren<Image>(true) : null;
         }
 
-        private void EnsureOwnedDividerBelow(int siblingIndex)
+        private bool EnsureOwnedDividerBelow()
         {
             if (_dividerBelow != null)
             {
                 UpdateDividerVisibility();
-                return;
+                return true;
+            }
+
+            if (!TryGetDividerBelowSiblingIndex(out int siblingIndex))
+            {
+                return false;
             }
 
             GameObject divider = CreateDividerObject(siblingIndex, this);
             SetDividerBelow(divider, ResolveDividerImage(divider), true);
+            return true;
+        }
+
+        private bool TryGetDividerBelowSiblingIndex(out int siblingIndex)
+        {
+            siblingIndex = -1;
+            if (rectTransform == null || rectTransform.parent == null)
+            {
+                return false;
+            }
+
+            Transform parent = rectTransform.parent;
+            int lastOwnedIndex = rectTransform.GetSiblingIndex();
+            for (int i = 0; i < _contentMarkers.Count; i++)
+            {
+                PanelSectionContentMarker marker = _contentMarkers[i];
+                if (marker == null || marker.Owner != this || marker.transform.parent != parent)
+                {
+                    continue;
+                }
+
+                lastOwnedIndex = Mathf.Max(lastOwnedIndex, marker.transform.GetSiblingIndex());
+            }
+
+            siblingIndex = Mathf.Min(lastOwnedIndex + 1, parent.childCount);
+            return true;
+        }
+
+        private void UnregisterContentMarker(PanelSectionContentMarker marker)
+        {
+            if (marker != null)
+            {
+                _contentMarkers.Remove(marker);
+            }
         }
 
         private void SetDividerBelow(GameObject divider, Image image, bool ownsDivider = false)
@@ -425,7 +488,7 @@ namespace Basis.BasisUI
                 }
                 else
                 {
-                    Debug.LogWarning($"{nameof(PanelSectionToggle)} divider below was replaced.");
+                    BasisDebug.LogWarning($"{nameof(PanelSectionToggle)} divider below was replaced.");
                 }
             }
 
@@ -456,7 +519,7 @@ namespace Basis.BasisUI
             for (int i = currentIndex - 1; i >= 0; i--)
             {
                 Transform sibling = parent.GetChild(i);
-                if (sibling == null || sibling.GetComponent<PanelSectionBreaklineMarker>() != null)
+                if (sibling == null || sibling.TryGetComponent(out PanelSectionBreaklineMarker _))
                 {
                     skippedSibling = true;
                     continue;
@@ -470,7 +533,14 @@ namespace Basis.BasisUI
 
                 if (sibling.TryGetComponent(out PanelSectionContentMarker contentMarker))
                 {
-                    return contentMarker.Owner;
+                    if (contentMarker.Owner != null && contentMarker.Owner != this)
+                    {
+                        skippedSibling = true;
+                        return contentMarker.Owner;
+                    }
+
+                    skippedSibling = true;
+                    continue;
                 }
 
                 return null;
@@ -549,7 +619,7 @@ namespace Basis.BasisUI
         private static Color GetDividerColor()
         {
             UiStylePalette palette = UiStyleSettings.GetActivePalette();
-            return palette != null ? palette.AccentColor : Color.white;
+            return palette != null ? palette.AccentColor : FallbackDividerColor;
         }
 
         private static void DestroyDivider(ref GameObject divider, ref Image image)
