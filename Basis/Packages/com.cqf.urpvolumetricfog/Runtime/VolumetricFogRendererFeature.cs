@@ -16,12 +16,8 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	[HideInInspector]
 	[SerializeField] private Shader volumetricFogShader;
 
-	[Tooltip("Optional blue-noise texture used for raymarch jitter. When assigned it replaces interleaved gradient noise, giving less visible banding at the same step count. A small (e.g. 64x64 or 128x128) single-channel blue-noise texture works well. Leave empty to use the built-in fallback.")]
+	[Tooltip("Blue-noise texture used for raymarch jitter, giving less visible banding at the same step count. A small (e.g. 64x64 or 128x128) single-channel blue-noise texture works well. Auto-resolved in the editor if left empty.")]
 	[SerializeField] private Texture2D blueNoiseTexture;
-
-	[Tooltip("How many raymarch steps between adaptive probe volume (APV) evaluations. 1 = sample every step (highest quality, slowest); higher trades the along-depth APV gradient for fewer APV texture fetches. APV is smooth, so 8 is usually invisible.")]
-	[Range(1, 32)]
-	[SerializeField] private int apvSampleStride = 8;
 
 	private Material downsampleDepthMaterial;
 	private Material volumetricFogMaterial;
@@ -55,7 +51,6 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		if (shouldAddVolumetricFogRenderPass)
 		{
 			volumetricFogRenderPass.blueNoiseTexture = blueNoiseTexture;
-			volumetricFogRenderPass.apvStride = apvSampleStride;
 			volumetricFogRenderPass.renderPassEvent = GetRenderPassEvent();
 			volumetricFogRenderPass.ConfigureInput(ScriptableRenderPassInput.Depth);
 			renderer.EnqueuePass(volumetricFogRenderPass);

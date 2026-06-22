@@ -33,7 +33,6 @@ Shader "Hidden/VolumetricFog"
 
             #pragma multi_compile_local_fragment _ _MAIN_LIGHT_CONTRIBUTION_DISABLED
             #pragma multi_compile_local_fragment _ _APV_CONTRIBUTION_ENABLED
-            #pragma multi_compile_local_fragment _ _BLUE_NOISE
 
             #pragma vertex Vert
             #pragma fragment Frag
@@ -74,7 +73,7 @@ Shader "Hidden/VolumetricFog"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                return DepthAwareGaussianBlur(input.texcoord, float2(1.0, 0.0), _BlitTexture, sampler_PointClamp, _BlitTexture_TexelSize.xy);
+                return DepthAwareGaussianBlur(input.texcoord, float2(1.0, 0.0), _BlitTexture, sampler_LinearClamp, _BlitTexture_TexelSize.xy);
             }
 
             ENDHLSL
@@ -106,7 +105,7 @@ Shader "Hidden/VolumetricFog"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                return DepthAwareGaussianBlur(input.texcoord, float2(0.0, 1.0), _BlitTexture, sampler_PointClamp, _BlitTexture_TexelSize.xy);
+                return DepthAwareGaussianBlur(input.texcoord, float2(0.0, 1.0), _BlitTexture, sampler_LinearClamp, _BlitTexture_TexelSize.xy);
             }
 
             ENDHLSL

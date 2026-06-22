@@ -4,59 +4,46 @@
 #include "./DeclareDownsampledDepthTexture.hlsl"
 #include "./ProjectionUtils.hlsl"
 
-#define KERNEL_RADIUS 4
 #define BLUR_DEPTH_FALLOFF 0.5
 
-static const float KernelWeights[] = { 0.2026, 0.1790, 0.1240, 0.0672, 0.0285 };
+// 9-tap radius-4 Gaussian folded into 5 bilinear fetches: each side tap lands between two texels so one
+// hardware-filtered sample covers a pair. Offsets are the per-pair weighted centroids, BlurTapWeights the
+// summed pair weights, of the original kernel { 0.2026, 0.1790, 0.1240, 0.0672, 0.0285 }.
+#define BLUR_CENTER_WEIGHT 0.2026
+static const float BlurTapOffsets[2] = { 1.40924, 3.29781 };
+static const float BlurTapWeights[2] = { 0.30300, 0.09570 };
 
 // Blurs the RGB channels of the given texture using depth aware gaussian blur, which uses the downsampled camera depth to apply weights to the blur.
-// The alpha channel is not blurred so the original value is returned.
+// The alpha channel is not blurred so the original value is returned. Requires a bilinear sampler so the paired taps blend correctly.
 float4 DepthAwareGaussianBlur(float2 uv, float2 dir, TEXTURE2D_X(textureToBlur), SAMPLER(sampler_TextureToBlur), float2 textureToBlurTexelSizeXy)
 {
     float4 centerSample = SAMPLE_TEXTURE2D_X(textureToBlur, sampler_TextureToBlur, uv);
-    float centerDepth = SampleDownsampledSceneDepth(uv);
-    float centerLinearEyeDepth = LinearEyeDepthConsiderProjection(centerDepth);
+    float centerLinearEyeDepth = LinearEyeDepthConsiderProjection(SampleDownsampledSceneDepth(uv));
 
-    int i = 0;
-    float3 rgbResult = centerSample.rgb * KernelWeights[i];
-    float weights = KernelWeights[i];
+    float3 rgbResult = centerSample.rgb * BLUR_CENTER_WEIGHT;
+    float weights = BLUR_CENTER_WEIGHT;
 
     float2 texelSizeTimesDir = textureToBlurTexelSizeXy * dir;
 
     UNITY_UNROLL
-    for (i = -KERNEL_RADIUS; i < 0; ++i)
+    for (int i = 0; i < 2; ++i)
     {
-        float2 uvOffset = (float)i * texelSizeTimesDir;
-        float2 uvSample = uv + uvOffset;
+        float2 uvOffset = BlurTapOffsets[i] * texelSizeTimesDir;
 
-        float depth = SampleDownsampledSceneDepth(uvSample);
-        float linearEyeDepth = LinearEyeDepthConsiderProjection(depth);
-        float depthDiff = abs(centerLinearEyeDepth - linearEyeDepth);
-        float r2 = BLUR_DEPTH_FALLOFF * depthDiff;
-        float g = exp(-r2 * r2);
-        float weight = g * KernelWeights[-i];
+        UNITY_UNROLL
+        for (int s = -1; s <= 1; s += 2)
+        {
+            float2 uvSample = uv + (float)s * uvOffset;
 
-        float3 rgb = SAMPLE_TEXTURE2D_X(textureToBlur, sampler_TextureToBlur, uvSample).rgb;
-        rgbResult += (rgb * weight);
-        weights += weight;
-    }
+            float linearEyeDepth = LinearEyeDepthConsiderProjection(SampleDownsampledSceneDepth(uvSample));
+            float depthDiff = abs(centerLinearEyeDepth - linearEyeDepth);
+            float r2 = BLUR_DEPTH_FALLOFF * depthDiff;
+            float g = exp(-r2 * r2);
+            float weight = g * BlurTapWeights[i];
 
-    UNITY_UNROLL
-    for (i = 1; i <= KERNEL_RADIUS; ++i)
-    {
-        float2 uvOffset = (float)i * texelSizeTimesDir;
-        float2 uvSample = uv + uvOffset;
-
-        float depth = SampleDownsampledSceneDepth(uvSample);
-        float linearEyeDepth = LinearEyeDepthConsiderProjection(depth);
-        float depthDiff = abs(centerLinearEyeDepth - linearEyeDepth);
-        float r2 = BLUR_DEPTH_FALLOFF * depthDiff;
-        float g = exp(-r2 * r2);
-        float weight = g * KernelWeights[i];
-
-        float3 rgb = SAMPLE_TEXTURE2D_X(textureToBlur, sampler_TextureToBlur, uvSample).rgb;
-        rgbResult += (rgb * weight);
-        weights += weight;
+            rgbResult += SAMPLE_TEXTURE2D_X(textureToBlur, sampler_TextureToBlur, uvSample).rgb * weight;
+            weights += weight;
+        }
     }
 
     return float4(rgbResult * rcp(weights), centerSample.a);

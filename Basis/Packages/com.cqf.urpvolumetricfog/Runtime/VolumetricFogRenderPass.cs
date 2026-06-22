@@ -49,7 +49,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         public TextureHandle volumetricFogRenderTarget;
         public UniversalLightData lightData;
         public Texture2D blueNoiseTexture;
-        public int apvStride;
     }
 
     #endregion
@@ -71,7 +70,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static readonly int DownsampledCameraDepthTextureId = Shader.PropertyToID("_DownsampledCameraDepthTexture");
     private static readonly int VolumetricFogTextureId = Shader.PropertyToID("_VolumetricFogTexture");
 
-    private static readonly int FrameCountId = Shader.PropertyToID("_FrameCount");
     private static readonly int DistanceId = Shader.PropertyToID("_Distance");
     private static readonly int BaseHeightId = Shader.PropertyToID("_BaseHeight");
     private static readonly int MaximumHeightId = Shader.PropertyToID("_MaximumHeight");
@@ -89,7 +87,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 
     private static readonly int BlueNoiseTextureId = Shader.PropertyToID("_BlueNoiseTexture");
     private static readonly int BlueNoiseParamsId = Shader.PropertyToID("_BlueNoiseParams");
-    private static readonly int APVStrideId = Shader.PropertyToID("_APVStride");
 
     private int downsampleDepthPassIndex;
     private int volumetricFogRenderPassIndex;
@@ -102,9 +99,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 
     // Optional blue-noise texture for raymarch jitter, assigned by the renderer feature.
     public Texture2D blueNoiseTexture;
-
-    // March steps between APV evaluations (assigned by the renderer feature). 1 = every step.
-    public int apvStride = 8;
 
     private ProfilingSampler downsampleDepthProfilingSampler;
 
@@ -183,7 +177,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
             passData.downsampledCameraDepthTarget = downsampledCameraDepthTarget;
             passData.lightData = lightData;
             passData.blueNoiseTexture = blueNoiseTexture;
-            passData.apvStride = apvStride;
 
             builder.SetRenderAttachment(volumetricFogRenderTarget, 0, AccessFlags.WriteAll);
             builder.UseTexture(downsampledCameraDepthTarget);
@@ -260,7 +253,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
             volumetricFogMaterial.SetFloat(MainLightScatteringId, fogVolume.scattering.value);
         }
 
-        volumetricFogMaterial.SetInteger(FrameCountId, Time.renderedFrameCount % 64);
         volumetricFogMaterial.SetFloat(DistanceId, fogVolume.distance.value);
         volumetricFogMaterial.SetFloat(BaseHeightId, fogVolume.baseHeight.value);
         volumetricFogMaterial.SetFloat(MaximumHeightId, fogVolume.maximumHeight.value);
@@ -274,22 +266,15 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         volumetricFogMaterial.SetInteger(MaxStepsId, fogVolume.maxSteps.value);
         volumetricFogMaterial.SetFloat(LTCGIScatteringId, fogVolume.enableLTCGIContribution.value ? fogVolume.LTCGIScattering.value : 0.0f);
 
-        if (blueNoiseTexture != null)
-        {
-            volumetricFogMaterial.EnableKeyword("_BLUE_NOISE");
-            volumetricFogMaterial.SetTexture(BlueNoiseTextureId, blueNoiseTexture);
+        Texture2D noiseTexture = blueNoiseTexture != null ? blueNoiseTexture : Texture2D.blackTexture;
+        volumetricFogMaterial.SetTexture(BlueNoiseTextureId, noiseTexture);
 
-            // R2 low-discrepancy sequence gives a well-spread per-frame scroll so the tiled blue noise
-            // decorrelates frame to frame. Frame index is wrapped to keep float precision.
-            int frame = Time.renderedFrameCount & 4095;
-            float scrollX = (0.5f + 0.7548776662466927f * frame) % 1.0f;
-            float scrollY = (0.5f + 0.5698402909980532f * frame) % 1.0f;
-            volumetricFogMaterial.SetVector(BlueNoiseParamsId, new Vector4(1.0f / blueNoiseTexture.width, 1.0f / blueNoiseTexture.height, scrollX, scrollY));
-        }
-        else
-        {
-            volumetricFogMaterial.DisableKeyword("_BLUE_NOISE");
-        }
+        // R2 low-discrepancy sequence gives a well-spread per-frame scroll so the tiled blue noise
+        // decorrelates frame to frame. Frame index is wrapped to keep float precision.
+        int frame = Time.renderedFrameCount & 4095;
+        float scrollX = (0.5f + 0.7548776662466927f * frame) % 1.0f;
+        float scrollY = (0.5f + 0.5698402909980532f * frame) % 1.0f;
+        volumetricFogMaterial.SetVector(BlueNoiseParamsId, new Vector4(1.0f / noiseTexture.width, 1.0f / noiseTexture.height, scrollX, scrollY));
     }
 
     /// <summary>
@@ -311,6 +296,11 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
 
         GraphicsFormat originalGraphicsFormat = cameraTargetDescriptor.graphicsFormat;
         Vector2Int originalResolution = new Vector2Int(cameraTargetDescriptor.width, cameraTargetDescriptor.height);
+        int originalMsaaSamples = cameraTargetDescriptor.msaaSamples;
+
+        // The downsampled depth, fog and blur buffers are sampled in screen space (the unsafe blur pass
+        // samples them as non-MSAA), so they must be single sample even though depth priming keeps MSAA on.
+        cameraTargetDescriptor.msaaSamples = 1;
 
         // The downsampled depth stays at half resolution regardless of the fog resolution, since the
         // depth-aware upsample relies on it to reconstruct sharp edges back at full resolution.
@@ -329,6 +319,9 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         cameraTargetDescriptor.width = originalResolution.x;
         cameraTargetDescriptor.height = originalResolution.y;
         cameraTargetDescriptor.graphicsFormat = originalGraphicsFormat;
+        // This target replaces the camera color, so it must keep the camera's MSAA sample count or the
+        // passes that still render into the color afterwards (e.g. UI before post) hit a sample mismatch.
+        cameraTargetDescriptor.msaaSamples = originalMsaaSamples;
         volumetricFogUpsampleCompositionTarget = UniversalRenderer.CreateRenderGraphTexture(renderGraph, cameraTargetDescriptor, VolumetricFogUpsampleCompositionRTName, false);
     }
 
@@ -344,7 +337,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         if (stage == PassStage.VolumetricFogRender)
         {
             passData.material.SetTexture(DownsampledCameraDepthTextureId, passData.downsampledCameraDepthTarget);
-            passData.material.SetInteger(APVStrideId, Mathf.Max(1, passData.apvStride));
             UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.blueNoiseTexture);
         }
         else if (stage == PassStage.VolumetricFogUpsampleComposition)

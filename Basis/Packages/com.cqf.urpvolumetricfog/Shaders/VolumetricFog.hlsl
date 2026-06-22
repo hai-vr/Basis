@@ -34,8 +34,10 @@
 // Distance-adaptive stepping: ratio of the last (far) to the first (near) step length. Steps are
 // distributed geometrically so samples concentrate near the camera, where detail matters most.
 #define VF_STEP_GROWTH_RATIO 8.0
+// Skip steps whose density falls below this fraction of the configured maximum; the faint top-of-band
+// sliver they cover is imperceptible but still pays for shadow, APV and LTCGI sampling.
+#define VF_MIN_DENSITY_FRACTION 0.01
 
-int _FrameCount;
 float _Distance;
 float _BaseHeight;
 float _MaximumHeight;
@@ -45,10 +47,6 @@ float _Absortion;
 float _APVContributionWeight;
 float3 _Tint;
 int _MaxSteps;
-// APV is low spatial frequency, so it's evaluated only every _APVStride march steps and reused
-// between (set from the renderer feature). 1 = every step (best quality, slowest); higher = fewer
-// APV texture fetches. The march stays full-resolution, so the per-depth APV gradient is preserved.
-int _APVStride;
 
 float _MainLightAnisotropy;
 float _MainLightScattering;
@@ -57,7 +55,7 @@ float _MainLightScattering;
 float _LTCGIScattering;
 #endif
 
-// Blue-noise texture for raymarch jitter (optional; bound only when assigned on the renderer feature).
+// Blue-noise texture for raymarch jitter.
 TEXTURE2D(_BlueNoiseTexture);
 float4 _BlueNoiseParams; // xy = 1 / textureSize, zw = per-frame scroll offset
 
@@ -115,17 +113,12 @@ void CalculateRaymarchingParams(float2 uv, out float3 ro, out float3 rd, out flo
     }
 }
 
-// Per-pixel raymarch start jitter. Uses a blue-noise texture when one is bound (better-distributed
-// than interleaved gradient noise, so banding is less visible at the same step count); falls back to
-// IGN when no texture is assigned, so the effect still works standalone.
+// Per-pixel raymarch start jitter from a blue-noise texture (better-distributed than interleaved
+// gradient noise, so banding is less visible at the same step count).
 float GetRaymarchJitter(float2 positionCS)
 {
-#if defined(_BLUE_NOISE)
     float2 uv = positionCS * _BlueNoiseParams.xy + _BlueNoiseParams.zw;
     return SAMPLE_TEXTURE2D_LOD(_BlueNoiseTexture, sampler_PointRepeat, uv, 0.0).r;
-#else
-    return InterleavedGradientNoise(positionCS, _FrameCount);
-#endif
 }
 
 // Gets the fog density at the given world height.
@@ -139,9 +132,9 @@ float GetFogDensity(float posWSy)
 }
 
 // Evaluates the adaptive probe volume irradiance (weighted, WITHOUT density) at a world position.
-// real is half on mobile (e.g. Adreno / Steam Frame) and float on desktop. APV is low frequency, so
-// callers evaluate it sparsely - strided in the general march, or just once in the analytic path -
-// and reuse the result, since it barely changes along a ray.
+// real is half on mobile (e.g. Adreno / Steam Frame) and float on desktop. The caller multiplies by
+// the step density. Called once per march step - APV is the fog's lighting and varies along the ray,
+// so it can't be skipped/held without artifacts; reduce cost via the volume's Max Steps instead.
 real3 EvaluateWeightedAPV(float2 uv, float3 posWS)
 {
     float3 apvDiffuseGI = float3(0.0, 0.0, 0.0);
@@ -255,23 +248,16 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
 
     // Hoist the per-ray main-light terms out of the loop; only shadow, cookie and density vary per step.
     real3 mainLightConst = real3(0.0, 0.0, 0.0);
+    bool sampleMainLight = false;
 #if !_MAIN_LIGHT_CONTRIBUTION_DISABLED
     Light mainLight = GetMainLight();
     real phaseMainLight = CornetteShanksPhaseFunction(_MainLightAnisotropy, dot(rdPhase, mainLight.direction));
     mainLightConst = (mainLight.color * _Tint) * (phaseMainLight * _MainLightScattering);
+    // When the main light can't contribute (black sun, zero scattering/tint), its per-step shadow sample is wasted work.
+    sampleMainLight = any(mainLightConst > 0.0);
 #endif
 
-    // (B) APV is evaluated only every _APVStride steps and reused, since it barely changes between steps.
-#if _APV_CONTRIBUTION_ENABLED
-    int apvStride = max(1, _APVStride);
-    // Per-pixel phase so the stride's sample boundaries fall at different depths on neighbouring
-    // pixels. Otherwise the held value quantizes the fog colour into depth bands that line up across
-    // the screen; decorrelating it turns that into noise the depth-aware blur removes.
-    int apvPhase = (int)(jitterFrac * apvStride);
-    real3 apvWeighted = real3(0.0, 0.0, 0.0);
-    int apvStep = 0;
-#endif
-
+    float minDensity = _Density * VF_MIN_DENSITY_FRACTION;
     float3 volumetricFogColor = float3(0.0, 0.0, 0.0);
     float transmittance = 1.0;
     float t = tEnter;
@@ -284,21 +270,19 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
         float density = GetFogDensity(currPosWS.y);
 
         UNITY_BRANCH
-        if (density > 0.0)
+        if (density > minDensity)
         {
             transmittance *= exp(-ds * _Absortion * density);
 
             real3 apvColor = real3(0.0, 0.0, 0.0);
 #if _APV_CONTRIBUTION_ENABLED
-            // Evaluate on the first contributing step (so the held value is always valid) and then on
-            // the per-pixel staggered stride boundary; reuse the held value in between.
-            UNITY_BRANCH
-            if (apvStep == 0 || ((apvStep + apvPhase) % apvStride) == 0)
-                apvWeighted = EvaluateWeightedAPV(uv, currPosWS);
-            apvStep += 1;
-            apvColor = apvWeighted * density;
+            apvColor = EvaluateWeightedAPV(uv, currPosWS) * density;
 #endif
-            real3 mainLightColor = GetStepMainLightColor(currPosWS, mainLightConst, density);
+            real3 mainLightColor = real3(0.0, 0.0, 0.0);
+            UNITY_BRANCH
+            if (sampleMainLight)
+                mainLightColor = GetStepMainLightColor(currPosWS, mainLightConst, density);
+
             real3 ltcgiColor = GetStepLTCGIColor(currPosWS, -rd, density);
 
             real3 stepColor = apvColor + mainLightColor + ltcgiColor;
