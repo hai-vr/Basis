@@ -1636,7 +1636,7 @@ namespace Basis.BasisUI
 
             // Performance limits live in the same tab — formerly its own page,
             // merged here so users see all rendering / quality / cost controls together.
-            SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container);
+            SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container, true);
 
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.graphics", ResetGraphicsDefaults);
