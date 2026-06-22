@@ -32,10 +32,10 @@ public static class SettingsProviderPerformanceLimits
         if (wrapInSection)
         {
             performanceToggle = PanelSectionToggle.CreateNewEntry(container);
-            performanceGroup = CreateCollapsibleContentGroup(
+            performanceGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
                 performanceToggle,
                 container,
-                "settings.perf.intro.title",
+                BasisLocalization.Get("settings.perf.intro.title"),
                 false);
             contentParent = performanceGroup.ContentParent;
         }
@@ -54,10 +54,10 @@ public static class SettingsProviderPerformanceLimits
         };
 
         PanelSectionToggle geometryToggle = PanelSectionToggle.CreateNewEntry(contentParent);
-        PanelElementDescriptor geometry = CreateCollapsibleContentGroup(
+        PanelElementDescriptor geometry = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
             geometryToggle,
             contentParent,
-            "settings.perf.group.geometry");
+            BasisLocalization.Get("settings.perf.group.geometry"));
 
         AddLimitPair(geometry.ContentParent,
             BasisLocalization.Get("settings.perf.triangles.toggle"),
@@ -86,13 +86,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.bones.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.bones.slider.tooltip"));
 
-        FinalizeCollapsibleGroup(geometryToggle, geometry, false);
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(geometryToggle, geometry, false, _ => ForceLayout());
 
         PanelSectionToggle meshesToggle = PanelSectionToggle.CreateNewEntry(contentParent);
-        PanelElementDescriptor meshes = CreateCollapsibleContentGroup(
+        PanelElementDescriptor meshes = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
             meshesToggle,
             contentParent,
-            "settings.perf.group.meshesMaterials");
+            BasisLocalization.Get("settings.perf.group.meshesMaterials"));
 
         AddLimitPair(meshes.ContentParent,
             BasisLocalization.Get("settings.perf.skinnedMeshes.toggle"),
@@ -130,13 +130,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.textureMemory.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.textureMemory.slider.tooltip"));
 
-        FinalizeCollapsibleGroup(meshesToggle, meshes, false);
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(meshesToggle, meshes, false, _ => ForceLayout());
 
         PanelSectionToggle physicsToggle = PanelSectionToggle.CreateNewEntry(contentParent);
-        PanelElementDescriptor physics = CreateCollapsibleContentGroup(
+        PanelElementDescriptor physics = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
             physicsToggle,
             contentParent,
-            "settings.perf.group.physics");
+            BasisLocalization.Get("settings.perf.group.physics"));
 
         AddLimitPair(physics.ContentParent,
             BasisLocalization.Get("settings.perf.jiggleBones.toggle"),
@@ -179,13 +179,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.slider.tooltip"));
 
-        FinalizeCollapsibleGroup(physicsToggle, physics, false);
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(physicsToggle, physics, false, _ => ForceLayout());
 
         PanelSectionToggle effectsToggle = PanelSectionToggle.CreateNewEntry(contentParent);
-        PanelElementDescriptor effects = CreateCollapsibleContentGroup(
+        PanelElementDescriptor effects = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
             effectsToggle,
             contentParent,
-            "settings.perf.group.effects");
+            BasisLocalization.Get("settings.perf.group.effects"));
 
         AddLimitPair(effects.ContentParent,
             BasisLocalization.Get("settings.perf.particleSystems.toggle"),
@@ -214,13 +214,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.lineRenderers.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.lineRenderers.slider.tooltip"));
 
-        FinalizeCollapsibleGroup(effectsToggle, effects, false);
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(effectsToggle, effects, false, _ => ForceLayout());
 
         PanelSectionToggle runtimeToggle = PanelSectionToggle.CreateNewEntry(contentParent);
-        PanelElementDescriptor runtime = CreateCollapsibleContentGroup(
+        PanelElementDescriptor runtime = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
             runtimeToggle,
             contentParent,
-            "settings.perf.group.runtime");
+            BasisLocalization.Get("settings.perf.group.runtime"));
 
         AddLimitPair(runtime.ContentParent,
             BasisLocalization.Get("settings.perf.animators.toggle"),
@@ -240,57 +240,14 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.cilboxBehaviours.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.cilboxBehaviours.slider.tooltip"));
 
-        FinalizeCollapsibleGroup(runtimeToggle, runtime, false);
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(runtimeToggle, runtime, false, _ => ForceLayout());
 
         SettingsProviderContentTags.BuildContentTagsContent(container);
 
         if (performanceToggle != null)
         {
-            FinalizeCollapsibleGroup(performanceToggle, performanceGroup, false);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(performanceToggle, performanceGroup, false, _ => ForceLayout());
         }
-    }
-
-    private static PanelElementDescriptor CreateCollapsibleContentGroup(
-        PanelSectionToggle sectionToggle,
-        RectTransform parent,
-        string titleKey,
-        bool showGroupTitle = true)
-    {
-        string title = BasisLocalization.Get(titleKey);
-        sectionToggle.SetTitle(title);
-
-        PanelElementDescriptor group =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-        if (showGroupTitle)
-        {
-            group.SetTitle(title);
-        }
-        else if (group.Header != null)
-        {
-            group.Header.gameObject.SetActive(false);
-        }
-
-        sectionToggle.RegisterContentContainer(group);
-        return group;
-    }
-
-    private static void FinalizeCollapsibleGroup(
-        PanelSectionToggle sectionToggle,
-        PanelElementDescriptor group,
-        bool defaultOpen)
-    {
-        if (sectionToggle == null || group == null)
-        {
-            return;
-        }
-
-        group.gameObject.SetActive(defaultOpen);
-        sectionToggle.SetExpandedWithoutNotify(defaultOpen);
-        sectionToggle.OnExpandedChanged += visible =>
-        {
-            group.gameObject.SetActive(visible);
-            ForceLayout();
-        };
     }
 
     private static void ForceLayout()

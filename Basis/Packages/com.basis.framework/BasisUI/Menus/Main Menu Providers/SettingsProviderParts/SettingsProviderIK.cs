@@ -1375,30 +1375,21 @@ public static class SettingsProviderIK
         var parent = parentGroup.ContentParent;
 
         var sectionToggle = PanelSectionToggle.CreateNewEntry(parent);
-        sectionToggle.SetTitle(title);
         // Section blurb on hover (tooltip) instead of inline, to keep the page compact.
         sectionToggle.Descriptor.SetTooltip(description);
 
-        var sectionGroup = PanelElementDescriptor.CreateNew(
-            PanelElementDescriptor.ElementStyles.Group,
-            parent);
-        sectionGroup.SetTitle(title);
+        var sectionGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(sectionToggle, parent, title);
         sectionGroup.SetIcon(AddressableAssets.Sprites.Settings);
-        sectionToggle.RegisterContentContainer(sectionGroup);
 
         // Add content while the group is still active so child component Awake/Start runs and
         // their text initializes. SetActive(false) before attach would orphan their lifecycle.
         addContent(sectionGroup.ContentParent);
 
-        sectionGroup.gameObject.SetActive(defaultOpen);
-        sectionToggle.SetExpandedWithoutNotify(defaultOpen);
-
-        sectionToggle.OnExpandedChanged += visible =>
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(sectionToggle, sectionGroup, defaultOpen, _ =>
         {
-            sectionGroup.gameObject.SetActive(visible);
             tabDesc.ForceRebuild();
             parentGroup.ForceRebuild();
-        };
+        });
     }
 
 }
