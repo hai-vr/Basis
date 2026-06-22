@@ -621,7 +621,6 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogVolumedensity = volumetricDensitySlider != null ? volumetricDensitySlider.value : 0.01f,
             VolumetricFogenableAPVContribution = true,
             VolumetricFogenableMainLightContribution = true,
-            VolumetricenableAdditionalLightsContribution = true,
         };
     }
 
@@ -810,7 +809,6 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.VolumetricFogVolume.density.value = settings.VolumetricFogVolumedensity;
             HHC.MetaData.VolumetricFogVolume.enableAPVContribution.value = settings.VolumetricFogenableAPVContribution;
             HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value = settings.VolumetricFogenableMainLightContribution;
-            HHC.MetaData.VolumetricFogVolume.enableAdditionalLightsContribution.value = settings.VolumetricenableAdditionalLightsContribution;
         }
 #endif
     }

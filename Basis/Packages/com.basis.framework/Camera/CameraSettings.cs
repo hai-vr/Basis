@@ -28,7 +28,6 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogVolumedensity = 0.01f;
             VolumetricFogenableAPVContribution = true;
             VolumetricFogenableMainLightContribution = true;
-            VolumetricenableAdditionalLightsContribution = true;
         }
 
         public int resolutionIndex = 0;
@@ -61,6 +60,5 @@ public partial class BasisHandHeldCameraUI
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;
         public bool VolumetricFogenableMainLightContribution;
-        public bool VolumetricenableAdditionalLightsContribution;
     }
 }

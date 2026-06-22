@@ -3,7 +3,6 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.Rendering.RenderGraphModule;
-using Unity.Collections;
 
 /// <summary>
 /// The volumetric fog render pass.
@@ -18,7 +17,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     /// </summary>
     private enum DownsampleFactor : byte
     {
-        // TODO: Add quarter downsample factor.
         Half = 2,
     }
 
@@ -72,7 +70,6 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static readonly int VolumetricFogTextureId = Shader.PropertyToID("_VolumetricFogTexture");
 
     private static readonly int FrameCountId = Shader.PropertyToID("_FrameCount");
-    private static readonly int CustomAdditionalLightsCountId = Shader.PropertyToID("_CustomAdditionalLightsCount");
     private static readonly int DistanceId = Shader.PropertyToID("_Distance");
     private static readonly int BaseHeightId = Shader.PropertyToID("_BaseHeight");
     private static readonly int MaximumHeightId = Shader.PropertyToID("_MaximumHeight");
@@ -83,21 +80,10 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static readonly int TintId = Shader.PropertyToID("_Tint");
     private static readonly int MaxStepsId = Shader.PropertyToID("_MaxSteps");
 
+    private static readonly int MainLightAnisotropyId = Shader.PropertyToID("_MainLightAnisotropy");
+    private static readonly int MainLightScatteringId = Shader.PropertyToID("_MainLightScattering");
+
     private static readonly int LTCGIScatteringId = Shader.PropertyToID("_LTCGIScattering");
-    private static readonly int VRSLScatteringId = Shader.PropertyToID("_VRSLScattering");
-    private static readonly int VRSLAnisotropyId = Shader.PropertyToID("_VRSLAnisotropy");
-    private static readonly int VRSLSourceDistanceId = Shader.PropertyToID("_VRSLSourceDistance");
-    private static readonly int VRSLSpotConeSharpnessId = Shader.PropertyToID("_VRSLSpotConeSharpness");
-    private static readonly int VRSLPointConeSharpnessId = Shader.PropertyToID("_VRSLPointConeSharpness");
-    private static readonly int VRSLPointBeamAxisId = Shader.PropertyToID("_VRSLPointBeamAxis");
-
-    private static readonly int AnisotropiesArrayId = Shader.PropertyToID("_Anisotropies");
-    private static readonly int ScatteringsArrayId = Shader.PropertyToID("_Scatterings");
-    private static readonly int RadiiSqArrayId = Shader.PropertyToID("_RadiiSq");
-
-    private static readonly float[] Anisotropies = new float[UniversalRenderPipeline.maxVisibleAdditionalLights + 1];
-    private static readonly float[] Scatterings = new float[UniversalRenderPipeline.maxVisibleAdditionalLights + 1];
-    private static readonly float[] RadiiSq = new float[UniversalRenderPipeline.maxVisibleAdditionalLights];
 
     private int downsampleDepthPassIndex;
     private int volumetricFogRenderPassIndex;
@@ -237,16 +223,13 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     /// </summary>
     /// <param name="volumetricFogMaterial"></param>
     /// <param name="mainLightIndex"></param>
-    /// <param name="additionalLightsCount"></param>
-    /// <param name="visibleLights"></param>
-    private static void UpdateVolumetricFogMaterialParameters(Material volumetricFogMaterial, int mainLightIndex, int additionalLightsCount, NativeArray<VisibleLight> visibleLights)
+    private static void UpdateVolumetricFogMaterialParameters(Material volumetricFogMaterial, int mainLightIndex)
     {
         VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
         bool enableMainLightContribution = fogVolume.enableMainLightContribution.value && fogVolume.scattering.value > 0.0f && mainLightIndex > -1;
-        bool enableAdditionalLightsContribution = fogVolume.enableAdditionalLightsContribution.value && additionalLightsCount > 0;
-
         bool enableAPVContribution = fogVolume.enableAPVContribution.value && fogVolume.APVContributionWeight.value > 0.0f;
+
         if (enableAPVContribution)
             volumetricFogMaterial.EnableKeyword("_APV_CONTRIBUTION_ENABLED");
         else
@@ -257,85 +240,25 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         else
             volumetricFogMaterial.EnableKeyword("_MAIN_LIGHT_CONTRIBUTION_DISABLED");
 
-        if (enableAdditionalLightsContribution)
-            volumetricFogMaterial.DisableKeyword("_ADDITIONAL_LIGHTS_CONTRIBUTION_DISABLED");
-        else
-            volumetricFogMaterial.EnableKeyword("_ADDITIONAL_LIGHTS_CONTRIBUTION_DISABLED");
-
-        UpdateLightsParameters(volumetricFogMaterial, fogVolume, enableMainLightContribution, enableAdditionalLightsContribution, mainLightIndex, visibleLights);
+        if (enableMainLightContribution)
+        {
+            volumetricFogMaterial.SetFloat(MainLightAnisotropyId, fogVolume.anisotropy.value);
+            volumetricFogMaterial.SetFloat(MainLightScatteringId, fogVolume.scattering.value);
+        }
 
         volumetricFogMaterial.SetInteger(FrameCountId, Time.renderedFrameCount % 64);
-        volumetricFogMaterial.SetInteger(CustomAdditionalLightsCountId, additionalLightsCount);
         volumetricFogMaterial.SetFloat(DistanceId, fogVolume.distance.value);
         volumetricFogMaterial.SetFloat(BaseHeightId, fogVolume.baseHeight.value);
         volumetricFogMaterial.SetFloat(MaximumHeightId, fogVolume.maximumHeight.value);
-        volumetricFogMaterial.SetFloat(GroundHeightId, (fogVolume.enableGround.overrideState && fogVolume.enableGround.value) ? fogVolume.groundHeight.value : float.MinValue);
+        // Use a large finite sentinel (not float.MinValue) when ground is disabled so the shader's
+        // height-band intersection math never produces infinities.
+        volumetricFogMaterial.SetFloat(GroundHeightId, (fogVolume.enableGround.overrideState && fogVolume.enableGround.value) ? fogVolume.groundHeight.value : -1.0e9f);
         volumetricFogMaterial.SetFloat(DensityId, fogVolume.density.value);
         volumetricFogMaterial.SetFloat(AbsortionId, 1.0f / fogVolume.attenuationDistance.value);
         volumetricFogMaterial.SetFloat(APVContributionWeigthId, fogVolume.enableAPVContribution.value ? fogVolume.APVContributionWeight.value : 0.0f);
         volumetricFogMaterial.SetColor(TintId, fogVolume.tint.value);
         volumetricFogMaterial.SetInteger(MaxStepsId, fogVolume.maxSteps.value);
         volumetricFogMaterial.SetFloat(LTCGIScatteringId, fogVolume.enableLTCGIContribution.value ? fogVolume.LTCGIScattering.value : 0.0f);
-        volumetricFogMaterial.SetFloat(VRSLScatteringId, fogVolume.enableVRSLContribution.value ? fogVolume.VRSLScattering.value : 0.0f);
-        volumetricFogMaterial.SetFloat(VRSLAnisotropyId, fogVolume.VRSLAnisotropy.value);
-        volumetricFogMaterial.SetFloat(VRSLSourceDistanceId, fogVolume.VRSLSourceDistance.value);
-        volumetricFogMaterial.SetFloat(VRSLSpotConeSharpnessId, fogVolume.VRSLSpotConeSharpness.value);
-        volumetricFogMaterial.SetFloat(VRSLPointConeSharpnessId, fogVolume.VRSLPointConeSharpness.value);
-        volumetricFogMaterial.SetVector(VRSLPointBeamAxisId, fogVolume.VRSLPointBeamAxis.value);
-    }
-
-    /// <summary>
-    /// Updates the lights parameters from the material.
-    /// </summary>
-    /// <param name="volumetricFogMaterial"></param>
-    /// <param name="fogVolume"></param>
-    /// <param name="enableMainLightContribution"></param>
-    /// <param name="enableAdditionalLightsContribution"></param>
-    /// <param name="mainLightIndex"></param>
-    /// <param name="visibleLights"></param>
-    private static void UpdateLightsParameters(Material volumetricFogMaterial, VolumetricFogVolumeComponent fogVolume, bool enableMainLightContribution, bool enableAdditionalLightsContribution, int mainLightIndex, NativeArray<VisibleLight> visibleLights)
-    {
-        if (enableMainLightContribution)
-        {
-            Anisotropies[visibleLights.Length - 1] = fogVolume.anisotropy.value;
-            Scatterings[visibleLights.Length - 1] = fogVolume.scattering.value;
-        }
-
-        if (enableAdditionalLightsContribution)
-        {
-            int additionalLightIndex = 0;
-
-            for (int i = 0; i < visibleLights.Length; ++i)
-            {
-                if (i == mainLightIndex)
-                    continue;
-
-                float anisotropy = 0.0f;
-                float scattering = 0.0f;
-                float radius = 0.0f;
-
-                if (visibleLights[i].light.TryGetComponent(out VolumetricAdditionalLight volumetricLight))
-                {
-                    if (volumetricLight.gameObject.activeInHierarchy && volumetricLight.enabled)
-                    {
-                        anisotropy = volumetricLight.Anisotropy;
-                        scattering = volumetricLight.Scattering;
-                        radius = volumetricLight.Radius;
-                    }
-                }
-
-                Anisotropies[additionalLightIndex] = anisotropy;
-                Scatterings[additionalLightIndex] = scattering;
-                RadiiSq[additionalLightIndex++] = radius * radius;
-            }
-        }
-
-        if (enableMainLightContribution || enableAdditionalLightsContribution)
-        {
-            volumetricFogMaterial.SetFloatArray(AnisotropiesArrayId, Anisotropies);
-            volumetricFogMaterial.SetFloatArray(ScatteringsArrayId, Scatterings);
-            volumetricFogMaterial.SetFloatArray(RadiiSqArrayId, RadiiSq);
-        }
     }
 
     /// <summary>
@@ -349,17 +272,25 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     /// <param name="volumetricFogUpsampleCompositionTarget"></param>
     private void CreateRenderGraphTextures(RenderGraph renderGraph, UniversalCameraData cameraData, out TextureHandle downsampledCameraDepthTarget, out TextureHandle volumetricFogRenderTarget, out TextureHandle volumetricFogBlurRenderTarget, out TextureHandle volumetricFogUpsampleCompositionTarget)
     {
+        VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
+        int fogDownsampleFactor = (int)fogVolume.resolution.value;
+
         RenderTextureDescriptor cameraTargetDescriptor = cameraData.cameraTargetDescriptor;
         cameraTargetDescriptor.depthStencilFormat = GraphicsFormat.None;
 
         GraphicsFormat originalGraphicsFormat = cameraTargetDescriptor.graphicsFormat;
         Vector2Int originalResolution = new Vector2Int(cameraTargetDescriptor.width, cameraTargetDescriptor.height);
 
-        cameraTargetDescriptor.width /= (int)DownsampleFactor.Half;
-        cameraTargetDescriptor.height /= (int)DownsampleFactor.Half;
+        // The downsampled depth stays at half resolution regardless of the fog resolution, since the
+        // depth-aware upsample relies on it to reconstruct sharp edges back at full resolution.
+        cameraTargetDescriptor.width = Mathf.Max(1, originalResolution.x / (int)DownsampleFactor.Half);
+        cameraTargetDescriptor.height = Mathf.Max(1, originalResolution.y / (int)DownsampleFactor.Half);
         cameraTargetDescriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
         downsampledCameraDepthTarget = UniversalRenderer.CreateRenderGraphTexture(renderGraph, cameraTargetDescriptor, DownsampledCameraDepthRTName, false);
 
+        // The fog and its blur run at the volume-selected resolution (half or quarter).
+        cameraTargetDescriptor.width = Mathf.Max(1, originalResolution.x / fogDownsampleFactor);
+        cameraTargetDescriptor.height = Mathf.Max(1, originalResolution.y / fogDownsampleFactor);
         cameraTargetDescriptor.graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
         volumetricFogRenderTarget = UniversalRenderer.CreateRenderGraphTexture(renderGraph, cameraTargetDescriptor, VolumetricFogRenderRTName, false);
         volumetricFogBlurRenderTarget = UniversalRenderer.CreateRenderGraphTexture(renderGraph, cameraTargetDescriptor, VolumetricFogBlurRTName, false);
@@ -382,7 +313,7 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         if (stage == PassStage.VolumetricFogRender)
         {
             passData.material.SetTexture(DownsampledCameraDepthTextureId, passData.downsampledCameraDepthTarget);
-            UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex, passData.lightData.additionalLightsCount, passData.lightData.visibleLights);
+            UpdateVolumetricFogMaterialParameters(passData.material, passData.lightData.mainLightIndex);
         }
         else if (stage == PassStage.VolumetricFogUpsampleComposition)
         {
