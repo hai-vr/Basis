@@ -1498,6 +1498,11 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            PanelToggle toggleFogBakedAPV = PanelToggle.CreateNewEntry(fogGroup.ContentParent);
+            toggleFogBakedAPV.AssignBinding(BasisSettingsDefaults.VolumetricFogBakedAPV);
+            toggleFogBakedAPV.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.fog.bakedapv"));
+            toggleFogBakedAPV.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.fog.bakedapv.tooltip"));
+
             // --- Camera Near/Far Override ---
             PanelElementDescriptor cameraClipGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1668,6 +1673,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.BloomIntensity.ResetToDefault();
             BasisSettingsDefaults.UseVolumetricFogOverride.ResetToDefault();
             BasisSettingsDefaults.VolumetricFogDensity.ResetToDefault();
+            BasisSettingsDefaults.VolumetricFogBakedAPV.ResetToDefault();
 
             // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
             // If you later add bindings for them, add them here.

@@ -335,6 +335,7 @@ namespace Cilbox
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject.OnInteractEndEvent",
 			"Basis.BasisNetworkBehaviour.CurrentOwnerId",
 			"Basis.BasisNetworkBehaviour.IsOwnedLocallyOnServer",
+			"Basis.BasisNetworkBehaviour.HasNetworkID",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.playerId",
 			
 			// Unity Event Systems fields
@@ -357,7 +358,7 @@ namespace Cilbox
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.Player)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.LocalPlayer)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.displayName)).GetGetMethod().Name,
-				"get_playerId",
+				"get_playerId", nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.GetAllPlayers),
 				} },
 			{ typeof(UnityEngine.GameObject),          new HashSet<string>{
 				nameof(UnityEngine.GameObject.SetActive),

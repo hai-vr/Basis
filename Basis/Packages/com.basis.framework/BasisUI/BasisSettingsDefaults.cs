@@ -219,6 +219,13 @@ namespace Basis.BasisUI
         public const float FOG_DENSITY_MAX = 1f;
 
         /// <summary>
+        /// When enabled, volumetric fog samples APV lighting from a fast runtime-baked static volume
+        /// instead of evaluating the adaptive probe volumes live every raymarch step. The bake is
+        /// produced on demand from the world's APV and used immediately.
+        /// </summary>
+        public static BasisSettingsBinding<bool> VolumetricFogBakedAPV = new("volumetricfogbakedapv", new BasisPlatformDefault<bool>(true));
+
+        /// <summary>
         /// When enabled, ReflectionProbe components in the scene whose mode is Realtime are
         /// driven by Basis at the rate selected by <see cref="RealtimeReflectionProbeRate"/>.
         /// When disabled, Basis does not modify any probe state.
@@ -426,7 +433,7 @@ namespace Basis.BasisUI
 
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
-        public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled_v2", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
@@ -1462,6 +1469,7 @@ namespace Basis.BasisUI
             BloomIntensity.LoadBindingValue();
             UseVolumetricFogOverride.LoadBindingValue();
             VolumetricFogDensity.LoadBindingValue();
+            VolumetricFogBakedAPV.LoadBindingValue();
             UseRealtimeReflectionProbes.LoadBindingValue();
             RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();

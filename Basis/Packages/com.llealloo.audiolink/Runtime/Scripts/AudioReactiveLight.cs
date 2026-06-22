@@ -34,7 +34,7 @@ namespace AudioLink
 
         void Update()
         {
-            if (audioLink.AudioDataIsAvailable())
+            if (audioLink != null && audioLink.AudioDataIsAvailable())
             {
                 float amplitude = AudioLink.ToGrayscale(audioLink.GetBandAsSmooth(band, delay, smooth));
                 if (affectIntensity) _light.intensity = amplitude * intensityMultiplier;

@@ -1,6 +1,59 @@
+using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+
+/// <summary>
+/// The resolution at which the volumetric fog is rendered, relative to the camera resolution.
+/// </summary>
+public enum VolumetricFogResolution
+{
+	Half = 2,
+	Quarter = 4
+}
+
+/// <summary>
+/// A volume parameter that holds a VolumetricFogResolution value.
+/// </summary>
+[Serializable]
+public sealed class VolumetricFogResolutionParameter : VolumeParameter<VolumetricFogResolution>
+{
+	/// <summary>
+	/// Creates a new VolumetricFogResolutionParameter instance.
+	/// </summary>
+	/// <param name="value"></param>
+	/// <param name="overrideState"></param>
+	public VolumetricFogResolutionParameter(VolumetricFogResolution value, bool overrideState = false) : base(value, overrideState)
+	{
+	}
+}
+
+/// <summary>
+/// How the adaptive probe volume (APV) lighting is sampled by the fog.
+/// </summary>
+public enum VolumetricFogAPVMode
+{
+	/// <summary>Sample Unity's live APV once per raymarch step. Dynamic, but the most expensive option.</summary>
+	Live = 0,
+	/// <summary>Sample a pre-baked world-space 3D texture of APV in-scatter. Static, but a single trilinear tap per step. Requires a bake.</summary>
+	Baked = 1
+}
+
+/// <summary>
+/// A volume parameter that holds a VolumetricFogAPVMode value.
+/// </summary>
+[Serializable]
+public sealed class VolumetricFogAPVModeParameter : VolumeParameter<VolumetricFogAPVMode>
+{
+	/// <summary>
+	/// Creates a new VolumetricFogAPVModeParameter instance.
+	/// </summary>
+	/// <param name="value"></param>
+	/// <param name="overrideState"></param>
+	public VolumetricFogAPVModeParameter(VolumetricFogAPVMode value, bool overrideState = false) : base(value, overrideState)
+	{
+	}
+}
 
 /// <summary>
 /// Volume component for the volumetric fog.
@@ -42,6 +95,8 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	public BoolParameter enableAPVContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 	[Tooltip("A weight factor for the light coming from adaptive probe volumes (APV) when the probe volume contribution is enabled.")]
 	public ClampedFloatParameter APVContributionWeight = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
+	[Tooltip("How APV lighting is sampled. Live evaluates Unity's APV every raymarch step (dynamic). Baked samples a pre-computed world-space 3D texture of APV in-scatter (static, much faster - needs a bake, and only engages once a bake exists).")]
+	public VolumetricFogAPVModeParameter apvMode = new VolumetricFogAPVModeParameter(VolumetricFogAPVMode.Live, true);
 #endif
 
 	[Header("Main Light")]
@@ -54,15 +109,19 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	[Tooltip("A multiplier color to tint the main light fog.")]
 	public ColorParameter tint = new ColorParameter(Color.white, true, false, true);
 
-	[Header("Additional Lights")]
-	[Tooltip("Disabling this will avoid computing additional lights contribution to fog, which in most cases will lead to better performance.")]
-	public BoolParameter enableAdditionalLightsContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+	[Header("LTCGI")]
+	[Tooltip("When enabled, LTCGI area lights (screens, video) contribute to fog. Requires the LTCGI package installed and a baked LTCGI controller in the scene; otherwise this has no effect.")]
+	public BoolParameter enableLTCGIContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
+	[Tooltip("Higher values will make fog affected by LTCGI screens appear brighter.")]
+	public ClampedFloatParameter LTCGIScattering = new ClampedFloatParameter(1.0f, 0.0f, 16.0f);
 
 	[Header("Performance & Quality")]
+	[Tooltip("The resolution at which the fog is rendered, relative to the camera. Quarter is much cheaper than Half but softer and leans harder on the upsample.")]
+	public VolumetricFogResolutionParameter resolution = new VolumetricFogResolutionParameter(VolumetricFogResolution.Half, true);
 	[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]
 	public ClampedIntParameter maxSteps = new ClampedIntParameter(128, 8, 256);
 	[Tooltip("The number of times that the fog texture will be blurred. Higher values lead to softer volumetric god rays at the cost of some performance.")]
-	public ClampedIntParameter blurIterations = new ClampedIntParameter(2, 1, 4);
+	public ClampedIntParameter blurIterations = new ClampedIntParameter(1, 1, 4);
 	[Tooltip("Disabling this will completely remove any feature from the volumetric fog from being rendered at all.")]
 	public BoolParameter enabled = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 

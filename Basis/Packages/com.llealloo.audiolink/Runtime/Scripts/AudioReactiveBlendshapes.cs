@@ -34,7 +34,7 @@ namespace AudioLink
 
         void Update()
         {
-            if (audioLink.AudioDataIsAvailable())
+            if (audioLink != null && audioLink.AudioDataIsAvailable())
             {
                 float amplitude = AudioLink.ToGrayscale(audioLink.GetBandAsSmooth(band, delay, smooth));
                 for (int indx = 0; indx < _maxBlendshapes; indx++)

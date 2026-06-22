@@ -1309,8 +1309,14 @@ spiperf.Begin();
 						{
 						// Does this way work universally?  Can we assume the compiler knows what it's doing?
 						// Previously it looked more like a.GetValue( index ).
-						case 0: stackBuffer[sp].LoadSByte( (sbyte)(((sbyte[])stackBuffer[sp].o)[index]) ); break; // ldelem.i1
-						case 1: stackBuffer[sp].LoadByte( (byte)(((byte[])stackBuffer[sp].o)[index]) ); break; // ldelem.u1
+						case 0: // ldelem.i1 (sbyte[] / bool[])
+							if( stackBuffer[sp].o is bool[] boolArrI1 ) stackBuffer[sp].LoadInt( boolArrI1[index] ? 1 : 0 );
+							else stackBuffer[sp].LoadSByte( (sbyte)(((sbyte[])stackBuffer[sp].o)[index]) );
+							break;
+						case 1: // ldelem.u1 (byte[] / bool[])
+							if( stackBuffer[sp].o is bool[] boolArrU1 ) stackBuffer[sp].LoadInt( boolArrU1[index] ? 1 : 0 );
+							else stackBuffer[sp].LoadByte( (byte)(((byte[])stackBuffer[sp].o)[index]) );
+							break;
 						case 2: stackBuffer[sp].LoadShort( (short)(((short[])stackBuffer[sp].o)[index]) ); break; // ldelem.i2
 						case 3: stackBuffer[sp].LoadUshort( (ushort)(((ushort[])stackBuffer[sp].o)[index]) ); break; // ldelem.u2
 						case 4: stackBuffer[sp].LoadInt( (int)(((int[])stackBuffer[sp].o)[index]) ); break; // ldelem.i4
@@ -1361,7 +1367,11 @@ spiperf.Begin();
 						switch( b - 0x9b )
 						{
 						case 0: asArr.SetValue( (nint)valSE.l, index ); break; // stelem.i
-						case 1: asArr.SetValue( (byte)(SByte)valSE.i, index ); break; // stelem.i1
+						case 1: // stelem.i1 (bool[] / byte[] / sbyte[])
+							if( arrSE.o is bool[] boolArrSt ) boolArrSt[index] = valSE.b;
+							else if( arrSE.o is byte[] byteArrSt ) byteArrSt[index] = (byte)valSE.i;
+							else asArr.SetValue( (sbyte)valSE.i, index );
+							break;
 						case 2: // stelem.i2 (used for Int16/UInt16/Char element arrays)
 							if( arrSE.o is ushort[] ushortArr )
 								ushortArr[index] = (ushort)valSE.u;

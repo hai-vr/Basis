@@ -58,7 +58,7 @@ public class AudioReactiveSurfaceArray : AudioReactive
         {
             _Delay = PropertyToID("_Delay");
             _Band = PropertyToID("_Band");
-            _HueShift = PropertyToID("_HueShift");
+            _HueShift = PropertyToID("_AudioHueShift");
             _EmissionColor = PropertyToID("_EmissionColor");
             _Emission = PropertyToID("_Emission");
             _Pulse = PropertyToID("_Pulse");
@@ -77,6 +77,12 @@ public class AudioReactiveSurfaceArray : AudioReactive
         public void UpdateChildren()
         {
 
+            if (_childRenderers == null)
+            {
+                InitIDs();
+                _childRenderers = transform.GetComponentsInChildren<Renderer>(true);
+            }
+
             MaterialPropertyBlock block = new MaterialPropertyBlock();
             int bandInt = (int)band;
             
@@ -88,6 +94,7 @@ public class AudioReactiveSurfaceArray : AudioReactive
             foreach (Renderer renderer in _childRenderers)
             {
                 Transform child = renderer.transform;
+                if (child == transform) continue;
                 int index = child.GetSiblingIndex();
 
                 // Recursively apply step to children of children like a tree with branches, otherwise ignore

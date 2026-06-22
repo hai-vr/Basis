@@ -32,38 +32,4 @@ half VolumetricMainLightRealtimeShadow(float4 shadowCoord)
     return VolumetricSampleShadowmap(TEXTURE2D_ARGS(_MainLightShadowmapTexture, sampler_LinearClampCompare), shadowCoord, shadowSamplingData, shadowParams, false);
 #endif
 }
-
-// Copied and modified from AdditionalLightRealtimeShadow from Shadows.hlsl. 
-half VolumetricAdditionalLightRealtimeShadow(int lightIndex, float3 positionWS, half3 lightDirection)
-{
-#if defined(ADDITIONAL_LIGHT_CALCULATE_SHADOWS)
-    ShadowSamplingData shadowSamplingData = GetAdditionalLightShadowSamplingData(lightIndex);
-
-    half4 shadowParams = GetAdditionalLightShadowParams(lightIndex);
-
-    int shadowSliceIndex = shadowParams.w;
-    if (shadowSliceIndex < 0)
-        return 1.0;
-
-    half isPointLight = shadowParams.z;
-
-    UNITY_BRANCH
-    if (isPointLight)
-    {
-        // This is a point light, we have to find out which shadow slice to sample from
-        float cubemapFaceId = CubeMapFaceID(-lightDirection);
-        shadowSliceIndex += cubemapFaceId;
-    }
-
-#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
-        float4 shadowCoord = mul(_AdditionalLightsWorldToShadow_SSBO[shadowSliceIndex], float4(positionWS, 1.0));
-#else
-        float4 shadowCoord = mul(_AdditionalLightsWorldToShadow[shadowSliceIndex], float4(positionWS, 1.0));
-#endif
-
-    return VolumetricSampleShadowmap(TEXTURE2D_ARGS(_AdditionalLightsShadowmapTexture, sampler_LinearClampCompare), shadowCoord, shadowSamplingData, shadowParams, true);
-#else
-    return half(1.0);
-#endif
-}
 #endif

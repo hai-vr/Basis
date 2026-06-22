@@ -49,8 +49,8 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: 8304327589836468309}
   - {fileID: 7574712923221662252}
-  - {fileID: 5645032907223894177}
-  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69a188783c852f574e
+  - {fileID: 5213641078290051326}
+  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69fef0dc09f0925a48
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -73,7 +73,7 @@ MonoBehaviour:
     zFailOperation: 0
   m_ShadowTransparentReceive: 1
   m_RenderingMode: 2
-  m_DepthPrimingMode: 0
+  m_DepthPrimingMode: 2
   m_CopyDepthMode: 1
   m_DepthAttachmentFormat: 0
   m_DepthTextureFormat: 0
@@ -94,7 +94,14 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
---- !u!114 &5645032907223894177
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
+  bakeAPVComputeShader: {fileID: 7200000, guid: 79b0de35be4da5541aaa573ddd692afc, type: 3}
+  bakeBoundsCenter: {x: 0, y: 0, z: 0}
+  bakeBoundsSize: {x: 128, y: 32, z: 128}
+  bakeVoxelSize: 1
+  bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}
+--- !u!114 &5213641078290051326
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -165,6 +172,13 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
+  bakeAPVComputeShader: {fileID: 7200000, guid: 79b0de35be4da5541aaa573ddd692afc, type: 3}
+  bakeBoundsCenter: {x: 0, y: 0, z: 0}
+  bakeBoundsSize: {x: 128, y: 32, z: 128}
+  bakeVoxelSize: 1
+  bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}
 --- !u!114 &8304327589836468309
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -180,3 +194,10 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
+  bakeAPVComputeShader: {fileID: 7200000, guid: 79b0de35be4da5541aaa573ddd692afc, type: 3}
+  bakeBoundsCenter: {x: 0, y: 0, z: 0}
+  bakeBoundsSize: {x: 128, y: 32, z: 128}
+  bakeVoxelSize: 1
+  bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}

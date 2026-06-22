@@ -349,7 +349,6 @@ MonoBehaviour:
   - Basis.Scripts.BasisSdk.Interactions.BasisPlayerInteract
   - UnityEngine.Rendering.Universal.UniversalAdditionalLightData
   - Cilbox.CilboxSceneBasis
-  - VolumetricAdditionalLight
   - GatorDragonGames.JigglePhysics.JiggleRig
   - GatorDragonGames.JigglePhysics.JiggleUpdateExample
   - GatorDragonGames.JigglePhysics.JiggleColliderExample

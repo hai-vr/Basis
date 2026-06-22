@@ -4071,6 +4071,14 @@
       "value": "Fog Density"
     },
     {
+      "key": "settings.graphics.fog.bakedapv",
+      "value": "Baked APV Lighting"
+    },
+    {
+      "key": "settings.graphics.fog.bakedapv.tooltip",
+      "value": "Light the fog from a fast static bake of the scene's adaptive probe volumes instead of sampling them live every frame. Baked on demand and used immediately."
+    },
+    {
       "key": "settings.graphics.cameraClip.title",
       "value": "Camera Clip Distances"
     },

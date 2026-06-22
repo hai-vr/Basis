@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -16,10 +17,33 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	[HideInInspector]
 	[SerializeField] private Shader volumetricFogShader;
 
+	[Tooltip("Blue-noise texture used for raymarch jitter, giving less visible banding at the same step count. A small (e.g. 64x64 or 128x128) single-channel blue-noise texture works well. Auto-resolved in the editor if left empty.")]
+	[SerializeField] private Texture2D blueNoiseTexture;
+
+	[Header("Baked APV")]
+	[Tooltip("Compute shader that bakes APV irradiance into the world-space 3D texture. Auto-resolved in the editor if left empty.")]
+	[SerializeField] private ComputeShader bakeAPVComputeShader;
+	[Tooltip("World-space center of the baked APV volume. Cover the area the fog is visible in.")]
+	[SerializeField] private Vector3 bakeBoundsCenter = Vector3.zero;
+	[Tooltip("World-space size of the baked APV volume.")]
+	[SerializeField] private Vector3 bakeBoundsSize = new Vector3(128.0f, 32.0f, 128.0f);
+	[Tooltip("Approximate world size of one baked voxel, in meters. Fog is low-frequency, so 0.5-2 m is usually plenty. Smaller = sharper and more VRAM.")]
+	[SerializeField] private float bakeVoxelSize = 1.0f;
+	[Tooltip("Hard cap on baked volume resolution per axis (VRAM / perf safety).")]
+	[SerializeField] private int bakeMaxResolution = 256;
+	[Tooltip("Optional: a Texture3D produced by the editor baker. When assigned it ships with the renderer and is used directly, skipping the runtime bake. It must have been baked with the bounds above. Leave empty to bake at runtime from the world's APV.")]
+	[SerializeField] private Texture3D bakedAPVVolumeAsset;
+
 	private Material downsampleDepthMaterial;
 	private Material volumetricFogMaterial;
 
 	private VolumetricFogRenderPass volumetricFogRenderPass;
+
+	private VolumetricFogAPVBakePass volumetricFogAPVBakePass;
+	private RenderTexture bakeRenderTexture;
+	private RTHandle bakeRTHandle;
+	private Vector3Int bakeResolution;
+	private int bakeKernelIndex = -1;
 
 	#endregion
 
@@ -33,6 +57,9 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		ValidateResourcesForVolumetricFogRenderPass(true);
 
 		volumetricFogRenderPass = new VolumetricFogRenderPass(downsampleDepthMaterial, volumetricFogMaterial, VolumetricFogRenderPass.DefaultRenderPassEvent);
+
+		volumetricFogAPVBakePass = new VolumetricFogAPVBakePass();
+		ResolveBakeComputeShader();
 	}
 
 	/// <summary>
@@ -42,11 +69,14 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	/// <param name="renderingData"></param>
 	public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
 	{
+		TryEnqueueBakePass(renderer, renderingData.cameraData.cameraType);
+
 		bool isPostProcessEnabled = renderingData.postProcessingEnabled && renderingData.cameraData.postProcessEnabled;
 		bool shouldAddVolumetricFogRenderPass = isPostProcessEnabled && ShouldAddVolumetricFogRenderPass(renderingData.cameraData.cameraType);
 		
 		if (shouldAddVolumetricFogRenderPass)
 		{
+			volumetricFogRenderPass.blueNoiseTexture = blueNoiseTexture;
 			volumetricFogRenderPass.renderPassEvent = GetRenderPassEvent();
 			volumetricFogRenderPass.ConfigureInput(ScriptableRenderPassInput.Depth);
 			renderer.EnqueuePass(volumetricFogRenderPass);
@@ -62,6 +92,8 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		base.Dispose(disposing);
 
 		volumetricFogRenderPass?.Dispose();
+		volumetricFogAPVBakePass = null;
+		ReleaseBakeRenderTexture();
 
 		CoreUtils.Destroy(downsampleDepthMaterial);
 		CoreUtils.Destroy(volumetricFogMaterial);
@@ -83,6 +115,13 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 #if UNITY_EDITOR
 			downsampleDepthShader = Shader.Find("Hidden/DownsampleDepth");
 			volumetricFogShader = Shader.Find("Hidden/VolumetricFog");
+
+			if (blueNoiseTexture == null)
+			{
+				string[] blueNoiseGuids = UnityEditor.AssetDatabase.FindAssets("VolumetricFogBlueNoise t:Texture2D");
+				if (blueNoiseGuids.Length > 0)
+					blueNoiseTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(UnityEditor.AssetDatabase.GUIDToAssetPath(blueNoiseGuids[0]));
+			}
 #endif
 			CoreUtils.Destroy(downsampleDepthMaterial);
 			downsampleDepthMaterial = CoreUtils.CreateEngineMaterial(downsampleDepthShader);
@@ -122,6 +161,148 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 		
 		return (RenderPassEvent)fogVolume.renderPassEvent.value;
+	}
+
+	/// <summary>
+	/// Resolves the bake compute shader and caches its kernel index.
+	/// </summary>
+	private void ResolveBakeComputeShader()
+	{
+#if UNITY_EDITOR
+		if (bakeAPVComputeShader == null)
+		{
+			string[] guids = UnityEditor.AssetDatabase.FindAssets("BakeAPVFogVolume t:ComputeShader");
+			if (guids.Length > 0)
+				bakeAPVComputeShader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]));
+		}
+#endif
+		bakeKernelIndex = (bakeAPVComputeShader != null && bakeAPVComputeShader.HasKernel("CSBakeAPVFogVolume"))
+			? bakeAPVComputeShader.FindKernel("CSBakeAPVFogVolume")
+			: -1;
+	}
+
+	/// <summary>
+	/// If a rebake has been requested and Unity's APV runtime holds data, ensures the target 3D texture
+	/// exists, publishes it to the baker, and enqueues the one-shot bake pass for this frame.
+	/// </summary>
+	/// <param name="renderer"></param>
+	/// <param name="cameraType"></param>
+	private void TryEnqueueBakePass(ScriptableRenderer renderer, CameraType cameraType)
+	{
+		if (!isActive)
+			return;
+
+		// A shipped editor-baked Texture3D takes precedence: publish it (with the configured bounds) and
+		// skip runtime baking entirely.
+		if (bakedAPVVolumeAsset != null)
+		{
+			if (!ReferenceEquals(VolumetricFogAPVBaker.BakedVolume, bakedAPVVolumeAsset))
+				VolumetricFogAPVBaker.SetBakedVolume(bakedAPVVolumeAsset, bakeBoundsCenter - bakeBoundsSize * 0.5f, bakeBoundsSize);
+			VolumetricFogAPVBaker.ConsumeBakeRequest();
+			return;
+		}
+
+		if (volumetricFogAPVBakePass == null || bakeKernelIndex < 0)
+			return;
+		if (cameraType == CameraType.Preview || cameraType == CameraType.Reflection)
+			return;
+		// Nothing to bake from until Unity's APV runtime is initialized with data. Leave the request
+		// pending so the bake happens once a world's APV registers.
+		if (!VolumetricFogAPVBaker.BakeRequested || !ProbeReferenceVolume.instance.isInitialized)
+			return;
+
+		Vector3Int resolution = ComputeBakeResolution();
+		if (!EnsureBakeRenderTexture(resolution))
+			return;
+
+		Vector3 boundsMin = bakeBoundsCenter - bakeBoundsSize * 0.5f;
+
+		volumetricFogAPVBakePass.computeShader = bakeAPVComputeShader;
+		volumetricFogAPVBakePass.kernelIndex = bakeKernelIndex;
+		volumetricFogAPVBakePass.targetRT = bakeRTHandle;
+		volumetricFogAPVBakePass.boundsMin = boundsMin;
+		volumetricFogAPVBakePass.boundsSize = bakeBoundsSize;
+		volumetricFogAPVBakePass.resolution = resolution;
+
+		// Publish now: the RT reference is valid, and the bake pass (enqueued this frame at
+		// BeforeRenderingOpaques) fills it on the GPU before the fog pass samples it.
+		VolumetricFogAPVBaker.SetBakedVolume(bakeRenderTexture, boundsMin, bakeBoundsSize);
+		VolumetricFogAPVBaker.ConsumeBakeRequest();
+
+		renderer.EnqueuePass(volumetricFogAPVBakePass);
+	}
+
+	/// <summary>
+	/// Computes the baked volume resolution from the configured bounds, voxel size, and per-axis cap.
+	/// </summary>
+	/// <returns></returns>
+	private Vector3Int ComputeBakeResolution()
+	{
+		float voxel = Mathf.Max(0.01f, bakeVoxelSize);
+		int maxRes = Mathf.Max(1, bakeMaxResolution);
+
+		return new Vector3Int(
+			Mathf.Clamp(Mathf.CeilToInt(bakeBoundsSize.x / voxel), 1, maxRes),
+			Mathf.Clamp(Mathf.CeilToInt(bakeBoundsSize.y / voxel), 1, maxRes),
+			Mathf.Clamp(Mathf.CeilToInt(bakeBoundsSize.z / voxel), 1, maxRes));
+	}
+
+	/// <summary>
+	/// Ensures the persistent 3D bake render texture exists at the given resolution, recreating it on a
+	/// resolution change. Returns false if creation failed.
+	/// </summary>
+	/// <param name="resolution"></param>
+	/// <returns></returns>
+	private bool EnsureBakeRenderTexture(Vector3Int resolution)
+	{
+		if (bakeRenderTexture != null && bakeResolution == resolution && bakeRenderTexture.IsCreated())
+			return true;
+
+		ReleaseBakeRenderTexture();
+
+		// RGBA16F is universally UAV-writable on DX11 and Vulkan (unlike packed formats such as
+		// R11G11B10F, whose typed UAV store isn't guaranteed on DX11).
+		bakeRenderTexture = new RenderTexture(resolution.x, resolution.y, 0, GraphicsFormat.R16G16B16A16_SFloat)
+		{
+			name = "_BakedAPVFogVolume",
+			dimension = TextureDimension.Tex3D,
+			volumeDepth = resolution.z,
+			enableRandomWrite = true,
+			wrapMode = TextureWrapMode.Clamp,
+			filterMode = FilterMode.Bilinear,
+			useMipMap = false
+		};
+
+		if (!bakeRenderTexture.Create())
+		{
+			ReleaseBakeRenderTexture();
+			return false;
+		}
+
+		bakeRTHandle = RTHandles.Alloc(bakeRenderTexture);
+		bakeResolution = resolution;
+		return true;
+	}
+
+	/// <summary>
+	/// Releases the persistent bake render texture and clears it from the baker if it was published.
+	/// </summary>
+	private void ReleaseBakeRenderTexture()
+	{
+		if (bakeRenderTexture != null && ReferenceEquals(VolumetricFogAPVBaker.BakedVolume, bakeRenderTexture))
+			VolumetricFogAPVBaker.Clear();
+
+		bakeRTHandle?.Release();
+		bakeRTHandle = null;
+
+		if (bakeRenderTexture != null)
+		{
+			bakeRenderTexture.Release();
+			CoreUtils.Destroy(bakeRenderTexture);
+			bakeRenderTexture = null;
+		}
+
+		bakeResolution = Vector3Int.zero;
 	}
 
 	#endregion

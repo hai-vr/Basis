@@ -10,11 +10,27 @@ namespace Cilbox
 	public class CilboxSceneBasis : CilboxBasisCommon
 	{
 		static readonly HashSet<string> extraWhiteListType = new HashSet<string>(){
+			// TUBE world-script additions (Cilbox conversion)
+			"Basis.Scripts.BasisSdk.Players.BasisTeleportMode",    // BasisLocalPlayer.Teleport(...) parameter enum
+			"Basis.Scripts.Drivers.BasisLocalCameraDriver",        // read-only static CameraInstance (field below)
+			"Basis.Scripts.Device_Management.BasisDeviceManagement", // IsCurrentModeVR only (method below)
+			"UnityEngine.InputSystem.Keyboard",
+			"UnityEngine.InputSystem.Key",
+			"UnityEngine.InputSystem.Controls.KeyControl",
+			"UnityEngine.InputSystem.Controls.ButtonControl",
+			// VRSL DMX GPU readback
+			"UnityEngine.Graphics",
+			"UnityEngine.Rendering.AsyncGPUReadback",
+			"UnityEngine.Rendering.AsyncGPUReadbackRequest",
+			"Unity.Collections.NativeArray*",
+
 			// Scene-specific Basis types
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton",
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton+ClickEvent",
 			"Basis.BasisImageDownloader",
 			"Basis.IBasisImageDownload",
+			"Basis.BasisStringDownloader",
+			"Basis.IBasisStringDownload",
 			"Basis.BasisUrl",
 			"BasisNetworkCommon+EventTiming",
 			"BasisSDKMirror",
@@ -163,6 +179,9 @@ namespace Cilbox
 		};
 
 		static readonly HashSet<string> extraWhiteListFields = new HashSet<string>(){
+			// TUBE world-script additions (Cilbox conversion)
+			"Basis.Scripts.Drivers.BasisLocalCameraDriver.CameraInstance",
+
 			"UnityEngine.RaycastHit2D.*",
 
 			// Unity physics struct fields
@@ -184,6 +203,35 @@ namespace Cilbox
 
 		static readonly Dictionary<Type, HashSet<string>> extraMethodWhitelist = new Dictionary<Type, HashSet<string>>()
 		{
+			// UnityEngine.GameObject: the common whitelist restricts it to SetActive + GetComponent.
+			// World scripts routinely read benign members off GameObject references, so allow them here.
+			// (AddComponent / SendMessage / BroadcastMessage remain blocked in CheckMethodAllowed.)
+			{ typeof(UnityEngine.GameObject), new HashSet<string>{
+				"get_transform",
+				"get_name",
+				"set_name",
+				"get_tag",
+				"set_tag",
+				"CompareTag",
+				"get_activeSelf",
+				"get_activeInHierarchy",
+				"get_layer",
+				"set_layer",
+				"get_isStatic",
+				"get_scene",
+				"GetComponentInChildren",
+				"GetComponentInParent",
+				"GetComponents",
+				"GetComponentsInChildren",
+				"GetComponentsInParent",
+				} },
+			// VRSL DMX GPU readback surface (mirrors CilboxPropBasis).
+			{ typeof(UnityEngine.Graphics), new HashSet<string>{ "Blit" } },
+			{ typeof(UnityEngine.Rendering.AsyncGPUReadback), new HashSet<string>{ "Request" } },
+			// Restrict BasisDeviceManagement to the single mode query the menu uses.
+			{ typeof(Basis.Scripts.Device_Management.BasisDeviceManagement), new HashSet<string>{ "IsCurrentModeVR" } },
+			// BasisLocalCameraDriver: only the static CameraInstance field is needed (whitelisted above); block all methods.
+			{ typeof(Basis.Scripts.Drivers.BasisLocalCameraDriver), new HashSet<string>() },
 			{ typeof(BasisLocalPlayer), new HashSet<string>{
 				nameof(BasisLocalPlayer.GetPositionAndRotation),
 				nameof(BasisLocalPlayer.Teleport),

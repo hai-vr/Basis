@@ -1,5 +1,6 @@
 using Basis.Shims;
 using Basis.Scripts.BasisSdk;
+using Basis.BasisUI;
 using System;
 using System.Collections.Generic;
 using UnityEngine.Networking;
@@ -153,6 +154,133 @@ namespace Basis
 			}
 
 			return;
+		}
+
+		public void Dispose()
+		{
+			foreach( var www in InFlight )
+			{
+				www.Dispose();
+			}
+		}
+	}
+
+
+	// Text/whitelist download result. Mirrors IBasisImageDownload for plain string payloads.
+	public class IBasisStringDownload
+	{
+		public IBasisStringDownload( UnityWebRequest www, String majorFailure )
+		{
+			if (www != null && www.result == UnityWebRequest.Result.Success)
+			{
+				Success = true;
+				Error = "";
+				Result = www.downloadHandler != null ? www.downloadHandler.text : "";
+			}
+			else
+			{
+				Success = false;
+				Error = (www != null) ? www.error : majorFailure;
+				Result = null;
+			}
+		}
+		public bool   Success { get; set; }
+		public String Error { get; set; }
+		public String Result { get; set; }
+	}
+
+
+	// Native (non-boxed) helper that lets sandboxed scripts fetch a remote text file over http(s)
+	// without exposing raw UnityWebRequest. Mirrors BasisImageDownloader.
+	public class BasisStringDownloader
+	{
+		System.Collections.Generic.HashSet< UnityWebRequest > InFlight = new System.Collections.Generic.HashSet< UnityWebRequest >();
+
+		public void DownloadString( string stringUrl, Action< IBasisStringDownload > callback )
+		{
+			if( string.IsNullOrEmpty( stringUrl ) ||
+				( !stringUrl.StartsWith( "http://" ) && !stringUrl.StartsWith( "https://" ) ) )
+			{
+				callback( new IBasisStringDownload( null, "Security Failure" ) );
+				return;
+			}
+
+			// Gate the fetch behind the same user-consent flow the video player uses: trusted URLs
+			// download immediately, untrusted ones must be approved via the URL prompt panel.
+			if( BasisTrustedUrls.IsTrusted( stringUrl ) )
+			{
+				BeginRequest( stringUrl, callback );
+				return;
+			}
+
+			Uri uri;
+			try
+			{
+				uri = new Uri( stringUrl );
+			}
+			catch( Exception e )
+			{
+				Debug.LogError( $"[BasisStringDownloader] Failed to parse URL: {e}" );
+				callback( new IBasisStringDownload( null, "Invalid URL" ) );
+				return;
+			}
+
+			if( !BasisNotificationCenter.RouteToNotifications ) BasisMainMenu.Open();
+			BasisMenuURLPromptPanel.CreateNew(
+				stringUrl,
+				response =>
+				{
+					if( !response.Accepted )
+					{
+						callback( new IBasisStringDownload( null, "User declined URL" ) );
+						return;
+					}
+					if( response.RememberChoice )
+					{
+						switch( response.Scope )
+						{
+							case BasisMenuURLPromptPanel.RememberChoiceScope.URL:
+								BasisTrustedUrls.Add( stringUrl );
+								break;
+							case BasisMenuURLPromptPanel.RememberChoiceScope.Hostname:
+								BasisTrustedUrls.Add( uri.Scheme + "://" + uri.Host + "/*" );
+								break;
+							case BasisMenuURLPromptPanel.RememberChoiceScope.Domain:
+								string[] parts = uri.Host.Split( '.' );
+								string domain = parts.Length >= 2 ? parts[parts.Length - 2] + "." + parts[parts.Length - 1] : uri.Host;
+								BasisTrustedUrls.Add( uri.Scheme + "://*." + domain + "/*" );
+								break;
+						}
+					}
+					BeginRequest( stringUrl, callback );
+				},
+				divertible: true
+			);
+		}
+
+		private void BeginRequest( string stringUrl, Action< IBasisStringDownload > callback )
+		{
+			UnityWebRequest www = UnityWebRequest.Get( stringUrl );
+
+			bool bCompleted = false;
+			UnityWebRequestAsyncOperation req = www.SendWebRequest();
+			InFlight.Add( www );
+
+			Action <AsyncOperation> eventcb = (AsyncOperation obj) => {
+				if( !bCompleted )
+				{
+					bCompleted = true;
+					InFlight.Remove( www );
+					callback( new IBasisStringDownload( www, null ) );
+				}
+			};
+
+			req.completed += eventcb;
+
+			if( !bCompleted && req.isDone )
+			{
+				eventcb( null );
+			}
 		}
 
 		public void Dispose()

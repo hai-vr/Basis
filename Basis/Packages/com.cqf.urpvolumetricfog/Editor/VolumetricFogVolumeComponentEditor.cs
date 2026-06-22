@@ -21,6 +21,7 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 #if UNITY_2023_1_OR_NEWER
 	private SerializedDataParameter enableAPVContribution;
 	private SerializedDataParameter APVContributionWeight;
+	private SerializedDataParameter apvMode;
 #endif
 
 	private SerializedDataParameter enableMainLightContribution;
@@ -28,8 +29,10 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	private SerializedDataParameter scattering;
 	private SerializedDataParameter tint;
 
-	private SerializedDataParameter enableAdditionalLightsContribution;
+	private SerializedDataParameter enableLTCGIContribution;
+	private SerializedDataParameter LTCGIScattering;
 
+	private SerializedDataParameter resolution;
 	private SerializedDataParameter maxSteps;
 	private SerializedDataParameter blurIterations;
 	private SerializedDataParameter enabled;
@@ -59,6 +62,7 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 #if UNITY_2023_1_OR_NEWER
 		enableAPVContribution = Unpack(pf.Find(x => x.enableAPVContribution));
 		APVContributionWeight = Unpack(pf.Find(x => x.APVContributionWeight));
+		apvMode = Unpack(pf.Find(x => x.apvMode));
 #endif
 
 		enableMainLightContribution = Unpack(pf.Find(x => x.enableMainLightContribution));
@@ -66,8 +70,10 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		scattering = Unpack(pf.Find(x => x.scattering));
 		tint = Unpack(pf.Find(x => x.tint));
 
-		enableAdditionalLightsContribution = Unpack(pf.Find(x => x.enableAdditionalLightsContribution));
+		enableLTCGIContribution = Unpack(pf.Find(x => x.enableLTCGIContribution));
+		LTCGIScattering = Unpack(pf.Find(x => x.LTCGIScattering));
 
+		resolution = Unpack(pf.Find(x => x.resolution));
 		maxSteps = Unpack(pf.Find(x => x.maxSteps));
 		blurIterations = Unpack(pf.Find(x => x.blurIterations));
 		enabled = Unpack(pf.Find(x => x.enabled));
@@ -90,7 +96,6 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 
 		bool enabledGround = enableGround.overrideState.boolValue && enableGround.value.boolValue;
 		bool enabledMainLightContribution = enableMainLightContribution.overrideState.boolValue && enableMainLightContribution.value.boolValue;
-		bool enabledAdditionalLightsContribution = enableAdditionalLightsContribution.overrideState.boolValue && enableAdditionalLightsContribution.value.boolValue;
 
 		PropertyField(distance);
 		PropertyField(baseHeight);
@@ -106,7 +111,10 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		bool enabledAPVContribution = enableAPVContribution.overrideState.boolValue && enableAPVContribution.value.boolValue;
 		PropertyField(enableAPVContribution);
 		if (enabledAPVContribution)
+		{
+			PropertyField(apvMode);
 			PropertyField(APVContributionWeight);
+		}
 #endif
 
 		PropertyField(enableMainLightContribution);
@@ -117,8 +125,12 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 			PropertyField(tint);
 		}
 
-		PropertyField(enableAdditionalLightsContribution);
+		bool enabledLTCGIContribution = enableLTCGIContribution.overrideState.boolValue && enableLTCGIContribution.value.boolValue;
+		PropertyField(enableLTCGIContribution);
+		if (enabledLTCGIContribution)
+			PropertyField(LTCGIScattering);
 
+		PropertyField(resolution);
 		PropertyField(maxSteps);
 		PropertyField(blurIterations);
 		PropertyField(enabled);

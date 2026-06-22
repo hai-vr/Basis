@@ -43,30 +43,30 @@ namespace HVR.Basis.Comms
                 return;
             }
 
-            if (TryParseChatInput(arguments, out string inputText, out bool shouldOpenKeyboard, out bool playNotificationSound))
+            if (TryParseChatInput(arguments, out string inputText, out bool sendImmediately, out bool playNotificationSound))
             {
                 string sanitized = BasisChatSanitizer.Sanitize(inputText);
-                if (shouldOpenKeyboard)
+                if (sendImmediately)
                 {
-                    SettingsProvider.OpenChatComposer(sanitized, true, playNotificationSound);
+                    if (!string.IsNullOrEmpty(sanitized))
+                    {
+                        BasisNetworkHandleChat.SendChatMessage(sanitized, playNotificationSound);
+                    }
+
                     return;
                 }
 
-                if (!string.IsNullOrEmpty(sanitized))
-                {
-                    BasisNetworkHandleChat.SendChatMessage(sanitized, playNotificationSound);
-                }
-
+                SettingsProvider.OpenChatComposer(sanitized, true, playNotificationSound);
                 return;
             }
 
             WarnInvalidSignature(message);
         }
 
-        private static bool TryParseChatInput(OscData[] arguments, out string inputText, out bool shouldOpenKeyboard, out bool playNotificationSound)
+        private static bool TryParseChatInput(OscData[] arguments, out string inputText, out bool sendImmediately, out bool playNotificationSound)
         {
             inputText = string.Empty;
-            shouldOpenKeyboard = false;
+            sendImmediately = true;
             playNotificationSound = false;
 
             if (arguments.Length < 1 || arguments.Length > 3)
@@ -75,11 +75,11 @@ namespace HVR.Basis.Comms
             }
 
             // Support both string-first positional flags and any-order OSC input:
-            // inputText comes from the string, then bools map to shouldOpenKeyboard and playNotificationSound.
+            // inputText comes from the string, then bools map to sendImmediately and playNotificationSound.
             if (arguments[0]?.Kind == OscDataKind.String)
             {
                 inputText = arguments[0].StringValue;
-                return TryReadOptionalBool(arguments, 1, false, out shouldOpenKeyboard) &&
+                return TryReadOptionalBool(arguments, 1, true, out sendImmediately) &&
                        TryReadOptionalBool(arguments, 2, false, out playNotificationSound);
             }
 
@@ -107,7 +107,7 @@ namespace HVR.Basis.Comms
                         boolCount++;
                         if (boolCount == 1)
                         {
-                            shouldOpenKeyboard = arguments[index].BoolValue;
+                            sendImmediately = arguments[index].BoolValue;
                         }
                         else if (boolCount == 2)
                         {

@@ -121,6 +121,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                     BasisPointRaycaster.UseWorldPosition = false;
                 }
                 BasisVirtualSpine.Initialize();
+                BasisLocalPlayer.AfterSimulateOnRender.AddAction(100, DoRenderRaycast);
                 HasEyeEvents = true;
             }
             LockEye();
@@ -174,6 +175,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
                 BasisCursorManagement.OnCursorStateChange -= OnCursorStateChange;
+                BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(100, DoRenderRaycast);
                 HasEyeEvents = false;
                 BasisVirtualSpine.DeInitialize();
             }
@@ -313,8 +315,17 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (IsComputingRaycast)
             {
                 ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-                UpdateInputEvents();
+                UpdateInputEvents(HasPlayerControlSupport: true, hasPlayerRaycastSupport: false); // control raycast
             }
+        }
+        private void DoRenderRaycast()
+        {
+            if (!hasRoleAssigned || !IsComputingRaycast)
+            {
+                return;
+            }
+
+            UpdateInputEvents(HasPlayerControlSupport: false, hasPlayerRaycastSupport: true); // ui raycast
         }
         public bool IsComputingRaycast = true;
         /// <summary>

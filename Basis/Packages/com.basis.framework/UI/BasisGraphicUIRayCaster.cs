@@ -44,6 +44,17 @@ namespace Basis.Scripts.UI
         }
 
         /// <summary>
+        /// Unity OnValidate hook. Attempts to set the canvas on the same GameObject if not already assigned.
+        /// </summary>
+        private void OnValidate()
+        {
+            if (Canvas == null)
+            {
+                TryGetComponent(out Canvas);
+            }
+        }
+
+        /// <summary>
         /// Callback for when a <see cref="BasisLocalCameraDriver"/> instance becomes available.
         /// </summary>
         private void InstanceExists()

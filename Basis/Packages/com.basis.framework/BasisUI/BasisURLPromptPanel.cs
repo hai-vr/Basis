@@ -13,6 +13,15 @@ namespace Basis.BasisUI
             public static string Default => "Packages/com.basis.sdk/Prefabs/URL Prompt Panel.prefab";
         }
 
+        public static PanelData UrlPromptPanelData => new PanelData
+        {
+            Title = BasisLocalization.Get("notifications.url.title"),
+            PanelSize = new Vector2(700, 600),
+            PanelPosition = new Vector3(0, -100, -5),
+        };
+
+        private static BasisMenuURLPromptPanel _active;
+
         public class LoadResponse
         {
             public bool Accepted;
@@ -63,8 +72,6 @@ namespace Basis.BasisUI
             ScopeDropdown.AssignEntries(new List<string> { "URL", "Hostname", "Base Domain" });
             ScopeDropdown.SetValue("URL");
             ScopeDropdown.gameObject.SetActive(false);
-
-            OnCreateEvent();
         }
 
         public void Respond(bool accepted)
@@ -146,10 +153,21 @@ namespace Basis.BasisUI
                 return null;
             }
 
+            if (_active)
+            {
+                _active.ReleaseInstance();
+                _active = null;
+            }
+
             Component parent = BasisMainMenu.Instance.MenuObjectInstance.PanelRoot;
 
             BasisMenuURLPromptPanel panel = CreateNew<BasisMenuURLPromptPanel>(DialogueStyles.Default, parent);
+            panel.LoadData(UrlPromptPanelData);
             panel.Setup(url, callback);
+            panel.transform.SetAsLastSibling();
+
+            _active = panel;
+            panel.OnInstanceReleased += () => { if (_active == panel) _active = null; };
 
             // Pop-in animation for dialogues
             UIAnimations.PopIn(panel);

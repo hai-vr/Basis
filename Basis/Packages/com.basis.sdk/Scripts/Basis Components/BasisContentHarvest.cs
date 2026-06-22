@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk
@@ -182,7 +183,7 @@ namespace Basis.Scripts.BasisSdk
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T UnsafeAs<T>(int i) where T : Component
         {
-            return Unsafe.As<T>(Components[i]);
+            return UnsafeUtility.As<Component, T>(ref Components[i]);
         }
 
         /// <summary>
@@ -199,7 +200,7 @@ namespace Basis.Scripts.BasisSdk
                 value = null;
                 return false;
             }
-            value = Unsafe.As<T>(component);
+            value = UnsafeUtility.As<Component, T>(ref component);
             return true;
         }
     }
