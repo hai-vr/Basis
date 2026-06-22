@@ -77,6 +77,9 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
     private static readonly int DensityId = Shader.PropertyToID("_Density");
     private static readonly int AbsortionId = Shader.PropertyToID("_Absortion");
     private static readonly int APVContributionWeigthId = Shader.PropertyToID("_APVContributionWeight");
+    private static readonly int BakedAPVFogVolumeId = Shader.PropertyToID("_BakedAPVFogVolume");
+    private static readonly int BakedAPVVolumeBoundsMinId = Shader.PropertyToID("_BakedAPVVolumeBoundsMin");
+    private static readonly int BakedAPVVolumeInvSizeId = Shader.PropertyToID("_BakedAPVVolumeInvSize");
     private static readonly int TintId = Shader.PropertyToID("_Tint");
     private static readonly int MaxStepsId = Shader.PropertyToID("_MaxSteps");
 
@@ -235,12 +238,32 @@ public sealed class VolumetricFogRenderPass : ScriptableRenderPass
         VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
         bool enableMainLightContribution = fogVolume.enableMainLightContribution.value && fogVolume.scattering.value > 0.0f && mainLightIndex > -1;
-        bool enableAPVContribution = fogVolume.enableAPVContribution.value && fogVolume.APVContributionWeight.value > 0.0f;
+
+        // APV can be sampled live (Unity's APV, once per step) or from a pre-baked world-space volume
+        // (one trilinear tap, static). Baked mode only engages once a bake exists; until then APV simply
+        // contributes nothing rather than silently falling back to the expensive live path.
+        bool wantAPVContribution = fogVolume.enableAPVContribution.value && fogVolume.APVContributionWeight.value > 0.0f;
+        bool bakedAPVMode = fogVolume.apvMode.value == VolumetricFogAPVMode.Baked;
+        bool useBakedAPV = wantAPVContribution && bakedAPVMode && VolumetricFogAPVBaker.IsReady;
+        bool useLiveAPV = wantAPVContribution && !bakedAPVMode;
+        bool enableAPVContribution = useBakedAPV || useLiveAPV;
 
         if (enableAPVContribution)
             volumetricFogMaterial.EnableKeyword("_APV_CONTRIBUTION_ENABLED");
         else
             volumetricFogMaterial.DisableKeyword("_APV_CONTRIBUTION_ENABLED");
+
+        if (useBakedAPV)
+        {
+            volumetricFogMaterial.EnableKeyword("_APV_BAKED");
+            volumetricFogMaterial.SetTexture(BakedAPVFogVolumeId, VolumetricFogAPVBaker.BakedVolume);
+            volumetricFogMaterial.SetVector(BakedAPVVolumeBoundsMinId, VolumetricFogAPVBaker.BoundsMin);
+            volumetricFogMaterial.SetVector(BakedAPVVolumeInvSizeId, VolumetricFogAPVBaker.BoundsInvSize);
+        }
+        else
+        {
+            volumetricFogMaterial.DisableKeyword("_APV_BAKED");
+        }
 
         if (enableMainLightContribution)
             volumetricFogMaterial.DisableKeyword("_MAIN_LIGHT_CONTRIBUTION_DISABLED");

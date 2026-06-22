@@ -29,6 +29,33 @@ public sealed class VolumetricFogResolutionParameter : VolumeParameter<Volumetri
 }
 
 /// <summary>
+/// How the adaptive probe volume (APV) lighting is sampled by the fog.
+/// </summary>
+public enum VolumetricFogAPVMode
+{
+	/// <summary>Sample Unity's live APV once per raymarch step. Dynamic, but the most expensive option.</summary>
+	Live = 0,
+	/// <summary>Sample a pre-baked world-space 3D texture of APV in-scatter. Static, but a single trilinear tap per step. Requires a bake.</summary>
+	Baked = 1
+}
+
+/// <summary>
+/// A volume parameter that holds a VolumetricFogAPVMode value.
+/// </summary>
+[Serializable]
+public sealed class VolumetricFogAPVModeParameter : VolumeParameter<VolumetricFogAPVMode>
+{
+	/// <summary>
+	/// Creates a new VolumetricFogAPVModeParameter instance.
+	/// </summary>
+	/// <param name="value"></param>
+	/// <param name="overrideState"></param>
+	public VolumetricFogAPVModeParameter(VolumetricFogAPVMode value, bool overrideState = false) : base(value, overrideState)
+	{
+	}
+}
+
+/// <summary>
 /// Volume component for the volumetric fog.
 /// </summary>
 #if UNITY_2023_1_OR_NEWER
@@ -68,6 +95,8 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	public BoolParameter enableAPVContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 	[Tooltip("A weight factor for the light coming from adaptive probe volumes (APV) when the probe volume contribution is enabled.")]
 	public ClampedFloatParameter APVContributionWeight = new ClampedFloatParameter(1.0f, 0.0f, 1.0f);
+	[Tooltip("How APV lighting is sampled. Live evaluates Unity's APV every raymarch step (dynamic). Baked samples a pre-computed world-space 3D texture of APV in-scatter (static, much faster - needs a bake, and only engages once a bake exists).")]
+	public VolumetricFogAPVModeParameter apvMode = new VolumetricFogAPVModeParameter(VolumetricFogAPVMode.Live, true);
 #endif
 
 	[Header("Main Light")]

@@ -198,6 +198,11 @@ public static class BasisSceneFactory
         perSceneData.enabled = true;
         ProbeReferenceVolume.instance.PerformPendingOperations();
         BasisDebug.Log("Forced adaptive probe volume baking set load for scene: " + scene.name, BasisDebug.LogTag.Scene);
+#if Basis_VOLUMETRIC_SUPPORTED
+        // The world's APV is now registered, so ask the volumetric fog's baked APV mode to (re)bake its
+        // static world-space in-scatter volume from it. No-op unless a fog volume is set to baked APV mode.
+        VolumetricFogAPVBaker.RequestRebake();
+#endif
     }
     public static void LoadCameraProperties(Camera Camera)
     {

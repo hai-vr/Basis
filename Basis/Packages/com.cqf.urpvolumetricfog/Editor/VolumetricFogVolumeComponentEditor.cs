@@ -21,6 +21,7 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 #if UNITY_2023_1_OR_NEWER
 	private SerializedDataParameter enableAPVContribution;
 	private SerializedDataParameter APVContributionWeight;
+	private SerializedDataParameter apvMode;
 #endif
 
 	private SerializedDataParameter enableMainLightContribution;
@@ -61,6 +62,7 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 #if UNITY_2023_1_OR_NEWER
 		enableAPVContribution = Unpack(pf.Find(x => x.enableAPVContribution));
 		APVContributionWeight = Unpack(pf.Find(x => x.APVContributionWeight));
+		apvMode = Unpack(pf.Find(x => x.apvMode));
 #endif
 
 		enableMainLightContribution = Unpack(pf.Find(x => x.enableMainLightContribution));
@@ -109,7 +111,10 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		bool enabledAPVContribution = enableAPVContribution.overrideState.boolValue && enableAPVContribution.value.boolValue;
 		PropertyField(enableAPVContribution);
 		if (enabledAPVContribution)
+		{
+			PropertyField(apvMode);
 			PropertyField(APVContributionWeight);
+		}
 #endif
 
 		PropertyField(enableMainLightContribution);

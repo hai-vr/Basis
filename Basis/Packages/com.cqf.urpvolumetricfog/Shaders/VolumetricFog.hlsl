@@ -131,18 +131,38 @@ float GetFogDensity(float posWSy)
     return _Density * t;
 }
 
+// Baked APV in-scatter volume: a world-space 3D texture of pre-integrated APV irradiance (RGB). When
+// _APV_BAKED is set, the per-step APV evaluation becomes a single trilinear tap into this texture
+// instead of a full SH reconstruction - and it needs no live APV (PROBE_VOLUMES) data, so it works
+// even with Unity's APV runtime disabled.
+TEXTURE3D(_BakedAPVFogVolume);
+float3 _BakedAPVVolumeBoundsMin;   // world-space min corner of the baked volume
+float3 _BakedAPVVolumeInvSize;     // 1 / world-space size; maps a world position into [0,1] uvw
+
 // Evaluates the adaptive probe volume irradiance (weighted, WITHOUT density) at a world position.
 // real is half on mobile (e.g. Adreno / Steam Frame) and float on desktop. The caller multiplies by
 // the step density. Called once per march step - APV is the fog's lighting and varies along the ray,
-// so it can't be skipped/held without artifacts; reduce cost via the volume's Max Steps instead.
+// so it can't be skipped/held without artifacts; reduce cost via the volume's Max Steps instead (or
+// switch to the baked mode below, where each step is a cheap trilinear tap).
 real3 EvaluateWeightedAPV(float2 uv, float3 posWS)
 {
     float3 apvDiffuseGI = float3(0.0, 0.0, 0.0);
 
-#if UNITY_VERSION >= 202310 && _APV_CONTRIBUTION_ENABLED
-    #if defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
-        EvaluateAdaptiveProbeVolume(posWS, uv * _ScreenSize.xy, apvDiffuseGI);
-        apvDiffuseGI *= _APVContributionWeight;
+#if _APV_CONTRIBUTION_ENABLED
+    #if _APV_BAKED
+        // Static path: sample the pre-baked world-space in-scatter volume. sampler_LinearClamp pins
+        // out-of-bounds samples to the edge voxel instead of wrapping. RGB = APV irradiance, A = probe
+        // coverage (1 inside valid APV data, 0 outside) - multiplying by it fades the baked ambient out
+        // of uncovered space instead of showing APV's flat ambient fallback there.
+        float3 uvw = (posWS - _BakedAPVVolumeBoundsMin) * _BakedAPVVolumeInvSize;
+        float4 baked = SAMPLE_TEXTURE3D_LOD(_BakedAPVFogVolume, sampler_LinearClamp, uvw, 0.0);
+        apvDiffuseGI = baked.rgb * (baked.a * _APVContributionWeight);
+    #elif UNITY_VERSION >= 202310
+        // Live path: evaluate Unity's APV once per step (dynamic, most expensive).
+        #if defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
+            EvaluateAdaptiveProbeVolume(posWS, uv * _ScreenSize.xy, apvDiffuseGI);
+            apvDiffuseGI *= _APVContributionWeight;
+        #endif
     #endif
 #endif
 

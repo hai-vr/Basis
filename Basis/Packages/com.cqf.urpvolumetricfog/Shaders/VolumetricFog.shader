@@ -33,6 +33,9 @@ Shader "Hidden/VolumetricFog"
 
             #pragma multi_compile_local_fragment _ _MAIN_LIGHT_CONTRIBUTION_DISABLED
             #pragma multi_compile_local_fragment _ _APV_CONTRIBUTION_ENABLED
+            // When set (alongside _APV_CONTRIBUTION_ENABLED), APV is read from a pre-baked world-space
+            // 3D texture (one trilinear tap) instead of being evaluated live; needs no PROBE_VOLUMES data.
+            #pragma multi_compile_local_fragment _ _APV_BAKED
 
             #pragma vertex Vert
             #pragma fragment Frag

@@ -16,15 +16,21 @@ public class SMModuleVolumetricFogOverrideURP : BasisSettingsBase
         public bool EnabledValue;
         public bool DensityOverride;
         public float DensityValue;
+        public bool ApvContributionOverride;
+        public bool ApvContributionValue;
+        public bool ApvModeOverride;
+        public VolumetricFogAPVMode ApvModeValue;
     }
 
     private bool _overrideEnabled;
     private float _pendingDensity = 0.2f;
+    private bool _bakedAPV;
 
     private readonly ConditionalWeakTable<VolumetricFogVolumeComponent, AuthoredFogState> _authored = new();
 
     private static string K_USE_FOG_OVERRIDE => BasisSettingsDefaults.UseVolumetricFogOverride.BindingKey;
     private static string K_FOG_DENSITY => BasisSettingsDefaults.VolumetricFogDensity.BindingKey;
+    private static string K_FOG_BAKED_APV => BasisSettingsDefaults.VolumetricFogBakedAPV.BindingKey;
 
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
@@ -40,6 +46,14 @@ public class SMModuleVolumetricFogOverrideURP : BasisSettingsBase
                 _pendingDensity = density;
                 ApplyOverride();
             }
+        }
+        else if (matchedSettingName == K_FOG_BAKED_APV)
+        {
+            _bakedAPV = optionValue == "true";
+            ApplyOverride();
+            // Convert the world's APV to a baked volume now so baked mode has data to sample straight away.
+            if (_bakedAPV)
+                VolumetricFogAPVBaker.RequestRebake();
         }
     }
 
@@ -66,6 +80,10 @@ public class SMModuleVolumetricFogOverrideURP : BasisSettingsBase
                     EnabledValue = fog.enabled.value,
                     DensityOverride = fog.density.overrideState,
                     DensityValue = fog.density.value,
+                    ApvContributionOverride = fog.enableAPVContribution.overrideState,
+                    ApvContributionValue = fog.enableAPVContribution.value,
+                    ApvModeOverride = fog.apvMode.overrideState,
+                    ApvModeValue = fog.apvMode.value,
                 };
                 _authored.Add(fog, authored);
             }
@@ -83,6 +101,23 @@ public class SMModuleVolumetricFogOverrideURP : BasisSettingsBase
                 fog.enabled.value = authored.EnabledValue;
                 fog.density.overrideState = authored.DensityOverride;
                 fog.density.value = authored.DensityValue;
+            }
+
+            if (_bakedAPV)
+            {
+                // Force the baked APV path on. enableAPVContribution must be on for the fog to sample APV
+                // at all, and apvMode selects the static baked volume over live per-step evaluation.
+                fog.enableAPVContribution.overrideState = true;
+                fog.enableAPVContribution.value = true;
+                fog.apvMode.overrideState = true;
+                fog.apvMode.value = VolumetricFogAPVMode.Baked;
+            }
+            else
+            {
+                fog.enableAPVContribution.overrideState = authored.ApvContributionOverride;
+                fog.enableAPVContribution.value = authored.ApvContributionValue;
+                fog.apvMode.overrideState = authored.ApvModeOverride;
+                fog.apvMode.value = authored.ApvModeValue;
             }
         }
     }

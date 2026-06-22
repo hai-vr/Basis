@@ -219,6 +219,13 @@ namespace Basis.BasisUI
         public const float FOG_DENSITY_MAX = 1f;
 
         /// <summary>
+        /// When enabled, volumetric fog samples APV lighting from a fast runtime-baked static volume
+        /// instead of evaluating the adaptive probe volumes live every raymarch step. The bake is
+        /// produced on demand from the world's APV and used immediately.
+        /// </summary>
+        public static BasisSettingsBinding<bool> VolumetricFogBakedAPV = new("volumetricfogbakedapv", new BasisPlatformDefault<bool>(true));
+
+        /// <summary>
         /// When enabled, ReflectionProbe components in the scene whose mode is Realtime are
         /// driven by Basis at the rate selected by <see cref="RealtimeReflectionProbeRate"/>.
         /// When disabled, Basis does not modify any probe state.
@@ -1462,6 +1469,7 @@ namespace Basis.BasisUI
             BloomIntensity.LoadBindingValue();
             UseVolumetricFogOverride.LoadBindingValue();
             VolumetricFogDensity.LoadBindingValue();
+            VolumetricFogBakedAPV.LoadBindingValue();
             UseRealtimeReflectionProbes.LoadBindingValue();
             RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
