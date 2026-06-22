@@ -28,19 +28,10 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 	private SerializedDataParameter scattering;
 	private SerializedDataParameter tint;
 
-	private SerializedDataParameter enableAdditionalLightsContribution;
-
 	private SerializedDataParameter enableLTCGIContribution;
 	private SerializedDataParameter LTCGIScattering;
 
-	private SerializedDataParameter enableVRSLContribution;
-	private SerializedDataParameter VRSLScattering;
-	private SerializedDataParameter VRSLAnisotropy;
-	private SerializedDataParameter VRSLSourceDistance;
-	private SerializedDataParameter VRSLSpotConeSharpness;
-	private SerializedDataParameter VRSLPointConeSharpness;
-	private SerializedDataParameter VRSLPointBeamAxis;
-
+	private SerializedDataParameter resolution;
 	private SerializedDataParameter maxSteps;
 	private SerializedDataParameter blurIterations;
 	private SerializedDataParameter enabled;
@@ -77,19 +68,10 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 		scattering = Unpack(pf.Find(x => x.scattering));
 		tint = Unpack(pf.Find(x => x.tint));
 
-		enableAdditionalLightsContribution = Unpack(pf.Find(x => x.enableAdditionalLightsContribution));
-
 		enableLTCGIContribution = Unpack(pf.Find(x => x.enableLTCGIContribution));
 		LTCGIScattering = Unpack(pf.Find(x => x.LTCGIScattering));
 
-		enableVRSLContribution = Unpack(pf.Find(x => x.enableVRSLContribution));
-		VRSLScattering = Unpack(pf.Find(x => x.VRSLScattering));
-		VRSLAnisotropy = Unpack(pf.Find(x => x.VRSLAnisotropy));
-		VRSLSourceDistance = Unpack(pf.Find(x => x.VRSLSourceDistance));
-		VRSLSpotConeSharpness = Unpack(pf.Find(x => x.VRSLSpotConeSharpness));
-		VRSLPointConeSharpness = Unpack(pf.Find(x => x.VRSLPointConeSharpness));
-		VRSLPointBeamAxis = Unpack(pf.Find(x => x.VRSLPointBeamAxis));
-
+		resolution = Unpack(pf.Find(x => x.resolution));
 		maxSteps = Unpack(pf.Find(x => x.maxSteps));
 		blurIterations = Unpack(pf.Find(x => x.blurIterations));
 		enabled = Unpack(pf.Find(x => x.enabled));
@@ -112,7 +94,6 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 
 		bool enabledGround = enableGround.overrideState.boolValue && enableGround.value.boolValue;
 		bool enabledMainLightContribution = enableMainLightContribution.overrideState.boolValue && enableMainLightContribution.value.boolValue;
-		bool enabledAdditionalLightsContribution = enableAdditionalLightsContribution.overrideState.boolValue && enableAdditionalLightsContribution.value.boolValue;
 
 		PropertyField(distance);
 		PropertyField(baseHeight);
@@ -139,25 +120,12 @@ public sealed class VolumetricFogVolumeComponentEditor : VolumeComponentEditor
 			PropertyField(tint);
 		}
 
-		PropertyField(enableAdditionalLightsContribution);
-
 		bool enabledLTCGIContribution = enableLTCGIContribution.overrideState.boolValue && enableLTCGIContribution.value.boolValue;
 		PropertyField(enableLTCGIContribution);
 		if (enabledLTCGIContribution)
 			PropertyField(LTCGIScattering);
 
-		bool enabledVRSLContribution = enableVRSLContribution.overrideState.boolValue && enableVRSLContribution.value.boolValue;
-		PropertyField(enableVRSLContribution);
-		if (enabledVRSLContribution)
-		{
-			PropertyField(VRSLScattering);
-			PropertyField(VRSLAnisotropy);
-			PropertyField(VRSLSourceDistance);
-			PropertyField(VRSLSpotConeSharpness);
-			PropertyField(VRSLPointConeSharpness);
-			PropertyField(VRSLPointBeamAxis);
-		}
-
+		PropertyField(resolution);
 		PropertyField(maxSteps);
 		PropertyField(blurIterations);
 		PropertyField(enabled);

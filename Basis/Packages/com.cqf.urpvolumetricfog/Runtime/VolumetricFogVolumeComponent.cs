@@ -1,6 +1,32 @@
+using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+
+/// <summary>
+/// The resolution at which the volumetric fog is rendered, relative to the camera resolution.
+/// </summary>
+public enum VolumetricFogResolution
+{
+	Half = 2,
+	Quarter = 4
+}
+
+/// <summary>
+/// A volume parameter that holds a VolumetricFogResolution value.
+/// </summary>
+[Serializable]
+public sealed class VolumetricFogResolutionParameter : VolumeParameter<VolumetricFogResolution>
+{
+	/// <summary>
+	/// Creates a new VolumetricFogResolutionParameter instance.
+	/// </summary>
+	/// <param name="value"></param>
+	/// <param name="overrideState"></param>
+	public VolumetricFogResolutionParameter(VolumetricFogResolution value, bool overrideState = false) : base(value, overrideState)
+	{
+	}
+}
 
 /// <summary>
 /// Volume component for the volumetric fog.
@@ -54,37 +80,19 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	[Tooltip("A multiplier color to tint the main light fog.")]
 	public ColorParameter tint = new ColorParameter(Color.white, true, false, true);
 
-	[Header("Additional Lights")]
-	[Tooltip("Disabling this will avoid computing additional lights contribution to fog, which in most cases will lead to better performance.")]
-	public BoolParameter enableAdditionalLightsContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
-
 	[Header("LTCGI")]
 	[Tooltip("When enabled, LTCGI area lights (screens, video) contribute to fog. Requires the LTCGI package installed and a baked LTCGI controller in the scene; otherwise this has no effect.")]
-	public BoolParameter enableLTCGIContribution = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
+	public BoolParameter enableLTCGIContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 	[Tooltip("Higher values will make fog affected by LTCGI screens appear brighter.")]
 	public ClampedFloatParameter LTCGIScattering = new ClampedFloatParameter(1.0f, 0.0f, 16.0f);
 
-	[Header("VRSL")]
-	[Tooltip("When enabled, VRSL DMX/AudioLink stage lights contribute to fog as atmospheric fill, on top of VRSL's own beams. Requires the VRSL-URP package installed and an active light manager in the scene; otherwise this has no effect.")]
-	public BoolParameter enableVRSLContribution = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
-	[Tooltip("Higher values will make fog affected by VRSL fixtures appear brighter.")]
-	public ClampedFloatParameter VRSLScattering = new ClampedFloatParameter(1.0f, 0.0f, 16.0f);
-	[Tooltip("Higher positive values brighten fog when looking toward a VRSL fixture; lower negative values brighten when looking away from it.")]
-	public ClampedFloatParameter VRSLAnisotropy = new ClampedFloatParameter(0.4f, -1.0f, 1.0f);
-	[Tooltip("Distance over which a VRSL fixture's brightness softens out from its source. Higher removes the dense hotspot at the fixture and stretches the beam further. 0 = VRSL's native, very bright at the source.")]
-	public ClampedFloatParameter VRSLSourceDistance = new ClampedFloatParameter(1.0f, 0.0f, 10.0f);
-	[Tooltip("Cone tightness for VRSL spot fixtures (sharpens their real cone into a defined beam). 1 = native cone.")]
-	public ClampedFloatParameter VRSLSpotConeSharpness = new ClampedFloatParameter(1.0f, 1.0f, 16.0f);
-	[Tooltip("Beam tightness for VRSL point fixtures, which have no cone of their own (a forward beam is synthesized along the fixture's aim). Higher = narrower beam; 1 = wide forward glow.")]
-	public ClampedFloatParameter VRSLPointConeSharpness = new ClampedFloatParameter(4.0f, 1.0f, 16.0f);
-	[Tooltip("World-space direction to beam VRSL point fixtures, which have no usable per-fixture aim. e.g. (0,-1,0) aims all point beams straight down. Leave at (0,0,0) for an omnidirectional glow. Beam tightness is set by Point Cone Sharpness.")]
-	public Vector3Parameter VRSLPointBeamAxis = new Vector3Parameter(Vector3.zero, true);
-
 	[Header("Performance & Quality")]
+	[Tooltip("The resolution at which the fog is rendered, relative to the camera. Quarter is much cheaper than Half but softer and leans harder on the upsample.")]
+	public VolumetricFogResolutionParameter resolution = new VolumetricFogResolutionParameter(VolumetricFogResolution.Half, true);
 	[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]
 	public ClampedIntParameter maxSteps = new ClampedIntParameter(128, 8, 256);
 	[Tooltip("The number of times that the fog texture will be blurred. Higher values lead to softer volumetric god rays at the cost of some performance.")]
-	public ClampedIntParameter blurIterations = new ClampedIntParameter(2, 1, 4);
+	public ClampedIntParameter blurIterations = new ClampedIntParameter(1, 1, 4);
 	[Tooltip("Disabling this will completely remove any feature from the volumetric fog from being rendered at all.")]
 	public BoolParameter enabled = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 

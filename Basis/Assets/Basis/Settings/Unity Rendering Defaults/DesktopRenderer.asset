@@ -72,7 +72,7 @@ MonoBehaviour:
     zFailOperation: 0
   m_ShadowTransparentReceive: 1
   m_RenderingMode: 2
-  m_DepthPrimingMode: 0
+  m_DepthPrimingMode: 2
   m_CopyDepthMode: 1
   m_DepthAttachmentFormat: 0
   m_DepthTextureFormat: 0
@@ -93,6 +93,7 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
 --- !u!114 &7574712923221662252
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -150,6 +151,7 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
 --- !u!114 &8304327589836468309
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -165,3 +167,4 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
