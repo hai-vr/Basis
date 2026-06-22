@@ -28,7 +28,18 @@ namespace Basis.Scripts.UI
         public static string LoadMaterialAddress = "Assets/UI/Material/RayCastMaterial.mat";
         public static string LoadUIRedicalAddress = "Assets/UI/Prefabs/highlightQuad.prefab";
         public GameObject highlightQuadInstance;
-        public ActiveStateOfHightlight HighlightState;
+        private ActiveStateOfHightlight _highlightState;
+        public ActiveStateOfHightlight HighlightState
+        {
+            get => _highlightState;
+            set
+            {
+                if (_highlightState == value) return;
+                _highlightState = value;
+                highlightQuadInstance?.SetActive(value == ActiveStateOfHightlight.On);
+            }
+        }
+
         public enum ActiveStateOfHightlight
         {
             On,
@@ -42,6 +53,8 @@ namespace Basis.Scripts.UI
 
         public bool CachedLinerRenderState = false;
         public RaycastHit PhysicHit;
+        public bool DidPhysicHit = false;
+        public Collider HitCollider;
         public Canvas FoundCanvas;
         public RaycastResult RaycastResult = new RaycastResult();
 
@@ -130,7 +143,6 @@ namespace Basis.Scripts.UI
                     Canvas.worldCamera = BasisLocalCameraDriver.Instance.Camera;
                 }
                 ReticleRenderer = highlightQuadInstance.GetComponentInChildren<Renderer>();
-                highlightQuadInstance.gameObject.SetActive(false);
                 HighlightState = ActiveStateOfHightlight.NA;
                 HasRedicalRenderer = true;
             }
@@ -243,6 +255,8 @@ namespace Basis.Scripts.UI
                 SortedGraphics.Clear();
                 SortedRays.Clear();
                 PhysicHit = hits[hitIndex];
+                DidPhysicHit = true;
+                HitCollider = PhysicHit.collider;
 
                 if (RaycastToUI())
                 {
@@ -299,6 +313,8 @@ namespace Basis.Scripts.UI
             ResetCursorType();
             RaycastResult = new RaycastResult();
             PhysicHit = new RaycastHit();
+            DidPhysicHit = false;
+            HitCollider = null;
         }
 
         bool ContainsLayer(LayerMask mask, int layer)
@@ -308,7 +324,7 @@ namespace Basis.Scripts.UI
 
         private void HandleDidHit()
         {
-            WasCorrectLayer = ContainsLayer(UILayers, PhysicHit.transform.gameObject.layer);
+            WasCorrectLayer = ContainsLayer(UILayers, HitCollider.gameObject.layer);
             if (WasCorrectLayer)
             {
                 UpdateRayCastResult();   // sets all RaycastResult data
@@ -325,8 +341,7 @@ namespace Basis.Scripts.UI
 
         private void UpdateRayCastResult()
         {
-            var physicshit = PhysicHit.transform.gameObject;
-            RaycastResult.gameObject = physicshit;
+            RaycastResult.gameObject = HitCollider.gameObject;
             RaycastResult.distance = PhysicHit.distance;
             if (BasisPointRaycaster.UseWorldPosition)
             {
@@ -337,7 +352,7 @@ namespace Basis.Scripts.UI
                 // we assign screenpoint manually example in BasisLocalCameraDriver
             }
             RaycastResult.screenPosition = BasisPointRaycaster.ScreenPoint;
-            FoundCanvas = physicshit.GetComponentInParent<Canvas>();
+            FoundCanvas = HitCollider.GetComponentInParent<Canvas>();
             if (FoundCanvas != null)
             {
                 RaycastResult.sortingLayer = FoundCanvas.sortingLayerID;
@@ -374,36 +389,22 @@ namespace Basis.Scripts.UI
 
         private void UpdateReticleRenderer()
         {
-            if (HasRedicalRenderer)
+            if (!HasRedicalRenderer)
             {
-                if (PhysicHit.transform != null)
-                {
-                    if (BasisDeviceManagement.IsUserInDesktop() && BasisCursorManagement.ActiveLockState() != CursorLockMode.Locked)
-                    {
-                        if (HighlightState != ActiveStateOfHightlight.Off)
-                        {
-                            highlightQuadInstance.SetActive(false);
-                            HighlightState = ActiveStateOfHightlight.Off;
-                        }
-                    }
-                    else
-                    {
-                        if (HighlightState != ActiveStateOfHightlight.On)
-                        {
-                            highlightQuadInstance.SetActive(true);
-                            HighlightState = ActiveStateOfHightlight.On;
-                        }
-                        highlightQuadInstance.transform.SetPositionAndRotation(PhysicHit.point, Quaternion.LookRotation(PhysicHit.normal));
-                    }
-                }
-                else
-                {
-                    if (HighlightState != ActiveStateOfHightlight.Off)
-                    {
-                        highlightQuadInstance.SetActive(false);
-                        HighlightState = ActiveStateOfHightlight.Off;
-                    }
-                }
+                return;
+            }
+
+            // Hide on desktop while the cursor is unlocked (free mouse uses the OS cursor, not this reticle).
+            bool show = DidPhysicHit && !(BasisDeviceManagement.IsUserInDesktop() && BasisCursorManagement.ActiveLockState() != CursorLockMode.Locked);
+
+            if (show)
+            {
+                HighlightState = ActiveStateOfHightlight.On;
+                highlightQuadInstance.transform.SetPositionAndRotation(PhysicHit.point, Quaternion.LookRotation(PhysicHit.normal));
+            }
+            else
+            {
+                HighlightState = ActiveStateOfHightlight.Off;
             }
         }
 
@@ -508,7 +509,6 @@ namespace Basis.Scripts.UI
 
             if (HasRedicalRenderer)
             {
-                highlightQuadInstance.SetActive(false);
                 HighlightState = ActiveStateOfHightlight.Off;
             }
         }
