@@ -45,6 +45,10 @@ float _Absortion;
 float _APVContributionWeight;
 float3 _Tint;
 int _MaxSteps;
+// APV is low spatial frequency, so it's evaluated only every _APVStride march steps and reused
+// between (set from the renderer feature). 1 = every step (best quality, slowest); higher = fewer
+// APV texture fetches. The march stays full-resolution, so the per-depth APV gradient is preserved.
+int _APVStride;
 
 float _MainLightAnisotropy;
 float _MainLightScattering;
@@ -52,6 +56,10 @@ float _MainLightScattering;
 #if defined(VF_LTCGI)
 float _LTCGIScattering;
 #endif
+
+// Blue-noise texture for raymarch jitter (optional; bound only when assigned on the renderer feature).
+TEXTURE2D(_BlueNoiseTexture);
+float4 _BlueNoiseParams; // xy = 1 / textureSize, zw = per-frame scroll offset
 
 // Computes the ray origin, direction, and returns the reconstructed world position for orthographic projection.
 float3 ComputeOrthographicParams(float2 uv, float depth, out float3 ro, out float3 rd)
@@ -107,13 +115,16 @@ void CalculateRaymarchingParams(float2 uv, out float3 ro, out float3 rd, out flo
     }
 }
 
-// Gets the main light phase function.
-real GetMainLightPhase(float3 rd)
+// Per-pixel raymarch start jitter. Uses a blue-noise texture when one is bound (better-distributed
+// than interleaved gradient noise, so banding is less visible at the same step count); falls back to
+// IGN when no texture is assigned, so the effect still works standalone.
+float GetRaymarchJitter(float2 positionCS)
 {
-#if _MAIN_LIGHT_CONTRIBUTION_DISABLED
-    return 0.0;
+#if defined(_BLUE_NOISE)
+    float2 uv = positionCS * _BlueNoiseParams.xy + _BlueNoiseParams.zw;
+    return SAMPLE_TEXTURE2D_LOD(_BlueNoiseTexture, sampler_PointRepeat, uv, 0.0).r;
 #else
-    return CornetteShanksPhaseFunction(_MainLightAnisotropy, dot(rd, GetMainLight().direction));
+    return InterleavedGradientNoise(positionCS, _FrameCount);
 #endif
 }
 
@@ -127,36 +138,39 @@ float GetFogDensity(float posWSy)
     return _Density * t;
 }
 
-// Gets the GI evaluation from the adaptive probe volume at one raymarch step.
-// real is half on mobile (e.g. Adreno / Steam Frame) and float on desktop, so the per-step shading
-// runs at reduced precision where it pays off without banding the integral on desktop.
-real3 GetStepAdaptiveProbeVolumeEvaluation(float2 uv, float3 posWS, float density)
+// Evaluates the adaptive probe volume irradiance (weighted, WITHOUT density) at a world position.
+// real is half on mobile (e.g. Adreno / Steam Frame) and float on desktop. APV is low frequency, so
+// callers evaluate it sparsely - strided in the general march, or just once in the analytic path -
+// and reuse the result, since it barely changes along a ray.
+real3 EvaluateWeightedAPV(float2 uv, float3 posWS)
 {
     float3 apvDiffuseGI = float3(0.0, 0.0, 0.0);
 
 #if UNITY_VERSION >= 202310 && _APV_CONTRIBUTION_ENABLED
     #if defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
         EvaluateAdaptiveProbeVolume(posWS, uv * _ScreenSize.xy, apvDiffuseGI);
-        apvDiffuseGI = apvDiffuseGI * _APVContributionWeight * density;
+        apvDiffuseGI *= _APVContributionWeight;
     #endif
 #endif
 
     return apvDiffuseGI;
 }
 
-// Gets the main light color at one raymarch step.
-real3 GetStepMainLightColor(float3 currPosWS, real phaseMainLight, float density)
+// Gets the main light color at one raymarch step, using the per-ray hoisted constant term
+// (light colour * tint * phase * scattering). Only shadow, cookie and density vary per step.
+real3 GetStepMainLightColor(float3 currPosWS, real3 mainLightConst, float density)
 {
 #if _MAIN_LIGHT_CONTRIBUTION_DISABLED
     return real3(0.0, 0.0, 0.0);
-#endif
-    Light mainLight = GetMainLight();
+#else
     float4 shadowCoord = TransformWorldToShadowCoord(currPosWS);
-    mainLight.shadowAttenuation = VolumetricMainLightRealtimeShadow(shadowCoord);
+    real shadow = VolumetricMainLightRealtimeShadow(shadowCoord);
+    real3 color = mainLightConst * (shadow * density);
 #if _LIGHT_COOKIES
-    mainLight.color *= SampleMainLightCookie(currPosWS);
+    color *= SampleMainLightCookie(currPosWS);
 #endif
-    return (mainLight.color * _Tint) * (mainLight.shadowAttenuation * phaseMainLight * density * _MainLightScattering);
+    return color;
+#endif
 }
 
 // Gets the accumulated color from LTCGI area lights (screens, video) at one raymarch step.
@@ -227,20 +241,43 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
 
     float marchLength = tExit - tEnter;
 
-    // Geometric step distribution: ds grows by 'growth' each step so the far/near step length ratio is
-    // VF_STEP_GROWTH_RATIO, while the lengths still sum exactly to marchLength.
-    float growth = pow(VF_STEP_GROWTH_RATIO, 1.0 / (float)_MaxSteps);
-    float ds = marchLength * (growth - 1.0) / (VF_STEP_GROWTH_RATIO - 1.0);
-    float jitterFrac = InterleavedGradientNoise(positionCS, _FrameCount);
+    // Cap the iteration count to the actual (slab-clipped) march length so the sample density (steps
+    // per world unit) stays constant instead of always spending all _MaxSteps. Short crossings then
+    // use far fewer iterations - and shadow samples - for the same quality.
+    float fogSpan = max(1e-4, _Distance - iniOffsetToNearPlane);
+    int stepCount = (int)clamp(ceil((float)_MaxSteps * (marchLength / fogSpan)), 1.0, (float)_MaxSteps);
 
-    real phaseMainLight = GetMainLightPhase(rdPhase);
+    // Geometric step distribution over [tEnter, tExit]: ds grows by 'growth' each step so the far/near
+    // step length ratio is VF_STEP_GROWTH_RATIO, while the lengths still sum exactly to marchLength.
+    float growth = pow(VF_STEP_GROWTH_RATIO, 1.0 / (float)stepCount);
+    float ds = marchLength * (growth - 1.0) / (VF_STEP_GROWTH_RATIO - 1.0);
+    float jitterFrac = GetRaymarchJitter(positionCS);
+
+    // Hoist the per-ray main-light terms out of the loop; only shadow, cookie and density vary per step.
+    real3 mainLightConst = real3(0.0, 0.0, 0.0);
+#if !_MAIN_LIGHT_CONTRIBUTION_DISABLED
+    Light mainLight = GetMainLight();
+    real phaseMainLight = CornetteShanksPhaseFunction(_MainLightAnisotropy, dot(rdPhase, mainLight.direction));
+    mainLightConst = (mainLight.color * _Tint) * (phaseMainLight * _MainLightScattering);
+#endif
+
+    // (B) APV is evaluated only every _APVStride steps and reused, since it barely changes between steps.
+#if _APV_CONTRIBUTION_ENABLED
+    int apvStride = max(1, _APVStride);
+    // Per-pixel phase so the stride's sample boundaries fall at different depths on neighbouring
+    // pixels. Otherwise the held value quantizes the fog colour into depth bands that line up across
+    // the screen; decorrelating it turns that into noise the depth-aware blur removes.
+    int apvPhase = (int)(jitterFrac * apvStride);
+    real3 apvWeighted = real3(0.0, 0.0, 0.0);
+    int apvStep = 0;
+#endif
 
     float3 volumetricFogColor = float3(0.0, 0.0, 0.0);
     float transmittance = 1.0;
     float t = tEnter;
 
     UNITY_LOOP
-    for (int i = 0; i < _MaxSteps; ++i)
+    for (int i = 0; i < stepCount; ++i)
     {
         float tSample = t + ds * jitterFrac;
         float3 currPosWS = roNearPlane + rd * tSample;
@@ -251,8 +288,17 @@ float4 VolumetricFog(float2 uv, float2 positionCS)
         {
             transmittance *= exp(-ds * _Absortion * density);
 
-            real3 apvColor = GetStepAdaptiveProbeVolumeEvaluation(uv, currPosWS, density);
-            real3 mainLightColor = GetStepMainLightColor(currPosWS, phaseMainLight, density);
+            real3 apvColor = real3(0.0, 0.0, 0.0);
+#if _APV_CONTRIBUTION_ENABLED
+            // Evaluate on the first contributing step (so the held value is always valid) and then on
+            // the per-pixel staggered stride boundary; reuse the held value in between.
+            UNITY_BRANCH
+            if (apvStep == 0 || ((apvStep + apvPhase) % apvStride) == 0)
+                apvWeighted = EvaluateWeightedAPV(uv, currPosWS);
+            apvStep += 1;
+            apvColor = apvWeighted * density;
+#endif
+            real3 mainLightColor = GetStepMainLightColor(currPosWS, mainLightConst, density);
             real3 ltcgiColor = GetStepLTCGIColor(currPosWS, -rd, density);
 
             real3 stepColor = apvColor + mainLightColor + ltcgiColor;

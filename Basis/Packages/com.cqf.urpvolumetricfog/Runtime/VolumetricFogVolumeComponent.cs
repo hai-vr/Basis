@@ -82,7 +82,7 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 
 	[Header("LTCGI")]
 	[Tooltip("When enabled, LTCGI area lights (screens, video) contribute to fog. Requires the LTCGI package installed and a baked LTCGI controller in the scene; otherwise this has no effect.")]
-	public BoolParameter enableLTCGIContribution = new BoolParameter(true, BoolParameter.DisplayType.Checkbox, true);
+	public BoolParameter enableLTCGIContribution = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 	[Tooltip("Higher values will make fog affected by LTCGI screens appear brighter.")]
 	public ClampedFloatParameter LTCGIScattering = new ClampedFloatParameter(1.0f, 0.0f, 16.0f);
 
