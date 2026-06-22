@@ -415,15 +415,12 @@ namespace Basis.BasisUI
             toggleAvatarPreviewMirror.AssignBinding(BasisSettingsDefaults.AvatarPreviewMirror);
             toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
             toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
-            toggleAvatarPreview.RegisterContentContainer(toggleAvatarPreviewMirror);
 
-            toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Expanded);
-            toggleAvatarPreview.OnExpandedChanged += (val) =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleAvatarPreview, toggleAvatarPreview.Expanded, _ =>
             {
-                toggleAvatarPreviewMirror.Descriptor.SetActive(val);
                 hudGroup.ForceRebuild();
                 descriptor.ForceRebuild();
-            };
+            }, toggleAvatarPreviewMirror);
 
             PanelToggle toggleCameraHud = PanelToggle.CreateNewEntry(hudGroup);
             toggleCameraHud.AssignBinding(BasisSettingsDefaults.CameraHud);
@@ -446,15 +443,12 @@ namespace Basis.BasisUI
                 toggleAudioFromHead.AssignBinding(BasisSettingsDefaults.AudioListenerFollowsHead);
                 toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
                 toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
-                toggleThirdPerson.RegisterContentContainer(toggleAudioFromHead);
 
-                toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Expanded);
-                toggleThirdPerson.OnExpandedChanged += (val) =>
+                PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleThirdPerson, toggleThirdPerson.Expanded, _ =>
                 {
-                    toggleAudioFromHead.Descriptor.SetActive(val);
                     cameraGroup.ForceRebuild();
                     descriptor.ForceRebuild();
-                };
+                }, toggleAudioFromHead);
             }
 
             BuildNetworkingSection(container);
@@ -1553,7 +1547,6 @@ namespace Basis.BasisUI
 
             PanelSectionToggle toggleAdvanced = PanelSectionToggle.CreateNewEntry(advancedGroup.ContentParent);
             toggleAdvanced.SetTitle(BasisLocalization.Get("settings.graphics.advanced.showAdvanced"));
-            toggleAdvanced.SetExpandedWithoutNotify(false);
 
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1605,34 +1598,19 @@ namespace Basis.BasisUI
             toggleLocalHeadBlendShapes.AssignBinding(BasisSettingsDefaults.LocalHeadBlendShapes);
             toggleLocalHeadBlendShapes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.localHeadBlendShapes"));
             toggleLocalHeadBlendShapes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.localHeadBlendShapes.tooltip"));
-            toggleAdvanced.RegisterContentContainer(sliderRenderResolution);
-            toggleAdvanced.RegisterContentContainer(dropdownHDR);
-            toggleAdvanced.RegisterContentContainer(sliderFoveatedRendering);
-            toggleAdvanced.RegisterContentContainer(sliderFieldOfView);
-            toggleAdvanced.RegisterContentContainer(sliderMeshLOD);
-            toggleAdvanced.RegisterContentContainer(sliderGlobalMeshLOD);
-            toggleAdvanced.RegisterContentContainer(toggleLocalHeadBlendShapes);
 
-            sliderRenderResolution.Descriptor.SetActive(false);
-            dropdownHDR.Descriptor.SetActive(false);
-            sliderFoveatedRendering.Descriptor.SetActive(false);
-            sliderFieldOfView.Descriptor.SetActive(false);
-            sliderMeshLOD.Descriptor.SetActive(false);
-            sliderGlobalMeshLOD.Descriptor.SetActive(false);
-            toggleLocalHeadBlendShapes.Descriptor.SetActive(false);
-
-            toggleAdvanced.OnExpandedChanged += (val) =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleAdvanced, false, _ =>
             {
-                sliderRenderResolution.Descriptor.SetActive(val);
-                dropdownHDR.Descriptor.SetActive(val);
-                sliderFoveatedRendering.Descriptor.SetActive(val);
-                sliderFieldOfView.Descriptor.SetActive(val);
-                sliderMeshLOD.Descriptor.SetActive(val);
-                sliderGlobalMeshLOD.Descriptor.SetActive(val);
-                toggleLocalHeadBlendShapes.Descriptor.SetActive(val);
                 advancedGroup.ForceRebuild();
                 descriptor.ForceRebuild();
-            };
+            },
+                sliderRenderResolution,
+                dropdownHDR,
+                sliderFoveatedRendering,
+                sliderFieldOfView,
+                sliderMeshLOD,
+                sliderGlobalMeshLOD,
+                toggleLocalHeadBlendShapes);
 
             // Performance limits live in the same tab — formerly its own page,
             // merged here so users see all rendering / quality / cost controls together.

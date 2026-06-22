@@ -80,7 +80,6 @@ namespace Basis.BasisUI
             ConfigureArrowIndicator();
             ApplyCompactHeightOnce();
             DividerManager.CreateDividerAbove();
-            RefreshVisualState();
         }
 
         public override void OnReleaseEvent()

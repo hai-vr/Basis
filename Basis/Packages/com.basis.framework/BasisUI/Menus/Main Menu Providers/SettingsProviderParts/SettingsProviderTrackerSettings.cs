@@ -128,7 +128,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor tuningGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             tuningGroup.SetTitle(BasisLocalization.Get("trackerLinking.tuning.title"));
-            advancedToggle.RegisterContentContainer(tuningGroup);
             BuildTuningSliders(tuningGroup.ContentParent);
 
             // Dynamic per-tracker section — updates on device/pair/override changes.
@@ -136,7 +135,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor trackersGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, tabRoot);
             trackersGroup.SetTitle(BasisLocalization.Get("trackerLinking.trackers.title"));
-            connectorToggle.RegisterContentContainer(trackersGroup);
 
             TabState state = new TabState
             {
@@ -189,21 +187,25 @@ namespace Basis.BasisUI
             // Initial visibility + OnValueChanged gating. Two-step rebuild
             // (inner group, then tab descriptor) matches the existing pattern
             // in HandleChange so nested LayoutGroups settle correctly.
-            tuningGroup.gameObject.SetActive(BasisSettingsDefaults.TrackerLinkingAdvancedVisible.RawValue);
-            advancedToggle.OnExpandedChanged += visible =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(
+                advancedToggle,
+                BasisSettingsDefaults.TrackerLinkingAdvancedVisible.RawValue,
+                _ =>
             {
-                tuningGroup.gameObject.SetActive(visible);
                 tuningGroup.ForceRebuild();
                 tabDesc.ForceRebuild();
-            };
+            },
+                tuningGroup);
 
-            trackersGroup.gameObject.SetActive(BasisSettingsDefaults.TrackerLinkingConnectorVisible.RawValue);
-            connectorToggle.OnExpandedChanged += visible =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(
+                connectorToggle,
+                BasisSettingsDefaults.TrackerLinkingConnectorVisible.RawValue,
+                _ =>
             {
-                trackersGroup.gameObject.SetActive(visible);
                 trackersGroup.ForceRebuild();
                 tabDesc.ForceRebuild();
-            };
+            },
+                trackersGroup);
 
             handleChange();
             SettingsProvider.TrackerSettingsExtraBuilder?.Invoke(tabRoot);
