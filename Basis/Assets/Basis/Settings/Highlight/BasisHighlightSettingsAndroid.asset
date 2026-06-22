@@ -19,9 +19,9 @@ MonoBehaviour:
   outlineWidth: 1
   maskDownsample: 3
   maskMsaa: 2
-  ringSoftness: 0.15
-  ringSoftenRadius: 1
-  innerSoftenRadius: 0.5
+  ringSoftness: 0.075
+  ringSoftenRadius: 0.5
+  innerSoftenRadius: 0.25
   glowIntensity: 0
   glowRadius: 1.25
   glowIterations: 0
