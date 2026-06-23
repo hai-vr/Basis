@@ -37,7 +37,9 @@ namespace Basis.Scripts.BasisSdk.Highlight
         public static BasisHighlightManager Instance = new BasisHighlightManager();
 
         protected readonly Dictionary<Renderer, OverrideEntry> Overrides = new();
-        protected readonly HashSet<Renderer> Active = new();
+
+        // Renderer => cached submesh count, resolved once at Highlight() registration
+        protected readonly Dictionary<Renderer, int> Active = new();
 
         // Scratch list reused across DrawAll calls to drop fake-null entries
         // without allocating each frame.
@@ -100,7 +102,23 @@ namespace Basis.Scripts.BasisSdk.Highlight
                 return;
             }
 
-            Active.Add(r);
+            Active[r] = ResolveSubmeshCount(r);
+        }
+
+        // Resolve the draw-index bound (submesh count) once at registration
+        private static int ResolveSubmeshCount(Renderer r)
+        {
+            if (r is SkinnedMeshRenderer smr)
+            {
+                return smr.sharedMesh != null ? Mathf.Max(1, smr.sharedMesh.subMeshCount) : 0;
+            }
+
+            if (!r.TryGetComponent(out MeshFilter mf))
+            {
+                return 0;
+            }
+
+            return mf.sharedMesh != null ? Mathf.Max(1, mf.sharedMesh.subMeshCount) : 0;
         }
 
         protected virtual void UnhighlightImpl(Renderer r)
@@ -145,8 +163,9 @@ namespace Basis.Scripts.BasisSdk.Highlight
             }
 
             _pruneScratch.Clear();
-            foreach (Renderer r in Active)
+            foreach (KeyValuePair<Renderer, int> kv in Active)
             {
+                Renderer r = kv.Key;
                 if (r == null)
                 {
                     _pruneScratch.Add(r);
@@ -170,7 +189,7 @@ namespace Basis.Scripts.BasisSdk.Highlight
                     continue;
                 }
 
-                cmd.DrawRenderer(r, mat, 0, 0);
+                DrawSubmeshes(cmd, r, mat, kv.Value, 0);
             }
 
             if (_pruneScratch.Count > 0)
@@ -181,6 +200,14 @@ namespace Basis.Scripts.BasisSdk.Highlight
                 }
 
                 _pruneScratch.Clear();
+            }
+        }
+
+        protected static void DrawSubmeshes(RasterCommandBuffer cmd, Renderer r, Material mat, int submeshCount, int shaderPass)
+        {
+            for (int i = 0; i < submeshCount; i++)
+            {
+                cmd.DrawRenderer(r, mat, i, shaderPass);
             }
         }
     }
