@@ -61,17 +61,22 @@ public sealed class VolumetricFogAPVBakerWindow : EditorWindow
         SceneView.RepaintAll();
 
         _waiting = true;
-        // Give the renderer a few frames to render and run the bake pass before reading back.
-        _waitUntil = EditorApplication.timeSinceStartup + 0.5;
+        // Safety cap: the runtime bake runs a multi-frame settle window (APV streams its cells in over
+        // several frames); normally we read back as soon as that window drains, but never wait past this.
+        _waitUntil = EditorApplication.timeSinceStartup + 5.0;
         EditorApplication.update += PollBake;
     }
 
     private void PollBake()
     {
-        // Keep nudging a render so the feature's bake pass actually executes.
+        // Keep nudging a render so the feature's bake pass executes and APV keeps streaming cells in.
         SceneView.RepaintAll();
 
-        if (EditorApplication.timeSinceStartup < _waitUntil)
+        // Read back only once the settle window has drained (APV fully streamed and the final bake ran), or
+        // the safety cap elapses - reading earlier would capture a partial, half-streamed volume.
+        bool settled = !VolumetricFogAPVBaker.BakeRequested;
+        bool timedOut = EditorApplication.timeSinceStartup >= _waitUntil;
+        if (!settled && !timedOut)
             return;
 
         EditorApplication.update -= PollBake;

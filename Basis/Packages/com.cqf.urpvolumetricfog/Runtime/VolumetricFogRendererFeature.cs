@@ -44,6 +44,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	private RTHandle bakeRTHandle;
 	private Vector3Int bakeResolution;
 	private int bakeKernelIndex = -1;
+	private bool forcingApvStreaming;
 
 	#endregion
 
@@ -91,6 +92,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	{
 		base.Dispose(disposing);
 
+		StopForcingApvStreaming();
 		volumetricFogRenderPass?.Dispose();
 		volumetricFogAPVBakePass = null;
 		ReleaseBakeRenderTexture();
@@ -190,7 +192,10 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	private void TryEnqueueBakePass(ScriptableRenderer renderer, CameraType cameraType)
 	{
 		if (!isActive)
+		{
+			StopForcingApvStreaming();
 			return;
+		}
 
 		// A shipped editor-baked Texture3D takes precedence: publish it (with the configured bounds) and
 		// skip runtime baking entirely.
@@ -198,22 +203,51 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		{
 			if (!ReferenceEquals(VolumetricFogAPVBaker.BakedVolume, bakedAPVVolumeAsset))
 				VolumetricFogAPVBaker.SetBakedVolume(bakedAPVVolumeAsset, bakeBoundsCenter - bakeBoundsSize * 0.5f, bakeBoundsSize);
+			StopForcingApvStreaming();
 			VolumetricFogAPVBaker.ConsumeBakeRequest();
 			return;
 		}
 
-		if (volumetricFogAPVBakePass == null || bakeKernelIndex < 0)
-			return;
+		// Preview/reflection cameras never bake; don't touch global streaming state here - the real camera
+		// owns the bake window.
 		if (cameraType == CameraType.Preview || cameraType == CameraType.Reflection)
 			return;
-		// Nothing to bake from until Unity's APV runtime is initialized with data. Leave the request
-		// pending so the bake happens once a world's APV registers.
-		if (!VolumetricFogAPVBaker.BakeRequested || !ProbeReferenceVolume.instance.isInitialized)
+
+		if (volumetricFogAPVBakePass == null || bakeKernelIndex < 0)
+		{
+			StopForcingApvStreaming();
 			return;
+		}
+
+		// Nothing to bake from until Unity's APV runtime is initialized with data. While no bake is pending
+		// (or the settle window has drained), hand cell streaming back to URP and leave the request pending
+		// so the bake happens once a world's APV registers.
+		if (!VolumetricFogAPVBaker.BakeRequested || !ProbeReferenceVolume.instance.isInitialized)
+		{
+			StopForcingApvStreaming();
+			return;
+		}
+
+		// APV GPU streaming uploads only a few cells per frame (default 1), nearest-camera-first, so a single
+		// bake taken the first frame APV registers captures only the cells around the camera and leaves the
+		// rest of the world un-baked. Force every cell to stream in for the few frames of the settle window,
+		// re-baking each frame, so the final bake covers the whole region. Handed back to URP's default by
+		// StopForcingApvStreaming once the window drains. NOTE: this takes effect from the next frame's
+		// UpdateCellStreaming (which runs before this feature's setup), which the settle window accounts for.
+		if (!forcingApvStreaming)
+		{
+			ProbeReferenceVolume.instance.loadMaxCellsPerFrame = true;
+			forcingApvStreaming = true;
+		}
 
 		Vector3Int resolution = ComputeBakeResolution();
 		if (!EnsureBakeRenderTexture(resolution))
+		{
+			// Can't produce a target - abandon the window rather than forcing streaming forever.
+			StopForcingApvStreaming();
+			VolumetricFogAPVBaker.ConsumeBakeRequest();
 			return;
+		}
 
 		Vector3 boundsMin = bakeBoundsCenter - bakeBoundsSize * 0.5f;
 
@@ -225,11 +259,29 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		volumetricFogAPVBakePass.resolution = resolution;
 
 		// Publish now: the RT reference is valid, and the bake pass (enqueued this frame at
-		// BeforeRenderingOpaques) fills it on the GPU before the fog pass samples it.
+		// BeforeRenderingOpaques) fills it on the GPU before the fog pass samples it. The volume converges to
+		// the full world over the settle window as more cells stream in each frame.
 		VolumetricFogAPVBaker.SetBakedVolume(bakeRenderTexture, boundsMin, bakeBoundsSize);
-		VolumetricFogAPVBaker.ConsumeBakeRequest();
+		VolumetricFogAPVBaker.NotifyBakeServiced();
 
 		renderer.EnqueuePass(volumetricFogAPVBakePass);
+	}
+
+	/// <summary>
+	/// Hands APV cell streaming back to URP after a bake settle window, restoring the normal per-frame budget.
+	/// Safe to call when not currently forcing.
+	/// </summary>
+	private void StopForcingApvStreaming()
+	{
+		if (!forcingApvStreaming)
+			return;
+
+		forcingApvStreaming = false;
+
+		// Nothing else in the project changes loadMaxCellsPerFrame, so URP's default (false) is the correct
+		// value to restore.
+		if (ProbeReferenceVolume.instance != null)
+			ProbeReferenceVolume.instance.loadMaxCellsPerFrame = false;
 	}
 
 	/// <summary>

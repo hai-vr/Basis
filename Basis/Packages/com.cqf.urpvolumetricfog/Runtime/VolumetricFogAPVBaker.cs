@@ -53,29 +53,48 @@ public static class VolumetricFogAPVBaker
 		BakedVolume = null;
 	}
 
-	private static bool s_BakeRequested;
+	// APV GPU streaming uploads only a few cells per frame (URP default: 1), nearest-camera-first, so a
+	// world's full probe data isn't resident until several frames after its APV registers. A bake taken on
+	// the first eligible frame therefore captures only the cells near the camera - the rest of the world
+	// reads as empty until something happens to request another bake (e.g. toggling the feature off/on).
+	// To avoid that, a request keeps the bake alive for a short settle window: the runtime baker re-bakes
+	// each frame (while forcing APV to stream everything in) and the window's final frame is the
+	// authoritative, fully-streamed full-world bake.
+	private const int BakeSettleFrames = 16;
+
+	private static int s_PendingBakeFrames;
 
 	/// <summary>
-	/// Requests that the runtime baker re-bake the APV in-scatter volume on the next rendered frame
-	/// (once APV is initialized). Call after a world's APV registers, or to force a refresh. Cheap and
-	/// idempotent - multiple requests before the next bake coalesce into one.
+	/// Requests that the runtime baker (re)bake the APV in-scatter volume, then keep re-baking for a short
+	/// settle window so APV GPU streaming can make the whole bake region resident first. Call after a
+	/// world's APV registers, or to force a refresh. Cheap and idempotent - calls coalesce / re-arm the window.
 	/// </summary>
 	public static void RequestRebake()
 	{
-		s_BakeRequested = true;
+		s_PendingBakeFrames = BakeSettleFrames;
 	}
 
-	/// <summary>True when a rebake has been requested but not yet serviced.</summary>
-	public static bool BakeRequested => s_BakeRequested;
+	/// <summary>True while a bake is pending or its settle window has not yet drained.</summary>
+	public static bool BakeRequested => s_PendingBakeFrames > 0;
 
 	/// <summary>
-	/// Atomically reads and clears the rebake request. The runtime baker calls this when it commits to
-	/// baking on the current frame.
+	/// The runtime baker calls this on each frame it actually dispatches a bake, advancing the settle
+	/// window. The window keeps the bake re-running while APV streams in; its final frame is authoritative.
+	/// </summary>
+	public static void NotifyBakeServiced()
+	{
+		if (s_PendingBakeFrames > 0)
+			s_PendingBakeFrames--;
+	}
+
+	/// <summary>
+	/// Clears any pending bake / settle window without baking. Used by the shipped-asset path (which needs
+	/// no runtime bake) and to abandon the window. Returns whether a bake was pending.
 	/// </summary>
 	public static bool ConsumeBakeRequest()
 	{
-		bool requested = s_BakeRequested;
-		s_BakeRequested = false;
+		bool requested = s_PendingBakeFrames > 0;
+		s_PendingBakeFrames = 0;
 		return requested;
 	}
 }
