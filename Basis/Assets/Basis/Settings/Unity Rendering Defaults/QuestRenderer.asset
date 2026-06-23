@@ -46,9 +46,9 @@ MonoBehaviour:
     probeSamplingDebugMesh: {fileID: -3555484719484374845, guid: 57d7c4c16e2765b47a4d2069b311bffe, type: 3}
     probeSamplingDebugTexture: {fileID: 2800000, guid: 24ec0e140fb444a44ab96ee80844e18e, type: 3}
     probeVolumeBlendStatesCS: {fileID: 0}
-  m_RendererFeatures: []
-  m_RendererFeatureMap: 
-  m_UseNativeRenderPass: 1
+  m_RendererFeatures:
+  - {fileID: 1494910481316490538}
+  m_RendererFeatureMap: 2aade09129fdbe14
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 0}
   m_AssetVersion: 3
@@ -76,6 +76,21 @@ MonoBehaviour:
   m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
+  m_TileOnlyMode: 1
+--- !u!114 &1494910481316490538
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2fb6109d22997344ab15423c6b63b45, type: 3}
+  m_Name: OnTilePostProcessFeature
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::OnTilePostProcessFeature
+  m_Active: 1
+  m_PostProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
 --- !u!114 &7891264069566464977
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -91,3 +106,10 @@ MonoBehaviour:
   m_Active: 1
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
+  blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
+  bakeAPVComputeShader: {fileID: 7200000, guid: 79b0de35be4da5541aaa573ddd692afc, type: 3}
+  bakeBoundsCenter: {x: 0, y: 0, z: 0}
+  bakeBoundsSize: {x: 128, y: 32, z: 128}
+  bakeVoxelSize: 1
+  bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}
