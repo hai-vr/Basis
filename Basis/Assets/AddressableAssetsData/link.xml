@@ -177,7 +177,9 @@
   </assembly>
   <assembly fullname="com.cqf.urpvolumetricfog.runtime, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
     <type fullname="VolumetricFogVolumeComponent" preserve="all" />
+    <type fullname="VolumetricFogAPVModeParameter" preserve="nothing" serialized="true" />
     <type fullname="VolumetricFogRenderPassEventParameter" preserve="nothing" serialized="true" />
+    <type fullname="VolumetricFogResolutionParameter" preserve="nothing" serialized="true" />
   </assembly>
   <assembly fullname="HVR.Basis.Comms, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
     <type fullname="BlendshapeActuationDefinitionFile" preserve="all" />
