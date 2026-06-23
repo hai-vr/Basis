@@ -1,5 +1,19 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-6138350381377972815
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81b0beab58c84cc99fcc3ff19bd91dde, type: 3}
+  m_Name: BasisHighlightFeature
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.BasisSdk.Highlight.BasisHighlightFeature
+  m_Active: 1
+  settings: {fileID: 11400000, guid: c301ac59f1dce524f8e770032f059e8f, type: 2}
 --- !u!114 &-4357968347084770853
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -49,7 +63,8 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: 8304327589836468309}
   - {fileID: 7574712923221662252}
-  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69
+  - {fileID: -6138350381377972815}
+  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69b11515bbd932d0aa
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
@@ -94,11 +109,12 @@ MonoBehaviour:
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
   blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
-  bakeAPVComputeShader: {fileID: 0}
+  bakeAPVComputeShader: {fileID: 7200000, guid: 79b0de35be4da5541aaa573ddd692afc, type: 3}
   bakeBoundsCenter: {x: 0, y: 0, z: 0}
   bakeBoundsSize: {x: 128, y: 32, z: 128}
   bakeVoxelSize: 1
   bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}
 --- !u!114 &7574712923221662252
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -157,11 +173,12 @@ MonoBehaviour:
   downsampleDepthShader: {fileID: 4800000, guid: cffeaeec0396a2c4dad475266cc8dfeb, type: 3}
   volumetricFogShader: {fileID: 4800000, guid: 08f816187f9af0244a95556ee0cab83f, type: 3}
   blueNoiseTexture: {fileID: 2800000, guid: 31528b9dd703c9241afc8298d713bc0f, type: 3}
-  bakeAPVComputeShader: {fileID: 0}
+  bakeAPVComputeShader: {fileID: 7200000, guid: 79b0de35be4da5541aaa573ddd692afc, type: 3}
   bakeBoundsCenter: {x: 0, y: 0, z: 0}
   bakeBoundsSize: {x: 128, y: 32, z: 128}
   bakeVoxelSize: 1
   bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}
 --- !u!114 &8304327589836468309
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -183,3 +200,4 @@ MonoBehaviour:
   bakeBoundsSize: {x: 128, y: 32, z: 128}
   bakeVoxelSize: 1
   bakeMaxResolution: 256
+  bakedAPVVolumeAsset: {fileID: 0}

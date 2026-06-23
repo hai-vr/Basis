@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk.Highlight;
 using Basis.Scripts.Device_Management.Devices;
 using UnityEngine;
 
@@ -20,6 +21,9 @@ public class BasisInteractableButton : BasisInteractableObject
     [Header("Button Settings")]
     public bool isEnabled = true;
     [Space(10)]
+    public bool UseHighlight = true;
+    [Space(10)]
+    public bool UseMaterialColor = true;
     public string PropertyName = "_Color";
     public Color Color = Color.white;
     public Color HoverColor = Color.white;
@@ -31,7 +35,7 @@ public class BasisInteractableButton : BasisInteractableObject
     public MeshRenderer RendererRef;
 
     private BasisInputWrapper _inputSource;
-    // Ignore provided list locally, but keep it updated for other scripts 
+    // Ignore provided list locally, but keep it updated for other scripts
     private BasisInputWrapper _InputSource
     {
         get => _inputSource;
@@ -88,6 +92,10 @@ public class BasisInteractableButton : BasisInteractableObject
             return;
         }
         _InputSource = wrapper;
+        if (UseHighlight)
+        {
+            SetHighlight(true);
+        }
         SetColor(HoverColor);
         // call base method (invokes event)
         base.OnHoverStart(input);
@@ -97,7 +105,7 @@ public class BasisInteractableButton : BasisInteractableObject
     {
         if (_InputSource.IsInput(input))
         {
-            // leaving hover and won't interact this frame, 
+            // leaving hover and won't interact this frame,
             if (!willInteract)
             {
                 bool added = BasisInputWrapper.TryNewTracking(null, BasisInteractInputState.NotAdded, out BasisInputWrapper wrapper);
@@ -105,6 +113,7 @@ public class BasisInteractableButton : BasisInteractableObject
                 Debug.Assert(!added);
                 _InputSource = wrapper;
                 SetColor(Color);
+                SetHighlight(false);
             }
             // Oninteract will update color
 
@@ -137,6 +146,7 @@ public class BasisInteractableButton : BasisInteractableObject
         if (_InputSource.IsInput(input))
         {
             SetColor(Color);
+            SetHighlight(false);
             bool added = BasisInputWrapper.TryNewTracking(null, BasisInteractInputState.NotAdded, out BasisInputWrapper wrapper);
             // setting to null should not add the tracker
             Debug.Assert(!added);
@@ -162,12 +172,16 @@ public class BasisInteractableButton : BasisInteractableObject
     // set material property to a color
     private void SetColor(Color color)
     {
-        if (RendererRef != null && RendererRef.material != null)
+        if (UseMaterialColor && RendererRef != null && RendererRef.material != null)
         {
             RendererRef.material.SetColor(Shader.PropertyToID(PropertyName), color);
         }
     }
 
+    protected void SetHighlight(bool highlight)
+    {
+        BasisHighlightManager.SetHighlight(RendererRef, highlight);
+    }
 
     private bool _triggerCleanup;
     // per-frame update, after IK transform

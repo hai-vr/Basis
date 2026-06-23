@@ -892,10 +892,6 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         {
             Destroy(HighlightClone);
         }
-        if (asyncOperationHighlightMat.IsValid())
-        {
-            asyncOperationHighlightMat.Release();
-        }
 
         if (flyCamera != null)
         {

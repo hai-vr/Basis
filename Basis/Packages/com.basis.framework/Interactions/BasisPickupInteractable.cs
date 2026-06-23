@@ -7,10 +7,9 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.InputSystem;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Collections;
+using Basis.Scripts.BasisSdk.Highlight;
 using Basis.Scripts.BasisSdk.Players;
 using Unity.Mathematics;
 
@@ -70,7 +69,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public float DesktopZoopMaxDistance = 2.0f;
 
         /// <summary>
-        /// If <see langword="true"/>, builds a simple mesh at <see cref="Start"/> to visualize/highlight the collider.
+        /// If <see langword="true"/>, builds a simple mesh at <see cref="Start"/> to visualize/highlight the collider
+        /// id there are no MeshRenderer children of this GameObject.
         /// </summary>
         [Tooltip("Generate a mesh on start to approximate the referenced collider")]
         public bool GenerateColliderMesh = true;
@@ -122,14 +122,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         internal GameObject HighlightClone;
 
         /// <summary>
-        /// Handle for the highlight material addressable operation.
+        /// Renderers to highlight when this object is hovered (if enabled).
+        /// It's populated from any MeshRenderers on the object, or <see cref="ColliderRef"/> no renderers are found.
         /// </summary>
-        internal AsyncOperationHandle<Material> asyncOperationHighlightMat;
-
-        /// <summary>
-        /// Loaded highlight material applied to <see cref="HighlightClone"/>.
-        /// </summary>
-        internal Material ColliderHighlightMat;
+        internal MeshRenderer[] HighlightRenderers;
 
         /// <summary>
         /// Stores the previous kinematic state when toggling during interaction.
@@ -322,33 +318,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             headPauseRequestName = $"{nameof(BasisPickupInteractable)}-{gameObject.GetEntityId()}";
 
-            AsyncOperationHandle<Material> op = Addressables.LoadAssetAsync<Material>(k_LoadMaterialAddress);
-            ColliderHighlightMat = op.WaitForCompletion();
-            asyncOperationHighlightMat = op;
+            // NOTE: Collider mesh highlight position and size is only updated on Start().
+            //       If runtime updates are required, handle them elsewhere or create a specialized interactable.
+            CalculateHighlightRenderers();
 
-            if (GenerateColliderMesh)
-            {
-                // NOTE: Collider mesh highlight position and size is only updated on Start().
-                //       If runtime updates are required, handle them elsewhere or create a specialized interactable.
-                Collider[] colliders = GetColliders();
-                if (colliders != null && colliders.Length > 0 && colliders[0] != null)
-                {
-                    HighlightClone = BasisColliderClone.CloneColliderMesh(colliders[0], k_CloneName);
-                }
-
-                if (HighlightClone != null)
-                {
-                    if (HighlightClone.TryGetComponent(out MeshRenderer meshRenderer))
-                    {
-                        meshRenderer.material = ColliderHighlightMat;
-                        BasisPickupHighlightColor.Register(meshRenderer);
-                    }
-                    else
-                    {
-                        BasisDebug.LogWarning("Pickup Interactable could not find MeshRenderer component on mesh clone. Highlights will be broken");
-                    }
-                }
-            }
             OnInteractStartEvent.AddListener(OnInteractionEventFired);
         }
 
@@ -388,14 +361,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="highlight">Whether to enable the highlight.</param>
         public void HighlightObject(bool highlight)
         {
-            Collider[] colliders = GetColliders();
-            if (colliders != null && colliders.Length > 0 && HighlightClone)
+            if (HighlightClone != null)
             {
                 HighlightClone.SetActive(highlight);
-                if (highlight && HighlightClone.TryGetComponent(out MeshRenderer meshRenderer))
-                {
-                    BasisPickupHighlightColor.ApplyTo(meshRenderer);
-                }
+            }
+
+            if (HighlightRenderers == null || HighlightRenderers.Length == 0)
+            {
+                return;
+            }
+
+            foreach (MeshRenderer r in HighlightRenderers)
+            {
+                BasisHighlightManager.SetHighlight(r, highlight);
             }
         }
 
@@ -483,8 +461,26 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                 }
                 OnHoverEndEvent?.Invoke(input, willInteract);
-                HighlightObject(false);
+                // Keep the highlight on while another input is still hovering this object.
+                if (!AnyOtherInputHovering(role))
+                {
+                    HighlightObject(false);
+                }
             }
+        }
+
+        /// <summary>
+        /// Returns whether any input other than <paramref name="excludeRole"/> is currently hovering this object.
+        /// Each role maps to a unique wrapper slot, so excluding by role safely ignores the calling input.
+        /// </summary>
+        private bool AnyOtherInputHovering(BasisBoneTrackedRole excludeRole)
+        {
+            return IsHoveringExcept(Inputs.desktopCenterEye)
+                || IsHoveringExcept(Inputs.leftHand)
+                || IsHoveringExcept(Inputs.rightHand);
+
+            bool IsHoveringExcept(BasisInputWrapper wrapper)
+                => wrapper.Role != excludeRole && wrapper.GetState() == BasisInteractInputState.Hovering;
         }
 
         /// <summary>
@@ -1105,15 +1101,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             OnInteractStartEvent.RemoveListener(OnInteractionEventFired);
 
-            if (HighlightClone != null && HighlightClone.TryGetComponent(out MeshRenderer highlightRenderer))
-            {
-                BasisPickupHighlightColor.Unregister(highlightRenderer);
-            }
             Destroy(HighlightClone);
-            if (asyncOperationHighlightMat.IsValid())
-            {
-                asyncOperationHighlightMat.Release();
-            }
             base.OnDestroy();
         }
 
@@ -1244,6 +1232,53 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
             }
             return Quaternion.Inverse(handRot) * (objectPos - bestPoint);
+        }
+
+        protected void CalculateHighlightRenderers()
+        {
+            HighlightObject(false);
+            if (HighlightClone != null)
+            {
+                DestroyImmediate(HighlightClone);
+            }
+
+            HighlightRenderers = this.GetComponentsInChildren<MeshRenderer>();
+
+            // If no MeshRenderer was found and GenerateColliderMesh is true
+            if (GenerateColliderMesh && (HighlightRenderers == null || HighlightRenderers.Length == 0))
+            {
+                Collider[] colliders = GetColliders();
+                if (colliders is { Length: > 0 })
+                {
+                    HighlightClone = new GameObject(k_CloneName);
+                    Transform parent = HighlightClone.transform;
+                    parent.SetParent(transform, false);
+                    foreach (Collider col in colliders)
+                    {
+                        if (col == null)
+                        {
+                            continue;
+                        }
+
+                        GameObject newClone = BasisColliderClone.CloneColliderMesh(col, col.name);
+                        newClone.SetActive(true);
+                        newClone.transform.SetParent(parent, true);
+                    }
+
+                    HighlightRenderers = HighlightClone.GetComponentsInChildren<MeshRenderer>();
+                    foreach (MeshRenderer r in HighlightRenderers)
+                    {
+                        r.enabled = false; // renderer does not be enabled for highlight feature
+                    }
+
+                    HighlightClone.SetActive(false);
+                }
+            }
+
+            if (HighlightRenderers == null || HighlightRenderers.Length == 0)
+            {
+                BasisDebug.LogWarning("Pickup Interactable could not find or generate any MeshRenderer components. Highlights will be broken");
+            }
         }
 
         /// <summary>

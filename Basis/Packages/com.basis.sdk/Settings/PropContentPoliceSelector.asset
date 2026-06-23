@@ -348,3 +348,4 @@ MonoBehaviour:
   - GatorDragonGames.JigglePhysics.JiggleRig
   - Basis.Shims.BasisOsc
   - UnityEngine.Video.VideoPlayer
+  - Basis.Scripts.BasisSdk.Highlight.BasisHighlightOverride

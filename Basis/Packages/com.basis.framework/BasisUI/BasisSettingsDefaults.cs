@@ -688,7 +688,7 @@ namespace Basis.BasisUI
         // ---------------- RAYCAST / INTERACTION VISUALS ----------------
         public static BasisSettingsBinding<float> RaycastLineWidth = new("raycastlinewidth", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<string> RaycastLineColor = new("raycastlinecolor", new BasisPlatformDefault<string>(""));
-        public static BasisSettingsBinding<string> PickupHighlightColor = new("pickuphighlightcolor", new BasisPlatformDefault<string>(""));
+        public static BasisSettingsBinding<string> HighlightColor = new("highlightcolor", new BasisPlatformDefault<string>(""));
         public static BasisSettingsBinding<string> PickupLineColor = new("pickuplinecolor", new BasisPlatformDefault<string>(""));
 
         // ---------------- GLOBAL ONE EURO PARAMS ----------------
@@ -1931,7 +1931,7 @@ namespace Basis.BasisUI
 
             RaycastLineWidth.LoadBindingValue();
             RaycastLineColor.LoadBindingValue();
-            PickupHighlightColor.LoadBindingValue();
+            HighlightColor.LoadBindingValue();
             PickupLineColor.LoadBindingValue();
 
             // Subscribers that read RawValue (Apply* in OnSettingsFinishedChanges)
