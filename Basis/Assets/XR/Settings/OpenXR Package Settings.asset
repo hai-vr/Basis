@@ -322,6 +322,30 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &-5613220336340229018
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9cc40e7c09aec94ca78bbcd76fc3508, type: 3}
+  m_Name: DebugUtilsFeature Android
+  m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.DebugUtilsFeature
+  m_enabled: 0
+  nameUi: Debug Utils
+  version: 1.0.0
+  featureIdInternal: com.unity.openxr.feature.debugutils
+  openxrExtensionStrings: XR_EXT_debug_utils
+  company: Unity
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  m_MessageSeverity: 4369
+  m_MessageType: 15
 --- !u!114 &-5498257424678846754
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -453,6 +477,30 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &-4043191770439387137
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9cc40e7c09aec94ca78bbcd76fc3508, type: 3}
+  m_Name: DebugUtilsFeature Standalone
+  m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.DebugUtilsFeature
+  m_enabled: 0
+  nameUi: Debug Utils
+  version: 1.0.0
+  featureIdInternal: com.unity.openxr.feature.debugutils
+  openxrExtensionStrings: XR_EXT_debug_utils
+  company: Unity
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  m_MessageSeverity: 4369
+  m_MessageType: 15
 --- !u!114 &-3961707536527538385
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -963,8 +1011,8 @@ MonoBehaviour:
     enabled: 1
   forceRemoveInternetPermission: 0
   m_symmetricProjection: 1
-  m_foveatedRenderingApi: 0
   systemSplashScreen: {fileID: 2800000, guid: 93f0d4f9be07b5e4094ac46f24473eb1, type: 3}
+  enableSystemKeyboard: 0
   m_optimizeBufferDiscards: 1
   lateLatchingMode: 1
   lateLatchingDebug: 0
@@ -1133,9 +1181,12 @@ MonoBehaviour:
   m_Name: Android
   m_EditorClassIdentifier: 
   features:
+  - {fileID: 1120460199709570795}
+  - {fileID: 6814664173189161179}
   - {fileID: -6839859109901797412}
   - {fileID: 6719199143533333913}
   - {fileID: -5306176883744656445}
+  - {fileID: -5613220336340229018}
   - {fileID: -3753664232341013626}
   - {fileID: 5806727535284400695}
   - {fileID: -2018307807013111431}
@@ -1299,13 +1350,14 @@ MonoBehaviour:
   m_enabled: 1
   nameUi: Hand Tracking Subsystem
   version: 0.0.1
-  featureIdInternal: com.unity.openxr.feature.input.handtracking
+  featureIdInternal: com.unity.openxr.feature.input.handtrackingsubsystem
   openxrExtensionStrings: XR_EXT_hand_tracking
   company: Unity
   priority: -100
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+  m_AutoStartSubsystem: 1
 --- !u!114 &1037941242733295319
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1358,6 +1410,28 @@ MonoBehaviour:
   hasReferenceSpaceStage: 0
   hasLeftHandTracker: 0
   hasRightHandTracker: 0
+--- !u!114 &1120460199709570795
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f06e90513f934dc6891726a9f2a0444, type: 3}
+  m_Name: AndroidMouseInteractionProfile Android
+  m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.Interactions.AndroidMouseInteractionProfile
+  m_enabled: 0
+  nameUi: Android Mouse Interaction Profile
+  version: 0.0.1
+  featureIdInternal: com.unity.openxr.feature.input.androidmouse
+  openxrExtensionStrings: XR_ANDROID_mouse_interaction
+  company: Unity
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
 --- !u!114 &1127469691786299825
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1452,13 +1526,14 @@ MonoBehaviour:
   m_enabled: 1
   nameUi: Hand Tracking Subsystem
   version: 0.0.1
-  featureIdInternal: com.unity.openxr.feature.input.handtracking
+  featureIdInternal: com.unity.openxr.feature.input.handtrackingsubsystem
   openxrExtensionStrings: XR_EXT_hand_tracking
   company: Unity
   priority: -100
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+  m_AutoStartSubsystem: 1
 --- !u!114 &2146913422818440268
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1666,6 +1741,30 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &3564320416034451987
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee92377a8e0c873458b71a94a80f3394, type: 3}
+  m_Name: ApiLayersFeature Standalone
+  m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.ApiLayersFeature
+  m_enabled: 0
+  nameUi: API Layers
+  version: 1.0.0
+  featureIdInternal: com.unity.openxr.feature.apilayers
+  openxrExtensionStrings: 
+  company: Unity
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  m_ApiLayers:
+    m_Collection: []
 --- !u!114 &3638064989573135324
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1789,7 +1888,9 @@ MonoBehaviour:
   m_Name: Standalone
   m_EditorClassIdentifier: 
   features:
+  - {fileID: 3564320416034451987}
   - {fileID: -4823766194161132787}
+  - {fileID: -4043191770439387137}
   - {fileID: 1818262454267888816}
   - {fileID: 2776206606949624213}
   - {fileID: -2656986249713310751}
@@ -2270,6 +2371,30 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &6814664173189161179
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee92377a8e0c873458b71a94a80f3394, type: 3}
+  m_Name: ApiLayersFeature Android
+  m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.ApiLayersFeature
+  m_enabled: 0
+  nameUi: API Layers
+  version: 1.0.0
+  featureIdInternal: com.unity.openxr.feature.apilayers
+  openxrExtensionStrings: 
+  company: Unity
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  m_ApiLayers:
+    m_Collection: []
 --- !u!114 &7214262051846087116
 MonoBehaviour:
   m_ObjectHideFlags: 0

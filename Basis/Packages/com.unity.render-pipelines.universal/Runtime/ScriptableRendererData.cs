@@ -39,7 +39,6 @@ namespace UnityEngine.Rendering.Universal
 
         [SerializeField] internal List<ScriptableRendererFeature> m_RendererFeatures = new List<ScriptableRendererFeature>(10);
         [SerializeField] internal List<long> m_RendererFeatureMap = new List<long>(10);
-        [SerializeField] bool m_UseNativeRenderPass = false;
         [NonSerialized]
         bool m_StripShadowsOffVariants = false;
         [NonSerialized]
@@ -79,8 +78,34 @@ namespace UnityEngine.Rendering.Universal
             // when ScriptableRendererFeatures haven't been compiled before this check).
             if (!EditorApplication.isCompiling && m_RendererFeatures.Contains(null))
                 ValidateRendererFeatures();
+
+            MigrateRendererFeatureHideFlags();
 #endif
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Migrates renderer features to use HideInHierarchy flag so they don't appear in the project browser.
+        /// </summary>
+        void MigrateRendererFeatureHideFlags()
+        {
+            if (AssetDatabase.IsAssetImportWorkerProcess())
+                return;
+            bool dirty = false;
+            foreach (var feature in m_RendererFeatures)
+            {
+                if (feature != null && (feature.hideFlags & HideFlags.HideInHierarchy) == 0)
+                {
+                    feature.hideFlags |= HideFlags.HideInHierarchy;
+                    EditorUtility.SetDirty(feature);
+                    dirty = true;
+                }
+            }
+
+            if (dirty)
+                EditorUtility.SetDirty(this);
+        }
+#endif
 
         /// <summary>
         /// This function is called when the object becomes enabled and active.
@@ -88,19 +113,6 @@ namespace UnityEngine.Rendering.Universal
         protected virtual void OnEnable()
         {
             SetDirty();
-        }
-
-        /// <summary>
-        /// Specifies whether the renderer should use Native Render Pass.
-        /// </summary>
-        public bool useNativeRenderPass
-        {
-            get => m_UseNativeRenderPass;
-            set
-            {
-                SetDirty();
-                m_UseNativeRenderPass = value;
-            }
         }
 
         /// <summary>
@@ -136,6 +148,15 @@ namespace UnityEngine.Rendering.Universal
 
         internal bool ValidateRendererFeatures()
         {
+            if (AssetDatabase.IsAssetImportWorkerProcess())
+            {
+                // UUM-125400 Asset Import Worker Process encounters a race condition when it tries to validate
+                // RendererFeatures. If we're coming from the AssetImportWorkerProcess, exit early and return
+                // true because it's safe to assume that (1) the features are validated by another process and
+                // (2) it shouldn't be the Asset Import Worker's job to validate RendererFeatures.
+                return true;
+            }
+
             // Get all Subassets
             var subassets = AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(this));
             var linkedIds = new List<long>();

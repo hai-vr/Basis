@@ -6,7 +6,7 @@ namespace UnityEngine.Rendering.Universal
 {
     internal sealed class UpscalerPostProcessPass : PostProcessPass
     {
-        public const string k_UpscaledColorTargetName = "_CameraColorUpscaled";
+        public const string k_UpscaledColorTargetName = "CameraColorUpscaled";
         Texture2D[] m_BlueNoise16LTex;
         bool m_IsValid;
 
@@ -30,10 +30,15 @@ namespace UnityEngine.Rendering.Universal
             if (!m_IsValid)
                 return;
 
-            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
             UniversalPostProcessingData postProcessingData = frameData.Get<UniversalPostProcessingData>();
+            if (postProcessingData.activeUpscaler == null)
+                return;
 
+            UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
+            if (cameraData.imageScalingMode != ImageScalingMode.Upscaling)
+                return;
+
+            UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
             var sourceTexture = resourceData.cameraColor;
             var srcDesc = sourceTexture.GetDescriptor(renderGraph);
 
@@ -64,7 +69,8 @@ namespace UnityEngine.Rendering.Universal
                 motionData = additionalCameraData.motionVectorsPersistentData;
                 Debug.Assert(motionData != null);
             }
-            io.cameraInstanceID = cameraData.camera.GetEntityId();
+
+            io.cameraInstanceID = EntityId.ToULong(cameraData.camera.GetEntityId());
             io.nearClipPlane = cameraData.camera.nearClipPlane;
             io.farClipPlane = cameraData.camera.farClipPlane;
             io.fieldOfViewDegrees = cameraData.camera.fieldOfView;

@@ -14,7 +14,6 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent shadowSettingsText = EditorGUIUtility.TrTextContent("Shadows", "Settings that configure how shadows look and behave, and can be used to balance between the visual quality and performance of shadows.");
             public static GUIContent postProcessingSettingsText = EditorGUIUtility.TrTextContent("Post-processing", "Settings that allow for fine tuning of post-processing effects in the Scene when this Render Pipeline Asset is in use.");
             public static GUIContent volumeSettingsText = EditorGUIUtility.TrTextContent("Volumes", "Settings related to usage of Volume Components.");
-            public static GUIContent advancedSettingsText = EditorGUIUtility.TrTextContent("Advanced");
             public static GUIContent adaptivePerformanceText = EditorGUIUtility.TrTextContent("Adaptive Performance");
 
             // Rendering
@@ -22,8 +21,6 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent rendererDefaultText = EditorGUIUtility.TrTextContent("Default", "This renderer is currently the default for the render pipeline.");
             public static GUIContent rendererSetDefaultText = EditorGUIUtility.TrTextContent("Set Default", "Makes this renderer the default for the render pipeline.");
             public static GUIContent rendererSettingsText = EditorGUIUtility.TrIconContent("_Menu", "Opens settings for this renderer.");
-            public static GUIContent rendererMissingText = EditorGUIUtility.TrIconContent("console.warnicon.sml", "Renderer missing. Click this to select a new renderer.");
-            public static GUIContent rendererDefaultMissingText = EditorGUIUtility.TrIconContent("console.erroricon.sml", "Default renderer missing. Click this to select a new renderer.");
             public static GUIContent requireDepthTextureText = EditorGUIUtility.TrTextContent("Depth Texture", "If enabled the pipeline will generate camera's depth that can be bound in shaders as _CameraDepthTexture.");
             public static GUIContent requireOpaqueTextureText = EditorGUIUtility.TrTextContent("Opaque Texture", "If enabled the pipeline will copy the screen to texture after opaque objects are drawn. For transparent objects this can be bound in shaders as _CameraOpaqueTexture.");
             public static GUIContent opaqueDownsamplingText = EditorGUIUtility.TrTextContent("Opaque Downsampling", "The downsampling method that is used for the opaque texture");
@@ -31,6 +28,7 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent srpBatcher = EditorGUIUtility.TrTextContent("SRP Batcher", "If enabled, the render pipeline uses the SRP batcher.");
             public static GUIContent storeActionsOptimizationText = EditorGUIUtility.TrTextContent("Store Actions", "Sets the store actions policy on tile based GPUs. Affects render targets memory usage and will impact performance.");
             public static GUIContent dynamicBatching = EditorGUIUtility.TrTextContent("Dynamic Batching", "If enabled, the render pipeline will batch drawcalls with few triangles together by copying their vertex buffers into a shared buffer on a per-frame basis.");
+            public static readonly string warningDynamicBatching = "Dynamic Batching is deprecated and will be removed in a future release. Use SRP Batcher or GPU Instancing instead.";
 
             // Quality
             public static GUIContent hdrText = EditorGUIUtility.TrTextContent("HDR", "Controls the global HDR settings.");
@@ -43,7 +41,6 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent enableLODCrossFadeText = EditorGUIUtility.TrTextContent("LOD Cross Fade", "Controls whether LOD Cross Fade enabled or disabled.");
             public static GUIContent lodCrossFadeDitheringTypeText = EditorGUIUtility.TrTextContent("LOD Cross Fade Dithering Type", "Controls the LOD Cross Fade Dithering Type that will be used to draw Renderer LOD when LODGroup has CrossFade Fade Mode selected.");
             public static GUIContent shEvalModeText = EditorGUIUtility.TrTextContent("SH Evaluation Mode", "Defines the Spherical Harmonic (SH) lighting evaluation type (per vertex, per pixel, or mixed).");
-            public static readonly string stpRequiresRenderGraph = "STP is selected but Render Graph is not enabled. STP requires Render Graph in order to function. Unity will fall back to the Automatic option.";
             public static readonly string stpMobilePlatformWarning = "STP is selected for use on a mobile platform. STP is only supported on modern compute-capable hardware and its performance overhead may make it impractical on lower-end devices.";
 
             // Main light
@@ -55,8 +52,8 @@ namespace UnityEditor.Rendering.Universal
             public static readonly GUIContent lightProbeSystemContent = EditorGUIUtility.TrTextContent("Light Probe System", "What system to use for Light Probes.");
             public static readonly GUIContent probeVolumeMemoryBudget = EditorGUIUtility.TrTextContent("Memory Budget", "Determines the width and height of the 3D textures used to store lighting data from probes. Depth is fixed.");
             public static readonly GUIContent probeVolumeBlendingMemoryBudget = EditorGUIUtility.TrTextContent("Blending Memory Budget", "Determines the width and height of the 3D textures used to store light scenario blending data from probes. Depth is fixed.");
-            public static readonly GUIContent supportProbeVolumeGPUStreaming = EditorGUIUtility.TrTextContent("Enable GPU Streaming", "Enable steaming of Cells for Adaptive Probe Volumes.");
-            public static readonly GUIContent supportProbeVolumeDiskStreaming = EditorGUIUtility.TrTextContent("Enable Disk Streaming", "Enable steaming of Cells from disk for Adaptive Probe Volumes.");
+            public static readonly GUIContent supportProbeVolumeGPUStreaming = EditorGUIUtility.TrTextContent("Enable GPU Streaming", "Enable streaming of Cells for Adaptive Probe Volumes.");
+            public static readonly GUIContent supportProbeVolumeDiskStreaming = EditorGUIUtility.TrTextContent("Enable Disk Streaming", "Enable streaming of Cells from disk for Adaptive Probe Volumes.");
             public static readonly GUIContent supportProbeVolumeScenarios = EditorGUIUtility.TrTextContent("Enable Lighting Scenarios", "Enable Lighting Scenario Baking for Adaptive Probe Volumes.");
             public static readonly GUIContent supportProbeVolumeScenarioBlending = EditorGUIUtility.TrTextContent("Enable Lighting Scenario Blending", "Enable Lighting Scenario Blending for Adaptive Probe Volumes.\nNote: Lighting Scenario Blending requires Compute Shader support.");
             public static readonly GUIContent probeVolumeSHBands = EditorGUIUtility.TrTextContent("SH Bands", "The number of Spherical Harmonic bands used by Adaptive Probe Volumes to store lighting data. Choosing L2 provides better quality but with higher memory and runtime costs.");
@@ -69,9 +66,9 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent additionalLightsShadowResolutionTiers = EditorGUIUtility.TrTextContent("Shadow Resolution Tiers", $"Additional Lights Shadow Resolution Tiers. Rounded to the next power of two, and clamped to be at least {UniversalAdditionalLightData.AdditionalLightsShadowMinimumResolution}.");
             public static GUIContent[] additionalLightsShadowResolutionTierNames =
             {
-                new GUIContent("Low"),
-                new GUIContent("Medium"),
-                new GUIContent("High")
+                new("Low"),
+                new("Medium"),
+                new("High")
             };
             public static GUIContent additionalLightsCookieResolution = EditorGUIUtility.TrTextContent("Cookie Atlas Resolution", "All additional lights are packed into a single cookie atlas. This setting controls the atlas size.");
             public static GUIContent additionalLightsCookieFormat = EditorGUIUtility.TrTextContent("Cookie Atlas Format", "All additional lights are packed into a single cookie atlas. This setting controls the atlas format.");
@@ -149,17 +146,20 @@ namespace UnityEditor.Rendering.Universal
                 EditorGUIUtility.TrTextContent("\"BatchRendererGroup Variants\" setting must be \"Keep All\". To fix, modify Graphics settings and set \"BatchRendererGroup Variants\" to \"Keep All\".");
             public static GUIContent staticBatchingInfoMessage =
                 EditorGUIUtility.TrTextContent("Static Batching is not recommended when using GPU draw submission modes, performance may improve if Static Batching is disabled in Player Settings.");
-            public static GUIContent lightModeErrorMessage =
-                EditorGUIUtility.TrTextContent("Rendering Path must be set to Forward+ or Deferred+ for correct lighting and reflections. One or more entries in the RendererList are not set to this mode.");
+            public static readonly string lightModeErrorFormatter = L10n.Tr("Rendering Path must be set to Forward+ or Deferred+ for correct lighting and reflections. Renderers to change: {0}.");
             public static GUIContent renderGraphNotEnabledErrorMessage =
                 EditorGUIUtility.TrTextContent("Render Graph must be enabled to use occlusion culling.");
             public static GUIContent stencilLodCrossFadeWarningMessage =
                 EditorGUIUtility.TrTextContent("LOD Cross Fade with stencil dithering is not compatible with stencil override in Renderer.");
+            
+            public static readonly string formatterTileOnlyMode = L10n.Tr("'{0}' will be skipped because it is incompatible with the enabled 'Tile-Only Mode'. Affected renderers: {1}.");
+            public static readonly string tileOnlyModeMaybeMessage = L10n.Tr("'{0}' might be skipped when 'Tile-Only Mode' is enabled. Renderer Features can provide this functionality, so behavior can vary. Affected renderers: {1}.");
+            public static readonly string msaaTileOnlyInfo = L10n.Tr("'{0}' is supported in 'Tile-Only Mode'. However, in the Editor and on platforms where the back buffer does not support MSAA, URP forces MSAA to None to keep data in Tile Memory. Affected renderers: {1}.");
+            public static readonly string suffixWhenDifferentPositionTileOnlyMode = L10n.Tr(" (different position)");
 
             // Dropdown menu options
             public static string[] mainLightOptions = { "Disabled", "Per Pixel" };
             public static string[] volumeFrameworkUpdateOptions = { "Every Frame", "Via Scripting" };
-            public static string[] opaqueDownsamplingOptions = { "None", "2x (Bilinear)", "4x (Box)", "4x (Bilinear)" };
         }
     }
 }

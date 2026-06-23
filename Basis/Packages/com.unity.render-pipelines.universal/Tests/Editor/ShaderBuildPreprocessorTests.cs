@@ -215,7 +215,6 @@ namespace ShaderStrippingAndPrefiltering
 
                 rendererData.renderingMode = RenderingMode.Forward;
 
-                scriptableRenderer.useRenderPassEnabled = false;
                 scriptableRendererData.stripAdditionalLightOffVariants = true;
                 scriptableRendererData.stripShadowsOffVariants = true;
 
@@ -439,7 +438,6 @@ namespace ShaderStrippingAndPrefiltering
 
             // Native Render Pass
             m_TestHelper.rendererData.renderingMode = RenderingMode.Forward;
-            m_TestHelper.scriptableRenderer.useRenderPassEnabled = true;
             expected = m_TestHelper.defaultRendererRequirements;
             expected.renderingMode = m_TestHelper.rendererData.renderingMode;
             expected.needsRenderPass = false;
@@ -447,7 +445,6 @@ namespace ShaderStrippingAndPrefiltering
             m_TestHelper.AssertRendererRequirementsAndReset(expected, actual);
 
             m_TestHelper.rendererData.renderingMode = RenderingMode.ForwardPlus;
-            m_TestHelper.scriptableRenderer.useRenderPassEnabled = true;
             expected = m_TestHelper.defaultRendererRequirements;
             expected.renderingMode = m_TestHelper.rendererData.renderingMode;
             expected.needsRenderPass = false;
@@ -455,7 +452,6 @@ namespace ShaderStrippingAndPrefiltering
             m_TestHelper.AssertRendererRequirementsAndReset(expected, actual);
 
             m_TestHelper.rendererData.renderingMode = RenderingMode.Deferred;
-            m_TestHelper.scriptableRenderer.useRenderPassEnabled = true;
             expected = m_TestHelper.defaultRendererRequirements;
             expected.renderingMode = m_TestHelper.rendererData.renderingMode;
             expected.needsRenderPass = true;
@@ -840,7 +836,7 @@ namespace ShaderStrippingAndPrefiltering
             actual = m_TestHelper.GetSupportedShaderFeaturesFromRendererFeatures(rendererRequirements);
             expected = ShaderFeatures.ScreenSpaceOcclusion | ShaderFeatures.DecalScreenSpace |
                        ShaderFeatures.DecalNormalBlendLow | ShaderFeatures.DecalLayers |
-                       ShaderFeatures.DepthNormalPassRenderingLayers;
+                       ShaderFeatures.OpaqueWriteRenderingLayers;
             m_TestHelper.AssertShaderFeaturesAndReset(expected, actual);
 
             m_TestHelper.rendererFeatures.Remove(ssaoFeature);
@@ -920,9 +916,9 @@ namespace ShaderStrippingAndPrefiltering
 #if SURFACE_CACHE
         // Surface Cache Global Illumination...
         [Test]
-        public void TestGetSupportedShaderFeaturesFromRendererFeatures_SurfaceCacheGlobalIllumination()
+        public void TestGetSupportedShaderFeaturesFromRendererFeatures_SurfaceCacheGI()
         {
-            SurfaceCacheGlobalIlluminationRendererFeature surfaceCacheFeature = ScriptableObject.CreateInstance<SurfaceCacheGlobalIlluminationRendererFeature>();
+            SurfaceCacheGIRendererFeature surfaceCacheFeature = ScriptableObject.CreateInstance<SurfaceCacheGIRendererFeature>();
             m_TestHelper.rendererFeatures.Add(surfaceCacheFeature);
 
             // Enabled feature

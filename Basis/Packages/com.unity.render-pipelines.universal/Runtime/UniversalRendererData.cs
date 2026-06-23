@@ -154,6 +154,7 @@ namespace UnityEngine.Rendering.Universal
         bool m_AccurateGbufferNormals = false;
 
         [SerializeField] IntermediateTextureMode m_IntermediateTextureMode = IntermediateTextureMode.Always;
+        [SerializeField] bool m_TileOnlyMode = false;
 
         /// <inheritdoc/>
         protected override ScriptableRenderer Create()
@@ -343,6 +344,24 @@ namespace UnityEngine.Rendering.Universal
             {
                 SetDirty();
                 m_IntermediateTextureMode = value;
+            }
+        }
+
+        /// <summary>
+        /// Tile-Only Mode restricts render passes to avoid memory load/store of main camera targets, keeping them in on‑chip tile memory.
+        /// It activates additional RenderGaph validation. Some features may be disabled or fall back. See docs for details.
+        /// This is a potential GPU performance optimization on Tile-Based GPU architectures.
+        /// </summary>
+        public bool tileOnlyMode
+        {
+            get => m_TileOnlyMode;
+            set
+            {
+                if (m_TileOnlyMode == value)
+                    return;
+
+                SetDirty();
+                m_TileOnlyMode = value;
             }
         }
 

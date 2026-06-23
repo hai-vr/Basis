@@ -1,5 +1,4 @@
 using System;
-using UnityEngine.Scripting.APIUpdating;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -90,7 +89,7 @@ namespace UnityEngine.Rendering.Universal
         /// <returns></returns>
         internal virtual bool RequireRenderingLayers(bool isDeferred, bool needsGBufferAccurateNormals, out RenderingLayerUtils.Event atEvent, out RenderingLayerUtils.MaskSize maskSize)
         {
-            atEvent = RenderingLayerUtils.Event.DepthNormalPrePass;
+            atEvent = RenderingLayerUtils.Event.Opaque;
             maskSize = RenderingLayerUtils.MaskSize.Bits8;
             return false;
         }
@@ -123,5 +122,7 @@ namespace UnityEngine.Rendering.Universal
         protected virtual void Dispose(bool disposing)
         {
         }
+
+        internal ScriptableRenderer.RenderingFeatures supportedRenderingFeatures { get; set; } = new ScriptableRenderer.RenderingFeatures();
     }
 }

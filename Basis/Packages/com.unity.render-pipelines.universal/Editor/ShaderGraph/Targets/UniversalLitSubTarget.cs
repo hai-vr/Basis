@@ -119,7 +119,9 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             material.SetFloat(Property.QueueControl, (float)BaseShaderGUI.QueueControl.Auto);
 
             if (IsSpacewarpSupported())
+            {
                 material.SetFloat(Property.XrMotionVectorsPass, 1.0f);
+            }
 
             // call the full unlit material setup function
             ShaderGraphLitGUI.UpdateMaterial(material, MaterialUpdateType.CreatedNewMaterial);
@@ -201,7 +203,9 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
             collector.AddFloatProperty(Property.QueueControl, -1.0f);
 
             if (IsSpacewarpSupported())
+            {
                 collector.AddFloatProperty(Property.XrMotionVectorsPass, 1.0f);
+            }
         }
 
         public override void GetPropertiesGUI(ref TargetPropertyGUIContext context, Action onChange, Action<String> registerUndo)
@@ -418,7 +422,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 var result = new PassDescriptor()
                 {
                     // Definition
-                    displayName = "Universal Forward",
+                    displayName = "ForwardLit",
                     referenceName = "SHADERPASS_FORWARD",
                     lightMode = "UniversalForward",
                     useInPreview = true,
@@ -469,7 +473,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 var result = new PassDescriptor
                 {
                     // Definition
-                    displayName = "Universal Forward Only",
+                    displayName = "ForwardLit",
                     referenceName = "SHADERPASS_FORWARDONLY",
                     lightMode = "UniversalForwardOnly",
                     useInPreview = true,
@@ -937,6 +941,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGraph
                 { CoreIncludes.CorePostgraph },
                 { kGBuffer, IncludeLocation.Postgraph },
                 { kPBRGBufferPass, IncludeLocation.Postgraph },
+                { CoreIncludes.GBufferOutputFormat },
             };
 
             public static readonly IncludeCollection Meta = new IncludeCollection
