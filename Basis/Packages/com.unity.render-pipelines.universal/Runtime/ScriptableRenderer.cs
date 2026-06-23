@@ -57,6 +57,8 @@ namespace UnityEngine.Rendering.Universal
             internal static readonly ProfilingSampler setEditorTarget = new ProfilingSampler($"Set Editor Target");
         }
 
+        internal string name { get; set; } 
+
         /// <summary>
         /// This setting controls if the camera editor should display the camera stack category.
         /// If your scriptable renderer is not supporting stacking this one should return 0.
@@ -132,12 +134,23 @@ namespace UnityEngine.Rendering.Universal
             /// <seealso cref="CameraRenderType"/>
             /// <seealso cref="UniversalAdditionalCameraData.cameraStack"/>
             [Obsolete("cameraStacking has been deprecated use SupportedCameraRenderTypes() in ScriptableRenderer instead. #from(2022.2) #breakingFrom(2023.1)", true)]
-            public bool cameraStacking { get; set; } = false;
+            public bool cameraStacking { get; set; } = false;            
 
             /// <summary>
             /// This setting controls if the Universal Render Pipeline asset should expose the MSAA option.
             /// </summary>
             public bool msaa { get; set; } = true;
+
+            // Keeping these internal for now to validate the API. Once these would become public, carefully decide which setters should remain internal (with public getter).
+            internal bool overlayCamera { get; set; } = false;
+            internal bool supportsHDR { get; set; } = false;
+            internal bool postProcessing { get; set; } = false;
+            internal bool upscaling { get; set; } = false;
+            internal bool gpuOcclusionCulling { get; set; } = false;
+            internal bool antiAliasing { get; set; } = false;
+            internal bool cameraOpaqueTexture { get; set; } = false;
+            internal bool cameraDepthTexture { get; set; } = false;
+            internal bool deferredLighting { get; set; } = false;
         }
 
         /// <summary>
@@ -223,7 +236,9 @@ namespace UnityEngine.Rendering.Universal
                 cameraWidth = (float)cameraTargetSizeCopy.x;
                 cameraHeight = (float)cameraTargetSizeCopy.y;
 
-                useRenderPassEnabled = false;
+                // Multi-pass needs to set unity_StereoEyeIndex builtin param for skybox-panoramic.shader to work correctly (UUM-120719)
+                if (!cameraData.xr.singlePassEnabled)
+                    cmd.SetGlobalVector(XRBuiltinShaderConstants.unity_StereoEyeIndex, new Vector4(cameraData.xr.multipassId, 0, 0, 0));
             }
 
             if (camera.allowDynamicResolution)
@@ -237,7 +252,9 @@ namespace UnityEngine.Rendering.Universal
             float invNear = Mathf.Approximately(near, 0.0f) ? 0.0f : 1.0f / near;
             float invFar = Mathf.Approximately(far, 0.0f) ? 0.0f : 1.0f / far;
             float isOrthographic = camera.orthographic ? 1.0f : 0.0f;
-
+#if (UNITY_META_QUEST)
+            cmd.SetKeyword(ShaderGlobalKeywords.META_QUEST_ORTHO_PROJ, camera.orthographic);
+#endif
             // From http://www.humus.name/temp/Linearize%20depth.txt
             // But as depth component textures on OpenGL always return in 0..1 range (as in D3D), we have to use
             // the same constants for both D3D and OpenGL here.
@@ -430,6 +447,8 @@ namespace UnityEngine.Rendering.Universal
         /// <seealso cref="SupportedRenderingFeatures"/>
         public RenderingFeatures supportedRenderingFeatures { get; set; } = new RenderingFeatures();
 
+        internal virtual void UpdateSupportedRenderingFeatures() { }
+
         /// <summary>
         /// List of unsupported Graphics APIs for this renderer.The scriptable renderer framework will use the returned information
         /// to adjust things like inspectors, etc.
@@ -443,8 +462,6 @@ namespace UnityEngine.Rendering.Universal
         // The pipeline can only guarantee the camera target texture are valid when the pipeline is executing.
         // Trying to access the camera target before or after might be that the pipeline texture have already been disposed.
         bool m_IsPipelineExecuting = false;
-
-        internal bool useRenderPassEnabled = false;
 
         ContextContainer m_frameData = new();
         internal ContextContainer frameData => m_frameData;
@@ -481,7 +498,6 @@ namespace UnityEngine.Rendering.Universal
                 feature.Create();
                 m_RendererFeatures.Add(feature);
             }
-            useRenderPassEnabled = data.useNativeRenderPass;
             m_ActiveRenderPassQueue.Clear();
         }
 
@@ -641,7 +657,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        internal void SetupRenderGraphCameraProperties(RenderGraph renderGraph, TextureHandle target)
+        internal void SetupRenderGraphCameraProperties(RenderGraph renderGraph, in TextureHandle target)
         {
             using (var builder = renderGraph.AddRasterRenderPass<PassData>(Profiling.setupCamera.name, out var passData,
                 Profiling.setupCamera))
@@ -707,7 +723,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="depth"></param>
         /// <param name="gizmoSubset"></param>
         /// <param name="renderingData"></param>
-        internal void DrawRenderGraphGizmos(RenderGraph renderGraph, ContextContainer frameData, TextureHandle color, TextureHandle depth, GizmoSubset gizmoSubset)
+        internal void DrawRenderGraphGizmos(RenderGraph renderGraph, ContextContainer frameData, in TextureHandle color, in TextureHandle depth, GizmoSubset gizmoSubset)
         {
 #if UNITY_EDITOR
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
@@ -746,7 +762,7 @@ namespace UnityEngine.Rendering.Universal
             public RendererListHandle wireOverlayList;
         };
 
-        internal void DrawRenderGraphWireOverlay(RenderGraph renderGraph, ContextContainer frameData, TextureHandle color)
+        internal void DrawRenderGraphWireOverlay(RenderGraph renderGraph, ContextContainer frameData, in TextureHandle color)
         {
 #if UNITY_EDITOR
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
@@ -1174,23 +1190,31 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        private protected int AdjustAndGetScreenMSAASamples(RenderGraph renderGraph, bool useIntermediateColorTarget)
+        private protected int AdjustAndGetScreenMSAASamples(RenderGraph renderGraph, bool intermediateTexturesAreSampledAsTextures)
         {
             // In the editor (ConfigureTargetTexture in PlayModeView.cs) and many platforms, the system render target is always allocated without MSAA
             if (!SystemInfo.supportsMultisampledBackBuffer) return 1;
 
+            
             // For mobile platforms, when URP main rendering is done to an intermediate target and NRP enabled
             // we disable multisampling for the system render target as a bandwidth optimization
             // doing so, we avoid storing costly MSAA samples back to system memory for nothing
             bool canOptimizeScreenMSAASamples = UniversalRenderPipeline.canOptimizeScreenMSAASamples
-                                                && useIntermediateColorTarget
-                                                && renderGraph.nativeRenderPassesEnabled
+                                                && intermediateTexturesAreSampledAsTextures
                                                 && Screen.msaaSamples > 1;
+
+            // We need to fix an issue where the MSAA samples are never set back to the Quality setting.
+            // The MSAA samples only seem to be set when the URP asset is changed. The optimization
+            // in this function seems fragile, because different renderers can be used, even
+            // in a single frame. If we change a renderer from rendering to the backbuffer (or on-tile),
+            // to a renderer that renders to the intermediate textures then they render without MSAA,
+            // without the user knowing. This is a functional/visual bug.
+            // https://jira.unity3d.com/browse/UUM-134600
 
             if (canOptimizeScreenMSAASamples)
             {
                 Screen.SetMSAASamples(1);
-            }
+            }            
 
             // iOS and macOS corner case
             bool screenAPIHasOneFrameDelay = (Application.platform == RuntimePlatform.OSXPlayer || Application.platform == RuntimePlatform.IPhonePlayer);

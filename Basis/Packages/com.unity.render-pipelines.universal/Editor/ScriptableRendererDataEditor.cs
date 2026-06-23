@@ -51,11 +51,19 @@ namespace UnityEditor.Rendering.Universal
 
         private void OnEnable()
         {
-            m_RendererFeatures = serializedObject.FindProperty(nameof(ScriptableRendererData.m_RendererFeatures));
-            m_RendererFeaturesMap = serializedObject.FindProperty(nameof(ScriptableRendererData.m_RendererFeatureMap));
+            InitializeIfNeeded();
             var editorObj = new SerializedObject(this);
             m_FalseBool = editorObj.FindProperty(nameof(falseBool));
             UpdateEditorList();
+        }
+
+        void InitializeIfNeeded()
+        {
+            if (m_RendererFeatures == null)
+                m_RendererFeatures = serializedObject.FindProperty(nameof(ScriptableRendererData.m_RendererFeatures));
+
+            if (m_RendererFeaturesMap == null)
+                m_RendererFeaturesMap = serializedObject.FindProperty(nameof(ScriptableRendererData.m_RendererFeatureMap));
         }
 
         private void OnDisable()
@@ -102,9 +110,7 @@ namespace UnityEditor.Rendering.Universal
             {
                 if (GUILayout.Button("Add Renderer Feature", EditorStyles.miniButton))
                 {
-                    var r = hscope.rect;
-                    var pos = new Vector2(r.x + r.width / 2f, r.yMax + 18f);
-                    FilterWindow.Show(pos, new ScriptableRendererFeatureProvider(this));
+                    FilterWindow.Show(hscope.rect, new ScriptableRendererFeatureProvider(this));
                 }
             }
         }
@@ -196,7 +202,13 @@ namespace UnityEditor.Rendering.Universal
                     }
 
                     EditorGUI.BeginChangeCheck();
+                    if (rendererFeatureEditor is IOwningRendererDataConsumer consumer)
+                    {
+                        consumer.owningRendererData = target as ScriptableRendererData;                        
+                    }
+                   
                     rendererFeatureEditor.OnInspectorGUI();
+                    
                     hasChangedProperties |= EditorGUI.EndChangeCheck();
 
                     EditorGUILayout.Space(EditorGUIUtility.singleLineHeight);
@@ -257,10 +269,13 @@ namespace UnityEditor.Rendering.Universal
 
         internal void AddComponent(Type type)
         {
+            InitializeIfNeeded();
+
             serializedObject.Update();
 
             ScriptableObject component = CreateInstance(type);
             component.name = $"{type.Name}";
+            component.hideFlags |= HideFlags.HideInHierarchy;
             Undo.RegisterCreatedObjectUndo(component, "Add Renderer Feature");
 
             // Store this new effect as a sub-asset so we can reference it safely afterwards
@@ -293,6 +308,8 @@ namespace UnityEditor.Rendering.Universal
 
         private void RemoveComponent(int id)
         {
+            InitializeIfNeeded();
+
             SerializedProperty property = m_RendererFeatures.GetArrayElementAtIndex(id);
             Object component = property.objectReferenceValue;
             property.objectReferenceValue = null;
@@ -362,5 +379,14 @@ namespace UnityEditor.Rendering.Universal
         {
             EditorUtility.SetDirty(target);
         }
+    }
+
+    /// <summary>
+    /// Implement this interface on a custom Editor for a ScriptableRendererFeature to receive the renderer data that owns the feature when the inspector is drawn.
+    /// </summary>
+    internal interface IOwningRendererDataConsumer
+    {
+        /// <summary>The renderer data that contains this feature. Set by the drawer before OnInspectorGUI, cleared after.</summary>
+        public ScriptableRendererData owningRendererData { get; set; }
     }
 }

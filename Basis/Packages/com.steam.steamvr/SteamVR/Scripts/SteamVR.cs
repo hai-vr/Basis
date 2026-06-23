@@ -125,7 +125,7 @@ namespace Valve.VR
 
         public static bool usingNativeSupport
         {
-            get { return XRDevice.GetNativePtr() != System.IntPtr.Zero; }
+            get { return !string.IsNullOrEmpty(XRSettings.loadedDeviceName); }
         }
 
         public static SteamVR_Settings settings { get; private set; }

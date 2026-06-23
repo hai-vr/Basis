@@ -110,7 +110,7 @@ public static class BasisShaderPrewarm
             Array.Sort(keywords, StringComparer.Ordinal);
         }
 
-        MaterialKey key = new MaterialKey(shader.GetInstanceID(), JoinKeywords(keywords));
+        MaterialKey key = new MaterialKey(shader.GetEntityId(), JoinKeywords(keywords));
         if (!seen.Add(key))
         {
             return;
@@ -194,15 +194,15 @@ public static class BasisShaderPrewarm
 
     private readonly struct MaterialKey : IEquatable<MaterialKey>
     {
-        private readonly int shaderId;
+        private readonly EntityId shaderId;
         private readonly string keywords;
-        public MaterialKey(int shaderId, string keywords)
+        public MaterialKey(EntityId shaderId, string keywords)
         {
             this.shaderId = shaderId;
             this.keywords = keywords;
         }
         public bool Equals(MaterialKey other) => shaderId == other.shaderId && keywords == other.keywords;
         public override bool Equals(object obj) => obj is MaterialKey k && Equals(k);
-        public override int GetHashCode() => (shaderId * 397) ^ (keywords != null ? keywords.GetHashCode() : 0);
+        public override int GetHashCode() => (shaderId.GetHashCode() * 397) ^ (keywords != null ? keywords.GetHashCode() : 0);
     }
 }

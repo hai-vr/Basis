@@ -23,6 +23,8 @@ namespace Cilbox
 			"UnityEngine.Rendering.AsyncGPUReadback",
 			"UnityEngine.Rendering.AsyncGPUReadbackRequest",
 			"Unity.Collections.NativeArray*",
+			// VRSL DMX BasisMediaPlayer bridge (zero-copy OutputTexture -> DMX grid)
+			"BasisMediaPlayer",
 
 			// Scene-specific Basis types
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton",
@@ -228,6 +230,15 @@ namespace Cilbox
 			// VRSL DMX GPU readback surface (mirrors CilboxPropBasis).
 			{ typeof(UnityEngine.Graphics), new HashSet<string>{ "Blit" } },
 			{ typeof(UnityEngine.Rendering.AsyncGPUReadback), new HashSet<string>{ "Request" } },
+			// BasisMediaPlayer: read-only video output access only. Blocks LoadUrl/LoadLocalPath/
+			// LoadSource/Play/Stop/Seek/CaptureScreenshot so sandboxed scenes can't load arbitrary
+			// media (bypassing the VideoPlayerShim URL trust prompt) or write screenshots to disk.
+			// OutputFrameIsTopLeftOrigin is the per-client orientation flag DMX/video sinks XOR
+			// into their flip so the grid isn't upside-down on GPUs that can't normalize it.
+			{ typeof(BasisMediaPlayer), new HashSet<string>{
+				$"get_{nameof(BasisMediaPlayer.OutputTexture)}",
+				$"get_{nameof(BasisMediaPlayer.OutputFrameIsTopLeftOrigin)}",
+				} },
 			// Restrict BasisDeviceManagement to the single mode query the menu uses.
 			{ typeof(Basis.Scripts.Device_Management.BasisDeviceManagement), new HashSet<string>{ "IsCurrentModeVR" } },
 			// BasisLocalCameraDriver: only the static CameraInstance field is needed (whitelisted above); block all methods.
