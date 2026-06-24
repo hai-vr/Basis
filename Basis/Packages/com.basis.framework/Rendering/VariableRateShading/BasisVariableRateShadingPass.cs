@@ -26,8 +26,6 @@ namespace Basis.Scripts.Rendering
 
         private readonly Material _maskMaterial;
 
-        private float _innerRadius;
-        private float _outerRadius;
         private float _gazeProjectDistance;
         private bool _yFlip;
 
@@ -37,10 +35,8 @@ namespace Basis.Scripts.Rendering
             profilingSampler = new ProfilingSampler("BasisVariableRateShading");
         }
 
-        public void Configure(float innerRadius, float outerRadius, float gazeProjectDistance, bool yFlip)
+        public void Configure(float gazeProjectDistance, bool yFlip)
         {
-            _innerRadius = innerRadius;
-            _outerRadius = outerRadius;
             _gazeProjectDistance = gazeProjectDistance;
             _yFlip = yFlip;
         }
@@ -90,6 +86,8 @@ namespace Basis.Scripts.Rendering
 
             Vector2 center = ComputeFovealCenter();
             float aspect = (float)camDesc.width / Mathf.Max(1, camDesc.height);
+            float innerRadius = BasisSettingsDefaults.VrsFovealInnerRadius.RawValue;
+            float outerRadius = BasisSettingsDefaults.VrsFovealOuterRadius.RawValue;
 
             RenderTextureDescriptor maskDesc = new RenderTextureDescriptor(tiles.x, tiles.y, GraphicsFormat.R8G8B8A8_UNorm, GraphicsFormat.None, 0)
             {
@@ -115,7 +113,7 @@ namespace Basis.Scripts.Rendering
             {
                 data.material = _maskMaterial;
                 data.source = renderGraph.defaultResources.blackTexture;
-                data.center = new Vector4(center.x, center.y, _innerRadius, _outerRadius);
+                data.center = new Vector4(center.x, center.y, innerRadius, outerRadius);
                 data.aspect = aspect;
 
                 builder.UseTexture(data.source, AccessFlags.Read);

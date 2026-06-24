@@ -62,6 +62,11 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
 
         RenderScale = option;
 
+        if (BasisDeviceManagement.IsCurrentModeVR())
+        {
+            return;
+        }
+
         UniversalRenderPipelineAsset asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
 
 #if UNITY_SERVER
@@ -81,6 +86,8 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
     private void HandleFoveatedRendering(float value)
     {
         foveatedRenderingLevel = value;
+
+#if UNITY_ANDROID
         BasisDebug.Log($"changing Foveated To {value}", BasisDebug.LogTag.Video);
 
         SubsystemManager.GetSubsystems<XRDisplaySubsystem>(xrDisplays);
@@ -117,6 +124,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
         xrDisplaySubsystem.foveatedRenderingLevel = value;
 
         BasisDebug.Log($"foveatedRenderingLevel was set to {value}");
+#endif
     }
 }
 

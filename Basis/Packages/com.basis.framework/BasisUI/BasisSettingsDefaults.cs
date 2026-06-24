@@ -255,6 +255,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevVariableRateShading = new("devvariablerateshading", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevVariableRateShadingDesktop = new("devvariablerateshadingdesktop", new BasisPlatformDefault<bool>(false));
 
+        public const float VRS_RADIUS_MIN = 0f;
+        public const float VRS_RADIUS_MAX = 1f;
+        public static BasisSettingsBinding<float> VrsFovealInnerRadius = new("vrsfovealinner", new BasisPlatformDefault<float>(0.16f));
+        public static BasisSettingsBinding<float> VrsFovealOuterRadius = new("vrsfovealouter", new BasisPlatformDefault<float>(0.5f));
+
         // Master gizmo gate. When off, every gizmo sub-toggle below is inert and
         // BasisGizmoManager tears down its parent + cached gizmo dictionaries.
         public static BasisSettingsBinding<bool> ShowGizmos = new("showgizmos", new BasisPlatformDefault<bool>(false));
@@ -1470,6 +1475,8 @@ namespace Basis.BasisUI
             Antialiasing.LoadBindingValue();
             DevVariableRateShading.LoadBindingValue();
             DevVariableRateShadingDesktop.LoadBindingValue();
+            VrsFovealInnerRadius.LoadBindingValue();
+            VrsFovealOuterRadius.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
             BloomIntensity.LoadBindingValue();
             UseVolumetricFogOverride.LoadBindingValue();

@@ -6067,20 +6067,40 @@
       "value": "Variable Rate Shading"
     },
     {
-      "key": "settings.developer.vrs",
-      "value": "Gaze Foveated Shading (VR)"
-    },
-    {
-      "key": "settings.developer.vrs.tooltip",
-      "value": "Experimental. In VR, lowers shading rate in the periphery and follows your eye-tracking gaze to keep the center sharp. Requires DirectX 12 and VRS-capable hardware; no effect otherwise."
-    },
-    {
       "key": "settings.developer.vrs.desktop",
       "value": "Desktop Variable Rate Shading"
     },
     {
       "key": "settings.developer.vrs.desktop.tooltip",
       "value": "Experimental. Applies variable rate shading in flatscreen (non-VR) mode, following gaze when eye tracking is available and otherwise keeping the screen center sharp. Requires DirectX 12 and VRS-capable hardware."
+    },
+    {
+      "key": "settings.graphics.vrs.title",
+      "value": "Variable Rate Shading"
+    },
+    {
+      "key": "settings.graphics.vrs",
+      "value": "Gaze Foveated Shading (VR)"
+    },
+    {
+      "key": "settings.graphics.vrs.tooltip",
+      "value": "Lowers shading rate in your peripheral vision and follows your eye-tracking gaze to keep the center sharp, improving GPU performance in VR. Requires DirectX 12 and VRS-capable hardware."
+    },
+    {
+      "key": "settings.graphics.vrs.inner",
+      "value": "Sharp Center Size"
+    },
+    {
+      "key": "settings.graphics.vrs.inner.tooltip",
+      "value": "Size of the full-resolution region centered on your gaze. Everything inside it renders at full shading rate."
+    },
+    {
+      "key": "settings.graphics.vrs.outer",
+      "value": "Periphery Start"
+    },
+    {
+      "key": "settings.graphics.vrs.outer.tooltip",
+      "value": "Where the lowest shading rate (4x4) begins. Between the sharp center and this point renders at half rate (2x2); beyond it renders at quarter rate."
     },
     {
       "key": "settings.developer.gizmos.title",

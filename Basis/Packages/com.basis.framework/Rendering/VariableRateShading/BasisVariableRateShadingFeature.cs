@@ -15,8 +15,6 @@ namespace Basis.Scripts.Rendering
     public class BasisVariableRateShadingFeature : ScriptableRendererFeature
     {
         [SerializeField] private Shader maskShader;
-        [SerializeField, Range(0.02f, 0.5f)] private float innerRadius = 0.16f;
-        [SerializeField, Range(0.1f, 1.2f)] private float outerRadius = 0.5f;
         [SerializeField] private float gazeProjectDistance = 3f;
         [SerializeField] private bool yFlip = true;
         [SerializeField] private bool debugVisualize;
@@ -38,7 +36,7 @@ namespace Basis.Scripts.Rendering
             {
                 renderPassEvent = RenderPassEvent.BeforeRenderingOpaques,
             };
-            _pass.Configure(innerRadius, outerRadius, gazeProjectDistance, yFlip);
+            _pass.Configure(gazeProjectDistance, yFlip);
 
             _debugPass = new BasisVariableRateShadingDebugPass
             {
@@ -55,7 +53,7 @@ namespace Basis.Scripts.Rendering
                 && !BasisSettingsDefaults.DevVariableRateShadingDesktop.RawValue)
                 return;
 
-            _pass.Configure(innerRadius, outerRadius, gazeProjectDistance, yFlip);
+            _pass.Configure(gazeProjectDistance, yFlip);
             renderer.EnqueuePass(_pass);
 
             if ((debugVisualize || debugShowColorMask) && _debugPass != null)

@@ -50,12 +50,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::Basis.Scripts.Rendering.BasisVariableRateShadingFeature
   m_Active: 1
   maskShader: {fileID: 4800000, guid: efef13fc8131a1d47b28eea231ceb441, type: 3}
-  innerRadius: 0.25
-  outerRadius: 0.75
   gazeProjectDistance: 3
   yFlip: 1
-  debugVisualize: 1
-  debugShowColorMask: 1
+  debugVisualize: 0
+  debugShowColorMask: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

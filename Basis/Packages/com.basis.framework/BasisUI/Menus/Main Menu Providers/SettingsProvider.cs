@@ -1558,6 +1558,42 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PoseLOD);
             sliderPoseLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.poseLod.bias.tooltip"));
 
+            // --- Variable Rate Shading (VR, gaze foveated) ---
+            PanelElementDescriptor vrsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            vrsGroup.SetTitle(BasisLocalization.Get("settings.graphics.vrs.title"));
+
+            PanelToggle toggleVrsVr = PanelToggle.CreateNewEntry(vrsGroup.ContentParent);
+            toggleVrsVr.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.vrs"));
+            toggleVrsVr.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.vrs.tooltip"));
+            toggleVrsVr.AssignBinding(BasisSettingsDefaults.DevVariableRateShading);
+
+            PanelSlider sliderVrsInner = PanelSlider.CreateEntryAndBind(
+                vrsGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.vrs.inner"),
+                    "",
+                    BasisSettingsDefaults.VRS_RADIUS_MIN, BasisSettingsDefaults.VRS_RADIUS_MAX, false, 0, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.VrsFovealInnerRadius);
+            sliderVrsInner.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.vrs.inner.tooltip"));
+
+            PanelSlider sliderVrsOuter = PanelSlider.CreateEntryAndBind(
+                vrsGroup.ContentParent,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.vrs.outer"),
+                    "",
+                    BasisSettingsDefaults.VRS_RADIUS_MIN, BasisSettingsDefaults.VRS_RADIUS_MAX, false, 0, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.VrsFovealOuterRadius);
+            sliderVrsOuter.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.vrs.outer.tooltip"));
+
+            sliderVrsInner.Descriptor.SetActive(toggleVrsVr.Value);
+            sliderVrsOuter.Descriptor.SetActive(toggleVrsVr.Value);
+            toggleVrsVr.OnValueChanged += (val) =>
+            {
+                sliderVrsInner.Descriptor.SetActive(val);
+                sliderVrsOuter.Descriptor.SetActive(val);
+                vrsGroup.ForceRebuild();
+                descriptor.ForceRebuild();
+            };
+
             PanelElementDescriptor advancedGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             advancedGroup.SetTitle(BasisLocalization.Get("ui.advanced"));
@@ -1627,9 +1663,11 @@ namespace Basis.BasisUI
 
             toggleAdvanced.OnValueChanged += (val) =>
             {
-                sliderRenderResolution.Descriptor.SetActive(val);
+                sliderRenderResolution.Descriptor.SetActive(val && BasisDeviceManagement.IsUserInDesktop());
                 dropdownHDR.Descriptor.SetActive(val);
+#if UNITY_ANDROID
                 sliderFoveatedRendering.Descriptor.SetActive(val);
+#endif
                 sliderFieldOfView.Descriptor.SetActive(val);
                 sliderMeshLOD.Descriptor.SetActive(val);
                 sliderGlobalMeshLOD.Descriptor.SetActive(val);
@@ -1664,6 +1702,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.Antialiasing.ResetToDefault();
             BasisSettingsDefaults.VSync.ResetToDefault();
             BasisSettingsDefaults.VSyncCapFps.ResetToDefault();
+
+            BasisSettingsDefaults.DevVariableRateShading.ResetToDefault();
+            BasisSettingsDefaults.VrsFovealInnerRadius.ResetToDefault();
+            BasisSettingsDefaults.VrsFovealOuterRadius.ResetToDefault();
 
             BasisSettingsDefaults.HDRSupport.ResetToDefault();
             BasisSettingsDefaults.MemoryAllocation.ResetToDefault();
@@ -1994,11 +2036,6 @@ namespace Basis.BasisUI
             PanelElementDescriptor vrsGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             vrsGroup.SetTitle(BasisLocalization.Get("settings.developer.vrs.title"));
-
-            PanelToggle toggleVrs = PanelToggle.CreateNewEntry(vrsGroup.ContentParent);
-            toggleVrs.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.vrs"));
-            toggleVrs.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.vrs.tooltip"));
-            toggleVrs.AssignBinding(BasisSettingsDefaults.DevVariableRateShading);
 
             PanelToggle toggleVrsDesktop = PanelToggle.CreateNewEntry(vrsGroup.ContentParent);
             toggleVrsDesktop.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.vrs.desktop"));
@@ -2674,7 +2711,6 @@ namespace Basis.BasisUI
 
         private static void ResetDeveloperDefaults()
         {
-            BasisSettingsDefaults.DevVariableRateShading.ResetToDefault();
             BasisSettingsDefaults.DevVariableRateShadingDesktop.ResetToDefault();
             BasisSettingsDefaults.ExceptionNotifications.ResetToDefault();
             BasisSettingsDefaults.ErrorNotifications.ResetToDefault();
