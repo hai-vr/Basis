@@ -31,6 +31,7 @@ public static class NetworkServer
     /// persist across restarts.
     /// </summary>
     public static BasisNetworkServer.Security.BasisWhiteList Whitelist;
+    public static BasisNetworkServer.Security.BasisBlackList Blacklist;
     // Cached snapshot rebuilt on connect/disconnect — avoids ToArray() alloc on every broadcast.
     private static volatile NetPeer[] _peerSnapshot = Array.Empty<NetPeer>();
     // Guards the read-then-publish: OnNetworkAccepted runs on parallel DID-auth continuations, so
@@ -88,6 +89,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisCrashReportStateManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisAudioRangeLimitManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(configuration);
+        BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(configuration);
         SetupServer(configuration);
         SubscribeEvents(Configuration);
 
@@ -153,12 +155,14 @@ public static class NetworkServer
             Directory.CreateDirectory(configDir);
             PermissionIntegration.Init(Path.Combine(configDir, "permissions.xml"));
             Whitelist = new BasisNetworkServer.Security.BasisWhiteList(Path.Combine(configDir, "BasisWhiteList.txt"));
+            Blacklist = new BasisNetworkServer.Security.BasisBlackList(Path.Combine(configDir, "BasisBlackList.txt"));
         }
         else
         {
             PermissionIntegration.InitWithoutDisc();
             // Best-effort in-memory whitelist when the host disabled disk support.
             Whitelist = new BasisNetworkServer.Security.BasisWhiteList();
+            Blacklist = new BasisNetworkServer.Security.BasisBlackList();
         }
     }
 

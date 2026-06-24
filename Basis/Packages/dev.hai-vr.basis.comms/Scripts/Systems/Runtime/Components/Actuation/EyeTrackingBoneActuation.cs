@@ -1,10 +1,10 @@
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management.EyeTracking;
 using Basis.Scripts.Networking.Receivers;
 using HVR.Basis.Comms.HVRUtility;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
-using Unity.Mathematics;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -17,7 +17,6 @@ namespace HVR.Basis.Comms
         private const string EyeRightX = "FT/v2/EyeRightX";
         private const string EyeY = "FT/v2/EyeY";
         private const string EyeTrackingActive = "HVR/Internal/EyeTrackingActive";
-        private const float EyeParameterInactivityTimeoutSeconds = 0.5f;
 
         private readonly int _eyeLeftXAddress;
         private readonly int _eyeRightXAddress;
@@ -151,24 +150,33 @@ namespace HVR.Basis.Comms
         private class EyeTracking_Wearer : IEyeTracking
         {
             private readonly EyeTrackingBoneActuation our;
+            private readonly HvrOscEyeProvider _provider = new HvrOscEyeProvider();
             private bool _trackingActive;
-            private float _lastEyeParameterSampleTime = float.NegativeInfinity;
-            private bool _eyeTrackingParametersActive;
             private bool _eyeTrackingActive;
-            private float _xLeft;
-            private float _xRight;
-            private float _y;
 
             public EyeTracking_Wearer(EyeTrackingBoneActuation our)
             {
                 this.our = our;
+                BasisEyeTrackingManager.Register(_provider);
             }
 
             public void Update()
             {
-                if (_eyeTrackingParametersActive && Time.unscaledTime - _lastEyeParameterSampleTime > EyeParameterInactivityTimeoutSeconds)
+                BasisEyeTrackingData data = BasisEyeTrackingManager.Current;
+
+                bool applyGaze = data.HasPerEyeAngles && BasisLocalEyeDriver.IsEnabled;
+                if (applyGaze)
                 {
-                    TurnOffEyeTracking();
+                    BasisLocalEyeDriver.SetOverrideEyeOffsets(
+                        BasisEyeMath.CanonicalAnglesToEyeOffset(data.LeftAngles, BasisLocalEyeDriver.calLeft),
+                        BasisEyeMath.CanonicalAnglesToEyeOffset(data.RightAngles, BasisLocalEyeDriver.calRight));
+                }
+                BasisLocalEyeDriver.Override = applyGaze;
+
+                var localPlayer = BasisLocalPlayer.Instance;
+                if (localPlayer != null && localPlayer.FacialBlinkDriver != null)
+                {
+                    localPlayer.FacialBlinkDriver.SetOverride(data.HasOpenness);
                 }
             }
 
@@ -186,61 +194,36 @@ namespace HVR.Basis.Comms
             {
                 if (!(xLeft == 0f && xRight == 0f && y == 0f))
                 {
-                    _lastEyeParameterSampleTime = Time.unscaledTime;
                     our.comms.VariableStore.Submit(our._eyeTrackingActiveAddress, 1f);
                 }
 
-                _xLeft = xLeft;
-                _xRight = xRight;
-                _y = y;
-
-                BasisLocalEyeDriver.SetOverrideEyeOffsets(
-                    ComputeRigOffset(_xLeft, _y, BasisLocalEyeDriver.calLeft),
-                    ComputeRigOffset(_xRight, _y, BasisLocalEyeDriver.calRight));
+                _provider.SetAngles(xLeft, xRight, y, our.multiplyX, our.multiplyY);
             }
 
             public void OnDestroy()
             {
+                BasisEyeTrackingManager.Unregister(_provider);
                 TurnOffEyeTracking();
             }
 
-            public bool IsEyeTrackingParametersActive => _eyeTrackingParametersActive;
+            public bool IsEyeTrackingParametersActive => _eyeTrackingActive;
 
             public void OnEyeTrackingActiveAddressUpdated(bool eyeTrackingActive)
             {
                 if (_eyeTrackingActive == eyeTrackingActive) return;
 
                 _eyeTrackingActive = eyeTrackingActive;
-
-                BasisLocalEyeDriver.Override = eyeTrackingActive;
-
-                var localPlayer = BasisLocalPlayer.Instance;
-                if (localPlayer != null && localPlayer.FacialBlinkDriver != null)
-                {
-                    localPlayer.FacialBlinkDriver.SetOverride(eyeTrackingActive);
-                }
+                _provider.SetActive(eyeTrackingActive);
             }
 
             public void UpdateAfterAvatarChangesApplied()
             {
             }
 
-            private quaternion ComputeRigOffset(float x, float y, BasisEyeCalibration cal)
-            {
-                var xRad = ClampToEyeAngleLimits(Mathf.Asin(x) * our.multiplyX);
-                var yRad = ClampToEyeAngleLimits(Mathf.Asin(-y) * our.multiplyY);
-
-                quaternion yaw = quaternion.AxisAngle(new float3(0, 1, 0), xRad);
-                quaternion pitch = quaternion.AxisAngle(new float3(1, 0, 0), yRad);
-                quaternion canonical = math.mul(yaw, pitch);
-
-                return math.mul(math.mul(cal.basis, canonical), cal.invBasis);
-            }
-
             private void TurnOffEyeTracking()
             {
-                _eyeTrackingParametersActive = false;
-                _lastEyeParameterSampleTime = float.NegativeInfinity;
+                _eyeTrackingActive = false;
+                _provider.SetActive(false);
                 our.comms.VariableStore.Submit(our._eyeTrackingActiveAddress, 0f);
                 our.comms.VariableStore.Submit(our._eyeLeftXAddress, 0f);
                 our.comms.VariableStore.Submit(our._eyeRightXAddress, 0f);

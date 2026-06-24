@@ -45,7 +45,7 @@ namespace Basis.Network.Server.Auth
         {
             if (string.IsNullOrEmpty(serverPassword.V))
             {
-                BNL.Log("No server password set, user is allowed");
+                BNL.LogError("No server password set — the server is open to all users.");
                 return true;
             }
             if (string.IsNullOrEmpty(userPassword.V))
@@ -53,10 +53,10 @@ namespace Basis.Network.Server.Auth
                 BNL.Log("User had an empty password, user is rejected");
                 return false;
             }
-            // Compare strings with explicit options
-            if (string.Equals(serverPassword.V, userPassword.V, StringComparison.Ordinal))
+            byte[] serverBytes = Encoding.UTF8.GetBytes(serverPassword.V);
+            byte[] userBytes = Encoding.UTF8.GetBytes(userPassword.V);
+            if (System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(serverBytes, userBytes))
             {
-              //  BNL.Log("Passwords match successfully.");
                 return true;
             }
             else

@@ -62,11 +62,20 @@ public static class BasisNetworkContentShare
                     !PermissionIntegration.HasValidRequirement(peer, PermNodes.ResourceLockBypassServer);
                 contentName = "Server share";
                 break;
+            default:
+                BNL.LogError($"Unknown content share type {(byte)msg.ContentType} from peer {peer.Id}");
+                return;
         }
         if (blocked)
         {
             BNL.Log($"{contentName} content sharing is globally disabled. Rejected from peer {peer.Id}");
             BasisNetworkServer.Security.BasisPlayerModeration.SendBackMessage(peer, $"{contentName} loading is currently disabled by an admin.");
+            return;
+        }
+
+        if (ActiveSpheres.Count(kvp => kvp.Value.playerIdMessage.playerID == (ushort)peer.Id) >= BasisNetworkServer.Security.BasisResourceLimitManager.MaxContentSpheresPerPlayer)
+        {
+            BNL.LogError($"Peer {peer.Id} reached content sphere limit.");
             return;
         }
 

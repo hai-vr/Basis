@@ -62,6 +62,21 @@ namespace BasisNetworkServer.BasisNetworking
                 BNL.LogError("Name must not be null or whitespace. (basis database)");
                 return false;
             }
+            if (item.Name.Length > BasisNetworkServer.Security.BasisResourceLimitManager.MaxDatabaseNameLength)
+            {
+                BNL.LogError("Name exceeds maximum length. (basis database)");
+                return false;
+            }
+            if (item.JsonPayload != null && item.JsonPayload.Count > BasisNetworkServer.Security.BasisResourceLimitManager.MaxDatabasePayloadEntries)
+            {
+                BNL.LogError("Payload exceeds maximum entry count. (basis database)");
+                return false;
+            }
+            if (!_dataByName.ContainsKey(item.Name) && _dataByName.Count >= BasisNetworkServer.Security.BasisResourceLimitManager.MaxDatabaseEntries)
+            {
+                BNL.LogError("Database entry limit reached; rejecting new entry. (basis database)");
+                return false;
+            }
             _dataByName.AddOrUpdate(item.Name,
                 addValueFactory: _ => item,
                 updateValueFactory: (_, existing) =>

@@ -1,5 +1,7 @@
+using Basis.Scripts.Device_Management.EyeTracking;
 using Basis.Scripts.Drivers;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
@@ -7,7 +9,7 @@ using UnityEngine.XR;
 
 namespace Basis.Scripts.Device_Management.Devices.OpenXR
 {
-    public class BasisOpenXRInputEye : BasisInputEye
+    public class BasisOpenXRInputEye : BasisInputEye, IBasisEyeTrackingProvider
     {
         private XRNodeState leftEyeState;
         private XRNodeState rightEyeState;
@@ -17,16 +19,42 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
 
         private InputAction _gazePoseAction;
 
+        private bool _hasGaze;
+        private float3 _gazeOrigin;
+        private float3 _gazeDirection;
+
+        public BasisEyeSource Source => BasisEyeSource.Hmd;
+        public bool IsActive => _hasGaze;
+
+        public bool TryGetEyeData(ref BasisEyeTrackingData data)
+        {
+            if (!_hasGaze)
+            {
+                return false;
+            }
+            data.GazeOrigin = _gazeOrigin;
+            data.GazeDirection = _gazeDirection;
+            data.HasWorldRay = true;
+            data.LeftEyePosition = LeftPosition;
+            data.RightEyePosition = RightPosition;
+            data.HasEyePositions = true;
+            return true;
+        }
+
         public override void Initialize()
         {
             RefreshNodeStates();
 
             _gazePoseAction = new InputAction("EyeGazePose", InputActionType.Value, "<EyeGaze>/pose", expectedControlType: "Pose");
             _gazePoseAction.Enable();
+
+            BasisEyeTrackingManager.Register(this);
         }
 
         public override void Shutdown()
         {
+            BasisEyeTrackingManager.Unregister(this);
+            _hasGaze = false;
             if (_gazePoseAction != null)
             {
                 _gazePoseAction.Disable();
@@ -34,7 +62,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
                 _gazePoseAction = null;
             }
             BasisEyeGazeGizmo.Shutdown();
-            BasisLocalCameraDriver.HasEyeGaze = false;
         }
 
         public override void Simulate()
@@ -98,17 +125,17 @@ namespace Basis.Scripts.Device_Management.Devices.OpenXR
             Quaternion worldGazeRot = BasisLocalCameraDriver.Rotation * gazeRelHmdRot;
             Vector3 worldGazeDir = worldGazeRot * Vector3.forward;
 
-            BasisLocalCameraDriver.GazeOrigin = worldGazeOrigin;
-            BasisLocalCameraDriver.GazeDirection = worldGazeDir;
-            BasisLocalCameraDriver.HasEyeGaze = true;
+            _gazeOrigin = worldGazeOrigin;
+            _gazeDirection = worldGazeDir;
+            _hasGaze = true;
 
             bool gizmoVisible = SMModuleDebugOptions.UseGizmos && SMModuleDebugOptions.UseEyeGazeGizmo;
             BasisEyeGazeGizmo.Tick(gizmoVisible, worldGazeOrigin, worldGazeDir);
         }
 
-        private static void MarkUntracked()
+        private void MarkUntracked()
         {
-            BasisLocalCameraDriver.HasEyeGaze = false;
+            _hasGaze = false;
             BasisEyeGazeGizmo.Tick(false, Vector3.zero, Vector3.forward);
         }
 

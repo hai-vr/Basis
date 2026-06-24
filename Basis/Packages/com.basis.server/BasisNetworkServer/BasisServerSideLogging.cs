@@ -116,10 +116,24 @@ namespace Basis.Network
             return $"[{timestamp}] [{level}] {message}";
         }
 
+        private static string Sanitize(string message)
+        {
+            if (string.IsNullOrEmpty(message)) return message;
+            StringBuilder sb = new StringBuilder(message.Length);
+            foreach (char c in message)
+            {
+                if (c == '\n' || c == '\r') sb.Append(' ');
+                else if (c < 0x20 && c != '\t') sb.Append('?');
+                else sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
         private static void Log(string message)
         {
             if (WriteToScreen || UseLogging)
             {
+                message = Sanitize(message);
                 string formattedMessage = FormatMessage("INFO", message);
                 WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan);
                 WriteColoredMessage("[INFO] ", ConsoleColor.DarkMagenta);
@@ -139,6 +153,7 @@ namespace Basis.Network
         {
             if (WriteToScreen || UseLogging)
             {
+                message = Sanitize(message);
                 string formattedMessage = FormatMessage("WARNING", message);
                 WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan); // Timestamp in white
                 WriteColoredMessage("[WARNING] ", ConsoleColor.DarkYellow); // Level in yellow
@@ -159,6 +174,7 @@ namespace Basis.Network
         {
             if (WriteToScreen || UseLogging)
             {
+                message = Sanitize(message);
                 string formattedMessage = FormatMessage("ERROR", message);
                 WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan); // Timestamp in white
                 WriteColoredMessage("[ERROR] ", ConsoleColor.DarkRed); // Level in red

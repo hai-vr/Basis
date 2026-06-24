@@ -16,6 +16,15 @@ namespace Basis.Network.Server.Generic
             return _targetedClients;
         }
 
+        [ThreadStatic]
+        private static HashSet<ushort> _seenRecipients;
+        private static HashSet<ushort> GetSeenSet()
+        {
+            if (_seenRecipients == null) _seenRecipients = new HashSet<ushort>();
+            else _seenRecipients.Clear();
+            return _seenRecipients;
+        }
+
         public static void HandleScene(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender, byte broadcastChannel = BasisNetworkCommons.SceneChannel)
         {
             SceneDataMessage SceneDataMessage = new SceneDataMessage();
@@ -45,17 +54,23 @@ namespace Basis.Network.Server.Generic
             if (SceneDataMessage.recipientsSize != 0)
             {
                 List<NetPeer> targetedClients = GetTargetedList();
+                HashSet<ushort> seen = GetSeenSet();
 
                 int recipientsLength = SceneDataMessage.recipientsSize;
                 for (int index = 0; index < recipientsLength; index++)
                 {
-                    if (NetworkServer.AuthenticatedPeers.TryGetValue(SceneDataMessage.recipients[index], out NetPeer client))
+                    ushort recipient = SceneDataMessage.recipients[index];
+                    if (!seen.Add(recipient))
+                    {
+                        continue;
+                    }
+                    if (NetworkServer.AuthenticatedPeers.TryGetValue(recipient, out NetPeer client))
                     {
                         targetedClients.Add(client);
                     }
                     else
                     {
-                        BNL.Log("Missing Peer! " + SceneDataMessage.recipients[index]);
+                        BNL.Log("Missing Peer! " + recipient);
                     }
                 }
 
@@ -96,17 +111,23 @@ namespace Basis.Network.Server.Generic
             if (avatarDataMessage.recipientsSize != 0)
             {
                 List<NetPeer> targetedClients = GetTargetedList();
+                HashSet<ushort> seen = GetSeenSet();
 
                 int recipientsLength = avatarDataMessage.recipientsSize;
                 for (int index = 0; index < recipientsLength; index++)
                 {
-                    if (NetworkServer.AuthenticatedPeers.TryGetValue(avatarDataMessage.recipients[index], out NetPeer client))
+                    ushort recipient = avatarDataMessage.recipients[index];
+                    if (!seen.Add(recipient))
+                    {
+                        continue;
+                    }
+                    if (NetworkServer.AuthenticatedPeers.TryGetValue(recipient, out NetPeer client))
                     {
                         targetedClients.Add(client);
                     }
                     else
                     {
-                        BNL.Log("Missing Peer! " + avatarDataMessage.recipients[index]);
+                        BNL.Log("Missing Peer! " + recipient);
                     }
                 }
 

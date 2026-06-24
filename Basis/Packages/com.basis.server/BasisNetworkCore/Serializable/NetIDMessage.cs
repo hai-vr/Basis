@@ -13,7 +13,7 @@ namespace BasisNetworkCore.Serializable
                 int bytes = reader.AvailableBytes;
                 if (bytes != 0)
                 {
-                    playerID = reader.GetString();
+                    playerID = reader.GetString(256);
                 }
                 else
                 {

@@ -54,10 +54,10 @@ namespace Basis.Scripts.Rendering
             if (!_loggedSupport)
             {
                 _loggedSupport = true;
-                Debug.Log($"[BasisVRS] supported={Vrs.IsColorMaskTextureConversionSupported()} " +
+                BasisDebug.Log($"[BasisVRS] supported={Vrs.IsColorMaskTextureConversionSupported()} " +
                           $"perImageTile={ShadingRateInfo.supportsPerImageTile} " +
                           $"compute={SystemInfo.supportsComputeShaders} " +
-                          $"api={SystemInfo.graphicsDeviceType} material={(_maskMaterial != null)}");
+                          $"api={SystemInfo.graphicsDeviceType} material={(_maskMaterial != null)}", BasisDebug.LogTag.Rendering);
             }
 
             if (_maskMaterial == null)

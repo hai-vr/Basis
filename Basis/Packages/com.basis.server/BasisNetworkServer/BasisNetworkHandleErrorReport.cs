@@ -47,8 +47,8 @@ namespace BasisNetworkServer
             {
                 if (!BasisCrashReportStateManager.Enabled) return;
 
-                byte severity = reader.GetByte();
-                byte[] compressed = reader.GetBytesWithLength();
+                if (!reader.TryGetByte(out byte severity)) return;
+                if (!reader.TryGetBytesWithLength(out byte[] compressed)) return;
                 string[] parts = PermissionCompression.DecompressExtras(compressed, 3);
                 string system = parts.Length > 0 ? parts[0] : string.Empty;
                 string message = parts.Length > 1 ? parts[1] : string.Empty;

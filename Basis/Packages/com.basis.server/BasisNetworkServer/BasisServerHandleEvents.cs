@@ -210,9 +210,9 @@ namespace BasisServerHandle
                     return;
                 }
 
-                if (ClientVersion < BasisNetworkVersion.ServerVersion)
+                if (ClientVersion != BasisNetworkVersion.ServerVersion)
                 {
-                    RejectWithReason(ConReq, "Outdated client version.");
+                    RejectWithReason(ConReq, "Client version does not match server.");
                     return;
                 }
                 if (NetworkServer.Configuration.UseAuth)
@@ -282,6 +282,15 @@ namespace BasisServerHandle
             {
                 BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — not on whitelist.");
                 RejectWithReason(newPeer, "You are not on the whitelist.");
+                return;
+            }
+
+            if (NetworkServer.Configuration.BasisUserRestrictionMode == BasisUserRestrictionMode.BlackList
+                && NetworkServer.Blacklist != null
+                && NetworkServer.Blacklist.IsBlacklisted(UUID))
+            {
+                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — on blacklist.");
+                RejectWithReason(newPeer, "You are not permitted on this server.");
                 return;
             }
 
@@ -376,6 +385,7 @@ namespace BasisServerHandle
                 BasisNetworkServer.Security.BasisCrashReportStateManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisAudioRangeLimitManager.SendStateToPeer(newPeer);
                 BasisNetworkServer.Security.BasisAvatarScaleLimitManager.SendStateToPeer(newPeer);
+                BasisNetworkServer.Security.BasisResourceLimitManager.SendStateToPeer(newPeer);
                 SendShoutStateToPeer(newPeer);
             }
             else
@@ -882,8 +892,15 @@ namespace BasisServerHandle
                 return;
             }
             LocalLoadResource.Deserialize(Reader);
-            LocalLoadResource.IsAdminLocked = PermissionIntegration.HasValidRequirement(Peer, PermNodes.protection);
+            bool isPrivileged = PermissionIntegration.HasValidRequirement(Peer, PermNodes.protection);
+            LocalLoadResource.IsAdminLocked = isPrivileged;
             LocalLoadResource.UUIDOfCreator = UUID;
+            if (!isPrivileged)
+            {
+                LocalLoadResource.Persist = false;
+                LocalLoadResource.Static = false;
+                LocalLoadResource.StaticAdminLocked = false;
+            }
             Reader.Recycle();
 
             switch (LocalLoadResource.Mode)
@@ -1015,7 +1032,6 @@ namespace BasisServerHandle
             if (!BasisPersistentDatabase.GetByName(dataRequest.DatabaseID, out var db))
             {
                 db = new BasisData(dataRequest.DatabaseID, new System.Collections.Concurrent.ConcurrentDictionary<string, object>());
-                BasisPersistentDatabase.AddOrUpdate(db);
             }
 
             var msg = new DatabasePrimativeMessage

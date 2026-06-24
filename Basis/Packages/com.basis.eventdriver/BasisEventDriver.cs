@@ -235,6 +235,7 @@ namespace Basis.EventDriver
             // produces no visible write this frame, so it hides behind a different job. Safe: the
             // comms batch reads only its own networked variable state, never the remote pose/bone
             // output produced by SimulateNetworkApply.
+            Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
             HVRCommsUpdateDriver.SimulateActuators();
 
             ProfileBegin(PROF_NETWORK_APPLY);
@@ -441,6 +442,7 @@ namespace Basis.EventDriver
             if (BasisLocalPlayer.PlayerReady)
             {
                 BasisLocalPlayer.Instance.SimulateOnRender();
+                Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
                 BasisRemoteFaceManagement.Apply();
 #if !BASIS_DISABLE_MICROPHONE
                 BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);

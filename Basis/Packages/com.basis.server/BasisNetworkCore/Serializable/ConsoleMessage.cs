@@ -20,6 +20,12 @@ namespace BasisNetworkCore.Serializable
 
                     if (payloadSize > 0)
                     {
+                        if (payloadSize > reader.AvailableBytes)
+                        {
+                            BNL.LogError($"ConsoleData payload {payloadSize} exceeds available data ({reader.AvailableBytes} bytes).");
+                            array = new byte[0];
+                            return;
+                        }
                         if (array == null || array.Length != payloadSize)
                         {
                             array = new byte[payloadSize];

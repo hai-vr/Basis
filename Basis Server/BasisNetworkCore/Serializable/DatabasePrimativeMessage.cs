@@ -130,6 +130,8 @@ public static partial class SerializableBasis
             Name = reader.GetString();
 
             int count = reader.GetInt();
+            if (count < 0 || count > reader.AvailableBytes)
+                throw new ArgumentException($"Database entry count {count} exceeds available data ({reader.AvailableBytes} bytes).");
             jsonPayload = new ConcurrentDictionary<string, object>();
 
             for (int Index = 0; Index < count; Index++)
@@ -180,7 +182,7 @@ public static partial class SerializableBasis
                         break;
                     case SerializedType.Decimal:
                         // Read decimal from string
-                        jsonPayload[key] = decimal.Parse(reader.GetString(), System.Globalization.CultureInfo.InvariantCulture);
+                        jsonPayload[key] = decimal.TryParse(reader.GetString(), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out decimal decValue) ? decValue : 0m;
                         break;
                     default:
                         throw new InvalidOperationException($"Unsupported type marker in jsonPayload: {(byte)type}");

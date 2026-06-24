@@ -12,7 +12,7 @@ namespace DarkRift.Basis_Common.Serializable
             public void Deserialize(NetDataReader Writer)
             {
                 playerIdMessage.Deserialize(Writer);
-                Writer.Get(out ownershipID);
+                Writer.Get(out ownershipID, 256);
             }
             public void Serialize(NetDataWriter Writer)
             {

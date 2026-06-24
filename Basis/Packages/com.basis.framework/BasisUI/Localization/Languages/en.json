@@ -3479,6 +3479,14 @@
       "value": "File a bug report. Fill in the details, then Open on GitHub launches the pre-filled bug form in your browser, or Send to Server uploads it to the connected Basis server like a crash report. Fields marked * are required."
     },
     {
+      "key": "settings.developer.bugReport.enable",
+      "value": "Enable Bug Reporting"
+    },
+    {
+      "key": "settings.developer.bugReport.enable.tooltip",
+      "value": "Reveal the bug report form. Build info and recent logs are attached automatically on submit."
+    },
+    {
       "key": "settings.developer.bugReport.summary",
       "value": "Title"
     },
@@ -6201,6 +6209,18 @@
     {
       "key": "settings.developer.gizmoLabels",
       "value": "Gizmo Labels"
+    },
+    {
+      "key": "settings.developer.eyeTracking.title",
+      "value": "Eye Tracking"
+    },
+    {
+      "key": "settings.developer.eyeTracking.preferOsc",
+      "value": "Prefer Face Tracking Gaze"
+    },
+    {
+      "key": "settings.developer.eyeTracking.preferOsc.tooltip",
+      "value": "When both a headset's eye gaze and OSC face tracking are active, use the OSC face tracker for gaze. Turn off to prefer the headset's built-in eye gaze. Eyelid/blink always comes from face tracking."
     },
     {
       "key": "settings.developer.gizmoLabels.description",

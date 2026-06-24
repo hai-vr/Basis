@@ -106,6 +106,10 @@ public class Configuration
     public float MaxHearingRangeMeters = 25f;
     public float MinAvatarEyeHeightMeters = 0.1f;
     public float MaxAvatarEyeHeightMeters = 100f;
+    public int MaxDatabaseEntries = 10000;
+    public int MaxDatabaseNameLength = 256;
+    public int MaxDatabasePayloadEntries = 1000;
+    public int MaxContentSpheresPerPlayer = 32;
     public bool PlayspaceMoverLocked = false;
     public bool DirectConnectLocked = false;
 

@@ -34,7 +34,7 @@ namespace Basis.Network.Server.Ownership
             //if we are not aware of this ownershipID lets only give back to that client that its been assigned to them
             //the goal here is to make it so ownership understanding has to be requested.
             //once a ownership has been requested there good for life or when a ownership switch happens.
-            NetworkRequestNewOrExisting(ownershipTransferMessage, out ushort currentOwner);
+            NetworkRequestNewOrExisting(ownershipTransferMessage, (ushort)Peer.Id, out ushort currentOwner);
             NetDataWriter Writer = NetworkServer.RentWriter();
             ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
             ownershipTransferMessage.Serialize(Writer);
@@ -107,7 +107,7 @@ namespace Basis.Network.Server.Ownership
                 //if we are not aware of this ownershipID lets only give back to that client that its been assigned to them
                 //the goal here is to make it so ownership understanding has to be requested.
                 //once a ownership has been requested there good for life or when a ownership switch happens.
-                NetworkRequestNewOrExisting(ownershipTransferMessage, out ushort currentOwner);
+                NetworkRequestNewOrExisting(ownershipTransferMessage, ClientId, out ushort currentOwner);
                 ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
                 ownershipTransferMessage.Serialize(Writer);
                 NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
@@ -117,7 +117,7 @@ namespace Basis.Network.Server.Ownership
         /// <summary>
         /// Requests either new or existing ownership with thread safety and rollback.
         /// </summary>
-        public static bool NetworkRequestNewOrExisting(OwnershipTransferMessage ownershipInitializeMessage, out ushort ownershipInfo)
+        public static bool NetworkRequestNewOrExisting(OwnershipTransferMessage ownershipInitializeMessage, ushort requesterId, out ushort ownershipInfo)
         {
             if (GetOwnershipInformation(ownershipInitializeMessage.ownershipID, out ownershipInfo))
             {
@@ -126,14 +126,14 @@ namespace Basis.Network.Server.Ownership
             }
             else
             {
-                if (!AddOwnership(ownershipInitializeMessage.ownershipID, ownershipInitializeMessage.playerIdMessage.playerID))
+                if (!AddOwnership(ownershipInitializeMessage.ownershipID, requesterId))
                 {
                     BNL.LogError($"Error while adding ownership for: {ownershipInitializeMessage.ownershipID}");
                     return false;
                 }
                 else
                 {
-                    ownershipInfo = ownershipInitializeMessage.playerIdMessage.playerID;
+                    ownershipInfo = requesterId;
                 }
             }
             return true;

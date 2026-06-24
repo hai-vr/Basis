@@ -348,6 +348,10 @@ public static class BasisNetworkModeration
                 HandleAvatarScaleLimits(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetResourceLimits:
+                HandleResourceLimits(reader);
+                break;
+
             case AdminRequestMode.LogBundleBegin:
                 BasisLogBundleReceiver.Begin(reader);
                 break;
@@ -1007,6 +1011,45 @@ public static class BasisNetworkModeration
             AdminRequestMode.SetGlobalAvatarScaleLimits,
             w => w.Put(minMeters),
             w => w.Put(maxMeters));
+    }
+
+    /// <summary>Server-pushed cap on stored persistent-database entries.</summary>
+    public static int ServerMaxDatabaseEntries { get; private set; } = 10000;
+    /// <summary>Server-pushed cap on a persistent-database entry name length.</summary>
+    public static int ServerMaxDatabaseNameLength { get; private set; } = 256;
+    /// <summary>Server-pushed cap on entries in a single persistent-database payload.</summary>
+    public static int ServerMaxDatabasePayloadEntries { get; private set; } = 1000;
+    /// <summary>Server-pushed cap on active content-share spheres per player.</summary>
+    public static int ServerMaxContentSpheresPerPlayer { get; private set; } = 32;
+
+    /// <summary>Fired when the server pushes new resource limits (db entries, name length, payload entries, spheres/player).</summary>
+    public static event Action<int, int, int, int> OnResourceLimitsChanged;
+
+    private static void HandleResourceLimits(NetDataReader reader)
+    {
+        ServerMaxDatabaseEntries = reader.GetInt();
+        ServerMaxDatabaseNameLength = reader.GetInt();
+        ServerMaxDatabasePayloadEntries = reader.GetInt();
+        ServerMaxContentSpheresPerPlayer = reader.GetInt();
+        OnResourceLimitsChanged?.Invoke(ServerMaxDatabaseEntries, ServerMaxDatabaseNameLength, ServerMaxDatabasePayloadEntries, ServerMaxContentSpheresPerPlayer);
+    }
+
+    /// <summary>
+    /// Admin: set the server-wide resource caps (persistent database growth + content spheres per player).
+    /// Persisted to config.xml and broadcast to every admin panel.
+    /// </summary>
+    public static void SetGlobalResourceLimits(int maxDatabaseEntries, int maxDatabaseNameLength, int maxDatabasePayloadEntries, int maxContentSpheresPerPlayer)
+    {
+        if (maxDatabaseEntries < 1) maxDatabaseEntries = 1;
+        if (maxDatabaseNameLength < 1) maxDatabaseNameLength = 1;
+        if (maxDatabasePayloadEntries < 1) maxDatabasePayloadEntries = 1;
+        if (maxContentSpheresPerPlayer < 1) maxContentSpheresPerPlayer = 1;
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalResourceLimits,
+            w => w.Put(maxDatabaseEntries),
+            w => w.Put(maxDatabaseNameLength),
+            w => w.Put(maxDatabasePayloadEntries),
+            w => w.Put(maxContentSpheresPerPlayer));
     }
 
     private static void HandleGlobalHeadlessDisallowState(NetDataReader reader)

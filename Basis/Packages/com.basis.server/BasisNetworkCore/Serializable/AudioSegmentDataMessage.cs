@@ -16,21 +16,15 @@ public static partial class SerializableBasis
             TotalPlayedInSilence = Writer.GetByte();
             if (Writer.EndOfData)
             {
+                buffer = null;
+                TotalLength = 0;
                 LengthUsed = 0;
             }
             else
             {
-                if (TotalLength == Writer.AvailableBytes)
-                {
-                    Writer.GetBytes(buffer, 0, Writer.AvailableBytes);
-                    LengthUsed = TotalLength;
-                }
-                else
-                {
-                    buffer = Writer.GetRemainingBytes();
-                    TotalLength = buffer.Length;
-                    LengthUsed = TotalLength;
-                }
+                buffer = Writer.GetRemainingBytes();
+                TotalLength = buffer.Length;
+                LengthUsed = TotalLength;
             }
         }
         public void Serialize(NetDataWriter Writer)

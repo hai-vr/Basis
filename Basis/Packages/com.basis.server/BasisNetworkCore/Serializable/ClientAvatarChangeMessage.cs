@@ -22,6 +22,11 @@ public static partial class SerializableBasis
             }
             else
             {
+                if (Length > Writer.AvailableBytes)
+                {
+                    byteArray = null;
+                    throw new System.ArgumentException($"Avatar change length {Length} exceeds available data ({Writer.AvailableBytes} bytes).");
+                }
                 if (byteArray == null || byteArray.Length != Length)
                 {
                     byteArray = new byte[Length];

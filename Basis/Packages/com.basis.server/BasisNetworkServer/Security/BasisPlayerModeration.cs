@@ -384,6 +384,11 @@ namespace BasisNetworkServer.Security
                         HandleAvatarScaleLimitsSet(peer, reader));
                     break;
 
+                case AdminRequestMode.SetGlobalResourceLimits:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleResourceLimitsSet(peer, reader));
+                    break;
+
                 case AdminRequestMode.RequestAllLogs:
                     Require(peer, PermNodes.AdminLogs, () =>
                         BasisServerLogBundleService.SendAllLogsToPeer(peer));
@@ -762,6 +767,22 @@ namespace BasisNetworkServer.Security
             SaveConfig();
             BasisAvatarScaleLimitManager.BroadcastState();
             SendBackMessage(peer, $"Avatar scale limits set: {NetworkServer.Configuration.MinAvatarEyeHeightMeters} m .. {NetworkServer.Configuration.MaxAvatarEyeHeightMeters} m.");
+        }
+
+        private static void HandleResourceLimitsSet(NetPeer peer, NetPacketReader reader)
+        {
+            int maxDatabaseEntries = reader.GetInt();
+            int maxDatabaseNameLength = reader.GetInt();
+            int maxDatabasePayloadEntries = reader.GetInt();
+            int maxContentSpheresPerPlayer = reader.GetInt();
+            BasisResourceLimitManager.SetLimits(maxDatabaseEntries, maxDatabaseNameLength, maxDatabasePayloadEntries, maxContentSpheresPerPlayer);
+            NetworkServer.Configuration.MaxDatabaseEntries = BasisResourceLimitManager.MaxDatabaseEntries;
+            NetworkServer.Configuration.MaxDatabaseNameLength = BasisResourceLimitManager.MaxDatabaseNameLength;
+            NetworkServer.Configuration.MaxDatabasePayloadEntries = BasisResourceLimitManager.MaxDatabasePayloadEntries;
+            NetworkServer.Configuration.MaxContentSpheresPerPlayer = BasisResourceLimitManager.MaxContentSpheresPerPlayer;
+            SaveConfig();
+            BasisResourceLimitManager.BroadcastState();
+            SendBackMessage(peer, $"Resource limits set: db entries {BasisResourceLimitManager.MaxDatabaseEntries}, name length {BasisResourceLimitManager.MaxDatabaseNameLength}, payload entries {BasisResourceLimitManager.MaxDatabasePayloadEntries}, spheres/player {BasisResourceLimitManager.MaxContentSpheresPerPlayer}.");
         }
 
         /// <summary>

@@ -199,7 +199,10 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerSettings.TrackerSettingsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
+            if (BasisNetworkConnection.LocalPlayerPeer != null)
+            {
+                AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
+            }
             if (SettingsProvider.LicensesBuilder != null)
             {
                 AddLazyTab(tabGroup, "settings.tab.thirdpartylicenses", () =>
@@ -2153,6 +2156,16 @@ namespace Basis.BasisUI
                 networkGroup.ForceRebuild();
             };
 
+            // ---- Eye Tracking ----
+            PanelElementDescriptor eyeTrackingGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            eyeTrackingGroup.SetTitle(BasisLocalization.Get("settings.developer.eyeTracking.title"));
+
+            PanelToggle togglePreferOscEye = PanelToggle.CreateNewEntry(eyeTrackingGroup.ContentParent);
+            togglePreferOscEye.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeTracking.preferOsc"));
+            togglePreferOscEye.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeTracking.preferOsc.tooltip"));
+            togglePreferOscEye.AssignBinding(BasisSettingsDefaults.EyeTrackingPreferOsc);
+
             // ---- Sections contributed by feature packages (e.g. Avatar Recorder) ----
             for (int i = 0; i < DeveloperSectionBuilders.Count; i++)
             {
@@ -2765,6 +2778,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DevDebugEyeTracking.ResetToDefault();
             BasisSettingsDefaults.AvatarShowTextureStats.ResetToDefault();
             BasisSettingsDefaults.AvatarShowTrackerRoles.ResetToDefault();
+            BasisSettingsDefaults.EyeTrackingPreferOsc.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
 
             for (int i = 0; i < DeveloperResetActions.Count; i++)

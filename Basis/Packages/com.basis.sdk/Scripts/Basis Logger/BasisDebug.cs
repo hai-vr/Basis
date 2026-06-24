@@ -182,6 +182,7 @@ public static class BasisDebug
             LogTag.Props => "#FFB6C1",        // Light Pink
             LogTag.LocalNetwork => "#ff0055",
             LogTag.AuthoredMotion => "#BA55D3", // Medium Orchid
+            LogTag.Rendering => "#ADFF2F",    // Green Yellow
             _ => "#FFFFFF"                    // Default White
         };
     }
@@ -232,6 +233,7 @@ public static class BasisDebug
         Props,
         LocalNetwork,
         AuthoredMotion,
+        Rendering,
     }
 
     public enum MessageType

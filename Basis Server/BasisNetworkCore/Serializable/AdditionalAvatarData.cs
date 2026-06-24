@@ -18,6 +18,11 @@ public static partial class SerializableBasis
                 }
                 if (reader.TryGetByte(out messageIndex))
                 {
+                    if (PayloadSize > reader.AvailableBytes)
+                    {
+                        BNL.LogError("AdditionalAvatarData payload exceeds available data!");
+                        return;
+                    }
                     if (array == null || array.Length != PayloadSize)
                     {
                         array = new byte[PayloadSize];

@@ -197,6 +197,48 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
             };
 
+            // --- Resource limits (per-player DoS caps; persisted to config.xml) ---
+            PanelElementDescriptor resourceLimitsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            resourceLimitsGroup.SetTitle("Resource Limits");
+            resourceLimitsGroup.SetDescription("Caps that bound per-player resource use to limit denial-of-service. Changes are saved to config.xml.");
+
+            PanelTextField maxDatabaseEntriesField = PanelTextField.CreateNewEntry(resourceLimitsGroup.ContentParent);
+            maxDatabaseEntriesField.Descriptor.SetTitle("Max Database Entries");
+            maxDatabaseEntriesField.Descriptor.SetDescription("Maximum number of stored persistent-database entries across all players.");
+            maxDatabaseEntriesField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxDatabaseEntries.ToString());
+
+            PanelTextField maxDatabaseNameLengthField = PanelTextField.CreateNewEntry(resourceLimitsGroup.ContentParent);
+            maxDatabaseNameLengthField.Descriptor.SetTitle("Max Database Name Length");
+            maxDatabaseNameLengthField.Descriptor.SetDescription("Maximum character length of a persistent-database entry name.");
+            maxDatabaseNameLengthField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxDatabaseNameLength.ToString());
+
+            PanelTextField maxDatabasePayloadEntriesField = PanelTextField.CreateNewEntry(resourceLimitsGroup.ContentParent);
+            maxDatabasePayloadEntriesField.Descriptor.SetTitle("Max Database Payload Entries");
+            maxDatabasePayloadEntriesField.Descriptor.SetDescription("Maximum number of key/value entries in a single persistent-database payload.");
+            maxDatabasePayloadEntriesField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxDatabasePayloadEntries.ToString());
+
+            PanelTextField maxContentSpheresField = PanelTextField.CreateNewEntry(resourceLimitsGroup.ContentParent);
+            maxContentSpheresField.Descriptor.SetTitle("Max Content Spheres Per Player");
+            maxContentSpheresField.Descriptor.SetDescription("Maximum active content-share spheres a single player may have at once.");
+            maxContentSpheresField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxContentSpheresPerPlayer.ToString());
+
+            PanelButton applyResourceLimits = PanelButton.CreateNew(resourceLimitsGroup.ContentParent);
+            applyResourceLimits.Descriptor.SetTitle("Apply Resource Limits");
+            applyResourceLimits.OnClicked += () =>
+            {
+                if (!int.TryParse(maxDatabaseEntriesField.Value, out int entries)) entries = BasisNetworkModeration.ServerMaxDatabaseEntries;
+                if (!int.TryParse(maxDatabaseNameLengthField.Value, out int nameLength)) nameLength = BasisNetworkModeration.ServerMaxDatabaseNameLength;
+                if (!int.TryParse(maxDatabasePayloadEntriesField.Value, out int payloadEntries)) payloadEntries = BasisNetworkModeration.ServerMaxDatabasePayloadEntries;
+                if (!int.TryParse(maxContentSpheresField.Value, out int spheres)) spheres = BasisNetworkModeration.ServerMaxContentSpheresPerPlayer;
+                BasisNetworkModeration.SetGlobalResourceLimits(entries, nameLength, payloadEntries, spheres);
+            };
+
+            controller.MaxDatabaseEntriesField = maxDatabaseEntriesField;
+            controller.MaxDatabaseNameLengthField = maxDatabaseNameLengthField;
+            controller.MaxDatabasePayloadEntriesField = maxDatabasePayloadEntriesField;
+            controller.MaxContentSpheresField = maxContentSpheresField;
+
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
             PanelElementDescriptor cameraPolicyGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -585,6 +627,10 @@ namespace Basis.BasisUI
             public PanelSlider MaxAvatarHeightSlider;
             public float MinAvatarHeightMeters;
             public float MaxAvatarHeightMeters;
+            public PanelTextField MaxDatabaseEntriesField;
+            public PanelTextField MaxDatabaseNameLengthField;
+            public PanelTextField MaxDatabasePayloadEntriesField;
+            public PanelTextField MaxContentSpheresField;
             public System.Action<byte> ApplyCameraMask;
 
             private void OnEnable()
@@ -615,6 +661,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged += OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged += OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
+                BasisNetworkModeration.OnResourceLimitsChanged += OnResourceLimitsChanged;
             }
 
             private void OnDisable()
@@ -633,6 +681,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
             }
 
             private void OnDestroy()
@@ -649,6 +698,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
+                BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -719,6 +769,14 @@ namespace Basis.BasisUI
                 MaxAvatarHeightMeters = maxMeters;
                 if (MinAvatarHeightSlider != null) MinAvatarHeightSlider.SetValueWithoutNotify(minMeters);
                 if (MaxAvatarHeightSlider != null) MaxAvatarHeightSlider.SetValueWithoutNotify(maxMeters);
+            }
+
+            private void OnResourceLimitsChanged(int entries, int nameLength, int payloadEntries, int spheres)
+            {
+                if (MaxDatabaseEntriesField != null) MaxDatabaseEntriesField.SetValueWithoutNotify(entries.ToString());
+                if (MaxDatabaseNameLengthField != null) MaxDatabaseNameLengthField.SetValueWithoutNotify(nameLength.ToString());
+                if (MaxDatabasePayloadEntriesField != null) MaxDatabasePayloadEntriesField.SetValueWithoutNotify(payloadEntries.ToString());
+                if (MaxContentSpheresField != null) MaxContentSpheresField.SetValueWithoutNotify(spheres.ToString());
             }
         }
     }

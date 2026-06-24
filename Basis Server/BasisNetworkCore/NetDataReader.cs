@@ -238,10 +238,12 @@ namespace Basis.Network.Core {
         {
             ushort length = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(_position));
             _position += 2;
+            int byteCount = length * size;
+            if (byteCount > _dataSize - _position)
+                throw new ArgumentException($"Array length {byteCount} exceeds available data ({_dataSize - _position} bytes).");
             T[] result = new T[length];
-            length *= size;
-            Buffer.BlockCopy(_data, _position, result, 0, length);
-            _position += length;
+            Buffer.BlockCopy(_data, _position, result, 0, byteCount);
+            _position += byteCount;
             return result;
         }
 
@@ -454,6 +456,8 @@ namespace Basis.Network.Core {
         
         public Guid GetGuid()
         {
+            if (16 > _dataSize - _position)
+                throw new ArgumentException($"Guid read exceeds available data ({_dataSize - _position} bytes).");
             var result = new Guid(_data.AsSpan(_position, 16));
             _position += 16;
             return result;
@@ -461,6 +465,8 @@ namespace Basis.Network.Core {
 
         public ArraySegment<byte> GetBytesSegment(int count)
         {
+            if (count < 0 || count > _dataSize - _position)
+                throw new ArgumentException($"Segment length {count} exceeds available data ({_dataSize - _position} bytes).");
             ArraySegment<byte> segment = new ArraySegment<byte>(_data, _position, count);
             _position += count;
             return segment;
@@ -508,12 +514,16 @@ namespace Basis.Network.Core {
 
         public void GetBytes(byte[] destination, int start, int count)
         {
+            if (count < 0 || count > _dataSize - _position)
+                throw new ArgumentException($"Byte read {count} exceeds available data ({_dataSize - _position} bytes).");
             Buffer.BlockCopy(_data, _position, destination, start, count);
             _position += count;
         }
 
         public void GetBytes(byte[] destination, int count)
         {
+            if (count < 0 || count > _dataSize - _position)
+                throw new ArgumentException($"Byte read {count} exceeds available data ({_dataSize - _position} bytes).");
             Buffer.BlockCopy(_data, _position, destination, 0, count);
             _position += count;
         }

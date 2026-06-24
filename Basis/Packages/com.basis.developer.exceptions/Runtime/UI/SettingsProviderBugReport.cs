@@ -44,42 +44,50 @@ namespace Basis.BasisUI
 
             RectTransform parent = group.ContentParent;
 
+            PanelToggle enableToggle = PanelToggle.CreateNewEntry(parent);
+            enableToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.bugReport.enable"));
+            enableToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.bugReport.enable.tooltip"));
+            enableToggle.SetValueWithoutNotify(false);
+
             PanelTextField summaryField = CreateField(parent, "settings.developer.bugReport.summary", "settings.developer.bugReport.summary.tooltip", false, 120);
             PanelTextField describeField = CreateField(parent, "settings.developer.bugReport.describe", "settings.developer.bugReport.describe.tooltip");
             PanelTextField reproField = CreateField(parent, "settings.developer.bugReport.repro", "settings.developer.bugReport.repro.tooltip");
             PanelTextField expectedField = CreateField(parent, "settings.developer.bugReport.expected", "settings.developer.bugReport.expected.tooltip");
-            PanelTextField screenshotsField = CreateField(parent, "settings.developer.bugReport.screenshots", "settings.developer.bugReport.screenshots.tooltip");
-
-            PanelTextField buildField = CreateField(parent, "settings.developer.bugReport.build", "settings.developer.bugReport.build.tooltip");
-            buildField.SetValueWithoutNotify(GatherBuildInfo());
-
-            PanelTextField logField = CreateField(parent, "settings.developer.bugReport.logs", "settings.developer.bugReport.logs.tooltip");
-
-            PanelButton attachLogsButton = PanelButton.CreateNew(parent);
-            attachLogsButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.bugReport.attachLogs"));
-            attachLogsButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.bugReport.attachLogs.tooltip"));
-            attachLogsButton.OnClicked += () => logField.SetValueWithoutNotify(GatherRecentLogs());
-
             PanelTextField contextField = CreateField(parent, "settings.developer.bugReport.context", "settings.developer.bugReport.context.tooltip");
 
             PanelButton submitButton = PanelButton.CreateNew(parent);
             submitButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.bugReport.submit"));
             submitButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.bugReport.submit.tooltip"));
-            submitButton.OnClicked += () => Submit(summaryField, describeField, reproField, expectedField, screenshotsField, buildField, logField, contextField);
+            submitButton.OnClicked += () => Submit(summaryField, describeField, reproField, expectedField, contextField);
 
             PanelButton serverButton = PanelButton.CreateNew(parent);
             serverButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.bugReport.sendServer"));
             serverButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.bugReport.sendServer.tooltip"));
-            serverButton.OnClicked += () => SendToServer(summaryField, describeField, reproField, expectedField, screenshotsField, buildField, logField, contextField);
+            serverButton.OnClicked += () => SendToServer(summaryField, describeField, reproField, expectedField, contextField);
 
             PanelButton copyButton = PanelButton.CreateNew(parent);
             copyButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.bugReport.copy"));
             copyButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.bugReport.copy.tooltip"));
             copyButton.OnClicked += () =>
             {
-                GUIUtility.systemCopyBuffer = BuildMarkdown(summaryField, describeField, reproField, expectedField, screenshotsField, buildField, logField, contextField);
+                GUIUtility.systemCopyBuffer = BuildMarkdown(summaryField, describeField, reproField, expectedField, contextField);
                 Notify("settings.developer.bugReport.copied");
             };
+
+            PanelElementDescriptor[] gated =
+            {
+                summaryField.Descriptor, describeField.Descriptor, reproField.Descriptor,
+                expectedField.Descriptor, contextField.Descriptor,
+                submitButton.Descriptor, serverButton.Descriptor, copyButton.Descriptor,
+            };
+
+            void RefreshVisibility(bool on)
+            {
+                foreach (PanelElementDescriptor d in gated) d.SetActive(on);
+                group.ForceRebuild();
+            }
+            RefreshVisibility(false);
+            enableToggle.OnValueChanged += RefreshVisibility;
         }
 
         private static PanelTextField CreateField(RectTransform parent, string titleKey, string tooltipKey, bool multiline = true, int charLimit = FieldCharLimit)
@@ -99,28 +107,25 @@ namespace Basis.BasisUI
 
         private static void Submit(
             PanelTextField summary, PanelTextField describe, PanelTextField repro, PanelTextField expected,
-            PanelTextField screenshots, PanelTextField build, PanelTextField logs, PanelTextField context)
+            PanelTextField context)
         {
             string describeText = Read(describe);
             string reproText = Read(repro);
             string expectedText = Read(expected);
-            string buildText = Read(build);
-            string logsText = Read(logs);
 
             if (string.IsNullOrWhiteSpace(describeText) || string.IsNullOrWhiteSpace(reproText) ||
-                string.IsNullOrWhiteSpace(expectedText) || string.IsNullOrWhiteSpace(buildText) ||
-                string.IsNullOrWhiteSpace(logsText))
+                string.IsNullOrWhiteSpace(expectedText))
             {
                 Notify("settings.developer.bugReport.missingFields");
                 return;
             }
 
             string url = BuildPrefillUrl(Read(summary), describeText, reproText, expectedText,
-                Read(screenshots), buildText, logsText, Read(context), out bool trimmed);
+                GatherBuildInfo(), GatherRecentLogs(), Read(context), out bool trimmed);
 
             if (trimmed)
             {
-                GUIUtility.systemCopyBuffer = BuildMarkdown(summary, describe, repro, expected, screenshots, build, logs, context);
+                GUIUtility.systemCopyBuffer = BuildMarkdown(summary, describe, repro, expected, context);
             }
 
             Application.OpenURL(url);
@@ -129,17 +134,14 @@ namespace Basis.BasisUI
 
         private static void SendToServer(
             PanelTextField summary, PanelTextField describe, PanelTextField repro, PanelTextField expected,
-            PanelTextField screenshots, PanelTextField build, PanelTextField logs, PanelTextField context)
+            PanelTextField context)
         {
             string describeText = Read(describe);
             string reproText = Read(repro);
             string expectedText = Read(expected);
-            string buildText = Read(build);
-            string logsText = Read(logs);
 
             if (string.IsNullOrWhiteSpace(describeText) || string.IsNullOrWhiteSpace(reproText) ||
-                string.IsNullOrWhiteSpace(expectedText) || string.IsNullOrWhiteSpace(buildText) ||
-                string.IsNullOrWhiteSpace(logsText))
+                string.IsNullOrWhiteSpace(expectedText))
             {
                 Notify("settings.developer.bugReport.missingFields");
                 return;
@@ -159,7 +161,7 @@ namespace Basis.BasisUI
 
             string summaryText = Read(summary);
             string headline = string.IsNullOrWhiteSpace(summaryText) ? describeText : summaryText;
-            string report = BuildMarkdown(summary, describe, repro, expected, screenshots, build, logs, context);
+            string report = BuildMarkdown(summary, describe, repro, expected, context);
 
             BasisErrorReportSender.Report(ServerReportSeverity, ServerReportSystem, headline, report);
             Notify("settings.developer.bugReport.sentServer");
@@ -167,28 +169,28 @@ namespace Basis.BasisUI
 
         private static string BuildPrefillUrl(
             string summary, string describe, string repro, string expected,
-            string screenshots, string build, string logs, string context, out bool trimmed)
+            string build, string logs, string context, out bool trimmed)
         {
             trimmed = false;
-            string url = Assemble(summary, describe, repro, expected, screenshots, build, logs, context);
+            string url = Assemble(summary, describe, repro, expected, build, logs, context);
             if (url.Length <= MaxUrlLength) return url;
 
             trimmed = true;
             string notice = BasisLocalization.Get("settings.developer.bugReport.trimmedNotice");
-            url = Assemble(summary, describe, repro, expected, screenshots, build, notice, context);
+            url = Assemble(summary, describe, repro, expected, build, notice, context);
             if (url.Length <= MaxUrlLength) return url;
 
             describe = Clamp(describe, 1200, notice);
             repro = Clamp(repro, 800, notice);
             expected = Clamp(expected, 600, notice);
-            return Assemble(summary, describe, repro, expected, string.Empty, build, notice, string.Empty);
+            return Assemble(summary, describe, repro, expected, build, notice, string.Empty);
         }
 
         // Query keys (Describe, reproduction, ...) are the field ids declared in
         // 1-bug.yml; GitHub maps each parameter onto the form field of that id.
         private static string Assemble(
             string summary, string describe, string repro, string expected,
-            string screenshots, string build, string logs, string context)
+            string build, string logs, string context)
         {
             StringBuilder sb = new StringBuilder(NewIssueUrl.Length + 1024);
             sb.Append(NewIssueUrl).Append("?template=").Append(IssueTemplate);
@@ -196,7 +198,6 @@ namespace Basis.BasisUI
             AppendField(sb, "Describe", describe);
             AppendField(sb, "reproduction", repro);
             AppendField(sb, "expected-behavior", expected);
-            AppendField(sb, "screenshots", screenshots);
             AppendField(sb, "buildinfo", build);
             AppendField(sb, "log-files", logs);
             AppendField(sb, "additional-context", context);
@@ -244,7 +245,7 @@ namespace Basis.BasisUI
 
         private static string BuildMarkdown(
             PanelTextField summary, PanelTextField describe, PanelTextField repro, PanelTextField expected,
-            PanelTextField screenshots, PanelTextField build, PanelTextField logs, PanelTextField context)
+            PanelTextField context)
         {
             StringBuilder sb = new StringBuilder(2048);
             string summaryText = Read(summary);
@@ -252,9 +253,8 @@ namespace Basis.BasisUI
             AppendSection(sb, "Describe the bug?", Read(describe));
             AppendSection(sb, "Steps to Reproduce", Read(repro));
             AppendSection(sb, "The expected behavior", Read(expected));
-            AppendSection(sb, "Screenshots", Read(screenshots));
-            AppendSection(sb, "Build Info", Read(build));
-            AppendSection(sb, "Log Files", Read(logs));
+            AppendSection(sb, "Build Info", GatherBuildInfo());
+            AppendSection(sb, "Log Files", GatherRecentLogs());
             AppendSection(sb, "Additional Context", Read(context));
             return sb.ToString();
         }
