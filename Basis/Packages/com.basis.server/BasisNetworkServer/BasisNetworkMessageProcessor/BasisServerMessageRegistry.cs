@@ -28,6 +28,12 @@ public static class BasisServerMessageRegistry
     private static readonly ConcurrentDictionary<ushort, SerializableBasis.BasisMessageDescriptor> PluginDescriptors = new();
     private static readonly ConcurrentDictionary<int, HashSet<ushort>> Subscriptions = new();
 
+    /// <summary>Plugin ids start above the core channel range (0-63) so they never collide with core ids in the flat manifest/subscription space.</summary>
+    private const ushort PluginIdBase = 64;
+    private static int _nextPluginId = PluginIdBase;
+    private static readonly ConcurrentDictionary<string, ushort> PluginIdsByName = new();
+    private static readonly object _pluginIdLock = new object();
+
     static BasisServerMessageRegistry()
     {
         RegisterCoreHandlers();
@@ -55,6 +61,61 @@ public static class BasisServerMessageRegistry
     {
         PluginDescriptors.TryRemove(id, out _);
         return PluginHandlers.TryRemove(id, out _);
+    }
+
+    /// <summary>
+    /// Register a plugin message by name with an auto-assigned id, advertise it in the manifest,
+    /// and bind its handler. Returns the assigned id. Ids are assigned in registration order from
+    /// PluginIdBase; register plugins in a deterministic order for stable ids across restarts.
+    /// </summary>
+    public static ushort RegisterServerPlugin(string name, DeliveryMethod delivery, BasisServerMessageHandler handler, byte version = 1, SerializableBasis.BasisMessageFlags extraFlags = SerializableBasis.BasisMessageFlags.None)
+    {
+        ushort id;
+        lock (_pluginIdLock)
+        {
+            if (!PluginIdsByName.TryGetValue(name, out id))
+            {
+                id = (ushort)_nextPluginId++;
+                PluginIdsByName[name] = id;
+            }
+        }
+        SerializableBasis.BasisMessageDescriptor descriptor = new SerializableBasis.BasisMessageDescriptor
+        {
+            Id = id,
+            Version = version,
+            Channel = BasisNetworkCommons.GetPluginChannelForDelivery(delivery),
+            Flags = (byte)(SerializableBasis.BasisMessageFlags.Multiplexed | extraFlags),
+            Name = name,
+        };
+        PluginHandlers[id] = handler;
+        PluginDescriptors[id] = descriptor;
+        return id;
+    }
+
+    /// <summary>Look up a plugin's assigned message id by name.</summary>
+    public static bool TryGetPluginId(string name, out ushort id) => PluginIdsByName.TryGetValue(name, out id);
+
+    /// <summary>
+    /// Send a plugin message to a peer by name: prepends the id and uses the descriptor's channel.
+    /// Skips peers that did not subscribe to the id. Returns false if the plugin is unknown or skipped.
+    /// </summary>
+    public static bool SendToPeer(NetPeer peer, string name, Action<NetDataWriter> writePayload)
+    {
+        if (!PluginIdsByName.TryGetValue(name, out ushort id) || !PluginDescriptors.TryGetValue(id, out SerializableBasis.BasisMessageDescriptor descriptor))
+        {
+            return false;
+        }
+        if (!IsSubscribed(peer.Id, id))
+        {
+            return false;
+        }
+        NetDataWriter writer = NetworkServer.RentWriter();
+        writer.Put(id);
+        writePayload?.Invoke(writer);
+        BasisNetworkStatistics.RecordOutbound(descriptor.Channel, writer.Length);
+        NetworkServer.TrySend(peer, writer, descriptor.Channel, BasisNetworkCommons.GetDeliveryForPluginChannel(descriptor.Channel));
+        NetworkServer.ReturnWriter(writer);
+        return true;
     }
 
     /// <summary>Core catalog plus any registered plugin descriptors — the manifest supplied to each client.</summary>

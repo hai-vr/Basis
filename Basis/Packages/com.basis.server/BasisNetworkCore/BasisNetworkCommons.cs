@@ -250,20 +250,34 @@ namespace Basis.Network.Core
         public const byte RegistrySub_Subscribe = 1;
 
         /// <summary>Maps a plugin DeliveryMethod to its multiplexed channel (61-63). Returns RegistryControlChannel for unmapped values.</summary>
-        public static byte GetPluginChannelForDelivery(LiteNetLib.DeliveryMethod delivery)
+        public static byte GetPluginChannelForDelivery(DeliveryMethod delivery)
         {
             switch (delivery)
             {
-                case LiteNetLib.DeliveryMethod.ReliableOrdered:
-                case LiteNetLib.DeliveryMethod.ReliableUnordered:
-                case LiteNetLib.DeliveryMethod.ReliableSequenced:
+                case DeliveryMethod.ReliableOrdered:
+                case DeliveryMethod.ReliableUnordered:
+                case DeliveryMethod.ReliableSequenced:
                     return PluginReliableChannel;
-                case LiteNetLib.DeliveryMethod.Sequenced:
+                case DeliveryMethod.Sequenced:
                     return PluginSequencedChannel;
-                case LiteNetLib.DeliveryMethod.Unreliable:
+                case DeliveryMethod.Unreliable:
                     return PluginUnreliableChannel;
                 default:
                     return RegistryControlChannel;
+            }
+        }
+
+        /// <summary>Canonical DeliveryMethod for a multiplexed plugin channel (reverse of GetPluginChannelForDelivery).</summary>
+        public static DeliveryMethod GetDeliveryForPluginChannel(byte channel)
+        {
+            switch (channel)
+            {
+                case PluginSequencedChannel:
+                    return DeliveryMethod.Sequenced;
+                case PluginUnreliableChannel:
+                    return DeliveryMethod.Unreliable;
+                default:
+                    return DeliveryMethod.ReliableOrdered;
             }
         }
 

@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Scripts.Networking;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
@@ -16,6 +17,9 @@ public static class BasisClientMessageRegistry
 
     /// <summary>The descriptors from the most recent server Supply, for introspection / plugin binding.</summary>
     public static SerializableBasis.BasisMessageDescriptor[] LastSupply { get; private set; }
+
+    private static readonly ConcurrentDictionary<string, BasisClientMessageHandler> PluginHandlersByName = new();
+    private static readonly ConcurrentDictionary<string, SerializableBasis.BasisMessageDescriptor> PluginDescriptorsByName = new();
 
     public static void RegisterCore(byte channel, BasisClientMessageHandler handler) => CoreHandlers[channel] = handler;
 
@@ -54,13 +58,20 @@ public static class BasisClientMessageRegistry
     {
         LastSupply = supply.Descriptors ?? System.Array.Empty<SerializableBasis.BasisMessageDescriptor>();
 
+        PluginDescriptorsByName.Clear();
         List<ushort> handled = new List<ushort>(LastSupply.Length);
         foreach (SerializableBasis.BasisMessageDescriptor descriptor in LastSupply)
         {
-            bool canHandle = BasisNetworkCommons.IsPluginChannel(descriptor.Channel)
-                ? PluginHandlers.ContainsKey(descriptor.Id)
-                : ResolveCore(descriptor.Channel) != null;
-            if (canHandle)
+            if (BasisNetworkCommons.IsPluginChannel(descriptor.Channel))
+            {
+                PluginDescriptorsByName[descriptor.Name] = descriptor;
+                if (PluginHandlersByName.TryGetValue(descriptor.Name, out BasisClientMessageHandler handler))
+                {
+                    PluginHandlers[descriptor.Id] = handler;
+                    handled.Add(descriptor.Id);
+                }
+            }
+            else if (ResolveCore(descriptor.Channel) != null)
             {
                 handled.Add(descriptor.Id);
             }
@@ -71,5 +82,51 @@ public static class BasisClientMessageRegistry
         writer.Put(BasisNetworkCommons.RegistrySub_Subscribe);
         subscribe.Serialize(writer);
         peer.Send(writer, BasisNetworkCommons.RegistryControlChannel, DeliveryMethod.ReliableOrdered);
+    }
+
+    /// <summary>
+    /// Register a plugin handler by name. The server-assigned id is bound when the next Supply
+    /// manifest arrives, or immediately if one was already received this session.
+    /// </summary>
+    public static void RegisterClientPlugin(string name, BasisClientMessageHandler handler)
+    {
+        PluginHandlersByName[name] = handler;
+        if (PluginDescriptorsByName.TryGetValue(name, out SerializableBasis.BasisMessageDescriptor descriptor))
+        {
+            PluginHandlers[descriptor.Id] = handler;
+        }
+    }
+
+    /// <summary>Remove a plugin handler registered by name.</summary>
+    public static void UnregisterClientPlugin(string name)
+    {
+        PluginHandlersByName.TryRemove(name, out _);
+        if (PluginDescriptorsByName.TryGetValue(name, out SerializableBasis.BasisMessageDescriptor descriptor))
+        {
+            PluginHandlers.TryRemove(descriptor.Id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Send a plugin message to the server by name: prepends the server-assigned id and uses the
+    /// descriptor's channel. Returns false if the server has not advertised this plugin or there is
+    /// no live connection.
+    /// </summary>
+    public static bool Send(string name, System.Action<NetDataWriter> writePayload)
+    {
+        if (!PluginDescriptorsByName.TryGetValue(name, out SerializableBasis.BasisMessageDescriptor descriptor))
+        {
+            return false;
+        }
+        NetPeer peer = BasisNetworkConnection.LocalPlayerPeer;
+        if (peer == null)
+        {
+            return false;
+        }
+        NetDataWriter writer = new NetDataWriter();
+        writer.Put(descriptor.Id);
+        writePayload?.Invoke(writer);
+        peer.Send(writer, descriptor.Channel, BasisNetworkCommons.GetDeliveryForPluginChannel(descriptor.Channel));
+        return true;
     }
 }

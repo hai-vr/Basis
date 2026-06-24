@@ -33,6 +33,8 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	[SerializeField] private int bakeMaxResolution = 256;
 	[Tooltip("Optional: a Texture3D produced by the editor baker. When assigned it ships with the renderer and is used directly, skipping the runtime bake. It must have been baked with the bounds above. Leave empty to bake at runtime from the world's APV.")]
 	[SerializeField] private Texture3D bakedAPVVolumeAsset;
+	[Tooltip("Experimental: schedule the APV bake on the GPU's async compute queue (DX12/Vulkan/Metal only; auto-falls back to sync where unsupported). The fog draw that reads the result is not render-graph-tracked, so no sync fence is inserted; expect possible brief fog flicker while the volume is still settling on world load. Default off.")]
+	[SerializeField] private bool bakeUseAsyncCompute = false;
 
 	private Material downsampleDepthMaterial;
 	private Material volumetricFogMaterial;
@@ -257,6 +259,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		volumetricFogAPVBakePass.boundsMin = boundsMin;
 		volumetricFogAPVBakePass.boundsSize = bakeBoundsSize;
 		volumetricFogAPVBakePass.resolution = resolution;
+		volumetricFogAPVBakePass.useAsyncCompute = bakeUseAsyncCompute;
 
 		// Publish now: the RT reference is valid, and the bake pass (enqueued this frame at
 		// BeforeRenderingOpaques) fills it on the GPU before the fog pass samples it. The volume converges to

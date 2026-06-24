@@ -34,6 +34,12 @@ public sealed class VolumetricFogAPVBakePass : ScriptableRenderPass
     public Vector3 boundsSize;
     public Vector3Int resolution;
 
+    // When true (and the GPU supports it), the bake is scheduled on the async compute queue. The fog draw
+    // that consumes the RT is not render-graph-tracked, so the graph inserts no fence: a same-frame torn
+    // read is possible while the bake is still re-running during the APV settle window (brief fog flicker
+    // on world load). Steady state is safe since baking stops once settled and the RT stays resident.
+    public bool useAsyncCompute;
+
     private readonly ProfilingSampler bakeProfilingSampler = new ProfilingSampler("Bake APV Fog Volume");
 
     public VolumetricFogAPVBakePass()
@@ -71,6 +77,7 @@ public sealed class VolumetricFogAPVBakePass : ScriptableRenderPass
             // The result is consumed via the imported RT in a later pass/frame (the fog binds it as a
             // plain material texture, outside this graph's tracking), so the pass would otherwise be culled.
             builder.AllowPassCulling(false);
+            builder.EnableAsyncCompute(useAsyncCompute && SystemInfo.supportsAsyncCompute);
             builder.SetRenderFunc((BakePassData d, ComputeGraphContext context) => ExecuteBakePass(d, context));
         }
     }
