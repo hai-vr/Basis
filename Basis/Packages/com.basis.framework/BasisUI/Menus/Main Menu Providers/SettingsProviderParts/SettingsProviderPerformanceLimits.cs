@@ -283,6 +283,8 @@ public static class SettingsProviderPerformanceLimits
         {
             slider.Descriptor.SetTooltip(sliderTooltip);
 
+            slider.gameObject.SetActive(useBinding.RawValue);
+
             void Sync(bool on)
             {
                 if (slider == null) return;
@@ -290,8 +292,8 @@ public static class SettingsProviderPerformanceLimits
                 ForceLayout();
             }
 
-            Sync(useBinding.RawValue);
             useBinding.OnChanged += Sync;
+            slider.OnInstanceReleased += () => useBinding.OnChanged -= Sync;
         }
     }
 
