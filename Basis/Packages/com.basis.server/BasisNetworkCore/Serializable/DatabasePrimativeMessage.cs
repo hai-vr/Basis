@@ -116,7 +116,7 @@ public static partial class SerializableBasis
                 {
                     writer.Put((byte)SerializedType.Decimal);
                     // No direct Put for decimal, serialize as string
-                    writer.Put(kvp.Value.ToString());
+                    writer.Put(((decimal)kvp.Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
                 }
                 else
                 {
@@ -180,7 +180,7 @@ public static partial class SerializableBasis
                         break;
                     case SerializedType.Decimal:
                         // Read decimal from string
-                        jsonPayload[key] = decimal.Parse(reader.GetString());
+                        jsonPayload[key] = decimal.Parse(reader.GetString(), System.Globalization.CultureInfo.InvariantCulture);
                         break;
                     default:
                         throw new InvalidOperationException($"Unsupported type marker in jsonPayload: {(byte)type}");

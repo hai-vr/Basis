@@ -65,7 +65,7 @@ namespace BasisNetworkConsole
                 }
                 else if (field.FieldType == typeof(float))
                 {
-                    if (float.TryParse(newValue, out float floatValue))
+                    if (float.TryParse(newValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float floatValue))
                     {
                         field.SetValue(config, floatValue);
                         success = true;

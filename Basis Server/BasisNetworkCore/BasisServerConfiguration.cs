@@ -240,7 +240,7 @@ public class Configuration
             }
             else if (field.FieldType == typeof(float))
             {
-                if (float.TryParse(value, out float number)) field.SetValue(target, number);
+                if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float number)) field.SetValue(target, number);
                 else BNL.LogWarning("Could not cast to float. Failed Override.");
             }
             else if (field.FieldType == typeof(string))

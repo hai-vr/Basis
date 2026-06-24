@@ -15,6 +15,7 @@ namespace Basis.Network.Server
     {
         Immediate    = 0,
         Synchronized = 2,
+        Predownload  = 3,
     }
 
     public record WorldLoadParams(string Url, string Password, bool Persistent, LoadStrategy Strategy);
@@ -63,10 +64,18 @@ namespace Basis.Network.Server
         public string LoadWorld(WorldLoadParams p)
         {
             var resource = BuildResource(p.Url, p.Password, p.Persistent, p.Strategy);
-            if (p.Strategy == LoadStrategy.Synchronized)
-                BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(resource);
-            else
-                BasisNetworkResourceManagement.LoadResource(resource);
+            switch (p.Strategy)
+            {
+                case LoadStrategy.Synchronized:
+                    BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(resource);
+                    break;
+                case LoadStrategy.Predownload:
+                    BasisNetworkResourceManagement.PredownloadResource(resource);
+                    break;
+                default:
+                    BasisNetworkResourceManagement.LoadResource(resource);
+                    break;
+            }
             BNL.Log($"[Control] Load world: {p.Url} strategy={p.Strategy} netId={resource.LoadedNetID}");
             return resource.LoadedNetID;
         }

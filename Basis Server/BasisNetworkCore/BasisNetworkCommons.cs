@@ -230,6 +230,49 @@ namespace Basis.Network.Core
         /// <summary>Server relay of a direct-origin avatar message (recipients with no direct link).</summary>
         public const byte DirectAvatarServerChannel = 59;
 
+        // ── Dynamic message registry (subscribe & supply) ────────────────────
+        // Channels 60-63 carry the dynamic message layer negotiated at connect.
+        // 60 negotiates the registry; 61-63 multiplex plugin payloads keyed by a
+        // ushort message id, one channel per delivery semantic. Core channels
+        // 0-59 keep their own dedicated channels and ordering streams.
+        /// <summary>Registry handshake. First payload byte is a RegistrySub_* sub-type.</summary>
+        public const byte RegistryControlChannel = 60;
+        /// <summary>Reliable-ordered plugin payloads. Frame: [messageId:2][payload].</summary>
+        public const byte PluginReliableChannel = 61;
+        /// <summary>Sequenced plugin payloads. Frame: [messageId:2][payload].</summary>
+        public const byte PluginSequencedChannel = 62;
+        /// <summary>Unreliable plugin payloads. Frame: [messageId:2][payload].</summary>
+        public const byte PluginUnreliableChannel = 63;
+
+        /// <summary>RegistryControlChannel sub-type: server to client full descriptor manifest.</summary>
+        public const byte RegistrySub_Supply = 0;
+        /// <summary>RegistryControlChannel sub-type: client to server list of message ids it can handle.</summary>
+        public const byte RegistrySub_Subscribe = 1;
+
+        /// <summary>Maps a plugin DeliveryMethod to its multiplexed channel (61-63). Returns RegistryControlChannel for unmapped values.</summary>
+        public static byte GetPluginChannelForDelivery(LiteNetLib.DeliveryMethod delivery)
+        {
+            switch (delivery)
+            {
+                case LiteNetLib.DeliveryMethod.ReliableOrdered:
+                case LiteNetLib.DeliveryMethod.ReliableUnordered:
+                case LiteNetLib.DeliveryMethod.ReliableSequenced:
+                    return PluginReliableChannel;
+                case LiteNetLib.DeliveryMethod.Sequenced:
+                    return PluginSequencedChannel;
+                case LiteNetLib.DeliveryMethod.Unreliable:
+                    return PluginUnreliableChannel;
+                default:
+                    return RegistryControlChannel;
+            }
+        }
+
+        /// <summary>True if the channel is one of the multiplexed plugin channels (61-63) carrying a [messageId:2] prefix.</summary>
+        public static bool IsPluginChannel(byte channel)
+        {
+            return channel >= PluginReliableChannel && channel <= PluginUnreliableChannel;
+        }
+
         // ── Server info unconnected query ────────────────────────────────────
         // Out-of-band UDP probe: a client can hit the server's port without
         // authenticating and get back a name/online/max/MOTD payload — same

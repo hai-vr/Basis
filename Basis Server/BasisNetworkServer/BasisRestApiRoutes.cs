@@ -122,6 +122,7 @@ public sealed class BasisRestApiRoutes
                 switch (sp.GetString())
                 {
                     case "synchronized": strategy = LoadStrategy.Synchronized; break;
+                    case "predownload":  strategy = LoadStrategy.Predownload;  break;
                     case "immediate":    strategy = LoadStrategy.Immediate;    break;
                     default: BadRequest(res, "unknown strategy"); return;
                 }
