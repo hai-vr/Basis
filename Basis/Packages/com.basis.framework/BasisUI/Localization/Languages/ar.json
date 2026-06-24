@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "انحياز LOD الوضعية" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "يقلل من تكلفة المعالج عن طريق تحديث وضعيات اللاعبين البعيدين بشكل أقل تكرارًا.\n0 = متوقف (يتم تحديث جميع اللاعبين كل إطار).\n1-2 = تقليل طفيف، بالكاد يُرى.\n3-5 = ملحوظ على اللاعبين البعيدين، توفير كبير في المعالج." },
     { "key": "settings.graphics.advanced.description", "value": "اضبط خيارات التصيير و LOD والأداء بدقة." },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "إظهار الإعدادات المتقدمة" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "الإعدادات المتقدمة" },
     { "key": "settings.graphics.renderScale", "value": "مقياس التصيير" },
     { "key": "settings.graphics.hdrSupport", "value": "دعم HDR" },
     { "key": "settings.graphics.foveated", "value": "نسبة التصيير المركّز" },
