@@ -1541,12 +1541,12 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PoseLOD);
             sliderPoseLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.poseLod.bias.tooltip"));
 
-            PanelElementDescriptor advancedGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            advancedGroup.SetTitle(BasisLocalization.Get("ui.advanced"));
-
-            PanelSectionToggle toggleAdvanced = PanelSectionToggle.CreateNewEntry(advancedGroup.ContentParent);
-            toggleAdvanced.SetTitle(BasisLocalization.Get("settings.graphics.advanced.showAdvanced"));
+            PanelSectionToggle toggleAdvanced = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor advancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                toggleAdvanced,
+                container,
+                BasisLocalization.Get("settings.graphics.advanced.showAdvanced"),
+                false);
 
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1599,18 +1599,11 @@ namespace Basis.BasisUI
             toggleLocalHeadBlendShapes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.localHeadBlendShapes"));
             toggleLocalHeadBlendShapes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.localHeadBlendShapes.tooltip"));
 
-            PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleAdvanced, false, _ =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggleAdvanced, advancedGroup, false, _ =>
             {
                 advancedGroup.ForceRebuild();
                 descriptor.ForceRebuild();
-            },
-                sliderRenderResolution,
-                dropdownHDR,
-                sliderFoveatedRendering,
-                sliderFieldOfView,
-                sliderMeshLOD,
-                sliderGlobalMeshLOD,
-                toggleLocalHeadBlendShapes);
+            });
 
             // Performance limits live in the same tab — formerly its own page,
             // merged here so users see all rendering / quality / cost controls together.
