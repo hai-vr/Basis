@@ -10,8 +10,8 @@ public class CueController : BasisNetworkBehaviour
 
     [SerializeField] private CueGrip primary;
     [SerializeField] private CueGrip secondary;
-    public BasisObjectSyncNetworking PrimaryNetworking;
-    public BasisObjectSyncNetworking SecondaryNetworking;
+    public BasisPickupSyncNetworking PrimaryNetworking;
+    public BasisPickupSyncNetworking SecondaryNetworking;
 
     [SerializeField] private GameObject desktop;
     [SerializeField] private GameObject body;

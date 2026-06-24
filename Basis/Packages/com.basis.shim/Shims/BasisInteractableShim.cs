@@ -10,7 +10,7 @@ namespace Basis.Shims
     [Obsolete("Use the direct interactable component instead. This is a shim for the old system and should be removed at a later point.")]
 	public class BasisInteractableShim : BasisInteractableObject // Need to remove at a later point.
 	{
-		// public BasisObjectSyncNetworking syncNetworking;
+		// public BasisPickupSyncNetworking syncNetworking;
 
 		// events other scripts can subscribe to
 		public delegate void ClickEvent();

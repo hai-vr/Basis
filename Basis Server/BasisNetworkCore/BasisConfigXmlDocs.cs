@@ -167,7 +167,7 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("UseAuth", " Require the join password (above) to be correct. true|false. "));
             t.Fields.Add(new FieldDoc("UseAuthIdentity", " Require cryptographic player-identity (DID) verification in addition to the password. true|false. The headless load-test client console supports this, so it can stay enabled. "));
             t.Fields.Add(new FieldDoc("NetworkStackId", " Transport stack id. Empty = the default ('litenetlib'); only 'litenetlib' is registered and unknown ids fall back to it. Per-stack tuning lives in config/transports/<id>.xml. string. "));
-            t.Fields.Add(new FieldDoc("BasisUserRestrictionMode", " Player join restriction mode. Allowed values: Normal | BlackList | WhiteList | RejoinOnly. RejoinOnly locks the server to the players connected when it was enabled (admins may still join) and resets to Normal on restart. "));
+            t.Fields.Add(new FieldDoc("BasisUserRestrictionMode", " Player join restriction mode. Allowed values: Normal | BanList | AllowList | RejoinOnly. RejoinOnly locks the server to the players connected when it was enabled (admins may still join) and resets to Normal on restart. "));
             t.Fields.Add(new FieldDoc("HowManyDuplicateAuthCanExist", " How many connections sharing the same auth identity may exist at once. int. "));
             t.Fields.Add(new FieldDoc("AuthValidationTimeOutMiliseconds", " Time a client has to complete auth validation before being dropped. int (ms). "));
             t.Fields.Add(new FieldDoc("EnableConsole", " Enable the interactive server console (CLI input). Set false for headless/daemon deployments. true|false. ", " ===== Console / persistence ===== "));

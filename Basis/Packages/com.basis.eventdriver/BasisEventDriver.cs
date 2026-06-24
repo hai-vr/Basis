@@ -106,7 +106,7 @@ namespace Basis.EventDriver
             }
             BasisOpenLipSyncDriver.BeginInitialize();
             BasisSceneFactory.Initialize();
-            BasisObjectSyncDriver.Initialize();
+            BasisPickupSyncDriver.Initialize();
             RemoteBoneJobSystem.Initialize();
             BasisOpenLipSyncDriver.EndInitialize();
         }
@@ -117,7 +117,7 @@ namespace Basis.EventDriver
         public void OnDestroy()
         {
             BasisOpenLipSyncDriver.Shutdown();
-            BasisObjectSyncDriver.OnDestroy();
+            BasisPickupSyncDriver.OnDestroy();
             Application.onBeforeRender -= OnBeforeRender;
             RemoteBoneJobSystem.Dispose();
             BasisAuthoredMotionSystem.Dispose();
@@ -177,7 +177,7 @@ namespace Basis.EventDriver
             // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
             // calls in a single frame and stall the renderer.
             BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
-            BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
+            BasisPickupSyncDriver.ScheduleRemoteLerp(DeltaTime);
             if (!IsHeadlessClient)
             {
                 InputSystem.Update();
@@ -186,6 +186,7 @@ namespace Basis.EventDriver
             OSCAcquisitionServer.Simulate();
             SMModuleAvatarPerformanceLimits.Simulate();
             SMModuleDebugOptions.Simulate();
+            Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
             timeSinceLastUpdate += DeltaTime;
         }
 
@@ -243,7 +244,7 @@ namespace Basis.EventDriver
             BasisLocalPlayer.FireJustBeforeNetworkApply();
             ProfileEnd2(PROF_NET_FIRE_BEFORE_APPLY);
             ProfileBegin2();
-            BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
+            BasisPickupSyncDriver.TransmitOwnedPickups(TimeAsDouble);
             ProfileEnd2(PROF_NET_TRANSMIT_PICKUPS);
             ProfileBegin2();
 #if !UNITY_SERVER && !BASIS_DISABLE_MICROPHONE
@@ -254,7 +255,7 @@ namespace Basis.EventDriver
             BasisNetworkManagement.SimulateNetworkApply();
             ProfileEnd2(PROF_NET_SIMULATE_APPLY);
             ProfileBegin2();
-            BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
+            BasisPickupSyncDriver.CompleteScheduledRemoteLerp();
             ProfileEnd2(PROF_NET_COMPLETE_REMOTE_LERP);
             ProfileEnd(PROF_NETWORK_APPLY);
 

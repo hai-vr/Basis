@@ -96,7 +96,7 @@ public static class BasisContextMenuEditor
 
     /// <summary>
     /// Adds a standard physics-based pickup with network sync.
-    /// Components: BoxCollider (if needed) + Rigidbody + BasisPickupInteractable + BasisObjectSyncNetworking
+    /// Components: BoxCollider (if needed) + Rigidbody + BasisPickupInteractable + BasisPickupSyncNetworking
     /// </summary>
     [MenuItem("GameObject/Basis/Pickup", false, 0)]
     static void AddPickup()
@@ -107,7 +107,7 @@ public static class BasisContextMenuEditor
             var rb = EnsureComponent<Rigidbody>(go);
             var pickup = EnsureComponent<BasisPickupInteractable>(go);
             pickup.RigidRef = rb;
-            EnsureComponent<BasisObjectSyncNetworking>(go);
+            EnsureComponent<BasisPickupSyncNetworking>(go);
             EditorUtility.SetDirty(go);
         }
     }
@@ -187,14 +187,14 @@ public static class BasisContextMenuEditor
     /// <summary>
     /// Adds object sync networking for synchronizing transform state across clients.
     /// Requires a BasisPickupInteractable on the same GameObject or children.
-    /// Components: BasisObjectSyncNetworking
+    /// Components: BasisPickupSyncNetworking
     /// </summary>
     [MenuItem("GameObject/Basis/Object Sync", false, 20)]
     static void AddObjectSync()
     {
         foreach (var go in Selection.gameObjects)
         {
-            EnsureComponent<BasisObjectSyncNetworking>(go);
+            EnsureComponent<BasisPickupSyncNetworking>(go);
             EditorUtility.SetDirty(go);
         }
     }

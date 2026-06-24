@@ -441,19 +441,19 @@ namespace BasisNetworkServer.Security
                         SendBackMessage(peer, ApplyServerMotd(reader.GetString())));
                     break;
 
-                case AdminRequestMode.SetWhitelistMode:
+                case AdminRequestMode.SetAllowlistMode:
                     Require(peer, PermNodes.ConfigurationEditor, () =>
-                        SendBackMessage(peer, ApplyWhitelistMode(reader.GetByte())));
+                        SendBackMessage(peer, ApplyAllowlistMode(reader.GetByte())));
                     break;
 
-                case AdminRequestMode.AddWhitelist:
-                    Require(peer, PermNodes.ModerationWhitelist, () =>
-                        SendBackMessage(peer, ApplyWhitelistAdd(reader.GetString())));
+                case AdminRequestMode.AddAllowlist:
+                    Require(peer, PermNodes.ModerationAllowlist, () =>
+                        SendBackMessage(peer, ApplyAllowlistAdd(reader.GetString())));
                     break;
 
-                case AdminRequestMode.RemoveWhitelist:
-                    Require(peer, PermNodes.ModerationWhitelist, () =>
-                        SendBackMessage(peer, ApplyWhitelistRemove(reader.GetString())));
+                case AdminRequestMode.RemoveAllowlist:
+                    Require(peer, PermNodes.ModerationAllowlist, () =>
+                        SendBackMessage(peer, ApplyAllowlistRemove(reader.GetString())));
                     break;
 
                 case AdminRequestMode.AddDefaultLibraryItem:
@@ -507,7 +507,7 @@ namespace BasisNetworkServer.Security
             return "Server MOTD updated.";
         }
 
-        private static string ApplyWhitelistMode(byte mode)
+        private static string ApplyAllowlistMode(byte mode)
         {
             BasisUserRestrictionMode parsed = (BasisUserRestrictionMode)mode;
             if (!Enum.IsDefined(typeof(BasisUserRestrictionMode), parsed))
@@ -525,22 +525,22 @@ namespace BasisNetworkServer.Security
             return $"Restriction mode set to {parsed}.";
         }
 
-        private static string ApplyWhitelistAdd(string uuid)
+        private static string ApplyAllowlistAdd(string uuid)
         {
             if (string.IsNullOrWhiteSpace(uuid)) return "UUID was empty.";
-            if (NetworkServer.Whitelist == null) return "Whitelist not initialized.";
-            // Fire-and-forget: BasisWhiteList.AddToWhitelistAsync appends one line and
+            if (NetworkServer.AllowList == null) return "AllowList not initialized.";
+            // Fire-and-forget: BasisAllowList.AddToAllowlistAsync appends one line and
             // is safe to leave running while we report the operation back to the admin.
-            _ = NetworkServer.Whitelist.AddToWhitelistAsync(uuid);
-            return $"Added {uuid} to whitelist.";
+            _ = NetworkServer.AllowList.AddToAllowlistAsync(uuid);
+            return $"Added {uuid} to allowlist.";
         }
 
-        private static string ApplyWhitelistRemove(string uuid)
+        private static string ApplyAllowlistRemove(string uuid)
         {
             if (string.IsNullOrWhiteSpace(uuid)) return "UUID was empty.";
-            if (NetworkServer.Whitelist == null) return "Whitelist not initialized.";
-            _ = NetworkServer.Whitelist.RemoveFromWhitelistAsync(uuid);
-            return $"Removed {uuid} from whitelist.";
+            if (NetworkServer.AllowList == null) return "AllowList not initialized.";
+            _ = NetworkServer.AllowList.RemoveFromAllowlistAsync(uuid);
+            return $"Removed {uuid} from allowlist.";
         }
 
         private static string ApplyAddDefaultLibraryItem(byte mode, string url, string password)

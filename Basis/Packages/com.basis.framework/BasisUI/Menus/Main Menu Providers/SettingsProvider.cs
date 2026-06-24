@@ -2166,6 +2166,11 @@ namespace Basis.BasisUI
             togglePreferOscEye.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeTracking.preferOsc.tooltip"));
             togglePreferOscEye.AssignBinding(BasisSettingsDefaults.EyeTrackingPreferOsc);
 
+            PanelToggle toggleAutoFoveation = PanelToggle.CreateNewEntry(eyeTrackingGroup.ContentParent);
+            toggleAutoFoveation.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeTracking.autoFoveation"));
+            toggleAutoFoveation.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeTracking.autoFoveation.tooltip"));
+            toggleAutoFoveation.AssignBinding(BasisSettingsDefaults.EyeFoveationAutoManage);
+
             // ---- Sections contributed by feature packages (e.g. Avatar Recorder) ----
             for (int i = 0; i < DeveloperSectionBuilders.Count; i++)
             {
@@ -2779,6 +2784,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AvatarShowTextureStats.ResetToDefault();
             BasisSettingsDefaults.AvatarShowTrackerRoles.ResetToDefault();
             BasisSettingsDefaults.EyeTrackingPreferOsc.ResetToDefault();
+            BasisSettingsDefaults.EyeFoveationAutoManage.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
 
             for (int i = 0; i < DeveloperResetActions.Count; i++)

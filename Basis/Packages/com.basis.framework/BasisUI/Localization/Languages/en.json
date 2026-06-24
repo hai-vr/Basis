@@ -1575,24 +1575,24 @@
       "value": "Save the typed message of the day and apply it on the server."
     },
     {
-      "key": "settings.admin.title.whitelistOnly.tooltip",
-      "value": "Allow only whitelisted players to connect to this server."
+      "key": "settings.admin.title.allowlistOnly.tooltip",
+      "value": "Allow only allowlisted players to connect to this server."
     },
     {
       "key": "settings.admin.title.rejoinLockOnly.tooltip",
       "value": "Lock the server to the players connected now — they can rejoin, but nobody new can join. Admins can still join; clears on restart."
     },
     {
-      "key": "settings.admin.title.whitelistUuid.tooltip",
-      "value": "The player identifier to add to or remove from the whitelist."
+      "key": "settings.admin.title.allowlistUuid.tooltip",
+      "value": "The player identifier to add to or remove from the allowlist."
     },
     {
-      "key": "settings.admin.title.addToWhitelist.tooltip",
-      "value": "Add the entered player identifier to the server whitelist."
+      "key": "settings.admin.title.addToAllowList.tooltip",
+      "value": "Add the entered player identifier to the server allowlist."
     },
     {
-      "key": "settings.admin.title.removeFromWhitelist.tooltip",
-      "value": "Remove the entered player identifier from the server whitelist."
+      "key": "settings.admin.title.removeFromAllowList.tooltip",
+      "value": "Remove the entered player identifier from the server allowlist."
     },
     {
       "key": "settings.admin.title.requestAllLogs.tooltip",
@@ -6223,6 +6223,30 @@
       "value": "When both a headset's eye gaze and OSC face tracking are active, use the OSC face tracker for gaze. Turn off to prefer the headset's built-in eye gaze. Eyelid/blink always comes from face tracking."
     },
     {
+      "key": "settings.developer.eyeTracking.autoFoveation",
+      "value": "Auto Gaze Foveation"
+    },
+    {
+      "key": "settings.developer.eyeTracking.autoFoveation.tooltip",
+      "value": "When an eye-tracking headset is detected, ask once to enable gaze-foveated Variable Rate Shading, then remember the choice per headset. Auto-disables when no eye-tracking headset is present (desktop, or a headset without eye tracking)."
+    },
+    {
+      "key": "settings.eyeFoveation.prompt.title",
+      "value": "Eye Tracking Detected"
+    },
+    {
+      "key": "settings.eyeFoveation.prompt.body",
+      "value": "Your headset reports eye tracking. Enable gaze foveation (Variable Rate Shading) to render in full detail where you look and save GPU elsewhere? You can change this anytime in Settings → Developer → Eye Tracking."
+    },
+    {
+      "key": "settings.eyeFoveation.prompt.enable",
+      "value": "Enable"
+    },
+    {
+      "key": "settings.eyeFoveation.prompt.no",
+      "value": "No"
+    },
+    {
       "key": "settings.developer.gizmoLabels.description",
       "value": "Billboarded text labels on whichever gizmos are currently shown: tracker roles, linked-pair names, IK collider names, and the audio gizmos (speaker name with net loudness %, hearing distance, voice-cone angle)."
     },
@@ -7887,24 +7911,24 @@
       "value": "Apply MOTD"
     },
     {
-      "key": "settings.admin.title.whitelistOnly",
-      "value": "Whitelist Only"
+      "key": "settings.admin.title.allowlistOnly",
+      "value": "Allowlist Only"
     },
     {
       "key": "settings.admin.title.rejoinLockOnly",
       "value": "Lockdown — Rejoin Only"
     },
     {
-      "key": "settings.admin.title.whitelistUuid",
-      "value": "Whitelist UUID"
+      "key": "settings.admin.title.allowlistUuid",
+      "value": "Allowlist UUID"
     },
     {
-      "key": "settings.admin.title.addToWhitelist",
-      "value": "Add to Whitelist"
+      "key": "settings.admin.title.addToAllowList",
+      "value": "Add to Allowlist"
     },
     {
-      "key": "settings.admin.title.removeFromWhitelist",
-      "value": "Remove from Whitelist"
+      "key": "settings.admin.title.removeFromAllowList",
+      "value": "Remove from Allowlist"
     },
     {
       "key": "settings.admin.title.defaultLibrary",

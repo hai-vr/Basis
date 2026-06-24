@@ -311,7 +311,7 @@ namespace Basis.BasisUI
             PanelElementDescriptor serverGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             serverGroup.SetTitle(BasisLocalization.Get("settings.admin.title.serverConfiguration"));
-            serverGroup.SetDescription("Display name and MOTD returned by the server-info query, plus whitelist controls. Changes are saved to config.xml.");
+            serverGroup.SetDescription("Display name and MOTD returned by the server-info query, plus allowlist controls. Changes are saved to config.xml.");
 
             PanelTextField serverNameField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
             serverNameField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.serverName"));
@@ -352,56 +352,56 @@ namespace Basis.BasisUI
             // Fire-and-forget; failure is silent (the fields just stay blank).
             _ = PrefillServerInfoFieldsAsync(serverNameField, serverMotdField);
 
-            PanelToggle whitelistToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
-            whitelistToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.whitelistOnly"));
-            whitelistToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.whitelistOnly.tooltip"));
-            whitelistToggle.Descriptor.SetDescription("When on, only UUIDs in BasisWhiteList.txt may connect. Setting persists to config.xml.");
-            whitelistToggle.SetValueWithoutNotify(
-                BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.WhiteList);
-            whitelistToggle.OnValueChanged += value =>
+            PanelToggle allowlistToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
+            allowlistToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.allowlistOnly"));
+            allowlistToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.allowlistOnly.tooltip"));
+            allowlistToggle.Descriptor.SetDescription("When on, only UUIDs in BasisAllowList.txt may connect. Setting persists to config.xml.");
+            allowlistToggle.SetValueWithoutNotify(
+                BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.AllowList);
+            allowlistToggle.OnValueChanged += value =>
             {
-                BasisNetworkModeration.SetWhitelistMode(
-                    value ? BasisUserRestrictionMode.WhiteList : BasisUserRestrictionMode.Normal);
+                BasisNetworkModeration.SetAllowlistMode(
+                    value ? BasisUserRestrictionMode.AllowList : BasisUserRestrictionMode.Normal);
             };
 
             PanelToggle rejoinLockToggle = PanelToggle.CreateNewEntry(serverGroup.ContentParent);
             rejoinLockToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.rejoinLockOnly"));
             rejoinLockToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.rejoinLockOnly.tooltip"));
-            rejoinLockToggle.Descriptor.SetDescription("Locks the server to the players connected right now: they can disconnect and rejoin, but nobody new can join. Admins can always join, and a server restart clears it. Turning on Whitelist turns this off. Persists to config.xml.");
+            rejoinLockToggle.Descriptor.SetDescription("Locks the server to the players connected right now: they can disconnect and rejoin, but nobody new can join. Admins can always join, and a server restart clears it. Turning on AllowList turns this off. Persists to config.xml.");
             rejoinLockToggle.SetValueWithoutNotify(
                 BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.RejoinOnly);
             rejoinLockToggle.OnValueChanged += value =>
             {
-                BasisNetworkModeration.SetWhitelistMode(
+                BasisNetworkModeration.SetAllowlistMode(
                     value ? BasisUserRestrictionMode.RejoinOnly : BasisUserRestrictionMode.Normal);
             };
 
-            controller.WhitelistToggle = whitelistToggle;
+            controller.AllowlistToggle = allowlistToggle;
             controller.RejoinLockToggle = rejoinLockToggle;
 
-            PanelTextField whitelistUuidField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
-            whitelistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.whitelistUuid"));
-            whitelistUuidField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.whitelistUuid.tooltip"));
-            whitelistUuidField.Descriptor.SetDescription("Player UUID to add or remove from BasisWhiteList.txt.");
+            PanelTextField allowlistUuidField = PanelTextField.CreateNewEntry(serverGroup.ContentParent);
+            allowlistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.allowlistUuid"));
+            allowlistUuidField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.allowlistUuid.tooltip"));
+            allowlistUuidField.Descriptor.SetDescription("Player UUID to add or remove from BasisAllowList.txt.");
 
-            PanelButton addWhitelistButton = PanelButton.CreateNew(serverGroup.ContentParent);
-            addWhitelistButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.addToWhitelist"));
-            addWhitelistButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.addToWhitelist.tooltip"));
-            addWhitelistButton.OnClicked += () =>
+            PanelButton addAllowListButton = PanelButton.CreateNew(serverGroup.ContentParent);
+            addAllowListButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.addToAllowList"));
+            addAllowListButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.addToAllowList.tooltip"));
+            addAllowListButton.OnClicked += () =>
             {
-                string uuid = whitelistUuidField.Value?.Trim();
+                string uuid = allowlistUuidField.Value?.Trim();
                 if (string.IsNullOrEmpty(uuid)) return;
-                BasisNetworkModeration.AddWhitelist(uuid);
+                BasisNetworkModeration.AddAllowlist(uuid);
             };
 
-            PanelButton removeWhitelistButton = PanelButton.CreateNew(serverGroup.ContentParent);
-            removeWhitelistButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.removeFromWhitelist"));
-            removeWhitelistButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.removeFromWhitelist.tooltip"));
-            removeWhitelistButton.OnClicked += () =>
+            PanelButton removeAllowListButton = PanelButton.CreateNew(serverGroup.ContentParent);
+            removeAllowListButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.removeFromAllowList"));
+            removeAllowListButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.removeFromAllowList.tooltip"));
+            removeAllowListButton.OnClicked += () =>
             {
-                string uuid = whitelistUuidField.Value?.Trim();
+                string uuid = allowlistUuidField.Value?.Trim();
                 if (string.IsNullOrEmpty(uuid)) return;
-                BasisNetworkModeration.RemoveWhitelist(uuid);
+                BasisNetworkModeration.RemoveAllowlist(uuid);
             };
 
             // --- Server logs (admin pulls logs/ + CrashReports/ to disk) ---
@@ -614,7 +614,7 @@ namespace Basis.BasisUI
             public PanelToggle AdditionalAvatarDataLockToggle;
             public PanelToggle HeadlessAudioToggle;
             public PanelToggle HeadlessDisallowToggle;
-            public PanelToggle WhitelistToggle;
+            public PanelToggle AllowlistToggle;
             public PanelToggle RejoinLockToggle;
             public PanelSlider OpusPacketLossSlider;
             public PanelSlider MaxMicrophoneRangeSlider;
@@ -749,7 +749,7 @@ namespace Basis.BasisUI
 
             private void OnGlobalRestrictionModeChanged(BasisUserRestrictionMode mode)
             {
-                if (WhitelistToggle != null) WhitelistToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.WhiteList);
+                if (AllowlistToggle != null) AllowlistToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.AllowList);
                 if (RejoinLockToggle != null) RejoinLockToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.RejoinOnly);
             }
 

@@ -26,12 +26,12 @@ public static class NetworkServer
     public static Configuration Configuration;
     /// <summary>
     /// Allow-list consulted at <see cref="BasisServerHandle.BasisServerHandleEvents.OnNetworkAccepted"/>
-    /// when <see cref="Configuration.BasisUserRestrictionMode"/> is set to <c>WhiteList</c>.
-    /// File-backed (BasisWhiteList.txt under the config folder) so admin-panel mutations
+    /// when <see cref="Configuration.BasisUserRestrictionMode"/> is set to <c>AllowList</c>.
+    /// File-backed (BasisAllowList.txt under the config folder) so admin-panel mutations
     /// persist across restarts.
     /// </summary>
-    public static BasisNetworkServer.Security.BasisWhiteList Whitelist;
-    public static BasisNetworkServer.Security.BasisBlackList Blacklist;
+    public static BasisNetworkServer.Security.BasisAllowList AllowList;
+    public static BasisNetworkServer.Security.BasisBanList BanList;
     // Cached snapshot rebuilt on connect/disconnect — avoids ToArray() alloc on every broadcast.
     private static volatile NetPeer[] _peerSnapshot = Array.Empty<NetPeer>();
     // Guards the read-then-publish: OnNetworkAccepted runs on parallel DID-auth continuations, so
@@ -154,15 +154,15 @@ public static class NetworkServer
 
             Directory.CreateDirectory(configDir);
             PermissionIntegration.Init(Path.Combine(configDir, "permissions.xml"));
-            Whitelist = new BasisNetworkServer.Security.BasisWhiteList(Path.Combine(configDir, "BasisWhiteList.txt"));
-            Blacklist = new BasisNetworkServer.Security.BasisBlackList(Path.Combine(configDir, "BasisBlackList.txt"));
+            AllowList = new BasisNetworkServer.Security.BasisAllowList(Path.Combine(configDir, "BasisAllowList.txt"));
+            BanList = new BasisNetworkServer.Security.BasisBanList(Path.Combine(configDir, "BasisBanList.txt"));
         }
         else
         {
             PermissionIntegration.InitWithoutDisc();
-            // Best-effort in-memory whitelist when the host disabled disk support.
-            Whitelist = new BasisNetworkServer.Security.BasisWhiteList();
-            Blacklist = new BasisNetworkServer.Security.BasisBlackList();
+            // Best-effort in-memory allowlist when the host disabled disk support.
+            AllowList = new BasisNetworkServer.Security.BasisAllowList();
+            BanList = new BasisNetworkServer.Security.BasisBanList();
         }
     }
 

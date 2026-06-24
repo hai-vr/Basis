@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Basis.Scripts.Drivers;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace Basis.Scripts.Device_Management.EyeTracking
 {
@@ -19,6 +20,36 @@ namespace Basis.Scripts.Device_Management.EyeTracking
         public static BasisEyeTrackingData Current;
 
         public static BasisEyeSource PreferredGazeSource = BasisEyeSource.Osc;
+
+        /// <summary>Read-only view of registered providers, for diagnostics/editor tooling.</summary>
+        public static IReadOnlyList<IBasisEyeTrackingProvider> Providers => _providers;
+
+        /// <summary>Snapshot of the most recent arbitration decision, for diagnostics/editor tooling.</summary>
+        public static BasisEyeArbitration Arbitration;
+
+        private const float HmdPresenceTimeoutSeconds = 2f;
+        private static float _lastHmdActiveTime = float.NegativeInfinity;
+
+        /// <summary>
+        /// True when an HMD eye source has delivered valid gaze recently (blink/dropout tolerant).
+        /// This is the reliable "eye-tracking-capable headset present and working" signal — a
+        /// non-eye-tracking headset never sets it, and it clears shortly after the headset stops
+        /// reporting gaze (doffed, switched to desktop, etc.).
+        /// </summary>
+        public static bool HmdEyeTrackingPresent =>
+            Time.unscaledTime - _lastHmdActiveTime < HmdPresenceTimeoutSeconds;
+
+        public struct BasisEyeArbitration
+        {
+            public bool PreferOsc;
+            public bool HmdActive;
+            public bool OscActive;
+            public bool HmdHasGaze;
+            public bool OscHasGaze;
+            public bool GazeFromOsc;
+            public bool GazeFromHmd;
+            public bool OpennessFromOsc;
+        }
 
         public static void Register(IBasisEyeTrackingProvider provider)
         {
@@ -40,6 +71,8 @@ namespace Basis.Scripts.Device_Management.EyeTracking
             BasisEyeTrackingData oscData = default;
             bool hmdHas = false;
             bool oscHas = false;
+            bool hmdActive = false;
+            bool oscActive = false;
 
             for (int i = 0; i < _providers.Count; i++)
             {
@@ -51,6 +84,7 @@ namespace Basis.Scripts.Device_Management.EyeTracking
 
                 if (provider.Source == BasisEyeSource.Hmd)
                 {
+                    hmdActive = true;
                     if (!hmdHas)
                     {
                         BasisEyeTrackingData d = default;
@@ -58,11 +92,15 @@ namespace Basis.Scripts.Device_Management.EyeTracking
                         hmdData = d;
                     }
                 }
-                else if (!oscHas)
+                else
                 {
-                    BasisEyeTrackingData d = default;
-                    oscHas = provider.TryGetEyeData(ref d);
-                    oscData = d;
+                    oscActive = true;
+                    if (!oscHas)
+                    {
+                        BasisEyeTrackingData d = default;
+                        oscHas = provider.TryGetEyeData(ref d);
+                        oscData = d;
+                    }
                 }
             }
 
@@ -95,6 +133,18 @@ namespace Basis.Scripts.Device_Management.EyeTracking
 
             Current = merged;
             PublishLegacyGaze(merged);
+
+            Arbitration = new BasisEyeArbitration
+            {
+                PreferOsc = preferOsc,
+                HmdActive = hmdActive,
+                OscActive = oscActive,
+                HmdHasGaze = hmdGaze,
+                OscHasGaze = oscGaze,
+                GazeFromOsc = useOscGaze,
+                GazeFromHmd = useHmdGaze,
+                OpennessFromOsc = merged.HasOpenness,
+            };
         }
 
         private static void CopyGaze(ref BasisEyeTrackingData merged, in BasisEyeTrackingData src)
@@ -118,15 +168,13 @@ namespace Basis.Scripts.Device_Management.EyeTracking
                 return;
             }
 
-            float3 leftCenter = BasisLocalCameraDriver.LeftEyePosition();
-            float3 rightCenter = BasisLocalCameraDriver.RightEyePosition();
             quaternion headRot = BasisLocalCameraDriver.HeadRotation;
 
             if (data.HasWorldRay && !data.HasPerEyeAngles)
             {
                 BasisEyeMath.WorldRayToPerEyeAngles(
                     data.GazeOrigin, data.GazeDirection, GazeConvergenceDistance,
-                    leftCenter, rightCenter, headRot,
+                    BasisLocalCameraDriver.LeftEyePosition(), BasisLocalCameraDriver.RightEyePosition(), headRot,
                     out data.LeftAngles, out data.RightAngles);
                 data.HasPerEyeAngles = true;
             }
@@ -134,7 +182,7 @@ namespace Basis.Scripts.Device_Management.EyeTracking
             {
                 BasisEyeMath.PerEyeAnglesToWorldRay(
                     data.LeftAngles, data.RightAngles,
-                    leftCenter, rightCenter, headRot,
+                    BasisLocalCameraDriver.HeadPosition, headRot,
                     out float3 origin, out float3 dir);
                 data.GazeOrigin = origin;
                 data.GazeDirection = dir;

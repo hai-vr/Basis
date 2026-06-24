@@ -63,7 +63,7 @@ namespace BasisPermissions
         public const string ModerationHeadlessAudio = "basis.moderation.headlessaudio";
         public const string ModerationOpusBitrate = "basis.moderation.opusbitrate";
         /// <summary>Add/remove UUIDs on the server's allow-list (separate from ban management).</summary>
-        public const string ModerationWhitelist = "basis.moderation.whitelist";
+        public const string ModerationAllowlist = "basis.moderation.whitelist";
         public const string AdminLogs = "basis.admin.logs";
 
         public const string PermissionsView = "basis.permissions.view";

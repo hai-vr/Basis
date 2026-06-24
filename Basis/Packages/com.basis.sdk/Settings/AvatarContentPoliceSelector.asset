@@ -59,10 +59,7 @@ MonoBehaviour:
   - UnityEngine.Animations.Rigging.RigConstraint`3
   - UnityEngine.Animations.Rigging.RigTransform
   - UnityEngine.Animations.Rigging.BoneRenderer
-  - BasisObjectSyncNetworking
-  - Assets.Scenes.Garden_doolys_scene_name_that_cant_be_replicated_by_u_wahhaha.Scripts.Runtime.DynamicLightController
-  - Assets.Scenes.Garden_doolys_scene_name_that_cant_be_replicated_by_u_wahhaha.Scripts.Runtime.LightFlicker
-  - Assets.Scenes.Garden_doolys_scene_name_that_cant_be_replicated_by_u_wahhaha.Scripts.Runtime.WashiLightController
+  - BasisPickupSyncNetworking
   - AudioLink.AudioLink
   - AudioLink.AudioLinkController
   - AudioLink.AudioLinkControllerV0

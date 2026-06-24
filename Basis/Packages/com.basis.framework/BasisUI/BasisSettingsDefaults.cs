@@ -256,6 +256,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevVariableRateShadingDesktop = new("devvariablerateshadingdesktop", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> EyeTrackingPreferOsc = new("eyetrackingpreferosc", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> EyeFoveationAutoManage = new("eyefoveationautomanage", new BasisPlatformDefault<bool>(true));
 
         public const float VRS_RADIUS_MIN = 0f;
         public const float VRS_RADIUS_MAX = 1f;

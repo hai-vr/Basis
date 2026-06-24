@@ -2,7 +2,8 @@
     "name": "Basis Framework Editor",
     "rootNamespace": "",
     "references": [
-        "Basis Framework"
+        "Basis Framework",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [
         "Editor"

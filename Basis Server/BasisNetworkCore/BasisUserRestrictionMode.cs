@@ -6,8 +6,8 @@ namespace BasisNetworkCore.Security
     public enum BasisUserRestrictionMode : byte
     {
         Normal,
-        BlackList,
-        WhiteList,
+        BanList,
+        AllowList,
         RejoinOnly,
     }
 }

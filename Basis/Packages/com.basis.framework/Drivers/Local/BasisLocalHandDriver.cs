@@ -16,7 +16,7 @@ using UnityEngine.Jobs;
 /// then each frame schedules two chained Burst jobs:
 ///   1) BasisFingerInterpolateJob — bilinearly interpolates targets from the grid
 ///   2) BasisFingerSlerpJob — slerps current rotations toward targets and writes transforms
-/// Follows the Simulate/Apply pattern used by BasisObjectSyncDriver and JigglePhysics.
+/// Follows the Simulate/Apply pattern used by BasisPickupSyncDriver and JigglePhysics.
 ///
 /// Pose grid data is cached per humanoid Avatar asset. Loading the same avatar a second
 /// time copies from cache instead of re-instantiating and sampling 441 poses.

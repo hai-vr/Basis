@@ -160,7 +160,7 @@ public class Configuration
 
     /// <summary>
     /// Persist this configuration back to <paramref name="filePath"/>. Used by the
-    /// admin panel to make in-game changes (server name, MOTD, whitelist mode)
+    /// admin panel to make in-game changes (server name, MOTD, allowlist mode)
     /// survive a restart. Writes via a sibling temp file + atomic move so a crash
     /// mid-write doesn't corrupt the live config.
     /// </summary>

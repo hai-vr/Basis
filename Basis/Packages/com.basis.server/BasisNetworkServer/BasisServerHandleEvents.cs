@@ -272,24 +272,24 @@ namespace BasisServerHandle
         {
             ushort PeerId = (ushort)newPeer.Id;
 
-            // Whitelist gate. Both auth paths (DID challenge + plain ReadyMessage) funnel
+            // AllowList gate. Both auth paths (DID challenge + plain ReadyMessage) funnel
             // through here with a verified UUID, so this is the single point that enforces
-            // BasisUserRestrictionMode.WhiteList on entry. Banlist is enforced separately
+            // BasisUserRestrictionMode.AllowList on entry. Banlist is enforced separately
             // at HandleConnectionRequest / BasisDIDAuthIdentity.ProcessConnection.
-            if (NetworkServer.Configuration.BasisUserRestrictionMode == BasisUserRestrictionMode.WhiteList
-                && NetworkServer.Whitelist != null
-                && !NetworkServer.Whitelist.IsWhitelisted(UUID))
+            if (NetworkServer.Configuration.BasisUserRestrictionMode == BasisUserRestrictionMode.AllowList
+                && NetworkServer.AllowList != null
+                && !NetworkServer.AllowList.IsAllowed(UUID))
             {
-                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — not on whitelist.");
-                RejectWithReason(newPeer, "You are not on the whitelist.");
+                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — not on allowlist.");
+                RejectWithReason(newPeer, "You are not on the allowlist.");
                 return;
             }
 
-            if (NetworkServer.Configuration.BasisUserRestrictionMode == BasisUserRestrictionMode.BlackList
-                && NetworkServer.Blacklist != null
-                && NetworkServer.Blacklist.IsBlacklisted(UUID))
+            if (NetworkServer.Configuration.BasisUserRestrictionMode == BasisUserRestrictionMode.BanList
+                && NetworkServer.BanList != null
+                && NetworkServer.BanList.IsBanned(UUID))
             {
-                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — on blacklist.");
+                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — on banlist.");
                 RejectWithReason(newPeer, "You are not permitted on this server.");
                 return;
             }

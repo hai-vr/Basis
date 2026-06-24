@@ -146,9 +146,9 @@ public static class BasisNetworkModeration
             w => w.Put(uuid));
     }
 
-    // ── Server config / whitelist (admin) ────────────────────────────────────
+    // ── Server config / allowlist (admin) ────────────────────────────────────
     // Each of these triggers a server-side write to config/config.xml or
-    // BasisWhiteList.txt so the change is durable across restarts.
+    // BasisAllowList.txt so the change is durable across restarts.
 
     public static void SetServerName(string name)
     {
@@ -160,21 +160,21 @@ public static class BasisNetworkModeration
         SendAdminRequest(AdminRequestMode.SetServerMotd, w => w.Put(motd ?? string.Empty));
     }
 
-    public static void SetWhitelistMode(BasisUserRestrictionMode mode)
+    public static void SetAllowlistMode(BasisUserRestrictionMode mode)
     {
-        SendAdminRequest(AdminRequestMode.SetWhitelistMode, w => w.Put((byte)mode));
+        SendAdminRequest(AdminRequestMode.SetAllowlistMode, w => w.Put((byte)mode));
     }
 
-    public static void AddWhitelist(string uuid)
+    public static void AddAllowlist(string uuid)
     {
         if (!ValidateString(uuid, nameof(uuid))) return;
-        SendAdminRequest(AdminRequestMode.AddWhitelist, w => w.Put(uuid));
+        SendAdminRequest(AdminRequestMode.AddAllowlist, w => w.Put(uuid));
     }
 
-    public static void RemoveWhitelist(string uuid)
+    public static void RemoveAllowlist(string uuid)
     {
         if (!ValidateString(uuid, nameof(uuid))) return;
-        SendAdminRequest(AdminRequestMode.RemoveWhitelist, w => w.Put(uuid));
+        SendAdminRequest(AdminRequestMode.RemoveAllowlist, w => w.Put(uuid));
     }
 
     /// <summary>
@@ -688,7 +688,7 @@ public static class BasisNetworkModeration
     public static event Action<byte> OnGlobalCameraPolicyChanged;
 
     /// <summary>
-    /// Server-pushed player join restriction mode (Normal / WhiteList / RejoinOnly). Cached from the
+    /// Server-pushed player join restriction mode (Normal / AllowList / RejoinOnly). Cached from the
     /// lock-state payload — sent on connect and whenever an admin changes it — so the admin panel
     /// toggles can reflect the live server state instead of always reading off.
     /// </summary>

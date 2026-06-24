@@ -40,12 +40,12 @@ namespace Basis.Scripts.Device_Management.EyeTracking
 
         public static void PerEyeAnglesToWorldRay(
             float2 leftAngles, float2 rightAngles,
-            float3 leftEyeCenter, float3 rightEyeCenter, quaternion headRot,
+            float3 headPosition, quaternion headRot,
             out float3 origin, out float3 dir)
         {
             float3 leftDir = math.mul(headRot, CanonicalAnglesToHeadLocalDir(leftAngles));
             float3 rightDir = math.mul(headRot, CanonicalAnglesToHeadLocalDir(rightAngles));
-            origin = (leftEyeCenter + rightEyeCenter) * 0.5f;
+            origin = headPosition;
             dir = math.normalizesafe(leftDir + rightDir);
         }
 
