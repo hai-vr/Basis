@@ -188,15 +188,23 @@ public static class BasisSceneFactory
             return;
         }
         // Switch baking set if it differs from the current one
-        ProbeReferenceVolume.instance.SetActiveBakingSet(perSceneData.bakingSet);
-        // Stream cells in first so the toggle's disable releases them; otherwise the re-enable re-initializes a dirty baking set and throws on a duplicate cell key.
-        ProbeReferenceVolume.instance.PerformPendingOperations();
-        // Re-trigger registration so this scene's cells are queued for loading.
-        // Handles same-baking-set (where SetActiveBakingSet is a no-op)
-        // and timing issues (where OnEnable ran before the baking set was correct).
-        perSceneData.enabled = false;
-        perSceneData.enabled = true;
-        ProbeReferenceVolume.instance.PerformPendingOperations();
+        try
+        {
+            ProbeReferenceVolume.instance.SetActiveBakingSet(perSceneData.bakingSet);
+            // Stream cells in first so the toggle's disable releases them; otherwise the re-enable re-initializes a dirty baking set and throws on a duplicate cell key.
+            ProbeReferenceVolume.instance.PerformPendingOperations();
+            // Re-trigger registration so this scene's cells are queued for loading.
+            // Handles same-baking-set (where SetActiveBakingSet is a no-op)
+            // and timing issues (where OnEnable ran before the baking set was correct).
+            perSceneData.enabled = false;
+            perSceneData.enabled = true;
+            ProbeReferenceVolume.instance.PerformPendingOperations();
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogWarning("Adaptive probe volume load failed for scene: " + scene.name + " (" + e.Message + ")", BasisDebug.LogTag.Scene);
+            return;
+        }
         BasisDebug.Log("Forced adaptive probe volume baking set load for scene: " + scene.name, BasisDebug.LogTag.Scene);
 #if Basis_VOLUMETRIC_SUPPORTED
         // The world's APV is now registered, so ask the volumetric fog's baked APV mode to (re)bake its

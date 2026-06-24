@@ -687,7 +687,7 @@ namespace Cilbox
 		public static object DeserializeDataForProxyField( Type t, String sInitialize )
 		{
 			if( sInitialize != null && sInitialize.Length > 0 )
-				return TypeDescriptor.GetConverter(t).ConvertFrom(sInitialize);
+				return TypeDescriptor.GetConverter(t).ConvertFromInvariantString(sInitialize);
 			else
 			{
 				if( !t.IsPrimitive )

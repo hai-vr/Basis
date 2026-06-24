@@ -259,13 +259,18 @@ namespace Basis.Scripts.Vehicles.Main
             {
                 return Vector3.zero;
             }
-            Vector2 rawCharRot = BasisLocalPlayer.Instance.LocalCharacterDriver.Rotation;
+            BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;
+            if (localPlayer == null || localPlayer.LocalCharacterDriver == null)
+            {
+                return Vector3.zero;
+            }
+            Vector2 rawCharRot = localPlayer.LocalCharacterDriver.Rotation;
             if (DoesPilotSeatNeedMouseInput() && BasisVehiclePilotSeatInputActions.Instance.IsPilotSeatOnlyLockerOfLookRotation())
             {
                 rawCharRot += Device_Management.Devices.Desktop.BasisDesktopEye.Instance.LookRotationVector * 2.0f;
             }
             Vector2 charRot = StretchToSquare(Vector2.ClampMagnitude(rawCharRot, 1.0f));
-            Vector2 charMove = StretchToSquare(BasisLocalPlayer.Instance.LocalCharacterDriver.MovementVector);
+            Vector2 charMove = StretchToSquare(localPlayer.LocalCharacterDriver.MovementVector);
             float roll = BasisVehiclePilotSeatInputActions.Instance.RotateRoll.ReadValue<float>();
             switch (actualControlScheme)
             {
@@ -290,8 +295,13 @@ namespace Basis.Scripts.Vehicles.Main
             {
                 return Vector3.zero;
             }
-            Vector2 charMove = StretchToSquare(BasisLocalPlayer.Instance.LocalCharacterDriver.MovementVector);
-            float vert = BasisLocalPlayer.Instance.LocalCharacterDriver.GetVerticalMovement();
+            BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;
+            if (localPlayer == null || localPlayer.LocalCharacterDriver == null)
+            {
+                return Vector3.zero;
+            }
+            Vector2 charMove = StretchToSquare(localPlayer.LocalCharacterDriver.MovementVector);
+            float vert = localPlayer.LocalCharacterDriver.GetVerticalMovement();
             switch (actualControlScheme)
             {
                 case ControlScheme.Navball:

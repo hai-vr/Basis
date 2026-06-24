@@ -351,7 +351,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return false;
             }
         }
-        public bool IsLocal => Player.IsLocal;
+        public bool IsLocal => _player != null && _player.IsLocal;
         //this is slow use a faster way! (but you can use it of course)
         public bool GetBonePositionAndRotation(HumanBodyBones bone, out Vector3 position, out Quaternion rotation)
         {

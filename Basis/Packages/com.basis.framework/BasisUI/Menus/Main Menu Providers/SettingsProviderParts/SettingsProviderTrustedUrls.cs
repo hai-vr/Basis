@@ -1,4 +1,5 @@
 using Basis.BasisUI;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,10 +10,12 @@ public static class SettingsProviderTrustedUrls
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         infoGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.title"));
+        infoGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.description"));
 
         PanelElementDescriptor addGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         addGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.title"));
+        addGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.add.description"));
 
         PanelTextField addField = PanelTextField.CreateNewEntry(addGroup.ContentParent);
         addField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.field"));
@@ -39,48 +42,32 @@ public static class SettingsProviderTrustedUrls
             SettingsProvider.OpenToTab(ownerTabKey);
         };
 
-        List<string> urls = BasisTrustedUrls.GetAll();
+        PopulateAddedByYou(container, ownerTabKey);
+        PopulateBuiltIn(container);
+    }
+
+    private static void PopulateAddedByYou(RectTransform container, string ownerTabKey)
+    {
+        List<string> urls = BasisTrustedUrls.GetUserAdded();
+        urls.Sort(StringComparer.OrdinalIgnoreCase);
+
+        PanelElementDescriptor addedGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        addedGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.added.title"));
 
         if (urls.Count == 0)
         {
-            PanelTextField emptyField = PanelTextField.CreateNew(infoGroup.ContentParent);
-            emptyField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.empty"));
-            emptyField.SetValue(BasisLocalization.Get("settings.trustedUrls.empty.description"));
+            addedGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.empty.description"));
             return;
         }
 
-        PanelTextField countField = PanelTextField.CreateNew(infoGroup.ContentParent);
-        countField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.count.title"));
-        countField.SetValue(BasisLocalization.Get("settings.trustedUrls.count", urls.Count));
-
-        PanelButton clearAllButton = PanelButton.CreateNew(container);
-        clearAllButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.clearAll"));
-        clearAllButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.clearAll.tooltip"));
-        clearAllButton.OnClicked += () =>
-        {
-            BasisMainMenu.Instance.OpenDialogue(
-                BasisLocalization.Get("settings.trustedUrls.clearAll"),
-                BasisLocalization.Get("settings.trustedUrls.clearAll.confirm", urls.Count),
-                BasisLocalization.Get("settings.storage.clearAll.button"),
-                BasisLocalization.Get("ui.cancel"),
-                value =>
-                {
-                    if (!value) return;
-                    BasisTrustedUrls.ClearAll();
-                    BasisMainMenu.Close();
-                    SettingsProvider.OpenToTab(ownerTabKey);
-                });
-        };
-
-        PanelElementDescriptor urlGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        urlGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.list.title"));
+        addedGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.count", urls.Count));
 
         string removeHint = BasisLocalization.Get("settings.trustedUrls.clickToRemove");
         foreach (string url in urls)
         {
             string capturedUrl = url;
-            PanelButton urlButton = PanelButton.CreateNew(urlGroup.ContentParent);
+            PanelButton urlButton = PanelButton.CreateNew(addedGroup.ContentParent);
             urlButton.Descriptor.DisableRichText();
             urlButton.Descriptor.SetTitle(capturedUrl);
             urlButton.Descriptor.SetDescription(removeHint);
@@ -99,6 +86,46 @@ public static class SettingsProviderTrustedUrls
                         SettingsProvider.OpenToTab(ownerTabKey);
                     });
             };
+        }
+
+        PanelButton clearAllButton = PanelButton.CreateNew(addedGroup.ContentParent);
+        clearAllButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.clearAll"));
+        clearAllButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.clearAll.tooltip"));
+        clearAllButton.OnClicked += () =>
+        {
+            BasisMainMenu.Instance.OpenDialogue(
+                BasisLocalization.Get("settings.trustedUrls.clearAll"),
+                BasisLocalization.Get("settings.trustedUrls.clearAll.confirm", urls.Count),
+                BasisLocalization.Get("settings.storage.clearAll.button"),
+                BasisLocalization.Get("ui.cancel"),
+                value =>
+                {
+                    if (!value) return;
+                    BasisTrustedUrls.ClearAll();
+                    BasisMainMenu.Close();
+                    SettingsProvider.OpenToTab(ownerTabKey);
+                });
+        };
+    }
+
+    private static void PopulateBuiltIn(RectTransform container)
+    {
+        List<string> urls = BasisTrustedUrls.GetBuiltIn();
+        if (urls.Count == 0) return;
+        urls.Sort(StringComparer.OrdinalIgnoreCase);
+
+        PanelElementDescriptor builtInGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        builtInGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.builtIn.title"));
+        builtInGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.count", urls.Count));
+
+        string lockedReason = BasisLocalization.Get("settings.trustedUrls.builtIn.locked");
+        foreach (string url in urls)
+        {
+            PanelButton urlButton = PanelButton.CreateNew(builtInGroup.ContentParent);
+            urlButton.Descriptor.DisableRichText();
+            urlButton.Descriptor.SetTitle(url);
+            urlButton.SetInteractable(false, lockedReason);
         }
     }
 

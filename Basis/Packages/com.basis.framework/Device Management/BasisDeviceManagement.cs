@@ -596,7 +596,7 @@ namespace Basis.Scripts.Device_Management
                         BasisDebug.Log($"Device unable to take role: {prev.trackedRole} already had existing role", BasisDebug.LogTag.Device);
                     }
                 }
-                if (prev.hasRoleAssigned)
+                if (prev.hasRoleAssigned && input.HasControl)
                 {
                     input.Control.SetInverseOffset(prev.InverseOffsetFromBone);
                 }

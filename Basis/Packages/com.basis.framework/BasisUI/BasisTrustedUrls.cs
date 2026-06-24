@@ -17,7 +17,8 @@ namespace Basis.BasisUI
         private static readonly string FilePath = Path.Combine(Application.persistentDataPath, FileName);
         private static readonly string LegacyFilePath = Path.Combine(Application.persistentDataPath, LegacyFileName);
 
-        private static HashSet<string> _cachedUrls;
+        private static HashSet<string> _builtInUrls;
+        private static HashSet<string> _userUrls;
 
         public static event Action OnListChanged;
 
@@ -29,35 +30,58 @@ namespace Basis.BasisUI
 
         private static void EnsureCache()
         {
-            if (_cachedUrls != null) return;
-            _cachedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_userUrls != null) return;
+
+            _builtInUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            LoadBuiltIns();
+
+            _userUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             if (!File.Exists(FilePath) && File.Exists(LegacyFilePath))
             {
                 try { File.Move(LegacyFilePath, FilePath); }
                 catch (Exception e) { BasisDebug.LogError($"[BasisTrustedUrls] Failed to migrate {LegacyFilePath} to {FilePath}: {e}"); }
             }
-            if (File.Exists(FilePath)) {
-                try
+
+            if (!File.Exists(FilePath)) return;
+
+            bool rewrite = false;
+            try
+            {
+                string json = File.ReadAllText(FilePath);
+                TrustedUrlData data = JsonUtility.FromJson<TrustedUrlData>(json);
+                if (data?.urls != null)
                 {
-                    string json = File.ReadAllText(FilePath);
-                    TrustedUrlData data = JsonUtility.FromJson<TrustedUrlData>(json);
-                    if (data?.urls != null)
+                    for (int i = 0; i < data.urls.Count; i++)
                     {
-                        for (int i = 0; i < data.urls.Count; i++)
-                        {
-                            if (string.IsNullOrEmpty(data.urls[i])) continue;
-                            if (!data.urls[i].StartsWith("https://")) continue;
-                            _cachedUrls.Add(data.urls[i]);
-                        }
+                        string url = data.urls[i];
+                        if (string.IsNullOrEmpty(url)) continue;
+                        if (!url.StartsWith("https://")) continue;
+                        // Older builds baked the built-in defaults into this file. Drop any
+                        // entry already covered by a built-in so it isn't shown as user-added,
+                        // and rewrite the file once to clean it up.
+                        if (_builtInUrls.Contains(url)) { rewrite = true; continue; }
+                        if (!_userUrls.Add(url)) rewrite = true;
                     }
                 }
-                catch (Exception e)
-                {
-                    BasisDebug.LogError($"[BasisTrustedUrls] Failed to load {FilePath}: {e}");
-                }
-            } else
+            }
+            catch (Exception e)
             {
-                Reset();
+                BasisDebug.LogError($"[BasisTrustedUrls] Failed to load {FilePath}: {e}");
+            }
+
+            if (rewrite && _builtInUrls.Count > 0) Save();
+        }
+
+        private static void LoadBuiltIns()
+        {
+            BasisDefaultTrustedUrlsAsset defaults = LoadDefaults();
+            if (defaults == null || defaults.Urls == null) return;
+            foreach (string url in defaults.Urls)
+            {
+                if (string.IsNullOrEmpty(url)) continue;
+                if (!url.StartsWith("https://")) continue;
+                _builtInUrls.Add(url);
             }
         }
 
@@ -66,7 +90,7 @@ namespace Basis.BasisUI
             try
             {
                 TrustedUrlData data = new TrustedUrlData();
-                data.urls.AddRange(_cachedUrls);
+                data.urls.AddRange(_userUrls);
                 string json = JsonUtility.ToJson(data, true);
                 File.WriteAllText(FilePath, json);
             }
@@ -81,7 +105,12 @@ namespace Basis.BasisUI
         {
             if (string.IsNullOrEmpty(url)) return false;
             EnsureCache();
-            foreach (string trustedUrl in _cachedUrls)
+            foreach (string trustedUrl in _builtInUrls)
+            {
+                if (MatchesWithWildcards(url, trustedUrl))
+                    return true;
+            }
+            foreach (string trustedUrl in _userUrls)
             {
                 if (MatchesWithWildcards(url, trustedUrl))
                     return true;
@@ -94,7 +123,7 @@ namespace Basis.BasisUI
             // Convert wildcard pattern to regex-like matching
             string regexPattern = "^" + Regex.Escape(pattern)
                 .Replace("\\*", ".*") + "$";
-            return Regex.IsMatch(url, regexPattern, 
+            return Regex.IsMatch(url, regexPattern,
                 RegexOptions.IgnoreCase);
         }
 
@@ -103,7 +132,8 @@ namespace Basis.BasisUI
             if (string.IsNullOrEmpty(url)) return;
             if (!url.StartsWith("https://")) return;
             EnsureCache();
-            if (_cachedUrls.Add(url))
+            if (_builtInUrls.Contains(url)) return;
+            if (_userUrls.Add(url))
                 Save();
         }
 
@@ -111,39 +141,42 @@ namespace Basis.BasisUI
         {
             if (string.IsNullOrEmpty(url)) return;
             EnsureCache();
-            if (_cachedUrls.Remove(url))
+            if (_userUrls.Remove(url))
                 Save();
         }
 
         public static List<string> GetAll()
         {
             EnsureCache();
-            return new List<string>(_cachedUrls);
+            List<string> all = new List<string>(_builtInUrls.Count + _userUrls.Count);
+            all.AddRange(_builtInUrls);
+            all.AddRange(_userUrls);
+            return all;
+        }
+
+        public static List<string> GetBuiltIn()
+        {
+            EnsureCache();
+            return new List<string>(_builtInUrls);
+        }
+
+        public static List<string> GetUserAdded()
+        {
+            EnsureCache();
+            return new List<string>(_userUrls);
         }
 
         public static void ClearAll()
         {
-            if (_cachedUrls == null)
-                _cachedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            else
-                _cachedUrls.Clear();
+            EnsureCache();
+            if (_userUrls.Count == 0) return;
+            _userUrls.Clear();
             Save();
         }
 
         public static void Reset()
         {
             ClearAll();
-            BasisDefaultTrustedUrlsAsset defaults = LoadDefaults();
-            if (defaults != null && defaults.Urls != null)
-            {
-                foreach (string url in defaults.Urls)
-                {
-                    if (string.IsNullOrEmpty(url)) continue;
-                    if (!url.StartsWith("https://")) continue;
-                    _cachedUrls.Add(url);
-                }
-            }
-            Save();
         }
 
         private static BasisDefaultTrustedUrlsAsset LoadDefaults()
@@ -160,7 +193,8 @@ namespace Basis.BasisUI
 
         public static void InvalidateCache()
         {
-            _cachedUrls = null;
+            _builtInUrls = null;
+            _userUrls = null;
         }
     }
 }

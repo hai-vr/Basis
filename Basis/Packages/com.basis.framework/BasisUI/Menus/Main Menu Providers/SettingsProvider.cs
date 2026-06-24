@@ -1977,6 +1977,8 @@ namespace Basis.BasisUI
             descriptor.SetTitle(BasisLocalization.Get("settings.developer.title"));
             RectTransform container = descriptor.ContentParent;
 
+            // ---- Report a Bug (pre-fills the GitHub bug form) ----
+            SettingsProviderBugReport.BuildBugReportGroup(container);
 
             // ---- Gizmos (master + per-gizmo sub-toggles) ----
             PanelElementDescriptor gizmosGroup =
@@ -2802,7 +2804,7 @@ namespace Basis.BasisUI
             return Password;
         }
 
-        private static string BuildInfoString()
+        internal static string BuildInfoString()
         {
             return
                 $"Version: {Application.version}\n" +

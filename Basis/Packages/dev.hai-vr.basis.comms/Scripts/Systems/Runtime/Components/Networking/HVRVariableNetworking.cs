@@ -797,7 +797,7 @@ namespace HVR.Basis.Comms
                                 }
                                 else if (_reportedUnknownHighFrequencyNetworkIds.Add(highFrequency.networkId))
                                 {
-                                    HVRLogging.ProtocolError($"Network ID {highFrequency.networkId} is not known. High frequency value will be ignored.");
+                                    HVRLogging.ProtocolWarning($"Network ID {highFrequency.networkId} is not known. High frequency value will be ignored.");
                                 }
                             }
                         }
@@ -828,7 +828,10 @@ namespace HVR.Basis.Comms
                         {
                             if (!_networkIdToAddressId.TryGetValue(highFrequency.networkId, out var addressId))
                             {
-                                HVRLogging.ProtocolError($"Network ID {highFrequency.networkId} is not known. Reading from the server reduction will be mangled.");
+                                if (_reportedUnknownHighFrequencyNetworkIds.Add(highFrequency.networkId))
+                                {
+                                    HVRLogging.ProtocolWarning($"Network ID {highFrequency.networkId} is not known. Reading from the server reduction will be mangled.");
+                                }
                                 continue;
                             }
 
