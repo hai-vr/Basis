@@ -34,6 +34,21 @@ public static class BasisServerMessageRegistry
     private static readonly ConcurrentDictionary<string, ushort> PluginIdsByName = new();
     private static readonly object _pluginIdLock = new object();
 
+    // The supplied manifest only changes when plugins (un)register, which is expected at startup.
+    // Cache it as one atomically-swapped snapshot so per-connect SendSupplyTo is allocation-free.
+    private sealed class SupplySnapshot
+    {
+        public readonly int Version;
+        public readonly SerializableBasis.BasisMessageDescriptor[] Descriptors;
+        public SupplySnapshot(int version, SerializableBasis.BasisMessageDescriptor[] descriptors)
+        {
+            Version = version;
+            Descriptors = descriptors;
+        }
+    }
+    private static volatile SupplySnapshot _supplySnapshot;
+    private static int _supplyVersion;
+
     static BasisServerMessageRegistry()
     {
         RegisterCoreHandlers();
@@ -54,13 +69,16 @@ public static class BasisServerMessageRegistry
     {
         PluginHandlers[descriptor.Id] = handler;
         PluginDescriptors[descriptor.Id] = descriptor;
+        InvalidateSupply();
     }
 
     /// <summary>Remove a plugin message handler and its manifest descriptor. Returns true if a handler was bound.</summary>
     public static bool UnregisterPlugin(ushort id)
     {
         PluginDescriptors.TryRemove(id, out _);
-        return PluginHandlers.TryRemove(id, out _);
+        bool removed = PluginHandlers.TryRemove(id, out _);
+        InvalidateSupply();
+        return removed;
     }
 
     /// <summary>
@@ -89,6 +107,7 @@ public static class BasisServerMessageRegistry
         };
         PluginHandlers[id] = handler;
         PluginDescriptors[id] = descriptor;
+        InvalidateSupply();
         return id;
     }
 
@@ -118,22 +137,39 @@ public static class BasisServerMessageRegistry
         return true;
     }
 
-    /// <summary>Core catalog plus any registered plugin descriptors — the manifest supplied to each client.</summary>
+    /// <summary>Core catalog plus any registered plugin descriptors — the manifest supplied to each client. Cached until a plugin (un)registers.</summary>
     public static SerializableBasis.BasisMessageDescriptor[] BuildSupply()
     {
+        int version = _supplyVersion;
+        SupplySnapshot snapshot = _supplySnapshot;
+        if (snapshot != null && snapshot.Version == version)
+        {
+            return snapshot.Descriptors;
+        }
+
         SerializableBasis.BasisMessageDescriptor[] core = SerializableBasis.BasisMessageCatalog.BuildCore();
+        SerializableBasis.BasisMessageDescriptor[] result;
         if (PluginDescriptors.IsEmpty)
         {
-            return core;
+            result = core;
         }
-        List<SerializableBasis.BasisMessageDescriptor> combined = new List<SerializableBasis.BasisMessageDescriptor>(core.Length + PluginDescriptors.Count);
-        combined.AddRange(core);
-        foreach (KeyValuePair<ushort, SerializableBasis.BasisMessageDescriptor> kvp in PluginDescriptors)
+        else
         {
-            combined.Add(kvp.Value);
+            List<SerializableBasis.BasisMessageDescriptor> combined = new List<SerializableBasis.BasisMessageDescriptor>(core.Length + PluginDescriptors.Count);
+            combined.AddRange(core);
+            foreach (KeyValuePair<ushort, SerializableBasis.BasisMessageDescriptor> kvp in PluginDescriptors)
+            {
+                combined.Add(kvp.Value);
+            }
+            result = combined.ToArray();
         }
-        return combined.ToArray();
+
+        _supplySnapshot = new SupplySnapshot(version, result);
+        return result;
     }
+
+    /// <summary>Invalidate the cached manifest after a plugin (un)registers.</summary>
+    private static void InvalidateSupply() => System.Threading.Interlocked.Increment(ref _supplyVersion);
 
     /// <summary>Send the registry manifest to a peer (RegistryControlChannel, RegistrySub_Supply). Called once per connect.</summary>
     public static void SendSupplyTo(NetPeer peer)

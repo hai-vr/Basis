@@ -36,6 +36,26 @@ MonoBehaviour:
   scaleBlurWith: 2
   scaleReferenceSize: 1080
   shader: {fileID: 4800000, guid: bb11bdc2e8aaf4c80b5315f3778d7ad4, type: 3}
+--- !u!114 &-1772261579603543917
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b68e02a3d21e52c4ca5f271ae91b3325, type: 3}
+  m_Name: BasisVariableRateShadingFeature
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.Rendering.BasisVariableRateShadingFeature
+  m_Active: 1
+  maskShader: {fileID: 4800000, guid: efef13fc8131a1d47b28eea231ceb441, type: 3}
+  innerRadius: 0.25
+  outerRadius: 0.75
+  gazeProjectDistance: 3
+  yFlip: 1
+  debugVisualize: 1
+  debugShowColorMask: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -64,7 +84,8 @@ MonoBehaviour:
   - {fileID: 8304327589836468309}
   - {fileID: 7574712923221662252}
   - {fileID: -6138350381377972815}
-  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69b11515bbd932d0aa
+  - {fileID: -1772261579603543917}
+  m_RendererFeatureMap: 55b0addaf1e53e732c1a306845c91e69b11515bbd932d0aa9378a8b27ba967e7
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
@@ -115,6 +136,7 @@ MonoBehaviour:
   bakeVoxelSize: 1
   bakeMaxResolution: 256
   bakedAPVVolumeAsset: {fileID: 0}
+  bakeUseAsyncCompute: 0
 --- !u!114 &7574712923221662252
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -179,6 +201,7 @@ MonoBehaviour:
   bakeVoxelSize: 1
   bakeMaxResolution: 256
   bakedAPVVolumeAsset: {fileID: 0}
+  bakeUseAsyncCompute: 0
 --- !u!114 &8304327589836468309
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -201,3 +224,4 @@ MonoBehaviour:
   bakeVoxelSize: 1
   bakeMaxResolution: 256
   bakedAPVVolumeAsset: {fileID: 0}
+  bakeUseAsyncCompute: 0

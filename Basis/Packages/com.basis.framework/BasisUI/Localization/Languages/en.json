@@ -439,6 +439,10 @@
       "value": "Automatically fix incompatible avatar materials on load."
     },
     {
+      "key": "settings.developer.graphicsStatePrewarm.tooltip",
+      "value": "Cache and pre-create full GPU pipeline states to reduce hitches on repeat loads."
+    },
+    {
       "key": "settings.developer.buildInfo.tooltip",
       "value": "Show app version and build details on this page."
     },
@@ -6059,6 +6063,26 @@
       "value": "…and {0} more"
     },
     {
+      "key": "settings.developer.vrs.title",
+      "value": "Variable Rate Shading"
+    },
+    {
+      "key": "settings.developer.vrs",
+      "value": "Gaze Foveated Shading (VR)"
+    },
+    {
+      "key": "settings.developer.vrs.tooltip",
+      "value": "Experimental. In VR, lowers shading rate in the periphery and follows your eye-tracking gaze to keep the center sharp. Requires DirectX 12 and VRS-capable hardware; no effect otherwise."
+    },
+    {
+      "key": "settings.developer.vrs.desktop",
+      "value": "Desktop Variable Rate Shading"
+    },
+    {
+      "key": "settings.developer.vrs.desktop.tooltip",
+      "value": "Experimental. Applies variable rate shading in flatscreen (non-VR) mode, following gaze when eye tracking is available and otherwise keeping the screen center sharp. Requires DirectX 12 and VRS-capable hardware."
+    },
+    {
       "key": "settings.developer.gizmos.title",
       "value": "Gizmos"
     },
@@ -6225,6 +6249,14 @@
     {
       "key": "settings.developer.materialCorrection.description",
       "value": "Replace broken or unsupported shaders with the URP fallback shader. Off by default; mainly needed during graphics API changes."
+    },
+    {
+      "key": "settings.developer.graphicsStatePrewarm",
+      "value": "Pipeline State Prewarm"
+    },
+    {
+      "key": "settings.developer.graphicsStatePrewarm.description",
+      "value": "Trace and persist full GPU pipeline states (PSOs), then pre-create them on later loads. Off by default; only helps on DX12, Vulkan, and Metal, and the gain is on re-loads of content seen in a previous session."
     },
     {
       "key": "settings.developer.gridSnap.title",

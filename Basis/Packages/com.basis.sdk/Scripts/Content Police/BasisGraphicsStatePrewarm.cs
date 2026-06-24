@@ -29,6 +29,10 @@ using UnityEngine.Rendering;
 /// </summary>
 public static class BasisGraphicsStatePrewarm
 {
+    // Developer toggle, default off. Set from BasisSettingsDefaults.EnableGraphicsStatePrewarm.
+    // Gated at init so flipping it off keeps the subsystem dormant (no trace, no warm, no file).
+    public static bool Enabled = false;
+
     // PSO caches are graphics-API + engine-version specific; a file traced on one is meaningless
     // on another. Encoding both in the filename means a driver/API/Unity change simply finds no
     // matching file and starts clean, instead of replaying stale or invalid state.
@@ -67,6 +71,11 @@ public static class BasisGraphicsStatePrewarm
     public static void EnsureInitialized()
     {
         if (_initialized)
+        {
+            return;
+        }
+        // Don't latch _initialized while disabled, so a later enable can still bring it up.
+        if (!Enabled)
         {
             return;
         }
@@ -129,6 +138,10 @@ public static class BasisGraphicsStatePrewarm
     /// </summary>
     public static void WarmResident(string label)
     {
+        if (!Enabled)
+        {
+            return;
+        }
         EnsureInitialized();
         if (!_supported || _warm == null)
         {

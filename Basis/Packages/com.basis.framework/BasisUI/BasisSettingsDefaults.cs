@@ -252,6 +252,9 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> Antialiasing = new("antialiasing", new BasisPlatformDefault<string>("msaa 2x"));
 
+        public static BasisSettingsBinding<bool> DevVariableRateShading = new("devvariablerateshading", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevVariableRateShadingDesktop = new("devvariablerateshadingdesktop", new BasisPlatformDefault<bool>(false));
+
         // Master gizmo gate. When off, every gizmo sub-toggle below is inert and
         // BasisGizmoManager tears down its parent + cached gizmo dictionaries.
         public static BasisSettingsBinding<bool> ShowGizmos = new("showgizmos", new BasisPlatformDefault<bool>(false));
@@ -336,6 +339,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> EnableShaderPrewarm = new("enableshaderprewarm", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> EnableMaterialCorrection = new("enablematerialcorrection", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> EnableGraphicsStatePrewarm = new("enablegraphicsstateprewarm", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
         /// When enabled, suppresses all <see cref="BasisDebug"/> log output (Log, LogWarning, LogError).
@@ -1464,6 +1468,8 @@ namespace Basis.BasisUI
             ShadowQuality.LoadBindingValue();
             HDRSupport.LoadBindingValue();
             Antialiasing.LoadBindingValue();
+            DevVariableRateShading.LoadBindingValue();
+            DevVariableRateShadingDesktop.LoadBindingValue();
             UseBloomOverride.LoadBindingValue();
             BloomIntensity.LoadBindingValue();
             UseVolumetricFogOverride.LoadBindingValue();
@@ -1504,6 +1510,9 @@ namespace Basis.BasisUI
             EnableMaterialCorrection.LoadBindingValue();
             ContentPoliceControl.MaterialCorrectionEnabled = EnableMaterialCorrection.RawValue;
             EnableMaterialCorrection.OnChanged += value => ContentPoliceControl.MaterialCorrectionEnabled = value;
+            EnableGraphicsStatePrewarm.LoadBindingValue();
+            BasisGraphicsStatePrewarm.Enabled = EnableGraphicsStatePrewarm.RawValue;
+            EnableGraphicsStatePrewarm.OnChanged += value => BasisGraphicsStatePrewarm.Enabled = value;
             DebugLogTagFilter.LoadBindingValue();
             ApplyDebugLogTagFilter(DebugLogTagFilter.RawValue);
             DebugLogTagFilter.OnChanged += ApplyDebugLogTagFilter;

@@ -302,6 +302,19 @@ namespace UnityEngine.Rendering.Universal.Internal
 #endif
                 }
 
+                // Basis VRS injection: bind a custom shading rate image when one was produced this frame.
+                // Skipped on XR hardware foveation so we never override native foveated rendering.
+                if (frameData.Contains<UniversalShadingRateData>())
+                {
+                    var basisVrs = frameData.Get<UniversalShadingRateData>();
+                    bool xrFoveated = cameraData.xr.enabled && cameraData.xr.supportsFoveatedRendering;
+                    if (basisVrs.isValid && basisVrs.shadingRateImage.IsValid() && !xrFoveated)
+                    {
+                        builder.SetShadingRateImageAttachment(basisVrs.shadingRateImage);
+                        builder.SetShadingRateCombiner(ShadingRateCombinerStage.Fragment, ShadingRateCombiner.Override);
+                    }
+                }
+
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {
                     // Currently we only need to call this additional pass when the user

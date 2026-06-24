@@ -1990,6 +1990,21 @@ namespace Basis.BasisUI
             descriptor.SetTitle(BasisLocalization.Get("settings.developer.title"));
             RectTransform container = descriptor.ContentParent;
 
+            // ---- Variable Rate Shading (desktop / DirectX 12) ----
+            PanelElementDescriptor vrsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            vrsGroup.SetTitle(BasisLocalization.Get("settings.developer.vrs.title"));
+
+            PanelToggle toggleVrs = PanelToggle.CreateNewEntry(vrsGroup.ContentParent);
+            toggleVrs.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.vrs"));
+            toggleVrs.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.vrs.tooltip"));
+            toggleVrs.AssignBinding(BasisSettingsDefaults.DevVariableRateShading);
+
+            PanelToggle toggleVrsDesktop = PanelToggle.CreateNewEntry(vrsGroup.ContentParent);
+            toggleVrsDesktop.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.vrs.desktop"));
+            toggleVrsDesktop.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.vrs.desktop.tooltip"));
+            toggleVrsDesktop.AssignBinding(BasisSettingsDefaults.DevVariableRateShadingDesktop);
+
             // ---- Gizmos (master + per-gizmo sub-toggles) ----
             PanelElementDescriptor gizmosGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2234,6 +2249,11 @@ namespace Basis.BasisUI
             toggleMaterialCorrection.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.materialCorrection"));
             toggleMaterialCorrection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.materialCorrection.tooltip"));
             toggleMaterialCorrection.AssignBinding(BasisSettingsDefaults.EnableMaterialCorrection);
+
+            PanelToggle toggleGraphicsStatePrewarm = PanelToggle.CreateNewEntry(shaderGroup.ContentParent);
+            toggleGraphicsStatePrewarm.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.graphicsStatePrewarm"));
+            toggleGraphicsStatePrewarm.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.graphicsStatePrewarm.tooltip"));
+            toggleGraphicsStatePrewarm.AssignBinding(BasisSettingsDefaults.EnableGraphicsStatePrewarm);
 
             // ---- Grid Snap ----
             PanelElementDescriptor gridSnapGroup =
@@ -2654,6 +2674,8 @@ namespace Basis.BasisUI
 
         private static void ResetDeveloperDefaults()
         {
+            BasisSettingsDefaults.DevVariableRateShading.ResetToDefault();
+            BasisSettingsDefaults.DevVariableRateShadingDesktop.ResetToDefault();
             BasisSettingsDefaults.ExceptionNotifications.ResetToDefault();
             BasisSettingsDefaults.ErrorNotifications.ResetToDefault();
             BasisSettingsDefaults.ShowGizmos.ResetToDefault();
@@ -2683,6 +2705,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AutoScaleEstimateEnabled.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
+            BasisSettingsDefaults.EnableGraphicsStatePrewarm.ResetToDefault();
             BasisSettingsDefaults.ForceGridSnap.ResetToDefault();
             BasisSettingsDefaults.GridSnapSize.ResetToDefault();
             BasisSettingsDefaults.ForceRotationSnap.ResetToDefault();

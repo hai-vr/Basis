@@ -14,8 +14,17 @@ public static partial class SerializableBasis
         /// <summary>Schema version of the core message set. Bump when a core payload layout changes.</summary>
         public const byte CoreVersion = 1;
 
+        // Core never changes at runtime; build the descriptor array once and share it (read-only).
+        private static volatile BasisMessageDescriptor[] _core;
+
         public static BasisMessageDescriptor[] BuildCore()
         {
+            BasisMessageDescriptor[] cached = _core;
+            if (cached != null)
+            {
+                return cached;
+            }
+
             List<BasisMessageDescriptor> list = new List<BasisMessageDescriptor>(64);
 
             void Add(byte channel, string name)
@@ -92,7 +101,8 @@ public static partial class SerializableBasis
             Add(BasisNetworkCommons.DirectAvatarServerChannel, "basis.core.avatar.direct.server");
             Add(BasisNetworkCommons.RegistryControlChannel, "basis.core.registry.control");
 
-            return list.ToArray();
+            _core = list.ToArray();
+            return _core;
         }
     }
 }
