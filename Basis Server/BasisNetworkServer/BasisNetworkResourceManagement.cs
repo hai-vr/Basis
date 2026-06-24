@@ -108,6 +108,17 @@ public static class BasisNetworkResourceManagement
             NetworkServer.ReturnWriter(Writer);
         }
     }
+    // Predownload broadcast: tell every connected client to cache the bundle to disc now.
+    // Deliberately NOT added to UshortNetworkDatabase - it is not a loaded resource, so it is
+    // never replayed to late joiners by SendOutAllResources and never spawns anything.
+    public static void PredownloadResource(LocalLoadResource LocalLoadResource)
+    {
+        NetDataWriter Writer = NetworkServer.RentWriter();
+        LocalLoadResource.Serialize(Writer);
+        BNL.Log("Broadcasting predownload for " + LocalLoadResource.CombinedURL);
+        NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+        NetworkServer.ReturnWriter(Writer);
+    }
     public static void LoadResource(LocalLoadResource LocalLoadResource)
     {
         if (UshortNetworkDatabase.ContainsKey(LocalLoadResource.LoadedNetID) == false)

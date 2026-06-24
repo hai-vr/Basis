@@ -397,6 +397,48 @@ namespace Basis
         }
 
         /// <summary>
+        /// Number of currently spawned worlds (scenes) and props (game objects). Avatars are excluded.
+        /// </summary>
+        public static int CountWorldsAndProps()
+        {
+            int count = 0;
+            foreach (var kvp in _byNetId)
+            {
+                var inst = kvp.Value;
+                if (inst != null && (inst.SpawnMode == SpawnMode.Scene || inst.SpawnMode == SpawnMode.GameObject))
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Unloads every spawned world (scene) and prop (game object), leaving avatars untouched.
+        /// Returns the number of instances removed.
+        /// </summary>
+        public static async Task<int> RemoveAllWorldsAndProps()
+        {
+            var toRemove = new List<string>();
+
+            foreach (var kvp in _byNetId)
+            {
+                var inst = kvp.Value;
+                if (inst != null && (inst.SpawnMode == SpawnMode.Scene || inst.SpawnMode == SpawnMode.GameObject))
+                    toRemove.Add(kvp.Key);
+            }
+
+            int nuked = 0;
+            for (int i = 0; i < toRemove.Count; i++)
+            {
+                if (await RemoveByLoadedNetId(toRemove[i]))
+                {
+                    nuked++;
+                }
+            }
+
+            return nuked;
+        }
+
+        /// <summary>
         /// basically we want to ensure there are no existing scenes of local when we network in the desired scene we want
         /// </summary>
         public static async Task RemoveAllLocalScenes()

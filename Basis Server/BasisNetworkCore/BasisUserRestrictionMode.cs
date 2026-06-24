@@ -3,7 +3,7 @@ using System;
 namespace BasisNetworkCore.Security
 {
     [Serializable]
-    public enum BasisUserRestrictionMode
+    public enum BasisUserRestrictionMode : byte
     {
         Normal,
         BlackList,

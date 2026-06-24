@@ -162,6 +162,20 @@ namespace Basis.BasisUI
         {
             if (CachedMetaData.TryGetMeta(item.Url, out var cached) || (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable))
             {
+                if (desiredNetworkType == BundledContentHolder.NetworkType.Predownload)
+                {
+                    bool requested = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, Vector3.zero, Quaternion.identity, Vector3.one, persistent, admin, modifyScale, out _, loadStrategy: 3);
+                    if (requested)
+                    {
+                        BasisDebug.Log($"Requested predownload for prop {item.Url}", BasisDebug.LogTag.Networking);
+                    }
+                    else
+                    {
+                        BasisDebug.LogError($"Failed to request predownload for prop {item.Url}");
+                    }
+                    return;
+                }
+
                 Vector3 finalPos = Vector3.zero;
                 Quaternion finalRot = Quaternion.identity;
                 Vector3 finalScale = Vector3.one;
@@ -483,6 +497,24 @@ namespace Basis.BasisUI
                             else
                             {
                                 BasisDebug.LogError($"Failed to request synchronized SceneLoad for {item.Url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            BasisDebug.LogError(ex);
+                        }
+                        break;
+                    case BundledContentHolder.NetworkType.Predownload:
+                        try
+                        {
+                            bool ok = BasisNetworkSpawnItem.RequestSceneLoad(item.Pass, item.Url, persistent, admin, out _, loadStrategy: 3);
+                            if (ok)
+                            {
+                                BasisDebug.Log($"Requested predownload for world {item.Url}", BasisDebug.LogTag.Networking);
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"Failed to request predownload for world {item.Url}");
                             }
                         }
                         catch (Exception ex)

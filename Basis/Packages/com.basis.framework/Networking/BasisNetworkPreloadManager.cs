@@ -165,6 +165,18 @@ public static class BasisNetworkPreloadManager
     }
 
     /// <summary>
+    /// Called when the client receives a LoadResource message with LoadStrategy = 3 (Predownload).
+    /// Downloads the content to disc so a later normal load is instant, but never spawns it and
+    /// never reports readiness. The on-disc cache is the durable result, so the in-memory tracking
+    /// entry is dropped immediately (no spawn signal will ever arrive for it).
+    /// </summary>
+    public static async Task HandlePredownload(LocalLoadResource resource)
+    {
+        await HandlePreload(resource);
+        PreloadedResources.TryRemove(resource.LoadedNetID, out _);
+    }
+
+    /// <summary>
     /// Sends a readiness message to the server indicating whether this client
     /// has successfully preloaded the resource.
     /// </summary>

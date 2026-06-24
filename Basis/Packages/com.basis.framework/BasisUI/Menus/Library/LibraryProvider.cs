@@ -916,11 +916,14 @@ namespace Basis.BasisUI
                     // grab the state of the item if its pinned
                     bool isPinned = item.PinnedSettings.IsPinned;
 
-                    // create new pinned settings
+                    // create new pinned settings. Predownload is a one-shot action, not a persistable
+                    // spawn mode, so a pinned item falls back to Networked.
                     BasisDataStoreItemKeys.PinnedSettings newPinnedSettings = new BasisDataStoreItemKeys.PinnedSettings
                     {
                         IsPinned = !isPinned,
-                        NetworkType = desiredNetworkType,
+                        NetworkType = desiredNetworkType == BundledContentHolder.NetworkType.Predownload
+                            ? BundledContentHolder.NetworkType.Networked
+                            : desiredNetworkType,
                         IsEphemeral = ephemeral
                     };
 
@@ -1295,10 +1298,27 @@ namespace Basis.BasisUI
                         desiredNetworkType = selectedNetType;
                         contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(selectedNetType));
 
-                        // update the load button title for props to reflect the selected mode
-                        if (item.Mode == BundledContentHolder.Mode.Prop && !replaceLoad)
+                        // update the load button to reflect the selected mode
+                        if (!replaceLoad)
                         {
-                            loadPanelButton.Descriptor.SetTitle(GetPropLoadButtonTitle(selectedNetType));
+                            bool predownload = selectedNetType == BundledContentHolder.NetworkType.Predownload;
+                            switch (item.Mode)
+                            {
+                                case BundledContentHolder.Mode.Prop:
+                                    loadPanelButton.Descriptor.SetTitle(predownload
+                                        ? BasisLocalization.Get("library.downloadForEveryone")
+                                        : GetPropLoadButtonTitle(selectedNetType));
+                                    break;
+                                case BundledContentHolder.Mode.World:
+                                    bool worldAlreadyExists = spawnItemCount > 0;
+                                    loadPanelButton.SetInteractable(
+                                        predownload || !worldAlreadyExists,
+                                        (!predownload && worldAlreadyExists) ? BasisLocalization.Get("library.sceneAlreadyLoaded") : null);
+                                    loadPanelButton.Descriptor.SetTitle(predownload
+                                        ? BasisLocalization.Get("library.downloadForEveryone")
+                                        : worldAlreadyExists ? BasisLocalization.Get("library.sceneAlreadyLoaded") : BasisLocalization.Get("library.load"));
+                                    break;
+                            }
                         }
                     }
                     else
@@ -1461,6 +1481,15 @@ namespace Basis.BasisUI
 
                 try
                 {
+                    if (item.Mode == BundledContentHolder.Mode.World && BasisRuntimeSpawnRegistry.CountWorldsAndProps() > 0)
+                    {
+                        bool unloadExisting = await LibraryProviderDialogUnloadContent.PromptUserToUnloadExistingContent(panel);
+                        if (unloadExisting)
+                        {
+                            await BasisRuntimeSpawnRegistry.RemoveAllWorldsAndProps();
+                        }
+                    }
+
                     bool success = await LibraryProviderDialogLoading.PromptUserLoadingInProgress(panel, item, desiredNetworkType, !ephemeral);
                 }
                 catch (Exception ex)
@@ -1504,6 +1533,7 @@ namespace Basis.BasisUI
         {
             [BundledContentHolder.NetworkType.Local] = BasisLocalization.Get("library.networkType.local"),
             [BundledContentHolder.NetworkType.Networked] = BasisLocalization.Get("library.networkType.networked"),
+            [BundledContentHolder.NetworkType.Predownload] = BasisLocalization.Get("library.networkType.predownload"),
             [BundledContentHolder.NetworkType.LoadOnBoot] = BasisLocalization.Get("library.networkType.loadOnBoot"),
             // TODO: Re-enable once synchronized loading is fully working (late joiner + prop unload bugs)
             // [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
@@ -1523,6 +1553,7 @@ namespace Basis.BasisUI
             if (connected && !isLocal)
             {
                 types.Add(BundledContentHolder.NetworkType.Networked);
+                types.Add(BundledContentHolder.NetworkType.Predownload);
             }
             types.Add(BundledContentHolder.NetworkType.LoadOnBoot);
             return types;
@@ -1555,6 +1586,8 @@ namespace Basis.BasisUI
                     BasisLocalization.Get("library.networkType.local.description"),
                 BundledContentHolder.NetworkType.Networked =>
                     BasisLocalization.Get("library.networkType.networked.description"),
+                BundledContentHolder.NetworkType.Predownload =>
+                    BasisLocalization.Get("library.networkType.predownload.description"),
                 BundledContentHolder.NetworkType.Synchronized =>
                     BasisLocalization.Get("library.networkType.synchronized.description"),
                 BundledContentHolder.NetworkType.LoadOnBoot =>

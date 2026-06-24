@@ -207,6 +207,30 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.DirectSceneServerChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisNetworkGenericMessages.HandleDirectServerSceneDataMessage(Reader, deliveryMethod);
+                    Reader.Recycle();
+                });
+                break;
+            case BasisNetworkCommons.DirectAvatarServerChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisNetworkGenericMessages.HandleServerAvatarDataMessage(Reader, deliveryMethod, true);
+                    Reader.Recycle();
+                });
+                break;
             case BasisNetworkCommons.NetIDAssignsChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {

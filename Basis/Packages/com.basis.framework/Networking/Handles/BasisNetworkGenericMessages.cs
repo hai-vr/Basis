@@ -28,6 +28,8 @@ public static class BasisNetworkGenericMessages
     }
     private static readonly List<DeferredMessage> _deferredMessages = new();
     private static readonly Dictionary<ushort, Action<ushort, byte[], DeliveryMethod>> _handlers = new();
+    private static readonly List<DeferredMessage> _deferredDirectMessages = new();
+    private static readonly Dictionary<ushort, Action<ushort, byte[], DeliveryMethod>> _directHandlers = new();
     private const int MaxDeferredMessages = 1000; // Set your limit here
     public delegate void OnNetworkMessageReceiveOwnershipTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner);
     public delegate void OnNetworkMessageReceiveOwnershipRemoved(string UniqueEntityID);
@@ -44,6 +46,17 @@ public static class BasisNetworkGenericMessages
         _handlers.Remove(messageIndex);
     }
 
+    public static void RegisterDirectHandler(ushort messageIndex, Action<ushort, byte[], DeliveryMethod> handler)
+    {
+        _directHandlers[messageIndex] = handler;
+        TryDeliverDeferredDirectMessages();
+    }
+
+    public static void UnregisterDirectHandler(ushort messageIndex)
+    {
+        _directHandlers.Remove(messageIndex);
+    }
+
     public static void HandleServerSceneDataMessage(NetPacketReader reader, DeliveryMethod deliveryMethod)
     {
         var serverSceneDataMessage = new ServerSceneDataMessage();
@@ -51,24 +64,46 @@ public static class BasisNetworkGenericMessages
 
         ushort playerID = serverSceneDataMessage.playerIdMessage.playerID;
         var sceneDataMessage = serverSceneDataMessage.sceneDataMessage;
-        ushort messageIndex = sceneDataMessage.messageIndex;
-
-        if (_handlers.TryGetValue(messageIndex, out var handler))
+        if (DispatchSceneData(playerID, sceneDataMessage.messageIndex, sceneDataMessage.payload, deliveryMethod, false))
         {
-            handler.Invoke(playerID, sceneDataMessage.payload, deliveryMethod);
             serverSceneDataMessage.sceneDataMessage.Release();//dont need todo this but not doing it will create more gc then necessary
         }
-        else
-        {
-            // Check capacity before adding
-            if (_deferredMessages.Count >= MaxDeferredMessages)
-            {
-                // Remove the oldest message (FIFO)
-                _deferredMessages.RemoveAt(0);
-            }
+    }
 
-            _deferredMessages.Add(new DeferredMessage(playerID, messageIndex, sceneDataMessage.payload, deliveryMethod));
+    public static void HandleDirectServerSceneDataMessage(NetPacketReader reader, DeliveryMethod deliveryMethod)
+    {
+        var serverSceneDataMessage = new ServerSceneDataMessage();
+        serverSceneDataMessage.Deserialize(reader);
+
+        ushort playerID = serverSceneDataMessage.playerIdMessage.playerID;
+        var sceneDataMessage = serverSceneDataMessage.sceneDataMessage;
+        if (DispatchSceneData(playerID, sceneDataMessage.messageIndex, sceneDataMessage.payload, deliveryMethod, true))
+        {
+            serverSceneDataMessage.sceneDataMessage.Release();
         }
+    }
+
+    public static void HandleDirectP2PSceneMessage(ushort senderPlayerId, ushort messageIndex, byte[] payload, DeliveryMethod deliveryMethod)
+    {
+        DispatchSceneData(senderPlayerId, messageIndex, payload, deliveryMethod, true);
+    }
+
+    private static bool DispatchSceneData(ushort playerID, ushort messageIndex, byte[] payload, DeliveryMethod deliveryMethod, bool direct)
+    {
+        var handlers = direct ? _directHandlers : _handlers;
+        if (handlers.TryGetValue(messageIndex, out var handler))
+        {
+            handler.Invoke(playerID, payload, deliveryMethod);
+            return true;
+        }
+
+        var deferred = direct ? _deferredDirectMessages : _deferredMessages;
+        if (deferred.Count >= MaxDeferredMessages)
+        {
+            deferred.RemoveAt(0);
+        }
+        deferred.Add(new DeferredMessage(playerID, messageIndex, payload, deliveryMethod));
+        return false;
     }
 
     private static void TryDeliverDeferredMessages()
@@ -80,6 +115,19 @@ public static class BasisNetworkGenericMessages
             {
                 handler.Invoke(msg.PlayerId, msg.Payload, msg.DeliveryMethod);
                 _deferredMessages.RemoveAt(Index);
+            }
+        }
+    }
+
+    private static void TryDeliverDeferredDirectMessages()
+    {
+        for (int Index = _deferredDirectMessages.Count - 1; Index >= 0; Index--)
+        {
+            var msg = _deferredDirectMessages[Index];
+            if (_directHandlers.TryGetValue(msg.MessageIndex, out var handler))
+            {
+                handler.Invoke(msg.PlayerId, msg.Payload, msg.DeliveryMethod);
+                _deferredDirectMessages.RemoveAt(Index);
             }
         }
     }
@@ -117,12 +165,32 @@ public static class BasisNetworkGenericMessages
         }
     }
     // Handler for server avatar data messages
-    public static void HandleServerAvatarDataMessage(NetPacketReader reader, DeliveryMethod Method)
+    public static void HandleServerAvatarDataMessage(NetPacketReader reader, DeliveryMethod Method, bool direct = false)
     {
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, reader.AvailableBytes);
         ServerAvatarDataMessage SADM = new ServerAvatarDataMessage();
         SADM.Deserialize(reader);
+        DispatchAvatarData(SADM, Method, direct);
+    }
 
+    public static void HandleDirectP2PAvatarMessage(ushort senderPlayerId, byte messageIndex, byte avatarLinkIndex, byte[] payload, DeliveryMethod Method)
+    {
+        ServerAvatarDataMessage SADM = new ServerAvatarDataMessage
+        {
+            avatarDataMessage = new RemoteAvatarDataMessage
+            {
+                messageIndex = messageIndex,
+                AvatarLinkIndex = avatarLinkIndex,
+                payload = payload,
+                PlayerIdMessage = new PlayerIdMessage { playerID = senderPlayerId },
+            },
+            playerIdMessage = new PlayerIdMessage { playerID = senderPlayerId },
+        };
+        DispatchAvatarData(SADM, Method, true);
+    }
+
+    public static void DispatchAvatarData(ServerAvatarDataMessage SADM, DeliveryMethod Method, bool direct)
+    {
         ushort playerID = SADM.avatarDataMessage.PlayerIdMessage.playerID; // destination
         if (BasisNetworkPlayers.Players.TryGetValue(playerID, out BasisNetworkPlayer player))
         {
@@ -160,7 +228,8 @@ public static class BasisNetworkGenericMessages
                             player.NextMessages[output.messageIndex] = new BasisNetworkPlayer.ServerAvatarDataMessageQueue()
                             {
                                 Method = Method,
-                                ServerAvatarDataMessage = SADM
+                                ServerAvatarDataMessage = SADM,
+                                Direct = direct
                             };
                         }
                     }
@@ -168,7 +237,14 @@ public static class BasisNetworkGenericMessages
                     {
                         if (output.messageIndex < player.NetworkBehaviourCount)
                         {
-                            player.NetworkBehaviours[output.messageIndex].OnNetworkMessageReceived(SADM.playerIdMessage.playerID, output.payload, Method);
+                            if (direct)
+                            {
+                                player.NetworkBehaviours[output.messageIndex].OnDirectNetworkMessageReceived(SADM.playerIdMessage.playerID, output.payload, Method);
+                            }
+                            else
+                            {
+                                player.NetworkBehaviours[output.messageIndex].OnNetworkMessageReceived(SADM.playerIdMessage.playerID, output.payload, Method);
+                            }
                         }
                         else
                         {
@@ -204,6 +280,40 @@ public static class BasisNetworkGenericMessages
 
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, netDataWriter.Length);
     }
+    public static void OnNetworkMessageSendDirect(ushort messageIndex, byte[] buffer = null, DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable, ushort[] recipients = null, bool allowServerFallback = true)
+    {
+        BasisP2PManager.PartitionRecipients(recipients, out List<ushort> directIds, out List<ushort> relayIds);
+
+        if (directIds != null && directIds.Count > 0)
+        {
+            NetDataWriter p2pWriter = threadLocalWriter.Value;
+            p2pWriter.Reset();
+            p2pWriter.Put(messageIndex);
+            if (buffer != null)
+            {
+                p2pWriter.Put(buffer);
+            }
+            for (int Index = 0; Index < directIds.Count; Index++)
+            {
+                BasisP2PManager.SendDirectTo(directIds[Index], p2pWriter, BasisNetworkCommons.DirectSceneChannel, deliveryMethod);
+            }
+        }
+
+        if (allowServerFallback && relayIds != null && relayIds.Count > 0)
+        {
+            NetDataWriter netDataWriter = threadLocalWriter.Value;
+            netDataWriter.Reset();
+            SceneDataMessage sceneDataMessage = new SceneDataMessage
+            {
+                messageIndex = messageIndex,
+                payload = buffer,
+                recipients = relayIds.ToArray()
+            };
+            sceneDataMessage.Serialize(netDataWriter);
+            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.DirectSceneServerChannel, deliveryMethod);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, netDataWriter.Length);
+        }
+    }
     public static void NetIDAssign(NetPacketReader reader, DeliveryMethod Method)
     {
         ServerNetIDMessage ServerNetIDMessage = new ServerNetIDMessage();
@@ -232,6 +342,9 @@ public static class BasisNetworkGenericMessages
             {
                 case 2: // Synchronized - download, report readiness, wait for spawn signal
                     await BasisNetworkPreloadManager.HandleSynchronizedPreload(LocalLoadResource);
+                    return;
+                case 3: // Predownload only - cache to disc, never spawn, never report readiness
+                    await BasisNetworkPreloadManager.HandlePredownload(LocalLoadResource);
                     return;
             }
 

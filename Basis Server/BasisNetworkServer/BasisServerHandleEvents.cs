@@ -926,6 +926,9 @@ namespace BasisServerHandle
                 case 2: // Synchronized
                     BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(LocalLoadResource);
                     break;
+                case 3: // Predownload only - tell everyone to cache it; do not register or spawn
+                    BasisNetworkResourceManagement.PredownloadResource(LocalLoadResource);
+                    break;
                 default:
                     BNL.LogError("Falling Back to Resource Load, Unsupported Load Strategy");
                     BasisNetworkResourceManagement.LoadResource(LocalLoadResource);

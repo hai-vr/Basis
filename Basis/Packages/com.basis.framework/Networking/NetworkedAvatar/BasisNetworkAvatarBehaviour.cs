@@ -38,6 +38,11 @@ namespace Basis.Scripts.Networking.Behaviour
          //   BasisDebug.LogError("Data was Received but nothing interpreted it! OnNetworkMessageReceived", this.gameObject, BasisDebug.LogTag.Avatar);
         }
 
+        public virtual void OnDirectNetworkMessageReceived(ushort RemoteUser, byte[] buffer, DeliveryMethod DeliveryMethod)
+        {
+
+        }
+
         /// <summary>
         /// this is used for sending Network Messages
         /// </summary>
@@ -65,6 +70,26 @@ namespace Basis.Scripts.Networking.Behaviour
             if (IsInitialized)
             {
                 NetworkedPlayer.OnAvatarNetworkMessageSend(MessageIndex, null, DeliveryMethod);
+            }
+            else
+            {
+                BasisDebug.LogError("Network Is Not Ready!", this.gameObject, BasisDebug.LogTag.Avatar);
+            }
+        }
+
+        /// <summary>
+        /// Sends a Network Message over direct peer-to-peer links, falling back to the server
+        /// relay for recipients with no direct connection. Received via <see cref="OnDirectNetworkMessageReceived"/>.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="DeliveryMethod"></param>
+        /// <param name="Recipients">if null everyone but self</param>
+        /// <param name="allowServerFallback">if false, only delivers to directly-connected recipients (best-effort, no server relay)</param>
+        public void NetworkMessageSendDirect(byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable, ushort[] Recipients = null, bool allowServerFallback = true)
+        {
+            if (IsInitialized)
+            {
+                NetworkedPlayer.OnAvatarNetworkMessageSendDirect(MessageIndex, buffer, DeliveryMethod, Recipients, allowServerFallback);
             }
             else
             {

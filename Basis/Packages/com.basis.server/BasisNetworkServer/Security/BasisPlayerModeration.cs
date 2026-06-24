@@ -504,9 +504,9 @@ namespace BasisNetworkServer.Security
 
         private static string ApplyWhitelistMode(byte mode)
         {
-            if (!Enum.IsDefined(typeof(BasisUserRestrictionMode), mode))
-                return $"Unknown restriction mode value {mode}.";
             BasisUserRestrictionMode parsed = (BasisUserRestrictionMode)mode;
+            if (!Enum.IsDefined(typeof(BasisUserRestrictionMode), parsed))
+                return $"Unknown restriction mode value {mode}.";
             NetworkServer.Configuration.BasisUserRestrictionMode = parsed;
 
             if (parsed == BasisUserRestrictionMode.RejoinOnly)

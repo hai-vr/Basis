@@ -60,6 +60,14 @@ public static class BasisNetworkMessageProcessor
                     BasisNetworkingGeneric.HandleScene(reader, deliveryMethod, peer); // recycles inside
                     break;
 
+                case BasisNetworkCommons.DirectAvatarServerChannel:
+                    BasisNetworkingGeneric.HandleAvatar(reader, deliveryMethod, peer, BasisNetworkCommons.DirectAvatarServerChannel); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.DirectSceneServerChannel:
+                    BasisNetworkingGeneric.HandleScene(reader, deliveryMethod, peer, BasisNetworkCommons.DirectSceneServerChannel); // recycles inside
+                    break;
+
                 case BasisNetworkCommons.AvatarChangeMessageChannel:
                     BasisServerHandleEvents.SendAvatarMessageToClients(reader, peer); // recycles inside
                     break;

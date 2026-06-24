@@ -64,6 +64,19 @@ namespace Basis.BasisUI
 
         public static Action<RectTransform> LicensesBuilder;
 
+        /// <summary>
+        /// Feature packages append a Developer-tab section builder here (typically via
+        /// [RuntimeInitializeOnLoadMethod]); <see cref="DeveloperTab"/> invokes each one so a
+        /// package can own its diagnostics UI without the framework referencing the package.
+        /// </summary>
+        public static readonly List<Action<RectTransform>> DeveloperSectionBuilders = new();
+
+        /// <summary>
+        /// Reset callbacks paired with <see cref="DeveloperSectionBuilders"/>; the Developer
+        /// page's reset button runs these so a package can reset its own settings.
+        /// </summary>
+        public static readonly List<Action> DeveloperResetActions = new();
+
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -1977,9 +1990,6 @@ namespace Basis.BasisUI
             descriptor.SetTitle(BasisLocalization.Get("settings.developer.title"));
             RectTransform container = descriptor.ContentParent;
 
-            // ---- Report a Bug (pre-fills the GitHub bug form) ----
-            SettingsProviderBugReport.BuildBugReportGroup(container);
-
             // ---- Gizmos (master + per-gizmo sub-toggles) ----
             PanelElementDescriptor gizmosGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -2091,77 +2101,12 @@ namespace Basis.BasisUI
                 networkGroup.ForceRebuild();
             };
 
-            // ---- Avatar Recorder ----
-            PanelElementDescriptor recorderGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            recorderGroup.SetTitle(BasisLocalization.Get("settings.developer.recorder.title"));
-
-            PanelTextField recorderCountdownField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
-            recorderCountdownField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.countdown"));
-            recorderCountdownField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.countdown.tooltip"));
-            recorderCountdownField.AssignBinding(BasisSettingsDefaults.RecorderCountdownSeconds);
-            if (recorderCountdownField._inputField != null)
+            // ---- Sections contributed by feature packages (e.g. Avatar Recorder) ----
+            for (int i = 0; i < DeveloperSectionBuilders.Count; i++)
             {
-                recorderCountdownField._inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
-                recorderCountdownField._inputField.lineType = TMP_InputField.LineType.SingleLine;
-                recorderCountdownField._inputField.characterLimit = 4;
+                try { DeveloperSectionBuilders[i]?.Invoke(container); }
+                catch (Exception ex) { BasisDebug.LogWarning($"Developer section builder failed: {ex.Message}"); }
             }
-
-            PanelToggle recorderAutoStopToggle = PanelToggle.CreateNewEntry(recorderGroup.ContentParent);
-            recorderAutoStopToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.autoStop"));
-            recorderAutoStopToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.autoStop.tooltip"));
-            recorderAutoStopToggle.AssignBinding(BasisSettingsDefaults.RecorderAutoStop);
-
-            PanelTextField recorderDurationField = PanelTextField.CreateNewEntry(recorderGroup.ContentParent);
-            recorderDurationField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.maxDuration"));
-            recorderDurationField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.maxDuration.tooltip"));
-            recorderDurationField.AssignBinding(BasisSettingsDefaults.RecorderMaxDurationSeconds);
-            if (recorderDurationField._inputField != null)
-            {
-                recorderDurationField._inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
-                recorderDurationField._inputField.lineType = TMP_InputField.LineType.SingleLine;
-                recorderDurationField._inputField.characterLimit = 5;
-            }
-            recorderDurationField.Descriptor.SetActive(recorderAutoStopToggle.Value);
-            recorderAutoStopToggle.OnValueChanged += enabled =>
-            {
-                recorderDurationField.Descriptor.SetActive(enabled);
-                recorderGroup.ForceRebuild();
-            };
-
-            PanelElementDescriptor recorderStatusField =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, recorderGroup.ContentParent);
-            recorderStatusField.SetTitle(BasisLocalization.Get("settings.developer.recorder.status.title"));
-            recorderStatusField.SetDescription(BasisLocalization.Get("settings.developer.recorder.status.idle"));
-            // Isolate only the read-only status field, not the whole group, so the fields/toggle/
-            // button above stay clickable. Basis's pointer hit-tests each canvas's GraphicRegistry
-            // separately and returns the first canvas hit by sortingOrder; a nested group canvas
-            // (sortingOrder 0, no overrideSorting) gets shadowed by the root canvas, so any control
-            // trapped inside it can't be selected.
-            recorderStatusField.IsolateAsCanvas();
-
-            PanelButton recorderButton = PanelButton.CreateNew(recorderGroup.ContentParent);
-            recorderButton.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.recorder.start"));
-            recorderButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.recorder.start.tooltip"));
-            recorderButton.OnClicked += () =>
-            {
-                if (BasisAvatarRecorderDriver.IsBusy)
-                {
-                    BasisAvatarRecorderDriver.RequestStop();
-                }
-                else
-                {
-                    float countdown = ParseSeconds(BasisSettingsDefaults.RecorderCountdownSeconds.RawValue);
-                    bool autoStop = BasisSettingsDefaults.RecorderAutoStop.RawValue;
-                    float maxDuration = ParseSeconds(BasisSettingsDefaults.RecorderMaxDurationSeconds.RawValue);
-                    BasisAvatarRecorderDriver.RequestStart(countdown, autoStop, maxDuration);
-                }
-            };
-
-            GameObject recorderUpdaterGO = new GameObject("RecorderPanelUpdater");
-            recorderUpdaterGO.transform.SetParent(recorderGroup.transform, false);
-            recorderUpdaterGO.AddComponent<BasisRecorderPanelUpdater>()
-                .Initialize(recorderStatusField, recorderButton);
 
             // ---- Local Voice Range ----
             PanelElementDescriptor voiceRangeGroup =
@@ -2762,16 +2707,12 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AvatarShowTextureStats.ResetToDefault();
             BasisSettingsDefaults.AvatarShowTrackerRoles.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
-            BasisSettingsDefaults.RecorderCountdownSeconds.ResetToDefault();
-            BasisSettingsDefaults.RecorderAutoStop.ResetToDefault();
-            BasisSettingsDefaults.RecorderMaxDurationSeconds.ResetToDefault();
-        }
 
-        private static float ParseSeconds(string raw)
-        {
-            if (float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value) && value > 0f)
-                return value;
-            return 0f;
+            for (int i = 0; i < DeveloperResetActions.Count; i++)
+            {
+                try { DeveloperResetActions[i]?.Invoke(); }
+                catch (Exception ex) { BasisDebug.LogWarning($"Developer reset action failed: {ex.Message}"); }
+            }
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)
@@ -2804,7 +2745,7 @@ namespace Basis.BasisUI
             return Password;
         }
 
-        internal static string BuildInfoString()
+        public static string BuildInfoString()
         {
             return
                 $"Version: {Application.version}\n" +

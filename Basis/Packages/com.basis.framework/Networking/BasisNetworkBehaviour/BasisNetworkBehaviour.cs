@@ -51,6 +51,7 @@ namespace Basis
             if (HasNetworkID)
             {
                 BasisNetworkGenericMessages.UnregisterHandler(NetworkID);
+                BasisNetworkGenericMessages.UnregisterDirectHandler(NetworkID);
             }
             BasisNetworkPlayer.OnLocalPlayerJoined -= OnLocalPlayerJoined;
             BasisNetworkPlayer.OnOwnershipTransfer -= LowLevelOwnershipTransfer;
@@ -111,6 +112,7 @@ namespace Basis
                 {
                     OnNetworkReady();
                     BasisNetworkGenericMessages.RegisterHandler(NetworkID, OnNetworkMessage);
+                    BasisNetworkGenericMessages.RegisterDirectHandler(NetworkID, OnDirectNetworkMessage);
                 }
             }
             else
@@ -159,6 +161,25 @@ namespace Basis
             {
                // BasisDebug.Log("Sening Out Custom Network Event");
                 BasisNetworkGenericMessages.OnNetworkMessageSend(NetworkID, buffer, DeliveryMethod, Recipients);
+            }
+            else
+            {
+                BasisDebug.LogError($"No Network ID Assigned yet for {this.gameObject.name}", BasisDebug.LogTag.Networking);
+            }
+        }
+        /// <summary>
+        /// Sends a Network Message over direct peer-to-peer links, falling back to the server
+        /// relay for recipients with no direct connection. Received via <see cref="OnDirectNetworkMessage"/>.
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="DeliveryMethod"></param>
+        /// <param name="Recipients">if null everyone but self</param>
+        /// <param name="allowServerFallback">if false, only delivers to directly-connected recipients (best-effort, no server relay)</param>
+        public void SendCustomNetworkEventDirect(byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable, ushort[] Recipients = null, bool allowServerFallback = true)
+        {
+            if (HasNetworkID)
+            {
+                BasisNetworkGenericMessages.OnNetworkMessageSendDirect(NetworkID, buffer, DeliveryMethod, Recipients, allowServerFallback);
             }
             else
             {
@@ -318,6 +339,10 @@ namespace Basis
 
         }
         public virtual void OnNetworkMessage(ushort PlayerID, byte[] buffer, DeliveryMethod DeliveryMethod)
+        {
+
+        }
+        public virtual void OnDirectNetworkMessage(ushort PlayerID, byte[] buffer, DeliveryMethod DeliveryMethod)
         {
 
         }

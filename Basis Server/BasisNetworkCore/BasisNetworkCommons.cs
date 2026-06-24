@@ -220,6 +220,16 @@ namespace Basis.Network.Core
         public const byte P2PSub_ServerArmed = 5;
         public const byte P2PSub_LinkUp = 6;
 
+        // ── Direct-connect custom data (P2P-first, server fallback) ──────────
+        /// <summary>P2P world/prop direct custom data. Frame: [messageIndex:2][payload].</summary>
+        public const byte DirectSceneChannel = 56;
+        /// <summary>Server relay of a direct-origin scene message (recipients with no direct link).</summary>
+        public const byte DirectSceneServerChannel = 57;
+        /// <summary>P2P avatar direct custom data. Frame: [messageIndex:1][avatarLinkIndex:1][payload].</summary>
+        public const byte DirectAvatarChannel = 58;
+        /// <summary>Server relay of a direct-origin avatar message (recipients with no direct link).</summary>
+        public const byte DirectAvatarServerChannel = 59;
+
         // ── Server info unconnected query ────────────────────────────────────
         // Out-of-band UDP probe: a client can hit the server's port without
         // authenticating and get back a name/online/max/MOTD payload — same

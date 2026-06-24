@@ -59,7 +59,8 @@ public static partial class SerializableBasis
         /// <summary>
         /// Determines how the resource should be loaded on clients.
         /// 0 = Immediate (spawn right away, existing behavior),
-        /// 2 = Synchronized (download, report readiness, spawn when all ready or 5-min timeout).
+        /// 2 = Synchronized (download, report readiness, spawn when all ready or 5-min timeout),
+        /// 3 = Predownload (download and cache to disc on every client, never spawn).
         /// </summary>
         public byte LoadStrategy;
         public void Deserialize(NetDataReader Writer)

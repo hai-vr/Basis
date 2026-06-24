@@ -33,6 +33,12 @@ public partial class BundledContentHolder
         /// become the initial world; props respawn at the player origin.
         /// </summary>
         LoadOnBoot = 3,
+        /// <summary>
+        /// Tells every connected client to download and cache the bundle to disc now,
+        /// without spawning it. A later Networked load resolves from each client's
+        /// on-disc cache, so it is near-instant for everyone who pre-downloaded.
+        /// </summary>
+        Predownload = 4,
     }
 
     // used to determine the way an item can be placed into a world

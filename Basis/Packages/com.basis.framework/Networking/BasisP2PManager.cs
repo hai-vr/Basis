@@ -1,5 +1,6 @@
 using Basis.BasisUI;
 using Basis.Network.Core;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
@@ -266,6 +267,70 @@ namespace Basis.Scripts.Networking
                 }
             }
             return sent;
+        }
+
+        public static int SendDirectToAllConnected(NetDataWriter writer, byte channel, DeliveryMethod deliveryMethod)
+        {
+            return SendToAllConnected(writer, channel, deliveryMethod);
+        }
+
+        public static bool SendDirectTo(ushort otherPlayerId, NetDataWriter writer, byte channel, DeliveryMethod deliveryMethod)
+        {
+            if (writer == null || writer.Length == 0) return false;
+            if (!TryGetP2PPeer(otherPlayerId, out NetPeer peer)) return false;
+            try
+            {
+                peer.Send(writer, channel, deliveryMethod);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"[P2P] Direct send on channel {channel} to player {otherPlayerId} failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static void PartitionRecipients(ushort[] recipients, out System.Collections.Generic.List<ushort> directIds, out System.Collections.Generic.List<ushort> relayIds)
+        {
+            directIds = new System.Collections.Generic.List<ushort>();
+            relayIds = new System.Collections.Generic.List<ushort>();
+
+            if (recipients == null)
+            {
+                foreach (var kvp in _sessionsByOtherId)
+                {
+                    if (kvp.Value.State == P2PSessionState.Connected)
+                    {
+                        directIds.Add(kvp.Value.OtherPlayerId);
+                    }
+                }
+                if (!BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId))
+                {
+                    localId = ushort.MaxValue;
+                }
+                foreach (var kvp in BasisNetworkPlayers.Players)
+                {
+                    ushort id = kvp.Key;
+                    if (id == localId) continue;
+                    if (GetSessionState(id) == P2PSessionState.Connected) continue;
+                    relayIds.Add(id);
+                }
+            }
+            else
+            {
+                for (int Index = 0; Index < recipients.Length; Index++)
+                {
+                    ushort id = recipients[Index];
+                    if (GetSessionState(id) == P2PSessionState.Connected)
+                    {
+                        directIds.Add(id);
+                    }
+                    else
+                    {
+                        relayIds.Add(id);
+                    }
+                }
+            }
         }
 
         public static void BroadcastVoiceViaP2P(NetDataWriter clientFormatWriter)
@@ -692,6 +757,13 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
+            if (channel == BasisNetworkCommons.DirectSceneChannel || channel == BasisNetworkCommons.DirectAvatarChannel)
+            {
+                HandleDirectP2PPacket(channel, reader, expectedOtherId, deliveryMethod);
+                reader.Recycle();
+                return;
+            }
+
             bool largeId = BasisNetworkCommons.IsLargePlayerIdChannel(channel);
             int origPos = reader.Position;
             if (reader.AvailableBytes < (largeId ? 2 : 1))
@@ -725,10 +797,33 @@ namespace Basis.Scripts.Networking
             }
         }
 
+        private static void HandleDirectP2PPacket(byte channel, NetPacketReader reader, ushort senderPlayerId, DeliveryMethod deliveryMethod)
+        {
+            if (channel == BasisNetworkCommons.DirectSceneChannel)
+            {
+                if (reader.AvailableBytes < sizeof(ushort)) return;
+                ushort messageIndex = reader.GetUShort();
+                byte[] payload = reader.AvailableBytes > 0 ? reader.GetRemainingBytes() : Array.Empty<byte>();
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    BasisNetworkGenericMessages.HandleDirectP2PSceneMessage(senderPlayerId, messageIndex, payload, deliveryMethod));
+            }
+            else
+            {
+                if (reader.AvailableBytes < 2) return;
+                byte messageIndex = reader.GetByte();
+                byte avatarLinkIndex = reader.GetByte();
+                byte[] payload = reader.AvailableBytes > 0 ? reader.GetRemainingBytes() : Array.Empty<byte>();
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    BasisNetworkGenericMessages.HandleDirectP2PAvatarMessage(senderPlayerId, messageIndex, avatarLinkIndex, payload, deliveryMethod));
+            }
+        }
+
         private static bool IsAllowedP2PChannel(byte channel)
         {
             if (channel == BasisNetworkCommons.VoiceChannel ||
-                channel == BasisNetworkCommons.VoiceLargeChannel)
+                channel == BasisNetworkCommons.VoiceLargeChannel ||
+                channel == BasisNetworkCommons.DirectSceneChannel ||
+                channel == BasisNetworkCommons.DirectAvatarChannel)
                 return true;
             return (channel >= BasisNetworkCommons.PlayerAvatarVeryLowChannel &&
                     channel <= BasisNetworkCommons.PlayerAvatarHighAdditionalChannel) ||

@@ -16,7 +16,7 @@ namespace Basis.Network.Server.Generic
             return _targetedClients;
         }
 
-        public static void HandleScene(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
+        public static void HandleScene(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender, byte broadcastChannel = BasisNetworkCommons.SceneChannel)
         {
             SceneDataMessage SceneDataMessage = new SceneDataMessage();
             SceneDataMessage.Deserialize(Reader);
@@ -39,7 +39,7 @@ namespace Basis.Network.Server.Generic
                 }
             };
 
-            byte Channel = BasisNetworkCommons.SceneChannel;
+            byte Channel = broadcastChannel;
             NetDataWriter Writer = NetworkServer.RentWriter();
             serverSceneDataMessage.Serialize(Writer);
             if (SceneDataMessage.recipientsSize != 0)
@@ -71,7 +71,7 @@ namespace Basis.Network.Server.Generic
             NetworkServer.ReturnWriter(Writer);
             serverSceneDataMessage.sceneDataMessage.Release();
         }
-        public static void HandleAvatar(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
+        public static void HandleAvatar(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender, byte broadcastChannel = BasisNetworkCommons.AvatarChannel)
         {
             AvatarDataMessage avatarDataMessage = new AvatarDataMessage();
             avatarDataMessage.Deserialize(Reader);
@@ -90,7 +90,7 @@ namespace Basis.Network.Server.Generic
                     playerID = (ushort)sender.Id
                 }
             };
-            byte Channel = BasisNetworkCommons.AvatarChannel;
+            byte Channel = broadcastChannel;
             NetDataWriter Writer = NetworkServer.RentWriter();
             serverAvatarDataMessage.Serialize(Writer);
             if (avatarDataMessage.recipientsSize != 0)

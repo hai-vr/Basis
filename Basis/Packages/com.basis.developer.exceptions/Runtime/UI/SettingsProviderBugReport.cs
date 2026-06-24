@@ -29,6 +29,12 @@ namespace Basis.BasisUI
         private const byte ServerReportSeverity = 1;
         private const string ServerReportSystem = "BugReport";
 
+        [RuntimeInitializeOnLoadMethod]
+        private static void Register()
+        {
+            SettingsProvider.DeveloperSectionBuilders.Add(BuildBugReportGroup);
+        }
+
         public static void BuildBugReportGroup(RectTransform container)
         {
             PanelElementDescriptor group =

@@ -3167,6 +3167,10 @@
       "value": "Sync Spawn"
     },
     {
+      "key": "library.downloadForEveryone",
+      "value": "Download for Everyone"
+    },
+    {
       "key": "library.spawnedCount",
       "value": "({0} spawned)"
     },
@@ -3203,6 +3207,10 @@
       "value": "Everyone (Instant)"
     },
     {
+      "key": "library.networkType.predownload",
+      "value": "Everyone (Pre-Download)"
+    },
+    {
       "key": "library.networkType.loadOnBoot",
       "value": "Load on Boot"
     },
@@ -3213,6 +3221,10 @@
     {
       "key": "library.networkType.networked.description",
       "value": "The item will be spawned on all connected players immediately."
+    },
+    {
+      "key": "library.networkType.predownload.description",
+      "value": "Downloads this to everyone currently here without spawning it, so a later load is instant for them."
     },
     {
       "key": "library.networkType.synchronized.description",
@@ -3381,6 +3393,14 @@
     {
       "key": "library.dialog.remove.body",
       "value": "Are you sure you want to remove this {0}?"
+    },
+    {
+      "key": "library.dialog.unloadExisting.title",
+      "value": "Unload existing content?"
+    },
+    {
+      "key": "library.dialog.unloadExisting.body",
+      "value": "Do you want to unload all existing world and prop content before loading this world?"
     },
     {
       "key": "library.dialog.share.title",

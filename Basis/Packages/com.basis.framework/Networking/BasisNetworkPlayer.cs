@@ -120,6 +120,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             public ServerAvatarDataMessage ServerAvatarDataMessage;
             public DeliveryMethod Method;
+            public bool Direct;
         }
         public abstract void Initialize();
         public abstract void DeInitialize();
@@ -247,6 +248,42 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.AvatarChannel, DeliveryMethod);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarDataMessage, netDataWriter.Length);
         }
+        public void OnAvatarNetworkMessageSendDirect(byte MessageIndex, byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable, ushort[] Recipients = null, bool allowServerFallback = true)
+        {
+            BasisP2PManager.PartitionRecipients(Recipients, out List<ushort> directIds, out List<ushort> relayIds);
+
+            if (directIds != null && directIds.Count > 0)
+            {
+                NetDataWriter p2pWriter = new NetDataWriter();
+                p2pWriter.Put(MessageIndex);
+                p2pWriter.Put(LastLinkedAvatarIndex);
+                if (buffer != null)
+                {
+                    p2pWriter.Put(buffer);
+                }
+                for (int Index = 0; Index < directIds.Count; Index++)
+                {
+                    BasisP2PManager.SendDirectTo(directIds[Index], p2pWriter, BasisNetworkCommons.DirectAvatarChannel, DeliveryMethod);
+                }
+            }
+
+            if (allowServerFallback && relayIds != null && relayIds.Count > 0)
+            {
+                AvatarDataMessage AvatarDataMessage = new AvatarDataMessage
+                {
+                    PlayerIdMessage = new PlayerIdMessage() { playerID = playerId },
+                    messageIndex = MessageIndex,
+                    payload = buffer,
+                    recipients = relayIds.ToArray(),
+                    AvatarLinkIndex = LastLinkedAvatarIndex,
+                    recipientsSize = 0,
+                };
+                NetDataWriter netDataWriter = new NetDataWriter();
+                AvatarDataMessage.Serialize(netDataWriter);
+                BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.DirectAvatarServerChannel, DeliveryMethod);
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarDataMessage, netDataWriter.Length);
+            }
+        }
         public static bool AvatarToPlayer(BasisAvatar Avatar, out IBasisPlayer BasisPlayer)
         {
             return BasisNetworkPlayers.AvatarToPlayer(Avatar, out BasisPlayer);
@@ -351,7 +388,19 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return false;
             }
         }
-        public bool IsLocal => _player != null && _player.IsLocal;
+        public bool IsLocal
+        {
+            get
+            {
+                if (_player == null)
+                {
+                    BasisDebug.LogErrorOnce(ref _loggedNullPlayerIsLocal, "BasisNetworkPlayer.IsLocal accessed with no Player set (stale reference or pre-publish); treating as remote.", BasisDebug.LogTag.Networking);
+                    return false;
+                }
+                return _player.IsLocal;
+            }
+        }
+        private bool _loggedNullPlayerIsLocal;
         //this is slow use a faster way! (but you can use it of course)
         public bool GetBonePositionAndRotation(HumanBodyBones bone, out Vector3 position, out Quaternion rotation)
         {

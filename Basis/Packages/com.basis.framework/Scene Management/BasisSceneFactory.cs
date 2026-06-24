@@ -202,7 +202,7 @@ public static class BasisSceneFactory
         }
         catch (Exception e)
         {
-            BasisDebug.LogWarning("Adaptive probe volume load failed for scene: " + scene.name + " (" + e.Message + ")", BasisDebug.LogTag.Scene);
+            BasisDebug.LogError("Adaptive probe volume load failed for scene: " + scene.name + " (" + e.Message + ")", BasisDebug.LogTag.Scene);
             return;
         }
         BasisDebug.Log("Forced adaptive probe volume baking set load for scene: " + scene.name, BasisDebug.LogTag.Scene);

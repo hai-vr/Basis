@@ -63,6 +63,7 @@ namespace Basis.Scripts.Drivers
         /// blendshape mesh count on avatar face blink mesh.
         /// </summary>
         public int meshBlendShapeCount;
+        private bool loggedBlendShapeFailure;
 
         /// <summary>
         /// Player whose face visibility is observed.
@@ -110,6 +111,7 @@ namespace Basis.Scripts.Drivers
 
             blendShapeCount = blendShapeIndices.Count;
             meshBlendShapeCount = meshRenderer != null && meshRenderer.sharedMesh != null? meshRenderer.sharedMesh.blendShapeCount: 0;
+            loggedBlendShapeFailure = false;
 
             // Observe face visibility
             if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
@@ -180,7 +182,11 @@ namespace Basis.Scripts.Drivers
         {
             if (meshRenderer == null) return;
             Mesh sharedMesh = meshRenderer.sharedMesh;
-            if (sharedMesh == null || idx < 0 || idx >= sharedMesh.blendShapeCount) return;
+            if (sharedMesh == null || idx < 0 || idx >= sharedMesh.blendShapeCount)
+            {
+                BasisDebug.LogErrorOnce(ref loggedBlendShapeFailure, $"BasisRemoteFaceDriver blink blendshape index {idx} is out of range for mesh '{(sharedMesh == null ? "<null>" : sharedMesh.name)}' (blendShapeCount {(sharedMesh == null ? 0 : sharedMesh.blendShapeCount)}).", BasisDebug.LogTag.Avatar);
+                return;
+            }
             meshRenderer.SetBlendShapeWeight(idx, blendWeight);
         }
 

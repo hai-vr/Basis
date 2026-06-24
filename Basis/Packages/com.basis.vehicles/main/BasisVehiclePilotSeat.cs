@@ -112,12 +112,19 @@ namespace Basis.Scripts.Vehicles.Main
             OnLocalPlayerExitSeat += ExitPilotSeat;
         }
 
+        private bool _loggedMissingLocalPlayer;
         private void FixedUpdate()
         {
             if (!UseLocalControls || _pilotedVehicleBody == null)
             {
                 return;
             }
+            if (BasisLocalPlayer.Instance == null || BasisLocalPlayer.Instance.LocalCharacterDriver == null)
+            {
+                BasisDebug.LogErrorOnce(ref _loggedMissingLocalPlayer, "BasisVehiclePilotSeat cannot read pilot input: local player or character driver is missing.");
+                return;
+            }
+            _loggedMissingLocalPlayer = false;
             ControlScheme actualControlScheme = GetActualControlScheme();
             Vector3 angularInput = GetAngularInput(actualControlScheme);
             Vector3 linearInput = GetLinearInput(actualControlScheme);
@@ -259,18 +266,13 @@ namespace Basis.Scripts.Vehicles.Main
             {
                 return Vector3.zero;
             }
-            BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;
-            if (localPlayer == null || localPlayer.LocalCharacterDriver == null)
-            {
-                return Vector3.zero;
-            }
-            Vector2 rawCharRot = localPlayer.LocalCharacterDriver.Rotation;
+            Vector2 rawCharRot = BasisLocalPlayer.Instance.LocalCharacterDriver.Rotation;
             if (DoesPilotSeatNeedMouseInput() && BasisVehiclePilotSeatInputActions.Instance.IsPilotSeatOnlyLockerOfLookRotation())
             {
                 rawCharRot += Device_Management.Devices.Desktop.BasisDesktopEye.Instance.LookRotationVector * 2.0f;
             }
             Vector2 charRot = StretchToSquare(Vector2.ClampMagnitude(rawCharRot, 1.0f));
-            Vector2 charMove = StretchToSquare(localPlayer.LocalCharacterDriver.MovementVector);
+            Vector2 charMove = StretchToSquare(BasisLocalPlayer.Instance.LocalCharacterDriver.MovementVector);
             float roll = BasisVehiclePilotSeatInputActions.Instance.RotateRoll.ReadValue<float>();
             switch (actualControlScheme)
             {
@@ -295,13 +297,8 @@ namespace Basis.Scripts.Vehicles.Main
             {
                 return Vector3.zero;
             }
-            BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;
-            if (localPlayer == null || localPlayer.LocalCharacterDriver == null)
-            {
-                return Vector3.zero;
-            }
-            Vector2 charMove = StretchToSquare(localPlayer.LocalCharacterDriver.MovementVector);
-            float vert = localPlayer.LocalCharacterDriver.GetVerticalMovement();
+            Vector2 charMove = StretchToSquare(BasisLocalPlayer.Instance.LocalCharacterDriver.MovementVector);
+            float vert = BasisLocalPlayer.Instance.LocalCharacterDriver.GetVerticalMovement();
             switch (actualControlScheme)
             {
                 case ControlScheme.Navball:

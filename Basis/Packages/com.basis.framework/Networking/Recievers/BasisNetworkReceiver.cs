@@ -577,11 +577,22 @@ namespace Basis.Scripts.Networking.Receivers
                 bool isSameAvatar = Remote.AvatarLinkIndex == LastLinkedAvatarIndex;
                 if (isSameAvatar)
                 {
-                    NetworkBehaviours[message.Key].OnNetworkMessageReceived(
-                        playerIdMessage.playerID,
-                        Remote.payload,
-                        message.Value.Method
-                    );
+                    if (message.Value.Direct)
+                    {
+                        NetworkBehaviours[message.Key].OnDirectNetworkMessageReceived(
+                            playerIdMessage.playerID,
+                            Remote.payload,
+                            message.Value.Method
+                        );
+                    }
+                    else
+                    {
+                        NetworkBehaviours[message.Key].OnNetworkMessageReceived(
+                            playerIdMessage.playerID,
+                            Remote.payload,
+                            message.Value.Method
+                        );
+                    }
                     keysToRemove.Add(message.Key);
                 }
                 else

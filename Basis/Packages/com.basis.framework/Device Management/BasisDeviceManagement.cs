@@ -596,9 +596,16 @@ namespace Basis.Scripts.Device_Management
                         BasisDebug.Log($"Device unable to take role: {prev.trackedRole} already had existing role", BasisDebug.LogTag.Device);
                     }
                 }
-                if (prev.hasRoleAssigned && input.HasControl)
+                if (prev.hasRoleAssigned)
                 {
-                    input.Control.SetInverseOffset(prev.InverseOffsetFromBone);
+                    if (input.HasControl)
+                    {
+                        input.Control.SetInverseOffset(prev.InverseOffsetFromBone);
+                    }
+                    else
+                    {
+                        BasisDebug.LogError($"Unable to restore inverse offset for role {prev.trackedRole}: device has no control.", BasisDebug.LogTag.Device);
+                    }
                 }
                 if (input.HasControl)
                 {
