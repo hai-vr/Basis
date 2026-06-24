@@ -13,537 +13,627 @@ using System.Buffers;
 using static SerializableBasis;
 public static class BasisNetworkEvents
 {
-    public static async void NetworkReceiveEvent(NetPeer peer, NetPacketReader Reader, byte channel, DeliveryMethod deliveryMethod)
+    static BasisNetworkEvents()
     {
-        switch (channel)
-        {
-            case BasisNetworkCommons.ShoutVoiceChannel:
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ShoutVoice, Reader.AvailableBytes);
-#if UNITY_SERVER
-                Reader.Recycle(true);
-#else
-                //released inside
-                await BasisNetworkHandleVoice.HandleShoutAudioUpdate(Reader);
-#endif
-                break;
-            case BasisNetworkCommons.AuthIdentityChannel:
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Authentication, Reader.AvailableBytes);
-                AuthIdentityMessage(peer, Reader, channel);
-                break;
-            case BasisNetworkCommons.DisconnectionChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Disconnection, Reader.AvailableBytes);
-                BasisNetworkHandleRemoval.HandleDisconnection(Reader);
-                Reader.Recycle();
-                break;
-            case BasisNetworkCommons.AvatarChangeMessageChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkHandleAvatar.HandleAvatarChangeMessage(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.CreateRemotePlayerChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                // Deserialize on the main thread (preserves existing thread affinity),
-                // recycle the reader immediately, then enqueue the heavy
-                // CreateRemotePlayer work into the budgeted lifecycle queue.
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                    ServerReadyMessage srm = new ServerReadyMessage();
-                    srm.Deserialize(Reader);
-                    Reader.Recycle();
-                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
-                    {
-                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                    });
-                });
-                break;
-            case BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                //same as remote player but just used at the start
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                    ServerReadyMessage srm = new ServerReadyMessage();
-                    srm.Deserialize(Reader);
-                    Reader.Recycle();
-                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
-                    {
-                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                    });
-                });
-                break;
-            case BasisNetworkCommons.GetCurrentOwnerRequestChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.GetOwnership, Reader.AvailableBytes);
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleOwnershipResponse(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.ChangeCurrentOwnerRequestChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ChangeOwnership, Reader.AvailableBytes);
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleOwnershipTransfer(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.RemoveCurrentOwnerRequestChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.RemoveOwnership, Reader.AvailableBytes);
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleOwnershipRemove(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.VoiceChannel:
-#if UNITY_SERVER
-                Reader.Recycle(true);
-#else
-                //released inside
-                await BasisNetworkHandleVoice.HandleAudioUpdate(Reader, false);
-#endif
-                break;
-            case BasisNetworkCommons.VoiceLargeChannel:
-#if UNITY_SERVER
-                Reader.Recycle(true);
-#else
-                //released inside
-                await BasisNetworkHandleVoice.HandleAudioUpdate(Reader, true);
-#endif
-                break;
-            case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
-            case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
-            case BasisNetworkCommons.PlayerAvatarLowChannel:
-            case BasisNetworkCommons.PlayerAvatarLowAdditionalChannel:
-            case BasisNetworkCommons.PlayerAvatarMediumChannel:
-            case BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel:
-            case BasisNetworkCommons.PlayerAvatarHighChannel:
-            case BasisNetworkCommons.PlayerAvatarHighAdditionalChannel:
-            case BasisNetworkCommons.PlayerAvatarVeryLowLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarLowLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarLowAdditionalLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarMediumLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarMediumAdditionalLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarHighLargeChannel:
-            case BasisNetworkCommons.PlayerAvatarHighAdditionalLargeChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerAvatar, Reader.AvailableBytes);
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader, channel);
-                Reader.Recycle();
-                break;
-            case BasisNetworkCommons.CompressedAvatarBundleChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerAvatar, Reader.AvailableBytes);
-                BasisNetworkHandleCompressedBundle.Handle(Reader);
-                Reader.Recycle();
-                break;
-            case BasisNetworkCommons.SceneChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleServerSceneDataMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.AvatarChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleServerAvatarDataMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.DirectSceneServerChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleDirectServerSceneDataMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.DirectAvatarServerChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkGenericMessages.HandleServerAvatarDataMessage(Reader, deliveryMethod, true);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.NetIDAssignsChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.NetIDAssigns, Reader.AvailableBytes);
-                    BasisNetworkGenericMessages.MassNetIDAssign(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.netIDAssignChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.NetIDAssign, Reader.AvailableBytes);
-                    BasisNetworkGenericMessages.NetIDAssign(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.LoadResourceChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(async () =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LoadResource, Reader.AvailableBytes);
-                    await BasisNetworkGenericMessages.LoadResourceMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.UnloadResourceChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(async () =>
-                {
-                   BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.UnloadResource, Reader.AvailableBytes);
-                   await BasisNetworkGenericMessages.UnloadResourceMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.ModifyResourceChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(async () =>
-                {
-                    await BasisNetworkGenericMessages.ModifyResourceMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.ServerLibraryChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    try
-                    {
-                        HandleServerLibraryReceive(Reader);
-                    }
-                    finally
-                    {
-                        Reader.Recycle();
-                    }
-                });
-                break;
-            case BasisNetworkCommons.AdminChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Admin, Reader.AvailableBytes);
-                    BasisNetworkModeration.AdminMessage(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.ContentShareChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShare, Reader.AvailableBytes);
-                    BasisContentShareManager.HandleContentShareMessage(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.ContentShareCleanupChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShareCleanup, Reader.AvailableBytes);
-                    BasisContentShareManager.HandleContentShareCleanup(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.ChatChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Chat, Reader.AvailableBytes);
-                    BasisNetworkHandleChat.HandleServerChatMessage(Reader);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.metaDataChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerMetaData, Reader.AvailableBytes);
-                ServerMetaDataMessage SMDM = new ServerMetaDataMessage();
-                SMDM.Deserialize(Reader);
-                Reader.Recycle();
+        RegisterCoreHandlers();
+    }
 
-                BasisLocalPlayer.Instance.UUID = SMDM.ClientMetaDataMessage.playerUUID;
-                BasisLocalPlayer.Instance.DisplayName = SMDM.ClientMetaDataMessage.playerDisplayName;
-                BasisNetworkManagement.ServerMetaDataMessage = SMDM;
-                BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
-                BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
-                if (BasisNetworkConnection.LocalPlayerIsConnected == false)
-                {
-                    BasisNetworkConnection.SetupLocalPlayer(peer);
-                }
-                break;
-            case BasisNetworkCommons.StoreDatabaseChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.StoreDatabase, Reader.AvailableBytes);
-                DatabasePrimativeMessage DatabasePrimativeMessage = new DatabasePrimativeMessage();
-                DatabasePrimativeMessage.Deserialize(Reader);
+    public static void NetworkReceiveEvent(NetPeer peer, NetPacketReader Reader, byte channel, DeliveryMethod deliveryMethod)
+    {
+        BasisClientMessageHandler handler = BasisClientMessageRegistry.ResolveCore(channel);
+        if (handler != null)
+        {
+            handler(peer, Reader, channel, deliveryMethod);
+        }
+        else if (BasisNetworkCommons.IsPluginChannel(channel))
+        {
+            if (!BasisClientMessageRegistry.DispatchPlugin(peer, Reader, channel, deliveryMethod))
+            {
+                BNL.LogError($"Unknown plugin id on channel {channel}");
                 Reader.Recycle();
-                BasisNetworkManagement.OnRequestServerSideDatabaseItem?.Invoke(DatabasePrimativeMessage);
-                break;
-            case BasisNetworkCommons.ServerStatisticsChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerStatistics, Reader.AvailableBytes);
-                IncomingData(Reader);
+            }
+        }
+        else
+        {
+            BNL.LogError($"this Channel was not been implemented {channel}");
+            Reader.Recycle();
+        }
+    }
+
+    private static void RegisterCoreHandlers()
+    {
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ShoutVoiceChannel, async (peer, Reader, channel, deliveryMethod) =>
+        {
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ShoutVoice, Reader.AvailableBytes);
+#if UNITY_SERVER
+            Reader.Recycle(true);
+#else
+            //released inside
+            await BasisNetworkHandleVoice.HandleShoutAudioUpdate(Reader);
+#endif
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.AuthIdentityChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Authentication, Reader.AvailableBytes);
+            AuthIdentityMessage(peer, Reader, channel);
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.DisconnectionChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
                 Reader.Recycle();
-                break;
-            case BasisNetworkCommons.CameraPIPStateChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Disconnection, Reader.AvailableBytes);
+            BasisNetworkHandleRemoval.HandleDisconnection(Reader);
+            Reader.Recycle();
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.AvatarChangeMessageChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkHandleAvatar.HandleAvatarChangeMessage(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.CreateRemotePlayerChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            // Deserialize on the main thread (preserves existing thread affinity),
+            // recycle the reader immediately, then enqueue the heavy
+            // CreateRemotePlayer work into the budgeted lifecycle queue.
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                ServerReadyMessage srm = new ServerReadyMessage();
+                srm.Deserialize(Reader);
+                Reader.Recycle();
+                BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                {
+                    BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                });
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            //same as remote player but just used at the start
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                ServerReadyMessage srm = new ServerReadyMessage();
+                srm.Deserialize(Reader);
+                Reader.Recycle();
+                BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                {
+                    BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                });
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.GetCurrentOwnerRequestChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.GetOwnership, Reader.AvailableBytes);
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleOwnershipResponse(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ChangeOwnership, Reader.AvailableBytes);
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleOwnershipTransfer(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.RemoveOwnership, Reader.AvailableBytes);
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleOwnershipRemove(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.VoiceChannel, async (peer, Reader, channel, deliveryMethod) =>
+        {
+#if UNITY_SERVER
+            Reader.Recycle(true);
+#else
+            //released inside
+            await BasisNetworkHandleVoice.HandleAudioUpdate(Reader, false);
+#endif
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.VoiceLargeChannel, async (peer, Reader, channel, deliveryMethod) =>
+        {
+#if UNITY_SERVER
+            Reader.Recycle(true);
+#else
+            //released inside
+            await BasisNetworkHandleVoice.HandleAudioUpdate(Reader, true);
+#endif
+        });
+
+        BasisClientMessageHandler avatarUpdate = (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerAvatar, Reader.AvailableBytes);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+            BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader, channel);
+            Reader.Recycle();
+        };
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarVeryLowChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarLowChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarLowAdditionalChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarMediumChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarHighChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarHighAdditionalChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarVeryLowLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarVeryLowAdditionalLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarLowLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarLowAdditionalLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarMediumLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarMediumAdditionalLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarHighLargeChannel, avatarUpdate);
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.PlayerAvatarHighAdditionalLargeChannel, avatarUpdate);
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.CompressedAvatarBundleChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerAvatar, Reader.AvailableBytes);
+            BasisNetworkHandleCompressedBundle.Handle(Reader);
+            Reader.Recycle();
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.SceneChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleServerSceneDataMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.AvatarChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleServerAvatarDataMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.DirectSceneServerChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleDirectServerSceneDataMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.DirectAvatarServerChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkGenericMessages.HandleServerAvatarDataMessage(Reader, deliveryMethod, true);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.NetIDAssignsChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.NetIDAssigns, Reader.AvailableBytes);
+                BasisNetworkGenericMessages.MassNetIDAssign(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.netIDAssignChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.NetIDAssign, Reader.AvailableBytes);
+                BasisNetworkGenericMessages.NetIDAssign(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.LoadResourceChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(async () =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LoadResource, Reader.AvailableBytes);
+                await BasisNetworkGenericMessages.LoadResourceMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.UnloadResourceChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(async () =>
+            {
+               BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.UnloadResource, Reader.AvailableBytes);
+               await BasisNetworkGenericMessages.UnloadResourceMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ModifyResourceChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(async () =>
+            {
+                await BasisNetworkGenericMessages.ModifyResourceMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ServerLibraryChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                try
+                {
+                    HandleServerLibraryReceive(Reader);
+                }
+                finally
                 {
                     Reader.Recycle();
-                    return;
                 }
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.CameraPIPState, Reader.AvailableBytes);
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.AdminChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Admin, Reader.AvailableBytes);
+                BasisNetworkModeration.AdminMessage(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ContentShareChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShare, Reader.AvailableBytes);
+                BasisContentShareManager.HandleContentShareMessage(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ContentShareCleanupChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShareCleanup, Reader.AvailableBytes);
+                BasisContentShareManager.HandleContentShareCleanup(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ChatChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Chat, Reader.AvailableBytes);
+                BasisNetworkHandleChat.HandleServerChatMessage(Reader);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.metaDataChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerMetaData, Reader.AvailableBytes);
+            ServerMetaDataMessage SMDM = new ServerMetaDataMessage();
+            SMDM.Deserialize(Reader);
+            Reader.Recycle();
+
+            BasisLocalPlayer.Instance.UUID = SMDM.ClientMetaDataMessage.playerUUID;
+            BasisLocalPlayer.Instance.DisplayName = SMDM.ClientMetaDataMessage.playerDisplayName;
+            BasisNetworkManagement.ServerMetaDataMessage = SMDM;
+            BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
+            BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
+            if (BasisNetworkConnection.LocalPlayerIsConnected == false)
+            {
+                BasisNetworkConnection.SetupLocalPlayer(peer);
+            }
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.StoreDatabaseChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.StoreDatabase, Reader.AvailableBytes);
+            DatabasePrimativeMessage DatabasePrimativeMessage = new DatabasePrimativeMessage();
+            DatabasePrimativeMessage.Deserialize(Reader);
+            Reader.Recycle();
+            BasisNetworkManagement.OnRequestServerSideDatabaseItem?.Invoke(DatabasePrimativeMessage);
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ServerStatisticsChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerStatistics, Reader.AvailableBytes);
+            IncomingData(Reader);
+            Reader.Recycle();
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.CameraPIPStateChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.CameraPIPState, Reader.AvailableBytes);
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                CameraPIPStateMessage pipState = new CameraPIPStateMessage();
+                pipState.Deserialize(Reader);
+                Reader.Recycle();
+                BasisNetworkPIPCameraDriver.OnRemotePIPState(pipState);
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.CameraPIPPositionChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.CameraPIPPosition, Reader.AvailableBytes);
+                CameraPIPPositionMessage pipPos = new CameraPIPPositionMessage();
+                pipPos.Deserialize(Reader);
+                Reader.Recycle();
                 BasisDeviceManagement.EnqueueOnMainThread(() =>
                 {
-                    CameraPIPStateMessage pipState = new CameraPIPStateMessage();
-                    pipState.Deserialize(Reader);
-                    Reader.Recycle();
-                    BasisNetworkPIPCameraDriver.OnRemotePIPState(pipState);
+                    BasisNetworkPIPCameraDriver.OnRemotePIPPosition(pipPos);
                 });
-                break;
-            case BasisNetworkCommons.CameraPIPPositionChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.CameraPIPPosition, Reader.AvailableBytes);
-                    CameraPIPPositionMessage pipPos = new CameraPIPPositionMessage();
-                    pipPos.Deserialize(Reader);
-                    Reader.Recycle();
-                    BasisDeviceManagement.EnqueueOnMainThread(() =>
-                    {
-                        BasisNetworkPIPCameraDriver.OnRemotePIPPosition(pipPos);
-                    });
-                }
-                break;
-            case BasisNetworkCommons.SpawnPreloadedChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisDeviceManagement.EnqueueOnMainThread(async () =>
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SpawnPreloaded, Reader.AvailableBytes);
-                    await BasisNetworkGenericMessages.SpawnPreloadedMessage(Reader, deliveryMethod);
-                    Reader.Recycle();
-                });
-                break;
-            case BasisNetworkCommons.P2PChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                BasisP2PManager.HandleServerMessage(Reader);
-                break;
-            case BasisNetworkCommons.EventsChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
-                {
-                    Reader.Recycle();
-                    return;
-                }
-                {
-                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Events, Reader.AvailableBytes);
-                    byte eventType = Reader.GetByte();
-                    switch (eventType)
-                    {
-                        case BasisNetworkCommons.EventType_CameraShutterSound:
-                            CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
-                            shutterMsg.Deserialize(Reader);
-                            Reader.Recycle();
-                            BasisDeviceManagement.EnqueueOnMainThread(() =>
-                            {
-                                BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
-                            });
-                            break;
-                        case BasisNetworkCommons.EventType_CameraCountdown:
-                            CameraCountdownMessage countdownMsg = new CameraCountdownMessage();
-                            countdownMsg.Deserialize(Reader);
-                            Reader.Recycle();
-                            BasisDeviceManagement.EnqueueOnMainThread(() =>
-                            {
-                                BasisNetworkPIPCameraDriver.OnRemoteCountdown(countdownMsg);
-                            });
-                            break;
-                        case BasisNetworkCommons.EventType_PlayerTempBlock:
-                            ushort tempBlockSenderId = Reader.GetUShort();
-                            bool tempBlockIsBlocked = Reader.GetBool();
-                            Reader.Recycle();
-                            BasisDeviceManagement.EnqueueOnMainThread(() =>
-                            {
-                                BasisNetworkHandleTempBlock.OnRemoteTempBlockReceived(tempBlockSenderId, tempBlockIsBlocked);
-                            });
-                            break;
-                        case BasisNetworkCommons.EventType_AvatarRateChange:
-                            ushort rateSenderId = Reader.GetUShort();
-                            ushort rateIntervalMs = Reader.GetUShort();
-                            Reader.Recycle();
-                            Basis.Scripts.Networking.BasisAvatarRateRegistry.UpdateRemoteRate(rateSenderId, rateIntervalMs);
-                            break;
-                        case BasisNetworkCommons.EventType_PlayerChatTyping:
-                            ushort typingSenderId = Reader.GetUShort();
-                            bool isTyping = Reader.GetBool();
-                            Reader.Recycle();
-                            BasisDeviceManagement.EnqueueOnMainThread(() =>
-                            {
-                                BasisNetworkHandleChatTyping.OnRemoteTypingStateReceived(typingSenderId, isTyping);
-                            });
-                            break;
-                        case BasisNetworkCommons.EventType_TalkModeChanged:
-                            ushort talkModeSenderId = Reader.GetUShort();
-                            byte talkModeValue = Reader.GetByte();
-                            Reader.Recycle();
-                            BasisDeviceManagement.EnqueueOnMainThread(() =>
-                            {
-                                Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteTalkModeReceived(talkModeSenderId, talkModeValue);
-                            });
-                            break;
-                        case BasisNetworkCommons.EventType_MuteStateChanged:
-                            ushort muteSenderId = Reader.GetUShort();
-                            byte muteValue = Reader.GetByte();
-                            Reader.Recycle();
-                            BasisDeviceManagement.EnqueueOnMainThread(() =>
-                            {
-                                Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteMuteReceived(muteSenderId, muteValue != 0);
-                            });
-                            break;
-                        default:
-                            BNL.LogError($"Unknown EventsChannel event type: {eventType}");
-                            Reader.Recycle();
-                            break;
-                    }
-                }
-                break;
-            default:
-                BNL.LogError($"this Channel was not been implemented {channel}");
+            }
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.SpawnPreloadedChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
                 Reader.Recycle();
-                break;
-        }
+                return;
+            }
+            BasisDeviceManagement.EnqueueOnMainThread(async () =>
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SpawnPreloaded, Reader.AvailableBytes);
+                await BasisNetworkGenericMessages.SpawnPreloadedMessage(Reader, deliveryMethod);
+                Reader.Recycle();
+            });
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.P2PChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisP2PManager.HandleServerMessage(Reader);
+        });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.EventsChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            {
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.Events, Reader.AvailableBytes);
+                byte eventType = Reader.GetByte();
+                switch (eventType)
+                {
+                    case BasisNetworkCommons.EventType_CameraShutterSound:
+                        CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
+                        shutterMsg.Deserialize(Reader);
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
+                        });
+                        break;
+                    case BasisNetworkCommons.EventType_CameraCountdown:
+                        CameraCountdownMessage countdownMsg = new CameraCountdownMessage();
+                        countdownMsg.Deserialize(Reader);
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkPIPCameraDriver.OnRemoteCountdown(countdownMsg);
+                        });
+                        break;
+                    case BasisNetworkCommons.EventType_PlayerTempBlock:
+                        ushort tempBlockSenderId = Reader.GetUShort();
+                        bool tempBlockIsBlocked = Reader.GetBool();
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkHandleTempBlock.OnRemoteTempBlockReceived(tempBlockSenderId, tempBlockIsBlocked);
+                        });
+                        break;
+                    case BasisNetworkCommons.EventType_AvatarRateChange:
+                        ushort rateSenderId = Reader.GetUShort();
+                        ushort rateIntervalMs = Reader.GetUShort();
+                        Reader.Recycle();
+                        Basis.Scripts.Networking.BasisAvatarRateRegistry.UpdateRemoteRate(rateSenderId, rateIntervalMs);
+                        break;
+                    case BasisNetworkCommons.EventType_PlayerChatTyping:
+                        ushort typingSenderId = Reader.GetUShort();
+                        bool isTyping = Reader.GetBool();
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkHandleChatTyping.OnRemoteTypingStateReceived(typingSenderId, isTyping);
+                        });
+                        break;
+                    case BasisNetworkCommons.EventType_TalkModeChanged:
+                        ushort talkModeSenderId = Reader.GetUShort();
+                        byte talkModeValue = Reader.GetByte();
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteTalkModeReceived(talkModeSenderId, talkModeValue);
+                        });
+                        break;
+                    case BasisNetworkCommons.EventType_MuteStateChanged:
+                        ushort muteSenderId = Reader.GetUShort();
+                        byte muteValue = Reader.GetByte();
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteMuteReceived(muteSenderId, muteValue != 0);
+                        });
+                        break;
+                    default:
+                        BNL.LogError($"Unknown EventsChannel event type: {eventType}");
+                        Reader.Recycle();
+                        break;
+                }
+            }
+        });
     }
     public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
     public static void IncomingData(NetPacketReader Reader)
