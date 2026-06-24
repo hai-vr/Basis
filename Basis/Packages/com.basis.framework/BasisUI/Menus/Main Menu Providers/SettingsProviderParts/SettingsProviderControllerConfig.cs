@@ -39,6 +39,12 @@ public static class SettingsProviderControllerConfig
                 BasisSettingsDefaults.mousesensitivty);
             mousesensitivty.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.mouseSensitivity.tooltip"));
 
+            PanelSlider scrollSpeedSlider = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.scrollSpeed"), 20, 300, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ScrollSpeed);
+            scrollSpeedSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.scrollSpeed.tooltip"));
+
             PanelToggle snapturntoggle = PanelToggle.CreateNewEntry(group);
             snapturntoggle.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.snapTurn"));
             snapturntoggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.snapTurn.tooltip"));
@@ -160,6 +166,7 @@ public static class SettingsProviderControllerConfig
         BasisSettingsDefaults.usesnapturn.ResetToDefault();
         BasisSettingsDefaults.SnapTurnAngle.ResetToDefault();
         BasisSettingsDefaults.SmoothTurnSpeed.ResetToDefault();
+        BasisSettingsDefaults.ScrollSpeed.ResetToDefault();
         BasisSettingsDefaults.ControllerDeadZone.ResetToDefault();
         BasisSettingsDefaults.Basexdeadzone.ResetToDefault();
         BasisSettingsDefaults.Extraxdeadzoneatfully.ResetToDefault();

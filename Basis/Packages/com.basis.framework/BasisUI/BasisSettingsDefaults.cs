@@ -148,6 +148,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<float> SmoothTurnSpeed = new("smoothturnspeed", new BasisPlatformDefault<float>(200f));
 
+        public static BasisSettingsBinding<float> ScrollSpeed = new("scrollspeed", new BasisPlatformDefault<float>(90f));
+
         // ---------------- PLAYSPACE MOVER ----------------
         // VR-only grab-and-drag of the play space. Off by default; opt-in under Body Tracking.
         public static BasisSettingsBinding<bool> EnablePlayspaceMover = new("enableplayspacemover", new BasisPlatformDefault<bool>(false));
@@ -1416,6 +1418,7 @@ namespace Basis.BasisUI
             DominantHand.LoadBindingValue();
             usesnapturn.LoadBindingValue();
             SmoothTurnSpeed.LoadBindingValue();
+            ScrollSpeed.LoadBindingValue();
 
             // Avatar / IK / Body
             SelectedHeight.LoadBindingValue();

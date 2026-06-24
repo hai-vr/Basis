@@ -272,7 +272,7 @@ namespace Basis.Scripts.UI
             Vector2 previousPosition = currentEventData.position;
             currentEventData.delta = hit.screenPosition - previousPosition;
             currentEventData.position = hit.screenPosition;
-            currentEventData.scrollDelta = BaseInput.CurrentInputState.Secondary2DAxisDeadZoned;
+            currentEventData.scrollDelta = ComputeScrollDelta(BaseInput);
 
             // Always keep latest raycast, so movement / scroll / hover use up-to-date info
             currentEventData.pointerCurrentRaycast = raycastResult;
@@ -307,10 +307,10 @@ namespace Basis.Scripts.UI
             // Button UP is handled in Simulate() based on trigger state
 
             // ---- OTHER POINTER EVENTS ----
+            ProcessPointerMovement(currentEventData);
             ProcessScrollWheel(currentEventData);
 
             // VR-friendly: larger drag threshold so tiny jitter isn't a drag.
-            ProcessPointerMovement(currentEventData);
             ProcessPointerButtonDrag(currentEventData, pixelDragThresholdMultiplier: 3.0f);
         }
 
@@ -434,6 +434,20 @@ namespace Basis.Scripts.UI
             }
             ExecuteEvents.Execute(EventSystem.current.currentSelectedGameObject, CurrentEventData, ExecuteEvents.updateSelectedHandler);
             return CurrentEventData.used;
+        }
+
+        // Continuous VR stick → per-second rate × unscaledDeltaTime (frame-rate independent).
+        // Desktop mouse wheel (CenterEye) is already a discrete tick, so pass it through unscaled.
+        private static Vector2 ComputeScrollDelta(BasisInput input)
+        {
+            Vector2 axis = input.CurrentInputState.Secondary2DAxisDeadZoned;
+
+            if (input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.CenterEye)
+            {
+                return axis;
+            }
+
+            return axis * (SMModuleControllerSettings.ScrollSpeed * Time.unscaledDeltaTime);
         }
 
         public void ProcessScrollWheel(BasisPointerEventData eventData)

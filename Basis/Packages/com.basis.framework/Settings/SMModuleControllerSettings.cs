@@ -14,6 +14,7 @@ public class SMModuleControllerSettings : BasisSettingsBase
     public static float MouseSensitivty = 1;
     public static bool UsingSnapTurnAngle = false;
     public static float SmoothTurnSpeed = 200f;
+    public static float ScrollSpeed = 90f;
 
     // --- Canonical setting keys (from defaults) ---
     private static string K_JOYSTICK_DEADZONE => BasisSettingsDefaults.ControllerDeadZone.BindingKey;      // "joystickdeadzone"
@@ -26,6 +27,8 @@ public class SMModuleControllerSettings : BasisSettingsBase
     private static string K_USE_SNAPTURN => BasisSettingsDefaults.usesnapturn.BindingKey;                // "usesnapturn"
     private static string K_MOUSE_SENSITIVITY => BasisSettingsDefaults.mousesensitivty.BindingKey;       // "mousesensitivty"
     private static string K_SMOOTH_TURN_SPEED => BasisSettingsDefaults.SmoothTurnSpeed.BindingKey;     // "smoothturnspeed"
+
+    private static string K_SCROLL_SPEED => BasisSettingsDefaults.ScrollSpeed.BindingKey;
 
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
@@ -91,6 +94,10 @@ public class SMModuleControllerSettings : BasisSettingsBase
 
             case var s when s == K_SMOOTH_TURN_SPEED:
                 SliderReadOption(optionValue, out SmoothTurnSpeed);
+                break;
+
+            case var s when s == K_SCROLL_SPEED:
+                SliderReadOption(optionValue, out ScrollSpeed);
                 break;
         }
     }

@@ -1351,6 +1351,10 @@
       "value": "How fast the view rotates when using smooth turning."
     },
     {
+      "key": "settings.controls.scrollSpeed.tooltip",
+      "value": "How fast menus scroll when you hold the thumbstick up or down."
+    },
+    {
       "key": "settings.controls.radialDeadZone.tooltip",
       "value": "Ignore tiny thumbstick movement near the center to prevent drift."
     },
@@ -4361,6 +4365,10 @@
     {
       "key": "settings.controls.smoothTurnSpeed",
       "value": "Smooth Turn Speed"
+    },
+    {
+      "key": "settings.controls.scrollSpeed",
+      "value": "UI Scroll Speed"
     },
     {
       "key": "settings.controls.generalDeadzone.title",
