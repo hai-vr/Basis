@@ -1,0 +1,246 @@
+using Basis.Network.Core;
+using Basis.Network.Server.Generic;
+using Basis.Network.Server.Ownership;
+using BasisNetworkServer;
+using BasisNetworkServer.BasisNetworking;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
+using BasisNetworkServer.Security;
+using BasisPermissions;
+using BasisServerHandle;
+using System;
+using System.Collections.Concurrent;
+using static BasisNetworkCore.Serializable.SerializableBasis;
+using static BasisPermissions.PermissionManager;
+
+public delegate void BasisServerMessageHandler(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod);
+
+/// <summary>
+/// Table-driven inbound dispatch. Core messages bind to their dedicated channel (0-59);
+/// multiplexed plugin messages bind to a ushort id read from the 61-63 channel payload.
+/// Replaces the hardcoded switch so handlers can be added or removed without editing a
+/// shared constant table.
+/// </summary>
+public static class BasisServerMessageRegistry
+{
+    private static readonly BasisServerMessageHandler[] CoreHandlers = new BasisServerMessageHandler[BasisNetworkCommons.TotalChannels];
+    private static readonly ConcurrentDictionary<ushort, BasisServerMessageHandler> PluginHandlers = new();
+
+    static BasisServerMessageRegistry()
+    {
+        RegisterCoreHandlers();
+    }
+
+    /// <summary>Force the static constructor to run (registers core handlers). Safe to call repeatedly.</summary>
+    public static void EnsureInitialized() { }
+
+    public static void RegisterCore(byte channel, BasisServerMessageHandler handler) => CoreHandlers[channel] = handler;
+
+    public static BasisServerMessageHandler ResolveCore(byte channel) => CoreHandlers[channel];
+
+    /// <summary>Bind a multiplexed plugin message id (carried on channels 61-63) to a handler.</summary>
+    public static void RegisterPlugin(ushort id, BasisServerMessageHandler handler) => PluginHandlers[id] = handler;
+
+    /// <summary>Remove a plugin message handler. Returns true if one was bound.</summary>
+    public static bool UnregisterPlugin(ushort id) => PluginHandlers.TryRemove(id, out _);
+
+    /// <summary>
+    /// Reads the leading ushort message id from a plugin channel payload and dispatches it.
+    /// Returns false (leaving the caller to recycle and error-count) when the id is unknown
+    /// or the payload is too short to carry an id.
+    /// </summary>
+    public static bool DispatchPlugin(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+    {
+        if (!reader.TryGetUShort(out ushort id))
+        {
+            return false;
+        }
+        if (PluginHandlers.TryGetValue(id, out BasisServerMessageHandler handler))
+        {
+            handler(peer, reader, channel, deliveryMethod);
+            return true;
+        }
+        return false;
+    }
+
+    private static void RegisterCoreHandlers()
+    {
+        RegisterCore(BasisNetworkCommons.ShoutVoiceChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandleShoutVoiceMessage(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.AuthIdentityChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandleAuth(reader, peer)); // recycles inside
+
+        BasisServerMessageHandler avatarMovement = (peer, reader, channel, dm) =>
+            BasisServerReductionSystemEvents.HandleAvatarMovement(reader, peer, channel); // recycles inside
+        RegisterCore(BasisNetworkCommons.PlayerAvatarHighChannel, avatarMovement);
+        RegisterCore(BasisNetworkCommons.PlayerAvatarHighAdditionalChannel, avatarMovement);
+
+        RegisterCore(BasisNetworkCommons.VoiceChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandleVoiceMessage(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.AvatarChannel, (peer, reader, channel, dm) =>
+            BasisNetworkingGeneric.HandleAvatar(reader, dm, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.SceneChannel, (peer, reader, channel, dm) =>
+            BasisNetworkingGeneric.HandleScene(reader, dm, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.DirectAvatarServerChannel, (peer, reader, channel, dm) =>
+            BasisNetworkingGeneric.HandleAvatar(reader, dm, peer, BasisNetworkCommons.DirectAvatarServerChannel)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.DirectSceneServerChannel, (peer, reader, channel, dm) =>
+            BasisNetworkingGeneric.HandleScene(reader, dm, peer, BasisNetworkCommons.DirectSceneServerChannel)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.AvatarChangeMessageChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.SendAvatarMessageToClients(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, (peer, reader, channel, dm) =>
+            HandlePermitted(peer, reader, PermNodes.OwnershipTransfer, () =>
+                BasisNetworkOwnership.OwnershipTransfer(reader, peer))); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.GetCurrentOwnerRequestChannel, (peer, reader, channel, dm) =>
+            HandlePermitted(peer, reader, PermNodes.OwnershipGet, () =>
+                BasisNetworkOwnership.OwnershipResponse(reader, peer))); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, (peer, reader, channel, dm) =>
+            HandlePermitted(peer, reader, PermNodes.OwnershipRemove, () =>
+                BasisNetworkOwnership.RemoveOwnership(reader, peer))); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.AudioRecipientsChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.UpdateVoiceReceivers(reader, peer, false)); // byte count, recycles inside
+
+        RegisterCore(BasisNetworkCommons.AudioRecipientsLargeChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.UpdateVoiceReceivers(reader, peer, true)); // ushort count, recycles inside
+
+        RegisterCore(BasisNetworkCommons.AudioRecipientsInvertedChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.UpdateVoiceReceiversInverted(reader, peer, false)); // byte count excluded, recycles inside
+
+        RegisterCore(BasisNetworkCommons.AudioRecipientsInvertedLargeChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.UpdateVoiceReceiversInverted(reader, peer, true)); // ushort count excluded, recycles inside
+
+        RegisterCore(BasisNetworkCommons.AudioRecipientsBitfieldChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.UpdateVoiceReceiversBitfield(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.netIDAssignChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.NetIDAssign(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.LoadResourceChannel, (peer, reader, channel, dm) =>
+        {
+            if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string LRuuid))
+            {
+                BasisServerHandleEvents.LoadResource(reader, peer, LRuuid);
+                return;
+            }
+            BNL.LogError($"User UUID not found for peer: {peer}");
+            reader.Recycle();
+        });
+
+        RegisterCore(BasisNetworkCommons.UnloadResourceChannel, (peer, reader, channel, dm) =>
+        {
+            BasisServerHandleEvents.UnloadResource(reader, peer);
+            reader.Recycle();
+        });
+
+        RegisterCore(BasisNetworkCommons.ModifyResourceChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandleModifyResource(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.AdminChannel, (peer, reader, channel, dm) =>
+            BasisPlayerModeration.OnAdminMessage(peer, reader)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.ContentShareChannel, (peer, reader, channel, dm) =>
+            BasisNetworkContentShare.HandleContentShareDrop(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.ContentShareCleanupChannel, (peer, reader, channel, dm) =>
+            BasisNetworkContentShare.HandleContentShareCleanup(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.ServerBoundChannel, (peer, reader, channel, dm) =>
+        {
+            BasisServerHandleEvents.OnServerReceived?.Invoke(peer, reader, dm);
+            reader.Recycle(); // recycles here
+        });
+
+        RegisterCore(BasisNetworkCommons.StoreDatabaseChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandleStoreDatabase(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.RequestStoreDatabaseChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandleRequestStoreDatabase(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.ServerStatisticsChannel, (peer, reader, channel, dm) =>
+        {
+            // Permission-gated stats
+            if (!TryWithPermission(peer, reader, PermNodes.ServerStats, out _))
+            {
+                return;
+            }
+
+            if (reader.GetBool())
+            {
+                BNL.Log("requested Server StatisticsChannel");
+                BasisNetworkStatistics.IsRecordingData = true;
+
+                ServerStatisticMessage serverStatistic = new ServerStatisticMessage
+                {
+                    Data = BasisNetworkStatistics.Snapshot.SnapshotResetEncode(true, 6)
+                };
+
+                reader.Recycle();
+
+                NetDataWriter writer = NetworkServer.RentWriter();
+                serverStatistic.Serialize(writer);
+                BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.ServerStatisticsChannel, writer.Length);
+                peer.Send(writer, BasisNetworkCommons.ServerStatisticsChannel, DeliveryMethod.ReliableOrdered);
+                NetworkServer.ReturnWriter(writer);
+            }
+            else
+            {
+                BasisNetworkStatistics.IsRecordingData = false;
+                reader.Recycle();
+            }
+        });
+
+        RegisterCore(BasisNetworkCommons.ChatChannel, (peer, reader, channel, dm) =>
+            BasisNetworkChat.HandleChatMessage(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.CameraPIPStateChannel, (peer, reader, channel, dm) =>
+            BasisNetworkPIPCamera.HandlePIPStateChange(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.CameraPIPPositionChannel, (peer, reader, channel, dm) =>
+            BasisNetworkPIPCamera.HandlePIPPositionUpdate(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.PreloadReadyChannel, (peer, reader, channel, dm) =>
+            BasisServerHandleEvents.HandlePreloadReady(reader, peer)); // recycles inside
+
+        RegisterCore(BasisNetworkCommons.EventsChannel, (peer, reader, channel, dm) =>
+            BasisServerEventsRouter.HandleEvent(reader, peer)); // reads event type byte, routes, recycles inside
+
+        RegisterCore(BasisNetworkCommons.P2PChannel, (peer, reader, channel, dm) =>
+            BasisServerP2PBroker.HandleP2PMessage(reader, peer)); // reads sub-type byte, routes, recycles inside
+    }
+
+    private static bool TryWithPermission(NetPeer peer, NetPacketReader reader, string permNode, out string uuid)
+    {
+        if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out uuid))
+        {
+            BNL.LogError($"User UUID not found for peer: {peer}");
+            reader.Recycle();
+            return false;
+        }
+
+        // Allow if they have the specific node, or admin, or global wildcard
+        if (PermissionIntegration.HasValidRequirement(uuid, permNode))
+        {
+            return true;
+        }
+
+        BNL.LogError($"Unauthorized access attempt by UUID: {uuid} for {permNode}");
+        reader.Recycle();
+        return false;
+    }
+
+    private static void HandlePermitted(NetPeer peer, NetPacketReader reader, string permNode, Action action)
+    {
+        if (TryWithPermission(peer, reader, permNode, out _))
+        {
+            action();
+        }
+    }
+}

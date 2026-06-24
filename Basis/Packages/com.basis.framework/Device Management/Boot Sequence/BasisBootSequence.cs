@@ -81,6 +81,10 @@ namespace Basis.Scripts.Boot_Sequence
 #endif
             }
 
+            // Start PSO tracing as early as possible so base-app pipeline states this session are
+            // recorded for next launch. Self-gates to the explicit-pipeline backends.
+            BasisGraphicsStatePrewarm.EnsureInitialized();
+
             // Initialize Addressables and optionally boot.
             _addressablesInitHandle = Addressables.InitializeAsync(false);
             if (WillBoot)
@@ -177,6 +181,10 @@ namespace Basis.Scripts.Boot_Sequence
         /// </summary>
         private static void SafeReleaseAll()
         {
+            // End the PSO trace and persist it before teardown (covers both app quit and
+            // play-mode exit, since both routes land here).
+            BasisGraphicsStatePrewarm.Flush();
+
             // Release the instantiated Addressable instance if we created one.
             if (_basisInstance != null)
             {
