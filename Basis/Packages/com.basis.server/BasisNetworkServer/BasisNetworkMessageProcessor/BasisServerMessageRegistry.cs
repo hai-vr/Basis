@@ -9,6 +9,7 @@ using BasisPermissions;
 using BasisServerHandle;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static BasisPermissions.PermissionManager;
 
@@ -24,6 +25,8 @@ public static class BasisServerMessageRegistry
 {
     private static readonly BasisServerMessageHandler[] CoreHandlers = new BasisServerMessageHandler[BasisNetworkCommons.TotalChannels];
     private static readonly ConcurrentDictionary<ushort, BasisServerMessageHandler> PluginHandlers = new();
+    private static readonly ConcurrentDictionary<ushort, SerializableBasis.BasisMessageDescriptor> PluginDescriptors = new();
+    private static readonly ConcurrentDictionary<int, HashSet<ushort>> Subscriptions = new();
 
     static BasisServerMessageRegistry()
     {
@@ -37,11 +40,66 @@ public static class BasisServerMessageRegistry
 
     public static BasisServerMessageHandler ResolveCore(byte channel) => CoreHandlers[channel];
 
-    /// <summary>Bind a multiplexed plugin message id (carried on channels 61-63) to a handler.</summary>
+    /// <summary>Bind a multiplexed plugin message id (carried on channels 61-63) to a handler. Not advertised in the manifest; prefer the descriptor overload.</summary>
     public static void RegisterPlugin(ushort id, BasisServerMessageHandler handler) => PluginHandlers[id] = handler;
 
-    /// <summary>Remove a plugin message handler. Returns true if one was bound.</summary>
-    public static bool UnregisterPlugin(ushort id) => PluginHandlers.TryRemove(id, out _);
+    /// <summary>Bind a plugin message and advertise it in the supplied manifest so clients can subscribe by name.</summary>
+    public static void RegisterPlugin(SerializableBasis.BasisMessageDescriptor descriptor, BasisServerMessageHandler handler)
+    {
+        PluginHandlers[descriptor.Id] = handler;
+        PluginDescriptors[descriptor.Id] = descriptor;
+    }
+
+    /// <summary>Remove a plugin message handler and its manifest descriptor. Returns true if a handler was bound.</summary>
+    public static bool UnregisterPlugin(ushort id)
+    {
+        PluginDescriptors.TryRemove(id, out _);
+        return PluginHandlers.TryRemove(id, out _);
+    }
+
+    /// <summary>Core catalog plus any registered plugin descriptors — the manifest supplied to each client.</summary>
+    public static SerializableBasis.BasisMessageDescriptor[] BuildSupply()
+    {
+        SerializableBasis.BasisMessageDescriptor[] core = SerializableBasis.BasisMessageCatalog.BuildCore();
+        if (PluginDescriptors.IsEmpty)
+        {
+            return core;
+        }
+        List<SerializableBasis.BasisMessageDescriptor> combined = new List<SerializableBasis.BasisMessageDescriptor>(core.Length + PluginDescriptors.Count);
+        combined.AddRange(core);
+        foreach (KeyValuePair<ushort, SerializableBasis.BasisMessageDescriptor> kvp in PluginDescriptors)
+        {
+            combined.Add(kvp.Value);
+        }
+        return combined.ToArray();
+    }
+
+    /// <summary>Send the registry manifest to a peer (RegistryControlChannel, RegistrySub_Supply). Called once per connect.</summary>
+    public static void SendSupplyTo(NetPeer peer)
+    {
+        SerializableBasis.BasisMessageSupply supply = new SerializableBasis.BasisMessageSupply { Descriptors = BuildSupply() };
+        NetDataWriter writer = NetworkServer.RentWriter();
+        writer.Put(BasisNetworkCommons.RegistrySub_Supply);
+        supply.Serialize(writer);
+        BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.RegistryControlChannel, writer.Length);
+        NetworkServer.TrySend(peer, writer, BasisNetworkCommons.RegistryControlChannel, DeliveryMethod.ReliableOrdered);
+        NetworkServer.ReturnWriter(writer);
+    }
+
+    /// <summary>Record the message ids a peer reported it can handle (from RegistrySub_Subscribe).</summary>
+    public static void SetSubscription(int peerId, ushort[] ids)
+    {
+        Subscriptions[peerId] = (ids == null || ids.Length == 0) ? new HashSet<ushort>() : new HashSet<ushort>(ids);
+    }
+
+    /// <summary>True if the peer subscribed to this message id. Also true when the peer never sent a subscription (no filtering until it does).</summary>
+    public static bool IsSubscribed(int peerId, ushort id)
+    {
+        return !Subscriptions.TryGetValue(peerId, out HashSet<ushort> set) || set.Contains(id);
+    }
+
+    /// <summary>Drop a peer's subscription record on disconnect.</summary>
+    public static void ClearSubscription(int peerId) => Subscriptions.TryRemove(peerId, out _);
 
     /// <summary>
     /// Reads the leading ushort message id from a plugin channel payload and dispatches it.
@@ -214,6 +272,17 @@ public static class BasisServerMessageRegistry
 
         RegisterCore(BasisNetworkCommons.P2PChannel, (peer, reader, channel, dm) =>
             BasisServerP2PBroker.HandleP2PMessage(reader, peer)); // reads sub-type byte, routes, recycles inside
+
+        RegisterCore(BasisNetworkCommons.RegistryControlChannel, (peer, reader, channel, dm) =>
+        {
+            if (reader.TryGetByte(out byte sub) && sub == BasisNetworkCommons.RegistrySub_Subscribe)
+            {
+                SerializableBasis.BasisMessageSubscribe subscribe = new SerializableBasis.BasisMessageSubscribe();
+                subscribe.Deserialize(reader);
+                SetSubscription(peer.Id, subscribe.Ids);
+            }
+            reader.Recycle();
+        });
     }
 
     private static bool TryWithPermission(NetPeer peer, NetPacketReader reader, string permNode, out string uuid)

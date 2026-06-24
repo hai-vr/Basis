@@ -634,6 +634,21 @@ public static class BasisNetworkEvents
                 }
             }
         });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.RegistryControlChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (Reader.TryGetByte(out byte sub) && sub == BasisNetworkCommons.RegistrySub_Supply)
+            {
+                BasisMessageSupply supply = new BasisMessageSupply();
+                supply.Deserialize(Reader);
+                Reader.Recycle();
+                BasisClientMessageRegistry.ApplySupply(supply, peer);
+            }
+            else
+            {
+                Reader.Recycle();
+            }
+        });
     }
     public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
     public static void IncomingData(NetPacketReader Reader)

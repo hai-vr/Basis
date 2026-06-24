@@ -87,6 +87,7 @@ namespace BasisServerHandle
             BasisNetworkServer.Security.BasisUserOpusBitrateStateManager.ClearForPeer(id);
             BasisServerP2PBroker.RemovePeer(id);
             BasisNetworkMessageProcessor.ClearPeerErrors(id);
+            BasisServerMessageRegistry.ClearSubscription(id);
 
             return NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }
@@ -341,6 +342,8 @@ namespace BasisServerHandle
                 NetDataWriter Writer = NetworkServer.RentWriter();
                 ServerMetaDataMessage.Serialize(Writer);
                 NetworkServer.TrySend(newPeer, Writer, BasisNetworkCommons.metaDataChannel, DeliveryMethod.ReliableOrdered);
+
+                BasisServerMessageRegistry.SendSupplyTo(newPeer);
 
                 if (BasisNetworkIDDatabase.GetAllNetworkID(out List<ServerNetIDMessage> ServerNetIDMessages))
                 {

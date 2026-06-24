@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 public delegate void BasisClientMessageHandler(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod);
 
@@ -12,6 +13,9 @@ public static class BasisClientMessageRegistry
 {
     private static readonly BasisClientMessageHandler[] CoreHandlers = new BasisClientMessageHandler[BasisNetworkCommons.TotalChannels];
     private static readonly ConcurrentDictionary<ushort, BasisClientMessageHandler> PluginHandlers = new();
+
+    /// <summary>The descriptors from the most recent server Supply, for introspection / plugin binding.</summary>
+    public static SerializableBasis.BasisMessageDescriptor[] LastSupply { get; private set; }
 
     public static void RegisterCore(byte channel, BasisClientMessageHandler handler) => CoreHandlers[channel] = handler;
 
@@ -40,5 +44,32 @@ public static class BasisClientMessageRegistry
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Apply a server Supply manifest: record it, then reply with the message ids this client
+    /// can actually handle (core ids with a bound handler, plus plugin ids it has registered).
+    /// </summary>
+    public static void ApplySupply(SerializableBasis.BasisMessageSupply supply, NetPeer peer)
+    {
+        LastSupply = supply.Descriptors ?? System.Array.Empty<SerializableBasis.BasisMessageDescriptor>();
+
+        List<ushort> handled = new List<ushort>(LastSupply.Length);
+        foreach (SerializableBasis.BasisMessageDescriptor descriptor in LastSupply)
+        {
+            bool canHandle = BasisNetworkCommons.IsPluginChannel(descriptor.Channel)
+                ? PluginHandlers.ContainsKey(descriptor.Id)
+                : ResolveCore(descriptor.Channel) != null;
+            if (canHandle)
+            {
+                handled.Add(descriptor.Id);
+            }
+        }
+
+        SerializableBasis.BasisMessageSubscribe subscribe = new SerializableBasis.BasisMessageSubscribe { Ids = handled.ToArray() };
+        NetDataWriter writer = new NetDataWriter();
+        writer.Put(BasisNetworkCommons.RegistrySub_Subscribe);
+        subscribe.Serialize(writer);
+        peer.Send(writer, BasisNetworkCommons.RegistryControlChannel, DeliveryMethod.ReliableOrdered);
     }
 }
