@@ -263,15 +263,17 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> VrsFovealInnerRadius = new("vrsfovealinner_v2", new BasisPlatformDefault<float>(0.25f));
         public static BasisSettingsBinding<float> VrsFovealOuterRadius = new("vrsfovealouter_v2", new BasisPlatformDefault<float>(0.31f));
 
-        // Master gizmo gate. When off, every gizmo sub-toggle below is inert and
-        // BasisGizmoManager tears down its parent + cached gizmo dictionaries.
+        // Legacy master gizmo gate. The Developer UI no longer exposes this — gizmo
+        // rendering now turns on whenever any individual gizmo toggle below is enabled
+        // (see SMModuleDebugOptions.RecomputeUseGizmos). Kept so resets/loads stay valid.
         public static BasisSettingsBinding<bool> ShowGizmos = new("showgizmos", new BasisPlatformDefault<bool>(false));
 
-        // Sub-gizmos default on so flipping ShowGizmos preserves the pre-split
-        // experience (skeleton lines + calibration spheres + jiggle render all visible).
-        public static BasisSettingsBinding<bool> GizmoSkeletonLines = new("gizmoskeletonlines", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> GizmoCalibrationSpheres = new("gizmocalibrationspheres", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> GizmoJiggleVisuals = new("gizmojigglevisuals", new BasisPlatformDefault<bool>(true));
+        // Every gizmo defaults off so the derived render gate stays off until the user
+        // opts in to a specific gizmo. Keys bumped (_v2) so installs that persisted the
+        // old default-on values don't suddenly render gizmos once the master gate is gone.
+        public static BasisSettingsBinding<bool> GizmoSkeletonLines = new("gizmoskeletonlines_v2", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> GizmoCalibrationSpheres = new("gizmocalibrationspheres_v2", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> GizmoJiggleVisuals = new("gizmojigglevisuals_v2", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> TrackerGizmos = new("trackergizmos", new BasisPlatformDefault<bool>(false));
 

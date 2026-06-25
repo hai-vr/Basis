@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    internal static class PanelSectionToggleHelpers
+    public static class PanelSectionToggleHelpers
     {
         /// <summary>
         /// Creates a titled content group for a section toggle and registers it for divider ownership.
@@ -55,6 +55,62 @@ namespace Basis.BasisUI
                 group.gameObject.SetActive(visible);
                 onExpandedChanged?.Invoke(visible);
             };
+        }
+
+        /// <summary>
+        /// Builds a section whose collapsible content is added directly under the bar (no
+        /// nested group box). The toggle title is the section header; every child added to
+        /// <paramref name="container"/> by <paramref name="buildContent"/> collapses with it.
+        /// For sections with conditional sub-visibility, re-apply it inside
+        /// <paramref name="onExpandedChanged"/> (guard on the visible flag).
+        /// </summary>
+        public static PanelSectionToggle CreateCollapsibleFlatSection(
+            RectTransform container,
+            string title,
+            Action buildContent,
+            bool startExpanded = false,
+            Action<bool> onExpandedChanged = null)
+        {
+            PanelSectionToggle sectionToggle = PanelSectionToggle.CreateNewEntry(container);
+            sectionToggle.SetTitle(title);
+
+            int start = container.childCount;
+            buildContent?.Invoke();
+
+            int count = container.childCount - start;
+            Component[] contents = new Component[count < 0 ? 0 : count];
+            for (int i = 0; i < contents.Length; i++)
+            {
+                contents[i] = container.GetChild(start + i);
+            }
+
+            FinalizeCollapsibleContents(sectionToggle, startExpanded, onExpandedChanged, contents);
+            return sectionToggle;
+        }
+
+        /// <summary>
+        /// Flat-section finalizer for inline call sites: registers every child added to
+        /// <paramref name="container"/> at or after <paramref name="startIndex"/> as the
+        /// section's collapsible content (no nested group box). Capture the index right
+        /// after creating the section toggle, add the rows directly to the container, then
+        /// call this. Re-apply any conditional sub-visibility inside
+        /// <paramref name="onExpandedChanged"/> (guard on the visible flag).
+        /// </summary>
+        public static void FinalizeFlatSectionFromIndex(
+            PanelSectionToggle sectionToggle,
+            RectTransform container,
+            int startIndex,
+            bool startExpanded,
+            Action<bool> onExpandedChanged = null)
+        {
+            int count = container.childCount - startIndex;
+            Component[] contents = new Component[count < 0 ? 0 : count];
+            for (int i = 0; i < contents.Length; i++)
+            {
+                contents[i] = container.GetChild(startIndex + i);
+            }
+
+            FinalizeCollapsibleContents(sectionToggle, startExpanded, onExpandedChanged, contents);
         }
 
         /// <summary>

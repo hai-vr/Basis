@@ -4199,6 +4199,10 @@
       "value": "Screen Mode"
     },
     {
+      "key": "settings.graphics.overrides.title",
+      "value": "Overrides"
+    },
+    {
       "key": "settings.graphics.mirrorQuality.title",
       "value": "Mirror Quality"
     },
@@ -4413,6 +4417,10 @@
     {
       "key": "settings.chat.raycast.color",
       "value": "Raycast Line Colour"
+    },
+    {
+      "key": "settings.chat.menuStyles.title",
+      "value": "Menu Styles"
     },
     {
       "key": "settings.chat.menuEdge.title",
@@ -6109,6 +6117,10 @@
     {
       "key": "settings.graphics.vrs.outer.tooltip",
       "value": "Where the lowest shading rate (4x4) begins. Between the sharp center and this point renders at half rate (2x2); beyond it renders at quarter rate."
+    },
+    {
+      "key": "settings.developer.featureSections.title",
+      "value": "Feature Sections"
     },
     {
       "key": "settings.developer.gizmos.title",

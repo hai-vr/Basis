@@ -22,9 +22,13 @@ namespace Basis.MediaPipe
         {
             PanelElementDescriptor tabDescriptor = parent.GetComponentInParent<PanelElementDescriptor>(true);
 
+            // Whole webcam section collapses under one bar.
+            PanelSectionToggle webcamToggle = PanelSectionToggle.CreateNewEntry(parent);
+            webcamToggle.SetTitle("Webcam Tracking");
+            int webcamStart = parent.childCount;
+
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
-            group.SetTitle("Webcam Tracking");
             group.SetDescription("Drive your avatar's face, eyes, fingers and hands from a webcam (MediaPipe). Requires the MediaPipe Unity Plugin and its models (see package README).");
             var content = group.ContentParent;
 
@@ -250,6 +254,16 @@ namespace Basis.MediaPipe
             }
             RefreshWebcamSettingsVisibility(BasisMediaPipeSettings.Enable.RawValue);
             enableToggle.OnValueChanged += RefreshWebcamSettingsVisibility;
+
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(webcamToggle, parent, webcamStart, false, visible =>
+            {
+                // Expanding re-shows both rows; re-apply the enable gate over the settings.
+                if (visible)
+                {
+                    RefreshWebcamSettingsVisibility(BasisMediaPipeSettings.Enable.RawValue);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
         }
     }
 }

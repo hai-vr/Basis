@@ -180,6 +180,10 @@ namespace Basis.BasisUI
                 state.Entries.Clear();
             };
 
+            // Webcam / external tracking sections injected by feature packages
+            // (e.g. MediaPipe). Built above the page reset so the reset stays last.
+            SettingsProvider.TrackerSettingsExtraBuilder?.Invoke(tabRoot);
+
             // Page-level reset stays on tabRoot (not inside tuningGroup) so it
             // remains reachable when the advanced toggle hides the sliders.
             SettingsProvider.AddResetPageButton(tabRoot, TabKey, ResetTrackerSettingsDefaults);
@@ -208,7 +212,6 @@ namespace Basis.BasisUI
                 trackersGroup);
 
             handleChange();
-            SettingsProvider.TrackerSettingsExtraBuilder?.Invoke(tabRoot);
             tabDesc.ForceRebuild();
             return tabPage;
         }

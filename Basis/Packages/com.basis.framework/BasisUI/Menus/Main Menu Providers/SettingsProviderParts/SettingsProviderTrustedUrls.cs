@@ -5,15 +5,19 @@ using UnityEngine;
 
 public static class SettingsProviderTrustedUrls
 {
-    public static void Populate(RectTransform container, string ownerTabKey)
+    public static void Populate(RectTransform container, string ownerTabKey, PanelElementDescriptor tabDescriptor = null)
     {
+        PanelSectionToggle trustedToggle = PanelSectionToggle.CreateNewEntry(container);
+        trustedToggle.SetTitle(BasisLocalization.Get("settings.trustedUrls.title"));
+        int trustedStart = container.childCount;
+        RectTransform content = container;
+
         PanelElementDescriptor infoGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        infoGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.title"));
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, content);
         infoGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.description"));
 
         PanelElementDescriptor addGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, content);
         addGroup.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.title"));
         addGroup.SetDescription(BasisLocalization.Get("settings.trustedUrls.add.description"));
 
@@ -42,8 +46,11 @@ public static class SettingsProviderTrustedUrls
             SettingsProvider.OpenToTab(ownerTabKey);
         };
 
-        PopulateAddedByYou(container, ownerTabKey);
-        PopulateBuiltIn(container);
+        PopulateAddedByYou(content, ownerTabKey);
+        PopulateBuiltIn(content);
+
+        PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(trustedToggle, container, trustedStart, false,
+            _ => tabDescriptor?.ForceRebuild());
     }
 
     private static void PopulateAddedByYou(RectTransform container, string ownerTabKey)

@@ -40,8 +40,13 @@ public static class SettingsProviderContentTags
         _customRows.Clear();
         _presetRows.Clear();
 
+        PanelSectionToggle contentTagsToggle = PanelSectionToggle.CreateNewEntry(container);
+        contentTagsToggle.SetTitle(BasisLocalization.Get("settings.perf.contentTags.title"));
+        int contentTagsStart = container.childCount;
+        RectTransform tagsContent = container;
+
         PanelElementDescriptor group =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, tagsContent);
         group.SetTitle(BasisLocalization.Get("settings.perf.contentTags.title"));
 
         // Preset toggles: each one's checked state is "is this preset on the user's
@@ -62,7 +67,7 @@ public static class SettingsProviderContentTags
         // shrinks when they toggle one off. Built into a sub-container so the add
         // row stays visually anchored beneath the dynamic list.
         PanelElementDescriptor customGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, tagsContent);
         customGroup.SetTitle(BasisLocalization.Get("settings.perf.contentTags.custom.title"));
 
         _customListContainer = customGroup.ContentParent;
@@ -88,6 +93,9 @@ public static class SettingsProviderContentTags
         addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.perf.contentTags.custom.addButton"));
         addButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.contentTags.custom.addButton.tooltip"));
         addButton.OnClicked = () => CommitCustomEntry(input, input.Value);
+
+        PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(contentTagsToggle, container, contentTagsStart, false,
+            _ => ForceLayout());
 
         ForceLayout();
     }

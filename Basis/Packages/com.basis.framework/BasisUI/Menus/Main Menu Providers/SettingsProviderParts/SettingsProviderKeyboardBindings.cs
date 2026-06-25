@@ -199,43 +199,23 @@ public static class SettingsProviderKeyboardBindings
         RectTransform container, string title, string description,
         Action<PanelElementDescriptor> buildContent, bool startExpanded = false)
     {
-        PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
-            PanelElementDescriptor.ElementStyles.Group, container);
-        group.SetTitle(title);
-        group.SetDescription(description);
+        PanelSectionToggle sectionToggle = PanelSectionToggle.CreateNewEntry(container);
+        PanelElementDescriptor group = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            sectionToggle, container, title, false);
 
-        PanelToggle header = PanelToggle.CreateNewEntry(group.ContentParent);
-        header.Descriptor.SetTitle(title);
-        header.SetValueWithoutNotify(startExpanded);
-
-        RectTransform root = group.rectTransform;
-        RectTransform cp = group.ContentParent;
-        int rootStart = root.childCount;
-        int cpStart = cp.childCount;
-        Transform headerTransform = header.transform;
+        if (!string.IsNullOrEmpty(description))
+        {
+            PanelElementDescriptor descGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, group.ContentParent);
+            descGroup.SetDescription(description);
+        }
 
         buildContent(group);
 
-        void SetContentActive(bool active)
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(sectionToggle, group, startExpanded, _ =>
         {
-            for (int i = rootStart; i < root.childCount; i++)
-                root.GetChild(i).gameObject.SetActive(active);
-
-            if (cp != root)
-            {
-                for (int i = cpStart; i < cp.childCount; i++)
-                {
-                    Transform child = cp.GetChild(i);
-                    if (child != headerTransform)
-                        child.gameObject.SetActive(active);
-                }
-            }
             group.ForceRebuild();
-        }
-
-        SetContentActive(header.Value);
-
-        header.OnValueChanged += SetContentActive;
+        });
     }
 
     private static string GetPartLabel(string actionName, string partName)

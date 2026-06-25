@@ -81,7 +81,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public static void BuildRemoteAudioUI(RectTransform container)
+        public static void BuildRemoteAudioUI(RectTransform container, PanelElementDescriptor tabDescriptor = null)
         {
             // ─────────────── LISTENER DIRECTIONAL DAMPENING (always visible) ───────────────
             PanelElementDescriptor listenerDampenGroup =
@@ -119,12 +119,18 @@ namespace Basis.BasisUI
                 listenerDampenGroup.ForceRebuild();
             };
 
+            // ─────────────── ADVANCED (collapsible) ───────────────
+            PanelSectionToggle advancedToggle = PanelSectionToggle.CreateNewEntry(container);
+            advancedToggle.SetTitle(BasisLocalization.Get("ui.advanced"));
+            int advancedStart = container.childCount;
+            RectTransform advancedContent = container;
+
             // ─────────────── VOICE BUFFER GROUP (advanced) ───────────────
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.
             // Buffer is 20 ms per frame, so 1 ≈ 20 ms.
             PanelElementDescriptor voiceBufferGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             voiceBufferGroup.SetTitle(BasisLocalization.Get("settings.ra.title.voiceBuffer"));
             voiceBufferGroup.SetDescription(
                 "How many 20 ms voice frames to buffer ahead of playback.\n" +
@@ -152,7 +158,7 @@ namespace Basis.BasisUI
 
             // ─────────────── AUDIO SOURCE GROUP (advanced) ───────────────
             PanelElementDescriptor audioSourceGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             audioSourceGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.audioSource"));
 
             PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(audioSourceGroup);
@@ -266,7 +272,7 @@ PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
 
             // ─────────────── STEAM AUDIO - HRTF GROUP (advanced) ───────────────
             PanelElementDescriptor hrtfGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             hrtfGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtf"));
 
             PanelToggle toggleDirectBinaural = PanelToggle.CreateNewEntry(hrtfGroup);
@@ -308,7 +314,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
             // ─────────────── STEAM AUDIO - PROPAGATION GROUP ───────────────
             PanelElementDescriptor propagationGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             propagationGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.propagation"));
 
             PanelToggle toggleDistanceAttenuation = PanelToggle.CreateNewEntry(propagationGroup);
@@ -394,7 +400,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
             // ─────────────── STEAM AUDIO - DIRECTIVITY GROUP ───────────────
             PanelElementDescriptor directivityGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             directivityGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.directivity"));
 
             PanelToggle toggleDirectivity = PanelToggle.CreateNewEntry(directivityGroup);
@@ -427,7 +433,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
             // ─────────────── STEAM AUDIO - OCCLUSION GROUP ───────────────
             PanelElementDescriptor occlusionGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             occlusionGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.occlusion"));
 
             PanelToggle toggleOcclusion = PanelToggle.CreateNewEntry(occlusionGroup);
@@ -470,7 +476,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
             // ─────────────── STEAM AUDIO - TRANSMISSION GROUP ───────────────
             PanelElementDescriptor transmissionGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             transmissionGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.transmission"));
 
             PanelToggle toggleTransmission = PanelToggle.CreateNewEntry(transmissionGroup);
@@ -547,7 +553,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
 
             // ─────────────── LIP SYNC GROUP (advanced) ───────────────
             PanelElementDescriptor lipSyncGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
             lipSyncGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.lipSync"));
 
             PanelToggle toggleLimitLipSync = PanelToggle.CreateNewEntry(lipSyncGroup);
@@ -573,31 +579,8 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
                 lipSyncGroup.ForceRebuild();
             };
 
-            // Hide all advanced groups by default
-            voiceBufferGroup.SetActive(false);
-            audioSourceGroup.SetActive(false);
-            hrtfGroup.SetActive(false);
-            propagationGroup.SetActive(false);
-            directivityGroup.SetActive(false);
-            occlusionGroup.SetActive(false);
-            transmissionGroup.SetActive(false);
-            lipSyncGroup.SetActive(false);
-
-            PanelToggle advancedToggle = PanelToggle.CreateNewEntry(listenerDampenGroup);
-            advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("ui.advanced"));
-            advancedToggle.Descriptor.SetTooltip(BasisLocalization.Get("ui.advanced.tooltip"));
-            advancedToggle.SetValueWithoutNotify(false);
-            advancedToggle.OnValueChanged += (val) =>
-            {
-                voiceBufferGroup.SetActive(val);
-                audioSourceGroup.SetActive(val);
-                hrtfGroup.SetActive(val);
-                propagationGroup.SetActive(val);
-                directivityGroup.SetActive(val);
-                occlusionGroup.SetActive(val);
-                transmissionGroup.SetActive(val);
-                lipSyncGroup.SetActive(val);
-            };
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(advancedToggle, container, advancedStart, false,
+                _ => tabDescriptor?.ForceRebuild());
         }
 
         public static void ResetRemoteAudioToDefaults()

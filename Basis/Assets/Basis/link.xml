@@ -4,6 +4,8 @@
     <assembly fullname="Base128" preserve="all" />
     <assembly fullname="Basis Framework" preserve="all" />
     <assembly fullname="Basis.Addon.SnapControls" preserve="all" />
+    <assembly fullname="Basis.Developer.Exceptions" preserve="all" />
+    <assembly fullname="Basis.Developer.Recorder" preserve="all" />
     <assembly fullname="Basis.Integration.AudioLink" preserve="all" />
     <assembly fullname="Basis.OpenLipSync.Runtime" preserve="all" />
     <assembly fullname="Basis.Shims.Samples" preserve="all" />

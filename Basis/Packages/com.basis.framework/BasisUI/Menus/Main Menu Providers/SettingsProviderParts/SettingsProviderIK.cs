@@ -941,10 +941,6 @@ public static class SettingsProviderIK
             }
         });
 
-        // ONE RESET BUTTON FOR THIS PAGE
-        SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
-
-
         colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
         advancedToggle.OnExpandedChanged += visible =>
         {
@@ -957,6 +953,9 @@ public static class SettingsProviderIK
         // Debug Section
         // ------------------
         BuildDebugSection(tabDesc);
+
+        // ONE RESET BUTTON FOR THIS PAGE — kept last so debug info sits above it.
+        SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
 
         tabDesc.ForceRebuild();
         return tabPage;

@@ -27,12 +27,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
     // Audio-debug gizmos (see BasisAudioGizmos). Off by default; the static bools
     // that gate the per-frame work live on BasisAudioGizmos itself.
 
-    // Sub-toggles under ShowGizmos. Default true so the master switch alone restores
-    // the pre-split behavior (lines + spheres + jiggle render) for users who never
-    // touch the granular controls.
-    public static bool UseSkeletonLines = true;
-    public static bool UseCalibrationSpheres = true;
-    public static bool UseJiggleVisuals = true;
+    // Per-gizmo toggles. All default off; the derived UseGizmos gate
+    // (RecomputeUseGizmos) stays off until the user enables at least one.
+    public static bool UseSkeletonLines = false;
+    public static bool UseCalibrationSpheres = false;
+    public static bool UseJiggleVisuals = false;
 
     // --- Canonical setting keys (from defaults) ---
     private static string K_SHOW_GIZMOS => BasisSettingsDefaults.ShowGizmos.BindingKey;                       // "showgizmos"
@@ -104,7 +103,10 @@ public class SMModuleDebugOptions : BasisSettingsBase
     {
         if (matchedSettingName == K_SHOW_GIZMOS)
         {
-            HandleShowGizmos(optionValue);
+            // The master gizmo toggle was removed from the UI; rendering is now derived
+            // from the individual gizmo toggles. Recompute in case a persisted legacy
+            // value still fires this key.
+            RecomputeUseGizmos();
             return;
         }
 
@@ -118,6 +120,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
                     player.LocalBoneDriver.ApplySkeletonLineVisibility();
                 }
             }
+            RecomputeUseGizmos();
             return;
         }
 
@@ -134,24 +137,28 @@ public class SMModuleDebugOptions : BasisSettingsBase
                     player.LocalBoneDriver.ApplyCalibrationSphereVisibility();
                 }
             }
+            RecomputeUseGizmos();
             return;
         }
 
         if (matchedSettingName == K_GIZMO_JIGGLE_VISUALS)
         {
             bool.TryParse(optionValue, out UseJiggleVisuals);
+            RecomputeUseGizmos();
             return;
         }
 
         if (matchedSettingName == K_TRACKER_GIZMOS)
         {
             HandleTrackerGizmos(optionValue);
+            RecomputeUseGizmos();
             return;
         }
 
         if (matchedSettingName == K_LINKED_TRACKER_LINES)
         {
             HandleLinkedTrackerLines(optionValue);
+            RecomputeUseGizmos();
             return;
         }
 
@@ -161,6 +168,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             {
                 BasisEyeGazeGizmo.Shutdown();
             }
+            RecomputeUseGizmos();
             return;
         }
 
@@ -170,24 +178,28 @@ public class SMModuleDebugOptions : BasisSettingsBase
             {
                 BasisIKColliderGizmo.Shutdown();
             }
+            RecomputeUseGizmos();
             return;
         }
 
         if (matchedSettingName == K_GIZMO_AUDIO_RANGES)
         {
             bool.TryParse(optionValue, out BasisAudioGizmos.ShowRanges);
+            RecomputeUseGizmos();
             return;
         }
 
         if (matchedSettingName == K_GIZMO_AUDIO_CONE)
         {
             bool.TryParse(optionValue, out BasisAudioGizmos.ShowListenerCone);
+            RecomputeUseGizmos();
             return;
         }
 
         if (matchedSettingName == K_GIZMO_AUDIO_LEVELS)
         {
             bool.TryParse(optionValue, out BasisAudioGizmos.ShowLevels);
+            RecomputeUseGizmos();
             return;
         }
 
@@ -205,13 +217,28 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
     }
 
-    private void HandleShowGizmos(string optionValue)
+    // Derived gizmo render gate: on whenever any individual gizmo toggle is enabled.
+    // Replaces the old master ShowGizmos switch. Gizmo labels are intentionally
+    // excluded — they only adorn other gizmos and can't render anything on their own.
+    private void RecomputeUseGizmos()
     {
-        if (!bool.TryParse(optionValue, out bool selected))
-        {
-            return;
-        }
+        bool anyOn =
+            UseSkeletonLines ||
+            UseCalibrationSpheres ||
+            UseJiggleVisuals ||
+            UseTrackerGizmos ||
+            UseLinkedTrackerLines ||
+            UseEyeGazeGizmo ||
+            UseIKColliders ||
+            BasisAudioGizmos.ShowRanges ||
+            BasisAudioGizmos.ShowListenerCone ||
+            BasisAudioGizmos.ShowLevels;
 
+        SetUseGizmos(anyOn);
+    }
+
+    private void SetUseGizmos(bool selected)
+    {
 #if UNITY_SERVER
         selected = false;
 #endif
@@ -222,7 +249,6 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
 
         UseGizmos = selected;
-        BasisDebug.Log($"Gizmo State is {UseGizmos} {selected}");
 
         BasisGizmoManager.OnUseGizmosChanged?.Invoke(UseGizmos);
 

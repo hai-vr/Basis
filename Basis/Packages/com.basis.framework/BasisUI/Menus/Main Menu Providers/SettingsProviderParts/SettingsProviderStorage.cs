@@ -16,63 +16,64 @@ public static class SettingsProviderStorage
         RectTransform container = descriptor.ContentParent;
 
         // Download limits
-        PanelElementDescriptor downloadGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        downloadGroup.SetTitle(BasisLocalization.Get("settings.storage.downloadLimits.title"));
-
-        PanelSlider avatarDownloadSize = PanelSlider.CreateEntryAndBind(
-            downloadGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.avatarDownloadSize"), 5, 1024, false, 0, ValueDisplayMode.MemorySize),
-            BasisSettingsDefaults.AvatarDownloadSize);
-        avatarDownloadSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.avatarDownloadSize.tooltip"));
-
-        // Concurrency gates for avatar loading. Three separate gates because the
-        // network / disc / in-memory paths each have a different bottleneck. Tuning
-        // these higher helps crowded rooms catch up faster; tuning downloads too high
-        // just splits bandwidth and makes everyone wait longer on the loading avatar.
-        PanelSlider maxDownloads = PanelSlider.CreateEntryAndBind(
-            downloadGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxDownloads"), 1, 32, true, 0, ValueDisplayMode.Raw),
-            BasisSettingsDefaults.MaxConcurrentAvatarDownloads);
-        maxDownloads.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxDownloads.tooltip"));
-
-        PanelSlider maxDiscLoads = PanelSlider.CreateEntryAndBind(
-            downloadGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxDiscLoads"), 1, 64, true, 0, ValueDisplayMode.Raw),
-            BasisSettingsDefaults.MaxConcurrentAvatarDiscLoads);
-        maxDiscLoads.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxDiscLoads.tooltip"));
-
-        PanelSlider maxAddressables = PanelSlider.CreateEntryAndBind(
-            downloadGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxAddressables"), 1, 128, true, 0, ValueDisplayMode.Raw),
-            BasisSettingsDefaults.MaxConcurrentAvatarAddressables);
-        maxAddressables.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxAddressables.tooltip"));
-
-        // Cache size limit slider (lightweight, no file I/O)
-        PanelElementDescriptor limitGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        limitGroup.SetTitle(BasisLocalization.Get("settings.storage.cache.title"));
-
-        PanelSlider cacheSizeSlider = PanelSlider.CreateEntryAndBind(
-            limitGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxCacheSize"), 1, 512, true, 0, ValueDisplayMode.Raw),
-            BasisSettingsDefaults.CacheMaxSizeGB);
-        cacheSizeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxCacheSize.tooltip"));
-
-        // Button to load and display all storage data on demand
-        PanelButton loadDataButton = PanelButton.CreateNew(container);
-        loadDataButton.Descriptor.SetTitle(BasisLocalization.Get("settings.storage.loadButton"));
-        loadDataButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.loadButton.tooltip"));
-        loadDataButton.OnClicked += () =>
+        PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            BasisLocalization.Get("settings.storage.downloadLimits.title"), () =>
         {
-            // Remove the load button itself
-            Object.Destroy(loadDataButton.gameObject);
+            PanelSlider avatarDownloadSize = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.avatarDownloadSize"), 5, 1024, false, 0, ValueDisplayMode.MemorySize),
+                BasisSettingsDefaults.AvatarDownloadSize);
+            avatarDownloadSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.avatarDownloadSize.tooltip"));
 
-            PopulateStorageData(container);
-            descriptor.ForceRebuild();
-        };
+            // Concurrency gates for avatar loading. Three separate gates because the
+            // network / disc / in-memory paths each have a different bottleneck. Tuning
+            // these higher helps crowded rooms catch up faster; tuning downloads too high
+            // just splits bandwidth and makes everyone wait longer on the loading avatar.
+            PanelSlider maxDownloads = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxDownloads"), 1, 32, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxConcurrentAvatarDownloads);
+            maxDownloads.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxDownloads.tooltip"));
 
-        SettingsProviderTrustedUrls.Populate(container, TabKey);
+            PanelSlider maxDiscLoads = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxDiscLoads"), 1, 64, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxConcurrentAvatarDiscLoads);
+            maxDiscLoads.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxDiscLoads.tooltip"));
+
+            PanelSlider maxAddressables = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxAddressables"), 1, 128, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxConcurrentAvatarAddressables);
+            maxAddressables.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxAddressables.tooltip"));
+        }, false, _ => descriptor.ForceRebuild());
+
+        // Cache size limit slider (lightweight, no file I/O) plus the on-demand
+        // storage-data loader, all under the one collapsible Cache section.
+        PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            BasisLocalization.Get("settings.storage.cache.title"), () =>
+        {
+            PanelSlider cacheSizeSlider = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.storage.maxCacheSize"), 1, 512, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.CacheMaxSizeGB);
+            cacheSizeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.maxCacheSize.tooltip"));
+
+            // Button to load and display all storage data on demand
+            PanelButton loadDataButton = PanelButton.CreateNew(container);
+            loadDataButton.Descriptor.SetTitle(BasisLocalization.Get("settings.storage.loadButton"));
+            loadDataButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.storage.loadButton.tooltip"));
+            loadDataButton.OnClicked += () =>
+            {
+                // Remove the load button itself
+                Object.Destroy(loadDataButton.gameObject);
+
+                PopulateStorageData(container);
+                descriptor.ForceRebuild();
+            };
+        }, false, _ => descriptor.ForceRebuild());
+
+        SettingsProviderTrustedUrls.Populate(container, TabKey, descriptor);
 
         // One reset button for this whole page (download limits, cache, trusted URLs)
         SettingsProvider.AddResetPageButton(container, TabKey, ResetDefaults);
