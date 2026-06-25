@@ -28,12 +28,15 @@ if [[ "$1" == "full" ]]; then
   SUBFOLDERS+=":Packages/com.avionblock.opussharp:
               Packages/com.basis.addon.snapcontrols:
               Packages/com.basis.common:
+              Packages/com.basis.developer.exceptions:
+              Packages/com.basis.developer.recorder:
               Packages/com.basis.eventdriver:
               Packages/com.basis.examples:
               Packages/com.basis.framework:
               Packages/com.basis.framework.editor:
               Packages/com.basis.gizmos:
               Packages/com.basis.integration.audiolink:
+              Packages/com.basis.integration.ytdlp:
               Packages/com.basis.mediapipe:
               Packages/com.basis.mediaplayer:
               Packages/com.basis.openlipsync:
