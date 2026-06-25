@@ -617,6 +617,7 @@ namespace Basis.Scripts.UI.NamePlate
             }
 
             plate.SetGlobalParts(panel, textMeshes.ToArray(), textMaterials.ToArray());
+            BasisGlobalNamePlateRenderer.MarkDirty();
             Text.gameObject.SetActive(false);
             return true;
         }
@@ -822,6 +823,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (p == null) return;
             pendingRemove.Add(p);
+            if (UseGlobalNamePlateMesh) BasisGlobalNamePlateRenderer.MarkDirty();
         }
 
         public static void Dispose()

@@ -7,7 +7,7 @@ using Basis.Scripts.Networking.Sync;
 using UnityEngine;
 using UnityEngine.Scripting.APIUpdating;
 
-[MovedFrom(true, null, null, "BasisObjectSyncNetworking")]
+[MovedFrom(true, null, "BasisExamples", "BasisObjectSyncNetworking")]
 public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLockable
 {
     public BasisPickupInteractable BasisPickupInteractable;
