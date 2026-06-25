@@ -19,10 +19,10 @@ namespace Basis.BasisUI
             PermissionsTabController controller = controllerHost.AddComponent<PermissionsTabController>();
             controller.Container = container;
 
-            // Status / info group
-            PanelElementDescriptor statusGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            statusGroup.SetTitle(BasisLocalization.Get("settings.permissions.status"));
+            // Status / info section (collapsible)
+            PanelSectionToggle statusToggle = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor statusGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                statusToggle, container, BasisLocalization.Get("settings.permissions.status"), false);
 
             PanelButton refreshBtn = PanelButton.CreateNew(statusGroup.ContentParent);
             refreshBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.permissions.refresh"));
@@ -30,25 +30,29 @@ namespace Basis.BasisUI
             refreshBtn.OnClicked += () => BasisNetworkModeration.RequestPermissions();
 
             controller.StatusGroup = statusGroup;
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(statusToggle, statusGroup, false, null);
 
-            // Groups section (populated after data arrives)
-            PanelElementDescriptor groupsGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            groupsGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.groups"));
+            // Groups section (collapsible; populated after data arrives)
+            PanelSectionToggle groupsToggle = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor groupsGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                groupsToggle, container, BasisLocalization.Get("menu.individualPlayer.groups"), false);
             controller.GroupsParent = groupsGroup.ContentParent;
             controller.GroupsGroup = groupsGroup;
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(groupsToggle, groupsGroup, false, null);
 
-            // Users section (populated after data arrives)
-            PanelElementDescriptor usersGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            usersGroup.SetTitle(BasisLocalization.Get("settings.permissions.users"));
+            // Users section (collapsible; populated after data arrives)
+            PanelSectionToggle usersToggle = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor usersGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                usersToggle, container, BasisLocalization.Get("settings.permissions.users"), false);
             controller.UsersParent = usersGroup.ContentParent;
             controller.UsersGroup = usersGroup;
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(usersToggle, usersGroup, false, null);
 
-            // Admin-only: create/delete group controls
-            PanelElementDescriptor adminGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            adminGroup.SetTitle(BasisLocalization.Get("settings.permissions.adminActions"));
+            // Admin-only: create/delete group controls (collapsible). The whole bar is
+            // hidden for non-admins via AdminGroupRoot below.
+            PanelSectionToggle adminToggle = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor adminGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                adminToggle, container, BasisLocalization.Get("settings.permissions.adminActions"), false);
 
             PanelTextField newGroupField = PanelTextField.CreateNewEntry(adminGroup.ContentParent);
             newGroupField.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.groupName"));
@@ -213,10 +217,14 @@ namespace Basis.BasisUI
             };
 
             controller.AdminGroup = adminGroup;
-            controller.AdminGroupRoot = adminGroup.gameObject;
+            // Gate the whole section bar (not just the group) so non-admins don't see an
+            // empty "Admin Actions" bar.
+            controller.AdminGroupRoot = adminToggle.gameObject;
 
-            // Initially hide admin controls until we know if user is admin
-            adminGroup.gameObject.SetActive(false);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(adminToggle, adminGroup, false, null);
+
+            // Initially hide the admin section until we know if the user is admin.
+            adminToggle.gameObject.SetActive(false);
 
             // Auto-fetch on open
             BasisNetworkModeration.RequestPermissions();

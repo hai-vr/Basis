@@ -101,11 +101,6 @@ namespace Basis.BasisUI
 
             RectTransform tabRoot = tabDesc.ContentParent;
 
-            // Static intro — explains what this tab is for and survives device-list rebuilds.
-            PanelElementDescriptor headerGroup = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, tabRoot);
-            headerGroup.SetTitle(BasisLocalization.Get("trackerLinking.header.title"));
-
             // Connector trackers toggle — hides the per-tracker list (linking +
             // role override dropdowns) so a configured player doesn't have to
             // scroll past every device on every visit. Same opt-in pattern as

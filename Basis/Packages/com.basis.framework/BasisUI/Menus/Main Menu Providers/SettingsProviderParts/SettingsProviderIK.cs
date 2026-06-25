@@ -49,13 +49,10 @@ public static class SettingsProviderIK
         tabDesc.SetTitle(BasisLocalization.Get("settings.tab.bodytracking"));
         tabDesc.SetIcon(AddressableAssets.Sprites.Settings);
 
-        // --- Group: "Body Tracking" (replaces tab.Group(...)) ---
-        var ikGroup = PanelElementDescriptor.CreateNew(
-            PanelElementDescriptor.ElementStyles.Group,
-            tabDesc.ContentParent);
-
-        ikGroup.SetTitle(BasisLocalization.Get("settings.tab.bodytracking"));
-        ikGroup.SetIcon(AddressableAssets.Sprites.Settings);
+        // --- Collapsible section: "Body Tracking" (default closed) ---
+        var ikSectionToggle = PanelSectionToggle.CreateNewEntry(tabDesc.ContentParent);
+        var ikGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            ikSectionToggle, tabDesc.ContentParent, BasisLocalization.Get("settings.tab.bodytracking"), false);
 
         var ikParent = ikGroup.ContentParent;
 
@@ -948,6 +945,12 @@ public static class SettingsProviderIK
             tabDesc.ForceRebuild();
             colliderGroup.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
         };
+
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(ikSectionToggle, ikGroup, false, _ =>
+        {
+            ikGroup.ForceRebuild();
+            tabDesc.ForceRebuild();
+        });
 
         // ------------------
         // Debug Section

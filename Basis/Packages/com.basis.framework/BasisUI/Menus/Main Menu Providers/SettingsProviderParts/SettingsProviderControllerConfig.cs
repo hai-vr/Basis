@@ -68,7 +68,7 @@ public static class SettingsProviderControllerConfig
                 sliderSmoothTurnSpeedRef.Descriptor.SetActive(!isOn);
                 group.ForceRebuild();
             };
-        }, startExpanded: true);
+        }, startExpanded: false);
 
         // Apply initial visibility AFTER CreateCollapsibleSection's SetContentActive pass,
         // which would otherwise re-activate both sliders when the section starts expanded.
