@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "পোজ LOD পক্ষপাত" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "দূরবর্তী খেলোয়াড় পোজ কম ঘন ঘন আপডেট করে CPU খরচ কমায়।\n0 = বন্ধ (সমস্ত খেলোয়াড় প্রতি ফ্রেমে আপডেট হয়)।\n1-2 = সূক্ষ্ম হ্রাস, সবে দৃশ্যমান।\n3-5 = দূরবর্তী খেলোয়াড়দের উপর লক্ষণীয়, উল্লেখযোগ্য CPU সঞ্চয়।" },
     { "key": "settings.graphics.advanced.description", "value": "রেন্ডারিং, LOD, এবং কর্মক্ষমতা বিকল্প সূক্ষ্ম-টিউন করুন।" },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "উন্নত সেটিংস দেখান" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "উন্নত সেটিংস" },
     { "key": "settings.graphics.renderScale", "value": "রেন্ডার স্কেল" },
     { "key": "settings.graphics.hdrSupport", "value": "HDR সমর্থন" },
     { "key": "settings.graphics.foveated", "value": "ফোভিয়েটেড শতাংশ" },

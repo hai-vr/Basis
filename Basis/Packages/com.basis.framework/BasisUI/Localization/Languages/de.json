@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "Posen-LOD-Bias" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "Reduziert die CPU-Last, indem entfernte Spieler-Posen seltener aktualisiert werden.\n0 = aus (alle Spieler aktualisieren jeden Frame).\n1-2 = subtile Reduktion, kaum sichtbar.\n3-5 = bei entfernten Spielern erkennbar, deutliche CPU-Einsparung." },
     { "key": "settings.graphics.advanced.description", "value": "Feinabstimmung von Rendering, LOD und Leistungsoptionen." },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "Erweiterte Einstellungen anzeigen" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "Erweiterte Einstellungen" },
     { "key": "settings.graphics.renderScale", "value": "Render-Skalierung" },
     { "key": "settings.graphics.hdrSupport", "value": "HDR-Unterstützung" },
     { "key": "settings.graphics.foveated", "value": "Foveated-Anteil" },

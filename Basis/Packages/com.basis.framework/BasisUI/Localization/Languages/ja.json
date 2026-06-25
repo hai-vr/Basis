@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "ポーズLODバイアス" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "遠方プレイヤーのポーズ更新頻度を下げてCPU負荷を削減。\n0 = 無効（全プレイヤーが毎フレーム更新）。\n1-2 = 軽微な削減、ほぼ見えない。\n3-5 = 遠方プレイヤーで顕著、CPU大幅節約。" },
     { "key": "settings.graphics.advanced.description", "value": "描画・LOD・パフォーマンスを詳細調整。" },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "詳細設定を表示" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "詳細設定" },
     { "key": "settings.graphics.renderScale", "value": "描画スケール" },
     { "key": "settings.graphics.hdrSupport", "value": "HDRサポート" },
     { "key": "settings.graphics.foveated", "value": "フォービエイト率" },
