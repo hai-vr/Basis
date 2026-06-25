@@ -422,9 +422,9 @@ namespace Basis.BasisUI
             toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
             toggleDesktopReticle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.desktopReticle.tooltip"));
 
-            PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(hudGroup);
-            toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
-            toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
+            PanelSectionToggle toggleAvatarPreview = PanelSectionToggle.CreateNewEntry(hudGroup);
+            toggleAvatarPreview.BindToToggle(BasisSettingsDefaults.AvatarPreview);
+            toggleAvatarPreview.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
             toggleAvatarPreview.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreview.tooltip"));
 
             PanelToggle toggleAvatarPreviewMirror = PanelToggle.CreateNewEntry(hudGroup);
@@ -432,13 +432,11 @@ namespace Basis.BasisUI
             toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
             toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
 
-            toggleAvatarPreviewMirror.Descriptor.SetActive(toggleAvatarPreview.Value);
-            toggleAvatarPreview.OnValueChanged += (val) =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleAvatarPreview, toggleAvatarPreview.Expanded, _ =>
             {
-                toggleAvatarPreviewMirror.Descriptor.SetActive(val);
                 hudGroup.ForceRebuild();
                 descriptor.ForceRebuild();
-            };
+            }, toggleAvatarPreviewMirror);
 
             PanelToggle toggleCameraHud = PanelToggle.CreateNewEntry(hudGroup);
             toggleCameraHud.AssignBinding(BasisSettingsDefaults.CameraHud);
@@ -452,9 +450,9 @@ namespace Basis.BasisUI
                     PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
                 cameraGroup.SetTitle(BasisLocalization.Get("settings.general.camera.title"));
 
-                PanelToggle toggleThirdPerson = PanelToggle.CreateNewEntry(cameraGroup);
-                toggleThirdPerson.AssignBinding(BasisSettingsDefaults.EnableThirdPersonCamera);
-                toggleThirdPerson.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
+                PanelSectionToggle toggleThirdPerson = PanelSectionToggle.CreateNewEntry(cameraGroup);
+                toggleThirdPerson.BindToToggle(BasisSettingsDefaults.EnableThirdPersonCamera);
+                toggleThirdPerson.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
                 toggleThirdPerson.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.tooltip"));
 
                 PanelToggle toggleAudioFromHead = PanelToggle.CreateNewEntry(cameraGroup);
@@ -462,13 +460,11 @@ namespace Basis.BasisUI
                 toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
                 toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
 
-                toggleAudioFromHead.Descriptor.SetActive(toggleThirdPerson.Value);
-                toggleThirdPerson.OnValueChanged += (val) =>
+                PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleThirdPerson, toggleThirdPerson.Expanded, _ =>
                 {
-                    toggleAudioFromHead.Descriptor.SetActive(val);
                     cameraGroup.ForceRebuild();
                     descriptor.ForceRebuild();
-                };
+                }, toggleAudioFromHead);
             }
 
             BuildNetworkingSection(container);
@@ -1597,13 +1593,12 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
-            PanelElementDescriptor advancedGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            advancedGroup.SetTitle(BasisLocalization.Get("ui.advanced"));
-
-            PanelToggle toggleAdvanced = PanelToggle.CreateNewEntry(advancedGroup.ContentParent);
-            toggleAdvanced.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.advanced.showAdvanced"));
-            toggleAdvanced.SetValueWithoutNotify(false);
+            PanelSectionToggle toggleAdvanced = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor advancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                toggleAdvanced,
+                container,
+                BasisLocalization.Get("settings.graphics.advanced.showAdvanced"),
+                false);
 
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
@@ -1656,32 +1651,20 @@ namespace Basis.BasisUI
             toggleLocalHeadBlendShapes.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.localHeadBlendShapes"));
             toggleLocalHeadBlendShapes.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.localHeadBlendShapes.tooltip"));
 
-            sliderRenderResolution.Descriptor.SetActive(false);
-            dropdownHDR.Descriptor.SetActive(false);
+            sliderRenderResolution.Descriptor.SetActive(BasisDeviceManagement.IsUserInDesktop());
+#if !UNITY_ANDROID
             sliderFoveatedRendering.Descriptor.SetActive(false);
-            sliderFieldOfView.Descriptor.SetActive(false);
-            sliderMeshLOD.Descriptor.SetActive(false);
-            sliderGlobalMeshLOD.Descriptor.SetActive(false);
-            toggleLocalHeadBlendShapes.Descriptor.SetActive(false);
-
-            toggleAdvanced.OnValueChanged += (val) =>
-            {
-                sliderRenderResolution.Descriptor.SetActive(val && BasisDeviceManagement.IsUserInDesktop());
-                dropdownHDR.Descriptor.SetActive(val);
-#if UNITY_ANDROID
-                sliderFoveatedRendering.Descriptor.SetActive(val);
 #endif
-                sliderFieldOfView.Descriptor.SetActive(val);
-                sliderMeshLOD.Descriptor.SetActive(val);
-                sliderGlobalMeshLOD.Descriptor.SetActive(val);
-                toggleLocalHeadBlendShapes.Descriptor.SetActive(val);
+
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggleAdvanced, advancedGroup, false, _ =>
+            {
                 advancedGroup.ForceRebuild();
                 descriptor.ForceRebuild();
-            };
+            });
 
             // Performance limits live in the same tab — formerly its own page,
             // merged here so users see all rendering / quality / cost controls together.
-            SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container);
+            SettingsProviderPerformanceLimits.BuildPerformanceLimitsContent(container, true);
 
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.graphics", ResetGraphicsDefaults);

@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "پوز LOD بائیس" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "دور کے کھلاڑی پوزز کو کم بار اپ ڈیٹ کر کے CPU لاگت کم کرتا ہے۔\n0 = بند (تمام کھلاڑی ہر فریم اپ ڈیٹ کرتے ہیں)۔\n1-2 = ہلکی کمی، بمشکل نظر آتی ہے۔\n3-5 = دور کے کھلاڑیوں پر قابل غور، اہم CPU بچت۔" },
     { "key": "settings.graphics.advanced.description", "value": "رینڈرنگ، LOD، اور کارکردگی کے اختیارات کو باریک بینی سے ٹیون کریں۔" },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "اعلی درجے کی ترتیبات دکھائیں" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "اعلی درجے کی ترتیبات" },
     { "key": "settings.graphics.renderScale", "value": "رینڈر اسکیل" },
     { "key": "settings.graphics.hdrSupport", "value": "HDR سپورٹ" },
     { "key": "settings.graphics.foveated", "value": "فوویٹڈ فیصد" },

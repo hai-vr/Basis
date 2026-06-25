@@ -22,12 +22,26 @@ public static class SettingsProviderPerformanceLimits
         descriptor.ForceRebuild();
         return tab;
     }
-    public static void BuildPerformanceLimitsContent(RectTransform container)
+    public static void BuildPerformanceLimitsContent(RectTransform container, bool wrapInSection = false)
     {
         _layoutRoot = container;
+        RectTransform contentParent = container;
+
+        PanelSectionToggle performanceToggle = null;
+        PanelElementDescriptor performanceGroup = null;
+        if (wrapInSection)
+        {
+            performanceToggle = PanelSectionToggle.CreateNewEntry(container);
+            performanceGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                performanceToggle,
+                container,
+                BasisLocalization.Get("settings.perf.intro.title"),
+                false);
+            contentParent = performanceGroup.ContentParent;
+        }
 
         PanelElementDescriptor bypassGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, contentParent);
         bypassGroup.SetTitle(BasisLocalization.Get("settings.perf.sessionBypass.title"));
 
         PanelToggle bypassToggle = PanelToggle.CreateNewEntry(bypassGroup.ContentParent);
@@ -39,13 +53,11 @@ public static class SettingsProviderPerformanceLimits
             BasisAvatarPerformanceLimits.BypassAllLimits = on;
         };
 
-        PanelElementDescriptor intro =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        intro.SetTitle(BasisLocalization.Get("settings.perf.intro.title"));
-
-        PanelElementDescriptor geometry =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        geometry.SetTitle(BasisLocalization.Get("settings.perf.group.geometry"));
+        PanelSectionToggle geometryToggle = PanelSectionToggle.CreateNewEntry(contentParent);
+        PanelElementDescriptor geometry = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            geometryToggle,
+            contentParent,
+            BasisLocalization.Get("settings.perf.group.geometry"));
 
         AddLimitPair(geometry.ContentParent,
             BasisLocalization.Get("settings.perf.triangles.toggle"),
@@ -74,9 +86,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.bones.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.bones.slider.tooltip"));
 
-        PanelElementDescriptor meshes =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        meshes.SetTitle(BasisLocalization.Get("settings.perf.group.meshesMaterials"));
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(geometryToggle, geometry, false, _ => ForceLayout());
+
+        PanelSectionToggle meshesToggle = PanelSectionToggle.CreateNewEntry(contentParent);
+        PanelElementDescriptor meshes = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            meshesToggle,
+            contentParent,
+            BasisLocalization.Get("settings.perf.group.meshesMaterials"));
 
         AddLimitPair(meshes.ContentParent,
             BasisLocalization.Get("settings.perf.skinnedMeshes.toggle"),
@@ -114,9 +130,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.textureMemory.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.textureMemory.slider.tooltip"));
 
-        PanelElementDescriptor physics =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        physics.SetTitle(BasisLocalization.Get("settings.perf.group.physics"));
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(meshesToggle, meshes, false, _ => ForceLayout());
+
+        PanelSectionToggle physicsToggle = PanelSectionToggle.CreateNewEntry(contentParent);
+        PanelElementDescriptor physics = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            physicsToggle,
+            contentParent,
+            BasisLocalization.Get("settings.perf.group.physics"));
 
         AddLimitPair(physics.ContentParent,
             BasisLocalization.Get("settings.perf.jiggleBones.toggle"),
@@ -159,9 +179,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.slider.tooltip"));
 
-        PanelElementDescriptor effects =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        effects.SetTitle(BasisLocalization.Get("settings.perf.group.effects"));
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(physicsToggle, physics, false, _ => ForceLayout());
+
+        PanelSectionToggle effectsToggle = PanelSectionToggle.CreateNewEntry(contentParent);
+        PanelElementDescriptor effects = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            effectsToggle,
+            contentParent,
+            BasisLocalization.Get("settings.perf.group.effects"));
 
         AddLimitPair(effects.ContentParent,
             BasisLocalization.Get("settings.perf.particleSystems.toggle"),
@@ -190,9 +214,13 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.lineRenderers.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.lineRenderers.slider.tooltip"));
 
-        PanelElementDescriptor runtime =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        runtime.SetTitle(BasisLocalization.Get("settings.perf.group.runtime"));
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(effectsToggle, effects, false, _ => ForceLayout());
+
+        PanelSectionToggle runtimeToggle = PanelSectionToggle.CreateNewEntry(contentParent);
+        PanelElementDescriptor runtime = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+            runtimeToggle,
+            contentParent,
+            BasisLocalization.Get("settings.perf.group.runtime"));
 
         AddLimitPair(runtime.ContentParent,
             BasisLocalization.Get("settings.perf.animators.toggle"),
@@ -212,8 +240,24 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.cilboxBehaviours.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.cilboxBehaviours.slider.tooltip"));
 
+        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(runtimeToggle, runtime, false, _ => ForceLayout());
+
         SettingsProviderContentTags.BuildContentTagsContent(container);
+
+        if (performanceToggle != null)
+        {
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(performanceToggle, performanceGroup, false, _ => ForceLayout());
+        }
     }
+
+    private static void ForceLayout()
+    {
+        if (_layoutRoot != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_layoutRoot);
+        }
+    }
+
     private static void AddLimitPair(
         Component parent,
         string toggleTitle,
@@ -239,18 +283,17 @@ public static class SettingsProviderPerformanceLimits
         {
             slider.Descriptor.SetTooltip(sliderTooltip);
 
+            slider.gameObject.SetActive(useBinding.RawValue);
+
             void Sync(bool on)
             {
                 if (slider == null) return;
                 slider.gameObject.SetActive(on);
-                if (_layoutRoot != null)
-                {
-                    LayoutRebuilder.ForceRebuildLayoutImmediate(_layoutRoot);
-                }
+                ForceLayout();
             }
 
-            Sync(useBinding.RawValue);
             useBinding.OnChanged += Sync;
+            slider.OnInstanceReleased += () => useBinding.OnChanged -= Sync;
         }
     }
 

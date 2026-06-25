@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "Смещение LOD поз" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "Снижает нагрузку на CPU, обновляя позы отдалённых игроков реже.\n0 = выкл. (все игроки обновляются каждый кадр).\n1-2 = слабое снижение, едва заметно.\n3-5 = заметно для отдалённых игроков, значительная экономия CPU." },
     { "key": "settings.graphics.advanced.description", "value": "Тонкая настройка рендеринга, LOD и параметров производительности." },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "Показать расширенные настройки" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "Расширенные настройки" },
     { "key": "settings.graphics.renderScale", "value": "Масштаб рендеринга" },
     { "key": "settings.graphics.hdrSupport", "value": "Поддержка HDR" },
     { "key": "settings.graphics.foveated", "value": "Процент фовеации" },

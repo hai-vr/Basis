@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "पोज़ LOD बायस" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "दूर के खिलाड़ियों के पोज़ को कम बार अद्यतन करके CPU लागत कम करता है।\n0 = बंद (सभी खिलाड़ी हर फ़्रेम अद्यतन होते हैं)।\n1-2 = सूक्ष्म कमी, मुश्किल से दिखने वाली।\n3-5 = दूर के खिलाड़ियों पर ध्यान देने योग्य, महत्वपूर्ण CPU बचत।" },
     { "key": "settings.graphics.advanced.description", "value": "रेंडरिंग, LOD, और प्रदर्शन विकल्पों को बारीकी से समायोजित करें।" },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "उन्नत सेटिंग्स दिखाएँ" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "उन्नत सेटिंग्स" },
     { "key": "settings.graphics.renderScale", "value": "रेंडर स्केल" },
     { "key": "settings.graphics.hdrSupport", "value": "HDR समर्थन" },
     { "key": "settings.graphics.foveated", "value": "फ़ोवियेटेड प्रतिशत" },

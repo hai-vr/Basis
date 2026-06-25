@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "Biais du LOD de pose" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "Réduit le coût CPU en mettant à jour les poses des joueurs distants moins fréquemment.\n0 = désactivé (tous les joueurs se mettent à jour à chaque image).\n1-2 = réduction subtile, à peine visible.\n3-5 = perceptible sur les joueurs distants, économies CPU significatives." },
     { "key": "settings.graphics.advanced.description", "value": "Ajustez finement le rendu, le LOD et les options de performance." },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "Afficher les paramètres avancés" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "Paramètres avancés" },
     { "key": "settings.graphics.renderScale", "value": "Échelle de rendu" },
     { "key": "settings.graphics.hdrSupport", "value": "Prise en charge HDR" },
     { "key": "settings.graphics.foveated", "value": "Pourcentage fovéal" },

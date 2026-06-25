@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "姿势 LOD 偏移" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "通过降低远处玩家姿势的更新频率来减少 CPU 开销。\n0 = 关闭（所有玩家每帧更新）。\n1-2 = 轻微减少，几乎不可见。\n3-5 = 远处玩家明显，CPU 显著节省。" },
     { "key": "settings.graphics.advanced.description", "value": "细致调整渲染、LOD 和性能选项。" },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "显示高级设置" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "高级设置" },
     { "key": "settings.graphics.renderScale", "value": "渲染缩放" },
     { "key": "settings.graphics.hdrSupport", "value": "HDR 支持" },
     { "key": "settings.graphics.foveated", "value": "注视点渲染百分比" },

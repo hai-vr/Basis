@@ -960,7 +960,7 @@
     { "key": "settings.graphics.poseLod.bias", "value": "Pose LOD Bias" },
     { "key": "settings.graphics.poseLod.bias.description", "value": "Vermindert CPU-kosten door houdingen van verre spelers minder vaak bij te werken.\n0 = uit (alle spelers updaten elk frame).\n1-2 = subtiele vermindering, nauwelijks zichtbaar.\n3-5 = merkbaar bij verre spelers, aanzienlijke CPU-besparing." },
     { "key": "settings.graphics.advanced.description", "value": "Fijnafstellen van rendering, LOD en prestatie-opties." },
-    { "key": "settings.graphics.advanced.showAdvanced", "value": "Geavanceerde Instellingen Tonen" },
+    { "key": "settings.graphics.advanced.showAdvanced", "value": "Geavanceerde instellingen" },
     { "key": "settings.graphics.renderScale", "value": "Renderschaal" },
     { "key": "settings.graphics.hdrSupport", "value": "HDR Ondersteuning" },
     { "key": "settings.graphics.foveated", "value": "Foveated Percentage" },

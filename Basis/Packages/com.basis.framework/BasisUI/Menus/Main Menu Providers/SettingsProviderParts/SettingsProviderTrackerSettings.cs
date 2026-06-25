@@ -110,18 +110,18 @@ namespace Basis.BasisUI
             // role override dropdowns) so a configured player doesn't have to
             // scroll past every device on every visit. Same opt-in pattern as
             // the advanced toggle below; user touches it once to set things up.
-            PanelToggle connectorToggle = PanelToggle.CreateNewEntry(tabRoot);
-            connectorToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.connectorTrackers"));
+            PanelSectionToggle connectorToggle = PanelSectionToggle.CreateNewEntry(tabRoot);
+            connectorToggle.SetTitle(BasisLocalization.Get("trackerLinking.connectorTrackers"));
             connectorToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.connectorTrackers.tooltip"));
-            connectorToggle.AssignBinding(BasisSettingsDefaults.TrackerLinkingConnectorVisible);
+            connectorToggle.BindToToggle(BasisSettingsDefaults.TrackerLinkingConnectorVisible);
 
             // Advanced toggle — hides the tuning sliders behind an opt-in so
             // the page stays approachable for users who only want to link
             // trackers. Same pattern as SettingsProviderIK's advancedToggle.
-            PanelToggle advancedToggle = PanelToggle.CreateNewEntry(tabRoot);
-            advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.advanced"));
+            PanelSectionToggle advancedToggle = PanelSectionToggle.CreateNewEntry(tabRoot);
+            advancedToggle.SetTitle(BasisLocalization.Get("trackerLinking.advanced"));
             advancedToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.advanced.tooltip"));
-            advancedToggle.AssignBinding(BasisSettingsDefaults.TrackerLinkingAdvancedVisible);
+            advancedToggle.BindToToggle(BasisSettingsDefaults.TrackerLinkingAdvancedVisible);
 
             // Static tuning group — bound to BasisSettingsDefaults bindings, so values
             // persist across menu reopens and across sessions. Built once.
@@ -187,21 +187,25 @@ namespace Basis.BasisUI
             // Initial visibility + OnValueChanged gating. Two-step rebuild
             // (inner group, then tab descriptor) matches the existing pattern
             // in HandleChange so nested LayoutGroups settle correctly.
-            tuningGroup.gameObject.SetActive(BasisSettingsDefaults.TrackerLinkingAdvancedVisible.RawValue);
-            advancedToggle.OnValueChanged += visible =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(
+                advancedToggle,
+                BasisSettingsDefaults.TrackerLinkingAdvancedVisible.RawValue,
+                _ =>
             {
-                tuningGroup.gameObject.SetActive(visible);
                 tuningGroup.ForceRebuild();
                 tabDesc.ForceRebuild();
-            };
+            },
+                tuningGroup);
 
-            trackersGroup.gameObject.SetActive(BasisSettingsDefaults.TrackerLinkingConnectorVisible.RawValue);
-            connectorToggle.OnValueChanged += visible =>
+            PanelSectionToggleHelpers.FinalizeCollapsibleContents(
+                connectorToggle,
+                BasisSettingsDefaults.TrackerLinkingConnectorVisible.RawValue,
+                _ =>
             {
-                trackersGroup.gameObject.SetActive(visible);
                 trackersGroup.ForceRebuild();
                 tabDesc.ForceRebuild();
-            };
+            },
+                trackersGroup);
 
             handleChange();
             SettingsProvider.TrackerSettingsExtraBuilder?.Invoke(tabRoot);
