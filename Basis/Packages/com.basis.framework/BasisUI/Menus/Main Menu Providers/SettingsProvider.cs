@@ -395,76 +395,97 @@ namespace Basis.BasisUI
             //   Hearing Range / Limit Audio Sources              → Audio
             //   Microphone Range                                 → Microphone
 
-            PanelElementDescriptor interactionsGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            interactionsGroup.SetTitle(BasisLocalization.Get("settings.general.interactions.title"));
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.general.interactions.title"), () =>
+            {
+                PanelToggle toggleDisableSeats = PanelToggle.CreateNewEntry(container);
+                toggleDisableSeats.AssignBinding(BasisSettingsDefaults.DisableSeats);
+                toggleDisableSeats.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableSeats"));
+                toggleDisableSeats.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableSeats.tooltip"));
 
-            PanelToggle toggleDisableSeats = PanelToggle.CreateNewEntry(interactionsGroup);
-            toggleDisableSeats.AssignBinding(BasisSettingsDefaults.DisableSeats);
-            toggleDisableSeats.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableSeats"));
-            toggleDisableSeats.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableSeats.tooltip"));
-
-            PanelToggle toggleDisablePropPickup = PanelToggle.CreateNewEntry(interactionsGroup);
-            toggleDisablePropPickup.AssignBinding(BasisSettingsDefaults.DisablePropPickup);
-            toggleDisablePropPickup.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disablePropPickup"));
-            toggleDisablePropPickup.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disablePropPickup.tooltip"));
+                PanelToggle toggleDisablePropPickup = PanelToggle.CreateNewEntry(container);
+                toggleDisablePropPickup.AssignBinding(BasisSettingsDefaults.DisablePropPickup);
+                toggleDisablePropPickup.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disablePropPickup"));
+                toggleDisablePropPickup.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disablePropPickup.tooltip"));
+            }, false, _ => descriptor.ForceRebuild());
 
             // HUD overlays — heads-up display elements rendered over the scene.
-            PanelElementDescriptor hudGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            hudGroup.SetTitle(BasisLocalization.Get("settings.general.hud.title"));
-
-            PanelToggle toggleDesktopReticle = PanelToggle.CreateNewEntry(hudGroup);
-            toggleDesktopReticle.AssignBinding(BasisSettingsDefaults.DesktopReticle);
-            toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
-            toggleDesktopReticle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.desktopReticle.tooltip"));
-
-            PanelSectionToggle toggleAvatarPreview = PanelSectionToggle.CreateNewEntry(hudGroup);
-            toggleAvatarPreview.BindToToggle(BasisSettingsDefaults.AvatarPreview);
-            toggleAvatarPreview.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
-            toggleAvatarPreview.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreview.tooltip"));
-
-            PanelToggle toggleAvatarPreviewMirror = PanelToggle.CreateNewEntry(hudGroup);
-            toggleAvatarPreviewMirror.AssignBinding(BasisSettingsDefaults.AvatarPreviewMirror);
-            toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
-            toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
-
-            PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleAvatarPreview, toggleAvatarPreview.Expanded, _ =>
+            PanelToggle toggleAvatarPreview = null;
+            PanelToggle toggleAvatarPreviewMirror = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.general.hud.title"), () =>
             {
-                hudGroup.ForceRebuild();
+                PanelToggle toggleDesktopReticle = PanelToggle.CreateNewEntry(container);
+                toggleDesktopReticle.AssignBinding(BasisSettingsDefaults.DesktopReticle);
+                toggleDesktopReticle.Descriptor.SetTitle(BasisLocalization.Get("settings.general.desktopReticle"));
+                toggleDesktopReticle.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.desktopReticle.tooltip"));
+
+                toggleAvatarPreview = PanelToggle.CreateNewEntry(container);
+                toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
+                toggleAvatarPreview.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreview"));
+                toggleAvatarPreview.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreview.tooltip"));
+
+                toggleAvatarPreviewMirror = PanelToggle.CreateNewEntry(container);
+                toggleAvatarPreviewMirror.AssignBinding(BasisSettingsDefaults.AvatarPreviewMirror);
+                toggleAvatarPreviewMirror.Descriptor.SetTitle(BasisLocalization.Get("settings.general.avatarPreviewMirror"));
+                toggleAvatarPreviewMirror.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarPreviewMirror.tooltip"));
+
+                // Mirror is a sub-option of avatar preview — only show it when preview is on.
+                toggleAvatarPreviewMirror.Descriptor.SetActive(BasisSettingsDefaults.AvatarPreview.RawValue);
+                toggleAvatarPreview.OnValueChanged += val =>
+                {
+                    toggleAvatarPreviewMirror.Descriptor.SetActive(val);
+                    descriptor.ForceRebuild();
+                };
+
+                PanelToggle toggleCameraHud = PanelToggle.CreateNewEntry(container);
+                toggleCameraHud.AssignBinding(BasisSettingsDefaults.CameraHud);
+                toggleCameraHud.Descriptor.SetTitle(BasisLocalization.Get("settings.general.cameraHud"));
+                toggleCameraHud.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.cameraHud.tooltip"));
+            }, false, visible =>
+            {
+                if (visible && toggleAvatarPreviewMirror != null)
+                {
+                    toggleAvatarPreviewMirror.Descriptor.SetActive(BasisSettingsDefaults.AvatarPreview.RawValue);
+                }
                 descriptor.ForceRebuild();
-            }, toggleAvatarPreviewMirror);
+            });
 
-            PanelToggle toggleCameraHud = PanelToggle.CreateNewEntry(hudGroup);
-            toggleCameraHud.AssignBinding(BasisSettingsDefaults.CameraHud);
-            toggleCameraHud.Descriptor.SetTitle(BasisLocalization.Get("settings.general.cameraHud"));
-            toggleCameraHud.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.cameraHud.tooltip"));
-
-            // Third-person camera is desktop-only; hide the entire group in VR/XR.
+            // Third-person camera is desktop-only; hide the entire section in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
             {
-                PanelElementDescriptor cameraGroup =
-                    PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                cameraGroup.SetTitle(BasisLocalization.Get("settings.general.camera.title"));
-
-                PanelSectionToggle toggleThirdPerson = PanelSectionToggle.CreateNewEntry(cameraGroup);
-                toggleThirdPerson.BindToToggle(BasisSettingsDefaults.EnableThirdPersonCamera);
-                toggleThirdPerson.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
-                toggleThirdPerson.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.tooltip"));
-
-                PanelToggle toggleAudioFromHead = PanelToggle.CreateNewEntry(cameraGroup);
-                toggleAudioFromHead.AssignBinding(BasisSettingsDefaults.AudioListenerFollowsHead);
-                toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
-                toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
-
-                PanelSectionToggleHelpers.FinalizeCollapsibleContents(toggleThirdPerson, toggleThirdPerson.Expanded, _ =>
+                PanelToggle toggleAudioFromHead = null;
+                PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                    BasisLocalization.Get("settings.general.camera.title"), () =>
                 {
-                    cameraGroup.ForceRebuild();
+                    PanelToggle toggleThirdPerson = PanelToggle.CreateNewEntry(container);
+                    toggleThirdPerson.AssignBinding(BasisSettingsDefaults.EnableThirdPersonCamera);
+                    toggleThirdPerson.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson"));
+                    toggleThirdPerson.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.tooltip"));
+
+                    toggleAudioFromHead = PanelToggle.CreateNewEntry(container);
+                    toggleAudioFromHead.AssignBinding(BasisSettingsDefaults.AudioListenerFollowsHead);
+                    toggleAudioFromHead.Descriptor.SetTitle(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead"));
+                    toggleAudioFromHead.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.thirdPerson.audioFromHead.tooltip"));
+
+                    // Audio-from-head is a sub-option of third person — only show it when on.
+                    toggleAudioFromHead.Descriptor.SetActive(BasisSettingsDefaults.EnableThirdPersonCamera.RawValue);
+                    toggleThirdPerson.OnValueChanged += val =>
+                    {
+                        toggleAudioFromHead.Descriptor.SetActive(val);
+                        descriptor.ForceRebuild();
+                    };
+                }, false, visible =>
+                {
+                    if (visible && toggleAudioFromHead != null)
+                    {
+                        toggleAudioFromHead.Descriptor.SetActive(BasisSettingsDefaults.EnableThirdPersonCamera.RawValue);
+                    }
                     descriptor.ForceRebuild();
-                }, toggleAudioFromHead);
+                });
             }
 
-            BuildNetworkingSection(container);
+            BuildNetworkingSection(container, descriptor);
 
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.general", ResetGeneralDefaults);
@@ -522,19 +543,22 @@ namespace Basis.BasisUI
             };
         }
 
-        private static void BuildNetworkingSection(RectTransform container)
+        private static void BuildNetworkingSection(RectTransform container, PanelElementDescriptor tabDescriptor = null)
         {
-            PanelElementDescriptor networkingGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            networkingGroup.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
+            // Open by default when at least one direct (P2P) connection is live.
+            bool directConnected = BasisP2PManager.HasAnyConnectedSession();
 
-            PanelToggle toggleDirectConnections = PanelToggle.CreateNewEntry(networkingGroup.ContentParent);
+            PanelSectionToggle networkingToggle = PanelSectionToggle.CreateNewEntry(container);
+            networkingToggle.SetTitle(BasisLocalization.Get("settings.general.networking.title"));
+            int networkingStart = container.childCount;
+
+            PanelToggle toggleDirectConnections = PanelToggle.CreateNewEntry(container);
             toggleDirectConnections.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.directConnections"));
             toggleDirectConnections.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.directConnections.tooltip"));
             toggleDirectConnections.SetValueWithoutNotify(!BasisSettingsDefaults.DisableDirectConnections.RawValue);
 
             PanelSlider sliderP2PRate = PanelSlider.CreateEntryAndBind(
-                networkingGroup.ContentParent,
+                container,
                 new PanelSlider.SliderSettings(
                     BasisLocalization.Get("settings.general.networking.p2pAvatarRate"),
                     BasisLocalization.Get("settings.general.networking.p2pAvatarRate.description"),
@@ -542,8 +566,13 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.P2PAvatarSyncRate);
             sliderP2PRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.tooltip"));
 
+            // Live encryption/avatar-rate status shown as its own row (the bar header
+            // carries no description, so the status moves to a dedicated element).
+            PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, container);
+
             _avatarRateSlider = sliderP2PRate;
-            _networkingGroup = networkingGroup;
+            _networkingGroup = statusField;
             _avatarRateLastFps = -1;
             _avatarRateLastRate = -1;
             _avatarRateWarnShown = false;
@@ -562,7 +591,7 @@ namespace Basis.BasisUI
                     _avatarRateWarnShown = false;
                 }
                 RefreshNetworkingStatus();
-                networkingGroup.ForceRebuild();
+                statusField.ForceRebuild();
             }
             RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
             toggleDirectConnections.OnValueChanged += (directOn) =>
@@ -570,6 +599,15 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.DisableDirectConnections.SetValue(!directOn);
                 RefreshDirectConnectionVisibility(directOn);
             };
+
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(networkingToggle, container, networkingStart, directConnected, visible =>
+            {
+                if (visible)
+                {
+                    RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
         }
 
         private static string BuildEncryptionStatusText()

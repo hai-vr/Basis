@@ -63,16 +63,6 @@ namespace Basis.BasisUI
             ignoreToggle.SetValueWithoutNotify(BasisNotificationCenter.IgnoreMode);
             ignoreToggle.OnValueChanged = value => BasisNotificationCenter.IgnoreMode = value;
 
-            PanelToggle pendingToggle = PanelToggle.CreateNewEntry(root);
-            pendingToggle.Descriptor.SetTitle(BasisLocalization.Get("notifications.show.pending"));
-            pendingToggle.SetValueWithoutNotify(BasisNotificationCenter.ShowPending);
-            pendingToggle.OnValueChanged = value => BasisNotificationCenter.ShowPending = value;
-
-            PanelToggle historyToggle = PanelToggle.CreateNewEntry(root);
-            historyToggle.Descriptor.SetTitle(BasisLocalization.Get("notifications.show.history"));
-            historyToggle.SetValueWithoutNotify(BasisNotificationCenter.ShowHistory);
-            historyToggle.OnValueChanged = value => BasisNotificationCenter.ShowHistory = value;
-
             _controller = panel.gameObject.AddComponent<NotificationPanelController>();
             _controller.Root = root;
             _controller.TabDescriptor = tab.Descriptor;
@@ -184,42 +174,38 @@ namespace Basis.BasisUI
                 IReadOnlyList<BasisNotification> all = BasisNotificationCenter.All;
 
                 // Pending (newest first) — still awaiting a yes/no, re-openable.
-                if (BasisNotificationCenter.ShowPending)
+                // Shown directly as a collapsible section (open by default) instead of
+                // gated behind a show/hide toggle.
+                PanelSectionToggle pendingSection = PanelSectionToggle.CreateNewEntry(Root);
+                pendingSection.SetTitle(BasisLocalization.Get("notifications.pending"));
+                int pendingStart = Root.childCount;
+                int pending = 0;
+                for (int i = all.Count - 1; i >= 0; i--)
                 {
-                    AddHeader(BasisLocalization.Get("notifications.pending"));
-                    int pending = 0;
-                    for (int i = all.Count - 1; i >= 0; i--)
-                    {
-                        if (all[i].Status != BasisNotificationStatus.Pending) continue;
-                        BuildPendingRow(all[i]);
-                        pending++;
-                    }
-                    if (pending == 0) AddEmpty(BasisLocalization.Get("notifications.empty.pending"));
+                    if (all[i].Status != BasisNotificationStatus.Pending) continue;
+                    BuildPendingRow(all[i]);
+                    pending++;
                 }
+                if (pending == 0) AddEmpty(BasisLocalization.Get("notifications.empty.pending"));
+                PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(pendingSection, Root, pendingStart, true,
+                    _ => TabDescriptor?.ForceRebuild());
 
                 // History (newest first) — resolved outcomes.
-                if (BasisNotificationCenter.ShowHistory)
+                PanelSectionToggle historySection = PanelSectionToggle.CreateNewEntry(Root);
+                historySection.SetTitle(BasisLocalization.Get("notifications.history"));
+                int historyStart = Root.childCount;
+                int history = 0;
+                for (int i = all.Count - 1; i >= 0; i--)
                 {
-                    AddHeader(BasisLocalization.Get("notifications.history"));
-                    int history = 0;
-                    for (int i = all.Count - 1; i >= 0; i--)
-                    {
-                        if (all[i].Status == BasisNotificationStatus.Pending) continue;
-                        BuildHistoryRow(all[i]);
-                        history++;
-                    }
-                    if (history == 0) AddEmpty(BasisLocalization.Get("notifications.empty.history"));
+                    if (all[i].Status == BasisNotificationStatus.Pending) continue;
+                    BuildHistoryRow(all[i]);
+                    history++;
                 }
+                if (history == 0) AddEmpty(BasisLocalization.Get("notifications.empty.history"));
+                PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(historySection, Root, historyStart, true,
+                    _ => TabDescriptor?.ForceRebuild());
 
                 if (TabDescriptor != null) TabDescriptor.ForceRebuild();
-            }
-
-            private void AddHeader(string text)
-            {
-                PanelElementDescriptor header = PanelElementDescriptor.CreateNew(
-                    PanelElementDescriptor.ElementStyles.Group, Root);
-                header.SetTitle(text);
-                header.SetDescription(string.Empty);
             }
 
             private void AddEmpty(string text)

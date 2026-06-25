@@ -76,7 +76,7 @@ namespace Basis.BasisUI
         private bool _pendingUsernameHostMode;
         private PanelButton _addServerButton;
         private PanelButton _refreshAllButton;
-        private PanelToggle _advancedToggle;
+        private PanelSectionToggle _advancedToggle;
         private PanelButton _hostButton;
         private PanelDropdown _hostStackDropdown;
         private PanelTextField _hostServerNameField;
@@ -231,9 +231,9 @@ namespace Basis.BasisUI
 
         private void BuildAdvancedSection(RectTransform container)
         {
-            _advancedToggle = PanelToggle.CreateNewEntry(container);
-            _advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("ui.advanced"));
-            _advancedToggle.SetValueWithoutNotify(false);
+            _advancedToggle = PanelSectionToggle.CreateNewEntry(container);
+            _advancedToggle.SetTitle(BasisLocalization.Get("ui.advanced"));
+            int advancedStart = container.childCount;
 
             _hostStackDropdown = PanelDropdown.CreateNewEntry(container);
             _hostStackDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostStack"));
@@ -319,29 +319,7 @@ namespace Basis.BasisUI
             _autoConnectToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.autoConnect.description"));
             _autoConnectToggle.AssignBinding(BasisSettingsDefaults.AutoConnect);
 
-            GameObject[] advancedObjects = new GameObject[]
-            {
-                _hostButton.gameObject,
-                _hostStackDropdown.gameObject,
-                _hostServerNameField.gameObject,
-                _hostMotdField.gameObject,
-                _hostPortField.gameObject,
-                _hostPasswordField.gameObject,
-                _hostPeerLimitField.gameObject,
-                _hostUseAuthToggle.gameObject,
-                _hostEnableConsoleToggle.gameObject,
-                _hostAvatarsLockedToggle.gameObject,
-                _hostPropsLockedToggle.gameObject,
-                _hostWorldsLockedToggle.gameObject,
-                _hostThirdPersonDisabledToggle.gameObject,
-                _autoConnectToggle.gameObject,
-            };
-            foreach (GameObject obj in advancedObjects) obj.SetActive(false);
-
-            _advancedToggle.OnValueChanged += (val) =>
-            {
-                foreach (GameObject obj in advancedObjects) obj.SetActive(val);
-            };
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(_advancedToggle, container, advancedStart, false, null);
         }
 
         private void PopulateHostStackDropdown()
