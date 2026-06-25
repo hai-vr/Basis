@@ -305,6 +305,15 @@ namespace BasisServerHandle
                 return;
             }
 
+            string sanitizedDisplayName = BasisDisplayNameSanitizer.Sanitize(ReadyMessage.playerMetaDataMessage.playerDisplayName);
+            if (string.IsNullOrEmpty(sanitizedDisplayName))
+            {
+                BNL.Log($"Rejecting peer {PeerId} (UUID {UUID}) — empty or invisible display name.");
+                RejectWithReason(newPeer, "Choose a non-empty username.");
+                return;
+            }
+            ReadyMessage.playerMetaDataMessage.playerDisplayName = sanitizedDisplayName;
+
             bool added = NetworkServer.AuthenticatedPeers.TryAdd(PeerId, newPeer);
             if (!added)
             {

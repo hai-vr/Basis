@@ -886,7 +886,7 @@ namespace Basis.BasisUI
             string userName = _usernameField != null
                 ? _usernameField._inputField.text
                 : BasisDataStore.LoadString(BasisConnectionService.UsernameFileName, string.Empty);
-            if (string.IsNullOrEmpty(userName))
+            if (string.IsNullOrWhiteSpace(userName))
             {
                 PromptForUsername(entry, isHostMode);
                 return;
@@ -928,7 +928,7 @@ namespace Basis.BasisUI
         private void OnUsernameSubmitted()
         {
             if (_pendingUsernameEntry == null) return;
-            if (_usernameField == null || string.IsNullOrEmpty(_usernameField._inputField.text)) return;
+            if (_usernameField == null || string.IsNullOrWhiteSpace(_usernameField._inputField.text)) return;
 
             ServerDirectoryEntry entry = _pendingUsernameEntry;
             bool isHostMode = _pendingUsernameHostMode;

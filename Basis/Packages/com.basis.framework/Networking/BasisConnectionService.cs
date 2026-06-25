@@ -101,7 +101,7 @@ namespace Basis.Scripts.Networking
                 }
 
                 ReportConnectionProgress(40f, BasisLocalization.Get("menu.servers.status.preparing"));
-                BasisLocalPlayer.Instance.DisplayName = userName;
+                BasisLocalPlayer.Instance.DisplayName = userName.Trim();
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, UsernameFileName);
                 BasisDataStore.SaveString(entry.Id, LastConnectedServerIdFile);
@@ -217,7 +217,7 @@ namespace Basis.Scripts.Networking
                 if (BasisNetworkConnection.LocalPlayerIsConnected) return;
 
                 string userName = BasisDataStore.LoadString(UsernameFileName, string.Empty);
-                if (string.IsNullOrEmpty(userName))
+                if (string.IsNullOrWhiteSpace(userName))
                 {
                     ReportConnectionError("Set a username before joining a server.");
                     return;

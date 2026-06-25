@@ -5,9 +5,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Sync;
 using UnityEngine;
-using UnityEngine.Scripting.APIUpdating;
 
-[MovedFrom(true, null, "BasisExamples", "BasisObjectSyncNetworking")]
 public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLockable
 {
     public BasisPickupInteractable BasisPickupInteractable;

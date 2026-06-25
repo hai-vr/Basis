@@ -60,6 +60,7 @@ MonoBehaviour:
   - UnityEngine.Animations.Rigging.RigTransform
   - UnityEngine.Animations.Rigging.BoneRenderer
   - BasisPickupSyncNetworking
+  - BasisObjectSyncNetworking
   - Basis.Scripts.Networking.Sync.BasisSyncedObject
   - Basis.Scripts.Networking.Sync.BasisSyncedTransform
   - AudioLink.AudioLink

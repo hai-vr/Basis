@@ -184,7 +184,7 @@ namespace Basis.Scripts.Networking
                     string userName = BasisDataStore.LoadString(
                         BasisConnectionService.UsernameFileName, string.Empty);
 
-                    if (string.IsNullOrEmpty(userName))
+                    if (string.IsNullOrWhiteSpace(userName))
                     {
                         _deepLinkActive = false;
                         if (BasisMainMenu.Instance?.Dialogue != null)
