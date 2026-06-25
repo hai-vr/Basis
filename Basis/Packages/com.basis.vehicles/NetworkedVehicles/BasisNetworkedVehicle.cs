@@ -137,13 +137,15 @@ namespace Basis.Network.Vehicles
 
         public override void OnServerOwnershipDestroyed()
         {
-            // Eject local player from the seat before the vehicle is removed
+            base.OnServerOwnershipDestroyed();
+            // Ownership returned to no one (e.g. driver disconnected): leave the vehicle idle, don't destroy it.
             if (SeatSync != null && SeatSync.IsLocallyEntered())
             {
                 BasisLocalPlayer.Instance?.LocalSeatDriver?.Stand();
             }
-            // Destroy the vehicle since ownership has been released
-            Destroy(gameObject);
+            Player = null;
+            ToggleItems(false);
+            ApplyRemoteExtrasToParts(0f, 0f);
         }
 
         // Per-frame on the driving client: accumulate absolute wheel spin from the live colliders.
