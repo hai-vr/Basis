@@ -126,6 +126,7 @@ namespace Basis.Scripts.Networking
 
                     NetworkClient.listener.PeerConnectedEvent += PeerConnectedEvent;
                     NetworkClient.listener.PeerDisconnectedEvent += BasisNetworkConnection.HandleDisconnection;
+                    BasisNetworkEvents.EnsureInitialized();
                     NetworkClient.listener.NetworkReceiveEvent += BasisNetworkEvents.NetworkReceiveEvent;
 
                     if (LocalPlayerPeer != null)

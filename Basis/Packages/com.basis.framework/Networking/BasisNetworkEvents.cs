@@ -13,8 +13,21 @@ using System.Buffers;
 using static SerializableBasis;
 public static class BasisNetworkEvents
 {
+    private static bool _coreHandlersRegistered;
+
     static BasisNetworkEvents()
     {
+        EnsureInitialized();
+    }
+
+    /// <summary>Registers the core channel handlers if not already done. Safe to call repeatedly.</summary>
+    public static void EnsureInitialized()
+    {
+        if (_coreHandlersRegistered)
+        {
+            return;
+        }
+        _coreHandlersRegistered = true;
         RegisterCoreHandlers();
     }
 
