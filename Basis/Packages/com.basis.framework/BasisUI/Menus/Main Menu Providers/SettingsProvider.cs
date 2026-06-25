@@ -199,10 +199,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerSettings.TrackerSettingsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
-            if (BasisNetworkConnection.LocalPlayerPeer != null)
-            {
-                AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
-            }
+            AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
             if (SettingsProvider.LicensesBuilder != null)
             {
                 AddLazyTab(tabGroup, "settings.tab.thirdpartylicenses", () =>
