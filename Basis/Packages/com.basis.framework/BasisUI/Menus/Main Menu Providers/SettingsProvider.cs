@@ -894,6 +894,11 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.MicrophoneRange);
             sliderMicrophoneRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.microphoneRange.tooltip"));
 
+            PanelToggle toggleMicrophoneRangeIndicator = PanelToggle.CreateNewEntry(microphoneGroup);
+            toggleMicrophoneRangeIndicator.AssignBinding(BasisSettingsDefaults.MicrophoneRangeIndicator);
+            toggleMicrophoneRangeIndicator.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.rangeIndicator"));
+            toggleMicrophoneRangeIndicator.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.rangeIndicator.tooltip"));
+
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
             toggleMicrophoneDenoiser.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.denoiser"));
             toggleMicrophoneDenoiser.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.denoiser.tooltip"));
@@ -1314,15 +1319,10 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.AvatarRange);
             sliderAvatarRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarRange.tooltip"));
 
-            PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(qualityGroup);
-            toggleAvatarDistance.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDistance"));
-            toggleAvatarDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDistance.tooltip"));
-            bool avatarDistOn = !string.Equals(BasisSettingsDefaults.VisualState.RawValue, "off", StringComparison.OrdinalIgnoreCase);
-            toggleAvatarDistance.SetValueWithoutNotify(avatarDistOn);
-            toggleAvatarDistance.OnValueChanged += (val) =>
-            {
-                BasisSettingsDefaults.VisualState.SetValue(val ? "only avatar distance" : "off");
-            };
+            PanelToggle toggleRangeIndicator = PanelToggle.CreateNewEntry(qualityGroup);
+            toggleRangeIndicator.AssignBinding(BasisSettingsDefaults.AvatarRangeIndicator);
+            toggleRangeIndicator.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarRangeIndicator"));
+            toggleRangeIndicator.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarRangeIndicator.tooltip"));
 
             PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(qualityGroup);
             toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
@@ -2858,7 +2858,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
-            BasisSettingsDefaults.VisualState.SetValue("off");
+            BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
+            BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
             BasisSettingsDefaults.ShowVoiceRange.ResetToDefault();
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();

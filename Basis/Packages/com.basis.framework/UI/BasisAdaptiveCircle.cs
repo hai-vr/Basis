@@ -14,9 +14,8 @@ public class BasisAdaptiveCircle : MonoBehaviour
 
     MaterialPropertyBlock _mpb;
 
-    public void Apply(float radius)
+    public void Apply(float radius, Color color)
     {
-        BasisDebug.Log($"Radius {radius}");
         _mpb ??= new MaterialPropertyBlock();
 
         // Make the plane at least as wide as the diameter
@@ -24,7 +23,7 @@ public class BasisAdaptiveCircle : MonoBehaviour
         transform.localScale = Vector3.one * scale;
 
         _mpb.Clear();
-        _mpb.SetColor(_ColorId, new Color(0.5f,0.5f,0.5f,0.5f));
+        _mpb.SetColor(_ColorId, color);
         _mpb.SetFloat(_RadiusId, Mathf.Max(0f, radius / PLANE_SIZE));        // pass world radius directly
         _mpb.SetFloat(_ThickId, 0.05f);      // pass world thickness directly
         AdaptiveRenderer.SetPropertyBlock(_mpb);

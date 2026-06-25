@@ -163,8 +163,8 @@
       "value": "How far away other players' avatars stay visible."
     },
     {
-      "key": "settings.developer.avatarDistance.tooltip",
-      "value": "Hide distant avatars beyond your set range to save performance."
+      "key": "settings.graphics.avatarRangeIndicator.tooltip",
+      "value": "Show a circle at your feet marking how far away other avatars stay visible."
     },
     {
       "key": "settings.general.limitAvatars.tooltip",
@@ -6263,12 +6263,28 @@
       "value": "Billboarded text labels on whichever gizmos are currently shown: tracker roles, linked-pair names, IK collider names, and the audio gizmos (speaker name with net loudness %, hearing distance, voice-cone angle)."
     },
     {
-      "key": "settings.developer.avatarDistance",
-      "value": "Avatar Distance"
+      "key": "settings.graphics.avatarRangeIndicator",
+      "value": "Avatar Range Indicator"
     },
     {
-      "key": "settings.developer.avatarDistance.description",
+      "key": "settings.graphics.avatarRangeIndicator.description",
       "value": "Show avatar visibility range circle at your feet."
+    },
+    {
+      "key": "settings.remoteAudio.hearingRangeIndicator",
+      "value": "Hearing Range Indicator"
+    },
+    {
+      "key": "settings.remoteAudio.hearingRangeIndicator.tooltip",
+      "value": "Show a circle at your feet marking how far away you can hear other players."
+    },
+    {
+      "key": "settings.microphone.rangeIndicator",
+      "value": "Microphone Range Indicator"
+    },
+    {
+      "key": "settings.microphone.rangeIndicator.tooltip",
+      "value": "Show a circle at your feet marking how far your voice reaches. Matches your microphone colour."
     },
     {
       "key": "settings.developer.enableStatistics",

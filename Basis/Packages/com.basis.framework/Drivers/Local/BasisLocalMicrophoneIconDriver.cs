@@ -80,6 +80,10 @@ namespace Basis.Scripts.Drivers
         private Color targetColor = Color.white;
         private bool bounceRequested = false;
 
+        public Color CurrentColor => targetColor;
+        public static Color LastColor { get; private set; } = Color.white;
+        public static event System.Action<Color> OnColorChanged;
+
         // ---------------- Initialization ----------------
         public void Initialize(BasisLocalCameraDriver CameraDriver)
         {
@@ -278,32 +282,38 @@ namespace Basis.Scripts.Drivers
 
         private void RecomputeColorIntent()
         {
+            Color color = ComputeColorIntent();
+            if (color == targetColor)
+            {
+                return;
+            }
+            targetColor = color;
+            LastColor = color;
+            OnColorChanged?.Invoke(color);
+        }
+
+        private Color ComputeColorIntent()
+        {
             if (IsCurrentlyMuted)
             {
-                targetColor = MutedColor;
-                return;
+                return MutedColor;
             }
 
             if (BasisAudioTransmission.IsInShoutMode)
             {
-                targetColor = LocalIsTransmitting ? ShoutColorActive : ShoutColorInactive;
-                return;
+                return LocalIsTransmitting ? ShoutColorActive : ShoutColorInactive;
             }
 
             switch (BasisTalkModeManager.CurrentMode)
             {
                 case BasisTalkMode.Private:
-                    targetColor = LocalIsTransmitting ? PrivateColorActive : PrivateColorInactive;
-                    break;
+                    return LocalIsTransmitting ? PrivateColorActive : PrivateColorInactive;
                 case BasisTalkMode.Direct:
-                    targetColor = LocalIsTransmitting ? DirectColorActive : DirectColorInactive;
-                    break;
+                    return LocalIsTransmitting ? DirectColorActive : DirectColorInactive;
                 case BasisTalkMode.ThisPerson:
-                    targetColor = LocalIsTransmitting ? ThisPersonColorActive : ThisPersonColorInactive;
-                    break;
+                    return LocalIsTransmitting ? ThisPersonColorActive : ThisPersonColorInactive;
                 default:
-                    targetColor = LocalIsTransmitting ? UnMutedMutedIconColorActive : UnMutedMutedIconColorInactive;
-                    break;
+                    return LocalIsTransmitting ? UnMutedMutedIconColorActive : UnMutedMutedIconColorInactive;
             }
         }
 

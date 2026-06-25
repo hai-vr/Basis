@@ -416,7 +416,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> MicrophoneIconOffsetX = new("microphoneiconoffsetx", new BasisPlatformDefault<float>(0f));
         public static BasisSettingsBinding<float> MicrophoneIconOffsetY = new("microphoneiconoffsety", new BasisPlatformDefault<float>(0f));
 
-        public static BasisSettingsBinding<string> VisualState = new("visualstate", new BasisPlatformDefault<string>("off"));
+        public static BasisSettingsBinding<bool> AvatarRangeIndicator = new("avatarrangeindicator", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> HearingRangeIndicator = new("hearingrangeindicator", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> MicrophoneRangeIndicator = new("microphonerangeindicator", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> IKMode = new("ikmode", new BasisPlatformDefault<string>("eye height"));
 
@@ -1539,7 +1541,9 @@ namespace Basis.BasisUI
             // on startup when the user already had it enabled, not only after a manual toggle.
             BasisStreamingMetaRuntime.ApplyFromSettings();
             MemoryAllocation.LoadBindingValue();
-            VisualState.LoadBindingValue();
+            AvatarRangeIndicator.LoadBindingValue();
+            HearingRangeIndicator.LoadBindingValue();
+            MicrophoneRangeIndicator.LoadBindingValue();
             FoveatedRendering.LoadBindingValue();
             FieldOfView.LoadBindingValue();
             RenderResolution.LoadBindingValue();

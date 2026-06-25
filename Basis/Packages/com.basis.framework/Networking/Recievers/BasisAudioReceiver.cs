@@ -80,6 +80,10 @@ namespace Basis.Scripts.Networking.Receivers
         private const int MaxConsecutivePlc = 2;
         private int _consecutiveMissing;
 
+        // Gate: the per-frame network pass and the audio-thread top-up must never decode at
+        // the same time (the Opus decoder is not reentrant). CAS 0->1 to enter, write 0 to leave.
+        private int _decoding;
+
         /// <summary>
         /// Number of accumulated 20 ms silence units (see <see cref="_silentUnits20ms"/>)
         /// after which we treat the stream as fully idle and rearm decoder + jitter on
@@ -215,6 +219,20 @@ namespace Basis.Scripts.Networking.Receivers
         /// Does NOT touch Unity AudioSource. Call ApplyAudioState() on main thread after.
         /// </summary>
         public void DrainAndDecodeThreadSafe()
+        {
+            if (System.Threading.Interlocked.CompareExchange(ref _decoding, 1, 0) != 0)
+                return;
+            try
+            {
+                DrainAndDecodeLocked();
+            }
+            finally
+            {
+                System.Threading.Volatile.Write(ref _decoding, 0);
+            }
+        }
+
+        private void DrainAndDecodeLocked()
         {
             _lastDrainDecoded = false;
 
@@ -588,11 +606,15 @@ namespace Basis.Scripts.Networking.Receivers
         public void OnDestroy()
         {
 #if !UNITY_SERVER
+            // Wait out any in-flight audio-thread decode before freeing the native decoder.
+            while (System.Threading.Interlocked.CompareExchange(ref _decoding, 1, 0) != 0)
+                System.Threading.Thread.SpinWait(64);
             if (decoder != null)
             {
                 decoder.Dispose();
                 decoder = null;
             }
+            System.Threading.Volatile.Write(ref _decoding, 0);
             _sincResampler?.Dispose();
             _sincResampler = null;
             _sincResamplerOutRate = -1;
@@ -724,6 +746,10 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void OnAudioFilterRead(float[] data, int channels, int length)
         {
+            // Top up the decoded queue on the audio clock (not only the per-frame network pass)
+            // so a render-frame hitch can't starve this read and underrun into the fade-to-silence.
+            DrainAndDecodeThreadSafe();
+
             int frames = length / channels;
             double msThisCallback = 1000.0 * frames / outputSampleRate;
             Span<float> output = data.AsSpan(0, length);

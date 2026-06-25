@@ -98,6 +98,11 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.HearingRange);
             sliderHearingRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.hearingRange.tooltip"));
 
+            PanelToggle toggleHearingRangeIndicator = PanelToggle.CreateNewEntry(listenerDampenGroup);
+            toggleHearingRangeIndicator.AssignBinding(BasisSettingsDefaults.HearingRangeIndicator);
+            toggleHearingRangeIndicator.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.hearingRangeIndicator"));
+            toggleHearingRangeIndicator.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.hearingRangeIndicator.tooltip"));
+
             PanelSlider sliderListenerConeAngle = PanelSlider.CreateEntryAndBind(
                 listenerDampenGroup,
                 PanelSlider.SliderSettings.Degrees(BasisLocalization.Get("settings.remoteAudio.coneOfInfluence"), 30f, 360f, true, 0),
