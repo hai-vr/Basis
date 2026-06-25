@@ -260,8 +260,8 @@ namespace Basis.BasisUI
 
         public const float VRS_RADIUS_MIN = 0f;
         public const float VRS_RADIUS_MAX = 1f;
-        public static BasisSettingsBinding<float> VrsFovealInnerRadius = new("vrsfovealinner", new BasisPlatformDefault<float>(0.16f));
-        public static BasisSettingsBinding<float> VrsFovealOuterRadius = new("vrsfovealouter", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> VrsFovealInnerRadius = new("vrsfovealinner_v2", new BasisPlatformDefault<float>(0.25f));
+        public static BasisSettingsBinding<float> VrsFovealOuterRadius = new("vrsfovealouter_v2", new BasisPlatformDefault<float>(0.31f));
 
         // Master gizmo gate. When off, every gizmo sub-toggle below is inert and
         // BasisGizmoManager tears down its parent + cached gizmo dictionaries.
