@@ -274,6 +274,7 @@ public static class BasisAuthoredMotionSystem
     static readonly List<Registration> sRegistrations = new List<Registration>();
     static readonly Dictionary<BasisAuthoredMotion, Registration> sLookup = new Dictionary<BasisAuthoredMotion, Registration>();
     static readonly List<Registration> sPendingAdds = new List<Registration>();  // joins appended at the next Schedule() without a full rebuild
+    static readonly HashSet<Registration> sPendingMaskPatches = new HashSet<Registration>();  // enable/disable toggles coalesced to the next Schedule() instead of a CompletePending() per toggle
 
     static JobHandle sPending;
     static bool sInitialized;
@@ -292,6 +293,7 @@ public static class BasisAuthoredMotionSystem
         sRegistrations.Clear();
         sLookup.Clear();
         sPendingAdds.Clear();
+        sPendingMaskPatches.Clear();
         sDirty = false;
         sInitialized = true;
     }
@@ -308,6 +310,7 @@ public static class BasisAuthoredMotionSystem
         sRegistrations.Clear();
         sLookup.Clear();
         sPendingAdds.Clear();
+        sPendingMaskPatches.Clear();
         sDirty = false;
         sInitialized = false;
     }
@@ -355,9 +358,10 @@ public static class BasisAuthoredMotionSystem
 
         // A removal forces one full rebuild (collapsing a frame's worth); pure joins append incrementally.
         // A pending rebuild supersedes queued joins — Rebuild() re-flattens every registration and clears the queue.
-        if (sDirty) Rebuild();
+        bool rebuilt = false;
+        if (sDirty) { Rebuild(); rebuilt = true; }
         else if (sPendingAdds.Count > 0) CommitPendingAdds();
-        if (sMovements.Length == 0) return default;
+        if (sMovements.Length == 0) { sPendingMaskPatches.Clear(); return default; }
 
         // Complete the previous frame's writes before rescheduling over the same containers.
         CompletePending();
@@ -366,8 +370,16 @@ public static class BasisAuthoredMotionSystem
         if (sTargets.length != sMovements.Length)
         {
             Rebuild();
-            if (sMovements.Length == 0) return default;
+            rebuilt = true;
+            if (sMovements.Length == 0) { sPendingMaskPatches.Clear(); return default; }
         }
+
+        // Apply enable/disable mask toggles coalesced since the last Schedule(), now that the previous
+        // frame's job has completed above. Deferring them here collapses a burst of toggles in one frame
+        // (e.g. 1000 avatars going in-range at once) into the single CompletePending() this method already
+        // does, instead of one sync per toggle. A rebuild already recomputed the whole mask, so drop the queue.
+        if (rebuilt) sPendingMaskPatches.Clear();
+        else if (sPendingMaskPatches.Count > 0) ApplyPendingMaskPatches();
 
         // TODO: a shared/networked clock for bit-identical remote copies; Time.timeAsDouble is fine for local validation.
         float time = (float)Time.timeAsDouble;
@@ -749,22 +761,39 @@ public static class BasisAuthoredMotionSystem
         return exact;
     }
 
-    // Toggle-system-agnostic: any actuator flipping the component's enabled lands here; patch just its mask slice.
+    // Toggle-system-agnostic: any actuator flipping the component's enabled lands here.
     static void OnEnabledStateChanged(BasisAuthoredMotion component, bool enabled)
     {
         if (!sLookup.TryGetValue(component, out Registration reg)) return;
         reg.ComponentEnabled = enabled;
 
         // A pending rebuild recomputes the whole mask from ComponentEnabled; a queued-but-uncommitted join has no
-        // valid slice yet. Either way the next commit reads the value just stored above, so skip the in-place patch.
+        // valid slice yet. Either way the next Schedule() reads the value just stored above, so skip the patch.
         if (sDirty || !reg.InContainers) return;
 
-        CompletePending(); // the job reads ValidMask
-        for (int i = 0; i < reg.Data.Length; i++)
+        // Coalesce: defer the mask patch to the next Schedule() instead of forcing a CompletePending() sync
+        // here. When many components flip in one frame (mass avatar in-range transition) this turns a
+        // per-toggle job sync into a single drain in Schedule(). The one-frame patch latency matches the
+        // system's existing deferred-join behavior.
+        sPendingMaskPatches.Add(reg);
+    }
+
+    // Drains the coalesced enable/disable toggles into the native mask. Called from Schedule() after the
+    // previous frame's job has completed (write is safe) and after any structural commit (Offsets are valid).
+    // Mirrors the per-slot rule used by Rebuild/CommitPendingAdds: a slot is live iff the component is enabled
+    // AND the movement's author default is enabled.
+    static void ApplyPendingMaskPatches()
+    {
+        foreach (Registration reg in sPendingMaskPatches)
         {
-            int slot = reg.Offset + i;
-            if (slot < sValidMask.Length)
-                sValidMask[slot] = (byte)(enabled && reg.MovementEnabled[i] ? 1 : 0);
+            if (!reg.InContainers) continue;
+            for (int i = 0; i < reg.Data.Length; i++)
+            {
+                int slot = reg.Offset + i;
+                if (slot < sValidMask.Length)
+                    sValidMask[slot] = (byte)(reg.ComponentEnabled && reg.MovementEnabled[i] ? 1 : 0);
+            }
         }
+        sPendingMaskPatches.Clear();
     }
 }

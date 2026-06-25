@@ -122,6 +122,15 @@ public partial class BasisTransmissionResults
 
     public static float HysteresisPercent = 1.10f * 1.10f; // 10% hysteresis
 
+    /// <summary>
+    /// Max avatar (re)loads admitted per transmit tick when players cross the avatar-range boundary.
+    /// A bulk range change (e.g. the View Range slider 0->100 at 1k players) expires every player's
+    /// debounce on the same tick; without this cap they all call ReloadAvatar in one frame, dumping
+    /// ~1000 bundle loads + main-thread calibrations at once. Over-budget transitions stay pending and
+    /// commit on later ticks, ramping the crowd in over a few seconds instead of freezing.
+    /// </summary>
+    public static int MaxAvatarReloadsPerTick = 8;
+
     /// <summary>Half-angle (degrees) of the eye-gaze cone used to boost MeshLod detail for players the user is looking at.</summary>
     public static float GazeFoveationConeDegrees = 20f;
 
@@ -415,6 +424,8 @@ public partial class BasisTransmissionResults
         // managed snapshot[] objects (up to 6 separate passes before).
         // Uses unsafe pointers to bypass NativeArray safety checks.
         float visemeRangeSq = SMModuleDistanceBasedReductions.HearingRange * 0.25f;
+        // Per-tick budget of avatar (re)loads admitted below; reset each tick. See MaxAvatarReloadsPerTick.
+        int avatarReloadsAdmitted = 0;
         unsafe
         {
             bool* pHearingRange = (bool*)hearingRange.GetUnsafeReadOnlyPtr();
@@ -484,13 +495,28 @@ public partial class BasisTransmissionResults
                         }
                         else if (now >= remote.PendingRangeCommitTime)
                         {
-                            // Target has remained stable for the debounce window — commit.
-                            remote.InAvatarRange = inRange;
-                            remote.PendingRangeActive = false;
+                            // Target has remained stable for the debounce window — ready to commit.
+                            bool willReload = !remote.IsLoadingAnAvatar && (inRange || !remote.IsConsideredFallBackAvatar);
 
-                            if (!remote.IsLoadingAnAvatar && (inRange || !remote.IsConsideredFallBackAvatar))
+                            // Stagger: cap the avatar (re)loads started per tick. A bulk range change makes
+                            // every player's debounce expire on the same tick; admitting them all at once
+                            // fires ~1000 ReloadAvatar calls in one frame. Over-budget transitions stay
+                            // pending (their commit time has already passed) and retry next tick. Commits
+                            // that don't start a load (e.g. already mid-load) are never gated — they're free.
+                            if (willReload && avatarReloadsAdmitted >= MaxAvatarReloadsPerTick)
                             {
-                                remote.ReloadAvatar();
+                                // Budget spent this tick — leave pending; revisited next tick.
+                            }
+                            else
+                            {
+                                remote.InAvatarRange = inRange;
+                                remote.PendingRangeActive = false;
+
+                                if (willReload)
+                                {
+                                    avatarReloadsAdmitted++;
+                                    remote.ReloadAvatar();
+                                }
                             }
                         }
                     }

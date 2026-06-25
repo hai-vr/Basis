@@ -291,6 +291,17 @@ namespace Basis.Scripts.Avatar
                 Player.AvatarMetaData = BasisLoadableBundle;
                 Player.AvatarLoadMode = Mode;
 
+                // Throttle the ungated main-thread setup tail (trim + calibration + bone registration).
+                // The gate above only paced the bundle I/O and was released before this point; without
+                // this a bulk in-range transition lands every completed load's calibration on one frame.
+                await BasisAvatarSetupBudget.WaitForSetupSlot(token);
+
+                // The slot wait can span several frames; the player may have disconnected meanwhile.
+                if (Player == null || Player.IsDestroyed)
+                {
+                    throw new OperationCanceledException(token);
+                }
+
                 InitializePlayerAvatar(Player, Output, null);
                 Player.AvatarLoadErrorMessage = null;
                 Player.AvatarSwitched();
