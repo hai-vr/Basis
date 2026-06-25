@@ -119,6 +119,258 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &634370627
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 634370629}
+  - component: {fileID: 634370628}
+  - component: {fileID: 634370630}
+  - component: {fileID: 634370631}
+  - component: {fileID: 634370632}
+  - component: {fileID: 634370634}
+  - component: {fileID: 634370633}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &634370628
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f05027395a1cbf644b3cbbfe4cf0ee51, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.Networking.Sync.BasisSyncedTransform
+  HasNetworkID: 0
+  IsOwnedLocallyOnServer: 0
+  IsOwnedLocallyOnClient: 0
+  CurrentOwnerId: 0
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 4
+  KeyframeDelivery: 2
+  Extrapolate: 0
+  MaxExtrapolationSeconds: 0.2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 0
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+  Target: {fileID: 0}
+  SyncPosition: 1
+  PositionX: 1
+  PositionY: 1
+  PositionZ: 1
+  SyncRotation: 1
+  RotationX: 1
+  RotationY: 1
+  RotationZ: 1
+  SyncScale: 0
+  ScaleX: 1
+  ScaleY: 1
+  ScaleZ: 1
+  WorldSpace: 0
+  HalfPrecision: 0
+--- !u!4 &634370629
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -5.00056, y: -1.55, z: 9.21502}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &634370630
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44127dbec0a31544586fed0a0a2c73fa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.Networking.Sync.BasisSyncedObject
+  HasNetworkID: 0
+  IsOwnedLocallyOnServer: 0
+  IsOwnedLocallyOnClient: 0
+  CurrentOwnerId: 0
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 1
+  KeyframeDelivery: 2
+  Extrapolate: 1
+  MaxExtrapolationSeconds: 0.2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 0
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+--- !u!114 &634370631
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65c5374242affeb4fb34b0a64b604d2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::BasisSeatSync
+  HasNetworkID: 0
+  IsOwnedLocallyOnServer: 0
+  IsOwnedLocallyOnClient: 0
+  CurrentOwnerId: 0
+  Seat: {fileID: 0}
+--- !u!114 &634370632
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2aa9116619ed954aa8e19d984b58ada, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::BasisPickupSyncNetworking
+  HasNetworkID: 0
+  IsOwnedLocallyOnServer: 0
+  IsOwnedLocallyOnClient: 0
+  CurrentOwnerId: 0
+  SendIntervalSeconds: 0.05
+  KeyframeIntervalSeconds: 0.5
+  ContinuousEpsilon: 0.0001
+  UseDirectP2P: 1
+  ForceP2POnly: 0
+  OverrideP2PRate: 0
+  P2PSendIntervalSeconds: 0.033
+  P2PKeyframeIntervalSeconds: 0.5
+  Delivery: 4
+  KeyframeDelivery: 2
+  Extrapolate: 0
+  MaxExtrapolationSeconds: 0.2
+  UseTeleportThreshold: 0
+  TeleportThreshold: 3
+  DistanceReduction: 1
+  RelevanceCulling: 0
+  RelevanceRadius: 50
+  Target: {fileID: 634370629}
+  SyncPosition: 1
+  PositionX: 1
+  PositionY: 1
+  PositionZ: 1
+  SyncRotation: 1
+  RotationX: 1
+  RotationY: 1
+  RotationZ: 1
+  SyncScale: 1
+  ScaleX: 1
+  ScaleY: 1
+  ScaleZ: 1
+  WorldSpace: 0
+  HalfPrecision: 0
+  BasisPickupInteractable: {fileID: 0}
+  CanNetworkSteal: 1
+  IsStatic: 0
+  pendingStealRequest: {fileID: 0}
+--- !u!114 &634370633
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0555741a4fb73a34194446cf2ea257ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
+  IsInitialized: 0
+  MessageIndex: 0
+  TargetMesh: {fileID: 0}
+  KeyframeInterval: 32
+  <IsReady>k__BackingField: 0
+  <IsLocal>k__BackingField: 0
+  <HasPendingData>k__BackingField: 0
+  <SyncedCount>k__BackingField: 0
+  <SyncedIndices>k__BackingField: 
+  _senderCurrent: []
+  _senderPrevious: []
+  _encodeBuffer: []
+  _payload: []
+  _frameCounter: 0
+  _receiverState: []
+  _appliedWeights: []
+  _meshBlendShapeCount: 0
+--- !u!114 &634370634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 634370627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0da6674bd6be5e498f7f37971b15472, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisVehiclesNetwork::Basis.Network.Vehicles.BasisNetworkedVehicle
+  HasNetworkID: 0
+  IsOwnedLocallyOnServer: 0
+  IsOwnedLocallyOnClient: 0
+  CurrentOwnerId: 0
+  BasisVehicleBody: {fileID: 0}
+  Seat: {fileID: 0}
+  SeatSync: {fileID: 0}
+  Rigidbody: {fileID: 0}
+  Colliders: []
+  Wheels: []
+  EngineAudio: {fileID: 0}
+  SteeringWheel: {fileID: 0}
+  SpinVisuals: []
+  SteerVisuals: []
+  SpinAxisLocal: {x: 1, y: 0, z: 0}
+  SteerAxisLocal: {x: 0, y: 1, z: 0}
+  SendInterval: 0.05
+  MaxBufferSize: 8
+  SpinBits: 12
+  SteerBits: 10
+  SteerRangeDeg: 60
+  EngineBits: 8
+  SteerRatioBits: 9
+  SteeringArray: []
 --- !u!1001 &1187098623
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -181,3 +433,4 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1187098623}
+  - {fileID: 634370629}

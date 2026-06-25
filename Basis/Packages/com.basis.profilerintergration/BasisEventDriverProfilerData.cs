@@ -58,10 +58,6 @@ public static class BasisEventDriverProfilerData
     // Local player
     public static double LocalPlayerMs;
 
-    // BlendShape driver
-    public static double BlendShapeSimulateMs;
-    public static double BlendShapeApplyMs;
-
     // JigglePhysics
     public static double JiggleScheduleMs;
     public static double JigglePoseMs;
@@ -100,7 +96,6 @@ public static class BasisEventDriverProfilerData
     public static readonly double[] RemoteFaceHistory = new double[HistorySize];
     public static readonly double[] JiggleHistory = new double[HistorySize];
     public static readonly double[] LocalPlayerHistory = new double[HistorySize];
-    public static readonly double[] BlendShapeHistory = new double[HistorySize];
     public static int HistoryIndex;
 
     public static void PushHistory()
@@ -112,7 +107,6 @@ public static class BasisEventDriverProfilerData
         RemoteFaceHistory[idx] = RemoteFaceSimulateMs + RemoteFaceApplyMs;
         JiggleHistory[idx] = JiggleScheduleMs + JigglePoseMs + JiggleCompletePoseMs;
         LocalPlayerHistory[idx] = LocalPlayerMs;
-        BlendShapeHistory[idx] = BlendShapeSimulateMs + BlendShapeApplyMs;
         HistoryIndex++;
         FrameCount++;
     }

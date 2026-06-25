@@ -2229,7 +2229,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - BasisAvatarBufferPool.Deinitialize(
+    - BasisAuthoredMotionSystem.Dispose(
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -28943,99 +28943,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: 
-    MemberName: AdaptiveCirlceId
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Adaptive Circle Id
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: AdaptiveCircleCreated
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Spawned
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: LocalHandle
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Addressable
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: SMModuleAvatarLoadGates
     MemberName: SMModuleAvatarLoadGates
     Kind: Type
@@ -34577,6 +34484,87 @@ MonoBehaviour:
     Summary: "Applies the initial expanded state and wires a section toggle to show
       or hide its content group.\n The optional callback is for parent layout rebuilds
       or other caller-specific side effects."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: CreateCollapsibleFlatSection
+    Kind: Method
+    ParamCount: 5
+    ParamNames:
+    - container
+    - title
+    - buildContent
+    - false
+    - PanelSectionToggle.CreateNewEntry(container
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Builds a section whose collapsible content is added directly under
+      the bar (no\n nested group box). The toggle title is the section header; every
+      child added to\n `container` by `buildContent` collapses with it.\n For sections
+      with conditional sub-visibility, re-apply it inside\n `onExpandedChanged` (guard
+      on the visible flag)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
+    MemberName: FinalizeFlatSectionFromIndex
+    Kind: Method
+    ParamCount: 5
+    ParamNames:
+    - sectionToggle
+    - container
+    - startIndex
+    - startExpanded
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Flat-section finalizer for inline call sites: registers every child
+      added to\n `container` at or after `startIndex` as the\n section's collapsible
+      content (no nested group box). Capture the index right\n after creating the
+      section toggle, add the rows directly to the container, then\n call this. Re-apply
+      any conditional sub-visibility inside\n `onExpandedChanged` (guard on the visible
+      flag)."
     Remarks: 
     Returns: 
     Value: 
@@ -56488,8 +56476,9 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Networking.Receivers.
     MemberName: DrainAndDecodeThreadSafe
     Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    ParamCount: 1
+    ParamNames:
+    - DrainAndDecodeLocked(
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -58520,6 +58509,377 @@ MonoBehaviour:
       packet would underrun.\n Keeps `_started` and `_nextPlaybackSeq` as-is: the
       sender's\n sequence number is continuous across its mute, so playback resumes
       from\n where it left off."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncCodec
+    MemberName: BasisSyncCodec
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Wire (de)serialization for a BasisSyncSchema. Supports full keyframes
+      (every\n field) and dirty-mask deltas (changed fields only). Rotations use
+      Basis smallest-three\n quaternion packing; positions/scale/floats are full
+      float32 or optionally quantized."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncDriver
+    MemberName: BasisSyncDriver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Central engine for generic value sync. Owns the SoA interpolation pools
+      shared by every\n remote object, schedules the Burst interpolation + transform-apply
+      jobs once per frame, and\n drives owned objects' transmit cadence. Ticked from
+      BasisEventDriver alongside the pickup\n driver: Initialize/OnDestroy, ScheduleRemote
+      (Update), TransmitOwned + CompleteRemote (LateUpdate)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncedObject
+    MemberName: BasisSyncedObject
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisNetworkBehaviour
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Generic networked value container. Declare typed fields (position/rotation/scale/float/int/ushort)\n
+      with the Register* calls in Awake, then on the owner call LocalSet each frame
+      and on every other\n client read RemoteGet \u2014 values arrive smoothed through
+      a playback buffer with interpolation.\n Owner-authoritative (grab via TakeOwnership);
+      only the owner's writes go on the wire.\n Optionally BindTransform so a remote
+      transform is driven automatically by the Burst apply job."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: ForceKeyframe
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Force the next outgoing packet to be a full keyframe (e.g. after a teleport).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: OnBeforeTransmit
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: Owner hook fired right before serialization; push live source values
+      into LocalSet here.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncedTransform
+    MemberName: BasisSyncedTransform
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisSyncedObject
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Drop-in transform sync built on BasisSyncedObject. Add it to a moving
+      object or\n pickup; the owner streams its transform and every other client's
+      copy is driven by the Burst\n apply job through the playback buffer. Call BasisNetworkBehaviour.TakeOwnership\n
+      (e.g. on grab) to become the authority.\n\n For custom values, use the code
+      API directly instead:\n ```\n\n var sync = gameObject.AddComponent<BasisSyncedObject>();\n
+      var velocity = sync.RegisterFloat();\n var team     = sync.RegisterUShort();\n
+      // owner:  sync.LocalSet(velocity, speed);  sync.LocalSet(team, 3);\n // remote:
+      float s = sync.GetFloat(velocity); ushort t = sync.GetUShort(team);\n \n```"
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncSchema
+    MemberName: BasisSyncSchema
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Ordered set of typed fields a synced object carries on the wire. Declare
+      every field\n before the object goes network-ready (e.g. in Awake); the layout
+      is locked afterwards."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncValues
+    MemberName: BasisSyncValues
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "One snapshot of a synced object's values, split by interpolation pool.\n
+      Continuous = lerp, Rotation = nlerp, Discrete = snap."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.InterpolateSyncObjectsJob
+    MemberName: InterpolateSyncObjectsJob
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: IJobParallelFor
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Interpolates every remote synced object in parallel. One index per
+      object slot; each slot\n owns contiguous ranges in the shared SoA pools. Continuous
+      \u2192 lerp, rotation \u2192 nlerp,\n discrete \u2192 snap to newest."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.ApplySyncTransformsJob
+    MemberName: ApplySyncTransformsJob
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: IJobParallelForTransform
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Writes interpolated position/rotation/scale onto bound transforms.
+      A binding may drive any\n subset of the three; unbound components (-1) are
+      left untouched."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncReceiver
+    MemberName: BasisSyncReceiver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-object playback buffer. Decodes keyframe/delta packets into a rolling
+      baseline, stages\n timestamped frames, and interpolates a Current\u2192Next
+      window with an adaptive playback rate,\n mirroring the remote-avatar receiver.
+      Main-thread only (packets dispatch on the main thread)."
     Remarks: 
     Returns: 
     Value: 
@@ -76008,7 +76368,7 @@ MonoBehaviour:
     - title
     - description
     - buildContent
-    - group.SetDescription(description
+    - false
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -76104,9 +76464,10 @@ MonoBehaviour:
   - TypeFullName: Basis.BasisUI.
     MemberName: BuildNamePlateContent
     Kind: Method
-    ParamCount: 1
+    ParamCount: 2
     ParamNames:
-    - nameplateGroup.SetTitle(BasisLocalization.Get("settings.nameplates.title")
+    - container
+    - null
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -76266,9 +76627,10 @@ MonoBehaviour:
   - TypeFullName: Basis.BasisUI.
     MemberName: BuildRemoteAudioUI
     Kind: Method
-    ParamCount: 1
+    ParamCount: 2
     ParamNames:
     - container
+    - null
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []

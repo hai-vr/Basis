@@ -16,8 +16,6 @@ namespace Basis.EventDriver
         public const int PROF_LOCAL_PLAYER = 5;
         public const int PROF_REMOTE_FACE_SIMULATE = 6;
         public const int PROF_REMOTE_AUDIO_APPLY = 7;
-        public const int PROF_BLENDSHAPE_SIMULATE = 8;
-        public const int PROF_BLENDSHAPE_APPLY = 9;
         public const int PROF_JIGGLE_SCHEDULE = 10;
         public const int PROF_NETWORK_TRANSMIT = 11;
         public const int PROF_JIGGLE_POSE = 12;

@@ -113,9 +113,32 @@ public class BasisDocInspector_UI : Editor
         var root = new VisualElement();
         InspectorElement.FillDefaultInspector(root, serializedObject, this);
 
-        root.Add(Spacer(10));
-        root.Add(Divider());
-        root.Add(Spacer(6));
+        var apiFoldout = CreateApiReferenceFoldout();
+        if (apiFoldout != null)
+        {
+            root.Add(Spacer(10));
+            root.Add(Divider());
+            root.Add(Spacer(6));
+            root.Add(apiFoldout);
+        }
+        return root;
+    }
+
+    /// <summary>
+    /// Builds just the "Basis API Reference" foldout for this editor's target, or null if the type
+    /// has no docs in the DB. Lets a custom inspector keep the reference instead of losing it to its
+    /// CustomEditor override: inherit this class and call this at the end of CreateInspectorGUI.
+    /// </summary>
+    public VisualElement CreateApiReferenceFoldout()
+    {
+        if (_db == null)
+        {
+            _db = AssetDatabase.LoadAssetAtPath<BasisDocDB>(DbAssetPath);
+            _db?.BuildIndex();
+        }
+
+        var hostType = target.GetType();
+        if (!ShouldHandleType(hostType)) return null;
 
         var apiFoldout = new Foldout
         {
@@ -123,14 +146,10 @@ public class BasisDocInspector_UI : Editor
             value = false
         };
 
-        // Seed root frame
         _nav.Clear();
         _nav.Add(BuildRootFrame(hostType));
-
-        var api = BuildApiSplitView();
-        apiFoldout.Add(api);
-        root.Add(apiFoldout);
-        return root;
+        apiFoldout.Add(BuildApiSplitView());
+        return apiFoldout;
     }
 
     private NavFrame BuildRootFrame(Type hostType)

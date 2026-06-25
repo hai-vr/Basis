@@ -28,7 +28,6 @@ public class BasisEventDriverProfilerWindow : EditorWindow
     private static readonly Color ColRemoteFace = new Color(0.4f, 0.4f, 1f, 0.9f);
     private static readonly Color ColLocal = new Color(1f, 1f, 0.3f, 0.9f);
     private static readonly Color ColJiggle = new Color(1f, 0.5f, 1f, 0.9f);
-    private static readonly Color ColBlendShape = new Color(0.3f, 1f, 1f, 0.9f);
     private static readonly Color ColTotal = new Color(1f, 1f, 1f, 0.5f);
 
     private float _budgetMs = 11.1f;
@@ -81,7 +80,6 @@ public class BasisEventDriverProfilerWindow : EditorWindow
             TimingRow("Remote Face (sim+apply)", BasisEventDriverProfilerData.RemoteFaceSimulateMs + BasisEventDriverProfilerData.RemoteFaceApplyMs, 2f);
             TimingRow("Local Player", BasisEventDriverProfilerData.LocalPlayerMs, 2f);
             TimingRow("JigglePhysics (all)", BasisEventDriverProfilerData.JiggleScheduleMs + BasisEventDriverProfilerData.JigglePoseMs + BasisEventDriverProfilerData.JiggleCompletePoseMs, 3f);
-            TimingRow("BlendShapes (sim+apply)", BasisEventDriverProfilerData.BlendShapeSimulateMs + BasisEventDriverProfilerData.BlendShapeApplyMs, 1f);
         });
 
         // ── Network Apply Deep ──
@@ -229,8 +227,6 @@ public class BasisEventDriverProfilerWindow : EditorWindow
             TimingRow("NamePlate Schedule", BasisEventDriverProfilerData.NamePlateScheduleMs, 0.5f);
             TimingRow("NamePlate Complete", BasisEventDriverProfilerData.NamePlateCompleteMs, 0.5f);
             TimingRow("BTween", BasisEventDriverProfilerData.BTweenMs, 0.5f);
-            TimingRow("BlendShape Simulate", BasisEventDriverProfilerData.BlendShapeSimulateMs, 0.5f);
-            TimingRow("BlendShape Apply", BasisEventDriverProfilerData.BlendShapeApplyMs, 0.5f);
             TimingRow("Shadow Clone BS", BasisEventDriverProfilerData.ShadowCloneMs, 0.5f);
         });
 
@@ -339,7 +335,6 @@ public class BasisEventDriverProfilerWindow : EditorWindow
         DrawLegendSwatch(ColRemoteAudio, "Audio");
         DrawLegendSwatch(ColRemoteFace, "Face");
         DrawLegendSwatch(ColJiggle, "Jiggle");
-        DrawLegendSwatch(ColBlendShape, "BlendShape");
         EditorGUILayout.EndHorizontal();
 
         Rect graphRect = GUILayoutUtility.GetRect(0, 140, GUILayout.ExpandWidth(true));
@@ -366,7 +361,6 @@ public class BasisEventDriverProfilerWindow : EditorWindow
         DrawGraphLayer(graphRect, BasisEventDriverProfilerData.RemoteAudioHistory, histLen, current, drawCount, maxMs, ColRemoteAudio);
         DrawGraphLayer(graphRect, BasisEventDriverProfilerData.RemoteFaceHistory, histLen, current, drawCount, maxMs, ColRemoteFace);
         DrawGraphLayer(graphRect, BasisEventDriverProfilerData.JiggleHistory, histLen, current, drawCount, maxMs, ColJiggle);
-        DrawGraphLayer(graphRect, BasisEventDriverProfilerData.BlendShapeHistory, histLen, current, drawCount, maxMs, ColBlendShape);
 
         Handles.EndGUI();
 

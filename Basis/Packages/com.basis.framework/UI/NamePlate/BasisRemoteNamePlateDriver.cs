@@ -63,6 +63,15 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static Material SelectedNamePlateMaterial;
 
+        // Single-draw global nameplate rendering. When true, every plate's name (panel + text)
+        // is merged into BasisGlobalNamePlateRenderer's shared meshes and the per-plate
+        // MeshRenderer is disabled, collapsing the lobby's name labels to ~2 draw calls.
+        // Auto-disabled (falls back to per-plate rendering) if the panel shader can't be found.
+        public static bool UseGlobalNamePlateMesh = true;
+        public static Material PanelVertexColorMaterial;
+        private const string PanelShaderName = "Basis/NamePlate/Panel";
+        private const int NamePlateLayer = 5;
+
         // Addressables keys for the materials/font that used to be serialized on the prefab.
         private const string TransparentMaterialAddress = "Packages/com.basis.sdk/Materials/TransParentNamePlateMaterial.mat";
         private const string OpaqueMaterialAddress = "Packages/com.basis.sdk/Materials/OpaqueNamePlateMaterial.mat";
@@ -125,6 +134,31 @@ namespace Basis.Scripts.UI.NamePlate
             UpdateCachedColors(NamePlateTransparency);
             PrecomputeCornerData();
             EnsureUnicodeFallbacksOnNameplateFont();
+            EnsureGlobalRendererReady();
+        }
+
+        /// <summary>
+        /// Resolves the panel vertex-color material and primes the global merge renderer.
+        /// If the shader is missing (e.g. stripped from a build), disables the global path so
+        /// plates render per-plate as before instead of going invisible.
+        /// </summary>
+        private static void EnsureGlobalRendererReady()
+        {
+            if (!UseGlobalNamePlateMesh) return;
+
+            if (PanelVertexColorMaterial == null)
+            {
+                Shader shader = Shader.Find(PanelShaderName);
+                if (shader == null)
+                {
+                    UseGlobalNamePlateMesh = false;
+                    BasisDebug.LogWarning($"{nameof(BasisRemoteNamePlateDriver)}: panel shader '{PanelShaderName}' not found; falling back to per-plate nameplate rendering.");
+                    return;
+                }
+                PanelVertexColorMaterial = new Material(shader) { name = "NamePlatePanel (runtime)" };
+            }
+
+            BasisGlobalNamePlateRenderer.EnsureInitialized(PanelVertexColorMaterial, NamePlateLayer);
         }
 
         /// <summary>
@@ -501,7 +535,90 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static void GenerateTextFactory(BasisRemotePlayer remotePlayer, BasisRemoteNamePlate namePlate)
         {
-            BakeNameMesh(remotePlayer.DisplayName, namePlate.Filter, namePlate.Renderer);
+            if (UseGlobalNamePlateMesh)
+            {
+                BakeNameMeshGlobal(remotePlayer.DisplayName, namePlate);
+            }
+            else
+            {
+                BakeNameMesh(remotePlayer.DisplayName, namePlate.Filter, namePlate.Renderer);
+            }
+        }
+
+        /// <summary>
+        /// Shared baking front-half: pushes the name through the TMP baker and computes the
+        /// panel half-width plus the text submesh transform (horizontal flip, with a uniform
+        /// downscale folded in when the name exceeds MaxPlateHalfWidth). Leaves the baker active
+        /// so callers can read <see cref="TMPro.TMP_Text.textInfo"/>; callers deactivate it.
+        /// </summary>
+        private static bool PrepareBakedText(string displayName, out float halfWidth, out Matrix4x4 textTransform)
+        {
+            halfWidth = 0f;
+            textTransform = FlipX;
+            if (Text == null) return false;
+
+            Text.gameObject.SetActive(true);
+            Text.fontSize = BakeFontSize;
+            Text.text = displayName;
+            Text.ForceMeshUpdate();
+
+            const float horizontalPadding = 2f;
+            Vector2 textSize = Text.GetRenderedValues(true);
+            halfWidth = (textSize.x * 0.5f) + horizontalPadding;
+
+            float textScale = 1f;
+            if (halfWidth > MaxPlateHalfWidth && textSize.x > 0.001f)
+            {
+                float maxTextWidth = (MaxPlateHalfWidth - horizontalPadding) * 2f;
+                textScale = maxTextWidth / textSize.x;
+                halfWidth = MaxPlateHalfWidth;
+            }
+
+            textTransform = textScale == 1f
+                ? FlipX
+                : Matrix4x4.Scale(new Vector3(-textScale, textScale, 1f));
+            return true;
+        }
+
+        /// <summary>
+        /// Bakes a display name into per-plate meshes for the global single-draw renderer:
+        /// one clean rounded-quad panel mesh (tinted later via vertex color during the merge)
+        /// and one clean single-submesh text mesh per font atlas, so multi-atlas names (e.g. CJK
+        /// fallbacks) stay correct. Each text mesh is a transform-applied copy of the TMP atlas
+        /// submesh, preserving every SDF vertex channel verbatim.
+        /// </summary>
+        public static bool BakeNameMeshGlobal(string displayName, BasisRemoteNamePlate plate)
+        {
+            if (Text == null || plate == null) return false;
+            if (!PrepareBakedText(displayName, out float halfWidth, out Matrix4x4 textTransform)) return false;
+
+            Mesh panel = GenerateRoundedQuad(halfWidth, 4.5f, "NamePlate Panel (global)");
+
+            var textInfo = Text.textInfo;
+            int subMeshLimit = 0;
+            if (textInfo != null && textInfo.meshInfo != null)
+            {
+                subMeshLimit = math.min(textInfo.materialCount, textInfo.meshInfo.Length);
+            }
+
+            var textMeshes = new List<Mesh>(subMeshLimit);
+            var textMaterials = new List<Material>(subMeshLimit);
+            var single = new CombineInstance[1];
+            for (int i = 0; i < subMeshLimit; i++)
+            {
+                var info = textInfo.meshInfo[i];
+                if (info.vertexCount == 0 || info.mesh == null) continue;
+
+                single[0] = new CombineInstance { mesh = info.mesh, transform = textTransform };
+                var textMesh = new Mesh { name = "NamePlate Text (global)" };
+                textMesh.CombineMeshes(single, true, true);
+                textMeshes.Add(textMesh);
+                textMaterials.Add(info.material);
+            }
+
+            plate.SetGlobalParts(panel, textMeshes.ToArray(), textMaterials.ToArray());
+            Text.gameObject.SetActive(false);
+            return true;
         }
 
         /// <summary>
@@ -513,27 +630,7 @@ namespace Basis.Scripts.UI.NamePlate
         public static bool BakeNameMesh(string displayName, MeshFilter filter, MeshRenderer renderer)
         {
             if (Text == null || filter == null || renderer == null) return false;
-
-            Text.gameObject.SetActive(true);
-            Text.fontSize = BakeFontSize;
-            Text.text = displayName;
-            Text.ForceMeshUpdate();
-
-            const float horizontalPadding = 2f;
-            Vector2 textSize = Text.GetRenderedValues(true);
-            float halfWidth = (textSize.x * 0.5f) + horizontalPadding;
-
-            float textScale = 1f;
-            if (halfWidth > MaxPlateHalfWidth && textSize.x > 0.001f)
-            {
-                float maxTextWidth = (MaxPlateHalfWidth - horizontalPadding) * 2f;
-                textScale = maxTextWidth / textSize.x;
-                halfWidth = MaxPlateHalfWidth;
-            }
-
-            Matrix4x4 textTransform = textScale == 1f
-                ? FlipX
-                : Matrix4x4.Scale(new Vector3(-textScale, textScale, 1f));
+            if (!PrepareBakedText(displayName, out float halfWidth, out Matrix4x4 textTransform)) return false;
 
             Mesh plateMesh = GenerateRoundedQuad(halfWidth, 4.5f, "Rounded NamePlate Quad");
 
@@ -743,6 +840,13 @@ namespace Basis.Scripts.UI.NamePlate
             pendingRemove.Clear();
             bakeQueue.Clear();
 
+            BasisGlobalNamePlateRenderer.Dispose();
+            if (PanelVertexColorMaterial != null)
+            {
+                Object.Destroy(PanelVertexColorMaterial);
+                PanelVertexColorMaterial = null;
+            }
+
             allocated = false;
             capacity = 0;
             count = 0;
@@ -890,36 +994,44 @@ namespace Basis.Scripts.UI.NamePlate
                 }
             }
 
-            if (!jobScheduled || count == 0)
-                return;
-
-            handle.Complete();
-            jobScheduled = false;
-
-            var outBuf = (writeBuffer == 0) ? outputA : outputB;
-            var arr = plates;
-
-            unsafe
+            if (jobScheduled && count != 0)
             {
-                PlateOutput* pOut = (PlateOutput*)outBuf.GetUnsafeReadOnlyPtr();
+                handle.Complete();
+                jobScheduled = false;
 
-                for (int i = 0; i < count; i++)
+                var outBuf = (writeBuffer == 0) ? outputA : outputB;
+                var arr = plates;
+
+                unsafe
                 {
-                    var p = arr[i];
-                    PlateOutput o = pOut[i];
+                    PlateOutput* pOut = (PlateOutput*)outBuf.GetUnsafeReadOnlyPtr();
 
-                    if (o.stopPulsing != 0)
-                        p.StopPulseFromJob();
-
-                    if (o.hasChange != 0)
+                    for (int i = 0; i < count; i++)
                     {
-                        float4 c = o.color;
-                        p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
-                    }
+                        var p = arr[i];
+                        PlateOutput o = pOut[i];
 
-                    p.UpdateChatTimeout();
-                    p.RefreshTypingIndicatorAnimation();
+                        if (o.stopPulsing != 0)
+                            p.StopPulseFromJob();
+
+                        if (o.hasChange != 0)
+                        {
+                            float4 c = o.color;
+                            p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
+                        }
+
+                        p.UpdateChatTimeout();
+                        p.RefreshTypingIndicatorAnimation();
+                    }
                 }
+            }
+
+            // Merge every visible plate into the shared meshes. Runs after the pulse colors and
+            // the bone-driven plate transforms are final for the frame, and rebuilds every frame
+            // so plates track their moving head anchors.
+            if (UseGlobalNamePlateMesh && BasisGlobalNamePlateRenderer.IsInitialized)
+            {
+                BasisGlobalNamePlateRenderer.Rebuild(plates, count);
             }
         }
 

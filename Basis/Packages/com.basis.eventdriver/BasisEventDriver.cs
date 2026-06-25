@@ -106,7 +106,7 @@ namespace Basis.EventDriver
             }
             BasisOpenLipSyncDriver.BeginInitialize();
             BasisSceneFactory.Initialize();
-            BasisPickupSyncDriver.Initialize();
+            Basis.Scripts.Networking.Sync.BasisSyncDriver.Initialize();
             RemoteBoneJobSystem.Initialize();
             BasisOpenLipSyncDriver.EndInitialize();
         }
@@ -117,7 +117,7 @@ namespace Basis.EventDriver
         public void OnDestroy()
         {
             BasisOpenLipSyncDriver.Shutdown();
-            BasisPickupSyncDriver.OnDestroy();
+            Basis.Scripts.Networking.Sync.BasisSyncDriver.OnDestroy();
             Application.onBeforeRender -= OnBeforeRender;
             RemoteBoneJobSystem.Dispose();
             BasisAuthoredMotionSystem.Dispose();
@@ -177,7 +177,6 @@ namespace Basis.EventDriver
             // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
             // calls in a single frame and stall the renderer.
             BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
-            BasisPickupSyncDriver.ScheduleRemoteLerp(DeltaTime);
             if (!IsHeadlessClient)
             {
                 InputSystem.Update();
@@ -244,18 +243,19 @@ namespace Basis.EventDriver
             BasisLocalPlayer.FireJustBeforeNetworkApply();
             ProfileEnd2(PROF_NET_FIRE_BEFORE_APPLY);
             ProfileBegin2();
-            BasisPickupSyncDriver.TransmitOwnedPickups(TimeAsDouble);
+            Basis.Scripts.Networking.Sync.BasisSyncDriver.TransmitOwned(TimeAsDouble);
             ProfileEnd2(PROF_NET_TRANSMIT_PICKUPS);
             ProfileBegin2();
 #if !UNITY_SERVER && !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.MicrophoneUpdate();
 #endif
             ProfileEnd2(PROF_NET_MICROPHONE);
+            Basis.Scripts.Networking.Sync.BasisSyncDriver.ScheduleRemote(DeltaTime);
             ProfileBegin2();
             BasisNetworkManagement.SimulateNetworkApply();
             ProfileEnd2(PROF_NET_SIMULATE_APPLY);
             ProfileBegin2();
-            BasisPickupSyncDriver.CompleteScheduledRemoteLerp();
+            Basis.Scripts.Networking.Sync.BasisSyncDriver.CompleteRemote();
             ProfileEnd2(PROF_NET_COMPLETE_REMOTE_LERP);
             ProfileEnd(PROF_NETWORK_APPLY);
 
@@ -335,19 +335,11 @@ namespace Basis.EventDriver
                 BasisDebug.LogErrorOnce($"HVRBasisBuiltInAddresses.Simulate failed: {ex}", BasisDebug.LogTag.Event);
             }
 
-            // ── BlendShape simulate ──
-            ProfileBegin(PROF_BLENDSHAPE_SIMULATE);
-            BasisBlendShapeDriver.Simulate();
-            ProfileEnd(PROF_BLENDSHAPE_SIMULATE);
-
             // ── BlendShape apply ──
-            ProfileBegin(PROF_BLENDSHAPE_APPLY);
-            BasisBlendShapeDriver.Apply();
             if (BasisSettingsDefaults.LocalHeadBlendShapes.RawValue)
             {
                 BasisAvatarDriver.ScheduleReadBlendShapes();
             }
-            ProfileEnd(PROF_BLENDSHAPE_APPLY);
 
             // ── Authored motion: write non-humanoid authored bones before jiggle samples them ──
             // Split schedule/complete (was a synchronous Complete(Schedule())) so the authored
@@ -546,8 +538,6 @@ namespace Basis.EventDriver
                     BasisEventDriverProfilerData.RemoteFace_Count = BasisRemoteFaceManagement.count;
                     break;
                 case PROF_REMOTE_AUDIO_APPLY: BasisEventDriverProfilerData.RemoteAudioApplyMs = ms; break;
-                case PROF_BLENDSHAPE_SIMULATE: BasisEventDriverProfilerData.BlendShapeSimulateMs = ms; break;
-                case PROF_BLENDSHAPE_APPLY: BasisEventDriverProfilerData.BlendShapeApplyMs = ms; break;
                 case PROF_JIGGLE_SCHEDULE: BasisEventDriverProfilerData.JiggleScheduleMs = ms; break;
                 case PROF_NETWORK_TRANSMIT: BasisEventDriverProfilerData.NetworkTransmitMs = ms; break;
                 case PROF_JIGGLE_POSE: BasisEventDriverProfilerData.JigglePoseMs = ms; break;

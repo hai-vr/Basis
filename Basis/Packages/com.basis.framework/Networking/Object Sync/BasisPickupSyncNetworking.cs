@@ -2,13 +2,13 @@ using Basis;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.NetworkedAvatar;
-using Basis.Network.Core;
+using Basis.Scripts.Networking.Sync;
 using UnityEngine;
 using UnityEngine.Scripting.APIUpdating;
+
 [MovedFrom(true, null, null, "BasisObjectSyncNetworking")]
-public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLockable
+public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLockable
 {
     public BasisPickupInteractable BasisPickupInteractable;
     public bool CanNetworkSteal = true;
@@ -17,17 +17,17 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
     /// and is frozen (kinematic) in place. Set via the library Static toggle; applied through SetStatic.
     /// </summary>
     public bool IsStatic = false;
-    [SerializeField]
-    BasisPositionRotationScale LocalLastData = new BasisPositionRotationScale();
-    [SerializeField]
-    public BasisTranslationUpdate BTU = new BasisTranslationUpdate();
     public BasisInput pendingStealRequest = null;
-    public float CatchupLerp = 5;
-    public byte[] buffer = new byte[BasisPositionRotationScale.Size];
-    public Transform SelfTransform;
-    public void Awake()
+
+    private void Reset()
     {
-        SelfTransform = this.transform;
+        Target = transform;
+        SyncScale = true;
+    }
+
+    protected override void Awake()
+    {
+        base.Awake();
         if (BasisPickupInteractable == null)
         {
             BasisPickupInteractable = this.transform.GetComponentInChildren<BasisPickupInteractable>();
@@ -42,11 +42,8 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
                 BasisPickupInteractable.RigidRef.isKinematic = false;
             }
         }
-        if (buffer == null || buffer.Length < BasisPositionRotationScale.Size)
-        {
-            buffer = new byte[BasisPositionRotationScale.Size];
-        }
     }
+
     public void OnDisable()
     {
         if (BasisPickupInteractable != null)
@@ -56,64 +53,57 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
             BasisPickupInteractable.OnInteractStartEvent.RemoveListener(OnInteractStartEvent);
         }
     }
-    public override void OnDestroy()
-    {
-        BasisPickupSyncDriver.RemoveRemoteOwner(this);
-        BasisPickupSyncDriver.RemoveLocalOwner(this);
-        base.OnDestroy();
-    }
+
     public override void OnNetworkReady()
     {
+        base.OnNetworkReady();
         ControlState();
     }
 
     private bool CanHover(BasisInput input)
     {
-        // A static (locked) prop can't be grabbed by anyone.
         if (IsStatic)
         {
             return false;
         }
-        // Allow hover if we aren't connected
         if (!BasisNetworkConnection.LocalPlayerIsConnected)
         {
             return true;
         }
         return IsOwnedLocallyOnClient || CanNetworkSteal;
     }
+
     private bool CanInteract(BasisInput input)
     {
-        // A static (locked) prop can't be grabbed by anyone.
         if (IsStatic)
         {
             return false;
         }
-        // Allow interact if we aren't connected or if we own it locally
         if (IsOwnedLocallyOnClient)
         {
             return true;
         }
-        // Allow if stealing is enabled and no other input has a steal in progress
-        // NOTE: pendingStealRequest is only set in OnInteractStartEvent to avoid
-        // side effects when this is called speculatively (e.g. via IsInfluencable)
         return CanNetworkSteal && (pendingStealRequest == null || pendingStealRequest == input);
     }
+
     private void OnInteractStartEvent(BasisInput input)
     {
         if (!IsOwnedLocallyOnClient)
         {
             pendingStealRequest = input;
         }
-        CanInteractAsync(); // ControlState handles the ownership transfer logic here
+        CanInteractAsync();
     }
+
     private async void CanInteractAsync()
     {
-        var result = await TakeOwnershipAsync(5000); // 5 second timeout 
+        var result = await TakeOwnershipAsync(5000);
         if (result.Success == false)
         {
             pendingStealRequest = null;
         }
     }
+
     public void SetIsKinematicOnPickup(bool state)
     {
         if (BasisPickupInteractable != null && BasisPickupInteractable.RigidRef != null)
@@ -121,9 +111,9 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
             BasisPickupInteractable.RigidRef.isKinematic = state;
         }
     }
+
     /// <summary>
     /// Apply or release the server-authoritative static / locked state (<see cref="IBasisStaticLockable"/>).
-    /// ControlState performs the actual freeze (drop + kinematic) or the restore when toggled off.
     /// </summary>
     public void SetStatic(bool isStatic)
     {
@@ -134,29 +124,25 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
         IsStatic = isStatic;
         ControlState();
     }
-    public override void OnOwnershipTransfer(BasisNetworkPlayer NetIdNewOwner)
+
+    public override void OnOwnershipTransfer(BasisNetworkPlayer newOwner)
     {
+        base.OnOwnershipTransfer(newOwner);
         ControlState();
     }
+
+    public override void OnServerOwnershipDestroyed()
+    {
+        base.OnServerOwnershipDestroyed();
+        ControlState();
+    }
+
     public void ControlState()
     {
-        #if UNITY_SERVER
-        if (SelfTransform == null)
-        {
-            SelfTransform = transform;
-            if (SelfTransform == null)
-            {
-                BasisDebug.LogWarning($"Skipping pickup sync state update because transform is missing on '{name}'.", BasisDebug.LogTag.Networking);
-                return;
-            }
-        }
-        #endif
-        // A static prop is frozen for everyone: drop it, stop syncing, and keep it kinematic no
-        // matter who owns it. Toggling static off falls through to the normal logic below.
+        if (Target == null) Target = transform;
+
         if (IsStatic)
         {
-            BasisPickupSyncDriver.RemoveLocalOwner(this);
-            BasisPickupSyncDriver.RemoveRemoteOwner(this);
             if (BasisPickupInteractable != null)
             {
                 BasisPickupInteractable.Drop();
@@ -164,26 +150,20 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
             SetIsKinematicOnPickup(true);
             return;
         }
-        //lets always just update the last data so going from here we have some reference of last.
+
         if (IsOwnedLocallyOnClient)
         {
-            BasisPickupSyncDriver.AddLocalOwner(this);
-            BasisPickupSyncDriver.RemoveRemoteOwner(this);
             if (pendingStealRequest != null)
             {
-                // Set non-kinematic before ForceSetInteracting so that OnInteractStart
-                // saves the correct _previousKinematicValue (false) for restore on drop
                 SetIsKinematicOnPickup(false);
                 BasisPlayerInteract.Instance.ForceSetInteracting(BasisPickupInteractable, pendingStealRequest);
                 pendingStealRequest = null;
-                // ForceSetInteracting -> OnInteractStart re-applies isKinematic = true
-                // when KinematicWhileInteracting is enabled, so don't override after
             }
             else if (BasisPickupInteractable != null
                 && BasisPickupInteractable.KinematicWhileInteracting
                 && BasisPickupInteractable.RequiresUpdateLoop)
             {
-                // Currently held with KinematicWhileInteracting - preserve kinematic state
+                // Held with KinematicWhileInteracting - preserve kinematic state
             }
             else
             {
@@ -192,39 +172,11 @@ public class BasisPickupSyncNetworking : BasisNetworkBehaviour, IBasisStaticLock
         }
         else
         {
-            // Initialize BTU from current transform so the lerp job doesn't
-            // snap the object back to origin before the first sync arrives
-            SelfTransform.GetLocalPositionAndRotation(out UnityEngine.Vector3 currentPos, out UnityEngine.Quaternion currentRot);
-            BTU.TargetPosition = currentPos;
-            BTU.TargetRotation = currentRot;
-            BTU.TargetScales = SelfTransform.localScale;
-            BTU.LerpMultipliers = CatchupLerp;
-
-            BasisPickupSyncDriver.RemoveLocalOwner(this);
-            BasisPickupSyncDriver.AddRemoteOwner(this);
             if (BasisPickupInteractable != null)
             {
                 BasisPickupInteractable.Drop();
             }
             SetIsKinematicOnPickup(true);
         }
-    }
-    public override void OnNetworkMessage(ushort PlayerID, byte[] buffer, DeliveryMethod DeliveryMethod)
-    {
-        if (IsOwnedLocallyOnClient == false)
-        {
-            var LocalLastData = BasisPositionRotationScale.FromBytes(buffer);
-            BTU.TargetRotation = BasisCompression.QuaternionCompressor.DecompressQuaternion(LocalLastData.Rotation);
-            BTU.LerpMultipliers = CatchupLerp;
-            BTU.TargetPosition = LocalLastData.DeCompress();
-            BTU.TargetScales = LocalLastData.DecompressScale();
-        }
-    }
-    public void SendNetworkSync()
-    {
-        transform.GetLocalPositionAndRotation(out UnityEngine.Vector3 Position, out UnityEngine.Quaternion Temp);
-        LocalLastData.Compress(Position, BasisCompression.QuaternionCompressor.CompressQuaternion(ref Temp), transform.localScale);
-        LocalLastData.ToBytes(buffer, 0);
-        SendCustomNetworkEvent(buffer, DeliveryMethod.Sequenced);
     }
 }

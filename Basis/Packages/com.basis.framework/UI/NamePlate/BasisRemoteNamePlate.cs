@@ -37,6 +37,17 @@ namespace Basis.Scripts.UI.NamePlate
         public Color CurrentColor;
         public Transform Self;
 
+        // ---- Global single-draw nameplate parts (consumed by BasisGlobalNamePlateRenderer) ----
+        // When the global path is active these hold this plate's baked geometry in plate-local
+        // space; the per-plate MeshRenderer above is disabled and the merge draws them instead.
+        internal Mesh GlobalPanelMesh;
+        internal Mesh[] GlobalTextMeshes;
+        internal Material[] GlobalTextMaterials;
+        internal bool HasGlobalParts;
+
+        /// <summary>True when this plate is baked and active, so the global merge should include it.</summary>
+        internal bool IsGloballyRenderable => HasGlobalParts && Self != null && isActiveAndEnabled;
+
         private static readonly int ColorId = Shader.PropertyToID("_BaseColor"); // or "_Color" for Built-in RP
         private MaterialPropertyBlock mpb;
 
@@ -107,6 +118,14 @@ namespace Basis.Scripts.UI.NamePlate
 
             Self = this.transform;
             Self.localScale = new Vector3(0.02f, 0.02f, 0.02f) * BasisRemoteNamePlateDriver.NamePlateSize;
+
+            // Global path renders the name through the shared merged mesh; the per-plate
+            // renderer stays off (the BoxCollider still drives interaction independently).
+            if (BasisRemoteNamePlateDriver.UseGlobalNamePlateMesh && Renderer != null)
+            {
+                Renderer.enabled = false;
+            }
+
             BasisRemoteNamePlateDriver.QueueTextBake(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
@@ -125,6 +144,35 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         private Transform GetSelfTransform() => Self;
+
+        /// <summary>
+        /// Stores freshly baked global-render parts, releasing any previous ones. Called by
+        /// <see cref="BasisRemoteNamePlateDriver.BakeNameMeshGlobal"/>.
+        /// </summary>
+        internal void SetGlobalParts(Mesh panelMesh, Mesh[] textMeshes, Material[] textMaterials)
+        {
+            DestroyGlobalParts();
+            GlobalPanelMesh = panelMesh;
+            GlobalTextMeshes = textMeshes;
+            GlobalTextMaterials = textMaterials;
+            HasGlobalParts = panelMesh != null;
+        }
+
+        private void DestroyGlobalParts()
+        {
+            if (GlobalPanelMesh != null) Destroy(GlobalPanelMesh);
+            if (GlobalTextMeshes != null)
+            {
+                for (int i = 0; i < GlobalTextMeshes.Length; i++)
+                {
+                    if (GlobalTextMeshes[i] != null) Destroy(GlobalTextMeshes[i]);
+                }
+            }
+            GlobalPanelMesh = null;
+            GlobalTextMeshes = null;
+            GlobalTextMaterials = null;
+            HasGlobalParts = false;
+        }
 
         private void HandlePlayerDestroying()
         {
@@ -165,6 +213,12 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 c = BasisRemoteNamePlateDriver.StaticFailedLoadColor;
             }
+
+            // Single source of truth; the global merge reads CurrentColor each frame.
+            CurrentColor = c;
+
+            if (BasisRemoteNamePlateDriver.UseGlobalNamePlateMesh) return;
+
             mpb.SetColor(ColorId, c);
             Renderer.SetPropertyBlock(mpb, 0);
         }
@@ -185,13 +239,11 @@ namespace Basis.Scripts.UI.NamePlate
                 isPulsingTalk = false;
                 Color red = BasisRemoteNamePlateDriver.StaticFailedLoadColor;
                 SetPlateColor(red);
-                CurrentColor = red;
             }
             else
             {
                 Color normal = BasisRemoteNamePlateDriver.GetModeRestingColor(BasisRemotePlayer != null ? BasisRemotePlayer.TalkMode : BasisTalkMode.Normal);
                 SetPlateColor(normal);
-                CurrentColor = normal;
             }
         }
         private void EnsureChatDisplayCreated()
@@ -283,6 +335,7 @@ namespace Basis.Scripts.UI.NamePlate
             if (ChatText != null) Destroy(ChatText.gameObject);
             if (ChatBubbleFilter != null) Destroy(ChatBubbleFilter.gameObject);
             if (Filter != null && Filter.sharedMesh != null && Filter.sharedMesh.name == BasisRemoteNamePlateDriver.CombinedNameplateMeshName) Destroy(Filter.sharedMesh);
+            DestroyGlobalParts();
             hasChatMessage = false;
             wantsTypingIndicator = false;
 
@@ -438,7 +491,6 @@ namespace Basis.Scripts.UI.NamePlate
             if (!isPulsingTalk)
             {
                 SetPlateColor(resting);
-                CurrentColor = resting;
             }
         }
 
@@ -449,7 +501,6 @@ namespace Basis.Scripts.UI.NamePlate
                 c = BasisRemoteNamePlateDriver.StaticFailedLoadColor;
             }
             SetPlateColor(c);
-            CurrentColor = c;
         }
 
         /// <summary>
