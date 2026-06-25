@@ -179,4 +179,19 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             SetIsKinematicOnPickup(true);
         }
     }
+
+    protected override void MigrateSerialized(int fromVersion)
+    {
+        base.MigrateSerialized(fromVersion);
+        if (fromVersion < 1)
+        {
+            // Legacy pickups synced full position + rotation + scale.
+            SyncPosition = true;
+            PositionX = true; PositionY = true; PositionZ = true;
+            SyncRotation = true;
+            RotationX = true; RotationY = true; RotationZ = true;
+            SyncScale = true;
+            ScaleX = true; ScaleY = true; ScaleZ = true;
+        }
+    }
 }

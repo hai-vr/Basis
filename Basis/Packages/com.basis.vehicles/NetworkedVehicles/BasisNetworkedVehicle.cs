@@ -56,7 +56,12 @@ namespace Basis.Network.Vehicles
             // The body is a world-space rigidbody; sync full position/rotation/scale.
             Target = transform;
             WorldSpace = true;
+            SyncPosition = true;
+            SyncRotation = true;
             SyncScale = true;
+            PositionX = PositionY = PositionZ = true;
+            RotationX = RotationY = RotationZ = true;
+            ScaleX = ScaleY = ScaleZ = true;
             base.Awake();
 
             _wheelCount = Wheels != null ? Wheels.Length : 0;

@@ -15,7 +15,7 @@ namespace Basis.Scripts.Networking.Sync
     /// Owner-authoritative (grab via TakeOwnership); only the owner's writes go on the wire.
     /// Optionally BindTransform so a remote transform is driven automatically by the Burst apply job.
     /// </summary>
-    public class BasisSyncedObject : BasisNetworkBehaviour
+    public class BasisSyncedObject : BasisNetworkBehaviour, ISerializationCallbackReceiver
     {
         public float SendIntervalSeconds = 0.05f;
         public float KeyframeIntervalSeconds = 0.5f;
@@ -34,6 +34,11 @@ namespace Basis.Scripts.Networking.Sync
         public bool DistanceReduction = true;
         public bool RelevanceCulling = false;
         public float RelevanceRadius = 50f;
+
+        // Stays 0 in anything serialized before this field existed (legacy bundles/mods), so it reliably
+        // tells pre-refactor content apart from freshly-authored content regardless of field-initializer behaviour.
+        [SerializeField, HideInInspector] private int _serializedVersion;
+        protected const int CurrentSerializedVersion = 1;
 
         private readonly BasisSyncSchema _schema = new BasisSyncSchema();
         private BasisSyncValues _local;
@@ -526,6 +531,45 @@ namespace Basis.Scripts.Networking.Sync
         public void ApplySyncConfig()
         {
             _receiver?.Configure(Extrapolate, MaxExtrapolationSeconds, UseTeleportThreshold, TeleportThreshold * TeleportThreshold, TeleportWatchStart, TeleportWatchCount);
+        }
+
+        // ── Serialized-data migration (keeps legacy bundle / mod content working after a refactor) ──
+        public void OnBeforeSerialize()
+        {
+            // Freshly-authored content gets stamped on its first serialize so it's never treated as legacy.
+            if (_serializedVersion == 0) _serializedVersion = CurrentSerializedVersion;
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (_serializedVersion < CurrentSerializedVersion)
+            {
+                MigrateSerialized(_serializedVersion);
+                _serializedVersion = CurrentSerializedVersion;
+            }
+        }
+
+        /// <summary>
+        /// Convert content serialized before a field existed. fromVersion 0 = pre-sync-system content (e.g. a
+        /// legacy pickup/vehicle from a mod bundle that never had these fields). Runs at deserialize, before
+        /// Awake, so the schema is built from the converted values. Override + call base for subclass fields.
+        /// </summary>
+        protected virtual void MigrateSerialized(int fromVersion)
+        {
+            if (fromVersion < 1)
+            {
+                if (SendIntervalSeconds <= 0f) SendIntervalSeconds = 0.05f;
+                if (KeyframeIntervalSeconds <= 0f) KeyframeIntervalSeconds = 0.5f;
+                if (P2PSendIntervalSeconds <= 0f) P2PSendIntervalSeconds = 0.033f;
+                if (P2PKeyframeIntervalSeconds <= 0f) P2PKeyframeIntervalSeconds = 0.5f;
+                if (MaxExtrapolationSeconds <= 0f) MaxExtrapolationSeconds = 0.2f;
+                if (RelevanceRadius <= 0f) RelevanceRadius = 50f;
+                if (ContinuousEpsilon <= 0f) ContinuousEpsilon = 1e-4f;
+                UseDirectP2P = true;
+                DistanceReduction = true;
+                Delivery = DeliveryMethod.Unreliable;
+                KeyframeDelivery = DeliveryMethod.ReliableOrdered;
+            }
         }
 
         private void Require(BasisSyncHandle h, BasisSyncFieldType expected)
