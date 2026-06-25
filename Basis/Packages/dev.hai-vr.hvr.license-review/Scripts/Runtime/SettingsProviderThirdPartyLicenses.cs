@@ -22,10 +22,9 @@ namespace HVR.LicenseReview
 
             foreach (var license in licenseManifest.baked)
             {
-                var toggle = PanelToggle.CreateNewEntry(container);
-                toggle.Descriptor.SetTitle(license.productName);
-                toggle.Descriptor.SetDescription(license.fullLicenseName);
-                toggle.SetValueWithoutNotify(false);
+                var sectionToggle = PanelSectionToggle.CreateNewEntry(container);
+                sectionToggle.SetTitle(license.productName);
+                sectionToggle.Descriptor.SetDescription(license.fullLicenseName);
 
                 var licenseText = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
                 licenseText.SetTitle($"{license.packageName}/{license.licensePath}");
@@ -53,11 +52,8 @@ namespace HVR.LicenseReview
                         });
                 };
 
-                licenseText.SetActive(false);
-                toggle.OnValueChanged += value =>
-                {
-                    licenseText.SetActive(value);
-                };
+                sectionToggle.RegisterContentContainer(licenseText);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(sectionToggle, licenseText, false, null);
             }
         }
 
