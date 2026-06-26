@@ -7,13 +7,11 @@ namespace UnityEngine.Rendering.Universal
     public class UniversalShadingRateData : ContextItem
     {
         public TextureHandle shadingRateImage;
-        public TextureHandle colorMask;
         public bool isValid;
 
         public override void Reset()
         {
             shadingRateImage = TextureHandle.nullHandle;
-            colorMask = TextureHandle.nullHandle;
             isValid = false;
         }
     }

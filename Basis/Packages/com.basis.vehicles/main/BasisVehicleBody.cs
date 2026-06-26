@@ -74,6 +74,34 @@ namespace Basis.Scripts.Vehicles.Main
                 PilotSeat.PilotedVehicleBody = this;
             }
             rb = GetComponent<Rigidbody>();
+            RegisterChildParts();
+        }
+
+        private void RegisterChildParts()
+        {
+            Parts.BasisVehiclePart[] parts = GetComponentsInChildren<Parts.BasisVehiclePart>(true);
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (NearestBody(parts[i].transform) == this)
+                {
+                    RegisterPart(parts[i]);
+                }
+            }
+        }
+
+        private static BasisVehicleBody NearestBody(Transform partTransform)
+        {
+            Transform parent = partTransform.parent;
+            while (parent != null)
+            {
+                if (parent.TryGetComponent(out Rigidbody _))
+                {
+                    parent.TryGetComponent(out BasisVehicleBody body);
+                    return body;
+                }
+                parent = parent.parent;
+            }
+            return null;
         }
 
         private void FixedUpdate()
@@ -196,15 +224,15 @@ namespace Basis.Scripts.Vehicles.Main
         {
             if (part is Parts.BasisVehicleHoverThruster hoverThruster)
             {
-                _hoverThrusters.Add(hoverThruster);
+                if (!_hoverThrusters.Contains(hoverThruster)) _hoverThrusters.Add(hoverThruster);
             }
             else if (part is Parts.BasisVehicleWheel wheel)
             {
-                _wheels.Add(wheel);
+                if (!_wheels.Contains(wheel)) _wheels.Add(wheel);
             }
             else
             {
-                _otherParts.Add(part);
+                if (!_otherParts.Contains(part)) _otherParts.Add(part);
             }
         }
 

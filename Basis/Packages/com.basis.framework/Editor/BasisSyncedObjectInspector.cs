@@ -26,6 +26,8 @@ public class BasisSyncedObjectInspector : BasisDocInspector_UI
 
         root.Bind(serializedObject);
 
+        root.Add(BasisSyncInspectorUI.NetworkInfo(serializedObject.targetObject));
+
         var api = CreateApiReferenceFoldout();
         if (api != null) root.Add(api);
         return root;

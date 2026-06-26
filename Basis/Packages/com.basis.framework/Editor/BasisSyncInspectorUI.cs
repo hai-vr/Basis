@@ -77,6 +77,9 @@ public static class BasisSyncInspectorUI
         return box;
     }
 
+    /// <summary>Collapsible, live-updating view of every network metadata field on the component (play mode only).</summary>
+    public static VisualElement NetworkInfo(UnityEngine.Object target) => BasisNetworkInfoView.Build(target);
+
     /// <summary>Live validation panel (red errors / yellow warnings) that re-evaluates twice a second.</summary>
     public static VisualElement ValidationContainer(Func<List<BasisSyncIssue>> validate)
     {

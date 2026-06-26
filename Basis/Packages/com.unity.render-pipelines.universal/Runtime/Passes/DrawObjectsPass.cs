@@ -302,8 +302,9 @@ namespace UnityEngine.Rendering.Universal.Internal
 #endif
                 }
 
+#if !UNITY_ANDROID
                 // Basis VRS injection: bind a custom shading rate image when one was produced this frame.
-                // Skipped on XR hardware foveation so we never override native foveated rendering.
+                // Desktop only; skipped on XR hardware foveation so we never override native foveated rendering.
                 if (frameData.Contains<UniversalShadingRateData>())
                 {
                     var basisVrs = frameData.Get<UniversalShadingRateData>();
@@ -314,6 +315,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                         builder.SetShadingRateCombiner(ShadingRateCombinerStage.Fragment, ShadingRateCombiner.Override);
                     }
                 }
+#endif
 
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {

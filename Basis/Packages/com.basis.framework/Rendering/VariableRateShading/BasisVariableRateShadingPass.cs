@@ -10,64 +10,54 @@ namespace Basis.Scripts.Rendering
 {
     internal class BasisVariableRateShadingPass : ScriptableRenderPass
     {
-        private static readonly int PropCenter = Shader.PropertyToID("_BasisVrsCenter");
-        private static readonly int PropAspect = Shader.PropertyToID("_BasisVrsAspect");
-        private static readonly int PropColorNear = Shader.PropertyToID("_BasisVrsColorNear");
-        private static readonly int PropColorMid = Shader.PropertyToID("_BasisVrsColorMid");
-        private static readonly int PropColorFar = Shader.PropertyToID("_BasisVrsColorFar");
+        private const string PropSri = "_BasisSri";
+        private const string PropCenterLR = "_BasisVrsCenterLR";
+        private const string PropParams = "_BasisVrsParams";
+        private const string PropTile = "_BasisVrsTile";
+        private const string PropRates = "_BasisVrsRates";
 
-        // Conversion-LUT band colors from the VRS runtime resources asset (pure primaries,
-        // matched nearest-color in linear space): red=1x1, green=2x2, blue=4x4.
-        private static readonly Vector4 ColorNear = new Vector4(1f, 0f, 0f, 1f); // 1x1
-        private static readonly Vector4 ColorMid = new Vector4(0f, 1f, 0f, 1f);  // 2x2
-        private static readonly Vector4 ColorFar = new Vector4(0f, 0f, 1f, 1f);  // 4x4
+        private static readonly Vector4 Rates = new Vector4(Encode(0, 0), Encode(1, 1), Encode(2, 2), 0f);
 
-        private static bool _loggedSupport;
-
-        private readonly Material _maskMaterial;
+        private readonly ComputeShader _buildShader;
+        private readonly int _kernel;
 
         private float _gazeProjectDistance;
-        private bool _yFlip;
 
-        public BasisVariableRateShadingPass(Material maskMaterial)
+        public BasisVariableRateShadingPass(ComputeShader buildShader)
         {
-            _maskMaterial = maskMaterial;
+            _buildShader = buildShader;
+            if (_buildShader != null)
+                _kernel = _buildShader.FindKernel("CSMain");
             profilingSampler = new ProfilingSampler("BasisVariableRateShading");
         }
 
-        public void Configure(float gazeProjectDistance, bool yFlip)
+        public void Configure(float gazeProjectDistance)
         {
             _gazeProjectDistance = gazeProjectDistance;
-            _yFlip = yFlip;
         }
 
-        private class MaskPassData
+        private static int Encode(int log2X, int log2Y) => ((log2X & 3) << 2) | (log2Y & 3);
+
+        private class BuildPassData
         {
-            public Material material;
-            public TextureHandle source;
-            public Vector4 center;
-            public float aspect;
+            public ComputeShader cs;
+            public int kernel;
+            public TextureHandle sri;
+            public Vector4 centers;
+            public Vector4 parms;
+            public Vector2Int tiles;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            if (!_loggedSupport)
-            {
-                _loggedSupport = true;
-                BasisDebug.Log($"[BasisVRS] supported={Vrs.IsColorMaskTextureConversionSupported()} " +
-                          $"perImageTile={ShadingRateInfo.supportsPerImageTile} " +
-                          $"compute={SystemInfo.supportsComputeShaders} " +
-                          $"api={SystemInfo.graphicsDeviceType} material={(_maskMaterial != null)}", BasisDebug.LogTag.Rendering);
-            }
-
-            if (_maskMaterial == null)
-                return;
-
-            if (!Vrs.IsColorMaskTextureConversionSupported())
+            if (_buildShader == null)
                 return;
 
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
             if (cameraData.cameraType != CameraType.Game)
+                return;
+
+            if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12)
                 return;
 
             bool enabled = cameraData.xr.enabled
@@ -84,19 +74,10 @@ namespace Basis.Scripts.Rendering
             if (tiles.x <= 0 || tiles.y <= 0)
                 return;
 
-            Vector2 center = ComputeFovealCenter();
+            Vector4 centers = ComputeFovealCenters(cameraData, SystemInfo.graphicsUVStartsAtTop);
             float aspect = (float)camDesc.width / Mathf.Max(1, camDesc.height);
-            float innerRadius = BasisSettingsDefaults.VrsFovealInnerRadius.RawValue;
-            float outerRadius = BasisSettingsDefaults.VrsFovealOuterRadius.RawValue;
-
-            RenderTextureDescriptor maskDesc = new RenderTextureDescriptor(tiles.x, tiles.y, GraphicsFormat.R8G8B8A8_UNorm, GraphicsFormat.None, 0)
-            {
-                msaaSamples = 1,
-                useMipMap = false,
-                autoGenerateMips = false,
-                dimension = TextureDimension.Tex2D,
-            };
-            TextureHandle colorMask = UniversalRenderer.CreateRenderGraphTexture(renderGraph, maskDesc, "_BasisVrsColorMask", clear: false);
+            float inner = BasisSettingsDefaults.VrsFovealInnerRadius.RawValue;
+            float outer = BasisSettingsDefaults.VrsFovealOuterRadius.RawValue;
 
             RenderTextureDescriptor sriDesc = new RenderTextureDescriptor(tiles.x, tiles.y, ShadingRateInfo.graphicsFormat, GraphicsFormat.None, 0)
             {
@@ -109,69 +90,72 @@ namespace Basis.Scripts.Rendering
             };
             TextureHandle sri = UniversalRenderer.CreateRenderGraphTexture(renderGraph, sriDesc, "_BasisShadingRateImage", clear: false);
 
-            using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<MaskPassData>("BasisVRS Mask", out MaskPassData data, profilingSampler))
+            using (var builder = renderGraph.AddComputePass<BuildPassData>("BasisVRS Build", out BuildPassData data))
             {
-                data.material = _maskMaterial;
-                data.source = renderGraph.defaultResources.blackTexture;
-                data.center = new Vector4(center.x, center.y, innerRadius, outerRadius);
-                data.aspect = aspect;
+                data.cs = _buildShader;
+                data.kernel = _kernel;
+                data.sri = sri;
+                data.centers = centers;
+                data.parms = new Vector4(inner, outer, aspect, 0f);
+                data.tiles = tiles;
 
-                builder.UseTexture(data.source, AccessFlags.Read);
-                builder.SetRenderAttachment(colorMask, 0, AccessFlags.Write);
+                builder.UseTexture(sri, AccessFlags.Write);
                 builder.AllowPassCulling(false);
-                builder.AllowGlobalStateModification(true);
 
-                builder.SetRenderFunc((MaskPassData d, RasterGraphContext ctx) =>
+                builder.SetRenderFunc((BuildPassData d, ComputeGraphContext ctx) =>
                 {
-                    ctx.cmd.SetGlobalVector(PropCenter, d.center);
-                    ctx.cmd.SetGlobalFloat(PropAspect, d.aspect);
-                    ctx.cmd.SetGlobalVector(PropColorNear, ColorNear);
-                    ctx.cmd.SetGlobalVector(PropColorMid, ColorMid);
-                    ctx.cmd.SetGlobalVector(PropColorFar, ColorFar);
-                    Blitter.BlitTexture(ctx.cmd, d.source, new Vector4(1, 1, 0, 0), d.material, 0);
+                    ctx.cmd.SetComputeTextureParam(d.cs, d.kernel, PropSri, d.sri);
+                    ctx.cmd.SetComputeVectorParam(d.cs, PropCenterLR, d.centers);
+                    ctx.cmd.SetComputeVectorParam(d.cs, PropParams, d.parms);
+                    ctx.cmd.SetComputeVectorParam(d.cs, PropTile, new Vector4(d.tiles.x, d.tiles.y, 0f, 0f));
+                    ctx.cmd.SetComputeVectorParam(d.cs, PropRates, Rates);
+                    int groupsX = (d.tiles.x + 7) / 8;
+                    int groupsY = (d.tiles.y + 7) / 8;
+                    ctx.cmd.DispatchCompute(d.cs, d.kernel, groupsX, groupsY, 1);
                 });
             }
 
-            Vrs.ColorMaskTextureToShadingRateImage(renderGraph, sri, colorMask, TextureDimension.Tex2D, _yFlip);
-
             UniversalShadingRateData vrsData = frameData.GetOrCreate<UniversalShadingRateData>();
             vrsData.shadingRateImage = sri;
-            vrsData.colorMask = colorMask;
             vrsData.isValid = true;
         }
 
-        private Vector2 ComputeFovealCenter()
+        private Vector4 ComputeFovealCenters(UniversalCameraData cameraData, bool isTargetFlipped)
         {
-            Vector2 center = new Vector2(0.5f, 0.5f);
+            Vector2 fallback = new Vector2(0.5f, 0.5f);
+            if (!BasisLocalCameraDriver.HasInstance || BasisLocalCameraDriver.CameraInstance == null || !BasisLocalCameraDriver.HasEyeGaze)
+                return new Vector4(fallback.x, fallback.y, fallback.x, fallback.y);
 
-            Camera cam = BasisLocalCameraDriver.CameraInstance;
-            if (BasisLocalCameraDriver.HasInstance && cam != null && BasisLocalCameraDriver.HasEyeGaze)
-            {
-                Vector3 worldPoint = BasisLocalCameraDriver.GazeOrigin + BasisLocalCameraDriver.GazeDirection * _gazeProjectDistance;
-                Vector3 vp = cam.WorldToViewportPoint(worldPoint);
-                if (vp.z > 0f)
-                    center = new Vector2(Mathf.Clamp01(vp.x), Mathf.Clamp01(vp.y));
-            }
+            Vector3 focal = BasisLocalCameraDriver.GazeOrigin + BasisLocalCameraDriver.GazeDirection * _gazeProjectDistance;
+            int rightEye = cameraData.xr.enabled && cameraData.xr.singlePassEnabled ? 1 : 0;
 
-            return center;
+            Matrix4x4 viewLeft = cameraData.GetViewMatrix(0);
+            Matrix4x4 viewRight = cameraData.GetViewMatrix(rightEye);
+            Matrix4x4 projLeft = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(0), isTargetFlipped);
+            Matrix4x4 projRight = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(rightEye), isTargetFlipped);
+
+            Vector2 uvLeft = ProjectToUV(focal, viewLeft, projLeft, fallback);
+            Vector2 uvRight = ProjectToUV(focal, viewRight, projRight, fallback);
+            return new Vector4(uvLeft.x, uvLeft.y, uvRight.x, uvRight.y);
+        }
+
+        private static Vector2 ProjectToUV(Vector3 worldPoint, Matrix4x4 view, Matrix4x4 proj, Vector2 fallback)
+        {
+            Vector4 clip = proj * (view * new Vector4(worldPoint.x, worldPoint.y, worldPoint.z, 1f));
+            if (clip.w <= 1e-5f)
+                return fallback;
+            float u = 0.5f * (clip.x / clip.w) + 0.5f;
+            float v = 0.5f * (clip.y / clip.w) + 0.5f;
+            return new Vector2(Mathf.Clamp01(u), Mathf.Clamp01(v));
         }
     }
 
     /// <summary>
     /// Debug overlay: paints the produced shading rate image over the final frame so the
-    /// foveal regions are visible (red = 1x1 sharp, green = 2x2, dark blue = 4x4). Enqueued
-    /// only when the feature's Debug Visualize flag is on.
+    /// foveal regions are visible. Enqueued only when the feature's Debug Visualize flag is on.
     /// </summary>
     internal class BasisVariableRateShadingDebugPass : ScriptableRenderPass
     {
-        private class CopyPassData
-        {
-            public TextureHandle source;
-        }
-
-        // true = show the raw color mask (pre-conversion); false = show the converted SRI.
-        public bool showColorMask;
-
         public BasisVariableRateShadingDebugPass()
         {
             profilingSampler = new ProfilingSampler("BasisVariableRateShading Debug");
@@ -183,32 +167,10 @@ namespace Basis.Scripts.Rendering
                 return;
 
             UniversalShadingRateData vrsData = frameData.Get<UniversalShadingRateData>();
-            if (!vrsData.isValid)
+            if (!vrsData.isValid || !vrsData.shadingRateImage.IsValid())
                 return;
 
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
-
-            if (showColorMask)
-            {
-                if (!vrsData.colorMask.IsValid())
-                    return;
-
-                using IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<CopyPassData>("BasisVRS Debug ColorMask", out CopyPassData data, profilingSampler);
-                data.source = vrsData.colorMask;
-                builder.UseTexture(vrsData.colorMask, AccessFlags.Read);
-                builder.SetRenderAttachment(resourceData.activeColorTexture, 0, AccessFlags.Write);
-                builder.AllowPassCulling(false);
-                builder.AllowGlobalStateModification(true);
-                builder.SetRenderFunc((CopyPassData d, RasterGraphContext ctx) =>
-                {
-                    Blitter.BlitTexture(ctx.cmd, d.source, new Vector4(1, 1, 0, 0), 0, false);
-                });
-                return;
-            }
-
-            if (!vrsData.shadingRateImage.IsValid())
-                return;
-
             Vrs.ShadingRateImageToColorMaskTexture(renderGraph, vrsData.shadingRateImage, resourceData.activeColorTexture);
         }
     }

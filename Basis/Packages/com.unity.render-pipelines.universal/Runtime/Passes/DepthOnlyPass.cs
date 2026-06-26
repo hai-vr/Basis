@@ -102,6 +102,22 @@ namespace UnityEngine.Rendering.Universal.Internal
                     }
                 }
 
+#if !UNITY_ANDROID
+                // Basis VRS injection: match the opaque pass's shading rate so depth priming
+                // stays consistent for cutout / per-fragment-depth shaders. Skipped on XR
+                // hardware foveation so we never override native foveated rendering.
+                if (frameData.Contains<UniversalShadingRateData>())
+                {
+                    var basisVrs = frameData.Get<UniversalShadingRateData>();
+                    bool xrFoveated = cameraData.xr.enabled && cameraData.xr.supportsFoveatedRendering;
+                    if (basisVrs.isValid && basisVrs.shadingRateImage.IsValid() && !xrFoveated)
+                    {
+                        builder.SetShadingRateImageAttachment(basisVrs.shadingRateImage);
+                        builder.SetShadingRateCombiner(ShadingRateCombinerStage.Fragment, ShadingRateCombiner.Override);
+                    }
+                }
+#endif
+
                 builder.SetRenderFunc(static (PassData data, RasterGraphContext context) =>
                 {
                     ExecutePass(context.cmd, data.rendererList);
