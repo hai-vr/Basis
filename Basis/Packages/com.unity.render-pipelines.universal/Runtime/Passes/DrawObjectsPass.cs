@@ -197,16 +197,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 #endif
             DrawingSettings drawSettings = RenderingUtils.CreateDrawingSettings(m_ShaderTagIdList, renderingData, cameraData, lightData, sortFlags);
 
-            if (zWriteOff)
-            {
-                m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);
-                m_RenderStateBlock.mask |= RenderStateMask.Depth;
-            }
-            else 
-            {
-                m_RenderStateBlock.depthState = DepthState.defaultValue;
-                m_RenderStateBlock.mask &= ~RenderStateMask.Depth;
-            }
+            m_RenderStateBlock.depthState = DepthState.defaultValue;
+            m_RenderStateBlock.mask &= ~RenderStateMask.Depth;
 
             var activeDebugHandler = GetActiveDebugHandler(cameraData);
             if (activeDebugHandler != null)
@@ -248,7 +240,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 if (depthTarget.IsValid())
                 {
-                    var depthAccessFlags = (disableZWrite) ? AccessFlags.Read : AccessFlags.ReadWrite;
+                    var depthAccessFlags = AccessFlags.ReadWrite;
                     passData.depthHdl = depthTarget;
                     builder.SetRenderAttachmentDepth(depthTarget, depthAccessFlags);
                 }
@@ -390,7 +382,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 builder.SetRenderAttachment(renderingLayersTexture, 1, AccessFlags.Write);
 
                 bool disableZWrite = CanDisableZWrite(cameraData, passData.basePassData.isOpaque);
-                var depthAccessFlags = (disableZWrite) ? AccessFlags.Read : AccessFlags.ReadWrite;
+                var depthAccessFlags = AccessFlags.ReadWrite;
                 passData.basePassData.depthHdl = depthTarget;
                 builder.SetRenderAttachmentDepth(depthTarget, depthAccessFlags);
 
