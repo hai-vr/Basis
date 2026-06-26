@@ -30,6 +30,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8e2764c6c77c5d24bb29812fa5fea4ba
+    m_Address: Packages/com.basis.sdk/Materials/BasisUI_panel.mat
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 917f9be5e3149ef4fa76604cfe665086
     m_Address: Packages/com.basis.sdk/Sprites/HalfCircle 512 Bottom.png
     m_ReadOnly: 0
