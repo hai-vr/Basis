@@ -9,6 +9,7 @@ Shader "Basis/UI/Background"
         _BlendFactor("_BlendFactor", Float) = 0.2
         _OffsetMultiples("_OffsetMultiples", Vector, 4) = (0.1, 0.2, 0.3, 0)
         _MaxDistance("_MaxDistance", Float) = 3
+        [Enum(UnityEngine.Rendering.CullMode)] _CullMode("Cull Mode", Int) = 0
         [HideInInspector][NoScaleOffset]_MainTex("MainTex", 2D) = "white" {}
         [HideInInspector]_StencilComp("Stencil Comparison", Float) = 8
         [HideInInspector]_Stencil("Stencil ID", Float) = 0
@@ -44,7 +45,7 @@ Shader "Basis/UI/Background"
             {
                 // LightMode: <None>
             }
-        
+
             // Render State
             Stencil
             {
@@ -54,35 +55,35 @@ Shader "Basis/UI/Background"
                 ReadMask [_StencilReadMask]
                 WriteMask [_StencilWriteMask]
             }
-            
-            Cull Off
+
+            Cull [_CullMode]
             Lighting Off
             Fog { Mode Off }
             ZWrite Off
             ZTest Always
             Blend SrcAlpha OneMinusSrcAlpha
             ColorMask [_ColorMask]
-        
+
             // Debug
             // <None>
-        
+
             // --------------------------------------------------
             // Pass
-        
+
             HLSLPROGRAM
-        
+
             // Pragmas
             #pragma target 2.0
         #pragma vertex vert
         #pragma fragment frag
-        
+
             // Keywords
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
         #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             // GraphKeywords: <None>
-        
+
             #define CANVAS_SHADERGRAPH
-        
+
             // Defines
            #define _SURFACE_TYPE_TRANSPARENT 1
            #define ATTRIBUTES_NEED_NORMAL
@@ -96,12 +97,12 @@ Shader "Basis/UI/Background"
            #define VARYINGS_NEED_TEXCOORD0
            #define VARYINGS_NEED_TEXCOORD1
            #define VARYINGS_NEED_COLOR
-        
+
         #define REQUIRE_DEPTH_TEXTURE
         #define REQUIRE_NORMAL_TEXTURE
-        
+
            #define SHADERPASS SHADERPASS_CUSTOM_UI
-        
+
            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Texture.hlsl"
@@ -116,11 +117,11 @@ Shader "Basis/UI/Background"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
         #include "Packages/com.unity.shadergraph/ShaderGraphLibrary/Functions.hlsl"
-        
+
             // --------------------------------------------------
             // Structs and Packing
-        
-        
+
+
             struct Attributes
         {
              float3 positionOS : POSITION;
@@ -177,7 +178,7 @@ Shader "Basis/UI/Background"
              uint stereoTargetEyeIndexAsRTArrayIdx : SV_RenderTargetArrayIndex;
             #endif
         };
-        
+
             PackedVaryings PackVaryings (Varyings input)
         {
             PackedVaryings output;
@@ -199,7 +200,7 @@ Shader "Basis/UI/Background"
             #endif
             return output;
         }
-        
+
         Varyings UnpackVaryings (PackedVaryings input)
         {
             Varyings output;
@@ -220,25 +221,25 @@ Shader "Basis/UI/Background"
             #endif
             return output;
         }
-        
-        
+
+
             // -- Property used by ScenePickingPass
             #ifdef SCENEPICKINGPASS
             float4 _SelectionID;
             #endif
-        
+
             // -- Properties used by SceneSelectionPass
             #ifdef SCENESELECTIONPASS
             int _ObjectId;
             int _PassValue;
             #endif
-        
+
             //UGUI has no keyword for when a renderer has "bloom", so its nessecary to hardcore it here, like all the base UI shaders.
             half4 _TextureSampleAdd;
-        
+
             // --------------------------------------------------
             // Graph
-        
+
             // Graph Properties
             CBUFFER_START(UnityPerMaterial)
         float4 _BaseTex_TexelSize;
@@ -263,8 +264,8 @@ Shader "Basis/UI/Background"
         float _UIMaskSoftnessY;
         UNITY_TEXTURE_STREAMING_DEBUG_VARS;
         CBUFFER_END
-        
-        
+
+
         // Object and Global properties
         SAMPLER(SamplerState_Linear_Repeat);
         TEXTURE2D(_BaseTex);
@@ -278,77 +279,77 @@ Shader "Basis/UI/Background"
         float3 _CursorPos;
         TEXTURE2D(_MainTex);
         SAMPLER(sampler_MainTex);
-        
+
             // Graph Includes
             // GraphIncludes: <None>
-        
+
             // Graph Functions
-            
+
         void Unity_TilingAndOffset_float(float2 UV, float2 Tiling, float2 Offset, out float2 Out)
         {
             Out = UV * Tiling + Offset;
         }
-        
+
         void Unity_Subtract_float3(float3 A, float3 B, out float3 Out)
         {
             Out = A - B;
         }
-        
+
         void Unity_Multiply_float_float(float A, float B, out float Out)
         {
             Out = A * B;
         }
-        
+
         void Unity_Clamp_float3(float3 In, float3 Min, float3 Max, out float3 Out)
         {
             Out = clamp(In, Min, Max);
         }
-        
+
         void Unity_Combine_float(float R, float G, float B, float A, out float4 RGBA, out float3 RGB, out float2 RG)
         {
             RGBA = float4(R, G, B, A);
             RGB = float3(R, G, B);
             RG = float2(R, G);
         }
-        
+
         void Unity_Multiply_float3_float3(float3 A, float3 B, out float3 Out)
         {
             Out = A * B;
         }
-        
+
         void Unity_Multiply_float4_float4(float4 A, float4 B, out float4 Out)
         {
             Out = A * B;
         }
-        
+
         void Unity_Lerp_float4(float4 A, float4 B, float4 T, out float4 Out)
         {
             Out = lerp(A, B, T);
         }
-        
+
         void Unity_Maximum_float(float A, float B, out float Out)
         {
             Out = max(A, B);
         }
-        
+
         void Unity_Saturate_float(float In, out float Out)
         {
             Out = saturate(In);
         }
-        
+
         void Unity_Blend_Difference_float4(float4 Base, float4 Blend, out float4 Out, float Opacity)
         {
             Out = abs(Blend - Base);
             Out = lerp(Base, Out, Opacity);
         }
-        
+
             /* WARNING: $splice Could not find named fragment 'CustomInterpolatorPreVertex' */
-        
+
             // Graph Vertex
             // GraphVertex: <None>
-        
+
             /* WARNING: $splice Could not find named fragment 'CustomInterpolatorPreSurface' */
-        
+
             // Graph Pixel
             struct SurfaceDescription
         {
@@ -356,7 +357,7 @@ Shader "Basis/UI/Background"
             float Alpha;
             float3 Emission;
         };
-        
+
         SurfaceDescription SurfaceDescriptionFunction(SurfaceDescriptionInputs IN)
         {
             SurfaceDescription surface = (SurfaceDescription)0;
@@ -481,37 +482,37 @@ Shader "Basis/UI/Background"
             surface.Emission = float3(0, 0, 0);
             return surface;
         }
-        
+
             // --------------------------------------------------
             // Build Graph Inputs
-        
+
             SurfaceDescriptionInputs BuildSurfaceDescriptionInputs(Varyings input)
         {
             SurfaceDescriptionInputs output;
             ZERO_INITIALIZE(SurfaceDescriptionInputs, output);
-        
+
             /* WARNING: $splice Could not find named fragment 'CustomInterpolatorCopyToSDI' */
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
             #if UNITY_UV_STARTS_AT_TOP
             #else
             #endif
-        
-        
-        
+
+
+
         #if defined(UNITY_UIE_INCLUDED)
             output.uv0 =                                        float4(input.texCoord0.x, input.texCoord0.y, 0, 0);
         #else
             output.uv0 =                                        input.texCoord0;
         #endif
-            
-        
-            
-            
+
+
+
+
         #if UNITY_ANY_INSTANCING_ENABLED
         #else // TODO: XR support for procedural instancing because in this case UNITY_ANY_INSTANCING_ENABLED is not defined and instanceID is incorrect.
         #endif
@@ -522,15 +523,15 @@ Shader "Basis/UI/Background"
         #define BUILD_SURFACE_DESCRIPTION_INPUTS_OUTPUT_FACESIGN
         #endif
         #undef BUILD_SURFACE_DESCRIPTION_INPUTS_OUTPUT_FACESIGN
-        
+
             return output;
         }
-        
+
             // --------------------------------------------------
             // Main
-        
+
             #include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/CanvasPass.hlsl"
-        
+
             ENDHLSL
         }
     }
