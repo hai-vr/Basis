@@ -28,6 +28,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             public bool InterpolateOffVariants = true;
             public bool ExtrapolateVariant = true;
             public bool TeleportThresholdVariant = true;
+            public bool ChecksumOffVariant = false; // adds checksum-OFF runs on corrupting profiles (expected to fail) to characterize the option
             public bool CompositeConfigs = true;
 
             public int Seeds = 1;
@@ -237,6 +238,10 @@ namespace Basis.Scripts.Networking.Sync.Testing
 
                             if (o.TeleportThresholdVariant && cfg.PositionFirst && (motion == SyncMotion.Teleport || motion == SyncMotion.Step))
                                 scenarios.Add(MakeScenario(cfg, motion, profile, seed ^ 0x55AA, o, extrapolate: false, teleport: true, suffix: "+teleThresh"));
+
+                            // Characterize the checksum: on corrupting profiles, also run it OFF (expected to fail) so the CSV shows the option carrying the recovery.
+                            if (o.ChecksumOffVariant && profile.CorruptProb > 0f)
+                                scenarios.Add(MakeScenario(cfg, motion, profile, seed ^ 0x0C0C, o, extrapolate: false, teleport: false, suffix: "+noChecksum", useChecksum: false));
                         }
                     }
                 }
@@ -245,7 +250,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             return scenarios;
         }
 
-        static BasisSyncSimScenario MakeScenario(FieldConfig cfg, SyncMotion motion, NetworkProfile profile, int seed, MatrixOptions o, bool extrapolate, bool teleport, string suffix)
+        static BasisSyncSimScenario MakeScenario(FieldConfig cfg, SyncMotion motion, NetworkProfile profile, int seed, MatrixOptions o, bool extrapolate, bool teleport, string suffix, bool useChecksum = true)
         {
             return new BasisSyncSimScenario
             {
@@ -257,6 +262,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
                 Seed = seed,
                 Extrapolate = extrapolate,
                 TeleportThreshold = teleport,
+                UseChecksum = useChecksum,
                 Dt = o.Dt,
                 DurationSeconds = o.DurationSeconds,
                 SettleSeconds = o.SettleSeconds,

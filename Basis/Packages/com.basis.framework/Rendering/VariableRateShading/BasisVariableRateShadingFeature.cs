@@ -16,6 +16,7 @@ namespace Basis.Scripts.Rendering
     {
         [SerializeField] private ComputeShader buildShader;
         [SerializeField] private float gazeProjectDistance = 3f;
+        [SerializeField] private bool yFlip = true;
         [SerializeField] private bool debugVisualize;
 
         private BasisVariableRateShadingPass _pass;
@@ -27,7 +28,7 @@ namespace Basis.Scripts.Rendering
             {
                 renderPassEvent = RenderPassEvent.BeforeRendering,
             };
-            _pass.Configure(gazeProjectDistance);
+            _pass.Configure(gazeProjectDistance, yFlip);
 
             _debugPass = new BasisVariableRateShadingDebugPass
             {
@@ -44,7 +45,7 @@ namespace Basis.Scripts.Rendering
                 && !BasisSettingsDefaults.DevVariableRateShadingDesktop.RawValue)
                 return;
 
-            _pass.Configure(gazeProjectDistance);
+            _pass.Configure(gazeProjectDistance, yFlip);
             renderer.EnqueuePass(_pass);
 
             if (debugVisualize && _debugPass != null)

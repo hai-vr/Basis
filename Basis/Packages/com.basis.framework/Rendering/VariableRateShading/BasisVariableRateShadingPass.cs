@@ -22,6 +22,7 @@ namespace Basis.Scripts.Rendering
         private readonly int _kernel;
 
         private float _gazeProjectDistance;
+        private bool _yFlip;
 
         public BasisVariableRateShadingPass(ComputeShader buildShader)
         {
@@ -31,9 +32,10 @@ namespace Basis.Scripts.Rendering
             profilingSampler = new ProfilingSampler("BasisVariableRateShading");
         }
 
-        public void Configure(float gazeProjectDistance)
+        public void Configure(float gazeProjectDistance, bool yFlip)
         {
             _gazeProjectDistance = gazeProjectDistance;
+            _yFlip = yFlip;
         }
 
         private static int Encode(int log2X, int log2Y) => ((log2X & 3) << 2) | (log2Y & 3);
@@ -77,7 +79,7 @@ namespace Basis.Scripts.Rendering
             if (tiles.x <= 0 || tiles.y <= 0)
                 return;
 
-            Vector4 centers = ComputeFovealCenters(cameraData, SystemInfo.graphicsUVStartsAtTop);
+            Vector4 centers = ComputeFovealCenters(cameraData);
             float aspect = (float)camDesc.width / Mathf.Max(1, camDesc.height);
             float inner = BasisSettingsDefaults.VrsFovealInnerRadius.RawValue;
             float outer = BasisSettingsDefaults.VrsFovealOuterRadius.RawValue;
@@ -123,7 +125,7 @@ namespace Basis.Scripts.Rendering
             vrsData.isValid = true;
         }
 
-        private Vector4 ComputeFovealCenters(UniversalCameraData cameraData, bool isTargetFlipped)
+        private Vector4 ComputeFovealCenters(UniversalCameraData cameraData)
         {
             Vector2 fallback = new Vector2(0.5f, 0.5f);
             if (!BasisLocalCameraDriver.HasInstance || BasisLocalCameraDriver.CameraInstance == null || !BasisLocalCameraDriver.HasEyeGaze)
@@ -134,11 +136,17 @@ namespace Basis.Scripts.Rendering
 
             Matrix4x4 viewLeft = cameraData.GetViewMatrix(0);
             Matrix4x4 viewRight = cameraData.GetViewMatrix(rightEye);
-            Matrix4x4 projLeft = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(0), isTargetFlipped);
-            Matrix4x4 projRight = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(rightEye), isTargetFlipped);
+            Matrix4x4 projLeft = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(0), false);
+            Matrix4x4 projRight = GL.GetGPUProjectionMatrix(cameraData.GetProjectionMatrix(rightEye), false);
 
             Vector2 uvLeft = ProjectToUV(focal, viewLeft, projLeft, fallback);
             Vector2 uvRight = ProjectToUV(focal, viewRight, projRight, fallback);
+
+            if (_yFlip)
+            {
+                uvLeft.y = 1f - uvLeft.y;
+                uvRight.y = 1f - uvRight.y;
+            }
             return new Vector4(uvLeft.x, uvLeft.y, uvRight.x, uvRight.y);
         }
 

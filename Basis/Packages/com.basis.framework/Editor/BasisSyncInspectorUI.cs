@@ -131,6 +131,7 @@ public static class BasisSyncInspectorUI
         card.Add(KeyframeSlider(so));
         card.Add(new PropertyField(so.FindProperty("Delivery"), "Delta Delivery"));
         card.Add(new PropertyField(so.FindProperty("KeyframeDelivery")));
+        card.Add(new PropertyField(so.FindProperty("UseChecksum"), "Integrity Checksum"));
 
         var p2p = new Toggle("Use Direct P2P If Able") { bindingPath = "UseDirectP2P" };
         var forceP2P = new PropertyField(so.FindProperty("ForceP2POnly"), "Force P2P Only (No Server Fallback)");

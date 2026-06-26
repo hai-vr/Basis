@@ -45,7 +45,7 @@ namespace Basis.Scripts.Networking.Receivers
         public volatile float SourcePeak;
         private const float MeterReleaseFactor = 0.90f;
 
-        public BasisNetworkReceiver BasisNetworkReceiver;
+        [System.NonSerialized] public BasisNetworkReceiver BasisNetworkReceiver;
         public static float[] silentData;
         public static int outputSampleRate;
         private static bool _loggedOutputRate;

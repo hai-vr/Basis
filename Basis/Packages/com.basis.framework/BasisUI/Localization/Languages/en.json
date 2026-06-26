@@ -6259,6 +6259,22 @@
       "value": "No"
     },
     {
+      "key": "settings.highPlayerCap.prompt.title",
+      "value": "High Player Cap Performance Mode"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.body",
+      "value": "This instance has over {0} people. Turn on High Player Cap Performance Mode to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.enable",
+      "value": "Enable"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.no",
+      "value": "Not Now"
+    },
+    {
       "key": "settings.developer.gizmoLabels.description",
       "value": "Billboarded text labels on whichever gizmos are currently shown: tracker roles, linked-pair names, IK collider names, and the audio gizmos (speaker name with net loudness %, hearing distance, voice-cone angle)."
     },

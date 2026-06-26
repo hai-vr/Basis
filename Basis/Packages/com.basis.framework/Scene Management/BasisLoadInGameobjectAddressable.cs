@@ -17,7 +17,7 @@ public class BasisLoadInGameobjectAddressable : MonoBehaviour
     /// <summary>
     /// Validation checks that must pass before the content is allowed to load.
     /// </summary>
-    public ChecksRequired RequiredChecks;
+    [System.NonSerialized] public ChecksRequired RequiredChecks;
 
     /// <summary>
     /// Selector type indicating the content category (Avatar, System, Prop).

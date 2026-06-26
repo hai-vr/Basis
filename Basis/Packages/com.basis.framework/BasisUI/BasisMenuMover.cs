@@ -406,6 +406,7 @@ namespace Basis.BasisUI
         // Add near the other constants / fields:
         private const float STABLE_RECENTER_TOLERANCE_MULT = 2.25f;   // how far beyond intended distance before we recenter
         private const float STABLE_RECENTER_MIN_WORLD_DIST = 0.75f;   // absolute minimum threshold (meters), avoids tiny-scale jitter
+        private const float STABLE_MAX_DOWNWARD_PITCH_DEG = 30f;      // cap captured downward pitch so spawning while looking down keeps the menu off the torso
 
         /// <summary>
         /// Expected menu distance from the head in world meters, accounting for avatar-to-default scaling.
@@ -476,6 +477,7 @@ namespace Basis.BasisUI
             Quaternion headLocal = Quaternion.Inverse(playRotWS) * camRotWS;
 
             float pitch = -ExtractPitchDegreesNoRoll(headLocal);
+            pitch = Mathf.Min(pitch, STABLE_MAX_DOWNWARD_PITCH_DEG);
 
             // yaw then pitch (pitch around local X)
             Quaternion spawnLocalRotNoRoll =

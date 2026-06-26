@@ -123,7 +123,7 @@ namespace Basis.BasisUI
         /// <summary>
         /// The provider that currently owns the active menu panel.
         /// </summary>
-        public BasisMenuActionProvider<TMenu> ActiveProvider;
+        [System.NonSerialized] public BasisMenuActionProvider<TMenu> ActiveProvider;
 
         public virtual void Release()
         {

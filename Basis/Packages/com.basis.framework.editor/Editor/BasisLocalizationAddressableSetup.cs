@@ -10,18 +10,34 @@ using UnityEngine;
 namespace Basis.Editor.Localization
 {
     /// <summary>
-    /// Registers every language JSON under
-    /// <c>Packages/com.basis.framework/BasisUI/Localization/Languages/</c>
-    /// as an Addressable with address <c>Languages/{code}</c> and the
+    /// Registers every runtime language JSON as an Addressable with the
     /// <c>language</c> label that <c>BasisLocalization</c> loads at runtime.
     ///
-    /// <para>Runs as both a menu item and an <see cref="AssetPostprocessor"/>
-    /// so dropping a new language file into the folder is enough to wire it
-    /// up — no manual Addressables bookkeeping required.</para>
+    /// <para>Any package can contribute strings, not just the framework: every
+    /// <c>*.json</c> whose asset path passes through a <c>Localization/Languages</c>
+    /// folder is discovered through the <see cref="AssetDatabase"/>, so it works
+    /// regardless of how the package was added — embedded under <c>Packages/</c>,
+    /// referenced locally, or installed from a registry/git into the read-only
+    /// package cache. Dropping <c>{code}.json</c> into
+    /// <c>&lt;your-package&gt;/.../Localization/Languages/</c> is enough; files
+    /// that share a language code merge by key at runtime, so a package only ships
+    /// the keys it owns.</para>
+    ///
+    /// <para>The SDK editor twin folder is excluded — those strings belong to
+    /// <c>BasisEditorLocalization</c>, which loads from disk via AssetDatabase and
+    /// must not ship in runtime bundles.</para>
+    ///
+    /// <para>Runs as both a menu item and an <see cref="AssetPostprocessor"/> so
+    /// importing a package (or editing a language file) auto-registers it — no
+    /// manual Addressables bookkeeping required. A content rebuild is still needed
+    /// before the strings appear in a player build.</para>
     /// </summary>
     public static class BasisLocalizationAddressableSetup
     {
-        private const string LanguagesFolder = "Packages/com.basis.framework/BasisUI/Localization/Languages";
+        private const string FrameworkNamespace = "com.basis.framework";
+        // Editor-only twin (BasisEditorLocalization) — loaded via AssetDatabase, never Addressable.
+        private const string EditorOnlyLanguagesFolder = "Packages/com.basis.sdk/Localization/Languages";
+        private const string LanguagesFolderToken = "/Localization/Languages/";
         private const string TargetGroupName = "Basis Localization";
         private const string LanguageLabel = "language"; // Must match BasisLocalization.LanguageLabel.
         private const string AddressPrefix = "Languages/";
@@ -60,48 +76,17 @@ namespace Basis.Editor.Localization
                 return 0;
             }
 
-            if (!Directory.Exists(LanguagesFolder))
+            List<string> assetPaths = DiscoverLanguageAssetPaths();
+            if (assetPaths.Count == 0)
             {
-                Debug.LogError($"[BasisLocalization] Language folder not found: {LanguagesFolder}");
+                Debug.LogError($"[BasisLocalization] No language JSON found. Expected files under a \"{LanguagesFolderToken.Trim('/')}\" folder in any package.");
                 return 0;
             }
 
-            string[] jsonFiles = Directory.GetFiles(LanguagesFolder, "*.json");
             int updated = 0;
-            for (int i = 0; i < jsonFiles.Length; i++)
+            for (int i = 0; i < assetPaths.Count; i++)
             {
-                string unityPath = jsonFiles[i].Replace('\\', '/');
-                string code = Path.GetFileNameWithoutExtension(unityPath);
-                string guid = AssetDatabase.AssetPathToGUID(unityPath);
-                if (string.IsNullOrEmpty(guid))
-                {
-                    Debug.LogError($"[BasisLocalization] No GUID for {unityPath} — reimport may not have finished.");
-                    continue;
-                }
-
-                AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, readOnly: false, postEvent: false);
-                if (entry == null)
-                {
-                    Debug.LogError($"[BasisLocalization] Failed to create Addressable entry for {unityPath}");
-                    continue;
-                }
-
-                string newAddress = AddressPrefix + code;
-                if (entry.address != newAddress)
-                {
-                    entry.SetAddress(newAddress, postEvent: false);
-                }
-
-                if (!entry.labels.Contains(LanguageLabel))
-                {
-                    entry.SetLabel(LanguageLabel, enable: true, force: true, postEvent: false);
-                }
-
-                updated++;
-                if (logEach)
-                {
-                    Debug.Log($"[BasisLocalization] Registered {unityPath} as \"{newAddress}\"");
-                }
+                updated += RegisterFile(settings, group, assetPaths[i], logEach);
             }
 
             if (updated > 0)
@@ -110,6 +95,99 @@ namespace Basis.Editor.Localization
             }
 
             return updated;
+        }
+
+        private static int RegisterFile(AddressableAssetSettings settings, AddressableAssetGroup group, string unityPath, bool logEach)
+        {
+            string guid = AssetDatabase.AssetPathToGUID(unityPath);
+            if (string.IsNullOrEmpty(guid))
+            {
+                Debug.LogError($"[BasisLocalization] No GUID for {unityPath} — reimport may not have finished.");
+                return 0;
+            }
+
+            AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, readOnly: false, postEvent: false);
+            if (entry == null)
+            {
+                Debug.LogError($"[BasisLocalization] Failed to create Addressable entry for {unityPath}");
+                return 0;
+            }
+
+            string code = Path.GetFileNameWithoutExtension(unityPath);
+            string owner = NamespaceOf(unityPath);
+
+            // Framework keeps the bare Languages/{code} address for back-compat;
+            // every other owner is namespaced so a shared code can't collide.
+            string newAddress = string.IsNullOrEmpty(owner) || string.Equals(owner, FrameworkNamespace, StringComparison.OrdinalIgnoreCase)
+                ? AddressPrefix + code
+                : AddressPrefix + owner + "/" + code;
+            if (entry.address != newAddress)
+            {
+                entry.SetAddress(newAddress, postEvent: false);
+            }
+
+            if (!entry.labels.Contains(LanguageLabel))
+            {
+                entry.SetLabel(LanguageLabel, enable: true, force: true, postEvent: false);
+            }
+
+            if (logEach)
+            {
+                Debug.Log($"[BasisLocalization] Registered {unityPath} as \"{newAddress}\"");
+            }
+
+            return 1;
+        }
+
+        private static List<string> DiscoverLanguageAssetPaths()
+        {
+            var paths = new List<string>();
+            string[] guids = AssetDatabase.FindAssets("t:TextAsset");
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+                if (!path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (path.IndexOf(LanguagesFolderToken, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+                if (path.StartsWith(EditorOnlyLanguagesFolder + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                paths.Add(path);
+            }
+
+            return paths;
+        }
+
+        // The owner segment used to namespace addresses: the second path segment,
+        // i.e. the package id under "Packages/<id>/..." or the top folder under
+        // "Assets/<folder>/...".
+        private static string NamespaceOf(string unityPath)
+        {
+            string normalized = unityPath.Replace('\\', '/');
+            int first = normalized.IndexOf('/');
+            if (first < 0)
+            {
+                return string.Empty;
+            }
+
+            int second = normalized.IndexOf('/', first + 1);
+            if (second < 0)
+            {
+                return string.Empty;
+            }
+
+            return normalized.Substring(first + 1, second - first - 1);
         }
 
         private class Importer : AssetPostprocessor
@@ -144,11 +222,20 @@ namespace Basis.Editor.Localization
                     }
 
                     string normalized = p.Replace('\\', '/');
-                    if (normalized.StartsWith(LanguagesFolder, StringComparison.OrdinalIgnoreCase)
-                        && normalized.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                    if (!normalized.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                     {
-                        return true;
+                        continue;
                     }
+                    if (normalized.IndexOf(LanguagesFolderToken, StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue;
+                    }
+                    if (normalized.StartsWith(EditorOnlyLanguagesFolder + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    return true;
                 }
 
                 return false;

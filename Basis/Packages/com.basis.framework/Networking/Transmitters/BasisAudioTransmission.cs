@@ -19,7 +19,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public BasisLocalPlayer Local;
         public bool HasEvents = false;
         public AudioSegmentDataMessage Segment = new AudioSegmentDataMessage();
-        public NetDataWriter writer = new NetDataWriter();
+        [System.NonSerialized] public NetDataWriter writer = new NetDataWriter();
         public byte _sequenceNumber = 0;
         public int SilentForHowLong = 0;
 

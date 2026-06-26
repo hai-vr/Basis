@@ -172,5 +172,29 @@ namespace Basis.Tests.Sync
                 }
             });
         }
+
+        [Test]
+        public void Receiver_DropsCorruptedPacket_RecoversViaKeyframe()
+        {
+            var (s, v) = Single(BasisSyncFieldType.Float);
+            var r = new BasisSyncReceiver(s);
+            r.Configure(false, 0.2, false, 0f, 0, 0, verifyChecksum: true);
+
+            v.Cont[0] = 1f; FeedKeyframe(r, s, v, 1, checksum: true); r.Advance(Dt);
+            Assert.AreEqual(1f, r.NextValues.Cont[0], 1e-3f);
+
+            // A corrupted delta whose sequence is also poisoned far ahead: if trusted it would apply garbage AND
+            // make the next keyframe (seq 2) look stale (fwd >= 128). The checksum must drop it first.
+            v.Cont[0] = 999f;
+            byte[] bad = SerializeDelta(s, v, 2, new[] { 0 }, out int badLen, checksum: true);
+            bad[0] = 120;                                  // poison the sequence number far ahead
+            bad[BasisSyncCodec.HeaderSize] ^= 0xFF;        // corrupt the value
+            r.OnPacket(bad, badLen);
+            r.Advance(Dt);
+            Assert.AreEqual(1f, r.NextValues.Cont[0], 1e-3f, "corrupted packet dropped, state unchanged");
+
+            v.Cont[0] = 5f; FeedKeyframe(r, s, v, 2, checksum: true); r.Advance(Dt);
+            Assert.AreEqual(5f, r.NextValues.Cont[0], 1e-3f, "clean keyframe applies; the corrupted sequence did not poison the buffer");
+        }
     }
 }

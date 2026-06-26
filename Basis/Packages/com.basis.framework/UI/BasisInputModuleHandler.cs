@@ -51,7 +51,7 @@ namespace Basis.Scripts.UI
         /// <summary>
         /// UI raycast helper used during processing.
         /// </summary>
-        public BasisUIRaycastProcess basisUIRaycastProcess = new BasisUIRaycastProcess();
+        [System.NonSerialized] public BasisUIRaycastProcess basisUIRaycastProcess = new BasisUIRaycastProcess();
 
         /// <summary>
         /// Singleton-style reference to the active handler.

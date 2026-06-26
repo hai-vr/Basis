@@ -17,7 +17,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
     public BasisSeat Seat;
 
     [Header("Runtime")]
-    public PlayerID LinkedPlayer = null;
+    [System.NonSerialized] public PlayerID LinkedPlayer = null;
     public class PlayerID
     {
         public bool hasPlayerId = false;

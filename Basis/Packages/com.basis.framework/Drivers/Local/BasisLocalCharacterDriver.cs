@@ -153,8 +153,8 @@ namespace Basis.Scripts.BasisCharacterController
             }
         }
 
-        public BasisLocks.LockContext MovementLock = BasisLocks.GetContext(BasisLocks.Movement);
-        public BasisLocks.LockContext CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
+        [System.NonSerialized] public BasisLocks.LockContext MovementLock = BasisLocks.GetContext(BasisLocks.Movement);
+        [System.NonSerialized] public BasisLocks.LockContext CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
         public Transform BasisLocalPlayerTransform;
         private bool isEnabled = true;
         public float CurrentSpeed;

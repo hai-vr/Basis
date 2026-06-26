@@ -199,11 +199,30 @@ namespace Basis.Tests.Sync
         {
             var s = new BasisSyncSchema();
             s.Lock();
-            Assert.AreEqual(BasisSyncCodec.HeaderSize, BasisSyncCodec.MaxSerializedSize(s));
-            byte[] buf = SerializeKeyframe(s, Values(s), 1, out int len);
-            Assert.AreEqual(BasisSyncCodec.HeaderSize, len);
+            byte[] buf = SerializeKeyframe(s, Values(s), 1, out int len); // no checksum
+            Assert.AreEqual(BasisSyncCodec.HeaderSize, len, "empty keyframe is header-only");
+            Assert.GreaterOrEqual(BasisSyncCodec.MaxSerializedSize(s), len, "MaxSerializedSize bounds the real packet");
             Assert.IsTrue(BasisSyncCodec.Deserialize(s, buf, len, Values(s), out _, out bool kf, out _));
             Assert.IsTrue(kf);
+        }
+
+        [Test]
+        public void Codec_Checksum_DetectsCorruption()
+        {
+            var (s, v) = Single(BasisSyncFieldType.Position);
+            v.Cont[0] = 1.5f; v.Cont[1] = -2f; v.Cont[2] = 3f;
+            var mask = new byte[Math.Max(1, s.DirtyMaskBytes)];
+            var buf = new byte[BasisSyncCodec.MaxSerializedSize(s)];
+            int len = BasisSyncCodec.Serialize(s, v, true, mask, 1, 50, buf, appendChecksum: true);
+
+            Assert.IsTrue(BasisSyncCodec.VerifyChecksum(buf, len), "a clean packet must verify");
+
+            buf[BasisSyncCodec.HeaderSize] ^= 0x01;         // corrupt a value bit
+            Assert.IsFalse(BasisSyncCodec.VerifyChecksum(buf, len), "a corrupted body must fail verification");
+
+            buf[BasisSyncCodec.HeaderSize] ^= 0x01;         // restore body
+            buf[len - 1] ^= 0x80;                           // corrupt the trailer itself
+            Assert.IsFalse(BasisSyncCodec.VerifyChecksum(buf, len), "a corrupted trailer must fail verification");
         }
 
         [Test]

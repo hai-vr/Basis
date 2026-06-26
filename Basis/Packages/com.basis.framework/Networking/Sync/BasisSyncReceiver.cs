@@ -62,6 +62,7 @@ namespace Basis.Scripts.Networking.Sync
         private float _teleportThresholdSq;
         private int _teleportStart;
         private int _teleportCount;
+        private bool _verifyChecksum;
         private readonly float[] _lastCont;
         private bool _haveLastCont;
 
@@ -75,7 +76,7 @@ namespace Basis.Scripts.Networking.Sync
             _lastCont = schema.ContCount > 0 ? new float[schema.ContCount] : System.Array.Empty<float>();
         }
 
-        public void Configure(bool extrapolate, double maxExtrapSeconds, bool teleport, float teleportThresholdSq, int teleportStart, int teleportCount)
+        public void Configure(bool extrapolate, double maxExtrapSeconds, bool teleport, float teleportThresholdSq, int teleportStart, int teleportCount, bool verifyChecksum = false)
         {
             _extrapolate = extrapolate;
             _maxExtrapSeconds = maxExtrapSeconds;
@@ -83,6 +84,7 @@ namespace Basis.Scripts.Networking.Sync
             _teleportThresholdSq = teleportThresholdSq;
             _teleportStart = teleportStart;
             _teleportCount = teleportCount;
+            _verifyChecksum = verifyChecksum;
         }
 
         public bool HasData => _current != null;
@@ -93,6 +95,9 @@ namespace Basis.Scripts.Networking.Sync
         public void OnPacket(byte[] payload, int length)
         {
             if (payload == null || length < BasisSyncCodec.HeaderSize) return;
+            // Drop corrupted packets before they touch the sequence/baseline, so a corrupted sequence number
+            // can't poison the high-water-mark and a corrupted value is never applied.
+            if (_verifyChecksum && !BasisSyncCodec.VerifyChecksum(payload, length)) return;
             RawPacket rp = RentRaw();
             if (rp.Bytes.Length < length) rp.Bytes = new byte[length];
             System.Array.Copy(payload, 0, rp.Bytes, 0, length);

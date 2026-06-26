@@ -4,7 +4,7 @@ using UnityEngine.UI;
 public class BasisUIVolumeSampler : MonoBehaviour
 {
     [Header("Remote source (set via Initialize)")]
-    public BasisRemotePlayer RemotePlayer;
+    [System.NonSerialized] public BasisRemotePlayer RemotePlayer;
 
 
     [Tooltip("Optional thin Image used as a peak-hold tick.")]

@@ -14,13 +14,15 @@ namespace Basis.Scripts.Networking.Sync
     {
         public const byte FlagKeyframe = 1 << 0;
         public const int HeaderSize = 4; // seq(1) + flags(1) + intervalMs(2)
+        public const int ChecksumSize = 2; // optional Fletcher-16 integrity trailer (see BasisSyncedObject.UseChecksum)
 
         public static int MaxSerializedSize(BasisSyncSchema schema)
         {
             int bits = 0;
             for (int i = 0; i < schema.FieldCount; i++) bits += MaxFieldBits(schema, schema.GetField(i));
             int payloadBytes = (bits + 7) >> 3;
-            return HeaderSize + schema.DirtyMaskBytes + payloadBytes + 1; // +1 byte slack for the partial-byte tail
+            // +1 slack for the partial-byte tail; +ChecksumSize so the buffer always fits the optional trailer.
+            return HeaderSize + schema.DirtyMaskBytes + payloadBytes + 1 + ChecksumSize;
         }
 
         private static int MaxFieldBits(BasisSyncSchema schema, in BasisSyncField f)
@@ -59,6 +61,14 @@ namespace Basis.Scripts.Networking.Sync
         private static int ClampBits(int b) => b < 1 ? 1 : (b > 31 ? 31 : b);
 
         public static int Serialize(BasisSyncSchema schema, BasisSyncValues values, bool keyframe, byte[] dirtyMask, byte seq, ushort intervalMs, byte[] outBuf)
+            => Serialize(schema, values, keyframe, dirtyMask, seq, intervalMs, outBuf, false);
+
+        /// <summary>
+        /// As Serialize, optionally appending a 2-byte Fletcher-16 integrity trailer. The receiver checks it
+        /// (<see cref="VerifyChecksum"/>) and drops the packet on mismatch, so a corrupted unreliable packet can
+        /// neither apply a garbage value nor poison the sequence high-water-mark.
+        /// </summary>
+        public static int Serialize(BasisSyncSchema schema, BasisSyncValues values, bool keyframe, byte[] dirtyMask, byte seq, ushort intervalMs, byte[] outBuf, bool appendChecksum)
         {
             int o = 0;
             outBuf[o++] = seq;
@@ -78,7 +88,37 @@ namespace Basis.Scripts.Networking.Sync
                 if (!keyframe && (dirtyMask[fi >> 3] & (1 << (fi & 7))) == 0) continue;
                 EncodeField(schema, schema.GetField(fi), values, ref w);
             }
-            return w.ByteLength;
+
+            int len = w.ByteLength;
+            if (appendChecksum && len + ChecksumSize <= outBuf.Length)
+            {
+                ushort ck = Fletcher16(outBuf, len);
+                outBuf[len] = (byte)ck;
+                outBuf[len + 1] = (byte)(ck >> 8);
+                len += ChecksumSize;
+            }
+            return len;
+        }
+
+        /// <summary>True if the trailing 2-byte Fletcher-16 matches the packet body. Call before trusting a packet's sequence/values.</summary>
+        public static bool VerifyChecksum(byte[] buf, int length)
+        {
+            if (buf == null || length < HeaderSize + ChecksumSize) return false;
+            int payloadLen = length - ChecksumSize;
+            ushort expected = Fletcher16(buf, payloadLen);
+            ushort actual = (ushort)(buf[payloadLen] | (buf[payloadLen + 1] << 8));
+            return expected == actual;
+        }
+
+        private static ushort Fletcher16(byte[] data, int len)
+        {
+            int s1 = 0, s2 = 0;
+            for (int i = 0; i < len; i++)
+            {
+                s1 = (s1 + data[i]) % 255;
+                s2 = (s2 + s1) % 255;
+            }
+            return (ushort)((s2 << 8) | s1);
         }
 
         public static bool Deserialize(BasisSyncSchema schema, byte[] buf, int length, BasisSyncValues baseline, out byte seq, out bool keyframe, out ushort intervalMs)

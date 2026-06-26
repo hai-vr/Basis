@@ -10,7 +10,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
     public float RenderScale = 1;
 
     private XRDisplaySubsystem xrDisplaySubsystem;
-    public List<XRDisplaySubsystem> xrDisplays = new List<XRDisplaySubsystem>();
+    [System.NonSerialized] public List<XRDisplaySubsystem> xrDisplays = new List<XRDisplaySubsystem>();
 
     public float foveatedRenderingLevel = 0;
 

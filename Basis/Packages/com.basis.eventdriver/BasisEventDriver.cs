@@ -186,6 +186,7 @@ namespace Basis.EventDriver
             SMModuleAvatarPerformanceLimits.Simulate();
             SMModuleDebugOptions.Simulate();
             Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
+            BasisHighPlayerCapPerformanceMode.Simulate();
             timeSinceLastUpdate += DeltaTime;
         }
 

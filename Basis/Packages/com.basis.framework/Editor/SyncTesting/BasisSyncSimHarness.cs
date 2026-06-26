@@ -43,13 +43,14 @@ namespace Basis.Scripts.Networking.Sync.Testing
                 SendInterval = s.SendInterval,
                 KeyframeInterval = s.KeyframeInterval,
                 ContinuousEpsilon = s.ContinuousEpsilon,
+                UseChecksum = s.UseChecksum,
             };
             var receiver = new BasisSyncReceiver(schema);
 
             int teleStart = 0, teleCount = 0;
             if (s.Fields.Count > 0 && s.Fields[0].Type == BasisSyncFieldType.Position) teleCount = 3;
             receiver.Configure(s.Extrapolate, s.MaxExtrapolation, s.TeleportThreshold,
-                s.TeleportThresholdMeters * s.TeleportThresholdMeters, teleStart, teleCount);
+                s.TeleportThresholdMeters * s.TeleportThresholdMeters, teleStart, teleCount, s.UseChecksum);
 
             var net = new SimNetwork(s.Profile, new System.Random(s.Seed));
             var truth = new BasisSyncTruthSource(schema, s.Fields, s.Motion, new System.Random(s.Seed * 397 + 13), s.DurationSeconds);
@@ -321,6 +322,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public float SendInterval = 0.05f;
         public float KeyframeInterval = 0.5f;
         public float ContinuousEpsilon = 1e-4f;
+        public bool UseChecksum = true;
 
         readonly BasisSyncSchema _schema;
         readonly BasisSyncValues _local;
@@ -375,7 +377,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             _lastSendTime = time;
             unchecked { _seq++; }
 
-            int len = BasisSyncCodec.Serialize(_schema, _local, keyframe, _dirtyMask, _seq, intervalMs, _scratch);
+            int len = BasisSyncCodec.Serialize(_schema, _local, keyframe, _dirtyMask, _seq, intervalMs, _scratch, UseChecksum);
             var bytes = new byte[len];
             Array.Copy(_scratch, 0, bytes, 0, len);
 
@@ -698,6 +700,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public float MaxExtrapolation = 0.2f;
         public bool TeleportThreshold = false;
         public float TeleportThresholdMeters = 3f;
+        public bool UseChecksum = true;
 
         public float Dt = 1f / 72f;
         public float DurationSeconds = 8f;

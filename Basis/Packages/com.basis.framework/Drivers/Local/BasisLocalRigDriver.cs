@@ -48,7 +48,7 @@ namespace Basis.Scripts.Drivers
 
         public RigBuilder Builder;
         public List<RigTransform> AdditionalTransforms = new List<RigTransform>();
-        public PlayableGraph PlayableGraph;
+        [System.NonSerialized] public PlayableGraph PlayableGraph;
         public Rig MainRig;
         public RigLayer RigLayer;
         public BasisFullBodyIK BasisFullIKConstraint;

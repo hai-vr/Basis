@@ -20,7 +20,7 @@ namespace Basis.Scripts.UI.NamePlate
         public SpriteRenderer LoadingBar;
         public MeshFilter Filter;
         public TextMeshPro LoadingText;
-        public BasisRemotePlayer BasisRemotePlayer;
+        [System.NonSerialized] public BasisRemotePlayer BasisRemotePlayer;
         public bool HasRendererCheckWiredUp = false;
 
         private int _isVisible = 1; // 1 = true, 0 = false

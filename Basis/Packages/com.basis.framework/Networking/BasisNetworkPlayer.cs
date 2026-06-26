@@ -115,7 +115,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Captured here because the server doesn't send a join timestamp.
         /// </summary>
         public double JoinTime = Time.realtimeSinceStartupAsDouble;
-        public Dictionary<byte, ServerAvatarDataMessageQueue> NextMessages = new Dictionary<byte, ServerAvatarDataMessageQueue>();
+        [System.NonSerialized] public Dictionary<byte, ServerAvatarDataMessageQueue> NextMessages = new Dictionary<byte, ServerAvatarDataMessageQueue>();
         public struct ServerAvatarDataMessageQueue
         {
             public ServerAvatarDataMessage ServerAvatarDataMessage;

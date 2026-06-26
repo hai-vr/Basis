@@ -19,6 +19,13 @@ namespace Basis.BasisUI
     /// Directory.GetFiles silently returns nothing — language discovery was
     /// broken on mobile builds.
     ///
+    /// Any package — not just com.basis.framework — can contribute strings:
+    /// every JSON tagged with the <see cref="LanguageLabel"/> label is loaded,
+    /// and files that share a <c>code</c> are merged by key into one table, so a
+    /// package ships its own <c>{code}.json</c> with namespaced keys and
+    /// <see cref="Get(string)"/> resolves them from the same flat namespace. No
+    /// per-package API is needed; <see cref="Get(string)"/> is not specialized.
+    ///
     /// Japanese (and other CJK languages) require a TMP font asset that includes
     /// the relevant glyph set. The default Basis TMP font only ships with Latin
     /// characters, so a CJK-capable fallback font must be assigned to
@@ -404,7 +411,15 @@ namespace Basis.BasisUI
                     }
                 }
 
-                _allTables[parsed.code] = table;
+                if (!_allTables.TryGetValue(parsed.code, out Dictionary<string, string> merged))
+                {
+                    merged = new Dictionary<string, string>(table.Count);
+                    _allTables[parsed.code] = merged;
+                }
+                foreach (KeyValuePair<string, string> kv in table)
+                {
+                    merged[kv.Key] = kv.Value;
+                }
 
                 if (string.Equals(parsed.code, DefaultLanguage, StringComparison.OrdinalIgnoreCase))
                 {
@@ -415,8 +430,20 @@ namespace Basis.BasisUI
                     continue;
                 }
 
-                string nativeName = string.IsNullOrEmpty(parsed.nativeName) ? parsed.code : parsed.nativeName;
-                _available.Add(new LanguageOption(parsed.code, nativeName));
+                bool alreadyListed = false;
+                for (int a = 0; a < _available.Count; a++)
+                {
+                    if (string.Equals(_available[a].Code, parsed.code, StringComparison.OrdinalIgnoreCase))
+                    {
+                        alreadyListed = true;
+                        break;
+                    }
+                }
+                if (!alreadyListed)
+                {
+                    string nativeName = string.IsNullOrEmpty(parsed.nativeName) ? parsed.code : parsed.nativeName;
+                    _available.Add(new LanguageOption(parsed.code, nativeName));
+                }
             }
 
             Addressables.Release(handle);

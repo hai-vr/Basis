@@ -7,7 +7,7 @@ namespace Basis.Scripts.Networking.Transmitters
     [System.Serializable]
     public class BasisStoredAvatarData
     {
-        [SerializeField]
+        [System.NonSerialized]
         public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage(new byte[BasisAvatarBitPacking.ConvertToSize(BasisAvatarBitPacking.BitQuality.High)]);
     }
 }

@@ -34,20 +34,20 @@ namespace Basis.Tests.Sync
             return v;
         }
 
-        public static byte[] SerializeKeyframe(BasisSyncSchema s, BasisSyncValues v, byte seq, out int len, ushort ms = 50)
+        public static byte[] SerializeKeyframe(BasisSyncSchema s, BasisSyncValues v, byte seq, out int len, ushort ms = 50, bool checksum = false)
         {
             var mask = new byte[Math.Max(1, s.DirtyMaskBytes)];
             var buf = new byte[BasisSyncCodec.MaxSerializedSize(s)];
-            len = BasisSyncCodec.Serialize(s, v, true, mask, seq, ms, buf);
+            len = BasisSyncCodec.Serialize(s, v, true, mask, seq, ms, buf, checksum);
             return buf;
         }
 
-        public static byte[] SerializeDelta(BasisSyncSchema s, BasisSyncValues v, byte seq, int[] dirty, out int len, ushort ms = 50)
+        public static byte[] SerializeDelta(BasisSyncSchema s, BasisSyncValues v, byte seq, int[] dirty, out int len, ushort ms = 50, bool checksum = false)
         {
             var mask = new byte[Math.Max(1, s.DirtyMaskBytes)];
             foreach (int fi in dirty) mask[fi >> 3] |= (byte)(1 << (fi & 7));
             var buf = new byte[BasisSyncCodec.MaxSerializedSize(s)];
-            len = BasisSyncCodec.Serialize(s, v, false, mask, seq, ms, buf);
+            len = BasisSyncCodec.Serialize(s, v, false, mask, seq, ms, buf, checksum);
             return buf;
         }
 
@@ -60,15 +60,15 @@ namespace Basis.Tests.Sync
             return dst;
         }
 
-        public static void FeedKeyframe(BasisSyncReceiver r, BasisSyncSchema s, BasisSyncValues v, byte seq, ushort ms = 50)
+        public static void FeedKeyframe(BasisSyncReceiver r, BasisSyncSchema s, BasisSyncValues v, byte seq, ushort ms = 50, bool checksum = false)
         {
-            byte[] buf = SerializeKeyframe(s, v, seq, out int len, ms);
+            byte[] buf = SerializeKeyframe(s, v, seq, out int len, ms, checksum);
             r.OnPacket(buf, len);
         }
 
-        public static void FeedDelta(BasisSyncReceiver r, BasisSyncSchema s, BasisSyncValues v, byte seq, int[] dirty, ushort ms = 50)
+        public static void FeedDelta(BasisSyncReceiver r, BasisSyncSchema s, BasisSyncValues v, byte seq, int[] dirty, ushort ms = 50, bool checksum = false)
         {
-            byte[] buf = SerializeDelta(s, v, seq, dirty, out int len, ms);
+            byte[] buf = SerializeDelta(s, v, seq, dirty, out int len, ms, checksum);
             r.OnPacket(buf, len);
         }
 

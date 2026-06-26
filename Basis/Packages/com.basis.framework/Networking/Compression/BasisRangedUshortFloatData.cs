@@ -10,17 +10,17 @@ namespace Basis.Scripts.Networking.Compression
     [System.Serializable]
     public class CompressionArraysRangedUshort
     {
-        public NativeArray<float> Floats;
-        public NativeArray<ushort> Ushorts;
+        [System.NonSerialized] public NativeArray<float> Floats;
+        [System.NonSerialized] public NativeArray<ushort> Ushorts;
         public float Precision;
         public float InversePrecision;
         public float MinValue;
         public float MaxValue;
         public int RequiredBits;
         public ushort Mask;
-        public DecompressJob Decompression;
-        public CompressJob Compression;
-        public JobHandle handle;
+        [System.NonSerialized] public DecompressJob Decompression;
+        [System.NonSerialized] public CompressJob Compression;
+        [System.NonSerialized] public JobHandle handle;
         public int InnerBatchCount = 64;
 
         public byte[] byteArray;

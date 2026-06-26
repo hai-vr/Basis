@@ -14,7 +14,7 @@ namespace Basis.Scripts.Avatar
         public BasisLocalBoneControl TargetControl;
         [SerializeField]
         public BasisBoneTrackedRole BasisBoneControlRole;
-        [SerializeField]
+        [System.NonSerialized]
         public List<BasisCalibrationData> Candidates = new List<BasisCalibrationData>();
         public Vector3 CalibrationPoint;
         public BasisTrackerMapping(BasisLocalBoneControl Bone, Transform AvatarTransform, BasisBoneTrackedRole Role, List<BasisCalibrationData> calibration, float calibrationMaxDistance)

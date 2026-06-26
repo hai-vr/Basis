@@ -84,7 +84,7 @@ namespace Basis.Scripts.Drivers
         public static JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
 
         /// <summary>Stores the transforms for each tracked role at calibration time.</summary>
-        public Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = new Dictionary<BasisBoneTrackedRole, Transform>();
+        [System.NonSerialized] public Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = new Dictionary<BasisBoneTrackedRole, Transform>();
 
         /// <summary>Runtime scale modification settings for the avatar.</summary>
         [SerializeField]

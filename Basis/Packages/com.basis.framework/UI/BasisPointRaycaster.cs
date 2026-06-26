@@ -82,7 +82,7 @@ namespace Basis.Scripts.UI
 
             public float Distance => HasHit ? Hit.distance : float.PositiveInfinity;
         }
-        [SerializeField]
+        [System.NonSerialized]
         public PlacementResult CurrentPlacement;
 
         /// <summary>

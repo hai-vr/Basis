@@ -24,8 +24,8 @@ namespace Basis.Scripts.Networking.Transmitters
         [SerializeField]
         public BasisTransmissionResults TransmissionResults = new BasisTransmissionResults();
 
-        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, BasisAvatarBitPacking.ConvertToSize(BasisAvatarBitPacking.BitQuality.High) + 2);
-        public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
+        [System.NonSerialized] public NetDataWriter AvatarSendWriter = new NetDataWriter(true, BasisAvatarBitPacking.ConvertToSize(BasisAvatarBitPacking.BitQuality.High) + 2);
+        [System.NonSerialized] public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
 
         public static Action AfterAvatarChanges;
         public BasisNetworkTransmitter(ushort PlayerID)

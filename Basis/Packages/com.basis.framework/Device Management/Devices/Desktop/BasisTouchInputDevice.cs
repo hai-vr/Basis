@@ -7,7 +7,7 @@ using UnityEngine.InputSystem.EnhancedTouch;
 public class BasisTouchInputDevice : BasisInput
 {
     public BasisDesktopEye Input;
-    public Finger Finger;
+    [System.NonSerialized] public Finger Finger;
     public int Index;
     public void Initialize(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
     {

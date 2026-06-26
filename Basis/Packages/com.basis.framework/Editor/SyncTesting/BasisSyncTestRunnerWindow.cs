@@ -28,6 +28,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
         bool _extrap = true;
         bool _teleThresh = true;
         bool _composites = true;
+        bool _checksumOff;
 
         List<BasisSyncSimResult> _results;
         string _summary = "";
@@ -77,6 +78,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
                 _interpOff = EditorGUILayout.Toggle("Interpolate-off variants", _interpOff);
                 _extrap = EditorGUILayout.Toggle("Extrapolation variants", _extrap);
                 _teleThresh = EditorGUILayout.Toggle("Teleport-threshold variants", _teleThresh);
+                _checksumOff = EditorGUILayout.Toggle(new GUIContent("Checksum-off variants", "Adds checksum-OFF runs on corrupting profiles (expected to FAIL) to show the option carrying recovery."), _checksumOff);
             }
 
             if (EditorGUI.EndChangeCheck() || _scenarioCount < 0)
@@ -147,6 +149,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
             o.InterpolateOffVariants = _interpOff;
             o.ExtrapolateVariant = _extrap;
             o.TeleportThresholdVariant = _teleThresh;
+            o.ChecksumOffVariant = _checksumOff;
             return o;
         }
 

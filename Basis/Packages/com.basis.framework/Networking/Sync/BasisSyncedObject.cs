@@ -34,11 +34,12 @@ namespace Basis.Scripts.Networking.Sync
         public bool DistanceReduction = true;
         public bool RelevanceCulling = false;
         public float RelevanceRadius = 50f;
+        public bool UseChecksum = true;
 
         // Stays 0 in anything serialized before this field existed (legacy bundles/mods), so it reliably
         // tells pre-refactor content apart from freshly-authored content regardless of field-initializer behaviour.
         [SerializeField, HideInInspector] private int _serializedVersion;
-        protected const int CurrentSerializedVersion = 1;
+        protected const int CurrentSerializedVersion = 2;
 
         private readonly BasisSyncSchema _schema = new BasisSyncSchema();
         private BasisSyncValues _local;
@@ -471,7 +472,7 @@ namespace Basis.Scripts.Networking.Sync
             _lastSendTime = time;
             unchecked { _seq++; }
 
-            int len = BasisSyncCodec.Serialize(_schema, _local, keyframe, _dirtyMask, _seq, intervalMs, _scratch);
+            int len = BasisSyncCodec.Serialize(_schema, _local, keyframe, _dirtyMask, _seq, intervalMs, _scratch, UseChecksum);
             if (_sendBuffer == null || _sendBuffer.Length != len) _sendBuffer = new byte[len];
             Array.Copy(_scratch, 0, _sendBuffer, 0, len);
 
@@ -540,7 +541,7 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Re-pushes extrapolation/teleport settings into the receiver. Call after changing them at runtime.</summary>
         public void ApplySyncConfig()
         {
-            _receiver?.Configure(Extrapolate, MaxExtrapolationSeconds, UseTeleportThreshold, TeleportThreshold * TeleportThreshold, TeleportWatchStart, TeleportWatchCount);
+            _receiver?.Configure(Extrapolate, MaxExtrapolationSeconds, UseTeleportThreshold, TeleportThreshold * TeleportThreshold, TeleportWatchStart, TeleportWatchCount, UseChecksum);
         }
 
         // ── Serialized-data migration (keeps legacy bundle / mod content working after a refactor) ──
@@ -579,6 +580,11 @@ namespace Basis.Scripts.Networking.Sync
                 DistanceReduction = true;
                 Delivery = DeliveryMethod.Unreliable;
                 KeyframeDelivery = DeliveryMethod.ReliableOrdered;
+            }
+
+            if (fromVersion < 2)
+            {
+                UseChecksum = true;
             }
         }
 

@@ -19,19 +19,19 @@ using static SerializableBasis;
 public partial class BasisTransmissionResults
 {
     // Jobs
-    public BasisDistanceJobParallel distanceJob;
-    public BasisDistanceReduceJob reduceJob;
-    public BasisAvatarCapJob avatarCapJob;
-    public BasisAudioCapJob audioCapJob;
-    public BasisDirectionalDampenJob dampenJob;
-    public BasisViewConeAvatarJob viewConeJob;
+    [System.NonSerialized] public BasisDistanceJobParallel distanceJob;
+    [System.NonSerialized] public BasisDistanceReduceJob reduceJob;
+    [System.NonSerialized] public BasisAvatarCapJob avatarCapJob;
+    [System.NonSerialized] public BasisAudioCapJob audioCapJob;
+    [System.NonSerialized] public BasisDirectionalDampenJob dampenJob;
+    [System.NonSerialized] public BasisViewConeAvatarJob viewConeJob;
 
-    public JobHandle distanceJobHandle;
-    public JobHandle reduceJobHandle;
-    public JobHandle avatarCapJobHandle;
-    public JobHandle audioCapJobHandle;
-    public JobHandle dampenJobHandle;
-    public JobHandle viewConeJobHandle;
+    [System.NonSerialized] public JobHandle distanceJobHandle;
+    [System.NonSerialized] public JobHandle reduceJobHandle;
+    [System.NonSerialized] public JobHandle avatarCapJobHandle;
+    [System.NonSerialized] public JobHandle audioCapJobHandle;
+    [System.NonSerialized] public JobHandle dampenJobHandle;
+    [System.NonSerialized] public JobHandle viewConeJobHandle;
 
     // Timing / interval control
     public float intervalSeconds = 0.05f;
@@ -53,7 +53,7 @@ public partial class BasisTransmissionResults
 
     // Network
     [SerializeReference] public BasisNetworkTransmitter BasisNetworkTransmitter;
-    public NetDataWriter VRMWriter = new NetDataWriter(true, 0);
+    [System.NonSerialized] public NetDataWriter VRMWriter = new NetDataWriter(true, 0);
 
     // Recipients / excluded
     public List<ushort> TalkingPoints = new List<ushort>(128);
@@ -101,17 +101,17 @@ public partial class BasisTransmissionResults
     private NativeArray<float> distanceSq;
     private NativeArray<float3> targetPositions;
 
-    public NativeArray<bool> MicrophoneRange;
+    [System.NonSerialized] public NativeArray<bool> MicrophoneRange;
     private NativeArray<bool> hearingRange;
-    public NativeArray<bool> AvatarRange;
+    [System.NonSerialized] public NativeArray<bool> AvatarRange;
 
-    public NativeArray<bool> PrevInMicrophoneRange;
-    public NativeArray<bool> PrevInHearingRange;
-    public NativeArray<bool> PrevInAvatarRange;
+    [System.NonSerialized] public NativeArray<bool> PrevInMicrophoneRange;
+    [System.NonSerialized] public NativeArray<bool> PrevInHearingRange;
+    [System.NonSerialized] public NativeArray<bool> PrevInAvatarRange;
 
-    public NativeArray<short> MeshLodLevel;
-    public NativeArray<short> prevMeshLodLevel;
-    public NativeArray<bool> MeshLodRange;
+    [System.NonSerialized] public NativeArray<short> MeshLodLevel;
+    [System.NonSerialized] public NativeArray<short> prevMeshLodLevel;
+    [System.NonSerialized] public NativeArray<bool> MeshLodRange;
 
     // Scratch + reduced outputs
     private NativeArray<float> perIndexMinD2;

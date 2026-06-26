@@ -34,7 +34,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// 54 bone delta rotations (T-pose-relative, avatar-agnostic).
         /// Indexed by slot in BasisBoneRotationCompression.BONE_WRITE_ORDER.
         /// </summary>
-        public NativeArray<quaternion> BoneRotations;
+        [System.NonSerialized] public NativeArray<quaternion> BoneRotations;
         public double SecondsInterval = 0.01;
 
         public bool IsDisposed = false;

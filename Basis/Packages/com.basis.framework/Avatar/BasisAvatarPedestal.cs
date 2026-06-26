@@ -56,12 +56,12 @@ public class BasisAvatarPedestal : BasisInteractableObject
     /// <summary>
     /// Progress report object for monitoring loading operations.
     /// </summary>
-    public BasisProgressReport BasisProgressReport;
+    [System.NonSerialized] public BasisProgressReport BasisProgressReport;
 
     /// <summary>
     /// Cancellation token for aborting async avatar loading operations.
     /// </summary>
-    public CancellationToken cancellationToken;
+    [System.NonSerialized] public CancellationToken cancellationToken;
 
     /// <summary>
     /// Animator controller applied to pedestal avatars.

@@ -151,7 +151,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Character controller for movement, collisions, and physics.
         /// </summary>
         [Header("Character Driver")]
-        [SerializeField]
+        [System.NonSerialized]
         public BasisLocalCharacterDriver LocalCharacterDriver = new BasisLocalCharacterDriver();
 
         /// <summary>
@@ -165,7 +165,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Animator controller that blends animation states and applies weights each frame.
         /// </summary>
         [Header("Animator Driver")]
-        [SerializeField]
+        [System.NonSerialized]
         public BasisLocalAnimatorDriver LocalAnimatorDriver = new BasisLocalAnimatorDriver();
 
         /// <summary>

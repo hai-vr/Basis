@@ -128,7 +128,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// UI-specific raycasting/interaction helper.
         /// </summary>
-        public BasisUIRaycast BasisUIRaycast;
+        [System.NonSerialized] public BasisUIRaycast BasisUIRaycast;
 
         /// <summary>
         /// Hover Supported Raycasting
@@ -185,7 +185,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Data used to compute inverse offsets from bone after calibration.
         /// </summary>
-        [SerializeField]
+        [System.NonSerialized]
         public BasisInverseOffsetFromBoneData BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
 
         /// <summary>

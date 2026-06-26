@@ -9,7 +9,7 @@ namespace Basis.BasisUI
 {
     public class IndividualPlayerPanelUpdater : MonoBehaviour
     {
-        public BasisRemotePlayer RemotePlayer;
+        [System.NonSerialized] public BasisRemotePlayer RemotePlayer;
         public PanelElementDescriptor PanelDescriptor;
         public PanelElementDescriptor DebugField;
         public PanelElementDescriptor DistanceField;
