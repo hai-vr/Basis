@@ -87,6 +87,13 @@ namespace Basis.Scripts.Networking.Sync.Testing
             AddType(list, o, BasisSyncFieldType.Bool, quantizable: false, interpToggle: false);
             AddType(list, o, BasisSyncFieldType.Byte, quantizable: false, interpToggle: false);
 
+            // Variable-bit smallest-three rotation — the Rotation pool's selectable precision (default is 9 = 32-bit).
+            if (o.QuantizeVariants)
+            {
+                list.Add(new FieldConfig { Name = "Rotation-compact", PositionFirst = false, Fields = new List<SimFieldSpec> { new SimFieldSpec(BasisSyncFieldType.Rotation) { RotBits = 7 } } });
+                list.Add(new FieldConfig { Name = "Rotation-fine", PositionFirst = false, Fields = new List<SimFieldSpec> { new SimFieldSpec(BasisSyncFieldType.Rotation) { RotBits = 13 } } });
+            }
+
             if (o.CompositeConfigs)
             {
                 list.Add(KitchenSink());
@@ -218,6 +225,106 @@ namespace Basis.Scripts.Networking.Sync.Testing
             SyncMotion.Static, SyncMotion.Ramp, SyncMotion.Sine, SyncMotion.Step, SyncMotion.Teleport, SyncMotion.RandomWalk,
         };
 
+        // ── Multi-object scenes ──
+        static SimFieldSpec F(BasisSyncFieldType t, bool interp = true, bool quant = false) => new SimFieldSpec(t, interp, quant);
+        static List<SimFieldSpec> Obj(params SimFieldSpec[] f) => new List<SimFieldSpec>(f);
+
+        // Heterogeneous object sets: different cont/rot/discrete counts so the shared-wire batch and the multi-slot
+        // SoA both run over non-trivial, mismatched per-object windows.
+        static List<BasisSyncSceneObjectSpec> MixedSet() => new List<BasisSyncSceneObjectSpec>
+        {
+            new BasisSyncSceneObjectSpec("xform", Obj(F(BasisSyncFieldType.Position), F(BasisSyncFieldType.Rotation), F(BasisSyncFieldType.Scale))),
+            new BasisSyncSceneObjectSpec("params", Obj(F(BasisSyncFieldType.Float), F(BasisSyncFieldType.Vector2), F(BasisSyncFieldType.Color, true, true), F(BasisSyncFieldType.Bool))),
+            new BasisSyncSceneObjectSpec("door", Obj(F(BasisSyncFieldType.Angle))),
+        };
+
+        static List<BasisSyncSceneObjectSpec> TransformsSet() => new List<BasisSyncSceneObjectSpec>
+        {
+            new BasisSyncSceneObjectSpec("poseA", Obj(F(BasisSyncFieldType.Position), F(BasisSyncFieldType.Rotation))),
+            new BasisSyncSceneObjectSpec("poseB-quant", Obj(F(BasisSyncFieldType.Position, true, true), F(BasisSyncFieldType.Rotation))),
+            new BasisSyncSceneObjectSpec("full", Obj(F(BasisSyncFieldType.Position), F(BasisSyncFieldType.Rotation), F(BasisSyncFieldType.Scale))),
+        };
+
+        static List<BasisSyncSceneObjectSpec> DiscreteSet() => new List<BasisSyncSceneObjectSpec>
+        {
+            new BasisSyncSceneObjectSpec("flags", Obj(F(BasisSyncFieldType.Bool), F(BasisSyncFieldType.Byte), F(BasisSyncFieldType.Int), F(BasisSyncFieldType.UShort))),
+            new BasisSyncSceneObjectSpec("counters", Obj(F(BasisSyncFieldType.UInt), F(BasisSyncFieldType.UShort))),
+            new BasisSyncSceneObjectSpec("mix", Obj(F(BasisSyncFieldType.Int), F(BasisSyncFieldType.Bool), F(BasisSyncFieldType.Float))),
+        };
+
+        public static List<BasisSyncSceneScenario> EnumerateScenes(MatrixOptions o)
+        {
+            var scenes = new List<BasisSyncSceneScenario>();
+            if (!o.MultiObjectScenes) return scenes;
+
+            var sets = new (string name, List<BasisSyncSceneObjectSpec> objs)[]
+            {
+                ("Mixed", MixedSet()),
+                ("Transforms", TransformsSet()),
+                ("Discrete", DiscreteSet()),
+            };
+
+            List<NetworkProfile> profiles = BuildProfiles();
+            if (o.ProfileNames != null) profiles = profiles.FindAll(p => o.ProfileNames.Contains(p.Name));
+            SyncMotion[] motions = o.Motions != null ? o.Motions.ToArray() : new[] { SyncMotion.Sine, SyncMotion.Step, SyncMotion.RandomWalk };
+
+            int activeFrames = (int)Math.Ceiling(o.DurationSeconds / (double)o.Dt);
+            int lateJoinFrame = Math.Max(8, activeFrames / 3);
+            SceneTransport transport = o.BatchedTransport ? SceneTransport.Batched : SceneTransport.PerPacket;
+            SceneSample sample = o.RealInterpJob ? SceneSample.RealJob : SceneSample.Managed;
+
+            foreach (var set in sets)
+            {
+                foreach (SyncMotion motion in motions)
+                {
+                    foreach (NetworkProfile profile in profiles)
+                    {
+                        int seed = unchecked(o.BaseSeed + Hash(set.name) * 31 + (int)motion * 7 + Hash(profile.Name) + 0x5CE2E);
+                        scenes.Add(MakeScene(set.name, set.objs, motion, profile, seed, transport, sample, 0, o));
+
+                        // A per-packet + managed control on a faithful profile pins the batched / real-job path against the simple one.
+                        if (profile.Name == "perfect" && (transport != SceneTransport.PerPacket || sample != SceneSample.Managed))
+                            scenes.Add(MakeScene(set.name, set.objs, motion, profile, seed ^ 0x2B2B, SceneTransport.PerPacket, SceneSample.Managed, 0, o));
+                    }
+                }
+
+                if (o.LateJoinVariant)
+                {
+                    NetworkProfile lj = profiles.Find(p => p.Name == "reorder") ?? profiles.Find(p => p.Name == "perfect") ?? (profiles.Count > 0 ? profiles[0] : null);
+                    if (lj != null)
+                    {
+                        int seed = unchecked(o.BaseSeed + Hash(set.name) * 17 + 0x1A7E);
+                        scenes.Add(MakeScene(set.name + "-latejoin", set.objs, SyncMotion.Sine, lj, seed, transport, sample, lateJoinFrame, o));
+                    }
+                }
+            }
+
+            return scenes;
+        }
+
+        static BasisSyncSceneScenario MakeScene(string setName, List<BasisSyncSceneObjectSpec> objs, SyncMotion motion, NetworkProfile profile, int seed, SceneTransport transport, SceneSample sample, int lateJoinFrame, MatrixOptions o)
+        {
+            string tag = transport == SceneTransport.Batched ? "batched" : "perpkt";
+            string smp = sample == SceneSample.RealJob ? "realjob" : "managed";
+            return new BasisSyncSceneScenario
+            {
+                Name = $"Scene:{setName}/{motion}/{profile.Name}/{tag}/{smp}",
+                Objects = objs,
+                Motion = motion,
+                Profile = profile,
+                Seed = seed,
+                Transport = transport,
+                Sample = sample,
+                LateJoinFrame = lateJoinFrame,
+                IdleKeyframeBackoff = true,
+                RotationSendThresholdDegrees = 0.5f,
+                UseChecksum = true,
+                Dt = o.Dt,
+                DurationSeconds = o.DurationSeconds,
+                SettleSeconds = o.SettleSeconds,
+            };
+        }
+
         // ── Enumeration ──
         public static List<BasisSyncSimScenario> Enumerate(MatrixOptions o)
         {
@@ -280,18 +387,32 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public static List<BasisSyncSimResult> RunAll(MatrixOptions o, Action<int, int, BasisSyncSimResult> onResult, Func<bool> cancelled)
         {
             List<BasisSyncSimScenario> scenarios = Enumerate(o);
-            var results = new List<BasisSyncSimResult>(scenarios.Count);
+            List<BasisSyncSceneScenario> scenes = EnumerateScenes(o);
+            int total = scenarios.Count + scenes.Count;
+            var results = new List<BasisSyncSimResult>(total);
+
+            int done = 0;
             for (int i = 0; i < scenarios.Count; i++)
             {
-                if (cancelled != null && cancelled()) break;
+                if (cancelled != null && cancelled()) return results;
                 BasisSyncSimResult r = BasisSyncSim.Run(scenarios[i]);
                 results.Add(r);
-                onResult?.Invoke(i + 1, scenarios.Count, r);
+                onResult?.Invoke(++done, total, r);
             }
+
+            // Each scene is one run that yields one result row per object.
+            for (int i = 0; i < scenes.Count; i++)
+            {
+                if (cancelled != null && cancelled()) return results;
+                List<BasisSyncSimResult> sceneResults = BasisSyncSceneSim.RunScene(scenes[i]);
+                results.AddRange(sceneResults);
+                onResult?.Invoke(++done, total, sceneResults.Count > 0 ? sceneResults[0] : null);
+            }
+
             return results;
         }
 
-        public static int CountScenarios(MatrixOptions o) => Enumerate(o).Count;
+        public static int CountScenarios(MatrixOptions o) => Enumerate(o).Count + EnumerateScenes(o).Count;
 
         // ── CSV ──
         public static string ToCsv(List<BasisSyncSimResult> results)

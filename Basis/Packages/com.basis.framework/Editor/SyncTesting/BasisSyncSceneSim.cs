@@ -80,7 +80,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             for (int i = 0; i < n; i++)
             {
                 BasisSyncSceneObjectSpec spec = s.Objects[i];
-                schemas[i] = BuildSchema(spec.Fields);
+                schemas[i] = BasisSyncSim.BuildSchema(spec.Fields);
                 senders[i] = new SimSender(schemas[i])
                 {
                     SendInterval = s.SendInterval,
@@ -276,15 +276,6 @@ namespace Basis.Scripts.Networking.Sync.Testing
             unchecked { seq++; }
             emitted.Add(new SimPacket { Bytes = bytes, Len = length, Seq = seq, Reliable = reliable });
             w.Reset();
-        }
-
-        static BasisSyncSchema BuildSchema(List<SimFieldSpec> fields)
-        {
-            var schema = new BasisSyncSchema();
-            for (int i = 0; i < fields.Count; i++)
-                schema.AddField(fields[i].Type, fields[i].Interpolate, fields[i].Quantize);
-            schema.Lock();
-            return schema;
         }
     }
 }

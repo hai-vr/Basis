@@ -100,11 +100,17 @@ namespace Basis.Scripts.Networking.Sync.Testing
             return result;
         }
 
-        static BasisSyncSchema BuildSchema(List<SimFieldSpec> fields)
+        internal static BasisSyncSchema BuildSchema(List<SimFieldSpec> fields)
         {
             var schema = new BasisSyncSchema();
             for (int i = 0; i < fields.Count; i++)
-                schema.AddField(fields[i].Type, fields[i].Interpolate, fields[i].Quantize);
+            {
+                SimFieldSpec fs = fields[i];
+                if (fs.Type == BasisSyncFieldType.Rotation)
+                    schema.AddRotation(fs.Interpolate, fs.RotBits);
+                else
+                    schema.AddField(fs.Type, fs.Interpolate, fs.Quantize);
+            }
             schema.Lock();
             return schema;
         }
@@ -298,6 +304,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public BasisSyncFieldType Type;
         public bool Interpolate = true;
         public bool Quantize = false;
+        public int RotBits = 9;   // smallest-three magnitude bits when Type == Rotation (9 = the legacy 32-bit packet)
 
         public SimFieldSpec(BasisSyncFieldType type, bool interpolate = true, bool quantize = false)
         {

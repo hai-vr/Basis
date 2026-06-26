@@ -38,6 +38,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<float> realworldeyeheight = new("realworldeyeheight", new BasisPlatformDefault<float>(1.61f));
 
+        public static BasisSettingsBinding<bool> RememberMenuState = new("remembermenustate", new BasisPlatformDefault<bool>(true));
+
         public static BasisSettingsBinding<bool> CustomScale = new("customscale", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FootIKEnabled = new("footik", new BasisPlatformDefault<bool>(false));
@@ -542,6 +544,14 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseJiggleCollisionFrustumCull = new("usejigglecollisionfrustumcull", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> UseJiggleCollisionDistanceCull = new("usejigglecollisiondistancecull", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> JiggleCollisionCullDistance = new("jigglecollisionculldistance", new BasisPlatformDefault<float>(20));
+
+        // Distance-based reduction of remote avatars' jiggle colliders: past Near drop the finger
+        // colliders (hands become a single sphere), past Mid drop the arm/foot colliders too, past
+        // Far remove them entirely.
+        public static BasisSettingsBinding<bool> UseJiggleColliderDistanceLod = new("usejigglecolliderdistancelod", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> JiggleColliderLodNearDistance = new("jigglecolliderlodneardistance", new BasisPlatformDefault<float>(25));
+        public static BasisSettingsBinding<float> JiggleColliderLodMidDistance = new("jigglecolliderlodmiddistance", new BasisPlatformDefault<float>(50));
+        public static BasisSettingsBinding<float> JiggleColliderLodFarDistance = new("jigglecolliderlodfardistance", new BasisPlatformDefault<float>(100));
 
         // Animators default on at 1 — extras are a common perf trap (every child
         // Animator ticks every frame). Excess Animators are trimmed, not blocked.
@@ -1600,6 +1610,10 @@ namespace Basis.BasisUI
             UseJiggleCollisionFrustumCull.LoadBindingValue();
             UseJiggleCollisionDistanceCull.LoadBindingValue();
             JiggleCollisionCullDistance.LoadBindingValue();
+            UseJiggleColliderDistanceLod.LoadBindingValue();
+            JiggleColliderLodNearDistance.LoadBindingValue();
+            JiggleColliderLodMidDistance.LoadBindingValue();
+            JiggleColliderLodFarDistance.LoadBindingValue();
             UsePerfLimitAnimators.LoadBindingValue();
             MaxPerfAnimators.LoadBindingValue();
             UsePerfLimitBones.LoadBindingValue();

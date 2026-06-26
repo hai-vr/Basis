@@ -18,7 +18,19 @@ namespace Basis.BasisUI
     {
         private const string ChatTabKey = "settings.tab.chat";
         private static string _pendingTabKey;
-        private static string _lastSelectedTabKey;
+        private static string _sessionTabKey = string.Empty;
+        private static string _lastSelectedTabKey
+        {
+            get => BasisMenuStateMemory.Enabled ? BasisMenuStateMemory.ActiveTab : _sessionTabKey;
+            set
+            {
+                _sessionTabKey = value;
+                if (BasisMenuStateMemory.Enabled)
+                {
+                    BasisMenuStateMemory.ActiveTab = value;
+                }
+            }
+        }
         private static PanelTextField _chatTextField;
         private static string _pendingChatComposerText;
         private static bool _pendingChatComposerFocus;
@@ -96,6 +108,8 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyOpenLipSyncMaxSlots;
             ApplyJiggleCollisionCulling();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
+            BasisJiggleColliderLOD.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += BasisJiggleColliderLOD.ApplyFromSettings;
         }
 
         private static void ApplyOpenLipSyncMaxSlots()
@@ -194,7 +208,18 @@ namespace Basis.BasisUI
             // First tab is eager (shown immediately on open)
             const string generalKey = "settings.tab.general";
             _tabKeyToIndex[generalKey] = 0;
-            tabGroup.AddTab(BasisLocalization.Get(generalKey), () => _lastSelectedTabKey = generalKey, GeneralTab(tabGroup));
+            PanelTabPage generalPage;
+            BasisMenuStateMemory.BeginScope(generalKey);
+            try
+            {
+                generalPage = GeneralTab(tabGroup);
+            }
+            finally
+            {
+                BasisMenuStateMemory.EndScope();
+            }
+            tabGroup.AddTab(BasisLocalization.Get(generalKey), () => _lastSelectedTabKey = generalKey, generalPage);
+            PanelScrollMemory.Attach(generalPage.Descriptor.ContentParent, generalKey);
             // Remaining tabs are lazy-loaded on first selection to reduce stuttering
             AddLazyTab(tabGroup, "settings.tab.audio", () => AudioTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.microphone", () => MicrophoneTab(tabGroup));
@@ -280,8 +305,18 @@ namespace Basis.BasisUI
                 if (built) return;
                 built = true;
 
-                PanelTabPage realPage = builder();
+                PanelTabPage realPage;
+                BasisMenuStateMemory.BeginScope(tabKey);
+                try
+                {
+                    realPage = builder();
+                }
+                finally
+                {
+                    BasisMenuStateMemory.EndScope();
+                }
                 tabGroup.Pages[index] = realPage;
+                PanelScrollMemory.Attach(realPage.Descriptor.ContentParent, tabKey);
                 placeholder.ReleaseInstance();
             }, placeholder);
         }
@@ -396,6 +431,11 @@ namespace Basis.BasisUI
             SettingsProviderPlatform.BuildDeviceModeUI(container);
 
             BuildLanguageSelector(container, descriptor);
+
+            PanelToggle toggleRememberMenuState = PanelToggle.CreateNewEntry(container);
+            toggleRememberMenuState.AssignBinding(BasisSettingsDefaults.RememberMenuState);
+            toggleRememberMenuState.Descriptor.SetTitle(BasisLocalization.Get("settings.general.rememberMenuState"));
+            toggleRememberMenuState.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.rememberMenuState.tooltip"));
 
             // Range / visibility / audio-source-limit settings moved out of General:
             //   Avatar Range / Limit Avatars / View Cone Avatars → Graphics
@@ -642,6 +682,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
             BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
+            BasisSettingsDefaults.RememberMenuState.ResetToDefault();
         }
 
         private static PanelSlider _avatarRateSlider;

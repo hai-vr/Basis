@@ -321,6 +321,7 @@ namespace Basis.BasisUI
             Instance = new BasisMainMenu();
             BasisCursorManagement.UnlockCursor(nameof(BasisMainMenu));
             SetMicrophoneIconHudVisible(false);
+            BasisMenuStateMemory.WasOpen = true;
         }
         public static void OpenWithProvider(string ProviderTitle)
         {
@@ -360,6 +361,7 @@ namespace Basis.BasisUI
             Instance = null;
             BasisCursorManagement.LockCursor(nameof(BasisMainMenu));
             SetMicrophoneIconHudVisible(true);
+            BasisMenuStateMemory.WasOpen = false;
         }
 
         private static void SetMicrophoneIconHudVisible(bool visible)
@@ -398,6 +400,7 @@ namespace Basis.BasisUI
 
             Instance.ActiveMenu = BasisMenuPanel.CreateNew(data, Instance.MenuObjectInstance.PanelRoot, style);
             Instance.ActiveProvider = provider;
+            BasisMenuStateMemory.ActiveProviderTitle = data.Title;
 
             // Animate content panel entrance
             UIAnimations.PanelIn(Instance.ActiveMenu);
@@ -420,6 +423,7 @@ namespace Basis.BasisUI
             Instance.ActiveMenu.ReleaseInstance();
             Instance.ActiveMenu = null;
             Instance.ActiveProvider = null;
+            BasisMenuStateMemory.ActiveProviderTitle = string.Empty;
         }
     }
 }

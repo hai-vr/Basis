@@ -92,12 +92,6 @@ namespace Basis.ImagePickup
         /// <summary>Validates a PNG file, spawns the owner pickup locally, and broadcasts it to all peers.</summary>
         public bool SpawnFromFile(string path)
         {
-            if (!HasNetworkID)
-            {
-                BasisDebug.LogWarning("Image pickup: not connected to a server yet, cannot spawn.");
-                return false;
-            }
-
             BasisImageValidationResult result = BasisImageSecurity.ValidateFile(path);
             if (!result.Ok)
             {
@@ -126,8 +120,15 @@ namespace Basis.ImagePickup
             };
             IncrementSenderCount(ownerId);
 
-            SendSpawn(id, ownerId, ownerName, result.Width, result.Height, result.CleanPng, position, rotation, null);
-            BasisDebug.Log($"Image pickup spawned ({result.Width}x{result.Height}, {result.CleanPng.Length} bytes).");
+            if (HasNetworkID)
+            {
+                SendSpawn(id, ownerId, ownerName, result.Width, result.Height, result.CleanPng, position, rotation, null);
+                BasisDebug.Log($"Image pickup spawned and replicated ({result.Width}x{result.Height}, {result.CleanPng.Length} bytes).");
+            }
+            else
+            {
+                BasisDebug.Log($"Image pickup spawned locally; not connected, so it will not replicate yet ({result.Width}x{result.Height}).");
+            }
             return true;
         }
 

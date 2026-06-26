@@ -196,5 +196,48 @@ namespace Basis.Tests.Sync
             v.Cont[0] = 5f; FeedKeyframe(r, s, v, 2, checksum: true); r.Advance(Dt);
             Assert.AreEqual(5f, r.NextValues.Cont[0], 1e-3f, "clean keyframe applies; the corrupted sequence did not poison the buffer");
         }
+
+        [Test]
+        public void Receiver_Extrapolation_PredictsBeyondWindow_OrClampsAtIt()
+        {
+            var (s, v) = Single(BasisSyncFieldType.Float);
+            var noExtrap = new BasisSyncReceiver(s);
+            var extrap = new BasisSyncReceiver(s);
+            noExtrap.Configure(false, 0.1, false, 0f, 0, 0);
+            extrap.Configure(true, 0.1, false, 0f, 0, 0);
+
+            // Two keyframes 50 ms apart, then starve: no more packets ever arrive.
+            foreach (BasisSyncReceiver r in new[] { noExtrap, extrap })
+            {
+                v.Cont[0] = 1f; FeedKeyframe(r, s, v, 1, ms: 50);
+                v.Cont[0] = 2f; FeedKeyframe(r, s, v, 2, ms: 50);
+                for (int i = 0; i < 40; i++) r.Advance(Dt);
+            }
+
+            Assert.AreEqual(1f, noExtrap.InterpTime, 1e-3f, "a non-extrapolating receiver holds at the window end (t = 1)");
+            Assert.Greater(extrap.InterpTime, 1f, "an extrapolating receiver predicts past the last frame");
+            float cap = 1f + 0.1f / 0.05f; // maxExtrapolation / window
+            Assert.LessOrEqual(extrap.InterpTime, cap + 1e-3f, "extrapolation never runs past the max-extrapolation cap");
+        }
+
+        [Test]
+        public void Receiver_AdaptivePlayback_DrainsFasterWhenOverBuffered()
+        {
+            var (s, v) = Single(BasisSyncFieldType.Float);
+            var r = new BasisSyncReceiver(s);
+            r.Configure(false, 0.1, false, 0f, 0, 0);
+
+            for (int i = 1; i <= 24; i++) { v.Cont[0] = i; FeedKeyframe(r, s, v, (byte)i, ms: 50); }
+            r.Advance(Dt); // stage the burst, take current+next
+            int buffered0 = r.BufferedFrameCount;
+            Assert.GreaterOrEqual(buffered0, 20, "a burst should leave a deep buffer");
+
+            // 0.5 s of wall time, no new frames. At the nominal 1x rate that consumes 0.5 / 0.05 = 10 frames;
+            // an over-buffered receiver speeds up (catch-up) and consumes more.
+            for (int i = 0; i < 36; i++) r.Advance(Dt);
+
+            int consumed = buffered0 - r.BufferedFrameCount;
+            Assert.Greater(consumed, 10, "an over-buffered receiver catches up faster than the 1x playback rate");
+        }
     }
 }

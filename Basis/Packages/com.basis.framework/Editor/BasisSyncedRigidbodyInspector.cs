@@ -19,8 +19,10 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
         root.Add(BasisSyncInspectorUI.ValidationContainer(Validate));
 
         VisualElement body = BasisSyncInspectorUI.Card("Body");
-        body.Add(new PropertyField(serializedObject.FindProperty("Body")));
-        body.Add(new PropertyField(serializedObject.FindProperty("RelativeTo")));
+        body.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("Body")),
+            "Rigidbody that is synced. Defaults to the one on this GameObject."));
+        body.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("RelativeTo")),
+            "Encode position in this transform's space so a tight Ranged window can cover a large world. Both clients need the same reference."));
         var relHint = new Label("RelativeTo: encode position in that transform's space so a tight Ranged window can cover a large world (both clients need the same reference).");
         relHint.style.whiteSpace = WhiteSpace.Normal;
         relHint.style.fontSize = 10;
@@ -29,8 +31,8 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
         root.Add(body);
 
         VisualElement pos = BasisSyncInspectorUI.Card("Position");
-        pos.Add(new Toggle("Sync Position") { bindingPath = "SyncPosition" });
-        pos.Add(new Toggle("Interpolate") { bindingPath = "InterpolatePosition" });
+        pos.Add(new Toggle("Sync Position") { bindingPath = "SyncPosition", tooltip = "Stream the body's world position from the owner to every other client." });
+        pos.Add(new Toggle("Interpolate") { bindingPath = "InterpolatePosition", tooltip = "Smooth position between received updates instead of snapping to each packet." });
         root.Add(pos);
 
         root.Add(RotationGroup());
@@ -38,12 +40,12 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
         root.Add(ScaleGroup());
 
         VisualElement vel = BasisSyncInspectorUI.Card("Velocity");
-        vel.Add(new Toggle("Sync Linear Velocity") { bindingPath = "SyncLinearVelocity" });
-        vel.Add(new Toggle("Sync Angular Velocity") { bindingPath = "SyncAngularVelocity" });
+        vel.Add(new Toggle("Sync Linear Velocity") { bindingPath = "SyncLinearVelocity", tooltip = "Also stream linear velocity so remotes can extrapolate physics between updates." });
+        vel.Add(new Toggle("Sync Angular Velocity") { bindingPath = "SyncAngularVelocity", tooltip = "Also stream angular (spin) velocity so remotes can extrapolate rotation between updates." });
         root.Add(vel);
 
-        VisualElement remote = BasisSyncInspectorUI.Card("Remote");
-        remote.Add(new Toggle("Drive Remote Kinematic") { bindingPath = "DriveRemoteKinematic" });
+        VisualElement remote = BasisSyncInspectorUI.Card("Remote", false);
+        remote.Add(new Toggle("Drive Remote Kinematic") { bindingPath = "DriveRemoteKinematic", tooltip = "On = remote copies are kinematic and driven straight to the synced pose. Off = the synced velocity carries a dynamic remote between updates with a soft correction toward the pose." });
         var remoteHint = new Label("On = remote bodies are kinematic, driven straight to the synced pose. Off = velocity-assisted extrapolation — the synced velocity carries a dynamic remote between updates, with a soft correction toward the synced pose.");
         remoteHint.style.whiteSpace = WhiteSpace.Normal;
         remoteHint.style.fontSize = 10;
@@ -86,21 +88,20 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
     {
         VisualElement card = BasisSyncInspectorUI.Card("Rotation");
 
-        var sync = new Toggle("Sync Rotation") { bindingPath = "SyncRotation" };
+        var sync = new Toggle("Sync Rotation") { bindingPath = "SyncRotation", tooltip = "Stream the body's orientation from the owner to every other client." };
         var mode = new PropertyField(serializedObject.FindProperty("RotationMode"), "Mode");
-        var bits = new SliderInt("Bits / component", 6, 16) { showInputField = true, bindingPath = "SmallestThreeBits" };
-        var interp = new Toggle("Interpolate") { bindingPath = "InterpolateRotation" };
+        mode.tooltip = "Orientation encoding. Smallest Three = compact full rotation; Quaternion = raw/half; Euler = three raw angles.";
+        var bits = new SliderInt("Bits / component", 6, 16) { showInputField = true, bindingPath = "SmallestThreeBits", tooltip = "Precision of the Smallest-Three encoding. More bits = finer orientation, larger packets." };
+        var interp = new Toggle("Interpolate") { bindingPath = "InterpolateRotation", tooltip = "Smooth rotation between received updates instead of snapping to each packet." };
 
-        void UpdateEnabled()
+        void Apply(bool on, int modeIdx)
         {
-            bool on = serializedObject.FindProperty("SyncRotation").boolValue;
-            int modeIdx = serializedObject.FindProperty("RotationMode").enumValueIndex;
             mode.SetEnabled(on);
             bits.style.display = (on && modeIdx == (int)BasisRotationSyncMode.SmallestThree) ? DisplayStyle.Flex : DisplayStyle.None;
         }
-        UpdateEnabled();
-        sync.RegisterValueChangedCallback(evt => UpdateEnabled());
-        mode.RegisterValueChangeCallback(evt => UpdateEnabled());
+        Apply(serializedObject.FindProperty("SyncRotation").boolValue, serializedObject.FindProperty("RotationMode").enumValueIndex);
+        sync.RegisterValueChangedCallback(evt => Apply(evt.newValue, serializedObject.FindProperty("RotationMode").enumValueIndex));
+        mode.RegisterValueChangeCallback(evt => Apply(sync.value, serializedObject.FindProperty("RotationMode").enumValueIndex));
 
         card.Add(sync);
         card.Add(mode);
@@ -113,25 +114,24 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
     {
         VisualElement card = BasisSyncInspectorUI.Card("Scale");
 
-        var sync = new Toggle("Sync Scale") { bindingPath = "SyncScale" };
-        var uniform = new Toggle("Uniform (one value → XYZ)") { bindingPath = "ScaleUniform" };
+        var sync = new Toggle("Sync Scale") { bindingPath = "SyncScale", tooltip = "Stream the body transform's scale from the owner to every other client." };
+        var uniform = new Toggle("Uniform (one value → XYZ)") { bindingPath = "ScaleUniform", tooltip = "Stream a single value applied to all three scale axes (smaller than three separate axes)." };
         VisualElement row = AxisRow("ScaleX", "ScaleY", "ScaleZ");
+        row.tooltip = "Per-axis include toggles — turn off axes that never change to shrink the packet.";
 
-        void UpdateEnabled()
+        void Apply(bool on, bool uni)
         {
-            bool on = serializedObject.FindProperty("SyncScale").boolValue;
-            bool uni = serializedObject.FindProperty("ScaleUniform").boolValue;
             uniform.SetEnabled(on);
             row.SetEnabled(on && !uni);
         }
-        UpdateEnabled();
-        sync.RegisterValueChangedCallback(evt => UpdateEnabled());
-        uniform.RegisterValueChangedCallback(evt => UpdateEnabled());
+        Apply(serializedObject.FindProperty("SyncScale").boolValue, serializedObject.FindProperty("ScaleUniform").boolValue);
+        sync.RegisterValueChangedCallback(evt => Apply(evt.newValue, uniform.value));
+        uniform.RegisterValueChangedCallback(evt => Apply(sync.value, evt.newValue));
 
         card.Add(sync);
         card.Add(uniform);
         card.Add(row);
-        card.Add(new Toggle("Interpolate") { bindingPath = "InterpolateScale" });
+        card.Add(new Toggle("Interpolate") { bindingPath = "InterpolateScale", tooltip = "Smooth scale between received updates instead of snapping to each packet." });
         return card;
     }
 
@@ -162,14 +162,7 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
 
     private VisualElement BuildCompression()
     {
-        var foldout = new Foldout { text = "Compression (per axis)", value = false };
-        foldout.style.marginBottom = 8;
-        var lbl = foldout.Q<Label>();
-        if (lbl != null)
-        {
-            lbl.style.color = new UnityEngine.UIElements.StyleColor(BasisSyncInspectorUI.Accent);
-            lbl.style.unityFontStyleAndWeight = UnityEngine.FontStyle.Bold;
-        }
+        VisualElement foldout = BasisSyncInspectorUI.Card("Compression (per axis)", false);
 
         var note = new Label("Position is per-axis; velocity uses one spec across X/Y/Z. Half (16-bit) is a good velocity default.");
         note.style.whiteSpace = WhiteSpace.Normal;

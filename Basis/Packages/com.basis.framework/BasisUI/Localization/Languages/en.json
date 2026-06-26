@@ -1283,6 +1283,22 @@
       "value": "Maximum distance from a camera at which jiggle collisions still run."
     },
     {
+      "key": "settings.perf.jiggleColliderLod.toggle.tooltip",
+      "value": "Cut back remote avatars' arm, finger and foot jiggle colliders by distance to save performance in crowded instances."
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.near.tooltip",
+      "value": "Beyond this distance a remote avatar's finger colliders are dropped and each hand becomes a single sphere."
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.mid.tooltip",
+      "value": "Beyond this distance arm and foot colliders are removed too, leaving only the hand spheres."
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.far.tooltip",
+      "value": "Beyond this distance all of a remote avatar's jiggle colliders are removed."
+    },
+    {
       "key": "settings.perf.cloth.toggle.tooltip",
       "value": "Limit how many cloth simulations another player's avatar may have."
     },
@@ -3277,6 +3293,14 @@
     {
       "key": "settings.general.title",
       "value": "General Settings"
+    },
+    {
+      "key": "settings.general.rememberMenuState",
+      "value": "Remember Menu State"
+    },
+    {
+      "key": "settings.general.rememberMenuState.tooltip",
+      "value": "Restore each menu's scroll position, open sections, and last tab when you reopen it, and reopen the menu after loading a world."
     },
     {
       "key": "settings.audio.title",
@@ -6953,6 +6977,22 @@
     {
       "key": "settings.perf.jiggleDistanceCull.slider",
       "value": "Max Collision Distance"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.toggle",
+      "value": "Reduce Distant Collider Detail"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.near",
+      "value": "Hands to Spheres Distance"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.mid",
+      "value": "Hand Spheres Only Distance"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.far",
+      "value": "Remove Colliders Distance"
     },
     {
       "key": "settings.perf.cloth.toggle",
