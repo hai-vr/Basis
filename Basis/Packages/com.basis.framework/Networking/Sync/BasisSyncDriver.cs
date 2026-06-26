@@ -24,6 +24,7 @@ namespace Basis.Scripts.Networking.Sync
         private static bool _dirtyLayout;
         private static bool _scheduled;
         private static bool _hasBindings;
+        private static bool _forceFullCopy;
         private static JobHandle _jobHandle;
 
         // Per-slot (indexed by remote list position).
@@ -118,7 +119,7 @@ namespace Basis.Scripts.Networking.Sync
             if (_scheduled) { _jobHandle.Complete(); _scheduled = false; }
 
             if (_remote.Count == 0) return;
-            if (_dirtyLayout) RebuildLayout();
+            if (_dirtyLayout) { RebuildLayout(); _forceFullCopy = true; }
 
             int n = _remote.Count;
             for (int i = 0; i < n; i++)
@@ -133,27 +134,32 @@ namespace Basis.Scripts.Networking.Sync
                 int cb = _contBase[i], cc = _contCount[i];
                 int rb = _rotBase[i], rc = _rotCount[i];
                 int db = _discBase[i], dc = _discCount[i];
-                BasisSyncValues cur = recv.CurrentValues;
-                BasisSyncValues nxt = recv.NextValues;
+                if (recv.ConsumeValuesDirty() || _forceFullCopy)
+                {
+                    BasisSyncValues cur = recv.CurrentValues;
+                    BasisSyncValues nxt = recv.NextValues;
 
-                for (int c = 0; c < cc; c++)
-                {
-                    _contCur[cb + c] = cur.Cont[c];
-                    _contNext[cb + c] = nxt.Cont[c];
-                }
-                for (int r = 0; r < rc; r++)
-                {
-                    _rotCur[rb + r] = cur.Rot[r];
-                    _rotNext[rb + r] = nxt.Rot[r];
-                }
-                for (int d = 0; d < dc; d++)
-                {
-                    _discNext[db + d] = nxt.Disc[d];
+                    for (int c = 0; c < cc; c++)
+                    {
+                        _contCur[cb + c] = cur.Cont[c];
+                        _contNext[cb + c] = nxt.Cont[c];
+                    }
+                    for (int r = 0; r < rc; r++)
+                    {
+                        _rotCur[rb + r] = cur.Rot[r];
+                        _rotNext[rb + r] = nxt.Rot[r];
+                    }
+                    for (int d = 0; d < dc; d++)
+                    {
+                        _discNext[db + d] = nxt.Disc[d];
+                    }
                 }
 
                 _t[i] = recv.InterpTime;
                 _active[i] = 1;
             }
+
+            _forceFullCopy = false;
 
             var interp = new InterpolateSyncObjectsJob
             {
@@ -225,6 +231,8 @@ namespace Basis.Scripts.Networking.Sync
                 BasisSyncedObject o = _ownedScratch[i];
                 if (o != null) o.TransmitIfDue(timeAsDouble);
             }
+
+            BasisSyncBatchCollector.Flush();
         }
 
         internal static float ReadCont(int idx)

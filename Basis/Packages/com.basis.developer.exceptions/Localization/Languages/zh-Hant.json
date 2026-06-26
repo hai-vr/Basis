@@ -1,0 +1,26 @@
+{
+  "code": "zh-Hant",
+  "nativeName": "繁體中文",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} 發生了例外狀況"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "複製詳細資訊"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "關閉"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "某個 Basis 系統"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "使用「複製詳細資訊」以複製完整的堆疊追蹤。"
+    }
+  ]
+}

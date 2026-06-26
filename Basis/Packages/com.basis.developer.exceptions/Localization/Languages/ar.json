@@ -1,0 +1,26 @@
+{
+  "code": "ar",
+  "nativeName": "العربية",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} واجه استثناءً"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "نسخ التفاصيل"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "تجاهل"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "أحد أنظمة Basis"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "استخدم نسخ التفاصيل لنسخ تتبع المكدس الكامل."
+    }
+  ]
+}

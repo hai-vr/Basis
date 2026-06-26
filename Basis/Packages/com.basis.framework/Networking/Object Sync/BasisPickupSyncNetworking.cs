@@ -17,6 +17,20 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     public bool IsStatic = false;
     public BasisInput pendingStealRequest = null;
 
+    /// <summary>
+    /// Opt-in: also stream the Rigidbody's linear/angular velocity, and let a free-flying remote copy simulate
+    /// from it (prediction) with the synced pose pulling it back (correction), instead of being kinematic and
+    /// pose-driven. Default off keeps the existing pose-only behaviour.
+    /// </summary>
+    public bool RemoteDeadReckon = false;
+
+    private BasisSyncHandle _velX = BasisSyncHandle.Invalid;
+    private BasisSyncHandle _velY = BasisSyncHandle.Invalid;
+    private BasisSyncHandle _velZ = BasisSyncHandle.Invalid;
+    private BasisSyncHandle _angX = BasisSyncHandle.Invalid;
+    private BasisSyncHandle _angY = BasisSyncHandle.Invalid;
+    private BasisSyncHandle _angZ = BasisSyncHandle.Invalid;
+
     private void Reset()
     {
         Target = transform;
@@ -40,6 +54,16 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
                 BasisPickupInteractable.RigidRef.isKinematic = false;
             }
         }
+
+        if (RemoteDeadReckon && BasisPickupInteractable != null && BasisPickupInteractable.RigidRef != null)
+        {
+            _velX = RegisterFloat(BasisQuantSpec.Half);
+            _velY = RegisterFloat(BasisQuantSpec.Half);
+            _velZ = RegisterFloat(BasisQuantSpec.Half);
+            _angX = RegisterFloat(BasisQuantSpec.Half);
+            _angY = RegisterFloat(BasisQuantSpec.Half);
+            _angZ = RegisterFloat(BasisQuantSpec.Half);
+        }
     }
 
     public void OnDisable()
@@ -56,6 +80,58 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     {
         base.OnNetworkReady();
         ControlState();
+    }
+
+    protected override void OnBeforeTransmit()
+    {
+        base.OnBeforeTransmit();
+        if (!_velX.IsValid || BasisPickupInteractable == null) return;
+        Rigidbody rb = BasisPickupInteractable.RigidRef;
+        if (rb == null) return;
+        Vector3 v = rb.linearVelocity;
+        Vector3 w = rb.angularVelocity;
+        LocalSet(_velX, v.x); LocalSet(_velY, v.y); LocalSet(_velZ, v.z);
+        LocalSet(_angX, w.x); LocalSet(_angY, w.y); LocalSet(_angZ, w.z);
+    }
+
+    protected override void ApplyInterpolated()
+    {
+        if (!RemoteDeadReckon || !_velX.IsValid || BasisPickupInteractable == null)
+        {
+            base.ApplyInterpolated();
+            return;
+        }
+        Rigidbody rb = BasisPickupInteractable.RigidRef;
+        if (rb == null || rb.isKinematic)
+        {
+            base.ApplyInterpolated();
+            return;
+        }
+
+        rb.linearVelocity = new Vector3(GetFloat(_velX), GetFloat(_velY), GetFloat(_velZ));
+        rb.angularVelocity = new Vector3(GetFloat(_angX), GetFloat(_angY), GetFloat(_angZ));
+
+        if (ComposeSyncedPose(out Vector3 lp, out Quaternion lr, out Vector3 ls))
+        {
+            Vector3 worldPos;
+            Quaternion worldRot;
+            if (WorldSpace)
+            {
+                worldPos = lp;
+                worldRot = lr;
+            }
+            else
+            {
+                Transform parent = Target != null ? Target.parent : null;
+                worldPos = parent != null ? parent.TransformPoint(lp) : lp;
+                worldRot = parent != null ? parent.rotation * lr : lr;
+            }
+
+            const float correction = 0.15f;
+            rb.position = Vector3.Lerp(rb.position, worldPos, correction);
+            rb.rotation = Quaternion.Slerp(rb.rotation, worldRot, correction);
+            if (Target != null) Target.localScale = ls;
+        }
     }
 
     private bool CanHover(BasisInput input)
@@ -174,7 +250,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             {
                 BasisPickupInteractable.Drop();
             }
-            SetIsKinematicOnPickup(true);
+            SetIsKinematicOnPickup(!RemoteDeadReckon);
         }
     }
 

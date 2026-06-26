@@ -35,7 +35,7 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         root.Add(BasisSyncInspectorUI.SmoothingCard(serializedObject));
         root.Add(BasisSyncInspectorUI.NetworkingCard(serializedObject));
 
-        root.Add(BuildWireSize());
+        root.Add(BasisSyncInspectorUI.WireSizeCard(FillWireSize));
 
         root.Bind(serializedObject);
 
@@ -225,161 +225,71 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         return l;
     }
 
-    private VisualElement BuildWireSize()
+    private void FillWireSize(BasisWireSizeModel model)
     {
-        VisualElement card = BasisSyncInspectorUI.Card("Wire Size");
+        var t = target as BasisSyncedTransform;
+        if (t == null) return;
+        model.Checksum = t.UseChecksum;
+        model.SendIntervalSeconds = t.SendIntervalSeconds;
+        model.KeyframeIntervalSeconds = t.KeyframeIntervalSeconds;
 
-        var note = new Label("Bytes per send for the current axes + compression. Per-axis payloads are bit-packed into one contiguous stream, so only the totals round up to whole bytes. Full-quaternion rotation is a fixed 32-bit pack; partial (Euler) rotation uses the per-axis compression above.");
-        note.style.whiteSpace = WhiteSpace.Normal;
-        note.style.fontSize = 10;
-        note.style.opacity = 0.8f;
-        note.style.marginBottom = 4;
-        card.Add(note);
-
-        Label pos = SizeRow(card, "Position", false);
-        Label rot = SizeRow(card, "Rotation", false);
-        Label scale = SizeRow(card, "Scale", false);
-
-        var divider = new VisualElement();
-        divider.style.height = 1;
-        divider.style.backgroundColor = new UnityEngine.UIElements.StyleColor(new UnityEngine.Color(1f, 1f, 1f, 0.15f));
-        divider.style.marginTop = 4;
-        divider.style.marginBottom = 4;
-        card.Add(divider);
-
-        Label overhead = SizeRow(card, "Overhead", false);
-        Label keyframe = SizeRow(card, "Keyframe total", true);
-        Label delta = SizeRow(card, "Delta total (all axes)", true);
-        Label bandwidth = SizeRow(card, "Bandwidth", true);
-
-        void Refresh()
+        int posBits = 0, posFields = 0;
+        if (t.SyncPosition)
         {
-            var t = target as BasisSyncedTransform;
-            if (t == null) return;
-
-            int posBits = 0, posFields = 0;
-            if (t.SyncPosition)
-            {
-                if (t.PositionX) { posBits += t.PosCompX.ToSpec().BitCount; posFields++; }
-                if (t.PositionY) { posBits += t.PosCompY.ToSpec().BitCount; posFields++; }
-                if (t.PositionZ) { posBits += t.PosCompZ.ToSpec().BitCount; posFields++; }
-            }
-
-            int rotBits = 0, rotFields = 0;
-            string rotDetail = "";
-            if (t.SyncRotation)
-            {
-                switch (t.RotationMode)
-                {
-                    case BasisRotationSyncMode.QuaternionHalf:
-                        rotBits = 64; rotFields = 4; rotDetail = "quaternion ×4 half";
-                        break;
-                    case BasisRotationSyncMode.QuaternionRaw:
-                        rotBits = 128; rotFields = 4; rotDetail = "quaternion ×4 raw";
-                        break;
-                    case BasisRotationSyncMode.Euler:
-                        if (t.RotationX) { rotBits += t.RotCompX.ToSpec().BitCount; rotFields++; }
-                        if (t.RotationY) { rotBits += t.RotCompY.ToSpec().BitCount; rotFields++; }
-                        if (t.RotationZ) { rotBits += t.RotCompZ.ToSpec().BitCount; rotFields++; }
-                        rotDetail = rotFields == 1 ? "1 axis (Euler)" : rotFields + " axes (Euler)";
-                        break;
-                    default:
-                    {
-                        int magBits = UnityEngine.Mathf.Clamp(t.SmallestThreeBits, 2, 18);
-                        rotBits = 2 + 3 * (1 + magBits);
-                        rotFields = 1;
-                        rotDetail = $"smallest-three {magBits}b";
-                        break;
-                    }
-                }
-            }
-
-            int scaleBits = 0, scaleFields = 0;
-            string scaleDetail = "";
-            if (t.SyncScale)
-            {
-                if (t.ScaleUniform)
-                {
-                    scaleBits = t.ScaleCompX.ToSpec().BitCount;
-                    scaleFields = 1;
-                    scaleDetail = "uniform";
-                }
-                else
-                {
-                    if (t.ScaleX) { scaleBits += t.ScaleCompX.ToSpec().BitCount; scaleFields++; }
-                    if (t.ScaleY) { scaleBits += t.ScaleCompY.ToSpec().BitCount; scaleFields++; }
-                    if (t.ScaleZ) { scaleBits += t.ScaleCompZ.ToSpec().BitCount; scaleFields++; }
-                    scaleDetail = scaleFields == 1 ? "1 axis" : scaleFields + " axes";
-                }
-            }
-
-            int fields = posFields + rotFields + scaleFields;
-            int payloadBits = posBits + rotBits + scaleBits;
-            int payloadBytes = (payloadBits + 7) >> 3;
-            int maskBytes = (fields + 7) >> 3;
-            int header = BasisSyncCodec.HeaderSize;
-            int checksum = t.UseChecksum ? BasisSyncCodec.ChecksumSize : 0;
-
-            pos.text = SectionText(posFields, posBits, posFields == 1 ? "1 axis" : posFields + " axes");
-            rot.text = SectionText(rotFields, rotBits, rotDetail);
-            scale.text = SectionText(scaleFields, scaleBits, scaleDetail);
-
-            overhead.text = checksum > 0
-                ? $"header {header} B  +  mask {maskBytes} B  +  checksum {checksum} B"
-                : $"header {header} B  +  mask {maskBytes} B";
-
-            int keyframeBytes = header + payloadBytes + checksum;
-            int deltaBytes = header + maskBytes + payloadBytes + checksum;
-            keyframe.text = $"{keyframeBytes} B   ({payloadBits} b payload → {payloadBytes} B)";
-            delta.text = $"{deltaBytes} B";
-
-            float sendHz = t.SendIntervalSeconds > 0f ? 1f / t.SendIntervalSeconds : 0f;
-            float kfHz = t.KeyframeIntervalSeconds > 0f ? 1f / t.KeyframeIntervalSeconds : 0f;
-            float bps = deltaBytes * sendHz + UnityEngine.Mathf.Max(0, keyframeBytes - deltaBytes) * kfHz;
-            bandwidth.text = $"≈ {FormatRate(bps)}  @ {sendHz:0} Hz";
-            bandwidth.style.color = new UnityEngine.UIElements.StyleColor(bps > 2000f ? new UnityEngine.Color(0.95f, 0.75f, 0.2f) : BasisSyncInspectorUI.Accent);
+            if (t.PositionX) { posBits += t.PosCompX.ToSpec().BitCount; posFields++; }
+            if (t.PositionY) { posBits += t.PosCompY.ToSpec().BitCount; posFields++; }
+            if (t.PositionZ) { posBits += t.PosCompZ.ToSpec().BitCount; posFields++; }
         }
+        model.Add("Position", posBits, posFields, posFields == 1 ? "1 axis" : posFields + " axes");
 
-        Refresh();
-        card.schedule.Execute(Refresh).Every(400);
-        return card;
-    }
-
-    private static string SectionText(int fields, int bits, string detail)
-    {
-        if (fields == 0) return "off";
-        return $"{bits} b  •  {(bits / 8f):0.##} B   ({detail})";
-    }
-
-    private static string FormatRate(float bytesPerSec) =>
-        bytesPerSec >= 1024f ? $"{bytesPerSec / 1024f:0.0} KB/s" : $"{bytesPerSec:0} B/s";
-
-    private static Label SizeRow(VisualElement parent, string key, bool strong)
-    {
-        var row = new VisualElement();
-        row.style.flexDirection = FlexDirection.Row;
-        row.style.paddingTop = 1;
-        row.style.paddingBottom = 1;
-
-        var k = new Label(key);
-        k.style.flexShrink = 0;
-        k.style.whiteSpace = WhiteSpace.NoWrap;
-        if (strong)
+        int rotBits = 0, rotFields = 0;
+        string rotDetail = "";
+        if (t.SyncRotation)
         {
-            k.style.unityFontStyleAndWeight = UnityEngine.FontStyle.Bold;
-            k.style.color = new UnityEngine.UIElements.StyleColor(BasisSyncInspectorUI.Accent);
+            switch (t.RotationMode)
+            {
+                case BasisRotationSyncMode.QuaternionHalf:
+                    rotBits = 64; rotFields = 4; rotDetail = "quaternion ×4 half";
+                    break;
+                case BasisRotationSyncMode.QuaternionRaw:
+                    rotBits = 128; rotFields = 4; rotDetail = "quaternion ×4 raw";
+                    break;
+                case BasisRotationSyncMode.Euler:
+                    if (t.RotationX) { rotBits += t.RotCompX.ToSpec().BitCount; rotFields++; }
+                    if (t.RotationY) { rotBits += t.RotCompY.ToSpec().BitCount; rotFields++; }
+                    if (t.RotationZ) { rotBits += t.RotCompZ.ToSpec().BitCount; rotFields++; }
+                    rotDetail = rotFields == 1 ? "1 axis (Euler)" : rotFields + " axes (Euler)";
+                    break;
+                default:
+                {
+                    int magBits = UnityEngine.Mathf.Clamp(t.SmallestThreeBits, 2, 18);
+                    rotBits = 2 + 3 * (1 + magBits);
+                    rotFields = 1;
+                    rotDetail = $"smallest-three {magBits}b";
+                    break;
+                }
+            }
         }
+        model.Add("Rotation", rotBits, rotFields, rotDetail);
 
-        var v = new Label("—");
-        v.style.flexGrow = 1;
-        v.style.whiteSpace = WhiteSpace.Normal;
-        v.style.unityTextAlign = UnityEngine.TextAnchor.MiddleRight;
-        if (strong) v.style.unityFontStyleAndWeight = UnityEngine.FontStyle.Bold;
-        else v.style.color = new UnityEngine.UIElements.StyleColor(new UnityEngine.Color(0.78f, 0.78f, 0.78f, 1f));
-
-        row.Add(k);
-        row.Add(v);
-        parent.Add(row);
-        return v;
+        int scaleBits = 0, scaleFields = 0;
+        string scaleDetail = "";
+        if (t.SyncScale)
+        {
+            if (t.ScaleUniform)
+            {
+                scaleBits = t.ScaleCompX.ToSpec().BitCount;
+                scaleFields = 1;
+                scaleDetail = "uniform";
+            }
+            else
+            {
+                if (t.ScaleX) { scaleBits += t.ScaleCompX.ToSpec().BitCount; scaleFields++; }
+                if (t.ScaleY) { scaleBits += t.ScaleCompY.ToSpec().BitCount; scaleFields++; }
+                if (t.ScaleZ) { scaleBits += t.ScaleCompZ.ToSpec().BitCount; scaleFields++; }
+                scaleDetail = scaleFields == 1 ? "1 axis" : scaleFields + " axes";
+            }
+        }
+        model.Add("Scale", scaleBits, scaleFields, scaleDetail);
     }
 }

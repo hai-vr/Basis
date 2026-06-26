@@ -32,7 +32,7 @@ public class BasisEventDriverProfilerWindow : EditorWindow
 
     private float _budgetMs = 11.1f;
 
-    [MenuItem("Basis/Debug/EventDriver Profiler")]
+    [MenuItem("Basis/Debug/Profiler/EventDriver Profiler")]
     public static void ShowWindow()
     {
         var w = GetWindow<BasisEventDriverProfilerWindow>("EventDriver Profiler");

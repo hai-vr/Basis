@@ -55,6 +55,7 @@ namespace Basis.Scripts.Networking.Sync
         private double _serverClock;
         private bool _serverClockSeeded;
         private float _dynamicDepth = 2f;
+        private bool _valuesDirty = true;
 
         private bool _extrapolate;
         private double _maxExtrapSeconds;
@@ -102,6 +103,18 @@ namespace Basis.Scripts.Networking.Sync
         public float DynamicDepth => _dynamicDepth;
         public float BytesPerSecond => _bytesPerSecond;
         public float PacketsPerSecond => _packetsPerSecond;
+
+        /// <summary>
+        /// True if Current/Next changed since the last call (a new frame was staged or the window advanced), then
+        /// clears. Lets the driver skip re-copying unchanged values into the interpolation pools every frame —
+        /// only the interp fraction needs updating between frame advances.
+        /// </summary>
+        public bool ConsumeValuesDirty()
+        {
+            bool d = _valuesDirty;
+            _valuesDirty = false;
+            return d;
+        }
 
         public void OnPacket(byte[] payload, int length)
         {
@@ -200,8 +213,8 @@ namespace Basis.Scripts.Networking.Sync
                 _arrived.Clear();
             }
 
-            if (_current == null && _staged.Count > 0) _current = _staged.Dequeue();
-            if (_next == null && _staged.Count > 0) _next = _staged.Dequeue();
+            if (_current == null && _staged.Count > 0) { _current = _staged.Dequeue(); _valuesDirty = true; }
+            if (_next == null && _staged.Count > 0) { _next = _staged.Dequeue(); _valuesDirty = true; }
 
             if (_current != null && _next != null)
             {
@@ -223,6 +236,7 @@ namespace Basis.Scripts.Networking.Sync
                     _current = _next;
                     _next = _staged.Dequeue();
                     _interpTime -= 1.0;
+                    _valuesDirty = true;
                 }
 
                 if (_interpTime >= 1.0)
@@ -273,6 +287,7 @@ namespace Basis.Scripts.Networking.Sync
             while (_staged.Count > 0) ReturnFrame(_staged.Dequeue());
             _interpTime = 0.0;
             _current = frame;
+            _valuesDirty = true;
         }
 
         private float ContJumpSq(float[] cont)

@@ -5,8 +5,8 @@ using UnityEngine;
 
 public static class BasisExportSourceFiles
 {
-    // Menu item in Unity: Tools/Basis/Export Server Sources
-    [MenuItem("Basis/Debug/Export Server Sources")]
+    // Menu item in Unity: Basis/Debug/Server/Export Sources
+    [MenuItem("Basis/Debug/Server/Export Sources")]
     public static void Run()
     {
         try

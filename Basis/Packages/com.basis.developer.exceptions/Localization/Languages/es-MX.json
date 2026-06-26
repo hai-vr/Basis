@@ -1,0 +1,26 @@
+{
+  "code": "es-MX",
+  "nativeName": "Español (México)",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} encontró una excepción"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Copiar detalles"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Descartar"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Un sistema de Basis"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Usa Copiar detalles para copiar el seguimiento de pila completo."
+    }
+  ]
+}

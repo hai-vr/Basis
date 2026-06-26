@@ -23,6 +23,10 @@ namespace Basis.Scripts.Networking.Sync
         public bool InterpolatePosition = true;
         public bool InterpolateRotation = true;
 
+        public bool SyncScale = false;
+        public bool ScaleUniform = false;
+        public bool InterpolateScale = true;
+
         public bool SyncLinearVelocity = true;
         public bool SyncAngularVelocity = true;
         public bool DriveRemoteKinematic = true;
@@ -32,6 +36,9 @@ namespace Basis.Scripts.Networking.Sync
         public BasisTransformAxisCompression PosCompZ = BasisTransformAxisCompression.PositionDefault;
         public BasisTransformAxisCompression LinearVelocityComp = new BasisTransformAxisCompression { Mode = BasisTransformAxisMode.Half };
         public BasisTransformAxisCompression AngularVelocityComp = new BasisTransformAxisCompression { Mode = BasisTransformAxisMode.Half };
+        public BasisTransformAxisCompression ScaleCompX = BasisTransformAxisCompression.ScaleDefault;
+        public BasisTransformAxisCompression ScaleCompY = BasisTransformAxisCompression.ScaleDefault;
+        public BasisTransformAxisCompression ScaleCompZ = BasisTransformAxisCompression.ScaleDefault;
 
         private BasisSyncHandle _posX = BasisSyncHandle.Invalid;
         private BasisSyncHandle _posY = BasisSyncHandle.Invalid;
@@ -50,6 +57,10 @@ namespace Basis.Scripts.Networking.Sync
         private BasisSyncHandle _angX = BasisSyncHandle.Invalid;
         private BasisSyncHandle _angY = BasisSyncHandle.Invalid;
         private BasisSyncHandle _angZ = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _scaleX = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _scaleY = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _scaleZ = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _scaleUniform = BasisSyncHandle.Invalid;
         private bool _rotEuler;
         private bool _originalKinematic;
 
@@ -112,6 +123,20 @@ namespace Basis.Scripts.Networking.Sync
                 _angZ = RegisterFloat(AngularVelocityComp.ToSpec());
             }
 
+            if (SyncScale)
+            {
+                if (ScaleUniform)
+                {
+                    _scaleUniform = RegisterFloat(ScaleCompX.ToSpec(), InterpolateScale);
+                }
+                else
+                {
+                    _scaleX = RegisterFloat(ScaleCompX.ToSpec(), InterpolateScale);
+                    _scaleY = RegisterFloat(ScaleCompY.ToSpec(), InterpolateScale);
+                    _scaleZ = RegisterFloat(ScaleCompZ.ToSpec(), InterpolateScale);
+                }
+            }
+
             TeleportWatchStart = 0;
             TeleportWatchCount = posAxes;
         }
@@ -161,6 +186,18 @@ namespace Basis.Scripts.Networking.Sync
                 LocalSet(_angY, w.y);
                 LocalSet(_angZ, w.z);
             }
+
+            if (_scaleUniform.IsValid)
+            {
+                LocalSet(_scaleUniform, Body.transform.localScale.x);
+            }
+            else if (_scaleX.IsValid)
+            {
+                Vector3 s = Body.transform.localScale;
+                LocalSet(_scaleX, s.x);
+                LocalSet(_scaleY, s.y);
+                LocalSet(_scaleZ, s.z);
+            }
         }
 
         protected override void ApplyInterpolated()
@@ -203,6 +240,16 @@ namespace Basis.Scripts.Networking.Sync
             {
                 if (_velX.IsValid) Body.linearVelocity = new Vector3(GetFloat(_velX), GetFloat(_velY), GetFloat(_velZ));
                 if (_angX.IsValid) Body.angularVelocity = new Vector3(GetFloat(_angX), GetFloat(_angY), GetFloat(_angZ));
+            }
+
+            if (_scaleUniform.IsValid)
+            {
+                float u = GetFloat(_scaleUniform);
+                Body.transform.localScale = new Vector3(u, u, u);
+            }
+            else if (_scaleX.IsValid)
+            {
+                Body.transform.localScale = new Vector3(GetFloat(_scaleX), GetFloat(_scaleY), GetFloat(_scaleZ));
             }
         }
 

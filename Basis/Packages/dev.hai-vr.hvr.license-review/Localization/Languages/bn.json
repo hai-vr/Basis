@@ -1,0 +1,10 @@
+{
+  "code": "bn",
+  "nativeName": "বাংলা",
+  "entries": [
+    {
+      "key": "settings.thirdpartylicenses.openlicenseurl",
+      "value": "লাইসেন্স URL খুলুন"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "code": "pt",
+  "nativeName": "Português",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} atingiu uma exceção"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Copiar Detalhes"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Dispensar"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Um sistema do Basis"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Use Copiar Detalhes para copiar o rastreamento de pilha completo."
+    }
+  ]
+}

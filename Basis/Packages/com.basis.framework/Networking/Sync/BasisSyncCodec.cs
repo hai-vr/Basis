@@ -25,6 +25,20 @@ namespace Basis.Scripts.Networking.Sync
             return HeaderSize + schema.DirtyMaskBytes + payloadBytes + 1 + ChecksumSize;
         }
 
+        /// <summary>
+        /// Actual on-wire byte breakdown for a payload of <paramref name="payloadBits"/> bits across
+        /// <paramref name="fieldCount"/> fields. A keyframe = header + payload (+ optional checksum); a delta
+        /// adds the dirty mask. The bit-packed payload rounds up to whole bytes exactly once.
+        /// </summary>
+        public static void WireBytes(int payloadBits, int fieldCount, bool checksum, out int payloadBytes, out int maskBytes, out int keyframeBytes, out int deltaBytes)
+        {
+            payloadBytes = (payloadBits + 7) >> 3;
+            maskBytes = (fieldCount + 7) >> 3;
+            int extra = checksum ? ChecksumSize : 0;
+            keyframeBytes = HeaderSize + payloadBytes + extra;
+            deltaBytes = HeaderSize + maskBytes + payloadBytes + extra;
+        }
+
         private static int MaxFieldBits(BasisSyncSchema schema, in BasisSyncField f)
         {
             switch (f.Pool)

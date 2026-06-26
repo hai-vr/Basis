@@ -1,0 +1,10 @@
+{
+  "code": "ja",
+  "nativeName": "日本語",
+  "entries": [
+    {
+      "key": "settings.thirdpartylicenses.openlicenseurl",
+      "value": "ライセンス URL を開く"
+    }
+  ]
+}

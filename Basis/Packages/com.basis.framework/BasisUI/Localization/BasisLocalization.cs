@@ -364,7 +364,7 @@ namespace Basis.BasisUI
 
             if (handle.Status != AsyncOperationStatus.Succeeded || assets == null || assets.Count == 0)
             {
-                BasisDebug.LogError($"[BasisLocalization] No assets found for Addressable label \"{LanguageLabel}\". Run \"Basis/Localization/Register Languages as Addressable\" and rebuild Addressables content.");
+                BasisDebug.LogError($"[BasisLocalization] No assets found for Addressable label \"{LanguageLabel}\". Run \"Basis/Settings/Localization/Register Languages as Addressable\" and rebuild Addressables content.");
                 if (handle.IsValid())
                 {
                     Addressables.Release(handle);

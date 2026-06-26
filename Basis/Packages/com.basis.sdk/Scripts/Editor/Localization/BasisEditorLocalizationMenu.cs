@@ -4,7 +4,7 @@ namespace Basis.Editor.Localization
 {
     public static class BasisEditorLocalizationMenu
     {
-        [MenuItem("Basis/Localization/Editor Language/Reload")]
+        [MenuItem("Basis/Settings/Localization/Editor Language/Reload")]
         private static void Reload()
         {
             BasisEditorLocalization.ReloadTables();

@@ -74,6 +74,8 @@ namespace Basis.Scripts.Networking.Sync
         private double _lastKeyframeTime;
         private bool _forceKeyframe = true;
         private float _rotDotThreshold = 0.99999f;
+        private int _idleKeyframeBackoff;
+        private const int MaxKeyframeBackoffShift = 4;
 
         internal BasisSyncSchema Schema => _schema;
         internal BasisSyncReceiver Receiver => _receiver;
@@ -498,7 +500,8 @@ namespace Basis.Scripts.Networking.Sync
             bool intervalElapsed = _lastSendTime <= 0 || (time - _lastSendTime) >= effectiveInterval;
             if (!intervalElapsed) return;
 
-            bool keyframe = _forceKeyframe || _lastSendTime <= 0 || (time - _lastKeyframeTime) >= keyframeInterval;
+            double effectiveKeyframe = KeyframeBackoffInterval(keyframeInterval, _idleKeyframeBackoff, MaxKeyframeBackoffShift);
+            bool keyframe = _forceKeyframe || _lastSendTime <= 0 || (time - _lastKeyframeTime) >= effectiveKeyframe;
 
             int dirtyBytes = _schema.DirtyMaskBytes;
             for (int i = 0; i < dirtyBytes; i++) _dirtyMask[i] = 0;
@@ -516,6 +519,7 @@ namespace Basis.Scripts.Networking.Sync
 
             if (discreteChange) keyframe = true;
             if (!keyframe && !anyChange) return;
+            if (anyChange) _idleKeyframeBackoff = 0;
 
             double elapsed = _lastSendTime > 0 ? (time - _lastSendTime) : baseInterval;
             ushort intervalMs = (ushort)math.clamp((int)math.round(elapsed * 1000.0), 1, 65535);
@@ -524,19 +528,35 @@ namespace Basis.Scripts.Networking.Sync
             unchecked { _seq++; }
 
             int len = BasisSyncCodec.Serialize(_schema, _local, keyframe, _dirtyMask, _seq, intervalMs, _scratch, UseChecksum);
-            if (_sendBuffer == null || _sendBuffer.Length != len) _sendBuffer = new byte[len];
-            Array.Copy(_scratch, 0, _sendBuffer, 0, len);
 
             DeliveryMethod dm = keyframe ? KeyframeDelivery : Delivery;
-            if (UseDirectP2P) SendCustomNetworkEventDirect(_sendBuffer, dm, recipients, !ForceP2POnly);
-            else SendCustomNetworkEvent(_sendBuffer, dm, recipients);
+            if (!BasisSyncBatchCollector.TryEnqueue(NetworkID, _scratch, len, dm, recipients, UseDirectP2P))
+            {
+                if (_sendBuffer == null || _sendBuffer.Length != len) _sendBuffer = new byte[len];
+                Array.Copy(_scratch, 0, _sendBuffer, 0, len);
+                if (UseDirectP2P) SendCustomNetworkEventDirect(_sendBuffer, dm, recipients, !ForceP2POnly);
+                else SendCustomNetworkEvent(_sendBuffer, dm, recipients);
+            }
 
             _lastSent.CopyFrom(_local);
             if (keyframe)
             {
                 _lastKeyframeTime = time;
                 _forceKeyframe = false;
+                if (!anyChange && _idleKeyframeBackoff < MaxKeyframeBackoffShift) _idleKeyframeBackoff++;
             }
+        }
+
+        /// <summary>
+        /// Keyframe interval stretched by an idle backoff: after <paramref name="idleCount"/> consecutive keyframes
+        /// with nothing changed, the interval is doubled each step (capped at 2^<paramref name="maxShift"/>×). A
+        /// late-joiner still gets an immediate keyframe (OnPlayerJoined forces one) and any change resets the
+        /// backoff, so recovery cadence is unchanged for moving objects — only idle objects stop re-sending.
+        /// </summary>
+        public static double KeyframeBackoffInterval(double baseInterval, int idleCount, int maxShift)
+        {
+            int shift = idleCount < 0 ? 0 : (idleCount > maxShift ? maxShift : idleCount);
+            return baseInterval * (1 << shift);
         }
 
         private bool FieldChanged(int fi)

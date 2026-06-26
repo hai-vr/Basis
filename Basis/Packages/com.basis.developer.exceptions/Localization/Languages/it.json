@@ -1,0 +1,26 @@
+{
+  "code": "it",
+  "nativeName": "Italiano",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} ha incontrato un'eccezione"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Copia dettagli"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Ignora"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Un sistema di Basis"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Usa Copia dettagli per copiare l'intero stack trace."
+    }
+  ]
+}

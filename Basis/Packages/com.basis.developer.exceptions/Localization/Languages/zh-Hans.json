@@ -1,0 +1,26 @@
+{
+  "code": "zh-Hans",
+  "nativeName": "简体中文",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} 遇到了异常"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "复制详情"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "忽略"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "某个 Basis 系统"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "使用「复制详情」复制完整的堆栈跟踪。"
+    }
+  ]
+}

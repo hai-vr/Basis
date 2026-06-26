@@ -1,0 +1,26 @@
+{
+  "code": "ru",
+  "nativeName": "Русский",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0}: возникло исключение"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Копировать детали"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Закрыть"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Система Basis"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Используйте «Копировать детали», чтобы скопировать полную трассировку стека."
+    }
+  ]
+}

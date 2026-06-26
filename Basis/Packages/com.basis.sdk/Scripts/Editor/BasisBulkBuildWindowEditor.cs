@@ -36,7 +36,7 @@ public class BasisBulkBuildWindowEditor : EditorWindow
     private readonly List<Entry> entries = new List<Entry>();
     private bool isBuilding;
 
-    [MenuItem("Basis/Bundles/Bulk Build")]
+    [MenuItem("Basis/Build/Bulk Build")]
     public static void Open()
     {
         var w = GetWindow<BasisBulkBuildWindowEditor>();

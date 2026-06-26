@@ -37,7 +37,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
         Vector2 _scroll;
         Vector2 _failScroll;
 
-        [MenuItem("Basis/Networking/Sync Test Matrix")]
+        [MenuItem("Basis/Debug/Sync Test Matrix")]
         public static void ShowWindow()
         {
             BasisSyncTestRunnerWindow window = GetWindow<BasisSyncTestRunnerWindow>();

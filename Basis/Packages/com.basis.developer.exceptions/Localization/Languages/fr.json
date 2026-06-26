@@ -1,0 +1,26 @@
+{
+  "code": "fr",
+  "nativeName": "Français",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} a rencontré une exception"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Copier les détails"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Ignorer"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Un système Basis"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Utilisez Copier les détails pour copier la trace de pile complète."
+    }
+  ]
+}

@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Basis.Scripts.Networking.Sync;
 
 /// <summary>One validation message for a synced-component inspector.</summary>
 public struct BasisSyncIssue
@@ -14,6 +15,26 @@ public struct BasisSyncIssue
     public BasisSyncIssue(bool isError, string message) { IsError = isError; Message = message; }
     public static BasisSyncIssue Error(string message) => new BasisSyncIssue(true, message);
     public static BasisSyncIssue Warning(string message) => new BasisSyncIssue(false, message);
+}
+
+/// <summary>One labelled section in a Wire Size readout (e.g. Position, Rotation).</summary>
+public struct BasisWireSection
+{
+    public string Name;
+    public int Bits;
+    public int Fields;
+    public string Detail;
+}
+
+/// <summary>Filled by a component inspector each refresh to drive <see cref="BasisSyncInspectorUI.WireSizeCard"/>.</summary>
+public sealed class BasisWireSizeModel
+{
+    public readonly List<BasisWireSection> Sections = new List<BasisWireSection>();
+    public bool Checksum;
+    public float SendIntervalSeconds = 0.05f;
+    public float KeyframeIntervalSeconds = 0.5f;
+    public void Add(string name, int bits, int fields, string detail)
+        => Sections.Add(new BasisWireSection { Name = name, Bits = bits, Fields = fields, Detail = detail });
 }
 
 /// <summary>Shared Basis-styled building blocks for the synced-object / synced-transform inspectors.</summary>
@@ -181,6 +202,108 @@ public static class BasisSyncInspectorUI
         card.Add(new PropertyField(so.FindProperty("UseTeleportThreshold")));
         card.Add(new PropertyField(so.FindProperty("TeleportThreshold")));
         return card;
+    }
+
+    /// <summary>Live wire-size readout. The component supplies its section breakdown via <paramref name="compute"/> each refresh.</summary>
+    public static VisualElement WireSizeCard(Action<BasisWireSizeModel> compute)
+    {
+        VisualElement card = Card("Wire Size");
+
+        var note = new Label("Bytes per send for the current settings. Per-axis payloads are bit-packed into one contiguous stream, so only the totals round up to whole bytes.");
+        note.style.whiteSpace = WhiteSpace.Normal;
+        note.style.fontSize = 10;
+        note.style.opacity = 0.8f;
+        note.style.marginBottom = 4;
+        card.Add(note);
+
+        var sectionsBox = new VisualElement();
+        card.Add(sectionsBox);
+
+        var divider = new VisualElement();
+        divider.style.height = 1;
+        divider.style.backgroundColor = new StyleColor(new Color(1f, 1f, 1f, 0.15f));
+        divider.style.marginTop = 4;
+        divider.style.marginBottom = 4;
+        card.Add(divider);
+
+        Label overhead = WireRow(card, "Overhead", false);
+        Label keyframe = WireRow(card, "Keyframe total", true);
+        Label delta = WireRow(card, "Delta total (all fields)", true);
+        Label bandwidth = WireRow(card, "Bandwidth", true);
+
+        var model = new BasisWireSizeModel();
+
+        void Refresh()
+        {
+            model.Sections.Clear();
+            model.Checksum = false;
+            model.SendIntervalSeconds = 0.05f;
+            model.KeyframeIntervalSeconds = 0.5f;
+            compute(model);
+
+            sectionsBox.Clear();
+            int fields = 0, payloadBits = 0;
+            for (int i = 0; i < model.Sections.Count; i++)
+            {
+                BasisWireSection sec = model.Sections[i];
+                fields += sec.Fields;
+                payloadBits += sec.Bits;
+                Label v = WireRow(sectionsBox, sec.Name, false);
+                v.text = sec.Fields == 0 ? "off" : $"{sec.Bits} b  •  {(sec.Bits / 8f):0.##} B   ({sec.Detail})";
+            }
+
+            BasisSyncCodec.WireBytes(payloadBits, fields, model.Checksum, out int payloadBytes, out int maskBytes, out int keyframeBytes, out int deltaBytes);
+            int checksum = model.Checksum ? BasisSyncCodec.ChecksumSize : 0;
+
+            overhead.text = checksum > 0
+                ? $"header {BasisSyncCodec.HeaderSize} B  +  mask {maskBytes} B  +  checksum {checksum} B"
+                : $"header {BasisSyncCodec.HeaderSize} B  +  mask {maskBytes} B";
+
+            keyframe.text = $"{keyframeBytes} B   ({payloadBits} b payload → {payloadBytes} B)";
+            delta.text = $"{deltaBytes} B";
+
+            float sendHz = model.SendIntervalSeconds > 0f ? 1f / model.SendIntervalSeconds : 0f;
+            float kfHz = model.KeyframeIntervalSeconds > 0f ? 1f / model.KeyframeIntervalSeconds : 0f;
+            float bps = deltaBytes * sendHz + Mathf.Max(0, keyframeBytes - deltaBytes) * kfHz;
+            bandwidth.text = $"≈ {FormatRate(bps)}  @ {sendHz:0} Hz";
+            bandwidth.style.color = new StyleColor(bps > 2000f ? new Color(0.95f, 0.75f, 0.2f) : Accent);
+        }
+
+        Refresh();
+        card.schedule.Execute(Refresh).Every(400);
+        return card;
+    }
+
+    private static string FormatRate(float bytesPerSec) =>
+        bytesPerSec >= 1024f ? $"{bytesPerSec / 1024f:0.0} KB/s" : $"{bytesPerSec:0} B/s";
+
+    private static Label WireRow(VisualElement parent, string key, bool strong)
+    {
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.paddingTop = 1;
+        row.style.paddingBottom = 1;
+
+        var k = new Label(key);
+        k.style.flexShrink = 0;
+        k.style.whiteSpace = WhiteSpace.NoWrap;
+        if (strong)
+        {
+            k.style.unityFontStyleAndWeight = FontStyle.Bold;
+            k.style.color = new StyleColor(Accent);
+        }
+
+        var v = new Label("—");
+        v.style.flexGrow = 1;
+        v.style.whiteSpace = WhiteSpace.Normal;
+        v.style.unityTextAlign = TextAnchor.MiddleRight;
+        if (strong) v.style.unityFontStyleAndWeight = FontStyle.Bold;
+        else v.style.color = new StyleColor(new Color(0.78f, 0.78f, 0.78f, 1f));
+
+        row.Add(k);
+        row.Add(v);
+        parent.Add(row);
+        return v;
     }
 
     /// <summary>One per-axis compression control: mode dropdown, Min/Max/Bits when Ranged, plus a live precision/size readout (the "fitness" check).</summary>

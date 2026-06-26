@@ -168,6 +168,127 @@ namespace Basis.Tests.Sync
             Assert.IsTrue(s.GetField(lerpRot).Interpolate, "lerp rotation");
         }
 
+        [Test]
+        public void WireBytes_HeaderMaskPayloadChecksum()
+        {
+            // Default transform: position xyz raw (96 b) + smallest-three quaternion (32 b) = 128 b over 4 fields, checksum on.
+            BasisSyncCodec.WireBytes(128, 4, true, out int payloadBytes, out int maskBytes, out int keyframeBytes, out int deltaBytes);
+            Assert.AreEqual(16, payloadBytes, "128 b payload rounds to 16 B");
+            Assert.AreEqual(1, maskBytes, "4 fields -> 1 dirty-mask byte");
+            Assert.AreEqual(BasisSyncCodec.HeaderSize + 16 + BasisSyncCodec.ChecksumSize, keyframeBytes, "keyframe = header + payload + checksum");
+            Assert.AreEqual(BasisSyncCodec.HeaderSize + 1 + 16 + BasisSyncCodec.ChecksumSize, deltaBytes, "delta = + dirty mask");
+
+            // Checksum off drops the 2-byte trailer.
+            BasisSyncCodec.WireBytes(128, 4, false, out _, out _, out int keyframeNoSum, out _);
+            Assert.AreEqual(BasisSyncCodec.HeaderSize + 16, keyframeNoSum, "no checksum trailer");
+        }
+
+        [Test]
+        public void KeyframeBackoff_DoublesUntilCapped()
+        {
+            Assert.AreEqual(0.5, BasisSyncedObject.KeyframeBackoffInterval(0.5, 0, 4), 1e-9, "no idle -> base interval");
+            Assert.AreEqual(1.0, BasisSyncedObject.KeyframeBackoffInterval(0.5, 1, 4), 1e-9);
+            Assert.AreEqual(2.0, BasisSyncedObject.KeyframeBackoffInterval(0.5, 2, 4), 1e-9);
+            Assert.AreEqual(8.0, BasisSyncedObject.KeyframeBackoffInterval(0.5, 4, 4), 1e-9, "2^4 x base");
+            Assert.AreEqual(8.0, BasisSyncedObject.KeyframeBackoffInterval(0.5, 99, 4), 1e-9, "capped at maxShift");
+        }
+
+        [Test]
+        public void ReceiverValuesDirty_OnlyAfterFrameAdvance()
+        {
+            var s = new BasisSyncSchema();
+            s.AddField(BasisSyncFieldType.Float, true, new[] { BasisQuantSpec.Raw });
+            s.Lock();
+            var v = new BasisSyncValues();
+            v.Allocate(s);
+            int off = s.GetField(0).Offset;
+
+            var recv = new BasisSyncReceiver(s);
+            v.Cont[off] = 1f;
+            BasisSyncTestSupport.FeedKeyframe(recv, s, v, 1);
+            v.Cont[off] = 2f;
+            BasisSyncTestSupport.FeedKeyframe(recv, s, v, 2);
+            recv.Advance(BasisSyncTestSupport.Dt);
+
+            Assert.IsTrue(recv.HasData, "has data after keyframes");
+            Assert.IsTrue(recv.ConsumeValuesDirty(), "dirty once Current/Next populate");
+            Assert.IsFalse(recv.ConsumeValuesDirty(), "cleared after consume");
+
+            recv.Advance(0.0001f);
+            Assert.IsFalse(recv.ConsumeValuesDirty(), "no frame advance -> stays clean");
+        }
+
+        [Test]
+        public void SyncBatch_RoundTripsMultipleSubPackets()
+        {
+            var buf = new byte[256];
+            var w = new BasisSyncBatchWriter(buf);
+            Assert.IsTrue(w.TryAppend(7, new byte[] { 1, 2, 3 }, 3));
+            Assert.IsTrue(w.TryAppend(300, new byte[] { 9 }, 1));
+            Assert.IsTrue(w.TryAppend(65535, new byte[] { 4, 5 }, 2));
+            Assert.AreEqual(3, w.Count);
+
+            var r = new BasisSyncBatchReader(buf, w.Length);
+
+            Assert.IsTrue(r.TryRead(out ushort id0, out int o0, out int l0));
+            Assert.AreEqual((ushort)7, id0);
+            Assert.AreEqual(3, l0);
+            Assert.AreEqual(1, buf[o0]);
+            Assert.AreEqual(3, buf[o0 + 2]);
+
+            Assert.IsTrue(r.TryRead(out ushort id1, out int o1, out int l1));
+            Assert.AreEqual((ushort)300, id1);
+            Assert.AreEqual(1, l1);
+            Assert.AreEqual(9, buf[o1]);
+
+            Assert.IsTrue(r.TryRead(out ushort id2, out int o2, out int l2));
+            Assert.AreEqual((ushort)65535, id2);
+            Assert.AreEqual(2, l2);
+            Assert.AreEqual(5, buf[o2 + 1]);
+
+            Assert.IsFalse(r.TryRead(out _, out _, out _), "exhausted");
+        }
+
+        [Test]
+        public void SyncBatch_StopsWhenFull_AndTolerantOfTruncation()
+        {
+            var buf = new byte[8];
+            var w = new BasisSyncBatchWriter(buf);
+            Assert.IsTrue(w.TryAppend(1, new byte[] { 1, 2, 3, 4 }, 4), "4 header + 4 payload = 8 fits");
+            Assert.IsFalse(w.TryAppend(2, new byte[] { 1 }, 1), "no room left -> rejected, nothing written");
+            Assert.AreEqual(1, w.Count);
+
+            // Tail claims a 4-byte payload but only 6 bytes are available — must stop cleanly, never throw.
+            var r = new BasisSyncBatchReader(buf, 6);
+            Assert.DoesNotThrow(() => r.TryRead(out _, out _, out _));
+        }
+
+        [Test]
+        public void SyncBatch_DemuxExtractsSubPayloads()
+        {
+            var buf = new byte[64];
+            var w = new BasisSyncBatchWriter(buf);
+            Assert.IsTrue(w.TryAppend(10, new byte[] { 1, 2, 3 }, 3));
+            Assert.IsTrue(w.TryAppend(20, new byte[] { 7, 8 }, 2));
+
+            var ids = new System.Collections.Generic.List<ushort>();
+            var payloads = new System.Collections.Generic.List<byte[]>();
+            var r = new BasisSyncBatchReader(buf, w.Length);
+            while (r.TryRead(out ushort id, out int off, out int len))
+            {
+                var sub = new byte[len];
+                System.Array.Copy(buf, off, sub, 0, len);
+                ids.Add(id);
+                payloads.Add(sub);
+            }
+
+            Assert.AreEqual(2, ids.Count);
+            Assert.AreEqual((ushort)10, ids[0]);
+            CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, payloads[0]);
+            Assert.AreEqual((ushort)20, ids[1]);
+            CollectionAssert.AreEqual(new byte[] { 7, 8 }, payloads[1]);
+        }
+
         // ── helpers ──
 
         static BasisTransformAxisCompression Make(BasisTransformAxisMode mode) =>

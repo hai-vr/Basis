@@ -1,0 +1,10 @@
+{
+  "code": "nl",
+  "nativeName": "Nederlands",
+  "entries": [
+    {
+      "key": "settings.thirdpartylicenses.openlicenseurl",
+      "value": "Licentie-URL openen"
+    }
+  ]
+}

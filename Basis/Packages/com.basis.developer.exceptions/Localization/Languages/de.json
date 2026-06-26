@@ -1,0 +1,26 @@
+{
+  "code": "de",
+  "nativeName": "Deutsch",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} hat eine Ausnahme ausgelöst"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Details kopieren"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Verwerfen"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Ein Basis-System"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Verwende „Details kopieren“, um den vollständigen Stack-Trace zu kopieren."
+    }
+  ]
+}

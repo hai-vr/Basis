@@ -228,13 +228,28 @@ namespace Basis.Scripts.Networking.Sync
 
         protected override void ApplyInterpolated()
         {
-            if (Target == null) return;
+            if (!ComposeSyncedPose(out Vector3 p, out Quaternion r, out Vector3 s)) return;
 
-            Vector3 p;
-            Quaternion r;
+            if (WorldSpace) Target.SetPositionAndRotation(p, r);
+            else Target.SetLocalPositionAndRotation(p, r);
+            Target.localScale = s;
+        }
+
+        /// <summary>
+        /// Decodes the interpolated pose for the enabled axes (in <see cref="WorldSpace"/> or local space, matching
+        /// transmit); unsynced channels hold the Target's live value. Subclasses can use this to drive something
+        /// other than the Target transform — e.g. a Rigidbody with prediction + correction.
+        /// </summary>
+        protected bool ComposeSyncedPose(out Vector3 p, out Quaternion r, out Vector3 s)
+        {
+            p = default;
+            r = Quaternion.identity;
+            s = Vector3.one;
+            if (Target == null) return false;
+
             if (WorldSpace) Target.GetPositionAndRotation(out p, out r);
             else Target.GetLocalPositionAndRotation(out p, out r);
-            Vector3 s = Target.localScale;
+            s = Target.localScale;
 
             if (_posX.IsValid) p.x = GetFloat(_posX);
             if (_posY.IsValid) p.y = GetFloat(_posY);
@@ -274,10 +289,7 @@ namespace Basis.Scripts.Networking.Sync
                 if (_scaleY.IsValid) s.y = GetFloat(_scaleY);
                 if (_scaleZ.IsValid) s.z = GetFloat(_scaleZ);
             }
-
-            if (WorldSpace) Target.SetPositionAndRotation(p, r);
-            else Target.SetLocalPositionAndRotation(p, r);
-            Target.localScale = s;
+            return true;
         }
 
         protected override bool TryGetSyncGizmoSpatial(BasisSyncValues from, BasisSyncValues to, out Vector3 fromWorld, out Vector3 toWorld)

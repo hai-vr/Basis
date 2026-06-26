@@ -1,0 +1,10 @@
+{
+  "code": "ru",
+  "nativeName": "Русский",
+  "entries": [
+    {
+      "key": "settings.thirdpartylicenses.openlicenseurl",
+      "value": "Открыть URL лицензии"
+    }
+  ]
+}

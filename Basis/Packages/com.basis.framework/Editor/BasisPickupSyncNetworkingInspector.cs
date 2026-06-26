@@ -23,6 +23,7 @@ public class BasisPickupSyncNetworkingInspector : BasisSyncedTransformInspector
         pickup.Add(new PropertyField(serializedObject.FindProperty("BasisPickupInteractable")));
         pickup.Add(new PropertyField(serializedObject.FindProperty("CanNetworkSteal")));
         pickup.Add(new PropertyField(serializedObject.FindProperty("IsStatic")));
+        pickup.Add(new PropertyField(serializedObject.FindProperty("RemoteDeadReckon"), "Remote Dead-Reckon (velocity)"));
         root.Insert(1, pickup);
         pickup.Bind(serializedObject);
 
