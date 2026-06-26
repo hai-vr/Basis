@@ -62,6 +62,13 @@ namespace Basis.BasisUI
         /// </summary>
         public static Action<RectTransform> TrackerSettingsExtraBuilder;
 
+        /// <summary>
+        /// External hook to append a section to the Audio tab. Packages (e.g.
+        /// com.basis.mediaplayer) register a builder that populates the passed-in
+        /// tab content with their own controls.
+        /// </summary>
+        public static Action<RectTransform> AudioTabExtraBuilder;
+
         public static Action<RectTransform> LicensesBuilder;
 
         /// <summary>
@@ -768,6 +775,8 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.PropVolume);
             sliderPropVolume.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.propVolume.tooltip"));
             sliderPropVolume.SliderComponent.onValueChanged.AddListener(SMModuleAudio.ApplyPropVolume);
+
+            AudioTabExtraBuilder?.Invoke(container);
 
             // OUTPUT DEVICE
             if (BasisAudioOutputDevices.IsSupported)
