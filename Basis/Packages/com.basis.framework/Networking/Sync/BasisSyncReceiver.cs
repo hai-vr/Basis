@@ -56,6 +56,7 @@ namespace Basis.Scripts.Networking.Sync
         private bool _serverClockSeeded;
         private float _dynamicDepth = 2f;
         private bool _valuesDirty = true;
+        private bool _snapRequested;
 
         private bool _extrapolate;
         private double _maxExtrapSeconds;
@@ -213,6 +214,29 @@ namespace Basis.Scripts.Networking.Sync
                 _arrived.Clear();
             }
 
+            if (_snapRequested)
+            {
+                _snapRequested = false;
+                // Collapse the buffer to the freshest frame we have so playback jumps straight to it
+                // instead of interpolating across the discontinuity that prompted the request.
+                SyncFrame fresh = null;
+                while (_staged.Count > 0)
+                {
+                    if (fresh != null) ReturnFrame(fresh);
+                    fresh = _staged.Dequeue();
+                }
+                if (fresh == null) fresh = _next ?? _current;
+                if (fresh != null)
+                {
+                    if (_current != null && _current != fresh) ReturnFrame(_current);
+                    if (_next != null && _next != fresh) ReturnFrame(_next);
+                    _current = fresh;
+                    _next = null;
+                    _interpTime = 0.0;
+                    _valuesDirty = true;
+                }
+            }
+
             if (_current == null && _staged.Count > 0) { _current = _staged.Dequeue(); _valuesDirty = true; }
             if (_next == null && _staged.Count > 0) { _next = _staged.Dequeue(); _valuesDirty = true; }
 
@@ -258,6 +282,14 @@ namespace Basis.Scripts.Networking.Sync
                 _interpTime = 0.0;
             }
         }
+
+        /// <summary>
+        /// Request that playback collapse to the freshest received frame on the next <see cref="Advance"/>,
+        /// skipping interpolation. Use after a discontinuity in what the synced values mean (teleport, or a
+        /// pickup switching between world-space and hand-relative encoding) so the remote copy snaps rather
+        /// than sliding across the jump.
+        /// </summary>
+        public void ForceSnap() => _snapRequested = true;
 
         public void Reset()
         {

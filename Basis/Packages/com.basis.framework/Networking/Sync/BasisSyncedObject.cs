@@ -412,6 +412,13 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Force the next outgoing packet to be a full keyframe (e.g. after a teleport).</summary>
         public void ForceKeyframe() => _forceKeyframe = true;
 
+        /// <summary>
+        /// Remote copies: collapse the interpolation buffer to the freshest received frame on the next tick,
+        /// skipping interpolation. Call after a discontinuity in the meaning of the synced values (teleport,
+        /// or a pickup toggling between world and hand-relative encoding) so the copy snaps instead of sliding.
+        /// </summary>
+        public void SnapReceiver() => _receiver?.ForceSnap();
+
         /// <summary>Owner hook fired right before serialization; push live source values into LocalSet here.</summary>
         protected virtual void OnBeforeTransmit() { }
 

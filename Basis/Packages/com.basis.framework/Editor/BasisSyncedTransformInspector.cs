@@ -28,6 +28,12 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
 
         VisualElement space = BasisSyncInspectorUI.Card("Space");
         space.Add(new PropertyField(serializedObject.FindProperty("WorldSpace")));
+        space.Add(new PropertyField(serializedObject.FindProperty("RelativeTo")));
+        var relHint = new Label("RelativeTo: encode position in that transform's space so a tight Ranged window covers a large world (both clients need the same reference).");
+        relHint.style.whiteSpace = WhiteSpace.Normal;
+        relHint.style.fontSize = 10;
+        relHint.style.opacity = 0.8f;
+        space.Add(relHint);
         root.Add(space);
 
         root.Add(BuildCompression());

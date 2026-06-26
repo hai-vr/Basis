@@ -25,6 +25,9 @@ namespace Basis.Scripts.Networking.Sync
 
         public bool SyncScale = false;
         public bool ScaleUniform = false;
+        public bool ScaleX = true;
+        public bool ScaleY = true;
+        public bool ScaleZ = true;
         public bool InterpolateScale = true;
 
         public bool SyncLinearVelocity = true;
@@ -131,9 +134,9 @@ namespace Basis.Scripts.Networking.Sync
                 }
                 else
                 {
-                    _scaleX = RegisterFloat(ScaleCompX.ToSpec(), InterpolateScale);
-                    _scaleY = RegisterFloat(ScaleCompY.ToSpec(), InterpolateScale);
-                    _scaleZ = RegisterFloat(ScaleCompZ.ToSpec(), InterpolateScale);
+                    if (ScaleX) _scaleX = RegisterFloat(ScaleCompX.ToSpec(), InterpolateScale);
+                    if (ScaleY) _scaleY = RegisterFloat(ScaleCompY.ToSpec(), InterpolateScale);
+                    if (ScaleZ) _scaleZ = RegisterFloat(ScaleCompZ.ToSpec(), InterpolateScale);
                 }
             }
 
@@ -191,12 +194,12 @@ namespace Basis.Scripts.Networking.Sync
             {
                 LocalSet(_scaleUniform, Body.transform.localScale.x);
             }
-            else if (_scaleX.IsValid)
+            else if (_scaleX.IsValid || _scaleY.IsValid || _scaleZ.IsValid)
             {
                 Vector3 s = Body.transform.localScale;
-                LocalSet(_scaleX, s.x);
-                LocalSet(_scaleY, s.y);
-                LocalSet(_scaleZ, s.z);
+                if (_scaleX.IsValid) LocalSet(_scaleX, s.x);
+                if (_scaleY.IsValid) LocalSet(_scaleY, s.y);
+                if (_scaleZ.IsValid) LocalSet(_scaleZ, s.z);
             }
         }
 
@@ -231,15 +234,21 @@ namespace Basis.Scripts.Networking.Sync
                 r = Quaternion.Euler(GetAngle(_eulerX), GetAngle(_eulerY), GetAngle(_eulerZ));
             }
 
-            if (DriveRemoteKinematic && !Body.isKinematic) Body.isKinematic = true;
-
-            Body.position = p;
-            Body.rotation = r;
-
-            if (!Body.isKinematic)
+            if (DriveRemoteKinematic)
             {
+                if (!Body.isKinematic) Body.isKinematic = true;
+                Body.position = p;
+                Body.rotation = r;
+            }
+            else
+            {
+                // Velocity-assisted extrapolation: let the synced velocity carry the dynamic body between updates
+                // and softly correct toward the synced pose, instead of hard-snapping it every frame.
                 if (_velX.IsValid) Body.linearVelocity = new Vector3(GetFloat(_velX), GetFloat(_velY), GetFloat(_velZ));
                 if (_angX.IsValid) Body.angularVelocity = new Vector3(GetFloat(_angX), GetFloat(_angY), GetFloat(_angZ));
+                const float correction = 0.2f;
+                Body.position = Vector3.Lerp(Body.position, p, correction);
+                Body.rotation = Quaternion.Slerp(Body.rotation, r, correction);
             }
 
             if (_scaleUniform.IsValid)
@@ -247,9 +256,13 @@ namespace Basis.Scripts.Networking.Sync
                 float u = GetFloat(_scaleUniform);
                 Body.transform.localScale = new Vector3(u, u, u);
             }
-            else if (_scaleX.IsValid)
+            else if (_scaleX.IsValid || _scaleY.IsValid || _scaleZ.IsValid)
             {
-                Body.transform.localScale = new Vector3(GetFloat(_scaleX), GetFloat(_scaleY), GetFloat(_scaleZ));
+                Vector3 s = Body.transform.localScale;
+                if (_scaleX.IsValid) s.x = GetFloat(_scaleX);
+                if (_scaleY.IsValid) s.y = GetFloat(_scaleY);
+                if (_scaleZ.IsValid) s.z = GetFloat(_scaleZ);
+                Body.transform.localScale = s;
             }
         }
 

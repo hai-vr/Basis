@@ -19,6 +19,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
         static readonly Color Green = new Color(0.45f, 0.9f, 0.45f);
         static readonly Color Red = new Color(0.95f, 0.5f, 0.5f);
         static readonly Color Grey = new Color(0.65f, 0.65f, 0.65f);
+        static readonly Color Yellow = new Color(0.95f, 0.85f, 0.35f);
 
         enum Scope { Quick, Full }
 
@@ -78,7 +79,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
                 _interpOff = EditorGUILayout.Toggle("Interpolate-off variants", _interpOff);
                 _extrap = EditorGUILayout.Toggle("Extrapolation variants", _extrap);
                 _teleThresh = EditorGUILayout.Toggle("Teleport-threshold variants", _teleThresh);
-                _checksumOff = EditorGUILayout.Toggle(new GUIContent("Checksum-off variants", "Adds checksum-OFF runs on corrupting profiles (expected to FAIL) to show the option carrying recovery."), _checksumOff);
+                _checksumOff = EditorGUILayout.Toggle(new GUIContent("Checksum-off variants", "Adds checksum-OFF runs on corrupting profiles. Undetectable corruption is reported as WARN (labelled 'no checksum'), not FAIL."), _checksumOff);
             }
 
             if (EditorGUI.EndChangeCheck() || _scenarioCount < 0)
@@ -108,11 +109,18 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
             if (_results == null) return;
 
             Header("Results");
-            int pass = 0, fail = 0;
-            for (int i = 0; i < _results.Count; i++) { if (_results[i].Pass) pass++; else fail++; }
+            int pass = 0, warn = 0, fail = 0;
+            for (int i = 0; i < _results.Count; i++)
+            {
+                BasisSyncSimResult r = _results[i];
+                if (!r.Pass) fail++;
+                else if (r.Warn) warn++;
+                else pass++;
+            }
 
             EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-            Colored($"PASS {pass}", pass == _results.Count ? Green : Grey);
+            Colored($"PASS {pass}", fail == 0 && warn == 0 ? Green : Grey);
+            Colored($"WARN {warn}", warn > 0 ? Yellow : Grey);
             Colored($"FAIL {fail}", fail > 0 ? Red : Grey);
             EditorGUILayout.LabelField($"of {_results.Count}", GUILayout.Width(70));
             EditorGUILayout.EndHorizontal();
@@ -188,19 +196,21 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
 
             var byProfile = new SortedDictionary<string, int[]>();   // name -> [pass, fail]
             var byConfig = new SortedDictionary<string, int[]>();
-            int pass = 0, fail = 0, soft = 0;
+            int pass = 0, warn = 0, fail = 0, soft = 0;
 
             for (int i = 0; i < _results.Count; i++)
             {
                 BasisSyncSimResult r = _results[i];
-                if (r.Pass) pass++; else fail++;
-                if (r.Pass && !string.IsNullOrEmpty(r.FailReason)) soft++;
+                if (!r.Pass) fail++;
+                else if (r.Warn) warn++;
+                else pass++;
+                if (r.Pass && !r.Warn && !string.IsNullOrEmpty(r.FailReason)) soft++;
                 Bump(byProfile, r.ProfileName, r.Pass);
                 Bump(byConfig, r.FieldConfigName, r.Pass);
             }
 
             var sb = new StringBuilder();
-            sb.AppendLine($"{_results.Count} scenarios in {elapsedMs} ms   |   PASS {pass}   FAIL {fail}   (soft warnings {soft})");
+            sb.AppendLine($"{_results.Count} scenarios in {elapsedMs} ms   |   PASS {pass}   WARN {warn}   FAIL {fail}   (soft {soft})");
             sb.AppendLine();
             sb.AppendLine("By network profile:");
             foreach (var kv in byProfile)

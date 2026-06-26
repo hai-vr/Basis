@@ -31,6 +31,13 @@ namespace Basis.Scripts.Networking.Sync.Testing
             public bool ChecksumOffVariant = false; // adds checksum-OFF runs on corrupting profiles (expected to fail) to characterize the option
             public bool CompositeConfigs = true;
 
+            // Multi-object scenes: several objects share one wire, exercising batch coalesce/demux, the real Burst
+            // interp over a multi-slot SoA, and a late-joiner. One scene produces one result row per object.
+            public bool MultiObjectScenes = true;
+            public bool BatchedTransport = true;   // route a scene's frame through the real BatchWriter/BatchReader
+            public bool RealInterpJob = true;       // sample the "other side" with the real InterpolateSyncObjectsJob
+            public bool LateJoinVariant = true;      // add a receiver that attaches mid-stream and recovers via keyframe
+
             public int Seeds = 1;
             public int BaseSeed = 0x5A1D;
 

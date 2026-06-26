@@ -80,6 +80,7 @@ namespace Basis.Scripts.Networking.Sync
         public bool ScaleZ = true;
 
         public bool WorldSpace = false;
+        public Transform RelativeTo;
 
         public bool InterpolatePosition = true;
         public bool InterpolateRotation = true;
@@ -189,6 +190,7 @@ namespace Basis.Scripts.Networking.Sync
             Quaternion r;
             if (WorldSpace) Target.GetPositionAndRotation(out p, out r);
             else Target.GetLocalPositionAndRotation(out p, out r);
+            if (RelativeTo != null) p = RelativeTo.InverseTransformPoint(Target.position);
 
             if (_posX.IsValid) LocalSet(_posX, p.x);
             if (_posY.IsValid) LocalSet(_posY, p.y);
@@ -226,11 +228,62 @@ namespace Basis.Scripts.Networking.Sync
             }
         }
 
+        /// <summary>
+        /// Writes an arbitrary pose into the enabled position / rotation / scale channels (owner side),
+        /// honouring the configured axis toggles, rotation mode and scale mode. Exposed so a subclass can
+        /// stream a remapped pose — e.g. a hand-relative offset — through the same channels that
+        /// <see cref="OnBeforeTransmit"/> normally fills from the Target. Values are written verbatim (no
+        /// WorldSpace / RelativeTo handling); <see cref="ComposeSyncedPose"/> returns them unchanged when
+        /// every position axis is synced, which is the decode side a subclass pairs with this.
+        /// </summary>
+        protected void EncodePose(Vector3 p, Quaternion r, Vector3 scale)
+        {
+            if (_posX.IsValid) LocalSet(_posX, p.x);
+            if (_posY.IsValid) LocalSet(_posY, p.y);
+            if (_posZ.IsValid) LocalSet(_posZ, p.z);
+
+            if (_rotQuat.IsValid)
+            {
+                LocalSet(_rotQuat, r);
+            }
+            else if (_rotQw.IsValid)
+            {
+                LocalSet(_rotQx, r.x);
+                LocalSet(_rotQy, r.y);
+                LocalSet(_rotQz, r.z);
+                LocalSet(_rotQw, r.w);
+            }
+            else if (_rotEuler)
+            {
+                Vector3 e = r.eulerAngles;
+                if (_eulerX.IsValid) LocalSet(_eulerX, e.x);
+                if (_eulerY.IsValid) LocalSet(_eulerY, e.y);
+                if (_eulerZ.IsValid) LocalSet(_eulerZ, e.z);
+            }
+
+            if (_scaleUniform.IsValid)
+            {
+                LocalSet(_scaleUniform, scale.x);
+            }
+            else
+            {
+                if (_scaleX.IsValid) LocalSet(_scaleX, scale.x);
+                if (_scaleY.IsValid) LocalSet(_scaleY, scale.y);
+                if (_scaleZ.IsValid) LocalSet(_scaleZ, scale.z);
+            }
+        }
+
         protected override void ApplyInterpolated()
         {
             if (!ComposeSyncedPose(out Vector3 p, out Quaternion r, out Vector3 s)) return;
 
-            if (WorldSpace) Target.SetPositionAndRotation(p, r);
+            if (RelativeTo != null)
+            {
+                Target.position = RelativeTo.TransformPoint(p);
+                if (WorldSpace) Target.rotation = r;
+                else Target.localRotation = r;
+            }
+            else if (WorldSpace) Target.SetPositionAndRotation(p, r);
             else Target.SetLocalPositionAndRotation(p, r);
             Target.localScale = s;
         }
@@ -250,6 +303,7 @@ namespace Basis.Scripts.Networking.Sync
             if (WorldSpace) Target.GetPositionAndRotation(out p, out r);
             else Target.GetLocalPositionAndRotation(out p, out r);
             s = Target.localScale;
+            if (RelativeTo != null) p = RelativeTo.InverseTransformPoint(Target.position);
 
             if (_posX.IsValid) p.x = GetFloat(_posX);
             if (_posY.IsValid) p.y = GetFloat(_posY);

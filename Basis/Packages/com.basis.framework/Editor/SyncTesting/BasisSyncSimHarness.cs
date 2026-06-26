@@ -44,6 +44,8 @@ namespace Basis.Scripts.Networking.Sync.Testing
                 KeyframeInterval = s.KeyframeInterval,
                 ContinuousEpsilon = s.ContinuousEpsilon,
                 UseChecksum = s.UseChecksum,
+                UseIdleKeyframeBackoff = s.IdleKeyframeBackoff,
+                RotationSendThresholdDegrees = s.RotationSendThresholdDegrees,
             };
             var receiver = new BasisSyncReceiver(schema);
 
@@ -81,11 +83,11 @@ namespace Basis.Scripts.Networking.Sync.Testing
                         net.Send(pkt, t, result);
                     }
 
-                    net.DeliverDue(t, receiver, result);
+                    net.DeliverDue(t, receiver.OnPacket, result);
                     receiver.Advance(s.Dt);
                 }
 
-                net.FlushAll(receiver, result);
+                net.FlushAll(receiver.OnPacket, result);
                 for (int k = 0; k < 64; k++) receiver.Advance(s.Dt);
                 Sample(receiver, schema, outVals);
             }
@@ -94,7 +96,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
                 result.Exception = e.GetType().Name + ": " + e.Message;
             }
 
-            Evaluate(schema, s, sender.Local, outVals, receiver.HasData, result);
+            Evaluate(schema, s.Profile.HardConvergence, s.UseChecksum, sender.Local, outVals, receiver.HasData, result);
             return result;
         }
 
@@ -160,7 +162,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         }
 
         // ── Convergence scoring vs the owner's final authoritative values ──
-        static void Evaluate(BasisSyncSchema schema, BasisSyncSimScenario s, BasisSyncValues truth, BasisSyncValues outVals, bool hasData, BasisSyncSimResult result)
+        internal static void Evaluate(BasisSyncSchema schema, bool hardConvergence, bool useChecksum, BasisSyncValues truth, BasisSyncValues outVals, bool hasData, BasisSyncSimResult result)
         {
             if (result.Exception != null)
             {
@@ -173,7 +175,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             {
                 // Faithful profiles deliver keyframes reliably, so no output is a real failure.
                 // Chaos impairs reliable traffic too — total keyframe loss there is observational.
-                result.Pass = !s.Profile.HardConvergence;
+                result.Pass = !hardConvergence;
                 result.FailReason = "receiver never produced output (no keyframe arrived)";
                 return;
             }
@@ -237,8 +239,20 @@ namespace Basis.Scripts.Networking.Sync.Testing
 
             // Faithful profiles guarantee convergence (keyframes are ReliableOrdered). The chaos
             // profile impairs reliable traffic too, so its convergence is observational only.
-            if (firstFail != null && s.Profile.HardConvergence)
+            if (firstFail != null && hardConvergence)
             {
+                // Without a checksum a corrupted packet can't be detected or dropped, so its bad value gets
+                // applied — an expected limitation of running unprotected, not a codec bug. Flag it as a
+                // warning rather than a hard fail (only when corruption actually occurred; other no-checksum
+                // failures still fail).
+                if (!useChecksum && result.PacketsCorrupted > 0)
+                {
+                    result.Pass = true;
+                    result.Warn = true;
+                    result.FailReason = "no checksum — corruption undetectable (expected): " + firstFail;
+                    return;
+                }
+
                 result.Pass = false;
                 result.FailReason = firstFail;
                 return;
@@ -324,6 +338,14 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public float ContinuousEpsilon = 1e-4f;
         public bool UseChecksum = true;
 
+        // Idle keyframe backoff: a value that stops changing stretches its keyframe interval (2^n x, capped), so the
+        // wire matches what the real TransmitIfDue sends. Off keeps the legacy fixed-interval cadence.
+        public bool UseIdleKeyframeBackoff = false;
+        // 0 keeps the legacy 0.99999 rotation-dirty dot; a positive value mirrors RotationSendThresholdDegrees.
+        public float RotationSendThresholdDegrees = 0f;
+
+        const int MaxKeyframeBackoffShift = 4;
+
         readonly BasisSyncSchema _schema;
         readonly BasisSyncValues _local;
         readonly BasisSyncValues _lastSent;
@@ -334,6 +356,8 @@ namespace Basis.Scripts.Networking.Sync.Testing
         double _lastSendTime = -1;
         double _lastKeyframeTime = -1;
         bool _forceKeyframe = true;
+        int _idleKeyframeBackoff;
+        float _rotDotThreshold = 0.99999f;
 
         public BasisSyncValues Local => _local;
 
@@ -353,7 +377,14 @@ namespace Basis.Scripts.Networking.Sync.Testing
             bool intervalElapsed = _lastSendTime < 0 || (time - _lastSendTime) >= SendInterval;
             if (!intervalElapsed) return null;
 
-            bool keyframe = _forceKeyframe || _lastSendTime < 0 || (time - _lastKeyframeTime) >= KeyframeInterval;
+            _rotDotThreshold = RotationSendThresholdDegrees > 0f
+                ? Mathf.Cos(Mathf.Deg2Rad * RotationSendThresholdDegrees * 0.5f)
+                : 0.99999f;
+
+            double effectiveKeyframe = UseIdleKeyframeBackoff
+                ? BasisSyncedObject.KeyframeBackoffInterval(KeyframeInterval, _idleKeyframeBackoff, MaxKeyframeBackoffShift)
+                : KeyframeInterval;
+            bool keyframe = _forceKeyframe || _lastSendTime < 0 || (time - _lastKeyframeTime) >= effectiveKeyframe;
 
             int dirtyBytes = _schema.DirtyMaskBytes;
             for (int i = 0; i < dirtyBytes; i++) _dirtyMask[i] = 0;
@@ -370,6 +401,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
 
             if (discreteChange) keyframe = true;
             if (!keyframe && !anyChange) return null;
+            if (anyChange) _idleKeyframeBackoff = 0;
 
             double elapsed = _lastSendTime >= 0 ? (time - _lastSendTime) : SendInterval;
             ushort intervalMs = (ushort)math.clamp((int)math.round(elapsed * 1000.0), 1, 65535);
@@ -386,6 +418,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             {
                 _lastKeyframeTime = time;
                 _forceKeyframe = false;
+                if (UseIdleKeyframeBackoff && !anyChange && _idleKeyframeBackoff < MaxKeyframeBackoffShift) _idleKeyframeBackoff++;
             }
 
             return new SimPacket { Bytes = bytes, Len = len, Seq = _seq, Reliable = keyframe };
@@ -401,7 +434,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
                         if (math.abs(_local.Cont[f.Offset + c] - _lastSent.Cont[f.Offset + c]) > ContinuousEpsilon) return true;
                     return false;
                 case BasisSyncPool.Rotation:
-                    return math.abs(math.dot(_local.Rot[f.Offset].value, _lastSent.Rot[f.Offset].value)) < 0.99999f;
+                    return math.abs(math.dot(_local.Rot[f.Offset].value, _lastSent.Rot[f.Offset].value)) < _rotDotThreshold;
                 case BasisSyncPool.Discrete:
                     return _local.Disc[f.Offset] != _lastSent.Disc[f.Offset];
             }
@@ -498,7 +531,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             }
         }
 
-        public void DeliverDue(double now, BasisSyncReceiver receiver, BasisSyncSimResult result)
+        public void DeliverDue(double now, Action<byte[], int> deliver, BasisSyncSimResult result)
         {
             _inflight.Sort((a, b) => a.Arrival.CompareTo(b.Arrival));
             int i = 0;
@@ -506,7 +539,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
             {
                 InFlight f = _inflight[i];
                 if (f.Arrival > now) break;
-                receiver.OnPacket(f.Bytes, f.Len);
+                deliver(f.Bytes, f.Len);
                 result.PacketsDelivered++;
                 if (f.SendIndex < _lastDeliveredSendIndex) result.PacketsReordered++;
                 else _lastDeliveredSendIndex = f.SendIndex;
@@ -514,9 +547,9 @@ namespace Basis.Scripts.Networking.Sync.Testing
             }
         }
 
-        public void FlushAll(BasisSyncReceiver receiver, BasisSyncSimResult result)
+        public void FlushAll(Action<byte[], int> deliver, BasisSyncSimResult result)
         {
-            DeliverDue(double.MaxValue, receiver, result);
+            DeliverDue(double.MaxValue, deliver, result);
         }
 
         bool Chance(float p) => p > 0f && _rng.NextDouble() < p;
@@ -701,6 +734,8 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public bool TeleportThreshold = false;
         public float TeleportThresholdMeters = 3f;
         public bool UseChecksum = true;
+        public bool IdleKeyframeBackoff = false;
+        public float RotationSendThresholdDegrees = 0f;
 
         public float Dt = 1f / 72f;
         public float DurationSeconds = 8f;
@@ -730,8 +765,16 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public float MaxRotErrorDeg;
         public int DiscreteMismatches;
 
+        // Multi-object scene metadata. Single-object runs leave these at their single/managed defaults.
+        public int Objects = 1;
+        public string Transport = "single";   // single | per-packet | batched
+        public string SampledVia = "managed"; // managed mirror | realjob (real Burst InterpolateSyncObjectsJob)
+        public int DemuxEntries;               // batch sub-payloads routed to a receiver
+        public int DemuxErrors;                // batch entries whose NetworkID had no receiver / truncated tail
+
         public string Exception;
         public bool Pass;
+        public bool Warn;
         public string FailReason = "";
 
         public float AvgPacketBytes => PacketsSent > 0 ? (float)WireBytesSent / PacketsSent : 0f;
@@ -739,17 +782,19 @@ namespace Basis.Scripts.Networking.Sync.Testing
         public static string CsvHeader =>
             "scenario,fieldConfig,motion,profile,seed,pass,failReason," +
             "packetsSent,keyframes,delivered,dropped,duplicated,corrupted,reordered," +
-            "wireBytesSent,avgPacketBytes,bytesPerKeyframe,maxContError,maxRotErrorDeg,discreteMismatches,exception";
+            "wireBytesSent,avgPacketBytes,bytesPerKeyframe,maxContError,maxRotErrorDeg,discreteMismatches,exception," +
+            "objects,transport,sampledVia,demuxEntries,demuxErrors";
 
         public string ToCsvRow()
         {
             return string.Join(",",
                 Csv(ScenarioName), Csv(FieldConfigName), Motion, Csv(ProfileName), Seed,
-                Pass ? "PASS" : "FAIL", Csv(FailReason),
+                Warn ? "WARN" : (Pass ? "PASS" : "FAIL"), Csv(FailReason),
                 PacketsSent, Keyframes, PacketsDelivered, PacketsDropped, PacketsDuplicated, PacketsCorrupted, PacketsReordered,
                 WireBytesSent, AvgPacketBytes.ToString("0.0"), WireBytesPerKeyframe,
                 MaxContError.ToString("0.#####"), MaxRotErrorDeg.ToString("0.###"), DiscreteMismatches,
-                Csv(Exception ?? ""));
+                Csv(Exception ?? ""),
+                Objects, Csv(Transport), Csv(SampledVia), DemuxEntries, DemuxErrors);
         }
 
         static string Csv(string v)

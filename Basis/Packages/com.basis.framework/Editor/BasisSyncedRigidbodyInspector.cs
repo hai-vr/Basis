@@ -35,11 +35,7 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
 
         root.Add(RotationGroup());
 
-        VisualElement scale = BasisSyncInspectorUI.Card("Scale");
-        scale.Add(new Toggle("Sync Scale") { bindingPath = "SyncScale" });
-        scale.Add(new Toggle("Uniform (one value → XYZ)") { bindingPath = "ScaleUniform" });
-        scale.Add(new Toggle("Interpolate") { bindingPath = "InterpolateScale" });
-        root.Add(scale);
+        root.Add(ScaleGroup());
 
         VisualElement vel = BasisSyncInspectorUI.Card("Velocity");
         vel.Add(new Toggle("Sync Linear Velocity") { bindingPath = "SyncLinearVelocity" });
@@ -48,7 +44,7 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
 
         VisualElement remote = BasisSyncInspectorUI.Card("Remote");
         remote.Add(new Toggle("Drive Remote Kinematic") { bindingPath = "DriveRemoteKinematic" });
-        var remoteHint = new Label("On = remote bodies are kinematic, driven straight to the synced pose. Off = the synced velocity is applied so a dynamic remote can keep simulating.");
+        var remoteHint = new Label("On = remote bodies are kinematic, driven straight to the synced pose. Off = velocity-assisted extrapolation — the synced velocity carries a dynamic remote between updates, with a soft correction toward the synced pose.");
         remoteHint.style.whiteSpace = WhiteSpace.Normal;
         remoteHint.style.fontSize = 10;
         remoteHint.style.opacity = 0.8f;
@@ -111,6 +107,57 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
         card.Add(bits);
         card.Add(interp);
         return card;
+    }
+
+    private VisualElement ScaleGroup()
+    {
+        VisualElement card = BasisSyncInspectorUI.Card("Scale");
+
+        var sync = new Toggle("Sync Scale") { bindingPath = "SyncScale" };
+        var uniform = new Toggle("Uniform (one value → XYZ)") { bindingPath = "ScaleUniform" };
+        VisualElement row = AxisRow("ScaleX", "ScaleY", "ScaleZ");
+
+        void UpdateEnabled()
+        {
+            bool on = serializedObject.FindProperty("SyncScale").boolValue;
+            bool uni = serializedObject.FindProperty("ScaleUniform").boolValue;
+            uniform.SetEnabled(on);
+            row.SetEnabled(on && !uni);
+        }
+        UpdateEnabled();
+        sync.RegisterValueChangedCallback(evt => UpdateEnabled());
+        uniform.RegisterValueChangedCallback(evt => UpdateEnabled());
+
+        card.Add(sync);
+        card.Add(uniform);
+        card.Add(row);
+        card.Add(new Toggle("Interpolate") { bindingPath = "InterpolateScale" });
+        return card;
+    }
+
+    private VisualElement AxisRow(string x, string y, string z)
+    {
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.marginTop = 2;
+        row.style.marginLeft = 4;
+        row.Add(AxisToggle("X", x));
+        row.Add(AxisToggle("Y", y));
+        row.Add(AxisToggle("Z", z));
+        return row;
+    }
+
+    private static VisualElement AxisToggle(string label, string bindingPath)
+    {
+        var toggle = new Toggle(label) { bindingPath = bindingPath };
+        toggle.style.marginRight = 14;
+        var labelEl = toggle.Q<Label>();
+        if (labelEl != null)
+        {
+            labelEl.style.minWidth = 0;
+            labelEl.style.marginRight = 4;
+        }
+        return toggle;
     }
 
     private VisualElement BuildCompression()
@@ -211,9 +258,10 @@ public class BasisSyncedRigidbodyInspector : BasisDocInspector_UI
             }
             else
             {
-                scaleBits = t.ScaleCompX.ToSpec().BitCount + t.ScaleCompY.ToSpec().BitCount + t.ScaleCompZ.ToSpec().BitCount;
-                scaleFields = 3;
-                scaleDetail = "3 axes";
+                if (t.ScaleX) { scaleBits += t.ScaleCompX.ToSpec().BitCount; scaleFields++; }
+                if (t.ScaleY) { scaleBits += t.ScaleCompY.ToSpec().BitCount; scaleFields++; }
+                if (t.ScaleZ) { scaleBits += t.ScaleCompZ.ToSpec().BitCount; scaleFields++; }
+                scaleDetail = scaleFields == 1 ? "1 axis" : scaleFields + " axes";
             }
         }
         model.Add("Scale", scaleBits, scaleFields, scaleDetail);
