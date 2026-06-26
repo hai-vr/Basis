@@ -23,6 +23,7 @@ namespace Basis.ImagePickup
         private Texture2D _texture;
         private byte[] _cleanPng;
         private Material _material;
+        private Material _backMaterial;
         private MeshRenderer _frontRenderer;
         private BasisImagePickupManager _manager;
 
@@ -30,6 +31,7 @@ namespace Basis.ImagePickup
         private bool _hasRemoteTarget;
         private Vector3 _targetPosition;
         private Quaternion _targetRotation;
+        private float _targetScale = 1f;
 
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -64,7 +66,7 @@ namespace Basis.ImagePickup
             front.transform.SetParent(root.transform, false);
             front.transform.localScale = new Vector3(panelWidth, panelHeight, 1f);
 
-            if (front.TryGetComponent(out MeshCollider meshCollider)) Destroy(meshCollider);
+            if (front.TryGetComponent(out MeshCollider meshCollider)) DestroyImmediate(meshCollider);
 
             pickup._frontRenderer = front.GetComponent<MeshRenderer>();
             pickup._material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
@@ -73,19 +75,39 @@ namespace Basis.ImagePickup
             if (pickup._material.HasProperty(BaseColorId)) pickup._material.SetColor(BaseColorId, Color.white);
             pickup._frontRenderer.sharedMaterial = pickup._material;
 
+            var back = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            back.name = "Back";
+            if (interactableLayer >= 0) back.layer = interactableLayer;
+            back.transform.SetParent(root.transform, false);
+            back.transform.localScale = new Vector3(panelWidth, panelHeight, 1f);
+            back.transform.SetLocalPositionAndRotation(new Vector3(0f, 0f, 0.002f), Quaternion.Euler(0f, 180f, 0f));
+
+            if (back.TryGetComponent(out MeshCollider backMeshCollider)) DestroyImmediate(backMeshCollider);
+
+            pickup._backMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            if (pickup._backMaterial.HasProperty(BaseColorId)) pickup._backMaterial.SetColor(BaseColorId, Color.white);
+            else pickup._backMaterial.color = Color.white;
+            back.GetComponent<MeshRenderer>().sharedMaterial = pickup._backMaterial;
+
             if (isOwner)
             {
-                var box = front.AddComponent<BoxCollider>();
+                var box = root.AddComponent<BoxCollider>();
                 box.isTrigger = true;
-                box.size = new Vector3(1f, 1f, 0.02f);
+                box.size = new Vector3(panelWidth, panelHeight, 0.02f);
 
                 var body = root.AddComponent<Rigidbody>();
-                body.isKinematic = true;
+                body.isKinematic = false;
                 body.useGravity = false;
+                body.linearDamping = 1.5f;
+                body.angularDamping = 2.5f;
+                body.interpolation = RigidbodyInterpolation.Interpolate;
 
                 var interactable = root.AddComponent<BasisPickupInteractable>();
                 interactable.RigidRef = body;
                 interactable.GenerateColliderMesh = false;
+                interactable.enableScaleWithGesture = true;
+                interactable.minScalePercent = 25f;
+                interactable.maxScalePercent = 400f;
             }
 
             BasisImagePickupBackPanel.Build(root.transform, pickup, panelWidth, panelHeight);
@@ -100,15 +122,19 @@ namespace Basis.ImagePickup
             transform.SetPositionAndRotation(
                 Vector3.Lerp(currentPos, _targetPosition, t),
                 Quaternion.Slerp(currentRot, _targetRotation, t));
+            float scale = Mathf.Lerp(transform.localScale.x, _targetScale, t);
+            transform.localScale = new Vector3(scale, scale, scale);
         }
 
-        public void SetRemoteTarget(Vector3 position, Quaternion rotation)
+        public void SetRemoteTarget(Vector3 position, Quaternion rotation, float scale)
         {
             _targetPosition = position;
             _targetRotation = rotation;
+            _targetScale = scale;
             if (!_hasRemoteTarget)
             {
                 transform.SetPositionAndRotation(position, rotation);
+                transform.localScale = new Vector3(scale, scale, scale);
                 _hasRemoteTarget = true;
             }
         }
@@ -156,6 +182,7 @@ namespace Basis.ImagePickup
         private void OnDestroy()
         {
             if (_material != null) Destroy(_material);
+            if (_backMaterial != null) Destroy(_backMaterial);
             if (_texture != null) Destroy(_texture);
         }
     }

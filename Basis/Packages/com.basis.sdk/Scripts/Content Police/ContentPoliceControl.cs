@@ -12,12 +12,6 @@ public static class ContentPoliceControl
     public static bool ShaderPrewarmEnabled = false;
     public static bool MaterialCorrectionEnabled = false;
 
-    private static readonly bool PrewarmForcedByGraphicsApi =
-        SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Direct3D12 ||
-        SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan;
-
-    private static bool ShouldPrewarm => ShaderPrewarmEnabled || PrewarmForcedByGraphicsApi;
-
     /// <summary>
     /// Creates a copy of a GameObject, removes any unapproved MonoBehaviours, and returns the cleaned copy through instantiation. 
     /// </summary>
@@ -186,7 +180,7 @@ public static class ContentPoliceControl
 
                 // Compile shader variants for everything we just walked before we set the clone
                 // active, so the first frame it's visible doesn't stall on a hitch.
-                if (ShouldPrewarm)
+                if (ShaderPrewarmEnabled)
                 {
                     BasisShaderPrewarm.Warm(renderersForPrewarm, SearchAndDestroy.name);
                 }
@@ -240,7 +234,7 @@ public static class ContentPoliceControl
             {
                 BasisShaderFallback.MaterialCorrection(rawRenderers, BundledContentHolder.Instance.UrpShader);
             }
-            if (ShouldPrewarm)
+            if (ShaderPrewarmEnabled)
             {
                 BasisShaderPrewarm.Warm(rawRenderers, SearchAndDestroy.name);
             }
@@ -363,7 +357,7 @@ public static class ContentPoliceControl
         }
 
         // Warm shaders for every renderer we just collected. One call per scene scrub.
-        if (ShouldPrewarm)
+        if (ShaderPrewarmEnabled)
         {
             BasisShaderPrewarm.Warm(renderersForPrewarm, targetScene.name);
         }

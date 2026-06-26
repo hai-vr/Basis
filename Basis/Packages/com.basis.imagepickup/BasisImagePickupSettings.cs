@@ -10,9 +10,12 @@ namespace Basis.ImagePickup
     {
         public const string ReceiveEnabledKey = "Basis.ImagePickup.ReceiveEnabled";
 
-        public const int MaxImageBytes = 4 * 1024 * 1024;
+        public const int MaxImageBytes = 8 * 1024 * 1024;
+        public const int MaxSourceBytes = 32 * 1024 * 1024;
         public const int MaxDimension = 2048;
         public const long MaxTotalPixels = 2048L * 2048L;
+        public const int MaxSourceDimension = 4096;
+        public const long MaxSourceTotalPixels = 4096L * 4096L;
         public const int ChunkPayloadBytes = 16 * 1024;
 
         public const int MaxConcurrentImagesPerSender = 8;
@@ -26,6 +29,7 @@ namespace Basis.ImagePickup
         public const float TransmitTransformHz = 15f;
         public const float MovedPositionEpsilon = 0.001f;
         public const float MovedRotationEpsilonDegrees = 0.5f;
+        public const float MovedScaleEpsilon = 0.01f;
 
         private static bool _loaded;
         private static bool _receiveEnabled = true;

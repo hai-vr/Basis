@@ -49,7 +49,7 @@ namespace Basis.ImagePickup
 
             if (!info.Exists) { result.Error = "File not found"; return result; }
             if (info.Length <= 0) { result.Error = "Empty file"; return result; }
-            if (info.Length > BasisImagePickupSettings.MaxImageBytes) { result.Error = $"File too large ({info.Length} bytes)"; return result; }
+            if (info.Length > BasisImagePickupSettings.MaxSourceBytes) { result.Error = $"File too large ({info.Length} bytes)"; return result; }
 
             byte[] header = new byte[24];
             try
@@ -60,15 +60,15 @@ namespace Basis.ImagePickup
             catch (Exception e) { result.Error = "Read failed: " + e.Message; return result; }
 
             if (!TryReadPngDimensions(header, out int w, out int h, out string headerError)) { result.Error = headerError; return result; }
-            if (!DimensionsWithinCaps(w, h, out string capError)) { result.Error = capError; return result; }
+            if (!SourceDimensionsWithinCaps(w, h, out string capError)) { result.Error = capError; return result; }
 
             byte[] bytes;
             try { bytes = File.ReadAllBytes(path); }
             catch (Exception e) { result.Error = "Read failed: " + e.Message; return result; }
 
-            if (bytes.Length > BasisImagePickupSettings.MaxImageBytes) { result.Error = "File too large"; return result; }
+            if (bytes.Length > BasisImagePickupSettings.MaxSourceBytes) { result.Error = "File too large"; return result; }
 
-            return BuildFromBytes(bytes, true);
+            return BuildFromBytes(bytes, true, true);
         }
 
         /// <summary>Validates PNG bytes received over the network. Never trusts the wire: same caps and guarded decode.</summary>
@@ -79,16 +79,21 @@ namespace Basis.ImagePickup
             if (bytes.Length > BasisImagePickupSettings.MaxImageBytes) { result.Error = "Too large"; return result; }
             if (!TryReadPngDimensions(bytes, out int w, out int h, out string headerError)) { result.Error = headerError; return result; }
             if (!DimensionsWithinCaps(w, h, out string capError)) { result.Error = capError; return result; }
-            return BuildFromBytes(bytes, false);
+            return BuildFromBytes(bytes, false, false);
         }
 
-        private static BasisImageValidationResult BuildFromBytes(byte[] bytes, bool reencode)
+        private static BasisImageValidationResult BuildFromBytes(byte[] bytes, bool reencode, bool allowDownscale)
         {
             var result = new BasisImageValidationResult();
 
             if (!VerifySignature(bytes)) { result.Error = "Not a PNG (bad signature)"; return result; }
             if (!TryReadPngDimensions(bytes, out int headerW, out int headerH, out string headerError)) { result.Error = headerError; return result; }
-            if (!DimensionsWithinCaps(headerW, headerH, out string capError)) { result.Error = capError; return result; }
+
+            string capError;
+            bool headerCapOk = allowDownscale
+                ? SourceDimensionsWithinCaps(headerW, headerH, out capError)
+                : DimensionsWithinCaps(headerW, headerH, out capError);
+            if (!headerCapOk) { result.Error = capError; return result; }
 
             Texture2D decoded = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             bool loaded;
@@ -97,30 +102,118 @@ namespace Basis.ImagePickup
 
             if (!loaded) { UnityEngine.Object.Destroy(decoded); result.Error = "Decode failed"; return result; }
             if (decoded.width != headerW || decoded.height != headerH) { UnityEngine.Object.Destroy(decoded); result.Error = "Header/pixel size mismatch"; return result; }
-            if (!DimensionsWithinCaps(decoded.width, decoded.height, out string decodeCapError)) { UnityEngine.Object.Destroy(decoded); result.Error = decodeCapError; return result; }
+
+            Texture2D finalTexture = decoded;
+            if (allowDownscale && ExceedsDisplayCaps(decoded.width, decoded.height))
+            {
+                Texture2D scaled = DownscaleToFit(decoded, BasisImagePickupSettings.MaxDimension);
+                if (scaled == null || scaled == decoded) { UnityEngine.Object.Destroy(decoded); result.Error = "Resize failed"; return result; }
+                UnityEngine.Object.Destroy(decoded);
+                finalTexture = scaled;
+            }
+
+            if (!DimensionsWithinCaps(finalTexture.width, finalTexture.height, out string finalCapError)) { UnityEngine.Object.Destroy(finalTexture); result.Error = finalCapError; return result; }
 
             byte[] clean = bytes;
             if (reencode)
             {
-                try { clean = decoded.EncodeToPNG(); }
-                catch (Exception e) { UnityEngine.Object.Destroy(decoded); result.Error = "Re-encode failed: " + e.Message; return result; }
+                try { clean = finalTexture.EncodeToPNG(); }
+                catch (Exception e) { UnityEngine.Object.Destroy(finalTexture); result.Error = "Re-encode failed: " + e.Message; return result; }
                 if (clean == null || clean.Length == 0 || clean.Length > BasisImagePickupSettings.MaxImageBytes)
                 {
-                    UnityEngine.Object.Destroy(decoded);
-                    result.Error = "Re-encoded image invalid";
+                    UnityEngine.Object.Destroy(finalTexture);
+                    result.Error = "Re-encoded image too large";
                     return result;
                 }
             }
 
-            decoded.wrapMode = TextureWrapMode.Clamp;
-            decoded.Apply(false, true);
+            finalTexture.wrapMode = TextureWrapMode.Clamp;
+            finalTexture.Apply(false, true);
 
             result.Ok = true;
-            result.Texture = decoded;
+            result.Texture = finalTexture;
             result.CleanPng = clean;
-            result.Width = headerW;
-            result.Height = headerH;
+            result.Width = finalTexture.width;
+            result.Height = finalTexture.height;
             return result;
+        }
+
+        private static bool ExceedsDisplayCaps(int width, int height)
+        {
+            return width > BasisImagePickupSettings.MaxDimension
+                || height > BasisImagePickupSettings.MaxDimension
+                || (long)width * height > BasisImagePickupSettings.MaxTotalPixels;
+        }
+
+        private static Texture2D DownscaleToFit(Texture2D source, int maxDimension)
+        {
+            int sw = source.width;
+            int sh = source.height;
+            float scale = Mathf.Min((float)maxDimension / sw, (float)maxDimension / sh);
+            if (scale >= 1f) return source;
+
+            int tw = Mathf.Max(1, Mathf.RoundToInt(sw * scale));
+            int th = Mathf.Max(1, Mathf.RoundToInt(sh * scale));
+
+            Color32[] src = source.GetPixels32();
+            Color32[] dst = new Color32[tw * th];
+
+            for (int y = 0; y < th; y++)
+            {
+                float v = (y + 0.5f) / th * sh - 0.5f;
+                int y0 = Mathf.Clamp(Mathf.FloorToInt(v), 0, sh - 1);
+                int y1 = Mathf.Min(y0 + 1, sh - 1);
+                float fy = Mathf.Clamp01(v - y0);
+                int row0 = y0 * sw;
+                int row1 = y1 * sw;
+                int drow = y * tw;
+                for (int x = 0; x < tw; x++)
+                {
+                    float u = (x + 0.5f) / tw * sw - 0.5f;
+                    int x0 = Mathf.Clamp(Mathf.FloorToInt(u), 0, sw - 1);
+                    int x1 = Mathf.Min(x0 + 1, sw - 1);
+                    float fx = Mathf.Clamp01(u - x0);
+                    dst[drow + x] = MixBilinear(src[row0 + x0], src[row0 + x1], src[row1 + x0], src[row1 + x1], fx, fy);
+                }
+            }
+
+            Texture2D scaled = new Texture2D(tw, th, TextureFormat.RGBA32, false);
+            scaled.SetPixels32(dst);
+            scaled.Apply(false, false);
+            return scaled;
+        }
+
+        private static Color32 MixBilinear(Color32 c00, Color32 c10, Color32 c01, Color32 c11, float fx, float fy)
+        {
+            float topR = c00.r + (c10.r - c00.r) * fx;
+            float topG = c00.g + (c10.g - c00.g) * fx;
+            float topB = c00.b + (c10.b - c00.b) * fx;
+            float topA = c00.a + (c10.a - c00.a) * fx;
+            float botR = c01.r + (c11.r - c01.r) * fx;
+            float botG = c01.g + (c11.g - c01.g) * fx;
+            float botB = c01.b + (c11.b - c01.b) * fx;
+            float botA = c01.a + (c11.a - c01.a) * fx;
+            return new Color32(
+                (byte)Mathf.Clamp(Mathf.RoundToInt(topR + (botR - topR) * fy), 0, 255),
+                (byte)Mathf.Clamp(Mathf.RoundToInt(topG + (botG - topG) * fy), 0, 255),
+                (byte)Mathf.Clamp(Mathf.RoundToInt(topB + (botB - topB) * fy), 0, 255),
+                (byte)Mathf.Clamp(Mathf.RoundToInt(topA + (botA - topA) * fy), 0, 255));
+        }
+
+        private static bool SourceDimensionsWithinCaps(int width, int height, out string error)
+        {
+            error = null;
+            if (width > BasisImagePickupSettings.MaxSourceDimension || height > BasisImagePickupSettings.MaxSourceDimension)
+            {
+                error = $"Image too large ({width}x{height}, max {BasisImagePickupSettings.MaxSourceDimension})";
+                return false;
+            }
+            if ((long)width * height > BasisImagePickupSettings.MaxSourceTotalPixels)
+            {
+                error = "Image exceeds source pixel budget";
+                return false;
+            }
+            return true;
         }
 
         private static bool VerifySignature(byte[] data)

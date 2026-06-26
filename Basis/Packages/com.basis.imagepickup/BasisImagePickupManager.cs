@@ -37,6 +37,7 @@ namespace Basis.ImagePickup
             public float LastSendTime;
             public Vector3 LastPosition;
             public Quaternion LastRotation;
+            public float LastScale;
         }
 
         private sealed class InboundTransfer
@@ -117,6 +118,7 @@ namespace Basis.ImagePickup
                 LastSendTime = 0f,
                 LastPosition = position,
                 LastRotation = rotation,
+                LastScale = 1f,
             };
             IncrementSenderCount(ownerId);
 
@@ -156,14 +158,17 @@ namespace Basis.ImagePickup
                 if (now - owned.LastSendTime < interval) continue;
 
                 owned.Object.transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+                float scale = owned.Object.transform.localScale.x;
                 bool moved = (position - owned.LastPosition).sqrMagnitude > BasisImagePickupSettings.MovedPositionEpsilon * BasisImagePickupSettings.MovedPositionEpsilon
-                    || Quaternion.Angle(rotation, owned.LastRotation) > BasisImagePickupSettings.MovedRotationEpsilonDegrees;
+                    || Quaternion.Angle(rotation, owned.LastRotation) > BasisImagePickupSettings.MovedRotationEpsilonDegrees
+                    || Mathf.Abs(scale - owned.LastScale) > BasisImagePickupSettings.MovedScaleEpsilon;
                 if (!moved) continue;
 
                 owned.LastSendTime = now;
                 owned.LastPosition = position;
                 owned.LastRotation = rotation;
-                SendCustomNetworkEventDirect(EncodeTransform(entry.Key, position, rotation), DeliveryMethod.Sequenced, null);
+                owned.LastScale = scale;
+                SendCustomNetworkEventDirect(EncodeTransform(entry.Key, position, rotation, scale), DeliveryMethod.Sequenced, null);
             }
 
             CleanupExpiredTransfers(now);
@@ -320,10 +325,11 @@ namespace Basis.ImagePickup
             Guid id = new Guid(reader.ReadBytes(16));
             Vector3 position = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
             Quaternion rotation = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            float scale = reader.ReadSingle();
 
             if (_images.TryGetValue(id, out BasisImagePickupObject pickup) && pickup != null && !pickup.IsOwner && pickup.OwnerId == senderId)
             {
-                pickup.SetRemoteTarget(position, rotation);
+                pickup.SetRemoteTarget(position, rotation, scale);
             }
         }
 
@@ -443,13 +449,14 @@ namespace Basis.ImagePickup
             return stream.ToArray();
         }
 
-        private static byte[] EncodeTransform(Guid id, Vector3 position, Quaternion rotation)
+        private static byte[] EncodeTransform(Guid id, Vector3 position, Quaternion rotation, float scale)
         {
             using var stream = new MemoryStream();
             using var writer = new BinaryWriter(stream, Encoding.UTF8);
             writer.Write(OpTransform);
             writer.Write(id.ToByteArray());
             WritePose(writer, position, rotation);
+            writer.Write(scale);
             writer.Flush();
             return stream.ToArray();
         }

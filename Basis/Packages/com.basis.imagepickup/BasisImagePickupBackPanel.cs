@@ -26,8 +26,8 @@ namespace Basis.ImagePickup
 
             var canvasRect = (RectTransform)canvasObject.transform;
             canvasRect.SetParent(parent, false);
-            canvasRect.localPosition = new Vector3(0f, 0f, 0.01f);
-            canvasRect.localRotation = Quaternion.identity;
+            canvasRect.localPosition = new Vector3(0f, 0f, 0.03f);
+            canvasRect.localRotation = Quaternion.Euler(0f, 180f, 0f);
             canvasRect.sizeDelta = new Vector2(PanelPixels, PanelPixels);
             canvasRect.localScale = Vector3.one * (worldHeight / PanelPixels);
 
@@ -44,7 +44,9 @@ namespace Basis.ImagePickup
             component.CanvasScaler = scaler;
             component.GraphicUIRayCaster = rayCaster;
 
-            CreateLabel(canvasRect, uiLayer, $"Spawned by {pickup.OwnerName}", new Vector2(0f, 150f), new Vector2(PanelPixels - 20f, 80f), 30f);
+            bool localUnknown = pickup.IsOwner && (string.IsNullOrEmpty(pickup.OwnerName) || pickup.OwnerName == "Unknown");
+            string spawnerLabel = localUnknown ? "Spawned locally" : $"Spawned by {pickup.OwnerName}";
+            CreateLabel(canvasRect, uiLayer, spawnerLabel, new Vector2(0f, 150f), new Vector2(PanelPixels - 20f, 80f), 30f);
 
             pickup.HideLabel = CreateButton(canvasRect, uiLayer, "Hide", new Vector2(-130f, -120f), pickup.OnHidePressed);
             CreateButton(canvasRect, uiLayer, "Save", new Vector2(0f, -120f), pickup.OnSavePressed);
@@ -91,6 +93,8 @@ namespace Basis.ImagePickup
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;
             tmp.raycastTarget = false;
+            Shader distanceField = Shader.Find("TextMeshPro/Distance Field");
+            if (distanceField != null) tmp.fontMaterial.shader = distanceField;
             return tmp;
         }
     }
