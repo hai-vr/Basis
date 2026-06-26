@@ -300,6 +300,18 @@ namespace Basis.BasisUI
         // (speaker name + gain %, hearing distance, cone angle). One switch for all.
         public static BasisSettingsBinding<bool> GizmoLabels = new("gizmolabels", new BasisPlatformDefault<bool>(false));
 
+        // Network value-sync debug gizmos (see BasisSyncGizmos): from→to interpolation
+        // window, live-position sphere, extrapolation overshoot, jitter-buffer-health colour.
+        public static BasisSettingsBinding<bool> GizmoNetworkSync = new("gizmonetworksync", new BasisPlatformDefault<bool>(false));
+
+        // Per-object received bytes-on-wire + packet rate readout for the sync gizmos.
+        public static BasisSettingsBinding<bool> GizmoNetworkSyncBandwidth = new("gizmonetworksyncbandwidth", new BasisPlatformDefault<bool>(false));
+
+        // Per-remote-player pose interpolation gizmos (see BasisPlayerNetworkGizmos): from→to
+        // hips path, live-position sphere, playback-health colour; plus a bytes-on-wire readout.
+        public static BasisSettingsBinding<bool> GizmoNetworkPlayers = new("gizmonetworkplayers", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> GizmoNetworkPlayersBandwidth = new("gizmonetworkplayersbandwidth", new BasisPlatformDefault<bool>(false));
+
         // Yellow line gizmo drawn between the two physical trackers of every
         // active linked pair. Off by default; toggled separately from
         // TrackerGizmos so a user debugging the pairing system can see only

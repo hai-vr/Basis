@@ -66,6 +66,13 @@ namespace Basis.Scripts.Networking.Sync
         private readonly float[] _lastCont;
         private bool _haveLastCont;
 
+        private const double BandwidthWindow = 0.5;
+        private int _bwBytes;
+        private int _bwPackets;
+        private double _bwTime;
+        private float _bytesPerSecond;
+        private float _packetsPerSecond;
+
         public BasisSyncReceiver(BasisSyncSchema schema)
         {
             _schema = schema;
@@ -91,10 +98,17 @@ namespace Basis.Scripts.Networking.Sync
         public float InterpTime => _next != null ? (float)_interpTime : 0f;
         public BasisSyncValues CurrentValues => _current != null ? _current.Values : null;
         public BasisSyncValues NextValues => _next != null ? _next.Values : (_current != null ? _current.Values : null);
+        public int BufferedFrameCount => _staged.Count;
+        public float DynamicDepth => _dynamicDepth;
+        public float BytesPerSecond => _bytesPerSecond;
+        public float PacketsPerSecond => _packetsPerSecond;
 
         public void OnPacket(byte[] payload, int length)
         {
             if (payload == null || length < BasisSyncCodec.HeaderSize) return;
+            // Bytes on the wire for this object — counted before any drop, so it reflects what arrived.
+            _bwBytes += length;
+            _bwPackets++;
             // Drop corrupted packets before they touch the sequence/baseline, so a corrupted sequence number
             // can't poison the high-water-mark and a corrupted value is never applied.
             if (_verifyChecksum && !BasisSyncCodec.VerifyChecksum(payload, length)) return;
@@ -108,6 +122,17 @@ namespace Basis.Scripts.Networking.Sync
 
         public void Advance(double dt)
         {
+            _bwTime += dt;
+            if (_bwTime >= BandwidthWindow)
+            {
+                float inv = (float)(1.0 / _bwTime);
+                _bytesPerSecond = _bwBytes * inv;
+                _packetsPerSecond = _bwPackets * inv;
+                _bwBytes = 0;
+                _bwPackets = 0;
+                _bwTime = 0.0;
+            }
+
             if (_arrived.Count > 0)
             {
                 _sortRef = _highestSeq;
@@ -234,6 +259,11 @@ namespace Basis.Scripts.Networking.Sync
             _serverClock = 0.0;
             _dynamicDepth = 2f;
             _haveLastCont = false;
+            _bwBytes = 0;
+            _bwPackets = 0;
+            _bwTime = 0.0;
+            _bytesPerSecond = 0f;
+            _packetsPerSecond = 0f;
         }
 
         private void SnapTo(SyncFrame frame)

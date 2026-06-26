@@ -375,6 +375,22 @@
       "value": "Show each speaker's loudness meter and a breakdown of what's reducing their voice."
     },
     {
+      "key": "settings.developer.networkSync.tooltip",
+      "value": "Visualise networked object sync: a line from the last received value to the next, a sphere at the smoothed position, red overshoot while extrapolating, and colour by jitter-buffer health."
+    },
+    {
+      "key": "settings.developer.networkSyncBandwidth.tooltip",
+      "value": "Show each synced object's received traffic — bytes on the wire per second and packet rate — next to its gizmo."
+    },
+    {
+      "key": "settings.developer.networkPlayers.tooltip",
+      "value": "Visualise each remote player's pose interpolation: a line from their last received hips pose to the next, a sphere at the smoothed position, coloured by playback health (green steady, red slowing to avoid an underrun, amber catching up)."
+    },
+    {
+      "key": "settings.developer.networkPlayersBandwidth.tooltip",
+      "value": "Show each remote player's received traffic — bytes on the wire per second and packet rate — above their gizmo."
+    },
+    {
       "key": "settings.developer.gizmoLabels.tooltip",
       "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
     },
@@ -2339,16 +2355,8 @@
       "value": "Share"
     },
     {
-      "key": "menu.players.search.byName",
-      "value": "Filter by display name."
-    },
-    {
-      "key": "menu.players.search.byUuid",
-      "value": "Filter by player UUID."
-    },
-    {
-      "key": "menu.players.searchMode",
-      "value": "Search Mode"
+      "key": "menu.players.search.byNameOrUuid",
+      "value": "Filter by display name or UUID."
     },
     {
       "key": "menu.players.sortMode",
@@ -6213,6 +6221,22 @@
     {
       "key": "settings.developer.audioLevels",
       "value": "Audio Levels"
+    },
+    {
+      "key": "settings.developer.networkSync",
+      "value": "Network Sync"
+    },
+    {
+      "key": "settings.developer.networkSyncBandwidth",
+      "value": "Sync Bandwidth"
+    },
+    {
+      "key": "settings.developer.networkPlayers",
+      "value": "Network Players"
+    },
+    {
+      "key": "settings.developer.networkPlayersBandwidth",
+      "value": "Player Bandwidth"
     },
     {
       "key": "settings.developer.audioLevels.description",

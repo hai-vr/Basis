@@ -165,7 +165,8 @@ public static class BasisSyncInspectorUI
         card.Add(p2pRate);
         card.Add(p2pKey);
 
-        card.Add(new PropertyField(so.FindProperty("ContinuousEpsilon")));
+        card.Add(new PropertyField(so.FindProperty("ContinuousEpsilon"), "Position/Scale Dead-band"));
+        card.Add(new PropertyField(so.FindProperty("RotationSendThresholdDegrees"), "Rotation Dead-band (°)"));
         card.Add(new PropertyField(so.FindProperty("DistanceReduction")));
         card.Add(new PropertyField(so.FindProperty("RelevanceCulling")));
         card.Add(new PropertyField(so.FindProperty("RelevanceRadius")));
@@ -226,6 +227,28 @@ public static class BasisSyncInspectorUI
         var bitsField = new SliderInt("Bits", 1, 31) { showInputField = true, bindingPath = bitsProp.propertyPath };
         ranged.Add(minmax);
         ranged.Add(bitsField);
+
+        var fitRow = new VisualElement();
+        fitRow.style.flexDirection = FlexDirection.Row;
+        fitRow.style.alignItems = Align.Center;
+        var stepField = new FloatField("Fit step") { value = 0.001f };
+        stepField.style.flexGrow = 1;
+        stepField.style.marginRight = 6;
+        var fitBtn = new Button(() =>
+        {
+            so.Update();
+            float span = maxProp.floatValue - minProp.floatValue;
+            float step = stepField.value;
+            if (span > 0f && step > 0f)
+            {
+                bitsProp.intValue = Mathf.Clamp(Mathf.CeilToInt(Mathf.Log(span / step + 1f, 2f)), 1, 31);
+                so.ApplyModifiedProperties();
+            }
+        }) { text = "→ bits" };
+        fitRow.Add(stepField);
+        fitRow.Add(fitBtn);
+        ranged.Add(fitRow);
+
         box.Add(ranged);
 
         var info = new Label();
@@ -267,7 +290,7 @@ public static class BasisSyncInspectorUI
                 {
                     case "Half": info.text = "16-bit half float  •  2 B/axis"; break;
                     case "Raw": info.text = "32-bit float  •  4 B/axis (exact)"; break;
-                    case "Inherit": info.text = "follows the Half Precision toggle"; break;
+                    case "Inherit": info.text = "default = Raw  •  32-bit float, 4 B/axis (exact)"; break;
                     default: info.text = ""; break;
                 }
                 info.style.color = new StyleColor(Subtle);

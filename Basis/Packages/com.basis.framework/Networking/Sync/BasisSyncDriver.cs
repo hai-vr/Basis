@@ -35,6 +35,7 @@ namespace Basis.Scripts.Networking.Sync
         private static NativeArray<float> _contCur, _contNext, _contOut;
         private static NativeArray<byte> _contMode;
         private static NativeArray<quaternion> _rotCur, _rotNext, _rotOut;
+        private static NativeArray<byte> _rotMode;
         private static NativeArray<int> _discNext, _discOut;
 
         // Transform bindings.
@@ -71,7 +72,7 @@ namespace Basis.Scripts.Networking.Sync
             DisposeIf(ref _rotBase); DisposeIf(ref _rotCount);
             DisposeIf(ref _discBase); DisposeIf(ref _discCount);
             DisposeIf(ref _contCur); DisposeIf(ref _contNext); DisposeIf(ref _contOut); DisposeIf(ref _contMode);
-            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut);
+            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut); DisposeIf(ref _rotMode);
             DisposeIf(ref _discNext); DisposeIf(ref _discOut);
             DisposeIf(ref _bindPosArr); DisposeIf(ref _bindRotArr); DisposeIf(ref _bindScaleArr); DisposeIf(ref _bindWorldArr); DisposeIf(ref _bindSlotArr);
             if (_taa.isCreated) _taa.Dispose();
@@ -95,6 +96,9 @@ namespace Basis.Scripts.Networking.Sync
             _mainThreadApply.Remove(obj);
             if (_remote.Remove(obj)) _dirtyLayout = true;
         }
+
+        /// <summary>Live list of remote (interpolated) synced objects, for debug visualisation. Do not mutate.</summary>
+        public static IReadOnlyList<BasisSyncedObject> RemoteObjects => _remote;
 
         public static void RegisterOwned(BasisSyncedObject obj)
         {
@@ -166,6 +170,7 @@ namespace Basis.Scripts.Networking.Sync
                 ContMode = _contMode,
                 RotCur = _rotCur,
                 RotNext = _rotNext,
+                RotMode = _rotMode,
                 DiscNext = _discNext,
                 ContOut = _contOut,
                 RotOut = _rotOut,
@@ -289,6 +294,10 @@ namespace Basis.Scripts.Networking.Sync
                         for (int c = 0; c < fld.ContComponents; c++)
                             _contMode[cb + fld.Offset + c] = mode;
                     }
+                    else if (fld.Pool == BasisSyncPool.Rotation)
+                    {
+                        _rotMode[rb + fld.Offset] = (byte)(fld.Interpolate ? 1 : 0);
+                    }
                 }
 
                 if (o.HasTransformBinding && o.BoundTransform != null)
@@ -363,15 +372,17 @@ namespace Basis.Scripts.Networking.Sync
         {
             if (total < 1) total = 1;
             if (_rotCur.IsCreated && _rotCur.Length == total) return;
-            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut);
+            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut); DisposeIf(ref _rotMode);
             _rotCur = new NativeArray<quaternion>(total, Allocator.Persistent);
             _rotNext = new NativeArray<quaternion>(total, Allocator.Persistent);
             _rotOut = new NativeArray<quaternion>(total, Allocator.Persistent);
+            _rotMode = new NativeArray<byte>(total, Allocator.Persistent);
             for (int i = 0; i < total; i++)
             {
                 _rotCur[i] = quaternion.identity;
                 _rotNext[i] = quaternion.identity;
                 _rotOut[i] = quaternion.identity;
+                _rotMode[i] = 1;
             }
         }
 

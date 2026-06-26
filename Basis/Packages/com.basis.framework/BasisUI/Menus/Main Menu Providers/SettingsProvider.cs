@@ -2169,6 +2169,26 @@ namespace Basis.BasisUI
             toggleAudioLevels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioLevels.tooltip"));
             toggleAudioLevels.AssignBinding(BasisSettingsDefaults.GizmoAudioLevels);
 
+            PanelToggle toggleNetworkSync = PanelToggle.CreateNewEntry(container);
+            toggleNetworkSync.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkSync"));
+            toggleNetworkSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkSync.tooltip"));
+            toggleNetworkSync.AssignBinding(BasisSettingsDefaults.GizmoNetworkSync);
+
+            PanelToggle toggleNetworkSyncBandwidth = PanelToggle.CreateNewEntry(container);
+            toggleNetworkSyncBandwidth.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkSyncBandwidth"));
+            toggleNetworkSyncBandwidth.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkSyncBandwidth.tooltip"));
+            toggleNetworkSyncBandwidth.AssignBinding(BasisSettingsDefaults.GizmoNetworkSyncBandwidth);
+
+            PanelToggle toggleNetworkPlayers = PanelToggle.CreateNewEntry(container);
+            toggleNetworkPlayers.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkPlayers"));
+            toggleNetworkPlayers.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkPlayers.tooltip"));
+            toggleNetworkPlayers.AssignBinding(BasisSettingsDefaults.GizmoNetworkPlayers);
+
+            PanelToggle toggleNetworkPlayersBandwidth = PanelToggle.CreateNewEntry(container);
+            toggleNetworkPlayersBandwidth.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkPlayersBandwidth"));
+            toggleNetworkPlayersBandwidth.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkPlayersBandwidth.tooltip"));
+            toggleNetworkPlayersBandwidth.AssignBinding(BasisSettingsDefaults.GizmoNetworkPlayersBandwidth);
+
             PanelToggle toggleGizmoLabels = PanelToggle.CreateNewEntry(container);
             toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
             toggleGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoLabels.tooltip"));
@@ -2866,6 +2886,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkSync.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkSyncBandwidth.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkPlayers.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
             BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();

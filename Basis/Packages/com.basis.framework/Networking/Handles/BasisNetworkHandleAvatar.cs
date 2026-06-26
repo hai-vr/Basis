@@ -11,6 +11,9 @@ public static class BasisNetworkHandleAvatar
 
     public static void HandleAvatarUpdate(NetDataReader reader, byte channel)
     {
+        // Bytes on the wire for this player's avatar update, captured before the reader is consumed.
+        int wireBytes = reader.AvailableBytes;
+
         if (!Message.TryDequeue(out ServerSideSyncPlayerMessage ssm))
             ssm = new ServerSideSyncPlayerMessage();
 
@@ -24,6 +27,7 @@ public static class BasisNetworkHandleAvatar
 
         if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver player))
         {
+            player.AccountReceivedBytes(wireBytes);
             BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, ssm);
         }
 

@@ -15,11 +15,27 @@ namespace Basis.Scripts.Networking.Sync
     /// Owner-authoritative (grab via TakeOwnership); only the owner's writes go on the wire.
     /// Optionally BindTransform so a remote transform is driven automatically by the Burst apply job.
     /// </summary>
+    public struct BasisSyncGizmoSample
+    {
+        public bool HasSpatial;
+        public Vector3 FromWorld;
+        public Vector3 ToWorld;
+        public Vector3 AnchorWorld;
+        public float InterpT;
+        public bool Extrapolating;
+        public int BufferDepth;
+        public float DesiredDepth;
+        public float BytesPerSecond;
+        public float PacketsPerSecond;
+        public ushort NetworkID;
+    }
+
     public class BasisSyncedObject : BasisNetworkBehaviour, ISerializationCallbackReceiver
     {
         public float SendIntervalSeconds = 0.05f;
         public float KeyframeIntervalSeconds = 0.5f;
         public float ContinuousEpsilon = 1e-4f;
+        public float RotationSendThresholdDegrees = 0.5f;
         public bool UseDirectP2P = true;
         public bool ForceP2POnly = false;
         public bool OverrideP2PRate = false;
@@ -39,7 +55,7 @@ namespace Basis.Scripts.Networking.Sync
         // Stays 0 in anything serialized before this field existed (legacy bundles/mods), so it reliably
         // tells pre-refactor content apart from freshly-authored content regardless of field-initializer behaviour.
         [SerializeField, HideInInspector] private int _serializedVersion;
-        protected const int CurrentSerializedVersion = 2;
+        protected const int CurrentSerializedVersion = 3;
 
         private readonly BasisSyncSchema _schema = new BasisSyncSchema();
         private BasisSyncValues _local;
@@ -57,6 +73,7 @@ namespace Basis.Scripts.Networking.Sync
         private double _lastSendTime;
         private double _lastKeyframeTime;
         private bool _forceKeyframe = true;
+        private float _rotDotThreshold = 0.99999f;
 
         internal BasisSyncSchema Schema => _schema;
         internal BasisSyncReceiver Receiver => _receiver;
@@ -85,6 +102,38 @@ namespace Basis.Scripts.Networking.Sync
 
         /// <summary>Driver-driven (post-interpolation, main thread) apply hook for remote objects that compose their own output.</summary>
         protected virtual void ApplyInterpolated() { }
+
+        /// <summary>
+        /// Snapshot of this object's live interpolation state for the debug gizmos
+        /// (<see cref="BasisSyncGizmos"/>). Remote, receiving objects only — returns false on the owner.
+        /// </summary>
+        public bool TryGetSyncGizmoSample(out BasisSyncGizmoSample sample)
+        {
+            sample = default;
+            BasisSyncReceiver r = _receiver;
+            if (r == null || !r.HasData || IsOwnedLocallyOnClient) return false;
+
+            sample.NetworkID = NetworkID;
+            sample.InterpT = r.InterpTime;
+            sample.Extrapolating = sample.InterpT > 1f;
+            sample.BufferDepth = r.BufferedFrameCount;
+            sample.DesiredDepth = r.DynamicDepth;
+            sample.BytesPerSecond = r.BytesPerSecond;
+            sample.PacketsPerSecond = r.PacketsPerSecond;
+            sample.HasSpatial = TryGetSyncGizmoSpatial(r.CurrentValues, r.NextValues, out Vector3 fromWorld, out Vector3 toWorld);
+            sample.FromWorld = fromWorld;
+            sample.ToWorld = toWorld;
+            sample.AnchorWorld = TryGetSyncWorldPosition(out Vector3 worldPos) ? worldPos : transform.position;
+            return true;
+        }
+
+        /// <summary>Override to expose the from/to keyframe positions (world space) for the sync gizmos. Return false if the object has no spatial channel.</summary>
+        protected virtual bool TryGetSyncGizmoSpatial(BasisSyncValues from, BasisSyncValues to, out Vector3 fromWorld, out Vector3 toWorld)
+        {
+            fromWorld = default;
+            toWorld = default;
+            return false;
+        }
 
         private List<ushort> _recipientScratch;
         private ushort[] _recipientArray;
@@ -142,6 +191,8 @@ namespace Basis.Scripts.Networking.Sync
         // ── Field declaration (call in Awake, before the object is network-ready) ──
         public BasisSyncHandle RegisterPosition() => Add(BasisSyncFieldType.Position);
         public BasisSyncHandle RegisterRotation() => Add(BasisSyncFieldType.Rotation);
+        public BasisSyncHandle RegisterRotation(int magnitudeBits, bool interpolate = true)
+            => new BasisSyncHandle(_schema.AddRotation(interpolate, magnitudeBits), BasisSyncFieldType.Rotation);
         public BasisSyncHandle RegisterScale() => Add(BasisSyncFieldType.Scale);
         public BasisSyncHandle RegisterFloat(bool interpolate = true, bool quantize = false) => Add(BasisSyncFieldType.Float, interpolate, quantize);
         public BasisSyncHandle RegisterInt() => Add(BasisSyncFieldType.Int);
@@ -500,7 +551,7 @@ namespace Basis.Scripts.Networking.Sync
                     }
                     return false;
                 case BasisSyncPool.Rotation:
-                    return math.abs(math.dot(_local.Rot[f.Offset].value, _lastSent.Rot[f.Offset].value)) < 0.99999f;
+                    return math.abs(math.dot(_local.Rot[f.Offset].value, _lastSent.Rot[f.Offset].value)) < _rotDotThreshold;
                 case BasisSyncPool.Discrete:
                     return _local.Disc[f.Offset] != _lastSent.Disc[f.Offset];
             }
@@ -541,6 +592,7 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Re-pushes extrapolation/teleport settings into the receiver. Call after changing them at runtime.</summary>
         public void ApplySyncConfig()
         {
+            _rotDotThreshold = Mathf.Cos(Mathf.Deg2Rad * Mathf.Max(0f, RotationSendThresholdDegrees) * 0.5f);
             _receiver?.Configure(Extrapolate, MaxExtrapolationSeconds, UseTeleportThreshold, TeleportThreshold * TeleportThreshold, TeleportWatchStart, TeleportWatchCount, UseChecksum);
         }
 
@@ -585,6 +637,11 @@ namespace Basis.Scripts.Networking.Sync
             if (fromVersion < 2)
             {
                 UseChecksum = true;
+            }
+
+            if (fromVersion < 3)
+            {
+                if (RotationSendThresholdDegrees <= 0f) RotationSendThresholdDegrees = 0.5f;
             }
         }
 

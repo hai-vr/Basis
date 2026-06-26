@@ -30,6 +30,7 @@ namespace Basis.Scripts.Networking.Sync
         [ReadOnly] public NativeArray<byte> ContMode;
         [ReadOnly] public NativeArray<quaternion> RotCur;
         [ReadOnly] public NativeArray<quaternion> RotNext;
+        [ReadOnly] public NativeArray<byte> RotMode;
         [ReadOnly] public NativeArray<int> DiscNext;
 
         [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<float> ContOut;
@@ -68,6 +69,11 @@ namespace Basis.Scripts.Networking.Sync
             for (int i = 0; i < rc; i++)
             {
                 int idx = rb + i;
+                if (RotMode[idx] == 0)
+                {
+                    RotOut[idx] = RotNext[idx];
+                    continue;
+                }
                 quaternion a = RotCur[idx];
                 quaternion b = RotNext[idx];
                 if (math.dot(a.value, b.value) < 0f) b.value = -b.value;

@@ -10,6 +10,15 @@ namespace Basis.Scripts.Networking.Sync
         Ranged = 3,
     }
 
+    /// <summary>How a synced transform encodes orientation on the wire.</summary>
+    public enum BasisRotationSyncMode : byte
+    {
+        SmallestThree = 0,
+        Euler = 1,
+        QuaternionHalf = 2,
+        QuaternionRaw = 3,
+    }
+
     /// <summary>Per-axis wire compression for a synced transform component.</summary>
     [System.Serializable]
     public struct BasisTransformAxisCompression
@@ -19,16 +28,21 @@ namespace Basis.Scripts.Networking.Sync
         public float Max;
         [Range(1, 31)] public int Bits;
 
-        public static BasisTransformAxisCompression Inherit => new BasisTransformAxisCompression { Mode = BasisTransformAxisMode.Inherit, Min = 0f, Max = 1f, Bits = 16 };
+        public static BasisTransformAxisCompression PositionDefault => WithRange(-1024f, 1024f, 16);
+        public static BasisTransformAxisCompression RotationDefault => WithRange(0f, 360f, 16);
+        public static BasisTransformAxisCompression ScaleDefault => WithRange(0f, 64f, 16);
 
-        public BasisQuantSpec ToSpec(bool halfPrecisionDefault)
+        private static BasisTransformAxisCompression WithRange(float min, float max, int bits) =>
+            new BasisTransformAxisCompression { Mode = BasisTransformAxisMode.Inherit, Min = min, Max = max, Bits = bits };
+
+        public BasisQuantSpec ToSpec()
         {
             switch (Mode)
             {
                 case BasisTransformAxisMode.Raw: return BasisQuantSpec.Raw;
                 case BasisTransformAxisMode.Half: return BasisQuantSpec.Half;
                 case BasisTransformAxisMode.Ranged: return BasisQuantSpec.Ranged(Min, Max, Bits < 1 ? 1 : Bits);
-                default: return halfPrecisionDefault ? BasisQuantSpec.Half : BasisQuantSpec.Raw;
+                default: return BasisQuantSpec.Raw;
             }
         }
     }
@@ -36,8 +50,9 @@ namespace Basis.Scripts.Networking.Sync
     /// <summary>
     /// Drop-in transform sync built on <see cref="BasisSyncedObject"/>. The owner streams the enabled
     /// axes; every other client's copy is interpolated and composed each frame. Per-axis toggles let
-    /// you sync only what moves (e.g. a door = rotation Y only), half precision halves the float cost,
-    /// and extrapolation / teleport-threshold (inherited) tune late-packet behaviour.
+    /// you sync only what moves (e.g. a door = rotation Y only in Euler mode), the rotation mode picks the
+    /// orientation encoding (smallest-three / quaternion / Euler), uniform scale streams one value to all axes,
+    /// per-axis compression (Half / Ranged) shrinks the float cost, and teleport-threshold tunes late packets.
     ///
     /// For custom values use the code API on <see cref="BasisSyncedObject"/> directly
     /// (RegisterFloat / RegisterColor / RegisterUShort / ... then LocalSet / RemoteGet).
@@ -52,27 +67,33 @@ namespace Basis.Scripts.Networking.Sync
         public bool PositionZ = true;
 
         public bool SyncRotation = true;
+        public BasisRotationSyncMode RotationMode = BasisRotationSyncMode.SmallestThree;
+        [UnityEngine.Range(6, 16)] public int SmallestThreeBits = 9;
         public bool RotationX = true;
         public bool RotationY = true;
         public bool RotationZ = true;
 
         public bool SyncScale = false;
+        public bool ScaleUniform = false;
         public bool ScaleX = true;
         public bool ScaleY = true;
         public bool ScaleZ = true;
 
         public bool WorldSpace = false;
-        public bool HalfPrecision = false;
 
-        public BasisTransformAxisCompression PosCompX = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression PosCompY = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression PosCompZ = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression RotCompX = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression RotCompY = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression RotCompZ = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression ScaleCompX = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression ScaleCompY = BasisTransformAxisCompression.Inherit;
-        public BasisTransformAxisCompression ScaleCompZ = BasisTransformAxisCompression.Inherit;
+        public bool InterpolatePosition = true;
+        public bool InterpolateRotation = true;
+        public bool InterpolateScale = true;
+
+        public BasisTransformAxisCompression PosCompX = BasisTransformAxisCompression.PositionDefault;
+        public BasisTransformAxisCompression PosCompY = BasisTransformAxisCompression.PositionDefault;
+        public BasisTransformAxisCompression PosCompZ = BasisTransformAxisCompression.PositionDefault;
+        public BasisTransformAxisCompression RotCompX = BasisTransformAxisCompression.RotationDefault;
+        public BasisTransformAxisCompression RotCompY = BasisTransformAxisCompression.RotationDefault;
+        public BasisTransformAxisCompression RotCompZ = BasisTransformAxisCompression.RotationDefault;
+        public BasisTransformAxisCompression ScaleCompX = BasisTransformAxisCompression.ScaleDefault;
+        public BasisTransformAxisCompression ScaleCompY = BasisTransformAxisCompression.ScaleDefault;
+        public BasisTransformAxisCompression ScaleCompZ = BasisTransformAxisCompression.ScaleDefault;
 
         private BasisSyncHandle _posX = BasisSyncHandle.Invalid;
         private BasisSyncHandle _posY = BasisSyncHandle.Invalid;
@@ -84,6 +105,11 @@ namespace Basis.Scripts.Networking.Sync
         private BasisSyncHandle _scaleX = BasisSyncHandle.Invalid;
         private BasisSyncHandle _scaleY = BasisSyncHandle.Invalid;
         private BasisSyncHandle _scaleZ = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _rotQx = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _rotQy = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _rotQz = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _rotQw = BasisSyncHandle.Invalid;
+        private BasisSyncHandle _scaleUniform = BasisSyncHandle.Invalid;
         private bool _rotEuler;
         private Vector3 _heldEuler;
 
@@ -100,32 +126,53 @@ namespace Basis.Scripts.Networking.Sync
             int posAxes = 0;
             if (SyncPosition)
             {
-                if (PositionX) { _posX = RegisterFloat(PosCompX.ToSpec(HalfPrecision)); posAxes++; }
-                if (PositionY) { _posY = RegisterFloat(PosCompY.ToSpec(HalfPrecision)); posAxes++; }
-                if (PositionZ) { _posZ = RegisterFloat(PosCompZ.ToSpec(HalfPrecision)); posAxes++; }
+                if (PositionX) { _posX = RegisterFloat(PosCompX.ToSpec(), InterpolatePosition); posAxes++; }
+                if (PositionY) { _posY = RegisterFloat(PosCompY.ToSpec(), InterpolatePosition); posAxes++; }
+                if (PositionZ) { _posZ = RegisterFloat(PosCompZ.ToSpec(), InterpolatePosition); posAxes++; }
             }
 
             if (SyncRotation)
             {
-                if (RotationX && RotationY && RotationZ)
+                switch (RotationMode)
                 {
-                    _rotQuat = RegisterRotation();
-                }
-                else if (RotationX || RotationY || RotationZ)
-                {
-                    _rotEuler = true;
-                    _heldEuler = WorldSpace ? Target.eulerAngles : Target.localEulerAngles;
-                    if (RotationX) _eulerX = RegisterAngle(RotCompX.ToSpec(HalfPrecision));
-                    if (RotationY) _eulerY = RegisterAngle(RotCompY.ToSpec(HalfPrecision));
-                    if (RotationZ) _eulerZ = RegisterAngle(RotCompZ.ToSpec(HalfPrecision));
+                    case BasisRotationSyncMode.Euler:
+                        if (RotationX || RotationY || RotationZ)
+                        {
+                            _rotEuler = true;
+                            _heldEuler = WorldSpace ? Target.eulerAngles : Target.localEulerAngles;
+                            if (RotationX) _eulerX = RegisterAngle(RotCompX.ToSpec(), InterpolateRotation);
+                            if (RotationY) _eulerY = RegisterAngle(RotCompY.ToSpec(), InterpolateRotation);
+                            if (RotationZ) _eulerZ = RegisterAngle(RotCompZ.ToSpec(), InterpolateRotation);
+                        }
+                        break;
+                    case BasisRotationSyncMode.QuaternionHalf:
+                    case BasisRotationSyncMode.QuaternionRaw:
+                    {
+                        BasisQuantSpec spec = RotationMode == BasisRotationSyncMode.QuaternionHalf ? BasisQuantSpec.Half : BasisQuantSpec.Raw;
+                        _rotQx = RegisterFloat(spec, InterpolateRotation);
+                        _rotQy = RegisterFloat(spec, InterpolateRotation);
+                        _rotQz = RegisterFloat(spec, InterpolateRotation);
+                        _rotQw = RegisterFloat(spec, InterpolateRotation);
+                        break;
+                    }
+                    default:
+                        _rotQuat = RegisterRotation(SmallestThreeBits, InterpolateRotation);
+                        break;
                 }
             }
 
             if (SyncScale)
             {
-                if (ScaleX) _scaleX = RegisterFloat(ScaleCompX.ToSpec(HalfPrecision));
-                if (ScaleY) _scaleY = RegisterFloat(ScaleCompY.ToSpec(HalfPrecision));
-                if (ScaleZ) _scaleZ = RegisterFloat(ScaleCompZ.ToSpec(HalfPrecision));
+                if (ScaleUniform)
+                {
+                    _scaleUniform = RegisterFloat(ScaleCompX.ToSpec(), InterpolateScale);
+                }
+                else
+                {
+                    if (ScaleX) _scaleX = RegisterFloat(ScaleCompX.ToSpec(), InterpolateScale);
+                    if (ScaleY) _scaleY = RegisterFloat(ScaleCompY.ToSpec(), InterpolateScale);
+                    if (ScaleZ) _scaleZ = RegisterFloat(ScaleCompZ.ToSpec(), InterpolateScale);
+                }
             }
 
             // Position axes are registered first, so they occupy the start of the continuous range —
@@ -151,6 +198,13 @@ namespace Basis.Scripts.Networking.Sync
             {
                 LocalSet(_rotQuat, r);
             }
+            else if (_rotQw.IsValid)
+            {
+                LocalSet(_rotQx, r.x);
+                LocalSet(_rotQy, r.y);
+                LocalSet(_rotQz, r.z);
+                LocalSet(_rotQw, r.w);
+            }
             else if (_rotEuler)
             {
                 Vector3 e = WorldSpace ? Target.eulerAngles : Target.localEulerAngles;
@@ -159,7 +213,11 @@ namespace Basis.Scripts.Networking.Sync
                 if (_eulerZ.IsValid) LocalSet(_eulerZ, e.z);
             }
 
-            if (_scaleX.IsValid || _scaleY.IsValid || _scaleZ.IsValid)
+            if (_scaleUniform.IsValid)
+            {
+                LocalSet(_scaleUniform, Target.localScale.x);
+            }
+            else if (_scaleX.IsValid || _scaleY.IsValid || _scaleZ.IsValid)
             {
                 Vector3 s = Target.localScale;
                 if (_scaleX.IsValid) LocalSet(_scaleX, s.x);
@@ -186,6 +244,16 @@ namespace Basis.Scripts.Networking.Sync
             {
                 r = GetQuaternion(_rotQuat);
             }
+            else if (_rotQw.IsValid)
+            {
+                Quaternion q = new Quaternion(GetFloat(_rotQx), GetFloat(_rotQy), GetFloat(_rotQz), GetFloat(_rotQw));
+                float mag = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+                if (mag > 1e-6f)
+                {
+                    float inv = 1f / mag;
+                    r = new Quaternion(q.x * inv, q.y * inv, q.z * inv, q.w * inv);
+                }
+            }
             else if (_rotEuler)
             {
                 Vector3 e = _heldEuler;
@@ -195,13 +263,50 @@ namespace Basis.Scripts.Networking.Sync
                 r = Quaternion.Euler(e);
             }
 
-            if (_scaleX.IsValid) s.x = GetFloat(_scaleX);
-            if (_scaleY.IsValid) s.y = GetFloat(_scaleY);
-            if (_scaleZ.IsValid) s.z = GetFloat(_scaleZ);
+            if (_scaleUniform.IsValid)
+            {
+                float u = GetFloat(_scaleUniform);
+                s = new Vector3(u, u, u);
+            }
+            else
+            {
+                if (_scaleX.IsValid) s.x = GetFloat(_scaleX);
+                if (_scaleY.IsValid) s.y = GetFloat(_scaleY);
+                if (_scaleZ.IsValid) s.z = GetFloat(_scaleZ);
+            }
 
             if (WorldSpace) Target.SetPositionAndRotation(p, r);
             else Target.SetLocalPositionAndRotation(p, r);
             Target.localScale = s;
+        }
+
+        protected override bool TryGetSyncGizmoSpatial(BasisSyncValues from, BasisSyncValues to, out Vector3 fromWorld, out Vector3 toWorld)
+        {
+            fromWorld = default;
+            toWorld = default;
+            if (Target == null || (!_posX.IsValid && !_posY.IsValid && !_posZ.IsValid)) return false;
+
+            // Unsynced axes have no keyframe data — hold them at the Target's live value so the
+            // from/to points sit on the real motion path.
+            Vector3 baseLocal = WorldSpace ? Target.position : Target.localPosition;
+            Vector3 f = baseLocal;
+            Vector3 t = baseLocal;
+            if (_posX.IsValid) { int o = Schema.GetField(_posX.FieldIndex).Offset; f.x = from.Cont[o]; t.x = to.Cont[o]; }
+            if (_posY.IsValid) { int o = Schema.GetField(_posY.FieldIndex).Offset; f.y = from.Cont[o]; t.y = to.Cont[o]; }
+            if (_posZ.IsValid) { int o = Schema.GetField(_posZ.FieldIndex).Offset; f.z = from.Cont[o]; t.z = to.Cont[o]; }
+
+            Transform parent = Target.parent;
+            if (WorldSpace || parent == null)
+            {
+                fromWorld = f;
+                toWorld = t;
+            }
+            else
+            {
+                fromWorld = parent.TransformPoint(f);
+                toWorld = parent.TransformPoint(t);
+            }
+            return true;
         }
 
         protected override bool TryGetSyncWorldPosition(out Vector3 position)

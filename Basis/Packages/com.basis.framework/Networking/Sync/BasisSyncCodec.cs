@@ -36,7 +36,7 @@ namespace Basis.Scripts.Networking.Sync
                     return bits;
                 }
                 case BasisSyncPool.Rotation:
-                    return 32;
+                    return 2 + 3 * (1 + RotMagBits(f));
                 default:
                     switch (f.Type)
                     {
@@ -59,6 +59,8 @@ namespace Basis.Scripts.Networking.Sync
         }
 
         private static int ClampBits(int b) => b < 1 ? 1 : (b > 31 ? 31 : b);
+
+        private static int RotMagBits(in BasisSyncField f) => math.clamp(f.RotBits <= 0 ? 9 : f.RotBits, 2, 18);
 
         public static int Serialize(BasisSyncSchema schema, BasisSyncValues values, bool keyframe, byte[] dirtyMask, byte seq, ushort intervalMs, byte[] outBuf)
             => Serialize(schema, values, keyframe, dirtyMask, seq, intervalMs, outBuf, false);
@@ -169,9 +171,10 @@ namespace Basis.Scripts.Networking.Sync
                     break;
                 case BasisSyncPool.Rotation:
                 {
+                    int magBits = RotMagBits(f);
                     quaternion q = v.Rot[f.Offset];
                     UnityEngine.Quaternion uq = new UnityEngine.Quaternion(q.value.x, q.value.y, q.value.z, q.value.w);
-                    w.WriteBits(BasisCompression.QuaternionCompressor.CompressQuaternion(ref uq), 32);
+                    w.WriteBits(BasisCompression.QuaternionCompressor.CompressSmallestThree(uq, magBits), 2 + 3 * (1 + magBits));
                     break;
                 }
                 default:
@@ -200,8 +203,9 @@ namespace Basis.Scripts.Networking.Sync
                     break;
                 case BasisSyncPool.Rotation:
                 {
-                    uint packed = r.ReadBits(32);
-                    UnityEngine.Quaternion uq = BasisCompression.QuaternionCompressor.DecompressQuaternion(packed);
+                    int magBits = RotMagBits(f);
+                    ulong packed = r.ReadBitsLong(2 + 3 * (1 + magBits));
+                    UnityEngine.Quaternion uq = BasisCompression.QuaternionCompressor.DecompressSmallestThree(packed, magBits);
                     v.Rot[f.Offset] = new quaternion(uq.x, uq.y, uq.z, uq.w);
                     break;
                 }
@@ -323,6 +327,13 @@ namespace Basis.Scripts.Networking.Sync
                 }
             }
 
+            public void WriteBits(ulong value, int bits)
+            {
+                if (bits <= 32) { WriteBits((uint)value, bits); return; }
+                WriteBits((uint)(value & 0xFFFFFFFFu), 32);
+                WriteBits((uint)(value >> 32), bits - 32);
+            }
+
             public int ByteLength => _byte + (_bit > 0 ? 1 : 0);
         }
 
@@ -351,6 +362,14 @@ namespace Basis.Scripts.Networking.Sync
                     if (++_bit == 8) { _bit = 0; _byte++; }
                 }
                 return v;
+            }
+
+            public ulong ReadBitsLong(int bits)
+            {
+                if (bits <= 32) return ReadBits(bits);
+                ulong lo = ReadBits(32);
+                ulong hi = ReadBits(bits - 32);
+                return lo | (hi << 32);
             }
         }
     }

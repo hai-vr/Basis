@@ -46,6 +46,10 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_AUDIO_CONE => BasisSettingsDefaults.GizmoAudioListenerCone.BindingKey;      // "gizmoaudiolistenercone"
     private static string K_GIZMO_AUDIO_LEVELS => BasisSettingsDefaults.GizmoAudioLevels.BindingKey;          // "gizmoaudiolevels"
     private static string K_GIZMO_LABELS => BasisSettingsDefaults.GizmoLabels.BindingKey;                      // "gizmolabels"
+    private static string K_GIZMO_NETWORK_SYNC => BasisSettingsDefaults.GizmoNetworkSync.BindingKey;            // "gizmonetworksync"
+    private static string K_GIZMO_NETWORK_SYNC_BW => BasisSettingsDefaults.GizmoNetworkSyncBandwidth.BindingKey; // "gizmonetworksyncbandwidth"
+    private static string K_GIZMO_NETWORK_PLAYERS => BasisSettingsDefaults.GizmoNetworkPlayers.BindingKey;        // "gizmonetworkplayers"
+    private static string K_GIZMO_NETWORK_PLAYERS_BW => BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.BindingKey; // "gizmonetworkplayersbandwidth"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -96,6 +100,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
         ClearTrackerGizmos();
         ClearLinkLines();
         BasisAudioGizmos.Shutdown();
+        BasisSyncGizmos.Shutdown();
+        BasisPlayerNetworkGizmos.Shutdown();
         base.OnDestroy();
     }
 
@@ -203,11 +209,53 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
+        if (matchedSettingName == K_GIZMO_NETWORK_SYNC)
+        {
+            if (bool.TryParse(optionValue, out BasisSyncGizmos.Show) && !BasisSyncGizmos.Show && !BasisSyncGizmos.ShowBandwidth)
+            {
+                BasisSyncGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_NETWORK_SYNC_BW)
+        {
+            if (bool.TryParse(optionValue, out BasisSyncGizmos.ShowBandwidth) && !BasisSyncGizmos.ShowBandwidth && !BasisSyncGizmos.Show)
+            {
+                BasisSyncGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_NETWORK_PLAYERS)
+        {
+            if (bool.TryParse(optionValue, out BasisPlayerNetworkGizmos.Show) && !BasisPlayerNetworkGizmos.Show && !BasisPlayerNetworkGizmos.ShowBandwidth)
+            {
+                BasisPlayerNetworkGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_NETWORK_PLAYERS_BW)
+        {
+            if (bool.TryParse(optionValue, out BasisPlayerNetworkGizmos.ShowBandwidth) && !BasisPlayerNetworkGizmos.ShowBandwidth && !BasisPlayerNetworkGizmos.Show)
+            {
+                BasisPlayerNetworkGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
         if (matchedSettingName == K_GIZMO_LABELS)
         {
             if (bool.TryParse(optionValue, out UseGizmoLabels))
             {
                 BasisAudioGizmos.ShowLabels = UseGizmoLabels;
+                BasisSyncGizmos.ShowLabels = UseGizmoLabels;
+                BasisPlayerNetworkGizmos.ShowLabels = UseGizmoLabels;
                 if (!UseGizmoLabels)
                 {
                     ClearMap(_trackerLabels);
@@ -232,7 +280,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
             UseIKColliders ||
             BasisAudioGizmos.ShowRanges ||
             BasisAudioGizmos.ShowListenerCone ||
-            BasisAudioGizmos.ShowLevels;
+            BasisAudioGizmos.ShowLevels ||
+            BasisSyncGizmos.Show ||
+            BasisSyncGizmos.ShowBandwidth ||
+            BasisPlayerNetworkGizmos.Show ||
+            BasisPlayerNetworkGizmos.ShowBandwidth;
 
         SetUseGizmos(anyOn);
     }
@@ -407,6 +459,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
 
         BasisAudioGizmos.Tick(scale);
+        BasisSyncGizmos.Tick(scale);
+        BasisPlayerNetworkGizmos.Tick(scale);
     }
 
     /// <summary>
