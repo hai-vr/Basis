@@ -31,6 +31,8 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         space.Add(new PropertyField(serializedObject.FindProperty("HalfPrecision")));
         root.Add(space);
 
+        root.Add(BuildCompression());
+
         root.Add(BasisSyncInspectorUI.SmoothingCard(serializedObject));
         root.Add(BasisSyncInspectorUI.NetworkingCard(serializedObject));
 
@@ -106,5 +108,51 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
             labelEl.style.marginRight = 4;
         }
         return toggle;
+    }
+
+    private VisualElement BuildCompression()
+    {
+        var foldout = new Foldout { text = "Compression (per axis)", value = false };
+        foldout.style.marginBottom = 8;
+        var lbl = foldout.Q<Label>();
+        if (lbl != null)
+        {
+            lbl.style.color = new UnityEngine.UIElements.StyleColor(BasisSyncInspectorUI.Accent);
+            lbl.style.unityFontStyleAndWeight = UnityEngine.FontStyle.Bold;
+        }
+
+        var note = new Label("Inherit follows Half Precision. Ranged enables min/max + bit level — fewer bits within a known range = smaller packets.");
+        note.style.whiteSpace = WhiteSpace.Normal;
+        note.style.fontSize = 10;
+        note.style.opacity = 0.8f;
+        note.style.marginBottom = 4;
+        foldout.Add(note);
+
+        foldout.Add(GroupLabel("Position"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("PosCompX"), "X"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("PosCompY"), "Y"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("PosCompZ"), "Z"));
+
+        foldout.Add(GroupLabel("Rotation (Euler — only when a partial rotation axis set is synced)"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("RotCompX"), "X"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("RotCompY"), "Y"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("RotCompZ"), "Z"));
+
+        foldout.Add(GroupLabel("Scale"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("ScaleCompX"), "X"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("ScaleCompY"), "Y"));
+        foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("ScaleCompZ"), "Z"));
+
+        return foldout;
+    }
+
+    private static Label GroupLabel(string text)
+    {
+        var l = new Label(text);
+        l.style.unityFontStyleAndWeight = UnityEngine.FontStyle.Bold;
+        l.style.whiteSpace = WhiteSpace.Normal;
+        l.style.marginTop = 6;
+        l.style.marginBottom = 2;
+        return l;
     }
 }

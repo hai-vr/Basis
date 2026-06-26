@@ -436,6 +436,21 @@ namespace UnityEngine.Rendering.Universal.Internal
                     }
                 }
 
+#if !UNITY_ANDROID
+                // Basis VRS injection: same shading rate as the prepass/opaque paths so depth
+                // priming stays consistent. Desktop only; skipped on XR hardware foveation.
+                if (frameData.Contains<UniversalShadingRateData>())
+                {
+                    var basisVrs = frameData.Get<UniversalShadingRateData>();
+                    bool xrFoveated = cameraData.xr.enabled && cameraData.xr.supportsFoveatedRendering;
+                    if (basisVrs.isValid && basisVrs.shadingRateImage.IsValid() && !xrFoveated)
+                    {
+                        builder.SetShadingRateImageAttachment(basisVrs.shadingRateImage);
+                        builder.SetShadingRateCombiner(ShadingRateCombinerStage.Fragment, ShadingRateCombiner.Override);
+                    }
+                }
+#endif
+
                 builder.SetRenderFunc(static (RenderingLayersPassData data, RasterGraphContext context) =>
                 {
                     // Enable Rendering Layers

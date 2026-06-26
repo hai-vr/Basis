@@ -106,14 +106,19 @@ namespace Basis.Scripts.Networking.Sync.Testing
             return schema;
         }
 
-        // ── Output sampling — mirrors InterpolateSyncObjectsJob + the driver's SoA fill ──
         static void Sample(BasisSyncReceiver recv, BasisSyncSchema schema, BasisSyncValues outVals)
         {
             if (!recv.HasData) return;
-            BasisSyncValues cur = recv.CurrentValues;
-            BasisSyncValues nxt = recv.NextValues;
-            float t = recv.InterpTime;
+            Interpolate(schema, recv.CurrentValues, recv.NextValues, recv.InterpTime, outVals);
+        }
 
+        /// <summary>
+        /// Managed mirror of <c>InterpolateSyncObjectsJob</c> + the driver SoA fill: continuous → lerp,
+        /// angle → wrapped lerp, rotation → nlerp, discrete → snap to next. Exposed so a fidelity test
+        /// can pin it against the real Burst job.
+        /// </summary>
+        public static void Interpolate(BasisSyncSchema schema, BasisSyncValues cur, BasisSyncValues nxt, float t, BasisSyncValues outVals)
+        {
             for (int fi = 0; fi < schema.FieldCount; fi++)
             {
                 BasisSyncField f = schema.GetField(fi);
@@ -165,7 +170,9 @@ namespace Basis.Scripts.Networking.Sync.Testing
 
             if (!hasData)
             {
-                result.Pass = false;
+                // Faithful profiles deliver keyframes reliably, so no output is a real failure.
+                // Chaos impairs reliable traffic too — total keyframe loss there is observational.
+                result.Pass = !s.Profile.HardConvergence;
                 result.FailReason = "receiver never produced output (no keyframe arrived)";
                 return;
             }
@@ -638,13 +645,13 @@ namespace Basis.Scripts.Networking.Sync.Testing
                 case SyncMotion.Teleport:
                     return Mathf.Sin(2f * Mathf.PI * 0.4f * t + phase);
                 case SyncMotion.RandomWalk:
-                    return Walk(t, fi, comp, phase);
+                    return Walk(t, fi, comp);
                 default:
                     return 0f;
             }
         }
 
-        float Walk(float t, int fi, int comp, float phase)
+        float Walk(float t, int fi, int comp)
         {
             int idx = _schema.GetField(fi).Offset + comp;
             if (idx < 0 || idx >= _walk.Length) return 0f;

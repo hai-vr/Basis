@@ -28,6 +28,49 @@ namespace Basis.Scripts.Networking.Sync
         Discrete = 2,
     }
 
+    /// <summary>How a single continuous (float) component is packed: Raw (32-bit), Half (16-bit), or N-bit Ranged within [Min,Max].</summary>
+    public enum BasisQuantMode : byte
+    {
+        Raw = 0,
+        Half = 1,
+        Ranged = 2,
+    }
+
+    /// <summary>
+    /// Per-component compression for a continuous field. Ranged maps [Min, Max] onto Bits bits
+    /// (step = (Max-Min)/(2^Bits-1)); pick Bits from the precision the allowed distance needs.
+    /// </summary>
+    public struct BasisQuantSpec
+    {
+        public BasisQuantMode Mode;
+        public float Min;
+        public float Max;
+        public byte Bits;
+
+        public static BasisQuantSpec Raw => new BasisQuantSpec { Mode = BasisQuantMode.Raw };
+        public static BasisQuantSpec Half => new BasisQuantSpec { Mode = BasisQuantMode.Half };
+        public static BasisQuantSpec Ranged(float min, float max, int bits) => new BasisQuantSpec
+        {
+            Mode = BasisQuantMode.Ranged,
+            Min = min,
+            Max = max,
+            Bits = (byte)math.clamp(bits, 1, 31),
+        };
+
+        /// <summary>Wire size in bits for this spec.</summary>
+        public int BitCount => Mode switch
+        {
+            BasisQuantMode.Raw => 32,
+            BasisQuantMode.Half => 16,
+            _ => math.clamp((int)Bits, 1, 31),
+        };
+
+        /// <summary>Quantization step (worst-case resolution) for Ranged; 0 for lossless-ish modes.</summary>
+        public float Step => Mode == BasisQuantMode.Ranged && Max > Min
+            ? (Max - Min) / ((1u << math.clamp((int)Bits, 1, 31)) - 1u)
+            : 0f;
+    }
+
     public struct BasisSyncField
     {
         public BasisSyncFieldType Type;
@@ -60,6 +103,10 @@ namespace Basis.Scripts.Networking.Sync
     public sealed class BasisSyncSchema
     {
         private readonly List<BasisSyncField> _fields = new List<BasisSyncField>();
+        private readonly List<BasisQuantMode> _qMode = new List<BasisQuantMode>();
+        private readonly List<float> _qMin = new List<float>();
+        private readonly List<float> _qMax = new List<float>();
+        private readonly List<byte> _qBits = new List<byte>();
 
         public int ContCount { get; private set; }
         public int RotCount { get; private set; }
@@ -70,14 +117,27 @@ namespace Basis.Scripts.Networking.Sync
 
         public BasisSyncField GetField(int index) => _fields[index];
 
+        // Per-continuous-component compression, indexed the same as BasisSyncValues.Cont.
+        public BasisQuantMode QuantMode(int contIndex) => (uint)contIndex < (uint)_qMode.Count ? _qMode[contIndex] : BasisQuantMode.Raw;
+        public float QuantMin(int contIndex) => (uint)contIndex < (uint)_qMin.Count ? _qMin[contIndex] : 0f;
+        public float QuantMax(int contIndex) => (uint)contIndex < (uint)_qMax.Count ? _qMax[contIndex] : 0f;
+        public byte QuantBits(int contIndex) => (uint)contIndex < (uint)_qBits.Count ? _qBits[contIndex] : (byte)0;
+
         public int AddField(BasisSyncFieldType type, bool interpolate = true, bool quantize = false)
+            => AddFieldCore(type, interpolate, LegacySpecs(type, quantize));
+
+        /// <summary>Declare a field with explicit per-component compression. specs length should match the field's component count; missing/extra entries default to Raw and are ignored for discrete/rotation fields.</summary>
+        public int AddField(BasisSyncFieldType type, bool interpolate, BasisQuantSpec[] componentSpecs)
+            => AddFieldCore(type, interpolate, componentSpecs);
+
+        private int AddFieldCore(BasisSyncFieldType type, bool interpolate, BasisQuantSpec[] specs)
         {
             if (Locked)
                 throw new InvalidOperationException("BasisSyncSchema is locked. Declare synced fields before the object is network-ready (in Awake).");
             if (_fields.Count >= 255)
                 throw new InvalidOperationException("BasisSyncSchema supports at most 255 fields.");
 
-            var f = new BasisSyncField { Type = type, Interpolate = interpolate, Quantize = quantize };
+            var f = new BasisSyncField { Type = type, Interpolate = interpolate };
             switch (type)
             {
                 case BasisSyncFieldType.Position:
@@ -124,8 +184,45 @@ namespace Basis.Scripts.Networking.Sync
                     break;
             }
 
+            bool anyQuant = false;
+            if (f.Pool == BasisSyncPool.Continuous)
+            {
+                for (int c = 0; c < f.ContComponents; c++)
+                {
+                    BasisQuantSpec spec = (specs != null && c < specs.Length) ? specs[c] : BasisQuantSpec.Raw;
+                    _qMode.Add(spec.Mode);
+                    _qMin.Add(spec.Min);
+                    _qMax.Add(spec.Max);
+                    _qBits.Add(spec.Mode == BasisQuantMode.Ranged ? (byte)math.clamp((int)spec.Bits, 1, 31) : (byte)0);
+                    if (spec.Mode != BasisQuantMode.Raw) anyQuant = true;
+                }
+            }
+            f.Quantize = anyQuant;
+
             _fields.Add(f);
             return _fields.Count - 1;
+        }
+
+        private static BasisQuantSpec[] LegacySpecs(BasisSyncFieldType type, bool quantize)
+        {
+            switch (type)
+            {
+                case BasisSyncFieldType.Position: return Fill(3, quantize ? BasisQuantSpec.Ranged(-1024f, 1024f, 16) : BasisQuantSpec.Raw);
+                case BasisSyncFieldType.Scale: return Fill(3, quantize ? BasisQuantSpec.Ranged(0f, 64f, 16) : BasisQuantSpec.Raw);
+                case BasisSyncFieldType.Float:
+                case BasisSyncFieldType.Angle: return Fill(1, quantize ? BasisQuantSpec.Half : BasisQuantSpec.Raw);
+                case BasisSyncFieldType.Vector2: return Fill(2, quantize ? BasisQuantSpec.Half : BasisQuantSpec.Raw);
+                case BasisSyncFieldType.Vector4: return Fill(4, quantize ? BasisQuantSpec.Half : BasisQuantSpec.Raw);
+                case BasisSyncFieldType.Color: return Fill(4, quantize ? BasisQuantSpec.Ranged(0f, 1f, 8) : BasisQuantSpec.Raw);
+                default: return null;
+            }
+        }
+
+        private static BasisQuantSpec[] Fill(int n, BasisQuantSpec spec)
+        {
+            var a = new BasisQuantSpec[n];
+            for (int i = 0; i < n; i++) a[i] = spec;
+            return a;
         }
 
         public void Lock() => Locked = true;

@@ -6,10 +6,12 @@ namespace Basis.Scripts.Networking.Sync.Testing
 {
     /// <summary>
     /// Builds and runs the full combinatorial test matrix over the value-sync data path:
-    /// field configs (every type × quantize × interpolate, plus composites and transform-style layouts)
-    /// × motion patterns × network impairment profiles × optional feature flags (extrapolation,
-    /// teleport threshold) × seeds. Feasibility-pruned (e.g. teleport-threshold only on position-first
+    /// field configs (every type x quantize x interpolate, plus composites and transform-style layouts)
+    /// x motion patterns x network impairment profiles x optional feature flags (extrapolation,
+    /// teleport threshold) x seeds. Feasibility-pruned (e.g. teleport-threshold only on position-first
     /// layouts) so every row is a meaningful combination.
+    ///
+    /// Driven by the Basis > Networking > Sync Test Matrix editor window.
     /// </summary>
     public static class BasisSyncSimMatrix
     {
@@ -95,9 +97,9 @@ namespace Basis.Scripts.Networking.Sync.Testing
             bool posFirst = t == BasisSyncFieldType.Position;
             list.Add(One(t.ToString(), t, interpolate: true, quantize: false, posFirst));
             if (quantizable && o.QuantizeVariants)
-                list.Add(One(t + "·quant", t, interpolate: true, quantize: true, posFirst));
+                list.Add(One(t + "-quant", t, interpolate: true, quantize: true, posFirst));
             if (interpToggle && o.InterpolateOffVariants)
-                list.Add(One(t + "·noInterp", t, interpolate: false, quantize: false, posFirst));
+                list.Add(One(t + "-noInterp", t, interpolate: false, quantize: false, posFirst));
         }
 
         static FieldConfig One(string name, BasisSyncFieldType t, bool interpolate, bool quantize, bool posFirst)
@@ -139,7 +141,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         {
             return new FieldConfig
             {
-                Name = half ? "Transform·half" : "Transform·full",
+                Name = half ? "Transform-half" : "Transform-full",
                 PositionFirst = false,
                 Fields = new List<SimFieldSpec>
                 {
@@ -154,7 +156,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         static FieldConfig TransformFullScale()
         {
             var c = TransformFull(half: false);
-            c.Name = "Transform·full+scale";
+            c.Name = "Transform-full+scale";
             c.Fields.Add(new SimFieldSpec(BasisSyncFieldType.Float));
             c.Fields.Add(new SimFieldSpec(BasisSyncFieldType.Float));
             c.Fields.Add(new SimFieldSpec(BasisSyncFieldType.Float));
@@ -165,7 +167,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         {
             return new FieldConfig
             {
-                Name = "Door·rotY",
+                Name = "Door-rotY",
                 PositionFirst = false,
                 Fields = new List<SimFieldSpec> { new SimFieldSpec(BasisSyncFieldType.Angle) },
             };
@@ -175,7 +177,7 @@ namespace Basis.Scripts.Networking.Sync.Testing
         {
             return new FieldConfig
             {
-                Name = "Pos·xyz",
+                Name = "Pos-xyz",
                 PositionFirst = false,
                 Fields = new List<SimFieldSpec>
                 {

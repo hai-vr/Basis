@@ -2,6 +2,37 @@ using UnityEngine;
 
 namespace Basis.Scripts.Networking.Sync
 {
+    public enum BasisTransformAxisMode : byte
+    {
+        Inherit = 0,
+        Raw = 1,
+        Half = 2,
+        Ranged = 3,
+    }
+
+    /// <summary>Per-axis wire compression for a synced transform component.</summary>
+    [System.Serializable]
+    public struct BasisTransformAxisCompression
+    {
+        public BasisTransformAxisMode Mode;
+        public float Min;
+        public float Max;
+        [Range(1, 31)] public int Bits;
+
+        public static BasisTransformAxisCompression Inherit => new BasisTransformAxisCompression { Mode = BasisTransformAxisMode.Inherit, Min = 0f, Max = 1f, Bits = 16 };
+
+        public BasisQuantSpec ToSpec(bool halfPrecisionDefault)
+        {
+            switch (Mode)
+            {
+                case BasisTransformAxisMode.Raw: return BasisQuantSpec.Raw;
+                case BasisTransformAxisMode.Half: return BasisQuantSpec.Half;
+                case BasisTransformAxisMode.Ranged: return BasisQuantSpec.Ranged(Min, Max, Bits < 1 ? 1 : Bits);
+                default: return halfPrecisionDefault ? BasisQuantSpec.Half : BasisQuantSpec.Raw;
+            }
+        }
+    }
+
     /// <summary>
     /// Drop-in transform sync built on <see cref="BasisSyncedObject"/>. The owner streams the enabled
     /// axes; every other client's copy is interpolated and composed each frame. Per-axis toggles let
@@ -33,6 +64,16 @@ namespace Basis.Scripts.Networking.Sync
         public bool WorldSpace = false;
         public bool HalfPrecision = false;
 
+        public BasisTransformAxisCompression PosCompX = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression PosCompY = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression PosCompZ = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression RotCompX = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression RotCompY = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression RotCompZ = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression ScaleCompX = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression ScaleCompY = BasisTransformAxisCompression.Inherit;
+        public BasisTransformAxisCompression ScaleCompZ = BasisTransformAxisCompression.Inherit;
+
         private BasisSyncHandle _posX = BasisSyncHandle.Invalid;
         private BasisSyncHandle _posY = BasisSyncHandle.Invalid;
         private BasisSyncHandle _posZ = BasisSyncHandle.Invalid;
@@ -59,9 +100,9 @@ namespace Basis.Scripts.Networking.Sync
             int posAxes = 0;
             if (SyncPosition)
             {
-                if (PositionX) { _posX = RegisterFloat(true, HalfPrecision); posAxes++; }
-                if (PositionY) { _posY = RegisterFloat(true, HalfPrecision); posAxes++; }
-                if (PositionZ) { _posZ = RegisterFloat(true, HalfPrecision); posAxes++; }
+                if (PositionX) { _posX = RegisterFloat(PosCompX.ToSpec(HalfPrecision)); posAxes++; }
+                if (PositionY) { _posY = RegisterFloat(PosCompY.ToSpec(HalfPrecision)); posAxes++; }
+                if (PositionZ) { _posZ = RegisterFloat(PosCompZ.ToSpec(HalfPrecision)); posAxes++; }
             }
 
             if (SyncRotation)
@@ -74,17 +115,17 @@ namespace Basis.Scripts.Networking.Sync
                 {
                     _rotEuler = true;
                     _heldEuler = WorldSpace ? Target.eulerAngles : Target.localEulerAngles;
-                    if (RotationX) _eulerX = RegisterAngle(true, HalfPrecision);
-                    if (RotationY) _eulerY = RegisterAngle(true, HalfPrecision);
-                    if (RotationZ) _eulerZ = RegisterAngle(true, HalfPrecision);
+                    if (RotationX) _eulerX = RegisterAngle(RotCompX.ToSpec(HalfPrecision));
+                    if (RotationY) _eulerY = RegisterAngle(RotCompY.ToSpec(HalfPrecision));
+                    if (RotationZ) _eulerZ = RegisterAngle(RotCompZ.ToSpec(HalfPrecision));
                 }
             }
 
             if (SyncScale)
             {
-                if (ScaleX) _scaleX = RegisterFloat(true, HalfPrecision);
-                if (ScaleY) _scaleY = RegisterFloat(true, HalfPrecision);
-                if (ScaleZ) _scaleZ = RegisterFloat(true, HalfPrecision);
+                if (ScaleX) _scaleX = RegisterFloat(ScaleCompX.ToSpec(HalfPrecision));
+                if (ScaleY) _scaleY = RegisterFloat(ScaleCompY.ToSpec(HalfPrecision));
+                if (ScaleZ) _scaleZ = RegisterFloat(ScaleCompZ.ToSpec(HalfPrecision));
             }
 
             // Position axes are registered first, so they occupy the start of the continuous range —

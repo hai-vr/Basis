@@ -57,6 +57,9 @@ namespace Basis.Scripts.Rendering
             if (cameraData.cameraType != CameraType.Game)
                 return;
 
+            if (!ReferenceEquals(cameraData.camera, BasisLocalCameraDriver.CameraInstance))
+                return;
+
             if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12)
                 return;
 

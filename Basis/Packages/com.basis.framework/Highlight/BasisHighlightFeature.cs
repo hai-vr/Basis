@@ -1,3 +1,4 @@
+using Basis.Scripts.Drivers;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -55,6 +56,11 @@ namespace Basis.Scripts.BasisSdk.Highlight
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             if (_pass == null || settings == null)
+            {
+                return;
+            }
+
+            if (!ReferenceEquals(renderingData.cameraData.camera, BasisLocalCameraDriver.CameraInstance))
             {
                 return;
             }

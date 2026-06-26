@@ -181,6 +181,110 @@ public static class BasisSyncInspectorUI
         return card;
     }
 
+    /// <summary>One per-axis compression control: mode dropdown, Min/Max/Bits when Ranged, plus a live precision/size readout (the "fitness" check).</summary>
+    public static VisualElement CompressionAxisRow(SerializedObject so, SerializedProperty axisProp, string axisLabel)
+    {
+        SerializedProperty modeProp = axisProp.FindPropertyRelative("Mode");
+        SerializedProperty minProp = axisProp.FindPropertyRelative("Min");
+        SerializedProperty maxProp = axisProp.FindPropertyRelative("Max");
+        SerializedProperty bitsProp = axisProp.FindPropertyRelative("Bits");
+
+        var box = new VisualElement();
+        box.style.marginBottom = 4;
+        box.style.paddingLeft = 4;
+        box.style.paddingTop = 2;
+        box.style.paddingBottom = 2;
+
+        var header = new VisualElement();
+        header.style.flexDirection = FlexDirection.Row;
+        header.style.alignItems = Align.Center;
+
+        var label = new Label(axisLabel);
+        label.style.minWidth = 26;
+        label.style.unityFontStyleAndWeight = FontStyle.Bold;
+        label.style.color = new StyleColor(Accent);
+
+        var modeField = new PropertyField(modeProp, "");
+        modeField.style.flexGrow = 1;
+
+        header.Add(label);
+        header.Add(modeField);
+        box.Add(header);
+
+        var ranged = new VisualElement();
+        ranged.style.marginLeft = 26;
+        var minmax = new VisualElement();
+        minmax.style.flexDirection = FlexDirection.Row;
+        var minField = new PropertyField(minProp, "Min");
+        minField.style.flexGrow = 1;
+        minField.style.marginRight = 6;
+        var maxField = new PropertyField(maxProp, "Max");
+        maxField.style.flexGrow = 1;
+        minmax.Add(minField);
+        minmax.Add(maxField);
+        var bitsField = new SliderInt("Bits", 1, 31) { showInputField = true, bindingPath = bitsProp.propertyPath };
+        ranged.Add(minmax);
+        ranged.Add(bitsField);
+        box.Add(ranged);
+
+        var info = new Label();
+        info.style.marginLeft = 26;
+        info.style.fontSize = 10;
+        info.style.whiteSpace = WhiteSpace.Normal;
+        box.Add(info);
+
+        box.Bind(so);
+
+        void Refresh()
+        {
+            if (modeProp == null || axisProp == null) return;
+            so.Update();
+            string modeName = ModeName(modeProp);
+            bool isRanged = modeName == "Ranged";
+            ranged.style.display = isRanged ? DisplayStyle.Flex : DisplayStyle.None;
+
+            if (isRanged)
+            {
+                float min = minProp.floatValue, max = maxProp.floatValue;
+                int bits = Mathf.Clamp(bitsProp.intValue < 1 ? 1 : bitsProp.intValue, 1, 31);
+                float range = max - min;
+                if (range <= 0f)
+                {
+                    info.text = "! Min must be less than Max — values collapse to a single step.";
+                    info.style.color = new StyleColor(new Color(1f, 0.55f, 0.55f));
+                }
+                else
+                {
+                    double step = (double)range / ((1L << bits) - 1L);
+                    info.text = $"step ≈ {step:0.######} over {range:0.###}  •  {bits} bit{(bits == 1 ? "" : "s")}  •  {(bits / 8f):0.##} B/axis";
+                    info.style.color = new StyleColor(bits <= 4 ? new Color(0.9f, 0.8f, 0.2f) : Subtle);
+                }
+            }
+            else
+            {
+                switch (modeName)
+                {
+                    case "Half": info.text = "16-bit half float  •  2 B/axis"; break;
+                    case "Raw": info.text = "32-bit float  •  4 B/axis (exact)"; break;
+                    case "Inherit": info.text = "follows the Half Precision toggle"; break;
+                    default: info.text = ""; break;
+                }
+                info.style.color = new StyleColor(Subtle);
+            }
+        }
+
+        Refresh();
+        box.schedule.Execute(Refresh).Every(300);
+        return box;
+    }
+
+    private static string ModeName(SerializedProperty modeProp)
+    {
+        int idx = modeProp.enumValueIndex;
+        string[] names = modeProp.enumNames;
+        return (idx >= 0 && idx < names.Length) ? names[idx] : "";
+    }
+
     public static VisualElement RateSlider(SerializedObject so) => RateSlider(so, "SendIntervalSeconds", "Send Rate (Hz)", 60f);
 
     public static VisualElement RateSlider(SerializedObject so, string propName, string label, float maxHz)

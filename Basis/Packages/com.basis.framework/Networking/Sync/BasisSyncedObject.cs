@@ -153,6 +153,16 @@ namespace Basis.Scripts.Networking.Sync
         public BasisSyncHandle RegisterUInt() => Add(BasisSyncFieldType.UInt);
         public BasisSyncHandle RegisterAngle(bool interpolate = true, bool quantize = false) => Add(BasisSyncFieldType.Angle, interpolate, quantize);
 
+        // ── Field declaration with explicit per-component compression (Raw / Half / N-bit Ranged) ──
+        /// <summary>Declare any field with per-component compression. componentSpecs length should match the type's component count (1 float, 2 Vector2, 3 Position/Scale, 4 Vector4/Color); ignored for discrete/rotation.</summary>
+        public BasisSyncHandle Register(BasisSyncFieldType type, bool interpolate, BasisQuantSpec[] componentSpecs)
+            => new BasisSyncHandle(_schema.AddField(type, interpolate, componentSpecs), type);
+
+        public BasisSyncHandle RegisterFloat(BasisQuantSpec spec, bool interpolate = true)
+            => new BasisSyncHandle(_schema.AddField(BasisSyncFieldType.Float, interpolate, new[] { spec }), BasisSyncFieldType.Float);
+        public BasisSyncHandle RegisterAngle(BasisQuantSpec spec, bool interpolate = true)
+            => new BasisSyncHandle(_schema.AddField(BasisSyncFieldType.Angle, interpolate, new[] { spec }), BasisSyncFieldType.Angle);
+
         private BasisSyncHandle Add(BasisSyncFieldType type, bool interpolate = true, bool quantize = false)
         {
             int index = _schema.AddField(type, interpolate, quantize);
