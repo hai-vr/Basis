@@ -16,6 +16,7 @@ Shader "Basis/UI/Main"
         _ColorMask ("Color Mask", Float) = 15
 
         [Toggle(UNITY_UI_ALPHACLIP)] _UseUIAlphaClip ("Use Alpha Clip", Float) = 0
+        [Enum(UnityEngine.Rendering.CullMode)] _CullMode("Cull Mode", Int) = 2
     }
 
     SubShader
@@ -38,14 +39,14 @@ Shader "Basis/UI/Main"
             WriteMask [_StencilWriteMask]
         }
 
-        Cull Off
+        Cull [_CullMode]
         Lighting Off
         Fog { Mode Off }
         ZWrite Off
         ZTest Always // always render on top of everything //[unity_GUIZTestMode]
         Blend SrcAlpha OneMinusSrcAlpha
         ColorMask [_ColorMask]
-        
+
 
         Pass
         {
@@ -112,7 +113,7 @@ Shader "Basis/UI/Main"
 
                 return color;
             }
-            
+
         ENDCG
         }
     }
@@ -284,7 +285,7 @@ Shader "Basis/UI/Main"
 
 //                 return color;
 //             }
-            
+
 //             ENDCG
 //         }
 //     }
