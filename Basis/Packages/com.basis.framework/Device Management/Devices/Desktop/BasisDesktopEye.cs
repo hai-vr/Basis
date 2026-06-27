@@ -178,6 +178,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(100, DoRenderRaycast);
                 HasEyeEvents = false;
                 BasisVirtualSpine.DeInitialize();
+                LookRotationLock.Remove(nameof(BasisCursorManagement));
             }
             // Reticle quad is parented under the camera (which outlives this GO),
             // so we have to tear it down explicitly here.
