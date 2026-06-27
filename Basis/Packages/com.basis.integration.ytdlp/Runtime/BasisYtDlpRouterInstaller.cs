@@ -29,7 +29,12 @@ namespace Basis.Integration.YtDlp
     /// </summary>
     internal sealed class BasisYtDlpVideoResolver : IBasisVideoResolver
     {
-        public int Priority => 0;
+        // yt-dlp is the generic last-resort resolver — it can attempt almost any page URL, so it
+        // registers at the lowest priority and only sees URLs no more-specific resolver claimed.
+        // CanResolve stays broad on purpose: there's no cheap, non-blocking way to know which of
+        // yt-dlp's sites a URL belongs to without running (async) extraction, so the fallback takes
+        // any non-directly-playable URL and surfaces failures via the async resolve path.
+        public int Priority => int.MinValue;
 
         public bool CanResolve(string url) => BasisYtDlpResolver.NeedsResolution(url);
 
