@@ -206,6 +206,8 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public Transform ParentTransform;
 
+        public static Transform SelfTransform;
+
 #if !BASIS_DISABLE_MICROPHONE
         /// <summary>Driver for microphone icon visuals and layout near the camera.</summary>
         [SerializeField]
@@ -268,7 +270,7 @@ namespace Basis.Scripts.Drivers
         {
             if (BasisDeviceManagement.IsUserInDesktop())
             {
-                return Instance.transform.position;
+                return SelfTransform.position;
             }
             else
             {
@@ -283,7 +285,7 @@ namespace Basis.Scripts.Drivers
         {
             if (BasisDeviceManagement.IsUserInDesktop())
             {
-                return Instance.transform.position;
+                return SelfTransform.position;
             }
             else
             {
@@ -303,7 +305,7 @@ namespace Basis.Scripts.Drivers
                 HasInstance = true;
             }
             CameraInstance = Camera;
-
+            SelfTransform = Instance.transform;
             // Set initial scale from player height and set the clip planes.
             UpdateCameraScale();
             SetupCollisionMask();
@@ -353,7 +355,7 @@ namespace Basis.Scripts.Drivers
                 SteamAudioManager.NotifyAudioListenerChanged();
             }
 #endif
-            ParentTransform = transform.parent;
+            ParentTransform = SelfTransform.parent;
         }
         /// <summary>
         /// Unity destroy hook: unregisters pipeline/device/microphone events and clears flags.
@@ -465,7 +467,7 @@ namespace Basis.Scripts.Drivers
         {
             if (HasInstance)
             {
-                Instance.transform.GetPositionAndRotation(out Position, out Rotation);
+                SelfTransform.GetPositionAndRotation(out Position, out Rotation);
             }
             else
             {
@@ -489,7 +491,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void UpdateCameraScale(BasisHeightDriver.HeightModeChange HeightModeChange)
         {
-            this.transform.localScale = Vector3.one * BasisHeightDriver.DeviceScale;
+            SelfTransform.localScale = Vector3.one * BasisHeightDriver.DeviceScale;
             if (BasisSettingsDefaults.UseCameraClipOverride.RawValue)
             {
                 // User has explicitly opted into raw clip values; bypass the eye-height clamp.
@@ -609,7 +611,7 @@ namespace Basis.Scripts.Drivers
             BasisAutoScaleEstimator.Tick(DeltaTime);
             if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
-                this.transform.GetPositionAndRotation(out Position, out Rotation);
+                SelfTransform.GetPositionAndRotation(out Position, out Rotation);
 
                 if (IsThirdPerson)
                 {
@@ -652,7 +654,7 @@ namespace Basis.Scripts.Drivers
                     bool isMobile = BasisDeviceManagement.IsMobileHardware();
                     float fov = CameraInstance.fieldOfView;
                     float aspect = CameraInstance.aspect;
-                    Vector3 lossyScale = this.transform.lossyScale;
+                    Vector3 lossyScale = SelfTransform.lossyScale;
                     Vector2 offset = microphoneIconDriver.IconPositionOffset;
                     float ratio = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
@@ -665,7 +667,7 @@ namespace Basis.Scripts.Drivers
                         viewportPos.y += offset.y;
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(viewportPos);
                         // assume this transform is the camera parent
-                        Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
+                        Vector3 localPos = SelfTransform.InverseTransformPoint(worldPoint);
                         ParentOfUI.localPosition = localPos * ratio;
 
                         _micLayoutValid = true;
@@ -684,7 +686,7 @@ namespace Basis.Scripts.Drivers
             {
                 if (_wasThirdPerson)
                 {
-                    transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                    SelfTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
                     CameraInstance.fieldOfView = DefaultCameraFov;
                     _wasThirdPerson = false;
                 }
@@ -694,7 +696,7 @@ namespace Basis.Scripts.Drivers
             // BasisLockToInput re-parents this camera at runtime (player root <-> head input),
             // so the orbit center must be read fresh. A value cached in OnEnable goes stale and
             // leaves third-person orbiting the player root, ~eye-height too low (Y only).
-            Transform parentTransform = transform.parent;
+            Transform parentTransform = SelfTransform.parent;
 
             float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             parentTransform.GetPositionAndRotation(out Vector3 targetTrackingPos, out Quaternion targetTrackingRot);
@@ -751,7 +753,7 @@ namespace Basis.Scripts.Drivers
                 desiredWorldPos = hit.point + (hit.normal * scaledRadius);
             }
 
-            transform.SetPositionAndRotation(desiredWorldPos, desiredRotation);
+            SelfTransform.SetPositionAndRotation(desiredWorldPos, desiredRotation);
         }
         private void OnClipOverrideToggleChanged(bool _) => UpdateCameraScale();
         private void OnClipBindingChangedFloat(float _) => UpdateCameraScale();

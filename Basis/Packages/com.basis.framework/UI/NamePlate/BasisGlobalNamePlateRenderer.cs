@@ -216,8 +216,12 @@ namespace Basis.Scripts.UI.NamePlate
             }
             textGpuApplied = GpuBillboardText;
 
+            // Standalone world-identity root: the merged meshes are built in world space (plate
+            // matrices are world poses), so root needs no transform. Parenting it under a moving
+            // transform would only force a per-frame root.worldToLocalMatrix read that cancels root's
+            // own localToWorld anyway.
             root = new GameObject("BasisGlobalNamePlates");
-            root.transform.SetParent(BasisDeviceManagement.Instance.transform, false);
+            Object.DontDestroyOnLoad(root);
             root.layer = layer;
 
             panel = NewLayer("Panels", panelMaterial);
@@ -492,7 +496,6 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (!matrices.IsCreated) return;
 
-            Matrix4x4 worldToLocal = root.transform.worldToLocalMatrix;
             int plateCount = snapshot.Count;
 
             bool canCull = BasisLocalCameraDriver.CameraInstance != null;
@@ -503,9 +506,9 @@ namespace Basis.Scripts.UI.NamePlate
             bool cullOccluded = canCull && CullOccluded && OcclusionMask.value != 0;
 
             if (!UseBoneSystemMatrices ||
-                !GatherFromBoneSystem(plateCount, worldToLocal, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded))
+                !GatherFromBoneSystem(plateCount, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded))
             {
-                GatherFromTransforms(plateCount, worldToLocal, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded);
+                GatherFromTransforms(plateCount, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded);
             }
 
             // Any GPU layer? Upload the shared per-plate buffers once (before scheduling CPU jobs that
@@ -640,7 +643,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// to a slot lookup + cached active flag + color. Returns false (caller falls back to the
         /// Transform path) when the bone system isn't ready this frame.
         /// </summary>
-        private static unsafe bool GatherFromBoneSystem(int plateCount, Matrix4x4 worldToLocal, Vector3 camPos,
+        private static unsafe bool GatherFromBoneSystem(int plateCount, Vector3 camPos,
             Vector3 camFwd, float maxDistSqr, bool cullBehind, bool cullOccluded)
         {
             // The bone pipeline is completed earlier in the tick (CompleteRemoteBoneJobSystemJobs runs
@@ -690,7 +693,6 @@ namespace Basis.Scripts.UI.NamePlate
                 Frames = frames,
                 PlateSlot = plateSlot,
                 Matrices = matrices.Reinterpret<float4x4>(),
-                WorldToLocal = ToFloat4x4(worldToLocal),
                 Scale = 0.02f * BasisRemoteNamePlateDriver.NamePlateSize,
                 CamPos = camPos,
                 CamFwd = camFwd,
@@ -704,7 +706,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         /// <summary>Fallback gather: reads each plate's Unity Transform (used when the bone system
         /// isn't ready or <see cref="UseBoneSystemMatrices"/> is off).</summary>
-        private static void GatherFromTransforms(int plateCount, Matrix4x4 worldToLocal, Vector3 camPos,
+        private static void GatherFromTransforms(int plateCount, Vector3 camPos,
             Vector3 camFwd, float maxDistSqr, bool cullBehind, bool cullOccluded)
         {
             for (int gi = 0; gi < plateCount; gi++)
@@ -713,7 +715,7 @@ namespace Basis.Scripts.UI.NamePlate
                 if (p != null && p.IsGloballyRenderable &&
                     IsPlateVisible(p, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded))
                 {
-                    matrices[gi] = worldToLocal * p.Self.localToWorldMatrix;
+                    matrices[gi] = p.Self.localToWorldMatrix;
                     plateColors[gi] = p.CurrentColor;
                 }
                 else
@@ -723,9 +725,6 @@ namespace Basis.Scripts.UI.NamePlate
                 }
             }
         }
-
-        private static float4x4 ToFloat4x4(Matrix4x4 m) =>
-            new float4x4(m.GetColumn(0), m.GetColumn(1), m.GetColumn(2), m.GetColumn(3));
 
         private static bool IsPlateVisible(BasisRemoteNamePlate p, Vector3 camPos, Vector3 camFwd,
             float maxDistSqr, bool cullBehind, bool cullOccluded)
@@ -968,7 +967,6 @@ namespace Basis.Scripts.UI.NamePlate
             [ReadOnly] public NativeArray<RemoteFrameOutput> Frames;
             [ReadOnly] public NativeArray<int> PlateSlot;
             [WriteOnly] public NativeArray<float4x4> Matrices;
-            public float4x4 WorldToLocal;
             public float3 Scale;
             public float3 CamPos;
             public float3 CamFwd;
@@ -1009,7 +1007,8 @@ namespace Basis.Scripts.UI.NamePlate
                 float yaw = math.lengthsq(xz) > 1e-12f ? math.atan2(xz.x, xz.y) : 0f;
                 quaternion rot = quaternion.RotateY(yaw);
 
-                Matrices[gi] = math.mul(WorldToLocal, float4x4.TRS(pos, rot, Scale));
+                // root is a world-identity transform, so the plate matrix is the plate's world pose.
+                Matrices[gi] = float4x4.TRS(pos, rot, Scale);
             }
         }
     }
