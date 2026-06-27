@@ -9,7 +9,8 @@ namespace Basis.ImagePickup
 {
     /// <summary>
     /// Windows-only OS file-drop bridge. Subclasses the player window to intercept WM_DROPFILES and forwards
-    /// dropped .png paths to the image pickup manager on the Unity main thread.
+    /// dropped .png paths to the image pickup manager on the Unity main thread. The native callbacks are static
+    /// (IL2CPP cannot marshal instance-method delegates) and reach instance state through <see cref="_instance"/>.
     /// </summary>
     public class BasisDesktopImageDropHook : MonoBehaviour
     {
@@ -28,15 +29,19 @@ namespace Basis.ImagePickup
         [DllImport("shell32.dll", CharSet = CharSet.Auto)] private static extern uint DragQueryFile(IntPtr hDrop, uint file, StringBuilder buffer, uint length);
         [DllImport("shell32.dll")] private static extern void DragFinish(IntPtr hDrop);
 
+        private static BasisDesktopImageDropHook _instance;
+        private static readonly WndProcDelegate _wndProcDelegate = HookedWndProc;
+        private static IntPtr _foundWindow;
+
         private IntPtr _windowHandle = IntPtr.Zero;
         private IntPtr _previousWndProc = IntPtr.Zero;
-        private WndProcDelegate _wndProcDelegate;
 
         private readonly List<string> _pending = new();
         private readonly object _pendingLock = new();
 
         private void OnEnable()
         {
+            _instance = this;
             _windowHandle = FindPlayerWindow();
             if (_windowHandle == IntPtr.Zero)
             {
@@ -46,7 +51,6 @@ namespace Basis.ImagePickup
             }
 
             DragAcceptFiles(_windowHandle, true);
-            _wndProcDelegate = HookedWndProc;
             _previousWndProc = SetWindowLongPtr(_windowHandle, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
         }
 
@@ -59,7 +63,7 @@ namespace Basis.ImagePickup
             }
             _windowHandle = IntPtr.Zero;
             _previousWndProc = IntPtr.Zero;
-            _wndProcDelegate = null;
+            if (_instance == this) _instance = null;
         }
 
         private void Update()
@@ -76,13 +80,17 @@ namespace Basis.ImagePickup
             }
         }
 
-        private IntPtr HookedWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+        [AOT.MonoPInvokeCallback(typeof(WndProcDelegate))]
+        private static IntPtr HookedWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
+            BasisDesktopImageDropHook instance = _instance;
+            if (instance == null) return IntPtr.Zero;
+
             if (msg == WM_DROPFILES)
             {
-                CollectDroppedFiles(wParam);
+                instance.CollectDroppedFiles(wParam);
             }
-            return CallWindowProc(_previousWndProc, hWnd, msg, wParam, lParam);
+            return CallWindowProc(instance._previousWndProc, hWnd, msg, wParam, lParam);
         }
 
         private void CollectDroppedFiles(IntPtr hDrop)
@@ -107,19 +115,22 @@ namespace Basis.ImagePickup
             }
         }
 
+        [AOT.MonoPInvokeCallback(typeof(EnumThreadWindowProc))]
+        private static bool EnumWindowCallback(IntPtr hWnd, IntPtr lParam)
+        {
+            if (IsWindowVisible(hWnd))
+            {
+                _foundWindow = hWnd;
+                return false;
+            }
+            return true;
+        }
+
         private static IntPtr FindPlayerWindow()
         {
-            IntPtr found = IntPtr.Zero;
-            EnumThreadWindows(GetCurrentThreadId(), (hWnd, lParam) =>
-            {
-                if (IsWindowVisible(hWnd))
-                {
-                    found = hWnd;
-                    return false;
-                }
-                return true;
-            }, IntPtr.Zero);
-            return found;
+            _foundWindow = IntPtr.Zero;
+            EnumThreadWindows(GetCurrentThreadId(), EnumWindowCallback, IntPtr.Zero);
+            return _foundWindow;
         }
     }
 }
