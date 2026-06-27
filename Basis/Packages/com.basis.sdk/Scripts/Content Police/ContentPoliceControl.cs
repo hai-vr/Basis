@@ -446,6 +446,8 @@ public static class ContentPoliceControl
         {
             Component c = comps[i];
             if (c == null) continue;
+            // Component runtime type is exact here, so skipping an event-free type is sound.
+            if (!CanReachUnityEvent(c.GetType())) continue;
             WalkForUnityEvents(c, visited, approved, 0);
         }
     }
@@ -498,7 +500,7 @@ public static class ContentPoliceControl
                     Type et = ft.GetElementType();
                     if (et != null && typeof(UnityEventBase).IsAssignableFrom(et))
                         plan.Add(new WalkField(f, WalkFieldKind.EventList));
-                    else if (ShouldRecurseInto(et))
+                    else if (ShouldRecurseInto(et) && EdgeCanReachUnityEvent(et))
                         plan.Add(new WalkField(f, WalkFieldKind.RecurseList));
                     continue;
                 }
@@ -509,12 +511,12 @@ public static class ContentPoliceControl
                     Type et = args.Length == 1 ? args[0] : null;
                     if (et != null && typeof(UnityEventBase).IsAssignableFrom(et))
                         plan.Add(new WalkField(f, WalkFieldKind.EventList));
-                    else if (et != null && ShouldRecurseInto(et))
+                    else if (et != null && ShouldRecurseInto(et) && EdgeCanReachUnityEvent(et))
                         plan.Add(new WalkField(f, WalkFieldKind.RecurseList));
                     continue;
                 }
 
-                if (!ShouldRecurseInto(ft)) continue;
+                if (!ShouldRecurseInto(ft) || !EdgeCanReachUnityEvent(ft)) continue;
                 plan.Add(new WalkField(f, WalkFieldKind.RecurseRef));
             }
             cursor = cursor.BaseType;

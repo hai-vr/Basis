@@ -107,6 +107,29 @@ namespace SteamAudio
         bool mStopDirectThread = false;
         bool mDirectInFlight = false;
 
+        // Threaded direct pipeline: the direct worker owns iplSourceSetInputs +
+        // RunDirect + iplSourceGetOutputs for the Direct sim. The main thread builds
+        // the per-frame snapshot and reaps outputs from mDirectOutBuf. The existing
+        // mDirectWakeHandle/mDirectDoneHandle handshake is the only barrier these
+        // buffers need: they are written/grown by the main thread solely between a
+        // worker's done-signal and its next wake, when the worker cannot be running.
+        // Flip false to fall back to the byte-identical main-thread path.
+        public static bool UseThreadedDirectPipeline = true;
+
+        // Step 3: stagger the per-source spatializer param push across frames
+        // (1 = every frame; 2 ≈ 45 Hz at 90 fps). Sim-defined occlusion/attenuation
+        // are smoothed in the DSP, so a few-frame push cadence is inaudible.
+        public static int DirectParamPushInterval = 2;
+
+        IntPtr[] mSnapHandles = null;
+        SimulationInputs[] mSnapInputs = null;
+        SteamAudioSource[] mSnapSources = null;
+        DirectEffectParams[] mDirectOutBuf = null;
+        int mSnapCount = 0;
+        long mDirectFrameCounter = 0;
+        bool mShuttingDown = false;
+        static readonly Queue<Source> sPendingSourceRelease = new Queue<Source>();
+
         float mSimulationUpdateTimeElapsed = 0.0f;
         bool mSceneCommitRequired = false;
         Camera mMainCamera;
@@ -649,17 +672,41 @@ namespace SteamAudio
             // inputs. Blocking here instead of right after RunDirect lets the
             // ~11ms of occlusion ray casting overlap the rest of the main-thread
             // frame; one-frame-stale occlusion/attenuation is inaudible.
+            bool reapNow = mDirectInFlight;
             if (mDirectInFlight)
             {
                 mDirectDoneHandle.WaitOne();
                 mDirectInFlight = false;
+            }
 
-                for (int i = 0; i < CurrentArraySource; i++)
+            // Worker is idle now, so any native source handle it referenced this
+            // cycle is safe to free (release is deferred from SteamAudioSource.OnDestroy).
+            DrainPendingSourceReleases();
+
+            if (reapNow)
+            {
+                if (UseThreadedDirectPipeline)
                 {
-                    SteamAudioSource src = mSources[i];
-                    if (src == null) continue;
+                    long frame = mDirectFrameCounter;
+                    int interval = DirectParamPushInterval < 1 ? 1 : DirectParamPushInterval;
+                    for (int i = 0; i < mSnapCount; i++)
+                    {
+                        SteamAudioSource src = mSnapSources[i];
+                        if (src == null) continue;
 
-                    src.ReapDirect();
+                        bool pushNow = (interval == 1) || (((frame + i) % interval) == 0);
+                        src.ApplyDirectOutputs(in mDirectOutBuf[i], pushNow);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < CurrentArraySource; i++)
+                    {
+                        SteamAudioSource src = mSources[i];
+                        if (src == null) continue;
+
+                        src.ReapDirect();
+                    }
                 }
             }
 
@@ -713,7 +760,40 @@ namespace SteamAudio
             // --- Direct inputs from cached pose arrays ---
             unsafe
             {
-                if (mSourceGathers.IsCreated && CurrentArraySource > 0)
+                if (UseThreadedDirectPipeline)
+                {
+                    // Snapshot (handle, inputs, source) for the worker. Built here,
+                    // after the WaitOne above proved the worker idle and before the
+                    // kick below, so the worker reads stable buffers without locking.
+                    mDirectFrameCounter++;
+                    int srcCount = CurrentArraySource;
+                    EnsureDirectSnapshotCapacity(srcCount);
+                    int snap = 0;
+                    if (mSourceGathers.IsCreated && srcCount > 0)
+                    {
+                        GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
+                        for (int i = 0; i < srcCount; i++)
+                        {
+                            SteamAudioSource src = mSources[i];
+                            if (src == null) continue;
+
+                            IntPtr h = src.GetNativeSourceHandle();
+                            if (h == IntPtr.Zero) continue;
+
+                            GatheredData pos = pSrcGathers[i];
+                            if (!src.TryBuildInputs(SimulationFlags.Direct, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener, out SimulationInputs inputs))
+                                continue;
+
+                            mSnapSources[snap] = src;
+                            mSnapHandles[snap] = h;
+                            mSnapInputs[snap] = inputs;
+                            snap++;
+                        }
+                    }
+                    for (int i = snap; i < mSnapCount; i++) mSnapSources[i] = null;
+                    mSnapCount = snap;
+                }
+                else if (mSourceGathers.IsCreated && CurrentArraySource > 0)
                 {
                     GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
                     for (int i = 0; i < CurrentArraySource; i++)
@@ -895,12 +975,38 @@ namespace SteamAudio
                 if (mStopDirectThread)
                     break;
 
-                // finally{} guarantees the done signal even if RunDirect throws,
+                // finally{} guarantees the done signal even if a native call throws,
                 // so the main thread's reap (WaitOne) can never hang.
                 try
                 {
                     if (mSimulator != null)
-                        mSimulator.RunDirect();
+                    {
+                        if (UseThreadedDirectPipeline)
+                        {
+                            int n = mSnapCount;
+                            for (int i = 0; i < n; i++)
+                            {
+                                IntPtr h = mSnapHandles[i];
+                                if (h == IntPtr.Zero) continue;
+                                API.iplSourceSetInputs(h, SimulationFlags.Direct, ref mSnapInputs[i]);
+                            }
+
+                            mSimulator.RunDirect();
+
+                            for (int i = 0; i < n; i++)
+                            {
+                                IntPtr h = mSnapHandles[i];
+                                if (h == IntPtr.Zero) continue;
+                                SimulationOutputs o = default;
+                                API.iplSourceGetOutputs(h, SimulationFlags.Direct, ref o);
+                                mDirectOutBuf[i] = o.direct;
+                            }
+                        }
+                        else
+                        {
+                            mSimulator.RunDirect();
+                        }
+                    }
                 }
                 finally
                 {
@@ -926,6 +1032,8 @@ namespace SteamAudio
 
         public static void ShutDown()
         {
+            Singleton.mShuttingDown = true;
+
             if (Singleton.mSimulationThread != null)
             {
                 Singleton.mStopSimulationThread = true;
@@ -941,6 +1049,9 @@ namespace SteamAudio
                 Singleton.mDirectThread = null;
                 Singleton.mDirectInFlight = false;
             }
+
+            // Worker joined — free any handles queued for deferred release.
+            Singleton.DrainPendingSourceReleases();
 
 #if STEAMAUDIO_ENABLED
             Singleton.DisposeTransformAndPoseBuffers();
@@ -1022,6 +1133,11 @@ namespace SteamAudio
                 Singleton.mDirectThread = null;
                 Singleton.mDirectInFlight = false;
             }
+
+            // Worker joined — free queued handles and drop the stale snapshot so the
+            // next ApplyInstance rebuilds against the fresh simulator/sources.
+            Singleton.DrainPendingSourceReleases();
+            Singleton.mSnapCount = 0;
 
             RemoveAllDynamicObjects(force: true);
             RemoveAllAdditiveScenes();
@@ -1174,6 +1290,51 @@ namespace SteamAudio
             mSourceGathers = new NativeArray<GatheredData>(newCap, Allocator.Persistent);
 
             mSourceCapacity = newCap;
+        }
+
+        // Grows the worker snapshot buffers. Only called from the snapshot build in
+        // ApplyInstance (worker proven idle by the preceding WaitOne), never from
+        // AddSource, so a reallocation can never race the worker reading them.
+        private void EnsureDirectSnapshotCapacity(int required)
+        {
+            if (mSnapHandles != null && mSnapHandles.Length >= required)
+                return;
+
+            int newCap = (mSnapHandles == null || mSnapHandles.Length == 0) ? 8 : mSnapHandles.Length * 2;
+            if (newCap < required) newCap = required;
+
+            mSnapHandles = new IntPtr[newCap];
+            mSnapInputs = new SimulationInputs[newCap];
+            mSnapSources = new SteamAudioSource[newCap];
+            mDirectOutBuf = new DirectEffectParams[newCap];
+            mSnapCount = 0;
+        }
+
+        // Frees native source handles queued by SteamAudioSource.OnDestroy. Must be
+        // called only when the direct worker is idle (top of ApplyInstance after the
+        // reap WaitOne, or after the worker thread is joined on shutdown/reinit).
+        private void DrainPendingSourceReleases()
+        {
+            while (sPendingSourceRelease.Count > 0)
+            {
+                Source s = sPendingSourceRelease.Dequeue();
+                if (s != null) s.Release();
+            }
+        }
+
+        // Returns true if the release was queued for a worker-idle point. Returns
+        // false (caller should release immediately) when there is no live threaded
+        // pipeline that could be holding the handle. Main-thread only (OnDestroy).
+        public static bool TryDeferSourceRelease(Source source)
+        {
+            if (source == null) return false;
+
+            SteamAudioManager s = Singleton;
+            if (s == null || s.mShuttingDown || !UseThreadedDirectPipeline)
+                return false;
+
+            sPendingSourceRelease.Enqueue(source);
+            return true;
         }
 
         private void EnsureListenerCapacity(int required)

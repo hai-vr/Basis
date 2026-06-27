@@ -2,6 +2,8 @@ using Basis.BasisUI;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Settings;
 using Basis.Scripts.TransformBinders.BoneControl;
+using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Basis.Scripts.Device_Management.EyeTracking
 {
@@ -23,6 +25,11 @@ namespace Basis.Scripts.Device_Management.EyeTracking
 
         public static void Simulate()
         {
+            if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12)
+            {
+                return;
+            }
+
             if (!BasisSettingsDefaults.EyeFoveationAutoManage.RawValue)
             {
                 return;

@@ -1483,6 +1483,7 @@ namespace Basis.BasisUI
             EnableOSC.LoadBindingValue();
             EnableFaceTracking.LoadBindingValue();
             EnableEyeTracking.LoadBindingValue();
+            EyeTrackingPreferOsc.LoadBindingValue();
             FootIKEnabled.LoadBindingValue();
             DisableAnimationsInFBT.LoadBindingValue();
             LocalHeadBlendShapes.LoadBindingValue();
@@ -1524,6 +1525,10 @@ namespace Basis.BasisUI
             GizmoAudioRanges.LoadBindingValue();
             GizmoAudioListenerCone.LoadBindingValue();
             GizmoAudioLevels.LoadBindingValue();
+            GizmoNetworkSync.LoadBindingValue();
+            GizmoNetworkSyncBandwidth.LoadBindingValue();
+            GizmoNetworkPlayers.LoadBindingValue();
+            GizmoNetworkPlayersBandwidth.LoadBindingValue();
             GizmoLabels.LoadBindingValue();
             AvatarShowTrackerRoles.LoadBindingValue();
             AvatarShowTextureStats.LoadBindingValue();
@@ -1531,6 +1536,11 @@ namespace Basis.BasisUI
             ShowVoiceRange.LoadBindingValue();
             DevDebugFaceTracking.LoadBindingValue();
             DevDebugEyeTracking.LoadBindingValue();
+            AvatarDataDebugEnabled.LoadBindingValue();
+            AvatarDataDebugShowReceive.LoadBindingValue();
+            AvatarDataDebugShowStaging.LoadBindingValue();
+            AvatarDataDebugShowInterp.LoadBindingValue();
+            AvatarDataDebugShowMeta.LoadBindingValue();
             DevShowBuildInfo.LoadBindingValue();
             DevShowConsole.LoadBindingValue();
             DevShowEuroFilter.LoadBindingValue();
@@ -1567,6 +1577,7 @@ namespace Basis.BasisUI
             HearingRangeIndicator.LoadBindingValue();
             MicrophoneRangeIndicator.LoadBindingValue();
             FoveatedRendering.LoadBindingValue();
+            EyeFoveationAutoManage.LoadBindingValue();
             FieldOfView.LoadBindingValue();
             RenderResolution.LoadBindingValue();
             VSync.LoadBindingValue();
@@ -1654,6 +1665,7 @@ namespace Basis.BasisUI
             ChatDisabled.LoadBindingValue();
 
             // UI
+            RememberMenuState.LoadBindingValue();
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
             CameraHud.LoadBindingValue();
@@ -1668,6 +1680,14 @@ namespace Basis.BasisUI
             MicrophoneIconOffsetX.LoadBindingValue();
             MicrophoneIconOffsetY.LoadBindingValue();
 
+            // Photo metadata
+            PhotoMetadataTagging.LoadBindingValue();
+            PhotoEmbedCameraSettings.LoadBindingValue();
+            PhotoEmbedCaptureInfo.LoadBindingValue();
+            PhotoEmbedPhotographer.LoadBindingValue();
+            PhotoEmbedWorld.LoadBindingValue();
+            PhotoEmbedPersonDetails.LoadBindingValue();
+
             // Misc
             FalseBinding.LoadBindingValue();
             TrueBinding.LoadBindingValue();
@@ -1675,6 +1695,10 @@ namespace Basis.BasisUI
             LimitKnee.LoadBindingValue();
             DisableSeats.LoadBindingValue();
             DisablePropPickup.LoadBindingValue();
+            ForceGridSnap.LoadBindingValue();
+            GridSnapSize.LoadBindingValue();
+            ForceRotationSnap.LoadBindingValue();
+            RotationSnapDegrees.LoadBindingValue();
 
             // Global FBIK parameters
             FBIKMinCutoff.LoadBindingValue();
@@ -1859,6 +1883,8 @@ namespace Basis.BasisUI
             FBIKChestArmSwingMaxDeg.LoadBindingValue();
             FBIKLowerArmTwistFraction.LoadBindingValue();
             FBIKUpperArmTwistFraction.LoadBindingValue();
+            FBIKArmHeightRatioEnabled.LoadBindingValue();
+            FBIKArmHeightRatio.LoadBindingValue();
             FBIKAnatDifferentialStiffness.LoadBindingValue();
             FBIKAnatShoulderSlide.LoadBindingValue();
             FBIKAnatCervicalLordosis.LoadBindingValue();
@@ -1888,6 +1914,8 @@ namespace Basis.BasisUI
             VSpineSpineRotationSpeed.LoadBindingValue();
             VSpineHipsRotationSpeed.LoadBindingValue();
             VSpineHipsForwardBias.LoadBindingValue();
+            VSpineHipsCompressionStrength.LoadBindingValue();
+            VSpineHipsMaxDropMeters.LoadBindingValue();
             VSpineTorsoYawDeadzoneDeg.LoadBindingValue();
             VSpineTorsoYawBlendSpeed.LoadBindingValue();
             VSpineTorsoYawPlayInVR.LoadBindingValue();
@@ -1904,6 +1932,7 @@ namespace Basis.BasisUI
             PairingEmaAlpha.LoadBindingValue();
             PairingDistanceEmaAlpha.LoadBindingValue();
             PairingWeightSmoothing.LoadBindingValue();
+            PairingRotationHalfLife.LoadBindingValue();
             CalibrationTolerance.LoadBindingValue();
 
             // Remote Nameplate
