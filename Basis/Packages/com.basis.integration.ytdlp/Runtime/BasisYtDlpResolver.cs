@@ -75,8 +75,12 @@ namespace Basis.Integration.YtDlp
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                BasisDebug.LogError($"yt-dlp resolution failed for '{pageUrl}': {ex.Message}", BasisDebug.LogTag.Video);
-                onError?.Invoke(ex);
+                // Log the exception type, not ex.Message — yt-dlp/extractor messages embed the
+                // raw page URL (and its tokens), which would defeat the redaction above.
+                BasisDebug.LogError($"yt-dlp resolution failed for '{BasisMediaUrlRouter.Redact(pageUrl)}' ({ex.GetType().Name}).", BasisDebug.LogTag.Video);
+                // Only report if this resolve still owns the player — a newer LoadUrl since
+                // capture supersedes us, and its outcome must not be clobbered by our failure.
+                if (loadGen == player.LoadGeneration) onError?.Invoke(ex);
             }
         }
 
@@ -91,7 +95,7 @@ namespace Basis.Integration.YtDlp
             VideoInfo info = await YtDlpApi.ExtractAsync(pageUrl, opts: null, cancellationToken: cancellationToken);
             BasisMediaSource source = SelectSource(info);
             if (source == null || string.IsNullOrEmpty(source.Uri))
-                throw new YtDlpException($"yt-dlp returned no player-ingestible format for '{pageUrl}'.");
+                throw new YtDlpException($"yt-dlp returned no player-ingestible format for '{BasisMediaUrlRouter.Redact(pageUrl)}'.");
             return source;
         }
 
@@ -166,6 +170,7 @@ namespace Basis.Integration.YtDlp
                 case "is_live":
                 case "is_upcoming": return BasisMediaDelivery.Live;
                 case "was_live":
+                case "post_live":   // ended broadcast, VOD still processing — watched as a recording
                 case "not_live":    return BasisMediaDelivery.OnDemand;
                 default:            return BasisMediaDelivery.Auto;
             }

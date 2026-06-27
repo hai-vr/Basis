@@ -40,7 +40,10 @@ namespace Basis.Integration.YtDlp
 
         public bool TryResolve(BasisMediaPlayer player, string url)
         {
-            BasisYtDlpResolver.ResolveAndPlay(player, url);
+            // We claim ownership (return true), so LoadUrl stops here and relies on us to report
+            // failure. Route resolve errors back to the player so an unsupported/failed page URL
+            // surfaces a message instead of leaving it silently at NoMedia.
+            BasisYtDlpResolver.ResolveAndPlay(player, url, onError: player.ReportLoadError);
             return true;
         }
     }
