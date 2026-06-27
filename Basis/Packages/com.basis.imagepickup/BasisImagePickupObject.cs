@@ -84,7 +84,7 @@ namespace Basis.ImagePickup
 
             if (back.TryGetComponent(out MeshCollider backMeshCollider)) DestroyImmediate(backMeshCollider);
 
-            pickup._backMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            pickup._backMaterial = new Material(BundledContentHolder.Instance.UnlitUrpShader);
             if (pickup._backMaterial.HasProperty(BaseColorId)) pickup._backMaterial.SetColor(BaseColorId, Color.white);
             else pickup._backMaterial.color = Color.white;
             back.GetComponent<MeshRenderer>().sharedMaterial = pickup._backMaterial;
