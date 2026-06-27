@@ -70,23 +70,39 @@ namespace Basis.Scripts.Networking.Sync
             public BasisSyncedParameterType Type;
         }
 
-        private readonly Dictionary<string, Entry> _byName = new Dictionary<string, Entry>();
+        private readonly Dictionary<string, int> _idByName = new Dictionary<string, int>();
+        private readonly List<Entry> _entries = new List<Entry>();
+        private bool _mapBuilt;
 
         protected virtual void Awake()
         {
-            _byName.Clear();
+            BuildParameterMap();
+        }
+
+        /// <summary>
+        /// Resolves every declared parameter into a synced field. Runs once (from Awake); only call it manually
+        /// if you populated <see cref="Parameters"/> from code before the object goes network-ready. Resolve a
+        /// name to an id once with <see cref="GetParameterId"/>, then drive it by id to skip the name lookup.
+        /// </summary>
+        public void BuildParameterMap()
+        {
+            if (_mapBuilt) return;
+            _mapBuilt = true;
+            _idByName.Clear();
+            _entries.Clear();
             if (Parameters == null) return;
 
             for (int i = 0; i < Parameters.Count; i++)
             {
                 BasisSyncedParameter p = Parameters[i];
                 if (p == null || string.IsNullOrWhiteSpace(p.Name)) continue;
-                if (_byName.ContainsKey(p.Name))
+                if (_idByName.ContainsKey(p.Name))
                 {
                     BasisDebug.LogError($"BasisSyncedParameters on {name}: duplicate parameter '{p.Name}' ignored.");
                     continue;
                 }
-                _byName[p.Name] = new Entry { Handle = RegisterParameter(p), Type = p.Type };
+                _idByName[p.Name] = _entries.Count;
+                _entries.Add(new Entry { Handle = RegisterParameter(p), Type = p.Type });
             }
         }
 
@@ -102,7 +118,14 @@ namespace Basis.Scripts.Networking.Sync
         }
 
         // ── Named writes (owner) / reads (any client; remote-interpolated) ──
-        public bool Has(string name) => _byName.ContainsKey(name);
+        public bool Has(string name) => _idByName.ContainsKey(name);
+
+        /// <summary>
+        /// Resolves a parameter name to a stable id once (like Animator.StringToHash). Cache it and use the
+        /// id-based Set*/Get* overloads to drive the parameter without the per-call name lookup. Returns -1 if
+        /// the name isn't declared.
+        /// </summary>
+        public int GetParameterId(string name) => _idByName.TryGetValue(name, out int id) ? id : -1;
 
         public void SetFloat(string name, float value) { if (TryHandle(name, out var h)) LocalSet(h, value); }
         public float GetFloat(string name) => TryHandle(name, out var h) ? GetFloat(h) : 0f;
@@ -140,9 +163,53 @@ namespace Basis.Scripts.Networking.Sync
         public void SetByte(string name, byte value) { if (TryHandle(name, out var h)) LocalSet(h, value); }
         public byte GetByte(string name) => TryHandle(name, out var h) ? GetByte(h) : (byte)0;
 
+        // ── Id-based writes / reads — resolve the id once with GetParameterId, then no per-call name lookup ──
+        public void SetFloat(int id, float value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public float GetFloat(int id) => TryHandle(id, out var h) ? GetFloat(h) : 0f;
+
+        public void SetAngle(int id, float degrees) { if (TryHandle(id, out var h)) LocalSet(h, degrees); }
+        public float GetAngle(int id) => GetFloat(id);
+
+        public void SetVector2(int id, Vector2 value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public Vector2 GetVector2(int id) => TryHandle(id, out var h) ? GetVector2(h) : Vector2.zero;
+
+        public void SetVector3(int id, Vector3 value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public Vector3 GetVector3(int id) => TryHandle(id, out var h) ? GetVector3(h) : Vector3.zero;
+
+        public void SetVector4(int id, Vector4 value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public Vector4 GetVector4(int id) => TryHandle(id, out var h) ? GetVector4(h) : Vector4.zero;
+
+        public void SetColor(int id, Color value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public Color GetColor(int id) => TryHandle(id, out var h) ? GetColor(h) : Color.clear;
+
+        public void SetRotation(int id, Quaternion value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public Quaternion GetRotation(int id) => TryHandle(id, out var h) ? GetQuaternion(h) : Quaternion.identity;
+
+        public void SetInt(int id, int value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public int GetInt(int id) => TryHandle(id, out var h) ? GetInt(h) : 0;
+
+        public void SetUInt(int id, uint value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public uint GetUInt(int id) => TryHandle(id, out var h) ? GetUInt(h) : 0u;
+
+        public void SetUShort(int id, ushort value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public ushort GetUShort(int id) => TryHandle(id, out var h) ? GetUShort(h) : (ushort)0;
+
+        public void SetBool(int id, bool value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public bool GetBool(int id) => TryHandle(id, out var h) && GetBool(h);
+
+        public void SetByte(int id, byte value) { if (TryHandle(id, out var h)) LocalSet(h, value); }
+        public byte GetByte(int id) => TryHandle(id, out var h) ? GetByte(h) : (byte)0;
+
         private bool TryHandle(string name, out BasisSyncHandle handle)
         {
-            if (_byName.TryGetValue(name, out Entry e)) { handle = e.Handle; return true; }
+            if (_idByName.TryGetValue(name, out int id)) { handle = _entries[id].Handle; return true; }
+            handle = BasisSyncHandle.Invalid;
+            return false;
+        }
+
+        private bool TryHandle(int id, out BasisSyncHandle handle)
+        {
+            if ((uint)id < (uint)_entries.Count) { handle = _entries[id].Handle; return true; }
             handle = BasisSyncHandle.Invalid;
             return false;
         }

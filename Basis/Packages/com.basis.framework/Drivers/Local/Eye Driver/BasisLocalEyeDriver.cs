@@ -7,6 +7,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -89,6 +90,23 @@ public class BasisLocalEyeDriver
     private static bool _prevHasGazeTarget;
     private static bool _gazeTargetChanged;
 
+    private static float3 _winnerEyePos;
+    private static quaternion _winnerEyeRot;
+    private static float3 _winnerMouthPos;
+
+    const float SelectIntervalSeconds = 1f / 20f;
+    private static float _selectAccumulator;
+
+    private static readonly ProfilerMarker s_gazeGatherMarker = new ProfilerMarker("BasisEye.GazeGather");
+    private static readonly ProfilerMarker s_gazeFramesMarker = new ProfilerMarker("BasisEye.GazeFrames");
+    private static readonly ProfilerMarker s_gazeRunMarker = new ProfilerMarker("BasisEye.GazeRun");
+
+#if UNITY_EDITOR
+    private static int _dbgAvatarsInRange;
+    private static float _dbgBestScore;
+    private static float _dbgBestDist;
+#endif
+
     // ─── Job-side scratch for SelectGazeTarget ───
     // Inputs are filled per-frame on the main thread (managed reads of
     // FaceIsVisible / transform.position can't run in Burst). The Burst job
@@ -165,6 +183,8 @@ public class BasisLocalEyeDriver
         _gazeTargetChanged = false;
         _prevHeadRot = BasisLocalCameraDriver.HeadRotation;
         _headDeltaYP = float2.zero;
+        _winnerEyeRot = quaternion.identity;
+        _selectAccumulator = SelectIntervalSeconds;
 
         IsEnabled = true;
     }
@@ -268,7 +288,7 @@ public class BasisLocalEyeDriver
             RecomputePersonality();
         }
 
-        SelectGazeTarget();
+        SelectGazeTarget(dt);
 
         BasisEyeJob computeJob = new BasisEyeJob
         {
@@ -334,20 +354,12 @@ public class BasisLocalEyeDriver
     #region Target Selection
 
     /// <summary>
-    /// Score nearby avatar players and registered BasisGazeTarget objects, pick best target.
-    /// Computes social triangle focus points (left eye, right eye, mouth) for the winner.
-    ///
-    /// Three phases:
-    ///   1) Main thread builds NativeArray inputs (managed reads of FaceIsVisible /
-    ///      transform.position / sticky managed-ref equality have to happen here).
-    ///   2) <see cref="BasisGazeSelectionJob"/> scores everything in Burst.
-    ///   3) Main thread reads the result, fetches the winning managed BasisGazeTarget
-    ///      reference if applicable, and computes the social triangle yaw/pitch.
+    /// Per-frame gaze tick: VOR head-delta and winner reprojection run every frame; the
+    /// candidate scan + Burst scoring only run at <see cref="SelectIntervalSeconds"/> cadence.
     /// </summary>
-    private static unsafe void SelectGazeTarget()
+    private static void SelectGazeTarget(float dt)
     {
         float3 localHeadPos = BasisLocalCameraDriver.HeadPosition;
-        float3 localHeadFwd = BasisLocalCameraDriver.HeadForward();
         quaternion localHeadRot = BasisLocalCameraDriver.HeadRotation;
         quaternion invLocalHeadRot = math.inverse(localHeadRot);
 
@@ -360,6 +372,98 @@ public class BasisLocalEyeDriver
             math.asin(math.clamp(fwd.y, -1f, 1f))
         );
         _prevHeadRot = localHeadRot;
+
+        _selectAccumulator += dt;
+        if (_selectAccumulator >= SelectIntervalSeconds)
+        {
+            _selectAccumulator = 0f;
+            RescoreGazeTarget(localHeadPos, BasisLocalCameraDriver.HeadForward());
+        }
+
+        ReprojectGaze(localHeadPos, invLocalHeadRot);
+
+        // !ReferenceEquals avoids op_Inequality on the BasisGazeTarget refs.
+        // Identity is what we want — "did the picked target object change?" —
+        // and Unity's "destroyed-treated-as-null" semantic isn't relevant here
+        // because both sides are cleared/rewritten by this same path.
+        _gazeTargetChanged = (_hasGazeTarget && !_prevHasGazeTarget)
+            || (_currentTargetId != _prevTargetId)
+            || !ReferenceEquals(_currentGazeTarget, _prevGazeTarget);
+
+        _prevTargetId = _currentTargetId;
+        _prevGazeTarget = _currentGazeTarget;
+        _prevHasGazeTarget = _hasGazeTarget;
+
+#if UNITY_EDITOR
+        DebugSnapshot = new BasisEyeDriverDebugSnapshot
+        {
+            currentTargetId = _currentTargetId,
+            currentGazeTarget = _currentGazeTarget,
+            hasGazeTarget = _hasGazeTarget,
+            gazeTargetChanged = _gazeTargetChanged,
+            gazeMouthScale = _gazeMouthScale,
+            personality = _personality,
+            avatarsInRange = _dbgAvatarsInRange,
+            bestScore = _dbgBestScore,
+            bestDist = _dbgBestDist,
+            gazeLeftEye = _gazeLeftEye,
+            gazeRightEye = _gazeRightEye,
+            gazeMouth = _gazeMouth,
+        };
+#endif
+    }
+
+    /// <summary>
+    /// Reprojects the cached winner's world focus points into head-relative yaw/pitch using
+    /// the current head pose, keeping gaze VOR-correct on frames that skip re-scoring.
+    /// </summary>
+    private static void ReprojectGaze(float3 localHeadPos, quaternion invLocalHeadRot)
+    {
+        if (_currentTargetId >= 0)
+        {
+            float3 eyeCenter = _winnerEyePos;
+            quaternion eyeRot = _winnerEyeRot;
+            // vvv half avg adult IPD (~63mm) to approx eye pos that *feels* right vvv
+            float3 leftEye = eyeCenter + math.mul(eyeRot, new float3(-0.0315f, 0f, 0f));
+            float3 rightEye = eyeCenter + math.mul(eyeRot, new float3(0.0315f, 0f, 0f));
+
+            _gazeLeftEye = WorldPointToCanonicalYawPitch(leftEye, localHeadPos, invLocalHeadRot);
+            _gazeRightEye = WorldPointToCanonicalYawPitch(rightEye, localHeadPos, invLocalHeadRot);
+            _gazeMouth = WorldPointToCanonicalYawPitch(_winnerMouthPos, localHeadPos, invLocalHeadRot);
+            float dist = math.distance(eyeCenter, localHeadPos);
+            _gazeMouthScale = math.saturate((dist - MouthWeightNearDist) / (MouthWeightFullDist - MouthWeightNearDist));
+            _hasGazeTarget = true;
+        }
+        else if ((object)_currentGazeTarget != null)
+        {
+            float3 focus = _currentGazeTarget.GetWorldFocusPoint();
+            float2 yp = WorldPointToCanonicalYawPitch(focus, localHeadPos, invLocalHeadRot);
+            _gazeLeftEye = yp;
+            _gazeRightEye = yp;
+            _gazeMouth = yp;
+            float dist = math.distance(focus, localHeadPos);
+            _gazeMouthScale = math.saturate((dist - MouthWeightNearDist) / (MouthWeightFullDist - MouthWeightNearDist));
+            _hasGazeTarget = true;
+        }
+        else
+        {
+            _gazeMouthScale = 0f;
+            _hasGazeTarget = false;
+        }
+    }
+
+    /// <summary>
+    /// Scores nearby avatar players and registered BasisGazeTarget objects and caches the
+    /// winning target's identity + world focus points. Runs at a fixed cadence, not per frame.
+    ///
+    /// Two phases:
+    ///   1) Main thread builds NativeArray inputs (managed reads of FaceIsVisible /
+    ///      transform.position / sticky managed-ref equality have to happen here).
+    ///   2) <see cref="BasisGazeSelectionJob"/> scores everything in Burst.
+    /// </summary>
+    private static unsafe void RescoreGazeTarget(float3 localHeadPos, float3 localHeadFwd)
+    {
+        s_gazeGatherMarker.Begin();
 
         // ── Phase 1: main-thread input prep ─────────────────────────────────
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
@@ -427,6 +531,7 @@ public class BasisLocalEyeDriver
             _jobTargetManagedRefs[targetSlots] = target;
             targetSlots++;
         }
+        s_gazeGatherMarker.End();
 
         // ── Phase 2: run the Burst job inline (.Run, not Schedule().Complete) ─
         GazeJobResult r;
@@ -439,7 +544,9 @@ public class BasisLocalEyeDriver
             // Fall back to a 1-element placeholder when sOut hasn't initialized yet,
             // so the job's safety validation passes. playerSlots will be 0 in that
             // state because TryGetSOutIndex returned false for every receiver.
+            s_gazeFramesMarker.Begin();
             var remoteFrames = RemoteBoneJobSystem.GetRemoteFrameArray();
+            s_gazeFramesMarker.End();
             if (!remoteFrames.IsCreated) remoteFrames = _jobFramesPlaceholder;
 
             var job = new BasisGazeSelectionJob
@@ -457,91 +564,44 @@ public class BasisLocalEyeDriver
                 targetIsCurrent = _jobTargetIsCurrent,
                 result = _jobResult,
             };
+            s_gazeRunMarker.Begin();
             job.Run();
+            s_gazeRunMarker.End();
 
             r = _jobResult[0];
         }
 
-        // ── Phase 3: post-pass — managed bookkeeping + social triangle math ──
+        // ── Phase 3: cache winner identity + world focus points ──
         BasisGazeTarget bestGazeTarget = (r.bestTargetIdx >= 0)
             ? _jobTargetManagedRefs[r.bestTargetIdx]
             : null;
-        int avatarsInRange = r.avatarsInRange;
-        float bestScore = r.bestScore;
-        float bestDist = r.bestDist;
 
-        // Compute social triangle focus points
         if (r.bestPlayerId >= 0)
         {
-            // Avatar target: left eye, right eye, mouth
-            float3 eyeCenter = r.bestEyePos;
-            quaternion eyeRot = r.bestEyeRot;
-            // vvv half avg adult IPD (~63mm) to approx eye pos that *feels* right vvv
-            float3 leftEye = eyeCenter + math.mul(eyeRot, new float3(-0.0315f, 0f, 0f));
-            float3 rightEye = eyeCenter + math.mul(eyeRot, new float3(0.0315f, 0f, 0f));
-            float3 mouth = r.bestMouthPos;
-
-            _gazeLeftEye = WorldPointToCanonicalYawPitch(leftEye, localHeadPos, invLocalHeadRot);
-            _gazeRightEye = WorldPointToCanonicalYawPitch(rightEye, localHeadPos, invLocalHeadRot);
-            _gazeMouth = WorldPointToCanonicalYawPitch(mouth, localHeadPos, invLocalHeadRot);
-            _gazeMouthScale = math.saturate((bestDist - MouthWeightNearDist) / (MouthWeightFullDist - MouthWeightNearDist));
-            _hasGazeTarget = true;
+            _winnerEyePos = r.bestEyePos;
+            _winnerEyeRot = r.bestEyeRot;
+            _winnerMouthPos = r.bestMouthPos;
             _currentTargetId = r.bestPlayerId;
             _currentGazeTarget = null;
         }
         // (object) cast bypasses UnityEngine.Object.op_Inequality. bestGazeTarget
         // was just pulled from _jobTargetManagedRefs (populated this same call), so
-        // a destroyed-but-not-collected ref isn't a concern within one synchronous
-        // SelectGazeTarget call.
+        // a destroyed-but-not-collected ref isn't a concern within one synchronous call.
         else if ((object)bestGazeTarget != null)
         {
-            // Non-avatar target: all three points converge on the same focus point
-            float3 focus = bestGazeTarget.GetWorldFocusPoint();
-            float2 yp = WorldPointToCanonicalYawPitch(focus, localHeadPos, invLocalHeadRot);
-            _gazeLeftEye = yp;
-            _gazeRightEye = yp;
-            _gazeMouth = yp;
-            _gazeMouthScale = math.saturate((bestDist - MouthWeightNearDist) / (MouthWeightFullDist - MouthWeightNearDist));
-            _hasGazeTarget = true;
             _currentTargetId = -1;
             _currentGazeTarget = bestGazeTarget;
         }
         else
         {
-            _gazeMouthScale = 0f;
-            _hasGazeTarget = false;
             _currentTargetId = -1;
             _currentGazeTarget = null;
         }
 
-        // !ReferenceEquals avoids op_Inequality on the BasisGazeTarget refs.
-        // Identity is what we want — "did the picked target object change?" —
-        // and Unity's "destroyed-treated-as-null" semantic isn't relevant here
-        // because both sides are cleared/rewritten by this same method.
-        _gazeTargetChanged = (_hasGazeTarget && !_prevHasGazeTarget)
-            || (_currentTargetId != _prevTargetId)
-            || !ReferenceEquals(_currentGazeTarget, _prevGazeTarget);
-
-        _prevTargetId = _currentTargetId;
-        _prevGazeTarget = _currentGazeTarget;
-        _prevHasGazeTarget = _hasGazeTarget;
-
 #if UNITY_EDITOR
-        DebugSnapshot = new BasisEyeDriverDebugSnapshot
-        {
-            currentTargetId = _currentTargetId,
-            currentGazeTarget = _currentGazeTarget,
-            hasGazeTarget = _hasGazeTarget,
-            gazeTargetChanged = _gazeTargetChanged,
-            gazeMouthScale = _gazeMouthScale,
-            personality = _personality,
-            avatarsInRange = avatarsInRange,
-            bestScore = bestScore,
-            bestDist = bestDist,
-            gazeLeftEye = _gazeLeftEye,
-            gazeRightEye = _gazeRightEye,
-            gazeMouth = _gazeMouth,
-        };
+        _dbgAvatarsInRange = r.avatarsInRange;
+        _dbgBestScore = r.bestScore;
+        _dbgBestDist = r.bestDist;
 #endif
     }
 

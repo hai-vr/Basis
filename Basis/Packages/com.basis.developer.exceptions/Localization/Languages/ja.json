@@ -1,0 +1,26 @@
+{
+  "code": "ja",
+  "nativeName": "日本語",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} で例外が発生しました"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "詳細をコピー"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "閉じる"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Basis システム"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "「詳細をコピー」で完全なスタックトレースをコピーできます。"
+    }
+  ]
+}

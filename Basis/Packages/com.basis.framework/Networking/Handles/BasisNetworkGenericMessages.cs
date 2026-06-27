@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Sync;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Generic;
@@ -104,6 +105,26 @@ public static class BasisNetworkGenericMessages
         }
         deferred.Add(new DeferredMessage(playerID, messageIndex, payload, deliveryMethod));
         return false;
+    }
+
+    // ── Optional batched scene data (see BasisSyncBatchCollector). One packet under the reserved index carries
+    //    many objects' payloads; demux to each object's normal handler. Registered only while batching is on. ──
+    public static void RegisterBatchHandler() => RegisterHandler(BasisSyncBatchCollector.BatchMessageIndex, HandleBatch);
+    public static void UnregisterBatchHandler() => UnregisterHandler(BasisSyncBatchCollector.BatchMessageIndex);
+
+    private static void HandleBatch(ushort playerID, byte[] payload, DeliveryMethod deliveryMethod)
+    {
+        if (payload == null) return;
+        var reader = new BasisSyncBatchReader(payload, payload.Length);
+        while (reader.TryRead(out ushort id, out int offset, out int length))
+        {
+            if (_handlers.TryGetValue(id, out var handler))
+            {
+                byte[] sub = new byte[length];
+                System.Array.Copy(payload, offset, sub, 0, length);
+                handler.Invoke(playerID, sub, deliveryMethod);
+            }
+        }
     }
 
     private static void TryDeliverDeferredMessages()

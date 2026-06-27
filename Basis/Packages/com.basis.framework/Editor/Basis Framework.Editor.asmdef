@@ -5,7 +5,8 @@
         "Basis Framework",
         "BasisEditor",
         "BasisSDK",
-        "Unity.Mathematics"
+        "Unity.Mathematics",
+        "Unity.Collections"
     ],
     "includePlatforms": [
         "Editor"

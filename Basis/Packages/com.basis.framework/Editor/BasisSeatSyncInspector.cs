@@ -19,7 +19,8 @@ public class BasisSeatSyncInspector : BasisDocInspector_UI
         root.Add(BasisSyncInspectorUI.ValidationContainer(ValidateSeat));
 
         VisualElement seat = BasisSyncInspectorUI.Card("Seat");
-        seat.Add(new PropertyField(serializedObject.FindProperty("Seat")));
+        seat.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("Seat")),
+            "The BasisSeat whose occupancy is synced. Auto-found on this GameObject if left empty."));
         root.Add(seat);
 
         root.Bind(serializedObject);

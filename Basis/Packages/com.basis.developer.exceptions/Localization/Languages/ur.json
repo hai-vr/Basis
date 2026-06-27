@@ -1,0 +1,26 @@
+{
+  "code": "ur",
+  "nativeName": "اردو",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} کو ایک exception پیش آیا"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "تفصیلات کاپی کریں"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "برخاست کریں"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "ایک Basis سسٹم"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "مکمل stack trace کاپی کرنے کے لیے تفصیلات کاپی کریں استعمال کریں۔"
+    }
+  ]
+}

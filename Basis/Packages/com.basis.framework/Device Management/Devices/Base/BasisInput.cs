@@ -163,6 +163,21 @@ namespace Basis.Scripts.Device_Management.Devices
         public static BasisBoneTrackedRole[] CanHaveMultipleRoles = new BasisBoneTrackedRole[] { BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.RightHand };
 
         /// <summary>
+        /// True if the given role may be held by multiple devices at once (the hands).
+        /// </summary>
+        public static bool RoleCanHaveMultiple(BasisBoneTrackedRole role)
+        {
+            for (int Index = 0; Index < CanHaveMultipleRoles.Length; Index++)
+            {
+                if (CanHaveMultipleRoles[Index] == role)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Addressables key for the default fallback visual.
         /// </summary>
         public static string FallbackDeviceID = "FallbackSphere";
@@ -301,7 +316,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 {
                     if (found == Role)
                     {
-                        if (CanHaveMultipleRoles.Contains(found) == false)
+                        if (RoleCanHaveMultiple(found) == false)
                         {
                             BasisDebug.LogError($"Already Found tracker for  {Role}", BasisDebug.LogTag.Input);
                             hasRoleAssigned = false;
@@ -609,7 +624,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 // Roles that may have multiple holders (the hands) dispatch once per frame on the
                 // combined state of all holders, so a duplicate or coexisting device can't double-fire
                 // edge actions (menu toggle, mic, jump). Every other role keeps the direct fast path.
-                if (CanHaveMultipleRoles.Contains(trackedRole))
+                if (RoleCanHaveMultiple(trackedRole))
                 {
                     BasisActionDriver.UpdatePlayerControlForRole(trackedRole);
                 }

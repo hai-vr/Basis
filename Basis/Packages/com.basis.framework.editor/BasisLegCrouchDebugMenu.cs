@@ -11,7 +11,7 @@ namespace Basis.IK.Debugging
     /// </summary>
     public static class BasisLegCrouchDebugMenu
     {
-        [MenuItem("Basis/IK Tests/Leg Crouch Debug - Start (record)")]
+        [MenuItem("Basis/Debug/IK/Leg Crouch Debug - Start (record)")]
         static void StartRec()
         {
             if (!Application.isPlaying) { Debug.LogWarning("[LegCrouchDebug] enter Play mode first."); return; }
@@ -19,13 +19,13 @@ namespace Basis.IK.Debugging
             Debug.Log("[LegCrouchDebug] recording -- crouch up/down (try feet behind you), then 'Stop + Dump CSV'.");
         }
 
-        [MenuItem("Basis/IK Tests/Leg Crouch Debug - Stop + Dump CSV")]
+        [MenuItem("Basis/Debug/IK/Leg Crouch Debug - Stop + Dump CSV")]
         static void StopRec() => BasisLegCrouchDebug.StopAndDump();
 
-        [MenuItem("Basis/IK Tests/Leg Crouch Debug - Start (record)", true)]
+        [MenuItem("Basis/Debug/IK/Leg Crouch Debug - Start (record)", true)]
         static bool V1() => !BasisLegCrouchDebug.Enabled;
 
-        [MenuItem("Basis/IK Tests/Leg Crouch Debug - Stop + Dump CSV", true)]
+        [MenuItem("Basis/Debug/IK/Leg Crouch Debug - Stop + Dump CSV", true)]
         static bool V2() => BasisLegCrouchDebug.Enabled;
     }
 }

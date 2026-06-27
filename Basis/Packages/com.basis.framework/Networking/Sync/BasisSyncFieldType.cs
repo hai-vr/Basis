@@ -79,6 +79,7 @@ namespace Basis.Scripts.Networking.Sync
         public int ContComponents;
         public bool Interpolate;
         public bool Quantize;
+        public int RotBits;
     }
 
     public readonly struct BasisSyncHandle
@@ -130,7 +131,11 @@ namespace Basis.Scripts.Networking.Sync
         public int AddField(BasisSyncFieldType type, bool interpolate, BasisQuantSpec[] componentSpecs)
             => AddFieldCore(type, interpolate, componentSpecs);
 
-        private int AddFieldCore(BasisSyncFieldType type, bool interpolate, BasisQuantSpec[] specs)
+        /// <summary>Declare a smallest-three rotation field with a magnitude-bit budget per component (9 = a 32-bit packet).</summary>
+        public int AddRotation(bool interpolate, int magnitudeBits)
+            => AddFieldCore(BasisSyncFieldType.Rotation, interpolate, null, magnitudeBits);
+
+        private int AddFieldCore(BasisSyncFieldType type, bool interpolate, BasisQuantSpec[] specs, int rotBits = 9)
         {
             if (Locked)
                 throw new InvalidOperationException("BasisSyncSchema is locked. Declare synced fields before the object is network-ready (in Awake).");
@@ -172,6 +177,7 @@ namespace Basis.Scripts.Networking.Sync
                     f.Pool = BasisSyncPool.Rotation;
                     f.Offset = RotCount;
                     RotCount += 1;
+                    f.RotBits = math.clamp(rotBits, 2, 18);
                     break;
                 case BasisSyncFieldType.Int:
                 case BasisSyncFieldType.UShort:

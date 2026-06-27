@@ -1,0 +1,26 @@
+{
+  "code": "nl",
+  "nativeName": "Nederlands",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} kreeg een uitzondering"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "Details Kopiëren"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "Sluiten"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "Een Basis-systeem"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "Gebruik Details Kopiëren om de volledige stack trace te kopiëren."
+    }
+  ]
+}

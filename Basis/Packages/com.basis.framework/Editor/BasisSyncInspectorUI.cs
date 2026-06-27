@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Basis.Scripts.Networking.Sync;
 
 /// <summary>One validation message for a synced-component inspector.</summary>
 public struct BasisSyncIssue
@@ -14,6 +15,26 @@ public struct BasisSyncIssue
     public BasisSyncIssue(bool isError, string message) { IsError = isError; Message = message; }
     public static BasisSyncIssue Error(string message) => new BasisSyncIssue(true, message);
     public static BasisSyncIssue Warning(string message) => new BasisSyncIssue(false, message);
+}
+
+/// <summary>One labelled section in a Wire Size readout (e.g. Position, Rotation).</summary>
+public struct BasisWireSection
+{
+    public string Name;
+    public int Bits;
+    public int Fields;
+    public string Detail;
+}
+
+/// <summary>Filled by a component inspector each refresh to drive <see cref="BasisSyncInspectorUI.WireSizeCard"/>.</summary>
+public sealed class BasisWireSizeModel
+{
+    public readonly List<BasisWireSection> Sections = new List<BasisWireSection>();
+    public bool Checksum;
+    public float SendIntervalSeconds = 0.05f;
+    public float KeyframeIntervalSeconds = 0.5f;
+    public void Add(string name, int bits, int fields, string detail)
+        => Sections.Add(new BasisWireSection { Name = name, Bits = bits, Fields = fields, Detail = detail });
 }
 
 /// <summary>Shared Basis-styled building blocks for the synced-object / synced-transform inspectors.</summary>
@@ -55,26 +76,43 @@ public static class BasisSyncInspectorUI
         return box;
     }
 
-    public static VisualElement Card(string title)
-    {
-        var box = new VisualElement();
-        box.style.marginBottom = 8;
-        box.style.paddingTop = 6;
-        box.style.paddingBottom = 8;
-        box.style.paddingLeft = 8;
-        box.style.paddingRight = 8;
-        box.style.backgroundColor = new StyleColor(CardBg);
-        box.style.borderBottomWidth = 2;
-        box.style.borderBottomColor = new StyleColor(Accent);
-        Round(box, 5);
+    public static VisualElement Card(string title) => Card(title, true);
 
-        var titleLabel = new Label(title);
-        titleLabel.style.fontSize = 12;
-        titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-        titleLabel.style.color = new StyleColor(Accent);
-        titleLabel.style.marginBottom = 4;
-        box.Add(titleLabel);
-        return box;
+    /// <summary>
+    /// A titled section that collapses to a single header bar (like the per-axis Compression dropdown), so a
+    /// new user isn't faced with every field at once. Children added to it land in the collapsible body.
+    /// Pass <paramref name="expanded"/> = false to start collapsed (advanced / verbose sections).
+    /// </summary>
+    public static VisualElement Card(string title, bool expanded)
+    {
+        var foldout = new Foldout { text = title, value = expanded };
+        foldout.style.marginBottom = 8;
+        foldout.style.paddingTop = 6;
+        foldout.style.paddingBottom = 8;
+        foldout.style.paddingLeft = 8;
+        foldout.style.paddingRight = 8;
+        foldout.style.backgroundColor = new StyleColor(CardBg);
+        foldout.style.borderBottomWidth = 2;
+        foldout.style.borderBottomColor = new StyleColor(Accent);
+        Round(foldout, 5);
+
+        Label titleLabel = foldout.Q<Label>();
+        if (titleLabel != null)
+        {
+            titleLabel.style.fontSize = 12;
+            titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            titleLabel.style.color = new StyleColor(Accent);
+        }
+
+        // Foldout indents its content by default; pull it back flush with the card padding and add a little
+        // breathing room under the header, so a collapsible card reads the same as the old static one.
+        VisualElement content = foldout.contentContainer;
+        if (content != null)
+        {
+            content.style.marginLeft = 0;
+            content.style.marginTop = 4;
+        }
+        return foldout;
     }
 
     /// <summary>Collapsible, live-updating view of every network metadata field on the component (play mode only).</summary>
@@ -126,18 +164,24 @@ public static class BasisSyncInspectorUI
 
     public static VisualElement NetworkingCard(SerializedObject so)
     {
-        VisualElement card = Card("Networking");
+        VisualElement card = Card("Networking", false);
         card.Add(RateSlider(so));
         card.Add(KeyframeSlider(so));
-        card.Add(new PropertyField(so.FindProperty("Delivery"), "Delta Delivery"));
-        card.Add(new PropertyField(so.FindProperty("KeyframeDelivery")));
-        card.Add(new PropertyField(so.FindProperty("UseChecksum"), "Integrity Checksum"));
+        card.Add(Described(new PropertyField(so.FindProperty("Delivery"), "Delta Delivery"),
+            "Channel for the frequent delta packets. Unreliable is normal — dropped deltas are corrected by the next keyframe."));
+        card.Add(Described(new PropertyField(so.FindProperty("KeyframeDelivery")),
+            "Channel for the periodic full keyframe. Reliable Ordered guarantees the resync arrives."));
+        card.Add(Described(new PropertyField(so.FindProperty("UseChecksum"), "Integrity Checksum"),
+            "Append a checksum so corrupted packets are dropped instead of applied. Costs a few bytes per send."));
 
-        var p2p = new Toggle("Use Direct P2P If Able") { bindingPath = "UseDirectP2P" };
-        var forceP2P = new PropertyField(so.FindProperty("ForceP2POnly"), "Force P2P Only (No Server Fallback)");
-        var overrideP2P = new Toggle("Override P2P Rate") { bindingPath = "OverrideP2PRate" };
+        var p2p = new Toggle("Use Direct P2P If Able") { bindingPath = "UseDirectP2P", tooltip = "Send straight to peers over the direct peer-to-peer link when one exists, falling back to the server relay otherwise. Lower latency." };
+        var forceP2P = Described(new PropertyField(so.FindProperty("ForceP2POnly"), "Force P2P Only (No Server Fallback)"),
+            "Only deliver over direct P2P links — never use the server relay. Peers with no direct connection won't receive updates.");
+        var overrideP2P = new Toggle("Override P2P Rate") { bindingPath = "OverrideP2PRate", tooltip = "Use a separate (usually faster) send and keyframe rate while a direct P2P session is active." };
         var p2pRate = RateSlider(so, "P2PSendIntervalSeconds", "P2P Send Rate (Hz)", 120f);
+        p2pRate.tooltip = "Delta send rate used while a direct P2P session is active (only when Override P2P Rate is on).";
         var p2pKey = KeyframeSlider(so, "P2PKeyframeIntervalSeconds", "P2P Keyframe Interval (s)");
+        p2pKey.tooltip = "Keyframe interval used while a direct P2P session is active (only when Override P2P Rate is on).";
 
         bool useP2P0 = so.FindProperty("UseDirectP2P").boolValue;
         bool ovr0 = so.FindProperty("OverrideP2PRate").boolValue;
@@ -165,21 +209,140 @@ public static class BasisSyncInspectorUI
         card.Add(p2pRate);
         card.Add(p2pKey);
 
-        card.Add(new PropertyField(so.FindProperty("ContinuousEpsilon")));
-        card.Add(new PropertyField(so.FindProperty("DistanceReduction")));
-        card.Add(new PropertyField(so.FindProperty("RelevanceCulling")));
-        card.Add(new PropertyField(so.FindProperty("RelevanceRadius")));
+        card.Add(Described(new PropertyField(so.FindProperty("ContinuousEpsilon"), "Position/Scale Dead-band"),
+            "Smallest position/scale change that is worth re-sending. Larger = fewer packets but coarser motion."));
+        card.Add(Described(new PropertyField(so.FindProperty("RotationSendThresholdDegrees"), "Rotation Dead-band (°)"),
+            "Smallest rotation change (degrees) worth re-sending. Larger = fewer packets but coarser turning."));
+        card.Add(Described(new PropertyField(so.FindProperty("DistanceReduction")),
+            "Automatically slow the send rate to far-away viewers to save bandwidth (uses the server's distance multipliers)."));
+        card.Add(Described(new PropertyField(so.FindProperty("RelevanceCulling")),
+            "Stop sending entirely to viewers outside the relevance radius."));
+        card.Add(Described(new PropertyField(so.FindProperty("RelevanceRadius")),
+            "Radius (meters) within which viewers still receive updates when Relevance Culling is on."));
         return card;
     }
 
     public static VisualElement SmoothingCard(SerializedObject so)
     {
-        VisualElement card = Card("Smoothing");
-        card.Add(new PropertyField(so.FindProperty("Extrapolate")));
-        card.Add(new PropertyField(so.FindProperty("MaxExtrapolationSeconds")));
-        card.Add(new PropertyField(so.FindProperty("UseTeleportThreshold")));
-        card.Add(new PropertyField(so.FindProperty("TeleportThreshold")));
+        VisualElement card = Card("Smoothing", false);
+        card.Add(Described(new PropertyField(so.FindProperty("Extrapolate")),
+            "When updates arrive late, keep predicting motion past the last frame instead of freezing. Hides brief hitches but can overshoot on sudden stops."));
+        card.Add(Described(new PropertyField(so.FindProperty("MaxExtrapolationSeconds")),
+            "Maximum time to keep predicting ahead while extrapolating before holding the last pose."));
+        card.Add(Described(new PropertyField(so.FindProperty("UseTeleportThreshold")),
+            "Snap instead of interpolating when position jumps more than the threshold, so teleports don't slide across the world."));
+        card.Add(Described(new PropertyField(so.FindProperty("TeleportThreshold")),
+            "Distance (meters) a single update must jump to be treated as a teleport (snap, no interpolation)."));
         return card;
+    }
+
+    /// <summary>Sets a hover description on a control and returns it, for inline use in Add(...).</summary>
+    public static T Described<T>(T element, string tooltip) where T : VisualElement
+    {
+        element.tooltip = tooltip;
+        return element;
+    }
+
+    /// <summary>Live wire-size readout. The component supplies its section breakdown via <paramref name="compute"/> each refresh.</summary>
+    public static VisualElement WireSizeCard(Action<BasisWireSizeModel> compute)
+    {
+        VisualElement card = Card("Wire Size", false);
+
+        var note = new Label("Bytes per send for the current settings. Per-axis payloads are bit-packed into one contiguous stream, so only the totals round up to whole bytes.");
+        note.style.whiteSpace = WhiteSpace.Normal;
+        note.style.fontSize = 10;
+        note.style.opacity = 0.8f;
+        note.style.marginBottom = 4;
+        card.Add(note);
+
+        var sectionsBox = new VisualElement();
+        card.Add(sectionsBox);
+
+        var divider = new VisualElement();
+        divider.style.height = 1;
+        divider.style.backgroundColor = new StyleColor(new Color(1f, 1f, 1f, 0.15f));
+        divider.style.marginTop = 4;
+        divider.style.marginBottom = 4;
+        card.Add(divider);
+
+        Label overhead = WireRow(card, "Overhead", false);
+        Label keyframe = WireRow(card, "Keyframe total", true);
+        Label delta = WireRow(card, "Delta total (all fields)", true);
+        Label bandwidth = WireRow(card, "Bandwidth", true);
+
+        var model = new BasisWireSizeModel();
+
+        void Refresh()
+        {
+            model.Sections.Clear();
+            model.Checksum = false;
+            model.SendIntervalSeconds = 0.05f;
+            model.KeyframeIntervalSeconds = 0.5f;
+            compute(model);
+
+            sectionsBox.Clear();
+            int fields = 0, payloadBits = 0;
+            for (int i = 0; i < model.Sections.Count; i++)
+            {
+                BasisWireSection sec = model.Sections[i];
+                fields += sec.Fields;
+                payloadBits += sec.Bits;
+                Label v = WireRow(sectionsBox, sec.Name, false);
+                v.text = sec.Fields == 0 ? "off" : $"{sec.Bits} b  •  {(sec.Bits / 8f):0.##} B   ({sec.Detail})";
+            }
+
+            BasisSyncCodec.WireBytes(payloadBits, fields, model.Checksum, out int payloadBytes, out int maskBytes, out int keyframeBytes, out int deltaBytes);
+            int checksum = model.Checksum ? BasisSyncCodec.ChecksumSize : 0;
+
+            overhead.text = checksum > 0
+                ? $"header {BasisSyncCodec.HeaderSize} B  +  mask {maskBytes} B  +  checksum {checksum} B"
+                : $"header {BasisSyncCodec.HeaderSize} B  +  mask {maskBytes} B";
+
+            keyframe.text = $"{keyframeBytes} B   ({payloadBits} b payload → {payloadBytes} B)";
+            delta.text = $"{deltaBytes} B";
+
+            float sendHz = model.SendIntervalSeconds > 0f ? 1f / model.SendIntervalSeconds : 0f;
+            float kfHz = model.KeyframeIntervalSeconds > 0f ? 1f / model.KeyframeIntervalSeconds : 0f;
+            float bps = deltaBytes * sendHz + Mathf.Max(0, keyframeBytes - deltaBytes) * kfHz;
+            bandwidth.text = $"≈ {FormatRate(bps)}  @ {sendHz:0} Hz";
+            bandwidth.style.color = new StyleColor(bps > 2000f ? new Color(0.95f, 0.75f, 0.2f) : Accent);
+        }
+
+        Refresh();
+        card.schedule.Execute(Refresh).Every(400);
+        return card;
+    }
+
+    private static string FormatRate(float bytesPerSec) =>
+        bytesPerSec >= 1024f ? $"{bytesPerSec / 1024f:0.0} KB/s" : $"{bytesPerSec:0} B/s";
+
+    private static Label WireRow(VisualElement parent, string key, bool strong)
+    {
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.paddingTop = 1;
+        row.style.paddingBottom = 1;
+
+        var k = new Label(key);
+        k.style.flexShrink = 0;
+        k.style.whiteSpace = WhiteSpace.NoWrap;
+        if (strong)
+        {
+            k.style.unityFontStyleAndWeight = FontStyle.Bold;
+            k.style.color = new StyleColor(Accent);
+        }
+
+        var v = new Label("—");
+        v.style.flexGrow = 1;
+        v.style.whiteSpace = WhiteSpace.Normal;
+        v.style.unityTextAlign = TextAnchor.MiddleRight;
+        if (strong) v.style.unityFontStyleAndWeight = FontStyle.Bold;
+        else v.style.color = new StyleColor(new Color(0.78f, 0.78f, 0.78f, 1f));
+
+        row.Add(k);
+        row.Add(v);
+        parent.Add(row);
+        return v;
     }
 
     /// <summary>One per-axis compression control: mode dropdown, Min/Max/Bits when Ranged, plus a live precision/size readout (the "fitness" check).</summary>
@@ -207,6 +370,7 @@ public static class BasisSyncInspectorUI
 
         var modeField = new PropertyField(modeProp, "");
         modeField.style.flexGrow = 1;
+        modeField.tooltip = "How this axis is packed on the wire. Inherit/Raw = exact 32-bit; Half = 16-bit (half the size); Ranged = quantized into a Min..Max window at a chosen bit depth (smallest).";
 
         header.Add(label);
         header.Add(modeField);
@@ -219,13 +383,38 @@ public static class BasisSyncInspectorUI
         var minField = new PropertyField(minProp, "Min");
         minField.style.flexGrow = 1;
         minField.style.marginRight = 6;
+        minField.tooltip = "Lowest value the Ranged window covers. Values below this are clamped.";
         var maxField = new PropertyField(maxProp, "Max");
         maxField.style.flexGrow = 1;
+        maxField.tooltip = "Highest value the Ranged window covers. Values above this are clamped.";
         minmax.Add(minField);
         minmax.Add(maxField);
-        var bitsField = new SliderInt("Bits", 1, 31) { showInputField = true, bindingPath = bitsProp.propertyPath };
+        var bitsField = new SliderInt("Bits", 1, 31) { showInputField = true, bindingPath = bitsProp.propertyPath, tooltip = "Bits per value in Ranged mode. More bits = finer steps but larger packets." };
         ranged.Add(minmax);
         ranged.Add(bitsField);
+
+        var fitRow = new VisualElement();
+        fitRow.style.flexDirection = FlexDirection.Row;
+        fitRow.style.alignItems = Align.Center;
+        var stepField = new FloatField("Fit step") { value = 0.001f };
+        stepField.style.flexGrow = 1;
+        stepField.style.marginRight = 6;
+        stepField.tooltip = "Smallest step you care about. Press → bits to pick the fewest bits that achieve it across Min..Max.";
+        var fitBtn = new Button(() =>
+        {
+            so.Update();
+            float span = maxProp.floatValue - minProp.floatValue;
+            float step = stepField.value;
+            if (span > 0f && step > 0f)
+            {
+                bitsProp.intValue = Mathf.Clamp(Mathf.CeilToInt(Mathf.Log(span / step + 1f, 2f)), 1, 31);
+                so.ApplyModifiedProperties();
+            }
+        }) { text = "→ bits", tooltip = "Compute the minimum Bits that reach the Fit step across the Min..Max range." };
+        fitRow.Add(stepField);
+        fitRow.Add(fitBtn);
+        ranged.Add(fitRow);
+
         box.Add(ranged);
 
         var info = new Label();
@@ -267,7 +456,7 @@ public static class BasisSyncInspectorUI
                 {
                     case "Half": info.text = "16-bit half float  •  2 B/axis"; break;
                     case "Raw": info.text = "32-bit float  •  4 B/axis (exact)"; break;
-                    case "Inherit": info.text = "follows the Half Precision toggle"; break;
+                    case "Inherit": info.text = "default = Raw  •  32-bit float, 4 B/axis (exact)"; break;
                     default: info.text = ""; break;
                 }
                 info.style.color = new StyleColor(Subtle);
@@ -294,6 +483,7 @@ public static class BasisSyncInspectorUI
         float hz = prop.floatValue > 0f ? 1f / prop.floatValue : 20f;
 
         var slider = new Slider(label, 1f, maxHz) { value = hz, showInputField = true };
+        slider.tooltip = "How many delta packets per second the owner sends while the value is changing. Higher = smoother fast motion, more bandwidth.";
         slider.RegisterValueChangedCallback(evt =>
         {
             float h = Mathf.Clamp(evt.newValue, 1f, maxHz);
@@ -311,6 +501,7 @@ public static class BasisSyncInspectorUI
         SerializedProperty prop = so.FindProperty(propName);
 
         var slider = new Slider(label, 0.1f, 5f) { value = prop.floatValue, showInputField = true };
+        slider.tooltip = "How often a full keyframe (all fields, reliable) is sent so late joiners and clients that dropped a delta resync. Lower = faster recovery, more bandwidth.";
         slider.RegisterValueChangedCallback(evt =>
         {
             so.Update();

@@ -33,7 +33,7 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
             serializedObject.ApplyModifiedProperties();
             RebuildList(list);
         })
-        { text = "+ Add Parameter" };
+        { text = "+ Add Parameter", tooltip = "Add a new named, synced value. Reference it by name from Set*/Get* in code." };
         add.style.marginTop = 4;
         card.Add(add);
         root.Add(card);
@@ -85,12 +85,15 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
         foldout.style.borderLeftColor = new StyleColor(BasisSyncInspectorUI.Accent);
         foldout.style.paddingLeft = 4;
 
-        foldout.Add(new PropertyField(nameProp));
-        foldout.Add(new PropertyField(typeProp));
-        var interpField = new PropertyField(interpProp);
+        foldout.Add(BasisSyncInspectorUI.Described(new PropertyField(nameProp),
+            "Identifier you pass to Set*/Get* in code. Must be unique within this component."));
+        foldout.Add(BasisSyncInspectorUI.Described(new PropertyField(typeProp),
+            "Value type — sets how many components are sent and whether it interpolates (continuous) or snaps (discrete)."));
+        var interpField = BasisSyncInspectorUI.Described(new PropertyField(interpProp),
+            "Smooth this parameter between received updates (continuous types only).");
         foldout.Add(interpField);
 
-        var axisCard = BasisSyncInspectorUI.Card("Compression (per axis)");
+        var axisCard = BasisSyncInspectorUI.Card("Compression (per axis)", false);
         VisualElement[] axes =
         {
             BasisSyncInspectorUI.CompressionAxisRow(serializedObject, element.FindPropertyRelative("AxisX"), "X"),
@@ -108,7 +111,7 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
             serializedObject.ApplyModifiedProperties();
             RebuildList(list);
         })
-        { text = "Remove" };
+        { text = "Remove", tooltip = "Delete this parameter." };
         remove.style.alignSelf = Align.FlexEnd;
         foldout.Add(remove);
 

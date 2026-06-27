@@ -32,6 +32,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>Raw int for job gather — avoids bool→ushort conversion.</summary>
         internal int IsVisibleRaw => Volatile.Read(ref _isVisible);
 
+        /// <summary>Cached gameObject-active state for the global merge gather, so it never calls the
+        /// (managed→native) isActiveAndEnabled per plate per frame. Maintained by
+        /// <see cref="Initialize"/> and <see cref="RefreshActiveState"/>.</summary>
+        internal bool RenderActive;
+
         public bool HasProgressBarVisible = false;
         public MeshRenderer Renderer;
         public Color CurrentColor;
@@ -135,7 +140,8 @@ namespace Basis.Scripts.UI.NamePlate
 
             SetTypingIndicatorVisible(BasisRemotePlayer.IsChatTyping);
 
-            if (!BasisRemoteNamePlateDriver.ShouldPlateBeActive(this))
+            RenderActive = BasisRemoteNamePlateDriver.ShouldPlateBeActive(this);
+            if (!RenderActive)
             {
                 gameObject.SetActive(false);
             }
@@ -189,7 +195,8 @@ namespace Basis.Scripts.UI.NamePlate
             // The avatar's renderer-visibility callback can fire mid-teardown; bail if this
             // plate has already been destroyed rather than touching its gameObject.
             if (this == null) return;
-            gameObject.SetActive(BasisRemoteNamePlateDriver.ShouldPlateBeActive(this));
+            RenderActive = BasisRemoteNamePlateDriver.ShouldPlateBeActive(this);
+            gameObject.SetActive(RenderActive);
         }
 
         /// <summary>

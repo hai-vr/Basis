@@ -1,0 +1,10 @@
+{
+  "code": "de",
+  "nativeName": "Deutsch",
+  "entries": [
+    {
+      "key": "settings.thirdpartylicenses.openlicenseurl",
+      "value": "Open license URL"
+    }
+  ]
+}

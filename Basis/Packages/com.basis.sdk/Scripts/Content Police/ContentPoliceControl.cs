@@ -12,12 +12,6 @@ public static class ContentPoliceControl
     public static bool ShaderPrewarmEnabled = false;
     public static bool MaterialCorrectionEnabled = false;
 
-    private static readonly bool PrewarmForcedByGraphicsApi =
-        SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Direct3D12 ||
-        SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan;
-
-    private static bool ShouldPrewarm => ShaderPrewarmEnabled || PrewarmForcedByGraphicsApi;
-
     /// <summary>
     /// Creates a copy of a GameObject, removes any unapproved MonoBehaviours, and returns the cleaned copy through instantiation. 
     /// </summary>
@@ -186,7 +180,7 @@ public static class ContentPoliceControl
 
                 // Compile shader variants for everything we just walked before we set the clone
                 // active, so the first frame it's visible doesn't stall on a hitch.
-                if (ShouldPrewarm)
+                if (ShaderPrewarmEnabled)
                 {
                     BasisShaderPrewarm.Warm(renderersForPrewarm, SearchAndDestroy.name);
                 }
@@ -240,7 +234,7 @@ public static class ContentPoliceControl
             {
                 BasisShaderFallback.MaterialCorrection(rawRenderers, BundledContentHolder.Instance.UrpShader);
             }
-            if (ShouldPrewarm)
+            if (ShaderPrewarmEnabled)
             {
                 BasisShaderPrewarm.Warm(rawRenderers, SearchAndDestroy.name);
             }
@@ -363,7 +357,7 @@ public static class ContentPoliceControl
         }
 
         // Warm shaders for every renderer we just collected. One call per scene scrub.
-        if (ShouldPrewarm)
+        if (ShaderPrewarmEnabled)
         {
             BasisShaderPrewarm.Warm(renderersForPrewarm, targetScene.name);
         }
@@ -452,6 +446,8 @@ public static class ContentPoliceControl
         {
             Component c = comps[i];
             if (c == null) continue;
+            // Component runtime type is exact here, so skipping an event-free type is sound.
+            if (!CanReachUnityEvent(c.GetType())) continue;
             WalkForUnityEvents(c, visited, approved, 0);
         }
     }
@@ -504,7 +500,7 @@ public static class ContentPoliceControl
                     Type et = ft.GetElementType();
                     if (et != null && typeof(UnityEventBase).IsAssignableFrom(et))
                         plan.Add(new WalkField(f, WalkFieldKind.EventList));
-                    else if (ShouldRecurseInto(et))
+                    else if (ShouldRecurseInto(et) && EdgeCanReachUnityEvent(et))
                         plan.Add(new WalkField(f, WalkFieldKind.RecurseList));
                     continue;
                 }
@@ -515,12 +511,12 @@ public static class ContentPoliceControl
                     Type et = args.Length == 1 ? args[0] : null;
                     if (et != null && typeof(UnityEventBase).IsAssignableFrom(et))
                         plan.Add(new WalkField(f, WalkFieldKind.EventList));
-                    else if (et != null && ShouldRecurseInto(et))
+                    else if (et != null && ShouldRecurseInto(et) && EdgeCanReachUnityEvent(et))
                         plan.Add(new WalkField(f, WalkFieldKind.RecurseList));
                     continue;
                 }
 
-                if (!ShouldRecurseInto(ft)) continue;
+                if (!ShouldRecurseInto(ft) || !EdgeCanReachUnityEvent(ft)) continue;
                 plan.Add(new WalkField(f, WalkFieldKind.RecurseRef));
             }
             cursor = cursor.BaseType;
@@ -610,6 +606,85 @@ public static class ContentPoliceControl
         if (IsBclNamespace(t)) return false;
         if (!ContainsManagedReferences(t)) return false;
         return true;
+    }
+
+    private static readonly Dictionary<Type, bool> EventReachCache = new Dictionary<Type, bool>();
+
+    // True when an instance of t could, through the same field graph WalkForUnityEvents
+    // traverses, reach a UnityEventBase. Lets the scrub skip components/branches that can
+    // never hold a persistent listener (Transforms, renderers, colliders, event-free
+    // scripts) — the overwhelming majority of a loaded hierarchy. Mirrors GetWalkPlan's
+    // field selection exactly so it can never see less than the walk does.
+    //
+    // SOUNDNESS: pruning a security walk must never produce a false negative. A recursion
+    // edge whose declared type is a non-sealed class or interface is assumed reachable,
+    // because the runtime value may be a derived type (e.g. [SerializeReference]) whose
+    // graph isn't visible from the declared type. Only sealed classes and value types have
+    // a known exact runtime type, so only those are pruned when provably event-free.
+    private static bool CanReachUnityEvent(Type t)
+    {
+        if (t == null) return false;
+        if (EventReachCache.TryGetValue(t, out bool cached)) return cached;
+        // Seed false so a reference cycle terminates: a pure cycle introduces no new
+        // event-bearing type, and any real event is found at the node that declares it.
+        EventReachCache[t] = false;
+
+        bool result = false;
+        Type cursor = t;
+        while (cursor != null
+            && cursor != typeof(object)
+            && cursor != typeof(UnityEngine.Object)
+            && cursor != typeof(Component)
+            && cursor != typeof(MonoBehaviour)
+            && cursor != typeof(Behaviour))
+        {
+            FieldInfo[] fields = cursor.GetFields(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+            for (int i = 0; i < fields.Length; i++)
+            {
+                Type ft = fields[i].FieldType;
+                if (ft.IsPrimitive || ft.IsPointer || ft.IsEnum) continue;
+                if (ft == typeof(string) || ft == typeof(IntPtr) || ft == typeof(UIntPtr)) continue;
+
+                if (typeof(UnityEventBase).IsAssignableFrom(ft)) { result = true; break; }
+                if (typeof(UnityEngine.Object).IsAssignableFrom(ft)) continue;
+
+                if (ft.IsArray)
+                {
+                    if (ft.GetArrayRank() != 1) continue;
+                    Type et = ft.GetElementType();
+                    if (et != null && typeof(UnityEventBase).IsAssignableFrom(et)) { result = true; break; }
+                    if (et != null && ShouldRecurseInto(et) && EdgeCanReachUnityEvent(et)) { result = true; break; }
+                    continue;
+                }
+
+                if (ft.IsGenericType && typeof(IList).IsAssignableFrom(ft))
+                {
+                    Type[] args = ft.GetGenericArguments();
+                    Type et = args.Length == 1 ? args[0] : null;
+                    if (et != null && typeof(UnityEventBase).IsAssignableFrom(et)) { result = true; break; }
+                    if (et != null && ShouldRecurseInto(et) && EdgeCanReachUnityEvent(et)) { result = true; break; }
+                    continue;
+                }
+
+                if (!ShouldRecurseInto(ft)) continue;
+                if (EdgeCanReachUnityEvent(ft)) { result = true; break; }
+            }
+            if (result) break;
+            cursor = cursor.BaseType;
+        }
+
+        EventReachCache[t] = result;
+        return result;
+    }
+
+    // A recursion edge (candidate has already passed ShouldRecurseInto). Non-sealed classes
+    // and interfaces may hold a derived runtime type we can't analyze, so treat them as
+    // reachable; sealed classes and structs have an exact type and are analyzed precisely.
+    private static bool EdgeCanReachUnityEvent(Type candidate)
+    {
+        if (candidate.IsInterface || (candidate.IsClass && !candidate.IsSealed)) return true;
+        return CanReachUnityEvent(candidate);
     }
 
     private static bool IsBclNamespace(Type t)

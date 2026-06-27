@@ -44,6 +44,8 @@ namespace Basis.Scripts.Drivers
         public bool HasEyeBones;
         /// <summary>Bumped every time the eye bones / calibration are (re)resolved (avatar setup or reload). Consumers cache eye state keyed on this and skip per-frame revalidation while it is unchanged.</summary>
         public uint FaceGeneration;
+        /// <summary>Index of this driver's pair in BasisRemoteFaceManagement's eye-transform registry, or -1 when unowned. Replaces a per-frame driver→pair dictionary lookup; maintained by the reconcile and validated against the live registry so a stale value is self-correcting.</summary>
+        [System.NonSerialized] public int EyePairIndex = -1;
         /// <summary>Per-eye calibration computed once at avatar setup; converts canonical yaw/pitch to rig-local rotation.</summary>
         public BasisEyeCalibration calLeft;
         public BasisEyeCalibration calRight;

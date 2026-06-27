@@ -375,6 +375,22 @@
       "value": "Show each speaker's loudness meter and a breakdown of what's reducing their voice."
     },
     {
+      "key": "settings.developer.networkSync.tooltip",
+      "value": "Visualise networked object sync: a line from the last received value to the next, a sphere at the smoothed position, red overshoot while extrapolating, and colour by jitter-buffer health."
+    },
+    {
+      "key": "settings.developer.networkSyncBandwidth.tooltip",
+      "value": "Show each synced object's received traffic — bytes on the wire per second and packet rate — next to its gizmo."
+    },
+    {
+      "key": "settings.developer.networkPlayers.tooltip",
+      "value": "Visualise each remote player's pose interpolation: a line from their last received hips pose to the next, a sphere at the smoothed position, coloured by playback health (green steady, red slowing to avoid an underrun, amber catching up)."
+    },
+    {
+      "key": "settings.developer.networkPlayersBandwidth.tooltip",
+      "value": "Show each remote player's received traffic — bytes on the wire per second and packet rate — above their gizmo."
+    },
+    {
       "key": "settings.developer.gizmoLabels.tooltip",
       "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
     },
@@ -385,22 +401,6 @@
     {
       "key": "settings.general.networking.jitterBuffer.tooltip",
       "value": "How many packets to buffer to smooth out network jitter."
-    },
-    {
-      "key": "settings.developer.recorder.countdown.tooltip",
-      "value": "Seconds to wait before avatar recording begins."
-    },
-    {
-      "key": "settings.developer.recorder.autoStop.tooltip",
-      "value": "Automatically stop recording after a set length of time."
-    },
-    {
-      "key": "settings.developer.recorder.maxDuration.tooltip",
-      "value": "Maximum length in seconds before recording stops automatically."
-    },
-    {
-      "key": "settings.developer.recorder.start.tooltip",
-      "value": "Start or stop recording your avatar's movement."
     },
     {
       "key": "settings.developer.voiceRange.enable.tooltip",
@@ -1283,6 +1283,22 @@
       "value": "Maximum distance from a camera at which jiggle collisions still run."
     },
     {
+      "key": "settings.perf.jiggleColliderLod.toggle.tooltip",
+      "value": "Cut back remote avatars' arm, finger and foot jiggle colliders by distance to save performance in crowded instances."
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.near.tooltip",
+      "value": "Beyond this distance a remote avatar's finger colliders are dropped and each hand becomes a single sphere."
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.mid.tooltip",
+      "value": "Beyond this distance arm and foot colliders are removed too, leaving only the hand spheres."
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.far.tooltip",
+      "value": "Beyond this distance all of a remote avatar's jiggle colliders are removed."
+    },
+    {
       "key": "settings.perf.cloth.toggle.tooltip",
       "value": "Limit how many cloth simulations another player's avatar may have."
     },
@@ -2127,108 +2143,8 @@
       "value": "Reset all calibration settings to defaults? You will need to recalibrate full-body tracking afterwards."
     },
     {
-      "key": "menu.servers.username",
-      "value": "Username"
-    },
-    {
-      "key": "menu.servers.username.hint",
-      "value": "Enter a username to connect"
-    },
-    {
-      "key": "menu.servers.connect",
-      "value": "Connect"
-    },
-    {
-      "key": "menu.servers.reconnect",
-      "value": "Reconnect"
-    },
-    {
-      "key": "menu.servers.host",
-      "value": "Host"
-    },
-    {
-      "key": "menu.servers.ipAddress",
-      "value": "Server Address"
-    },
-    {
-      "key": "menu.servers.port",
-      "value": "Port"
-    },
-    {
-      "key": "menu.servers.password",
-      "value": "Password"
-    },
-    {
-      "key": "menu.servers.networkStack",
-      "value": "Networking Stack"
-    },
-    {
-      "key": "menu.servers.hostStack",
-      "value": "Host Networking Stack"
-    },
-    {
       "key": "menu.servers.source.savedServers",
       "value": "Saved Servers"
-    },
-    {
-      "key": "menu.servers.hostMode",
-      "value": "Host Mode"
-    },
-    {
-      "key": "menu.servers.hostMode.description",
-      "value": "Run a local server and connect to it."
-    },
-    {
-      "key": "menu.servers.hostServerName",
-      "value": "Server Name"
-    },
-    {
-      "key": "menu.servers.hostMotd",
-      "value": "MOTD"
-    },
-    {
-      "key": "menu.servers.hostPeerLimit",
-      "value": "Peer Limit"
-    },
-    {
-      "key": "menu.servers.hostPort",
-      "value": "Host Port"
-    },
-    {
-      "key": "menu.servers.hostPassword",
-      "value": "Host Password"
-    },
-    {
-      "key": "menu.servers.hostUseAuth",
-      "value": "Require Authentication"
-    },
-    {
-      "key": "menu.servers.hostEnableConsole",
-      "value": "Enable Console"
-    },
-    {
-      "key": "menu.servers.hostAvatarsLocked",
-      "value": "Lock Avatars"
-    },
-    {
-      "key": "menu.servers.hostPropsLocked",
-      "value": "Lock Props"
-    },
-    {
-      "key": "menu.servers.hostWorldsLocked",
-      "value": "Lock Worlds"
-    },
-    {
-      "key": "menu.servers.hostThirdPersonDisabled",
-      "value": "Disable Third Person"
-    },
-    {
-      "key": "menu.servers.autoConnect",
-      "value": "Auto Connect"
-    },
-    {
-      "key": "menu.servers.autoConnect.description",
-      "value": "Automatically connect to the last server on startup."
     },
     {
       "key": "menu.servers.status.connecting",
@@ -2267,88 +2183,12 @@
       "value": "Connection failed."
     },
     {
-      "key": "menu.servers.list.empty",
-      "value": "No servers yet. Press \"Add Server\" to create one."
-    },
-    {
-      "key": "menu.servers.list.addServer",
-      "value": "Add Server"
-    },
-    {
-      "key": "menu.servers.list.refreshAll",
-      "value": "Refresh All"
-    },
-    {
-      "key": "menu.servers.list.editing",
-      "value": "Editing Server"
-    },
-    {
-      "key": "menu.servers.list.newServer",
-      "value": "New Server"
-    },
-    {
-      "key": "menu.servers.list.save",
-      "value": "Save"
-    },
-    {
-      "key": "menu.servers.list.cancel",
-      "value": "Cancel"
-    },
-    {
-      "key": "menu.servers.list.remove",
-      "value": "Remove"
-    },
-    {
-      "key": "menu.servers.list.edit",
-      "value": "Edit"
-    },
-    {
-      "key": "menu.servers.list.refresh",
-      "value": "Refresh"
-    },
-    {
-      "key": "menu.servers.list.players",
-      "value": "{0} / {1}"
-    },
-    {
-      "key": "menu.servers.list.offline",
-      "value": "Offline"
-    },
-    {
-      "key": "menu.servers.list.querying",
-      "value": "Querying..."
-    },
-    {
-      "key": "menu.servers.list.ping",
-      "value": "{0} ms"
-    },
-    {
-      "key": "menu.servers.list.address",
-      "value": "{0}:{1}"
-    },
-    {
       "key": "menu.servers.list.default",
       "value": "Default Basis Server"
     },
     {
-      "key": "menu.servers.list.defaultBadge",
-      "value": "★ {0}"
-    },
-    {
-      "key": "menu.servers.list.share",
-      "value": "Share"
-    },
-    {
-      "key": "menu.players.search.byName",
-      "value": "Filter by display name."
-    },
-    {
-      "key": "menu.players.search.byUuid",
-      "value": "Filter by player UUID."
-    },
-    {
-      "key": "menu.players.searchMode",
-      "value": "Search Mode"
+      "key": "menu.players.search.byNameOrUuid",
+      "value": "Filter by display name or UUID."
     },
     {
       "key": "menu.players.sortMode",
@@ -3455,6 +3295,14 @@
       "value": "General Settings"
     },
     {
+      "key": "settings.general.rememberMenuState",
+      "value": "Remember Menu State"
+    },
+    {
+      "key": "settings.general.rememberMenuState.tooltip",
+      "value": "Restore each menu's scroll position, open sections, and last tab when you reopen it, and reopen the menu after loading a world."
+    },
+    {
       "key": "settings.audio.title",
       "value": "Audio Settings"
     },
@@ -3469,214 +3317,6 @@
     {
       "key": "settings.developer.title",
       "value": "Developer & Debug"
-    },
-    {
-      "key": "settings.developer.bugReport.title",
-      "value": "Report a Bug"
-    },
-    {
-      "key": "settings.developer.bugReport.description",
-      "value": "File a bug report. Fill in the details, then Open on GitHub launches the pre-filled bug form in your browser, or Send to Server uploads it to the connected Basis server like a crash report. Fields marked * are required."
-    },
-    {
-      "key": "settings.developer.bugReport.enable",
-      "value": "Enable Bug Reporting"
-    },
-    {
-      "key": "settings.developer.bugReport.enable.tooltip",
-      "value": "Reveal the bug report form. Build info and recent logs are attached automatically on submit."
-    },
-    {
-      "key": "settings.developer.bugReport.summary",
-      "value": "Title"
-    },
-    {
-      "key": "settings.developer.bugReport.summary.tooltip",
-      "value": "A short, descriptive summary of the bug. Becomes the GitHub issue title."
-    },
-    {
-      "key": "settings.developer.bugReport.describe",
-      "value": "Describe the bug? *"
-    },
-    {
-      "key": "settings.developer.bugReport.describe.tooltip",
-      "value": "Plainly detail what actually happened."
-    },
-    {
-      "key": "settings.developer.bugReport.repro",
-      "value": "Steps to reproduce *"
-    },
-    {
-      "key": "settings.developer.bugReport.repro.tooltip",
-      "value": "The steps needed to reproduce the behavior."
-    },
-    {
-      "key": "settings.developer.bugReport.expected",
-      "value": "Expected behavior *"
-    },
-    {
-      "key": "settings.developer.bugReport.expected.tooltip",
-      "value": "What you expected to happen instead."
-    },
-    {
-      "key": "settings.developer.bugReport.screenshots",
-      "value": "Screenshots"
-    },
-    {
-      "key": "settings.developer.bugReport.screenshots.tooltip",
-      "value": "Links to images or video. You can also attach media after the GitHub page opens."
-    },
-    {
-      "key": "settings.developer.bugReport.build",
-      "value": "Build info *"
-    },
-    {
-      "key": "settings.developer.bugReport.build.tooltip",
-      "value": "Auto-filled from your current build and hardware. Leave as-is unless you need to edit it."
-    },
-    {
-      "key": "settings.developer.bugReport.logs",
-      "value": "Log files *"
-    },
-    {
-      "key": "settings.developer.bugReport.logs.tooltip",
-      "value": "A snippet of the log around the problem. Use Attach Recent Logs to fill this from the current session."
-    },
-    {
-      "key": "settings.developer.bugReport.attachLogs",
-      "value": "Attach Recent Logs"
-    },
-    {
-      "key": "settings.developer.bugReport.attachLogs.tooltip",
-      "value": "Fill the Log files field with the tail of this session's log."
-    },
-    {
-      "key": "settings.developer.bugReport.context",
-      "value": "Additional context"
-    },
-    {
-      "key": "settings.developer.bugReport.context.tooltip",
-      "value": "Any other detail about the issue."
-    },
-    {
-      "key": "settings.developer.bugReport.submit",
-      "value": "Open on GitHub"
-    },
-    {
-      "key": "settings.developer.bugReport.submit.tooltip",
-      "value": "Open the pre-filled GitHub bug form in your browser to review and submit."
-    },
-    {
-      "key": "settings.developer.bugReport.copy",
-      "value": "Copy Report to Clipboard"
-    },
-    {
-      "key": "settings.developer.bugReport.copy.tooltip",
-      "value": "Copy the report as Markdown so you can paste it into GitHub manually."
-    },
-    {
-      "key": "settings.developer.bugReport.missingFields",
-      "value": "Please fill in the required fields (marked *) before opening the report."
-    },
-    {
-      "key": "settings.developer.bugReport.opened",
-      "value": "Opening the pre-filled bug report in your browser. Review the details and submit on GitHub."
-    },
-    {
-      "key": "settings.developer.bugReport.openedTrimmed",
-      "value": "The report was too long for the URL, so the full text was copied to your clipboard. Review the GitHub form and paste anything that is missing."
-    },
-    {
-      "key": "settings.developer.bugReport.copied",
-      "value": "Bug report copied to clipboard as Markdown."
-    },
-    {
-      "key": "settings.developer.bugReport.trimmedNotice",
-      "value": "(trimmed — full report copied to clipboard; paste it here)"
-    },
-    {
-      "key": "settings.developer.bugReport.noLogs",
-      "value": "(no logs captured this session)"
-    },
-    {
-      "key": "settings.developer.bugReport.sendServer",
-      "value": "Send to Server"
-    },
-    {
-      "key": "settings.developer.bugReport.sendServer.tooltip",
-      "value": "Upload this report to the connected Basis server, the same way a crash or exception is reported. Requires a server connection with reporting enabled."
-    },
-    {
-      "key": "settings.developer.bugReport.notConnected",
-      "value": "You are not connected to a Basis server. Join a world first, then try again."
-    },
-    {
-      "key": "settings.developer.bugReport.serverDisabled",
-      "value": "The connected server does not have bug/crash reporting enabled, so the report cannot be uploaded."
-    },
-    {
-      "key": "settings.developer.bugReport.sentServer",
-      "value": "Bug report uploaded to the server. Thanks for the report!"
-    },
-    {
-      "key": "settings.developer.recorder.title",
-      "value": "Avatar Recorder"
-    },
-    {
-      "key": "settings.developer.recorder.description",
-      "value": "Record your humanoid avatar's pose to disk every frame. Convert the result into a Unity AnimationClip from Basis > Avatar > Recorder. The avatar must be humanoid."
-    },
-    {
-      "key": "settings.developer.recorder.countdown",
-      "value": "Countdown (seconds)"
-    },
-    {
-      "key": "settings.developer.recorder.countdown.description",
-      "value": "Seconds to wait after pressing Record before capture starts, giving you time to get into position. 0 starts immediately."
-    },
-    {
-      "key": "settings.developer.recorder.autoStop",
-      "value": "Auto-stop after duration"
-    },
-    {
-      "key": "settings.developer.recorder.autoStop.description",
-      "value": "Automatically stop recording once the set duration is reached."
-    },
-    {
-      "key": "settings.developer.recorder.maxDuration",
-      "value": "Duration (seconds)"
-    },
-    {
-      "key": "settings.developer.recorder.maxDuration.description",
-      "value": "How long to record before auto-stopping, in seconds."
-    },
-    {
-      "key": "settings.developer.recorder.status.title",
-      "value": "Recorder Status"
-    },
-    {
-      "key": "settings.developer.recorder.status.idle",
-      "value": "Idle"
-    },
-    {
-      "key": "settings.developer.recorder.status.countdown",
-      "value": "Starting in {0}…"
-    },
-    {
-      "key": "settings.developer.recorder.status.recording",
-      "value": "Recording • {0} • {1} frames"
-    },
-    {
-      "key": "settings.developer.recorder.start",
-      "value": "Start Recording"
-    },
-    {
-      "key": "settings.developer.recorder.stop",
-      "value": "Stop Recording"
-    },
-    {
-      "key": "settings.developer.recorder.cancel",
-      "value": "Cancel Countdown"
     },
     {
       "key": "settings.tab.general",
@@ -4369,26 +4009,6 @@
     {
       "key": "settings.developer.errorNotifications.description",
       "value": "Also show a popup for logged errors, not just exceptions."
-    },
-    {
-      "key": "notification.exception.title",
-      "value": "{0} hit an exception"
-    },
-    {
-      "key": "notification.exception.copy",
-      "value": "Copy Details"
-    },
-    {
-      "key": "notification.exception.dismiss",
-      "value": "Dismiss"
-    },
-    {
-      "key": "notification.exception.unknownSystem",
-      "value": "A Basis system"
-    },
-    {
-      "key": "notification.exception.copyHint",
-      "value": "Use Copy Details to copy the full stack trace."
     },
     {
       "key": "settings.chat.group.description",
@@ -6215,6 +5835,22 @@
       "value": "Audio Levels"
     },
     {
+      "key": "settings.developer.networkSync",
+      "value": "Network Sync"
+    },
+    {
+      "key": "settings.developer.networkSyncBandwidth",
+      "value": "Sync Bandwidth"
+    },
+    {
+      "key": "settings.developer.networkPlayers",
+      "value": "Network Players"
+    },
+    {
+      "key": "settings.developer.networkPlayersBandwidth",
+      "value": "Player Bandwidth"
+    },
+    {
       "key": "settings.developer.audioLevels.description",
       "value": "Per-speaker loudness meter on the voice-direction arrow: a bright fill rises to how loud they actually are, coloured green-to-red by how much of it survives to reach you, under a fixed dim headroom up to full scale. With Gizmo Labels on, a readout breaks down every factor reducing the voice — your per-player volume, distance rolloff, directivity (their facing), occlusion, the listener cone, and the global main volume."
     },
@@ -6999,10 +6635,6 @@
       "value": "Output"
     },
     {
-      "key": "settings.thirdpartylicenses.openlicenseurl",
-      "value": "Open license URL"
-    },
-    {
       "key": "settings.uiStyle.title",
       "value": "UI Style"
     },
@@ -7345,6 +6977,22 @@
     {
       "key": "settings.perf.jiggleDistanceCull.slider",
       "value": "Max Collision Distance"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.toggle",
+      "value": "Reduce Distant Collider Detail"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.near",
+      "value": "Hands to Spheres Distance"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.mid",
+      "value": "Hand Spheres Only Distance"
+    },
+    {
+      "key": "settings.perf.jiggleColliderLod.far",
+      "value": "Remove Colliders Distance"
     },
     {
       "key": "settings.perf.cloth.toggle",

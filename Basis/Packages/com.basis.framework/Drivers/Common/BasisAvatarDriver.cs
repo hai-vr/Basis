@@ -213,12 +213,27 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Backing store for jiggle colliders created for the avatar rig.
-        /// Initialized inline: the remote driver is a plain object (no Unity serialization
-        /// to populate this), so without the initializer it would be null and the jiggle
-        /// remove/add passes would dereference null.
+        /// Backing store for all jiggle colliders created for the avatar rig (every category).
+        /// Used for the initial full registration and for teardown. Initialized inline: the remote
+        /// driver is a plain object (no Unity serialization to populate this), so without the
+        /// initializer it would be null and the jiggle remove/add passes would dereference null.
         /// </summary>
         public List<JiggleColliderSerializable> JiggleColliders = new List<JiggleColliderSerializable>();
+
+        /// <summary>Foot/toe colliders (one capsule or sphere per foot).</summary>
+        public readonly List<JiggleColliderSerializable> JiggleCollidersFeet = new List<JiggleColliderSerializable>();
+        /// <summary>Upper- and lower-arm capsules (both sides).</summary>
+        public readonly List<JiggleColliderSerializable> JiggleCollidersArms = new List<JiggleColliderSerializable>();
+        /// <summary>Hand tip spheres (one per hand) — the coarsest stand-in for the whole hand.</summary>
+        public readonly List<JiggleColliderSerializable> JiggleCollidersHands = new List<JiggleColliderSerializable>();
+        /// <summary>Per-finger capsules and finger-tip spheres (the bulk of the collider count).</summary>
+        public readonly List<JiggleColliderSerializable> JiggleCollidersFingers = new List<JiggleColliderSerializable>();
+
+        /// <summary>True once <see cref="AddJiggleRigColliders"/> has built a non-empty collider set.</summary>
+        public bool HasJiggleColliders;
+
+        /// <summary>Which detail level of colliders is currently registered with the jiggle system.</summary>
+        public BasisJiggleColliderTier RegisteredColliderTier = BasisJiggleColliderTier.Full;
 
         /// <summary>
         /// Creates a set of jiggle colliders for the provided mapping and registers them with the global <see cref="JigglePhysics"/>.
@@ -230,51 +245,107 @@ namespace Basis.Scripts.Drivers
         /// </remarks>
         public void AddJiggleRigColliders(BasisTransformMapping Mapping)
         {
-            int expected = JiggleColliders.Count + 64;
-            if (JiggleColliders.Capacity < expected) JiggleColliders.Capacity = expected;
+            JiggleCollidersFeet.Clear();
+            JiggleCollidersArms.Clear();
+            JiggleCollidersHands.Clear();
+            JiggleCollidersFingers.Clear();
 
             if (Mapping.HasleftToes && Mapping.HasleftFoot)
-                JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftFoot, Mapping.leftToe }, 0.025f, addTipSphere: false);
+                JiggleCreatorHelperCapsule(JiggleCollidersFeet, new Transform[] { Mapping.leftFoot, Mapping.leftToe }, 0.025f, addTipSphere: false);
             else
-                JiggleCreatorHelper(Mapping.leftFoot, 0.025f);
+                JiggleCreatorHelper(JiggleCollidersFeet, Mapping.leftFoot, 0.025f);
 
             if (Mapping.HasrightToes && Mapping.HasrightFoot)
-                JiggleCreatorHelperCapsule(new Transform[] { Mapping.rightFoot, Mapping.rightToe }, 0.025f, addTipSphere: false);
+                JiggleCreatorHelperCapsule(JiggleCollidersFeet, new Transform[] { Mapping.rightFoot, Mapping.rightToe }, 0.025f, addTipSphere: false);
             else
-                JiggleCreatorHelper(Mapping.rightFoot, 0.025f);
+                JiggleCreatorHelper(JiggleCollidersFeet, Mapping.rightFoot, 0.025f);
 
-            // Arms: upper-arm capsule + forearm capsule + hand tip sphere, all from one array.
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f, tipRadius: 0.015f);
-            JiggleCreatorHelperCapsule(new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f, tipRadius: 0.015f);
+            // Arms: upper-arm + forearm capsules go to the Arms bucket; the hand tip sphere goes to
+            // the Hands bucket so the distance LOD can keep just the hand. The split reproduces the
+            // exact colliders the single tip-sphere call used to emit.
+            JiggleCreatorHelperCapsule(JiggleCollidersArms, new Transform[] { Mapping.leftUpperArm, Mapping.leftLowerArm, Mapping.leftHand }, 0.025f, addTipSphere: false);
+            JiggleCreatorHelper(JiggleCollidersHands, Mapping.leftHand, 0.015f);
+            JiggleCreatorHelperCapsule(JiggleCollidersArms, new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f, addTipSphere: false);
+            JiggleCreatorHelper(JiggleCollidersHands, Mapping.rightHand, 0.015f);
 
-            JiggleCreatorHelperCapsule(Mapping.LeftThumb);
-            JiggleCreatorHelperCapsule(Mapping.LeftIndex);
-            JiggleCreatorHelperCapsule(Mapping.LeftMiddle);
-            JiggleCreatorHelperCapsule(Mapping.LeftRing);
-            JiggleCreatorHelperCapsule(Mapping.LeftLittle);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftThumb);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftIndex);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftMiddle);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftRing);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftLittle);
 
-            JiggleCreatorHelperCapsule(Mapping.RightThumb);
-            JiggleCreatorHelperCapsule(Mapping.RightIndex);
-            JiggleCreatorHelperCapsule(Mapping.RightMiddle);
-            JiggleCreatorHelperCapsule(Mapping.RightRing);
-            JiggleCreatorHelperCapsule(Mapping.RightLittle);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightThumb);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightIndex);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightMiddle);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightRing);
+            JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightLittle);
 
-            // Batch-add all colliders at once to avoid O(n²) dedup in JiggleMemoryBus.
-            // ScheduleAdd does a linear scan of pendingSceneColliderAdd for each call,
-            // so adding 32 colliders one-at-a-time when the pending list is large is expensive.
+            JiggleColliders.Clear();
+            int total = JiggleCollidersFeet.Count + JiggleCollidersArms.Count + JiggleCollidersHands.Count + JiggleCollidersFingers.Count;
+            if (JiggleColliders.Capacity < total) JiggleColliders.Capacity = total;
+            JiggleColliders.AddRange(JiggleCollidersFeet);
+            JiggleColliders.AddRange(JiggleCollidersArms);
+            JiggleColliders.AddRange(JiggleCollidersHands);
+            JiggleColliders.AddRange(JiggleCollidersFingers);
+
+            HasJiggleColliders = total > 0;
+            RegisteredColliderTier = BasisJiggleColliderTier.Full;
+
+            // Batch-add the full set at once to avoid O(n²) dedup in JiggleMemoryBus. The distance
+            // LOD pass (BasisTransmissionResults) trims remote avatars back down afterward.
             JigglePhysics.AddJiggleColliders(JiggleColliders);
+        }
+
+        /// <summary>
+        /// Adds or removes whole collider categories so the registered set matches the requested
+        /// detail tier. No-op when the tier is unchanged or no colliders were ever built. Only the
+        /// categories that differ between the old and new tier are touched.
+        /// </summary>
+        public void ApplyColliderLOD(BasisJiggleColliderTier target)
+        {
+            if (!HasJiggleColliders || target == RegisteredColliderTier)
+            {
+                return;
+            }
+
+            bool[] cur = BasisJiggleColliderLOD.ActiveCategories(RegisteredColliderTier);
+            bool[] next = BasisJiggleColliderLOD.ActiveCategories(target);
+
+            ApplyColliderCategoryDelta(JiggleCollidersFeet, cur[0], next[0]);
+            ApplyColliderCategoryDelta(JiggleCollidersArms, cur[1], next[1]);
+            ApplyColliderCategoryDelta(JiggleCollidersHands, cur[2], next[2]);
+            ApplyColliderCategoryDelta(JiggleCollidersFingers, cur[3], next[3]);
+
+            RegisteredColliderTier = target;
+        }
+
+        private static void ApplyColliderCategoryDelta(List<JiggleColliderSerializable> colliders, bool wasActive, bool nowActive)
+        {
+            if (colliders.Count == 0 || wasActive == nowActive)
+            {
+                return;
+            }
+            if (nowActive)
+            {
+                JigglePhysics.AddJiggleColliders(colliders);
+            }
+            else
+            {
+                JigglePhysics.RemoveJiggleColliders(colliders);
+            }
         }
 
         /// <summary>
         /// Helper that creates jiggle colliders for an array of transforms using the default hand/finger scale.
         /// </summary>
+        /// <param name="target">List the created colliders are appended to.</param>
         /// <param name="Parents">Transforms that will each receive a collider.</param>
-        public void JiggleCreatorHelper(Transform[] Parents)
+        public void JiggleCreatorHelper(List<JiggleColliderSerializable> target, Transform[] Parents)
         {
             int count = Parents.Length;
             for (int i = 0; i < count; i++)
             {
-                JiggleCreatorHelper(Parents[i]);
+                JiggleCreatorHelper(target, Parents[i]);
             }
         }
 
@@ -283,16 +354,17 @@ namespace Basis.Scripts.Drivers
         /// Each pair of consecutive transforms gets a capsule spanning the bone length.
         /// The last bone in the array receives a sphere collider for the tip.
         /// </summary>
+        /// <param name="target">List the created colliders are appended to.</param>
         /// <param name="Parents">Ordered bone transforms (e.g. proximal, intermediate, distal).</param>
         /// <param name="Radius">Base radius for the capsule/sphere. Default is <c>0.005</c>.</param>
-        public void JiggleCreatorHelperCapsule(Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true, float tipRadius = -1f)
+        public void JiggleCreatorHelperCapsule(List<JiggleColliderSerializable> target, Transform[] Parents, float Radius = 0.005f, bool addTipSphere = true, float tipRadius = -1f)
         {
             int count = Parents.Length;
             if (count == 0) return;
             if (tipRadius < 0f) tipRadius = Radius;
 
-            int needed = JiggleColliders.Count + count;
-            if (JiggleColliders.Capacity < needed) JiggleColliders.Capacity = needed;
+            int needed = target.Count + count;
+            if (target.Capacity < needed) target.Capacity = needed;
 
             Matrix4x4 cachedMatrix = default;
             Vector3 cachedPos = default;
@@ -358,7 +430,7 @@ namespace Basis.Scripts.Drivers
                         rawDotY / (sy * sy),
                         rawDotZ / (sz * sz)) * 0.5f;
 
-                    JiggleColliders.Add(new JiggleColliderSerializable
+                    target.Add(new JiggleColliderSerializable
                     {
                         collider = new JiggleCollider()
                         {
@@ -380,7 +452,7 @@ namespace Basis.Scripts.Drivers
                         m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
                         m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
 
-                    JiggleColliders.Add(new JiggleColliderSerializable
+                    target.Add(new JiggleColliderSerializable
                     {
                         collider = new JiggleCollider()
                         {
@@ -395,14 +467,15 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Creates a single spherical jiggle collider for a given transform and stores it in <see cref="JiggleColliders"/>.
+        /// Creates a single spherical jiggle collider for a given transform and appends it to <paramref name="target"/>.
         /// </summary>
+        /// <param name="target">List the created collider is appended to.</param>
         /// <param name="Parent">Transform that defines the collider's transform and space.</param>
         /// <param name="Scale">
         /// Base radius used to size the collider. Final radius is scaled by <c>1 / (Parent.lossyScale.magnitude / 3)</c>.
         /// Default is <c>0.005</c>.
         /// </param>
-        public void JiggleCreatorHelper(Transform Parent, float Scale = 0.005f)
+        public void JiggleCreatorHelper(List<JiggleColliderSerializable> target, Transform Parent, float Scale = 0.005f)
         {
             if (Parent != null)
             {
@@ -412,7 +485,7 @@ namespace Basis.Scripts.Drivers
                     m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
                     m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
 
-                JiggleColliders.Add(new JiggleColliderSerializable
+                target.Add(new JiggleColliderSerializable
                 {
                     collider = new JiggleCollider()
                     {
@@ -430,9 +503,16 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void RemoveJiggleRigColliders()
         {
-            // Batch-remove all colliders at once to avoid O(n²) linear scans in JiggleMemoryBus.
+            // Batch-remove the full set at once to avoid O(n²) linear scans in JiggleMemoryBus.
+            // Removing the union covers whatever the LOD pass left registered (matched by transform).
             JigglePhysics.RemoveJiggleColliders(JiggleColliders);
             JiggleColliders.Clear();
+            JiggleCollidersFeet.Clear();
+            JiggleCollidersArms.Clear();
+            JiggleCollidersHands.Clear();
+            JiggleCollidersFingers.Clear();
+            HasJiggleColliders = false;
+            RegisteredColliderTier = BasisJiggleColliderTier.Full;
         }
         /// <summary>
         /// Applies per-renderer flags for local-avatar SkinnedMeshRenderers and ensures the face mesh has its shadow-only clone.

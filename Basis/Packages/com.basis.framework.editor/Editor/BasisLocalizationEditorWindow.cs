@@ -54,7 +54,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
     private bool _showMissingFromCode = true;
     private bool _showUntranslated = true;
 
-    [MenuItem("Basis/Settings/Localization Editor")]
+    [MenuItem("Basis/Settings/Localization/Translation Editor")]
     public static void Open()
     {
         GetWindow<BasisLocalizationEditorWindow>("Basis Localization");

@@ -55,6 +55,8 @@ namespace Basis.Scripts.Networking.Sync
         private double _serverClock;
         private bool _serverClockSeeded;
         private float _dynamicDepth = 2f;
+        private bool _valuesDirty = true;
+        private bool _snapRequested;
 
         private bool _extrapolate;
         private double _maxExtrapSeconds;
@@ -65,6 +67,13 @@ namespace Basis.Scripts.Networking.Sync
         private bool _verifyChecksum;
         private readonly float[] _lastCont;
         private bool _haveLastCont;
+
+        private const double BandwidthWindow = 0.5;
+        private int _bwBytes;
+        private int _bwPackets;
+        private double _bwTime;
+        private float _bytesPerSecond;
+        private float _packetsPerSecond;
 
         public BasisSyncReceiver(BasisSyncSchema schema)
         {
@@ -91,10 +100,29 @@ namespace Basis.Scripts.Networking.Sync
         public float InterpTime => _next != null ? (float)_interpTime : 0f;
         public BasisSyncValues CurrentValues => _current != null ? _current.Values : null;
         public BasisSyncValues NextValues => _next != null ? _next.Values : (_current != null ? _current.Values : null);
+        public int BufferedFrameCount => _staged.Count;
+        public float DynamicDepth => _dynamicDepth;
+        public float BytesPerSecond => _bytesPerSecond;
+        public float PacketsPerSecond => _packetsPerSecond;
+
+        /// <summary>
+        /// True if Current/Next changed since the last call (a new frame was staged or the window advanced), then
+        /// clears. Lets the driver skip re-copying unchanged values into the interpolation pools every frame —
+        /// only the interp fraction needs updating between frame advances.
+        /// </summary>
+        public bool ConsumeValuesDirty()
+        {
+            bool d = _valuesDirty;
+            _valuesDirty = false;
+            return d;
+        }
 
         public void OnPacket(byte[] payload, int length)
         {
             if (payload == null || length < BasisSyncCodec.HeaderSize) return;
+            // Bytes on the wire for this object — counted before any drop, so it reflects what arrived.
+            _bwBytes += length;
+            _bwPackets++;
             // Drop corrupted packets before they touch the sequence/baseline, so a corrupted sequence number
             // can't poison the high-water-mark and a corrupted value is never applied.
             if (_verifyChecksum && !BasisSyncCodec.VerifyChecksum(payload, length)) return;
@@ -108,6 +136,17 @@ namespace Basis.Scripts.Networking.Sync
 
         public void Advance(double dt)
         {
+            _bwTime += dt;
+            if (_bwTime >= BandwidthWindow)
+            {
+                float inv = (float)(1.0 / _bwTime);
+                _bytesPerSecond = _bwBytes * inv;
+                _packetsPerSecond = _bwPackets * inv;
+                _bwBytes = 0;
+                _bwPackets = 0;
+                _bwTime = 0.0;
+            }
+
             if (_arrived.Count > 0)
             {
                 _sortRef = _highestSeq;
@@ -175,8 +214,31 @@ namespace Basis.Scripts.Networking.Sync
                 _arrived.Clear();
             }
 
-            if (_current == null && _staged.Count > 0) _current = _staged.Dequeue();
-            if (_next == null && _staged.Count > 0) _next = _staged.Dequeue();
+            if (_snapRequested)
+            {
+                _snapRequested = false;
+                // Collapse the buffer to the freshest frame we have so playback jumps straight to it
+                // instead of interpolating across the discontinuity that prompted the request.
+                SyncFrame fresh = null;
+                while (_staged.Count > 0)
+                {
+                    if (fresh != null) ReturnFrame(fresh);
+                    fresh = _staged.Dequeue();
+                }
+                if (fresh == null) fresh = _next ?? _current;
+                if (fresh != null)
+                {
+                    if (_current != null && _current != fresh) ReturnFrame(_current);
+                    if (_next != null && _next != fresh) ReturnFrame(_next);
+                    _current = fresh;
+                    _next = null;
+                    _interpTime = 0.0;
+                    _valuesDirty = true;
+                }
+            }
+
+            if (_current == null && _staged.Count > 0) { _current = _staged.Dequeue(); _valuesDirty = true; }
+            if (_next == null && _staged.Count > 0) { _next = _staged.Dequeue(); _valuesDirty = true; }
 
             if (_current != null && _next != null)
             {
@@ -198,6 +260,7 @@ namespace Basis.Scripts.Networking.Sync
                     _current = _next;
                     _next = _staged.Dequeue();
                     _interpTime -= 1.0;
+                    _valuesDirty = true;
                 }
 
                 if (_interpTime >= 1.0)
@@ -220,6 +283,14 @@ namespace Basis.Scripts.Networking.Sync
             }
         }
 
+        /// <summary>
+        /// Request that playback collapse to the freshest received frame on the next <see cref="Advance"/>,
+        /// skipping interpolation. Use after a discontinuity in what the synced values mean (teleport, or a
+        /// pickup switching between world-space and hand-relative encoding) so the remote copy snaps rather
+        /// than sliding across the jump.
+        /// </summary>
+        public void ForceSnap() => _snapRequested = true;
+
         public void Reset()
         {
             if (_current != null) { ReturnFrame(_current); _current = null; }
@@ -234,6 +305,11 @@ namespace Basis.Scripts.Networking.Sync
             _serverClock = 0.0;
             _dynamicDepth = 2f;
             _haveLastCont = false;
+            _bwBytes = 0;
+            _bwPackets = 0;
+            _bwTime = 0.0;
+            _bytesPerSecond = 0f;
+            _packetsPerSecond = 0f;
         }
 
         private void SnapTo(SyncFrame frame)
@@ -243,6 +319,7 @@ namespace Basis.Scripts.Networking.Sync
             while (_staged.Count > 0) ReturnFrame(_staged.Dequeue());
             _interpTime = 0.0;
             _current = frame;
+            _valuesDirty = true;
         }
 
         private float ContJumpSq(float[] cont)

@@ -452,14 +452,14 @@ public static class BasisMenuItemsEditor
     }
 
 
-    [MenuItem("Basis/Debug/Server Profiler Request")]
+    [MenuItem("Basis/Debug/Server/Profiler Request")]
     public static void RequestStatsTick()
     {
         BasisNetworkEvents.Snapshotdata += DataPass;
         BasisNetworkEvents.RequestStatFrames();
         BasisNetworkManagement.HasRequested = true;
     }
-    [MenuItem("Basis/Debug/Server Profiler Stop")]
+    [MenuItem("Basis/Debug/Server/Profiler Stop")]
     public static void TryStopStats()
     {
         BasisNetworkEvents.StopStatFrames();

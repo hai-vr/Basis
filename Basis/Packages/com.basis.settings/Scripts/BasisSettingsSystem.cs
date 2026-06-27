@@ -164,6 +164,30 @@ public static class BasisSettingsSystem
         }
     }
 
+    public static void SaveStringQuiet(string uniqueSettingsName, string value)
+    {
+        bool changed = false;
+
+        if (settingsData.settings.TryGetValue(uniqueSettingsName, out var existing))
+        {
+            if (existing != value)
+            {
+                settingsData.settings[uniqueSettingsName] = value;
+                changed = true;
+            }
+        }
+        else
+        {
+            settingsData.settings[uniqueSettingsName] = value;
+            changed = true;
+        }
+
+        if (changed && _settingsLoaded)
+        {
+            SaveAllSettings();
+        }
+    }
+
     public static string LoadString(string uniqueSettingsName, string defaultValue)
     {
 

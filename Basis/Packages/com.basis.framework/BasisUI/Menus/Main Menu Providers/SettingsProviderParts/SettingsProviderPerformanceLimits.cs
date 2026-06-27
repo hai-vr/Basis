@@ -179,6 +179,8 @@ public static class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.slider.tooltip"));
 
+        AddJiggleColliderLodControls(physics.ContentParent);
+
         PanelSectionToggleHelpers.FinalizeCollapsibleGroup(physicsToggle, physics, false, _ => ForceLayout());
 
         PanelSectionToggle effectsToggle = PanelSectionToggle.CreateNewEntry(contentParent);
@@ -297,6 +299,42 @@ public static class SettingsProviderPerformanceLimits
         }
     }
 
+    // Master toggle + three distance thresholds for distance-based jiggle collider reduction.
+    // The sliders only show while the feature is on, matching AddLimitPair's reveal behaviour.
+    private static void AddJiggleColliderLodControls(Component parent)
+    {
+        PanelToggle toggle = PanelToggle.CreateNewEntry(parent);
+        toggle.Descriptor.SetTitle(BasisLocalization.Get("settings.perf.jiggleColliderLod.toggle"));
+        toggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleColliderLod.toggle.tooltip"));
+        toggle.AssignBinding(BasisSettingsDefaults.UseJiggleColliderDistanceLod);
+
+        PanelSlider near = PanelSlider.CreateEntryAndBind(parent,
+            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleColliderLod.near", 5f, 100f, false, 0, ValueDisplayMode.Meters),
+            BasisSettingsDefaults.JiggleColliderLodNearDistance);
+        PanelSlider mid = PanelSlider.CreateEntryAndBind(parent,
+            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleColliderLod.mid", 10f, 150f, false, 0, ValueDisplayMode.Meters),
+            BasisSettingsDefaults.JiggleColliderLodMidDistance);
+        PanelSlider far = PanelSlider.CreateEntryAndBind(parent,
+            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleColliderLod.far", 20f, 250f, false, 0, ValueDisplayMode.Meters),
+            BasisSettingsDefaults.JiggleColliderLodFarDistance);
+
+        if (near != null) near.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleColliderLod.near.tooltip"));
+        if (mid != null) mid.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleColliderLod.mid.tooltip"));
+        if (far != null) far.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleColliderLod.far.tooltip"));
+
+        void Sync(bool on)
+        {
+            if (near != null) near.gameObject.SetActive(on);
+            if (mid != null) mid.gameObject.SetActive(on);
+            if (far != null) far.gameObject.SetActive(on);
+            ForceLayout();
+        }
+
+        Sync(BasisSettingsDefaults.UseJiggleColliderDistanceLod.RawValue);
+        BasisSettingsDefaults.UseJiggleColliderDistanceLod.OnChanged += Sync;
+        toggle.OnInstanceReleased += () => BasisSettingsDefaults.UseJiggleColliderDistanceLod.OnChanged -= Sync;
+    }
+
     public static void ResetPerformanceLimitDefaults()
     {
         BasisSettingsDefaults.UsePerfLimitTriangles.ResetToDefault();
@@ -318,6 +356,10 @@ public static class SettingsProviderPerformanceLimits
         BasisSettingsDefaults.UseJiggleCollisionFrustumCull.ResetToDefault();
         BasisSettingsDefaults.UseJiggleCollisionDistanceCull.ResetToDefault();
         BasisSettingsDefaults.JiggleCollisionCullDistance.ResetToDefault();
+        BasisSettingsDefaults.UseJiggleColliderDistanceLod.ResetToDefault();
+        BasisSettingsDefaults.JiggleColliderLodNearDistance.ResetToDefault();
+        BasisSettingsDefaults.JiggleColliderLodMidDistance.ResetToDefault();
+        BasisSettingsDefaults.JiggleColliderLodFarDistance.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitAnimators.ResetToDefault();
         BasisSettingsDefaults.MaxPerfAnimators.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitBones.ResetToDefault();

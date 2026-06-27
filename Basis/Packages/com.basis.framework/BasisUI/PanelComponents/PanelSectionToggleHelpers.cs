@@ -48,11 +48,18 @@ namespace Basis.BasisUI
                 return;
             }
 
-            group.gameObject.SetActive(defaultOpen);
-            sectionToggle.SetExpandedWithoutNotify(defaultOpen);
+            string stateKey = ResolveSectionKey(sectionToggle);
+            bool effectiveOpen = stateKey != null ? BasisMenuStateMemory.GetSection(stateKey, defaultOpen) : defaultOpen;
+
+            group.gameObject.SetActive(effectiveOpen);
+            sectionToggle.SetExpandedWithoutNotify(effectiveOpen);
             sectionToggle.OnExpandedChanged += visible =>
             {
                 group.gameObject.SetActive(visible);
+                if (stateKey != null)
+                {
+                    BasisMenuStateMemory.SetSection(stateKey, visible);
+                }
                 onExpandedChanged?.Invoke(visible);
             };
         }
@@ -137,11 +144,18 @@ namespace Basis.BasisUI
                 }
             }
 
-            SetContentsActive(contents, defaultOpen);
-            sectionToggle.SetExpandedWithoutNotify(defaultOpen);
+            string stateKey = ResolveSectionKey(sectionToggle);
+            bool effectiveOpen = stateKey != null ? BasisMenuStateMemory.GetSection(stateKey, defaultOpen) : defaultOpen;
+
+            SetContentsActive(contents, effectiveOpen);
+            sectionToggle.SetExpandedWithoutNotify(effectiveOpen);
             sectionToggle.OnExpandedChanged += visible =>
             {
                 SetContentsActive(contents, visible);
+                if (stateKey != null)
+                {
+                    BasisMenuStateMemory.SetSection(stateKey, visible);
+                }
                 onExpandedChanged?.Invoke(visible);
             };
         }
@@ -176,6 +190,22 @@ namespace Basis.BasisUI
                     content.gameObject.SetActive(active);
                     return;
             }
+        }
+
+        private static string ResolveSectionKey(PanelSectionToggle sectionToggle)
+        {
+            if (!BasisMenuStateMemory.Enabled || !BasisMenuStateMemory.HasScope)
+            {
+                return null;
+            }
+
+            string title = sectionToggle != null && sectionToggle.Descriptor != null ? sectionToggle.Descriptor.Title : null;
+            if (string.IsNullOrEmpty(title))
+            {
+                return null;
+            }
+
+            return BasisMenuStateMemory.NextSectionKey(title);
         }
     }
 }

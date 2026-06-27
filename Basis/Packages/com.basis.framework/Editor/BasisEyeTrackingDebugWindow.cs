@@ -21,7 +21,7 @@ namespace Basis.Scripts.Device_Management.EyeTracking.Editor
 
         private Vector2 _scroll;
 
-        [MenuItem("Basis/Eye Tracking Pipeline")]
+        [MenuItem("Basis/Debug/Eye Tracking Pipeline")]
         public static void ShowWindow()
         {
             BasisEyeTrackingDebugWindow window = GetWindow<BasisEyeTrackingDebugWindow>();

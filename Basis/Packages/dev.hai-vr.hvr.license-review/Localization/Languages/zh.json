@@ -1,0 +1,10 @@
+{
+  "code": "zh",
+  "nativeName": "中文（繁體）",
+  "entries": [
+    {
+      "key": "settings.thirdpartylicenses.openlicenseurl",
+      "value": "開啟授權 URL"
+    }
+  ]
+}

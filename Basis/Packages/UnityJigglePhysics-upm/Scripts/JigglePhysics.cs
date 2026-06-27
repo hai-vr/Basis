@@ -249,21 +249,36 @@ public static class JigglePhysics {
         return jobs;
     }
 
+    // Out-of-band root-Transform destruction (asset bundle unload, scene teardown, a rig
+    // whose OnDisable was skipped) is rare and otherwise handled immediately by
+    // RemoveJiggleTreeSegment, so the dead-segment prune — two Unity `== null` checks per
+    // root, O(total trees) every dirty flush — only runs once per PRUNE_CADENCE flushes
+    // instead of scanning all ~N roots each time a single tree goes dirty.
+    private const int PRUNE_CADENCE = 64;
+    private static int pruneFlushCounter;
+
     private static void GetJiggleTrees() {
         Profiler.BeginSample("JiggleRoot.GetJiggleTrees");
-        // Prune any segments whose root Transform has been destroyed out-of-band
-        // (e.g. asset bundle unload, scene teardown, or a rig whose OnDisable was
-        // skipped) before attempting to regenerate their trees.
+        bool prune = ++pruneFlushCounter >= PRUNE_CADENCE;
+        if (prune) pruneFlushCounter = 0;
+
         for (int i = rootJiggleTreeSegments.Count - 1; i >= 0; i--) {
             var seg = rootJiggleTreeSegments[i];
+            // Cheap path: a clean, already-built tree on a non-prune flush needs no work and
+            // skips the expensive Unity null checks below. Dirty/new trees (and every root on
+            // a prune flush) fall through and are still null-guarded before regeneration.
+            var currentTree = seg.jiggleTree;
+            bool needsRegen = currentTree is not { dirty: false };
+            if (!needsRegen && !prune) {
+                continue;
+            }
             if (seg.transform == null || seg.jiggleRigData.rootBone == null) {
                 if (seg.jiggleTree != null) ScheduleRemoveJiggleTree(seg.jiggleTree);
                 jiggleRootLookup.Remove(seg.transform);
                 rootJiggleTreeSegments.RemoveAt(i);
                 continue;
             }
-            var currentTree = seg.jiggleTree;
-            if (currentTree is { dirty: false }) {
+            if (!needsRegen) {
                 continue;
             }
             seg.RegenerateJiggleTreeIfNeeded();

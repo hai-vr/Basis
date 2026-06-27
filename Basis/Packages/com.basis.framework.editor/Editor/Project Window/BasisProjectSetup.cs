@@ -105,7 +105,7 @@ public partial class BasisProjectSetup : EditorWindow
 
     // ─────────────────────────── Menu & lifecycle ───────────────────────────
 
-    [MenuItem("Basis/ProjectSetup")]
+    [MenuItem("Basis/Project Setup", false, 0)]
     public static void ShowWindow()
     {
         Basis.Editor.Localization.BasisEditorLocalization.Initialize();

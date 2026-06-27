@@ -424,6 +424,7 @@ public partial class BasisTransmissionResults
         // managed snapshot[] objects (up to 6 separate passes before).
         // Uses unsafe pointers to bypass NativeArray safety checks.
         float visemeRangeSq = SMModuleDistanceBasedReductions.HearingRange * 0.25f;
+        bool jiggleColliderLodEnabled = BasisJiggleColliderLOD.Enabled;
         // Per-tick budget of avatar (re)loads admitted below; reset each tick. See MaxAvatarReloadsPerTick.
         int avatarReloadsAdmitted = 0;
         unsafe
@@ -534,6 +535,21 @@ public partial class BasisTransmissionResults
 
                 // Update pose LOD from distance — independent of mesh LOD
                 remote.CurrentLodLevel = pMeshLodLevel[i];
+
+                // Distance-based jiggle collider reduction: trim a remote's arm/finger/foot
+                // colliders as it gets farther so distant crowds stop dominating the jiggle sim.
+                if (jiggleColliderLodEnabled)
+                {
+                    var jiggleDriver = remote.RemoteAvatarDriver;
+                    if (jiggleDriver != null && jiggleDriver.HasJiggleColliders)
+                    {
+                        var jiggleTier = BasisJiggleColliderLOD.ComputeTier(pDistanceSq[i], jiggleDriver.RegisteredColliderTier);
+                        if (jiggleTier != jiggleDriver.RegisteredColliderTier)
+                        {
+                            jiggleDriver.ApplyColliderLOD(jiggleTier);
+                        }
+                    }
+                }
             }
         }
 

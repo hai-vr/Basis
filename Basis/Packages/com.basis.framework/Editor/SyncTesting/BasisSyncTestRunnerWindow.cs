@@ -19,6 +19,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
         static readonly Color Green = new Color(0.45f, 0.9f, 0.45f);
         static readonly Color Red = new Color(0.95f, 0.5f, 0.5f);
         static readonly Color Grey = new Color(0.65f, 0.65f, 0.65f);
+        static readonly Color Yellow = new Color(0.95f, 0.85f, 0.35f);
 
         enum Scope { Quick, Full }
 
@@ -29,6 +30,10 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
         bool _teleThresh = true;
         bool _composites = true;
         bool _checksumOff;
+        bool _multiObject = true;
+        bool _batched = true;
+        bool _realJob = true;
+        bool _lateJoin = true;
 
         List<BasisSyncSimResult> _results;
         string _summary = "";
@@ -37,7 +42,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
         Vector2 _scroll;
         Vector2 _failScroll;
 
-        [MenuItem("Basis/Networking/Sync Test Matrix")]
+        [MenuItem("Basis/Debug/Sync Test Matrix")]
         public static void ShowWindow()
         {
             BasisSyncTestRunnerWindow window = GetWindow<BasisSyncTestRunnerWindow>();
@@ -78,7 +83,17 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
                 _interpOff = EditorGUILayout.Toggle("Interpolate-off variants", _interpOff);
                 _extrap = EditorGUILayout.Toggle("Extrapolation variants", _extrap);
                 _teleThresh = EditorGUILayout.Toggle("Teleport-threshold variants", _teleThresh);
-                _checksumOff = EditorGUILayout.Toggle(new GUIContent("Checksum-off variants", "Adds checksum-OFF runs on corrupting profiles (expected to FAIL) to show the option carrying recovery."), _checksumOff);
+                _checksumOff = EditorGUILayout.Toggle(new GUIContent("Checksum-off variants", "Adds checksum-OFF runs on corrupting profiles. Undetectable corruption is reported as WARN (labelled 'no checksum'), not FAIL."), _checksumOff);
+            }
+
+            Header("Multi-object scenes");
+            _multiObject = EditorGUILayout.Toggle(new GUIContent("Enable scenes", "Several objects share one wire: batch coalesce/demux, real Burst interp over a multi-slot SoA, and a late-joiner. One scene yields one result row per object."), _multiObject);
+            using (new EditorGUI.IndentLevelScope())
+            using (new EditorGUI.DisabledScope(!_multiObject))
+            {
+                _batched = EditorGUILayout.Toggle(new GUIContent("Batched transport", "Coalesce each frame through the real BatchWriter and demux via BatchReader (shared-fate loss). Off = one datagram per object."), _batched);
+                _realJob = EditorGUILayout.Toggle(new GUIContent("Real Burst interp", "Sample the far side with the real InterpolateSyncObjectsJob over the multi-slot SoA. Off = managed mirror."), _realJob);
+                _lateJoin = EditorGUILayout.Toggle(new GUIContent("Late-join variant", "Adds a receiver that attaches mid-stream and recovers only via the keyframe-on-join."), _lateJoin);
             }
 
             if (EditorGUI.EndChangeCheck() || _scenarioCount < 0)
@@ -108,11 +123,18 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
             if (_results == null) return;
 
             Header("Results");
-            int pass = 0, fail = 0;
-            for (int i = 0; i < _results.Count; i++) { if (_results[i].Pass) pass++; else fail++; }
+            int pass = 0, warn = 0, fail = 0;
+            for (int i = 0; i < _results.Count; i++)
+            {
+                BasisSyncSimResult r = _results[i];
+                if (!r.Pass) fail++;
+                else if (r.Warn) warn++;
+                else pass++;
+            }
 
             EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-            Colored($"PASS {pass}", pass == _results.Count ? Green : Grey);
+            Colored($"PASS {pass}", fail == 0 && warn == 0 ? Green : Grey);
+            Colored($"WARN {warn}", warn > 0 ? Yellow : Grey);
             Colored($"FAIL {fail}", fail > 0 ? Red : Grey);
             EditorGUILayout.LabelField($"of {_results.Count}", GUILayout.Width(70));
             EditorGUILayout.EndHorizontal();
@@ -150,6 +172,10 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
             o.ExtrapolateVariant = _extrap;
             o.TeleportThresholdVariant = _teleThresh;
             o.ChecksumOffVariant = _checksumOff;
+            o.MultiObjectScenes = _multiObject;
+            o.BatchedTransport = _batched;
+            o.RealInterpJob = _realJob;
+            o.LateJoinVariant = _lateJoin;
             return o;
         }
 
@@ -167,7 +193,7 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
                         if (done % 16 == 0 || done == total)
                         {
                             if (EditorUtility.DisplayCancelableProgressBar("Sync Test Matrix",
-                                $"{done}/{total}  -  {r.ScenarioName}", total > 0 ? (float)done / total : 0f))
+                                $"{done}/{total}  -  {(r != null ? r.ScenarioName : "")}", total > 0 ? (float)done / total : 0f))
                                 _cancel = true;
                         }
                     },
@@ -188,23 +214,35 @@ namespace Basis.Scripts.Networking.Sync.EditorTools
 
             var byProfile = new SortedDictionary<string, int[]>();   // name -> [pass, fail]
             var byConfig = new SortedDictionary<string, int[]>();
-            int pass = 0, fail = 0, soft = 0;
+            var byTransport = new SortedDictionary<string, int[]>();
+            int pass = 0, warn = 0, fail = 0, soft = 0;
+            int demuxEntries = 0, demuxErrors = 0;
 
             for (int i = 0; i < _results.Count; i++)
             {
                 BasisSyncSimResult r = _results[i];
-                if (r.Pass) pass++; else fail++;
-                if (r.Pass && !string.IsNullOrEmpty(r.FailReason)) soft++;
+                if (!r.Pass) fail++;
+                else if (r.Warn) warn++;
+                else pass++;
+                if (r.Pass && !r.Warn && !string.IsNullOrEmpty(r.FailReason)) soft++;
                 Bump(byProfile, r.ProfileName, r.Pass);
                 Bump(byConfig, r.FieldConfigName, r.Pass);
+                Bump(byTransport, r.Transport, r.Pass);
+                demuxEntries += r.DemuxEntries;
+                demuxErrors += r.DemuxErrors;
             }
 
             var sb = new StringBuilder();
-            sb.AppendLine($"{_results.Count} scenarios in {elapsedMs} ms   |   PASS {pass}   FAIL {fail}   (soft warnings {soft})");
+            sb.AppendLine($"{_results.Count} scenarios in {elapsedMs} ms   |   PASS {pass}   WARN {warn}   FAIL {fail}   (soft {soft})");
             sb.AppendLine();
             sb.AppendLine("By network profile:");
             foreach (var kv in byProfile)
                 sb.AppendLine($"  {kv.Key,-14} pass {kv.Value[0],4}   fail {kv.Value[1],4}");
+            sb.AppendLine();
+            sb.AppendLine("By transport:");
+            foreach (var kv in byTransport)
+                sb.AppendLine($"  {kv.Key,-14} pass {kv.Value[0],4}   fail {kv.Value[1],4}");
+            sb.AppendLine($"  scene demux: {demuxEntries} sub-payloads routed, {demuxErrors} unroutable");
             sb.AppendLine();
             sb.AppendLine("Field configs with failures:");
             bool anyCfgFail = false;

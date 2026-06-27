@@ -23,7 +23,7 @@ namespace Basis.Editor
         private const string OpenLipSyncPrefix = "Packages/com.basisvr.openlipsync/";
         private const string OpenLipSyncGroup = "Basis OpenLipSync";
 
-        [MenuItem("Basis/Addressables/Organize Model Groups")]
+        [MenuItem("Basis/Build/Addressables/Organize Model Groups")]
         public static void OrganizeMenu()
         {
             int moved = Organize(logEach: true);

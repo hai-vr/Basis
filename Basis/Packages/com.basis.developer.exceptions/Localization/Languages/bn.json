@@ -1,0 +1,26 @@
+{
+  "code": "bn",
+  "nativeName": "বাংলা",
+  "entries": [
+    {
+      "key": "notification.exception.title",
+      "value": "{0} একটি এক্সসেপশনে পড়েছে"
+    },
+    {
+      "key": "notification.exception.copy",
+      "value": "বিস্তারিত কপি করুন"
+    },
+    {
+      "key": "notification.exception.dismiss",
+      "value": "খারিজ করুন"
+    },
+    {
+      "key": "notification.exception.unknownSystem",
+      "value": "একটি Basis সিস্টেম"
+    },
+    {
+      "key": "notification.exception.copyHint",
+      "value": "সম্পূর্ণ স্ট্যাক ট্রেস কপি করতে বিস্তারিত কপি করুন ব্যবহার করুন।"
+    }
+  ]
+}

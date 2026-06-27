@@ -28,7 +28,7 @@ namespace Basis.Scripts.Profiler.EditorTools
     /// </summary>
     public static class BasisFrameCapture
     {
-        private const string MenuPath = "Basis/Profiler/Capture Single Frame";
+        private const string MenuPath = "Basis/Debug/Profiler/Capture Single Frame";
         private const string CaptureDirName = "ProfilerCaptures";
 
         // Samples shorter than this are dropped from the JSON dump (root sample is always kept).

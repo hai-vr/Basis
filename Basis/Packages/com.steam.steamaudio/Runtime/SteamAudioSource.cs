@@ -316,8 +316,15 @@ namespace SteamAudio
 
             if (mSource != null)
             {
-                mSource.Release();
-                mSource = null;
+                // The direct worker may still hold this native handle for one frame.
+                // Defer the release to a worker-idle point; fall back to immediate.
+                if (SteamAudioManager.TryDeferSourceRelease(mSource))
+                    mSource = null;
+                else
+                {
+                    mSource.Release();
+                    mSource = null;
+                }
             }
         }
 
@@ -471,13 +478,21 @@ namespace SteamAudio
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetInputs(SimulationFlags flags, Vector3 origin, Vector3 ahead, Vector3 up, Vector3 right, SteamAudioListener listener)
         {
-            if (!mInitialized) return;
+            if (TryBuildInputs(flags, origin, ahead, up, right, listener, out SimulationInputs inputs))
+                mSource.SetInputs(flags, inputs);
+        }
+
+        // Builds the SimulationInputs but does NOT issue iplSourceSetInputs, so the
+        // direct worker thread can make that native call off the main thread.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryBuildInputs(SimulationFlags flags, Vector3 origin, Vector3 ahead, Vector3 up, Vector3 right, SteamAudioListener listener, out SimulationInputs inputs)
+        {
+            inputs = default;
+            if (!mInitialized) return false;
             if (mCacheDirty)
             {
                 RebuildCache(listener);
             }
-
-            SimulationInputs inputs = default;
 
             // Source transform
             inputs.source.origin = origin;
@@ -532,8 +547,14 @@ namespace SteamAudio
             inputs.flags = mCachedSimFlags;
             inputs.directFlags = mCachedDirectFlags;
 
-            // Final handoff
-            mSource.SetInputs(flags, inputs);
+            return true;
+        }
+
+        // Native source handle for the direct worker; IntPtr.Zero until HeavyInit runs.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IntPtr GetNativeSourceHandle()
+        {
+            return (mInitialized && mSource != null) ? mSource.Get() : IntPtr.Zero;
         }
 
         public SimulationOutputs GetOutputs(SimulationFlags flags)
@@ -591,6 +612,47 @@ namespace SteamAudio
                 outputs.pathing.eqCoeffsMid = Mathf.Max(0.1f, outputs.pathing.eqCoeffsMid);
                 outputs.pathing.eqCoeffsHigh = Mathf.Max(0.1f, outputs.pathing.eqCoeffsHigh);
             }
+        }
+
+        // Reap path for the threaded direct pipeline: the worker has already fetched
+        // outputs into a buffer, so this only copies sim-defined values to fields and
+        // (when pushParamsNow) pushes them to the audio engine. Mirrors ReapDirect's
+        // early-out + UpdateOutputs(Direct) field copy, minus the native GetOutputs.
+        public void ApplyDirectOutputs(in DirectEffectParams direct, bool pushParamsNow)
+        {
+            if (!mInitialized) return;
+
+            if (IsUnityEngineUsed && !HasSimulatedDirectOutput())
+                return;
+
+            if (IsUnityEngineUsed)
+            {
+                if (distanceAttenuation && distanceAttenuationInput == DistanceAttenuationInput.PhysicsBased)
+                    distanceAttenuationValue = direct.distanceAttenuation;
+
+                if (airAbsorption && airAbsorptionInput == AirAbsorptionInput.SimulationDefined)
+                {
+                    airAbsorptionLow = direct.airAbsorptionLow;
+                    airAbsorptionMid = direct.airAbsorptionMid;
+                    airAbsorptionHigh = direct.airAbsorptionHigh;
+                }
+
+                if (directivity && directivityInput == DirectivityInput.SimulationDefined)
+                    directivityValue = direct.directivity;
+
+                if (occlusion && occlusionInput == OcclusionInput.SimulationDefined)
+                    occlusionValue = direct.occlusion;
+
+                if (transmission && transmissionInput == TransmissionInput.SimulationDefined)
+                {
+                    transmissionLow = direct.transmissionLow;
+                    transmissionMid = direct.transmissionMid;
+                    transmissionHigh = direct.transmissionHigh;
+                }
+            }
+
+            if (pushParamsNow && mAudioEngineSource != null)
+                mAudioEngineSource.UpdateParameters(this);
         }
 
         void InitializeDeformedSphereMesh(int nPhi, int nTheta)

@@ -24,6 +24,7 @@ namespace Basis.Scripts.Networking.Sync
         private static bool _dirtyLayout;
         private static bool _scheduled;
         private static bool _hasBindings;
+        private static bool _forceFullCopy;
         private static JobHandle _jobHandle;
 
         // Per-slot (indexed by remote list position).
@@ -35,6 +36,7 @@ namespace Basis.Scripts.Networking.Sync
         private static NativeArray<float> _contCur, _contNext, _contOut;
         private static NativeArray<byte> _contMode;
         private static NativeArray<quaternion> _rotCur, _rotNext, _rotOut;
+        private static NativeArray<byte> _rotMode;
         private static NativeArray<int> _discNext, _discOut;
 
         // Transform bindings.
@@ -71,7 +73,7 @@ namespace Basis.Scripts.Networking.Sync
             DisposeIf(ref _rotBase); DisposeIf(ref _rotCount);
             DisposeIf(ref _discBase); DisposeIf(ref _discCount);
             DisposeIf(ref _contCur); DisposeIf(ref _contNext); DisposeIf(ref _contOut); DisposeIf(ref _contMode);
-            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut);
+            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut); DisposeIf(ref _rotMode);
             DisposeIf(ref _discNext); DisposeIf(ref _discOut);
             DisposeIf(ref _bindPosArr); DisposeIf(ref _bindRotArr); DisposeIf(ref _bindScaleArr); DisposeIf(ref _bindWorldArr); DisposeIf(ref _bindSlotArr);
             if (_taa.isCreated) _taa.Dispose();
@@ -96,6 +98,9 @@ namespace Basis.Scripts.Networking.Sync
             if (_remote.Remove(obj)) _dirtyLayout = true;
         }
 
+        /// <summary>Live list of remote (interpolated) synced objects, for debug visualisation. Do not mutate.</summary>
+        public static IReadOnlyList<BasisSyncedObject> RemoteObjects => _remote;
+
         public static void RegisterOwned(BasisSyncedObject obj)
         {
             if (obj != null) _owned.Add(obj);
@@ -114,7 +119,7 @@ namespace Basis.Scripts.Networking.Sync
             if (_scheduled) { _jobHandle.Complete(); _scheduled = false; }
 
             if (_remote.Count == 0) return;
-            if (_dirtyLayout) RebuildLayout();
+            if (_dirtyLayout) { RebuildLayout(); _forceFullCopy = true; }
 
             int n = _remote.Count;
             for (int i = 0; i < n; i++)
@@ -129,27 +134,32 @@ namespace Basis.Scripts.Networking.Sync
                 int cb = _contBase[i], cc = _contCount[i];
                 int rb = _rotBase[i], rc = _rotCount[i];
                 int db = _discBase[i], dc = _discCount[i];
-                BasisSyncValues cur = recv.CurrentValues;
-                BasisSyncValues nxt = recv.NextValues;
+                if (recv.ConsumeValuesDirty() || _forceFullCopy)
+                {
+                    BasisSyncValues cur = recv.CurrentValues;
+                    BasisSyncValues nxt = recv.NextValues;
 
-                for (int c = 0; c < cc; c++)
-                {
-                    _contCur[cb + c] = cur.Cont[c];
-                    _contNext[cb + c] = nxt.Cont[c];
-                }
-                for (int r = 0; r < rc; r++)
-                {
-                    _rotCur[rb + r] = cur.Rot[r];
-                    _rotNext[rb + r] = nxt.Rot[r];
-                }
-                for (int d = 0; d < dc; d++)
-                {
-                    _discNext[db + d] = nxt.Disc[d];
+                    for (int c = 0; c < cc; c++)
+                    {
+                        _contCur[cb + c] = cur.Cont[c];
+                        _contNext[cb + c] = nxt.Cont[c];
+                    }
+                    for (int r = 0; r < rc; r++)
+                    {
+                        _rotCur[rb + r] = cur.Rot[r];
+                        _rotNext[rb + r] = nxt.Rot[r];
+                    }
+                    for (int d = 0; d < dc; d++)
+                    {
+                        _discNext[db + d] = nxt.Disc[d];
+                    }
                 }
 
                 _t[i] = recv.InterpTime;
                 _active[i] = 1;
             }
+
+            _forceFullCopy = false;
 
             var interp = new InterpolateSyncObjectsJob
             {
@@ -166,6 +176,7 @@ namespace Basis.Scripts.Networking.Sync
                 ContMode = _contMode,
                 RotCur = _rotCur,
                 RotNext = _rotNext,
+                RotMode = _rotMode,
                 DiscNext = _discNext,
                 ContOut = _contOut,
                 RotOut = _rotOut,
@@ -220,6 +231,8 @@ namespace Basis.Scripts.Networking.Sync
                 BasisSyncedObject o = _ownedScratch[i];
                 if (o != null) o.TransmitIfDue(timeAsDouble);
             }
+
+            BasisSyncBatchCollector.Flush();
         }
 
         internal static float ReadCont(int idx)
@@ -288,6 +301,10 @@ namespace Basis.Scripts.Networking.Sync
                             : (fld.Interpolate ? (byte)1 : (byte)0);
                         for (int c = 0; c < fld.ContComponents; c++)
                             _contMode[cb + fld.Offset + c] = mode;
+                    }
+                    else if (fld.Pool == BasisSyncPool.Rotation)
+                    {
+                        _rotMode[rb + fld.Offset] = (byte)(fld.Interpolate ? 1 : 0);
                     }
                 }
 
@@ -363,15 +380,17 @@ namespace Basis.Scripts.Networking.Sync
         {
             if (total < 1) total = 1;
             if (_rotCur.IsCreated && _rotCur.Length == total) return;
-            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut);
+            DisposeIf(ref _rotCur); DisposeIf(ref _rotNext); DisposeIf(ref _rotOut); DisposeIf(ref _rotMode);
             _rotCur = new NativeArray<quaternion>(total, Allocator.Persistent);
             _rotNext = new NativeArray<quaternion>(total, Allocator.Persistent);
             _rotOut = new NativeArray<quaternion>(total, Allocator.Persistent);
+            _rotMode = new NativeArray<byte>(total, Allocator.Persistent);
             for (int i = 0; i < total; i++)
             {
                 _rotCur[i] = quaternion.identity;
                 _rotNext[i] = quaternion.identity;
                 _rotOut[i] = quaternion.identity;
+                _rotMode[i] = 1;
             }
         }
 

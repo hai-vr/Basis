@@ -41,8 +41,11 @@ namespace Basis.Scripts.Networking
         }
         public static void Connect(ushort port, string ipString, string primitivePassword, bool isHostMode, string networkStackId = "")
         {
+            BNL.LogOutput -= LogOutput;
             BNL.LogOutput += LogOutput;
+            BNL.LogWarningOutput -= LogWarningOutput;
             BNL.LogWarningOutput += LogWarningOutput;
+            BNL.LogErrorOutput -= LogErrorOutput;
             BNL.LogErrorOutput += LogErrorOutput;
 
             PlayerIdentity identity = BasisPlayerIdentityRegistry.ResolveActive();
@@ -124,9 +127,12 @@ namespace Basis.Scripts.Networking
                         ipString, port, readyMessage,
                         Encoding.UTF8.GetBytes(primitivePassword), serverConfig);
 
+                    NetworkClient.listener.PeerConnectedEvent -= PeerConnectedEvent;
                     NetworkClient.listener.PeerConnectedEvent += PeerConnectedEvent;
+                    NetworkClient.listener.PeerDisconnectedEvent -= BasisNetworkConnection.HandleDisconnection;
                     NetworkClient.listener.PeerDisconnectedEvent += BasisNetworkConnection.HandleDisconnection;
                     BasisNetworkEvents.EnsureInitialized();
+                    NetworkClient.listener.NetworkReceiveEvent -= BasisNetworkEvents.NetworkReceiveEvent;
                     NetworkClient.listener.NetworkReceiveEvent += BasisNetworkEvents.NetworkReceiveEvent;
 
                     if (LocalPlayerPeer != null)

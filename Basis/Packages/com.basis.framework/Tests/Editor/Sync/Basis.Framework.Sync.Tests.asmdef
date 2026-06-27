@@ -6,7 +6,8 @@
         "Basis Framework Editor",
         "Unity.Collections",
         "Unity.Mathematics",
-        "UnityEngine.TestRunner"
+        "UnityEngine.TestRunner",
+        "BasisSDK"
     ],
     "includePlatforms": [
         "Editor"

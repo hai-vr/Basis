@@ -110,7 +110,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   StreamingMipmapsMaxLevelReduction: 4
-  treamingMipmapsMaxFileIORequests: 512
+  StreamingMipmapsMaxFileIORequests: 512
 --- !u!114 &5461552350079237887
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -401,7 +401,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1d8443f8cfb94e89a397c6c93171386a, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Basis Framework::SMModuleVolumetricFogOverrideURP
 --- !u!114 &4326429654513598727
 MonoBehaviour:
@@ -776,6 +776,7 @@ MonoBehaviour:
   UseAddressablesToLoadScene: 0
   UseSceneProvidedHere: 0
   UrpShader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
+  UnlitUrpShader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
 --- !u!114 &6910429841152494025
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -812,5 +813,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisMediaPipe::Basis.MediaPipe.BasisMediaPipeManagement
   IsDeviceBooted: 0
   DeviceMode: 1
-  Enabled: 0
   CameraDeviceName: 

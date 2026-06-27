@@ -15,7 +15,7 @@ public class BasisMotionClipBaker : EditorWindow
     [SerializeField] private GameObject _root;
     [SerializeField] private float _frameRate = 60f;
 
-    [MenuItem("Basis/Authored Motion/Bake Clip")]
+    [MenuItem("Basis/Build/Bake Authored Motion Clip")]
     private static void Open() => GetWindow<BasisMotionClipBaker>(true, "Bake Authored Motion Clip");
 
     private void OnGUI()

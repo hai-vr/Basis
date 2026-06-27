@@ -11,7 +11,7 @@ namespace Basis.IK.Debugging
     /// </summary>
     public static class BasisFootRotationDebugMenu
     {
-        [MenuItem("Basis/IK Tests/Foot Rotation Debug - Start (record)")]
+        [MenuItem("Basis/Debug/IK/Foot Rotation Debug - Start (record)")]
         static void StartRec()
         {
             if (!Application.isPlaying) { Debug.LogWarning("[FootRotDebug] enter Play mode first."); return; }
@@ -19,13 +19,13 @@ namespace Basis.IK.Debugging
             Debug.Log("[FootRotDebug] recording. Walk around AND stand still, then run 'Stop + Dump CSV'.");
         }
 
-        [MenuItem("Basis/IK Tests/Foot Rotation Debug - Stop + Dump CSV")]
+        [MenuItem("Basis/Debug/IK/Foot Rotation Debug - Stop + Dump CSV")]
         static void StopRec() => BasisFootRotationDebug.StopAndDump();
 
-        [MenuItem("Basis/IK Tests/Foot Rotation Debug - Start (record)", true)]
+        [MenuItem("Basis/Debug/IK/Foot Rotation Debug - Start (record)", true)]
         static bool StartValidate() => !BasisFootRotationDebug.Enabled;
 
-        [MenuItem("Basis/IK Tests/Foot Rotation Debug - Stop + Dump CSV", true)]
+        [MenuItem("Basis/Debug/IK/Foot Rotation Debug - Stop + Dump CSV", true)]
         static bool StopValidate() => BasisFootRotationDebug.Enabled;
     }
 }

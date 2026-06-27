@@ -31,7 +31,9 @@ Shader "Basis/NamePlate/Panel"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma target 4.5
             #pragma multi_compile_instancing
+            #pragma multi_compile _ BASIS_NAMEPLATE_GPU
 
             #include "UnityCG.cginc"
 
@@ -40,6 +42,7 @@ Shader "Basis/NamePlate/Panel"
                 float3 vertex : POSITION;
                 float4 color  : COLOR;
                 float2 uv     : TEXCOORD0;
+                float2 plate  : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -53,23 +56,44 @@ Shader "Basis/NamePlate/Panel"
 
             float _Sheen;
 
+            #if defined(BASIS_NAMEPLATE_GPU)
+                // Per-plate billboard data indexed by the plate id in TEXCOORD1.x. Positions stay
+                // plate-local in the mesh; the GPU transforms them so the CPU only pushes these
+                // (tiny) buffers each frame instead of the whole vertex buffer. Matrices are stored
+                // as 4 columns (float4) per plate, matching Unity's column-major Matrix4x4 memory.
+                StructuredBuffer<float4> _PlateMatrices;
+                StructuredBuffer<float4> _PlateColors;
+            #endif
+
             v2f vert(appdata v)
             {
                 v2f o;
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
+            #if defined(BASIS_NAMEPLATE_GPU)
+                int id = (int)(v.plate.x + 0.5);
+                int b = id * 4;
+                float3 p = (_PlateMatrices[b]     * v.vertex.x
+                          + _PlateMatrices[b + 1] * v.vertex.y
+                          + _PlateMatrices[b + 2] * v.vertex.z
+                          + _PlateMatrices[b + 3]).xyz;
+                o.pos = UnityObjectToClipPos(p);
+                float4 col = _PlateColors[id];
+            #else
                 o.pos = UnityObjectToClipPos(v.vertex);
+                float4 col = v.color;
+            #endif
 
-                // CurrentColor (talk-mode color) arrives as an sRGB vertex color. In a linear
+                // CurrentColor (talk-mode color) arrives as an sRGB color. In a linear
                 // project Unity doesn't auto-convert vertex colors the way it does a material
                 // _BaseColor, so convert here or the grey (and every mode color) renders ~2x too
                 // bright. Guarded so it's a no-op in gamma projects.
-                float3 c = v.color.rgb;
+                float3 c = col.rgb;
                 #ifndef UNITY_COLORSPACE_GAMMA
                     c = GammaToLinearSpace(c);
                 #endif
-                o.color = fixed4(c, v.color.a);
+                o.color = fixed4(c, col.a);
 
                 o.uv = v.uv;
                 return o;

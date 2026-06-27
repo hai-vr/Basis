@@ -77,6 +77,11 @@ public class JiggleMemoryBus {
     private List<Transform> transformRootAccessList;
     private List<Transform> personalColliderTransformAccessList;
     private List<Transform> sceneColliderTransformAccessList;
+    // Index mirror of sceneColliderTransformAccessList (transform -> slot), kept in sync at
+    // every add/remove site so collider removal is an O(1) lookup instead of List.IndexOf's
+    // linear scan — that scan was O(scene colliders) per remove and O(removes * colliders)
+    // across a frame under distance-LOD collider churn (~8ms in profiles).
+    private Dictionary<Transform, int> sceneColliderTransformToIndex;
 
     public JiggleDoubleBufferTransformAccessArray doubleBufferTransformAccessArray;
     public JiggleDoubleBufferTransformAccessArray doubleBufferTransformRootAccessArray;
@@ -362,6 +367,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         transformRootAccessList = new List<Transform>();
         personalColliderTransformAccessList = new List<Transform>();
         sceneColliderTransformAccessList = new List<Transform>();
+        sceneColliderTransformToIndex = new Dictionary<Transform, int>();
         doubleBufferTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
         doubleBufferTransformRootAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
         doubleBufferPersonalColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
@@ -653,13 +659,13 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             
             for (int i = 0; i < pendingRemoveSceneColliderCount; i++) {
                 var collider = pendingSceneColliderRemove[i];
-                var id = sceneColliderTransformAccessList.IndexOf(collider.transform);
-                if (id != -1) {
+                if (sceneColliderTransformToIndex.TryGetValue(collider.transform, out var id)) {
                     sceneColliderMemoryFragmenter.Free(id, 1);
                     var sceneCollider = sceneColliderArray[id];
                     sceneCollider.enabled = false;
                     sceneColliderArray[id] = sceneCollider;
                     sceneColliderTransformAccessList[id] = GetDummyTransform(id);
+                    sceneColliderTransformToIndex.Remove(collider.transform);
                 }
             }
             pendingSceneColliderRemove.Clear();
@@ -677,6 +683,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                     sceneColliderTransformAccessList.Add(collider.transform);
                 }
                 sceneColliderTransformAccessList[index] = collider.transform;
+                sceneColliderTransformToIndex[collider.transform] = index;
                 sceneColliderArray[index] = collider.collider;
                 sceneColliderCount = math.max(index+1, sceneColliderCount);
             }

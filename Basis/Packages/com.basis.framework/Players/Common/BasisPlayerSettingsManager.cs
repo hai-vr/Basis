@@ -8,6 +8,7 @@ using UnityEngine;
 public static class BasisPlayerSettingsManager
 {
     private static readonly string Dir = Path.Combine(Application.persistentDataPath, "PlayerSettings");
+    private static readonly char[] InvalidChars = Path.GetInvalidFileNameChars();
 
     // One lock per file
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new ConcurrentDictionary<string, SemaphoreSlim>();
@@ -30,6 +31,8 @@ public static class BasisPlayerSettingsManager
 
         var key = Sanitize(uuid);
 
+        // Hot path: already cached. No disk, no thread hop — critical during join storms where every
+        // remote player is requested by several subsystems (nameplate, audio, avatar, init).
         if (cache.TryGetValue(key, out var cached))
         {
             return cached;
@@ -46,45 +49,32 @@ public static class BasisPlayerSettingsManager
                 return cached;
             }
 
-            BasisPlayerSettingsData data;
-            if (!File.Exists(path))
-            {
-                data = CreateDefaults(uuid);
-                await SaveInternal(path, data);
-            }
-            else
-            {
-                var json = await File.ReadAllTextAsync(path);
+            // Read off the main thread; only the (trivial) JSON parse resumes on it. A missing file
+            // returns defaults WITHOUT writing — the record is created only when a setting actually
+            // changes (SetPlayerSettings), so joining never touches the disk for write.
+            string json = await Task.Run(() => File.Exists(path) ? File.ReadAllText(path) : null);
 
-                BasisPlayerSettingsData loaded = default;
-                bool valid = false;
-                if (!string.IsNullOrWhiteSpace(json))
+            BasisPlayerSettingsData data = default;
+            bool valid = false;
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                try
                 {
-                    try
+                    BasisPlayerSettingsData loaded = JsonUtility.FromJson<BasisPlayerSettingsData>(json);
+                    if (loaded.Version != 0)
                     {
-                        loaded = JsonUtility.FromJson<BasisPlayerSettingsData>(json);
-                        valid = loaded.Version != 0;
-                    }
-                    catch (Exception e)
-                    {
-                        BasisDebug.LogWarning($"Player settings at {path} were unreadable ({e.Message}); resetting to defaults.");
+                        if (string.IsNullOrEmpty(loaded.UUID)) loaded.UUID = uuid;
+                        data = loaded;
+                        valid = true;
                     }
                 }
-
-                if (valid)
+                catch (Exception e)
                 {
-                    data = loaded;
-                    if (string.IsNullOrEmpty(data.UUID))
-                    {
-                        data.UUID = uuid;
-                    }
-                }
-                else
-                {
-                    data = CreateDefaults(uuid);
-                    await SaveInternal(path, data);
+                    BasisDebug.LogWarning($"Player settings at {path} were unreadable ({e.Message}); using defaults.");
                 }
             }
+
+            if (!valid) data = CreateDefaults(uuid);
 
             cache[key] = data;
             return data;
@@ -114,7 +104,8 @@ public static class BasisPlayerSettingsManager
         try
         {
             cache[key] = settings;
-            await SaveInternal(path, settings);
+            string json = JsonUtility.ToJson(settings, false);
+            await Task.Run(() => File.WriteAllText(path, json));
         }
         finally
         {
@@ -123,12 +114,6 @@ public static class BasisPlayerSettingsManager
     }
 
     // --- internals ---
-
-    private static async Task SaveInternal(string path, BasisPlayerSettingsData data)
-    {
-        var json = JsonUtility.ToJson(data, false);
-        await File.WriteAllTextAsync(path, json);
-    }
 
     private static BasisPlayerSettingsData CreateDefaults(string uuid)
     {
@@ -142,7 +127,7 @@ public static class BasisPlayerSettingsManager
 
     private static string Sanitize(string s)
     {
-        foreach (var c in Path.GetInvalidFileNameChars())
+        foreach (var c in InvalidChars)
         {
             s = s.Replace(c, '_');
         }

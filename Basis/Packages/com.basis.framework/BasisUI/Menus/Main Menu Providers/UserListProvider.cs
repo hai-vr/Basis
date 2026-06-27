@@ -12,7 +12,7 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Main menu provider that displays a searchable grid of all connected players.
-    /// Supports filtering by Name and UUID via dropdown.
+    /// Search matches against both display name and UUID.
     /// Clicking a remote player opens their IndividualPlayerProvider panel.
     /// </summary>
     public class UserListProvider : BasisMenuActionProvider<BasisMainMenu>
@@ -54,19 +54,11 @@ namespace Basis.BasisUI
             // Search field at the very top
             PanelTextField searchField = PanelTextField.CreateNewEntry(root);
             searchField.Descriptor.SetTitle(BasisLocalization.Get("ui.search.label"));
-            searchField.Descriptor.SetDescription(BasisLocalization.Get("menu.players.search.byName"));
-
-            // Search mode dropdown right below search. Entries stay as stable
-            // identifiers ("Name"/"UUID") because the dropdown value is compared
-            // against those strings when filtering.
-            PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(root);
-            modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.searchMode"));
-            modeDropdown.AssignEntries(new List<string> { "Name", "UUID" });
-            modeDropdown.SetValueWithoutNotify("Name");
+            searchField.Descriptor.SetDescription(BasisLocalization.Get("menu.players.search.byNameOrUuid"));
 
             // Sort mode dropdown. Entries are stable English identifiers — the
-            // controller switches on the literal string the same way ModeDropdown
-            // does, so adding a translated label here would silently disable sort.
+            // controller switches on the literal string, so adding a translated
+            // label here would silently disable sort.
             PanelDropdown sortDropdown = PanelDropdown.CreateNewEntry(root);
             sortDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.sortMode"));
             sortDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.sortMode.description"));
@@ -91,7 +83,6 @@ namespace Basis.BasisUI
             _controller.GridParent = root;
             _controller.HeaderGroup = headerGroup;
             _controller.SearchField = searchField;
-            _controller.ModeDropdown = modeDropdown;
             _controller.SortDropdown = sortDropdown;
             _controller.DirectionDropdown = directionDropdown;
             _controller.TabDescriptor = tab.Descriptor;
@@ -134,7 +125,6 @@ namespace Basis.BasisUI
 
         // ======== Types ========
 
-        private enum SearchMode { Name, UUID }
         private enum SortMode { Default, Distance, Name, Platform, JoinTime }
         private enum DirectionFilter { All, InFront, Behind }
 
@@ -157,13 +147,11 @@ namespace Basis.BasisUI
             public RectTransform GridParent;
             public PanelElementDescriptor HeaderGroup;
             public PanelTextField SearchField;
-            public PanelDropdown ModeDropdown;
             public PanelDropdown SortDropdown;
             public PanelDropdown DirectionDropdown;
             public PanelElementDescriptor TabDescriptor;
 
             private readonly Dictionary<ushort, PlayerEntry> _entries = new();
-            private SearchMode _searchMode = SearchMode.Name;
             private SortMode _sortMode = SortMode.Default;
             private DirectionFilter _directionFilter = DirectionFilter.All;
             private string _lastQuery = string.Empty;
@@ -189,7 +177,6 @@ namespace Basis.BasisUI
                 PinnedPlayers.Changed += OnPinsChanged;
 
                 SearchField.OnValueChanged += OnSearchChanged;
-                ModeDropdown.OnValueChanged += OnModeChanged;
                 SortDropdown.OnValueChanged += OnSortChanged;
                 DirectionDropdown.OnValueChanged += OnDirectionChanged;
 
@@ -251,14 +238,6 @@ namespace Basis.BasisUI
                 TabDescriptor.ForceRebuild();
             }
 
-            private void OnModeChanged(string value)
-            {
-                _searchMode = value == "UUID" ? SearchMode.UUID : SearchMode.Name;
-                UpdateSearchHint();
-                ApplyFilter();
-                TabDescriptor.ForceRebuild();
-            }
-
             private void OnSortChanged(string value)
             {
                 _sortMode = value switch
@@ -284,14 +263,6 @@ namespace Basis.BasisUI
                 };
                 ApplyFilter();
                 TabDescriptor.ForceRebuild();
-            }
-
-            private void UpdateSearchHint()
-            {
-                SearchField.Descriptor.SetDescription(BasisLocalization.Get(
-                    _searchMode == SearchMode.UUID
-                        ? "menu.players.search.byUuid"
-                        : "menu.players.search.byName"));
             }
 
             private void OnSearchChanged(string query)
@@ -337,7 +308,6 @@ namespace Basis.BasisUI
                 {
                     AddPlayerEntry(player);
                 }
-                UpdateSearchHint();
                 ReorderButtons();
                 ApplyFilter();
                 UpdateHeader();
@@ -668,17 +638,11 @@ namespace Basis.BasisUI
 
                     if (hasQuery)
                     {
-                        if (_searchMode == SearchMode.UUID)
-                        {
-                            string uuid = entry.NetPlayer.Player != null
-                                ? entry.NetPlayer.Player.UUID ?? "" : "";
-                            show = uuid.ToLowerInvariant().Contains(queryLower);
-                        }
-                        else
-                        {
-                            string n = entry.NetPlayer.SafeDisplayName ?? "";
-                            show = n.ToLowerInvariant().Contains(queryLower);
-                        }
+                        string n = entry.NetPlayer.SafeDisplayName ?? "";
+                        string uuid = entry.NetPlayer.Player != null
+                            ? entry.NetPlayer.Player.UUID ?? "" : "";
+                        show = n.ToLowerInvariant().Contains(queryLower)
+                            || uuid.ToLowerInvariant().Contains(queryLower);
                     }
 
                     // Direction filter: skip the local player (no direction relative
