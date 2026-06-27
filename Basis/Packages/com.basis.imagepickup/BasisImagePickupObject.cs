@@ -69,7 +69,7 @@ namespace Basis.ImagePickup
             if (front.TryGetComponent(out MeshCollider meshCollider)) DestroyImmediate(meshCollider);
 
             pickup._frontRenderer = front.GetComponent<MeshRenderer>();
-            pickup._material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            pickup._material = new Material(BundledContentHolder.Instance.UnlitUrpShader);
             if (pickup._material.HasProperty(BaseMapId)) pickup._material.SetTexture(BaseMapId, texture);
             else pickup._material.mainTexture = texture;
             if (pickup._material.HasProperty(BaseColorId)) pickup._material.SetColor(BaseColorId, Color.white);
