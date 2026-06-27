@@ -12,10 +12,10 @@ namespace HVR.Basis.Comms
     /// </summary>
     public static class HVRCommsUpdateDriver
     {
-        private static readonly List<HVRVixxyOrchestrator> Orchestrators = new();
-        private static readonly List<FaceTrackingActivityRelay> ActivityRelays = new();
-        private static readonly List<HVRVariableNetworking> VariableNetworkers = new();
-        private static readonly List<EyeTrackingBoneActuation> EyeActuations = new();
+        private static readonly TickList<HVRVixxyOrchestrator> Orchestrators = new();
+        private static readonly TickList<FaceTrackingActivityRelay> ActivityRelays = new();
+        private static readonly TickList<HVRVariableNetworking> VariableNetworkers = new();
+        private static readonly TickList<EyeTrackingBoneActuation> EyeActuations = new();
 
         private static readonly ProfilerMarker VixxyMarker = new ProfilerMarker("HVRComms.VixxyOrchestrator");
         private static readonly ProfilerMarker ActivityMarker = new ProfilerMarker("HVRComms.FaceTrackingActivity");
@@ -62,9 +62,10 @@ namespace HVR.Basis.Comms
         {
             using (EyeActuationMarker.Auto())
             {
-                for (var i = 0; i < EyeActuations.Count; i++)
+                var items = EyeActuations.Snapshot(out var count);
+                for (var i = 0; i < count; i++)
                 {
-                    try { EyeActuations[i].SimulateTick(); }
+                    try { items[i].SimulateTick(); }
                     catch (Exception ex) { BasisDebug.LogError($"EyeTrackingBoneActuation update failed: {ex}"); }
                 }
             }
@@ -74,9 +75,10 @@ namespace HVR.Basis.Comms
         {
             using (VixxyMarker.Auto())
             {
-                for (var i = 0; i < Orchestrators.Count; i++)
+                var items = Orchestrators.Snapshot(out var count);
+                for (var i = 0; i < count; i++)
                 {
-                    try { Orchestrators[i].SimulateTick(); }
+                    try { items[i].SimulateTick(); }
                     catch (Exception ex) { BasisDebug.LogError($"HVRVixxyOrchestrator update failed: {ex}"); }
                 }
             }
@@ -86,9 +88,10 @@ namespace HVR.Basis.Comms
         {
             using (ActivityMarker.Auto())
             {
-                for (var i = 0; i < ActivityRelays.Count; i++)
+                var items = ActivityRelays.Snapshot(out var count);
+                for (var i = 0; i < count; i++)
                 {
-                    try { ActivityRelays[i].SimulateTick(); }
+                    try { items[i].SimulateTick(); }
                     catch (Exception ex) { BasisDebug.LogError($"FaceTrackingActivityRelay update failed: {ex}"); }
                 }
             }
@@ -103,11 +106,50 @@ namespace HVR.Basis.Comms
         {
             using (VariableNetworkingMarker.Auto())
             {
-                for (var i = 0; i < VariableNetworkers.Count; i++)
+                var items = VariableNetworkers.Snapshot(out var count);
+                for (var i = 0; i < count; i++)
                 {
-                    try { VariableNetworkers[i].SimulateTick(); }
+                    try { items[i].SimulateTick(); }
                     catch (Exception ex) { BasisDebug.LogError($"HVRVariableNetworking update failed: {ex}"); }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Registration list with a cached T[] view so tick loops avoid List get_Item/get_Count
+        /// per element and stay safe against register/unregister during a tick. Alloc-free at steady state.
+        /// </summary>
+        private sealed class TickList<T>
+        {
+            private readonly List<T> _items = new();
+            private T[] _array = Array.Empty<T>();
+            private int _count;
+            private bool _dirty;
+
+            public void Add(T item)
+            {
+                _items.Add(item);
+                _dirty = true;
+            }
+
+            public void Remove(T item)
+            {
+                if (_items.Remove(item)) _dirty = true;
+            }
+
+            public T[] Snapshot(out int count)
+            {
+                if (_dirty)
+                {
+                    int needed = _items.Count;
+                    if (_array.Length < needed) _array = new T[Math.Max(needed, _array.Length * 2)];
+                    _items.CopyTo(_array);
+                    for (int i = needed; i < _count; i++) _array[i] = default;
+                    _count = needed;
+                    _dirty = false;
+                }
+                count = _count;
+                return _array;
             }
         }
     }

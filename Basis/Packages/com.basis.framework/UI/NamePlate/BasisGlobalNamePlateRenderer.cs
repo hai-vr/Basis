@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Unity.Burst;
@@ -75,6 +76,57 @@ namespace Basis.Scripts.UI.NamePlate
         private static NativeArray<Matrix4x4> matrices;
         private static NativeArray<Color> plateColors;
         private static int plateCapacity;
+
+        // Plate-order → playerId (cached at topology rebuild) and → dense sOut slot (resolved each
+        // frame). Lets each plate's matrix be rebuilt from RemoteBoneJobSystem's already-computed
+        // pose (sOut: hips + height) in Burst, instead of reading the plate Transform on the main
+        // thread. The nameplate is a standalone scene root scaled by NamePlateSize, so its full
+        // world matrix is hips-position + yaw-to-camera + that uniform scale.
+        private static NativeArray<int> plateKey;
+        private static NativeArray<int> plateSlot;
+        // Snapshot mirrored as a plain array so the per-frame gather indexes a T[] instead of
+        // List<T>.this[] (the List indexer's bounds-check showed up in the gather).
+        private static BasisRemoteNamePlate[] snapArr = System.Array.Empty<BasisRemoteNamePlate>();
+        // Reused scratch for the per-vertex GPU plate-id UV fill (avoids a per-rebuild Temp alloc).
+        private static NativeArray<Vector2> uvScratch;
+
+        // Topology rebuild (CombineMeshes) is heavy and allocates; coalesce it during join storms so
+        // it runs at most once per this many frames while plates are streaming in. A lone join after
+        // an idle gap still rebuilds immediately. Set to 1 to rebuild on every dirty frame.
+        public static int RebuildMinFrameGap = 4;
+        private static int lastRebuildFrame = -1000;
+
+        // Manual panel merge: build the merged panel vertex+index buffers directly from each plate's
+        // quad into reused NativeArrays via SetVertexBufferData — no CombineMeshes, no per-rebuild
+        // CombineInstance[] GC. Flip false to fall back to the CombineMeshes path. (Text still uses
+        // CombineMeshes.)
+        public static bool ManualMergePanel = true;
+        private static NativeArray<PanelVertex> panelScratch;
+        private static NativeArray<uint> indexScratch;
+        private static NativeArray<Vector3> tmpPos;
+        private static NativeArray<Vector2> tmpUv0;
+        private static NativeArray<int> tmpIdx;
+        private static readonly List<Mesh> srcMeshList = new(64);
+        private static readonly VertexAttributeDescriptor[] PanelLayout =
+        {
+            new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 2),
+        };
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PanelVertex
+        {
+            public float3 Pos;
+            public float2 Uv0;
+            public float2 Uv1;
+        }
+        /// <summary>
+        /// Build per-plate matrices from RemoteBoneJobSystem's computed pose (no Transform /
+        /// isActiveAndEnabled reads). Falls back to the Transform path when the bone system isn't
+        /// ready; flip to force the Transform path for A/B.
+        /// </summary>
+        public static bool UseBoneSystemMatrices = true;
 
         // Shared GPU per-plate buffers (matrices stored as 4 float4 columns each).
         private static GraphicsBuffer plateMatrixBuffer;
@@ -195,10 +247,11 @@ namespace Basis.Scripts.UI.NamePlate
                 dirty = true;
             }
 
-            if (dirty)
+            if (dirty && Time.frameCount - lastRebuildFrame >= RebuildMinFrameGap)
             {
                 RebuildTopology(plates, count);
                 dirty = false;
+                lastRebuildFrame = Time.frameCount;
             }
 
             if (snapshot.Count == 0)
@@ -222,6 +275,17 @@ namespace Basis.Scripts.UI.NamePlate
 
             int plateCount = snapshot.Count;
             EnsurePlateCapacity(plateCount);
+
+            // Cache each plate (as a plain array) + its network playerId once (stable per plate) for
+            // the per-frame sOut-slot resolution in GatherFromBoneSystem.
+            for (int gi = 0; gi < plateCount; gi++)
+            {
+                var plate = snapshot[gi];
+                snapArr[gi] = plate;
+                var rp = plate.BasisRemotePlayer;
+                var recv = rp != null ? rp.NetworkReceiver : null;
+                plateKey[gi] = recv != null ? recv.playerId : -1;
+            }
 
             // Panel layer: one quad per plate.
             panel.Combine.Clear();
@@ -271,7 +335,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// writes the owning plate id into a UV channel and leaves positions plate-local; for the CPU
         /// path it caches each vertex's local position and plate index for the per-frame transform.
         /// </summary>
-        private static void BuildLayerGeometry(Layer l, bool isPanel)
+        private static unsafe void BuildLayerGeometry(Layer l, bool isPanel)
         {
             l.Gpu = isPanel ? GpuBillboardPanel : (GpuBillboardText && textBillboardShader != null);
 
@@ -282,29 +346,39 @@ namespace Basis.Scripts.UI.NamePlate
                 return;
             }
 
+            // Panel: build the merged buffers by hand (no CombineMeshes / CombineInstance[] GC).
+            if (isPanel && l.Gpu && ManualMergePanel)
+            {
+                BuildPanelMerged(l);
+                l.Mesh.bounds = new Bounds(Vector3.zero, Vector3.one * NoCullExtent);
+                return;
+            }
+
             // useMatrices:false keeps each plate's geometry in its own local space.
             l.Mesh.Clear();
             l.Mesh.CombineMeshes(l.CombineExact(), true, false);
 
             int vc = l.Mesh.vertexCount;
             l.VertexCount = vc;
+            int entries = l.SrcPlate.Count;
 
             if (l.Gpu)
             {
                 // Positions stay plate-local in the mesh; only the per-vertex plate id is needed.
                 // Panel uses UV1 (mesh has UV0 only); text uses UV2 (TMP already uses UV0 + UV1).
+                // Unsafe pointer + reused scratch: no per-vertex NativeArray indexer, no Temp alloc.
                 int channel = isPanel ? 1 : 2;
-                var ids = new NativeArray<Vector2>(vc, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                EnsureScratch(ref uvScratch, vc);
+                Vector2* idPtr = (Vector2*)uvScratch.GetUnsafePtr();
                 int o = 0;
-                for (int e = 0; e < l.SrcPlate.Count; e++)
+                for (int e = 0; e < entries; e++)
                 {
                     int evc = l.SrcVertexCount[e];
-                    float gi = l.SrcPlate[e];
-                    for (int j = 0; j < evc; j++) ids[o + j] = new Vector2(gi, 0f);
+                    Vector2 id = new Vector2(l.SrcPlate[e], 0f);
+                    for (int j = 0; j < evc; j++) idPtr[o + j] = id;
                     o += evc;
                 }
-                l.Mesh.SetUVs(channel, ids);
-                ids.Dispose();
+                l.Mesh.SetUVs(channel, uvScratch, 0, vc);
             }
             else
             {
@@ -317,19 +391,101 @@ namespace Basis.Scripts.UI.NamePlate
                 }
 
                 // Fill per-vertex plate index from each combine entry's cached vertex span.
+                int* idxPtr = (int*)l.PlateIdx.GetUnsafePtr();
                 int offset = 0;
-                NativeArray<int> idx = l.PlateIdx;
-                int entries = l.SrcPlate.Count;
                 for (int e = 0; e < entries; e++)
                 {
                     int evc = l.SrcVertexCount[e];
                     int gi = l.SrcPlate[e];
-                    for (int j = 0; j < evc; j++) idx[offset + j] = gi;
+                    for (int j = 0; j < evc; j++) idxPtr[offset + j] = gi;
                     offset += evc;
                 }
             }
 
             l.Mesh.bounds = new Bounds(Vector3.zero, Vector3.one * NoCullExtent);
+        }
+
+        /// <summary>
+        /// Merges every plate's panel quad into the layer mesh by hand: concatenates positions + UV0
+        /// into a reused interleaved buffer (plus the per-vertex plate id in UV1) and offsets each
+        /// plate's indices, then uploads via SetVertexBufferData/SetIndexBufferData. Avoids
+        /// Mesh.CombineMeshes and the per-rebuild CombineInstance[] allocation.
+        /// </summary>
+        private static unsafe void BuildPanelMerged(Layer l)
+        {
+            int n = l.Combine.Count;
+            srcMeshList.Clear();
+            for (int i = 0; i < n; i++) srcMeshList.Add(l.Combine[i].mesh);
+
+            using Mesh.MeshDataArray mda = Mesh.AcquireReadOnlyMeshData(srcMeshList);
+
+            int totalV = 0, totalI = 0, maxV = 0, maxI = 0;
+            for (int i = 0; i < n; i++)
+            {
+                int v = mda[i].vertexCount;
+                int ic = mda[i].GetSubMesh(0).indexCount;
+                totalV += v;
+                totalI += ic;
+                if (v > maxV) maxV = v;
+                if (ic > maxI) maxI = ic;
+            }
+
+            l.VertexCount = totalV;
+            if (totalV == 0)
+            {
+                SetLayerEnabled(l, false);
+                return;
+            }
+
+            EnsureScratch(ref panelScratch, totalV);
+            EnsureScratch(ref indexScratch, totalI);
+            EnsureScratch(ref tmpPos, maxV);
+            EnsureScratch(ref tmpUv0, maxV);
+            EnsureScratch(ref tmpIdx, maxI);
+
+            PanelVertex* vp = (PanelVertex*)panelScratch.GetUnsafePtr();
+            uint* ip = (uint*)indexScratch.GetUnsafePtr();
+
+            int vOff = 0, iOff = 0;
+            for (int i = 0; i < n; i++)
+            {
+                Mesh.MeshData md = mda[i];
+                int vc = md.vertexCount;
+                int ic = md.GetSubMesh(0).indexCount;
+
+                md.GetVertices(tmpPos.GetSubArray(0, vc));
+                md.GetUVs(0, tmpUv0.GetSubArray(0, vc));
+                md.GetIndices(tmpIdx.GetSubArray(0, ic), 0);
+
+                Vector3* pp = (Vector3*)tmpPos.GetUnsafeReadOnlyPtr();
+                Vector2* up = (Vector2*)tmpUv0.GetUnsafeReadOnlyPtr();
+                int* xp = (int*)tmpIdx.GetUnsafeReadOnlyPtr();
+
+                float2 uv1 = new float2(l.SrcPlate[i], 0f);
+                for (int j = 0; j < vc; j++)
+                {
+                    vp[vOff + j] = new PanelVertex { Pos = pp[j], Uv0 = up[j], Uv1 = uv1 };
+                }
+                for (int k = 0; k < ic; k++) ip[iOff + k] = (uint)(xp[k] + vOff);
+
+                vOff += vc;
+                iOff += ic;
+            }
+
+            l.Mesh.Clear();
+            l.Mesh.SetVertexBufferParams(totalV, PanelLayout);
+            l.Mesh.SetVertexBufferData(panelScratch, 0, 0, totalV);
+            l.Mesh.SetIndexBufferParams(totalI, IndexFormat.UInt32);
+            l.Mesh.SetIndexBufferData(indexScratch, 0, 0, totalI);
+            l.Mesh.subMeshCount = 1;
+            l.Mesh.SetSubMesh(0, new SubMeshDescriptor(0, totalI), MeshUpdateFlags.DontRecalculateBounds);
+        }
+
+        private static void EnsureScratch<T>(ref NativeArray<T> a, int n) where T : struct
+        {
+            if (a.IsCreated && a.Length >= n) return;
+            if (a.IsCreated) a.Dispose();
+            a = new NativeArray<T>(Mathf.Max(64, Mathf.NextPowerOfTwo(n)), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         }
 
         private static void UpdateFrame()
@@ -346,20 +502,10 @@ namespace Basis.Scripts.UI.NamePlate
             bool cullBehind = canCull && CullBehind;
             bool cullOccluded = canCull && CullOccluded && OcclusionMask.value != 0;
 
-            for (int gi = 0; gi < plateCount; gi++)
+            if (!UseBoneSystemMatrices ||
+                !GatherFromBoneSystem(plateCount, worldToLocal, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded))
             {
-                BasisRemoteNamePlate p = snapshot[gi];
-                if (p != null && p.IsGloballyRenderable &&
-                    IsPlateVisible(p, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded))
-                {
-                    matrices[gi] = worldToLocal * p.Self.localToWorldMatrix;
-                    plateColors[gi] = p.CurrentColor;
-                }
-                else
-                {
-                    // Collapse hidden / culled / destroyed plates to a point (zero-area, not rasterized).
-                    matrices[gi] = ZeroMatrix;
-                }
+                GatherFromTransforms(plateCount, worldToLocal, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded);
             }
 
             // Any GPU layer? Upload the shared per-plate buffers once (before scheduling CPU jobs that
@@ -488,6 +634,99 @@ namespace Basis.Scripts.UI.NamePlate
             SetLayerEnabled(l, true);
         }
 
+        /// <summary>
+        /// Builds every plate matrix from RemoteBoneJobSystem's already-computed pose (sOut) in Burst
+        /// instead of reading the plate Transform on the main thread. Per-plate main-thread work drops
+        /// to a slot lookup + cached active flag + color. Returns false (caller falls back to the
+        /// Transform path) when the bone system isn't ready this frame.
+        /// </summary>
+        private static unsafe bool GatherFromBoneSystem(int plateCount, Matrix4x4 worldToLocal, Vector3 camPos,
+            Vector3 camFwd, float maxDistSqr, bool cullBehind, bool cullOccluded)
+        {
+            // The bone pipeline is completed earlier in the tick (CompleteRemoteBoneJobSystemJobs runs
+            // before CompleteNamePlates), so this returns the final pose array with no stall.
+            NativeArray<RemoteFrameOutput> frames = RemoteBoneJobSystem.GetRemoteFrameArray();
+            if (!frames.IsCreated) return false;
+            int[] indexMap = RemoteBoneJobSystem.GetSOutIndexMap();
+            if (indexMap == null) return false;
+
+            int mapLen = indexMap.Length;
+            int frameLen = frames.Length;
+
+            // Phase 1 (main, managed): resolve each plate's dense sOut slot + visibility + color, plus
+            // the occlusion linecast. Unsafe pointers skip the NativeArray bounds/safety-handle
+            // overhead; snapArr avoids the List indexer.
+            int* keyPtr = (int*)plateKey.GetUnsafeReadOnlyPtr();
+            int* slotPtr = (int*)plateSlot.GetUnsafePtr();
+            Color* colPtr = (Color*)plateColors.GetUnsafePtr();
+            RemoteFrameOutput* framePtr = (RemoteFrameOutput*)frames.GetUnsafeReadOnlyPtr();
+
+            for (int gi = 0; gi < plateCount; gi++)
+            {
+                BasisRemoteNamePlate p = snapArr[gi];
+                int pid = keyPtr[gi];
+                int slot = (p != null && p.RenderActive && (uint)pid < (uint)mapLen) ? indexMap[pid] : -1;
+                if ((uint)slot >= (uint)frameLen) slot = -1;
+
+                if (slot >= 0)
+                {
+                    colPtr[gi] = p.CurrentColor;
+                    if (cullOccluded)
+                    {
+                        RemoteFrameOutput f = framePtr[slot];
+                        Vector3 platePos = new Vector3(f.pos_Hips.x, f.pos_Hips.y + f.HeightAvatarHipCoord, f.pos_Hips.z);
+                        if (Physics.Linecast(camPos, platePos, OcclusionMask, QueryTriggerInteraction.Ignore)) slot = -1;
+                    }
+                }
+                slotPtr[gi] = slot;
+            }
+
+            // Phase 2: distance/angle cull + per-plate matrix math, Burst-compiled. Run (not Schedule)
+            // keeps it Burst-fast on this thread without worker wake-up / queue latency — the math is
+            // far too slow as plain (non-Burst) C# to do inline, and a scheduled job's sync overhead
+            // exceeds the math at lobby plate counts.
+            new BuildMatricesJob
+            {
+                Frames = frames,
+                PlateSlot = plateSlot,
+                Matrices = matrices.Reinterpret<float4x4>(),
+                WorldToLocal = ToFloat4x4(worldToLocal),
+                Scale = 0.02f * BasisRemoteNamePlateDriver.NamePlateSize,
+                CamPos = camPos,
+                CamFwd = camFwd,
+                MaxDistSqr = maxDistSqr,
+                BehindDot = BehindDotThreshold,
+                CullBehind = cullBehind
+            }.Run(plateCount);
+
+            return true;
+        }
+
+        /// <summary>Fallback gather: reads each plate's Unity Transform (used when the bone system
+        /// isn't ready or <see cref="UseBoneSystemMatrices"/> is off).</summary>
+        private static void GatherFromTransforms(int plateCount, Matrix4x4 worldToLocal, Vector3 camPos,
+            Vector3 camFwd, float maxDistSqr, bool cullBehind, bool cullOccluded)
+        {
+            for (int gi = 0; gi < plateCount; gi++)
+            {
+                BasisRemoteNamePlate p = snapArr[gi];
+                if (p != null && p.IsGloballyRenderable &&
+                    IsPlateVisible(p, camPos, camFwd, maxDistSqr, cullBehind, cullOccluded))
+                {
+                    matrices[gi] = worldToLocal * p.Self.localToWorldMatrix;
+                    plateColors[gi] = p.CurrentColor;
+                }
+                else
+                {
+                    // Collapse hidden / culled / destroyed plates to a point (zero-area, not rasterized).
+                    matrices[gi] = ZeroMatrix;
+                }
+            }
+        }
+
+        private static float4x4 ToFloat4x4(Matrix4x4 m) =>
+            new float4x4(m.GetColumn(0), m.GetColumn(1), m.GetColumn(2), m.GetColumn(3));
+
         private static bool IsPlateVisible(BasisRemoteNamePlate p, Vector3 camPos, Vector3 camFwd,
             float maxDistSqr, bool cullBehind, bool cullOccluded)
         {
@@ -518,9 +757,14 @@ namespace Basis.Scripts.UI.NamePlate
             if (matrices.IsCreated && plateCapacity >= n) return;
             if (matrices.IsCreated) matrices.Dispose();
             if (plateColors.IsCreated) plateColors.Dispose();
+            if (plateKey.IsCreated) plateKey.Dispose();
+            if (plateSlot.IsCreated) plateSlot.Dispose();
             plateCapacity = Mathf.Max(16, Mathf.NextPowerOfTwo(n));
             matrices = new NativeArray<Matrix4x4>(plateCapacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             plateColors = new NativeArray<Color>(plateCapacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            plateKey = new NativeArray<int>(plateCapacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            plateSlot = new NativeArray<int>(plateCapacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            snapArr = new BasisRemoteNamePlate[plateCapacity];
         }
 
         private static void EnsureGpuBuffers(int n)
@@ -648,6 +892,16 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (matrices.IsCreated) matrices.Dispose();
             if (plateColors.IsCreated) plateColors.Dispose();
+            if (plateKey.IsCreated) plateKey.Dispose();
+            if (plateSlot.IsCreated) plateSlot.Dispose();
+            if (uvScratch.IsCreated) uvScratch.Dispose();
+            if (panelScratch.IsCreated) panelScratch.Dispose();
+            if (indexScratch.IsCreated) indexScratch.Dispose();
+            if (tmpPos.IsCreated) tmpPos.Dispose();
+            if (tmpUv0.IsCreated) tmpUv0.Dispose();
+            if (tmpIdx.IsCreated) tmpIdx.Dispose();
+            srcMeshList.Clear();
+            snapArr = System.Array.Empty<BasisRemoteNamePlate>();
             plateCapacity = 0;
 
             plateMatrixBuffer?.Dispose();
@@ -699,6 +953,63 @@ namespace Basis.Scripts.UI.NamePlate
                 int gi = PlateIdx[v];
                 World[v] = math.transform(Matrices[gi], Local[v]);
                 Colors[v] = PlateColors[gi];
+            }
+        }
+
+        /// <summary>
+        /// Per-plate distance/angle cull + local→root matrix from RemoteBoneJobSystem's pose
+        /// (hips + height) with a yaw-to-camera billboard and the uniform nameplate scale —
+        /// replicating MappedNameplateApplyJob. Invoked via Run (Burst, on the calling thread).
+        /// Culled / invisible plates (slot &lt; 0) collapse to zero.
+        /// </summary>
+        [BurstCompile]
+        private struct BuildMatricesJob : IJobParallelFor
+        {
+            [ReadOnly] public NativeArray<RemoteFrameOutput> Frames;
+            [ReadOnly] public NativeArray<int> PlateSlot;
+            [WriteOnly] public NativeArray<float4x4> Matrices;
+            public float4x4 WorldToLocal;
+            public float3 Scale;
+            public float3 CamPos;
+            public float3 CamFwd;
+            public float MaxDistSqr;
+            public float BehindDot;
+            public bool CullBehind;
+
+            public void Execute(int gi)
+            {
+                int slot = PlateSlot[gi];
+                if (slot < 0)
+                {
+                    Matrices[gi] = float4x4.zero;
+                    return;
+                }
+
+                RemoteFrameOutput f = Frames[slot];
+                float3 hips = f.pos_Hips;
+                float3 pos = new float3(hips.x, hips.y + f.HeightAvatarHipCoord, hips.z);
+
+                float3 toPlate = pos - CamPos;
+                float distSqr = math.lengthsq(toPlate);
+                bool culled = distSqr > MaxDistSqr;
+                if (!culled && CullBehind && distSqr > 1e-6f)
+                {
+                    float along = math.dot(CamFwd, toPlate);
+                    if (along < BehindDot * math.sqrt(distSqr)) culled = true;
+                }
+                if (culled)
+                {
+                    Matrices[gi] = float4x4.zero;
+                    return;
+                }
+
+                // Yaw-only billboard toward the camera (matches MappedNameplateApplyJob).
+                float3 toCam = CamPos - pos;
+                float2 xz = new float2(toCam.x, toCam.z);
+                float yaw = math.lengthsq(xz) > 1e-12f ? math.atan2(xz.x, xz.y) : 0f;
+                quaternion rot = quaternion.RotateY(yaw);
+
+                Matrices[gi] = math.mul(WorldToLocal, float4x4.TRS(pos, rot, Scale));
             }
         }
     }
