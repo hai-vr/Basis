@@ -55,9 +55,12 @@ BasisMediaSource source = await BasisYtDlpResolver.ResolveSourceAsync(pageUrl);
   to nothing unless both are present (asmdef define constraints
   `BASIS_MEDIAPLAYER_EXISTS` + `YTDLP_EXISTS`).
 - **Windows** today — the yt-dlp native plugin is Windows-first.
-- The first resolution unpacks the bundled Python runtime (tens of MB) to persistent
-  storage and is noticeably slow; later calls are fast. Resolution runs off the main
-  thread.
+- **Expect a few seconds per page-URL load.** The *first* resolution also unpacks the
+  bundled Python runtime (tens of MB) to persistent storage — a one-off, noticeably slow
+  step that later loads skip. But every page-URL load still spends a few seconds resolving
+  in-process (network round-trips plus YouTube's JS signature challenge), not just the
+  first. Resolution runs off the main thread, and nothing is surfaced on the player during
+  the gap, so a consuming UI should show its own loading state.
 
 ## Removing it
 
