@@ -115,6 +115,15 @@ namespace Basis.ImagePickup
             };
             IncrementSenderCount(ownerId);
 
+            BasisShareableRegistry.Register(new BasisShareableEntry
+            {
+                Id = id.ToString(),
+                Kind = BasisShareableKind.Image,
+                Title = $"Image {result.Width}x{result.Height}",
+                SharerName = ownerName,
+                Remove = () => { if (Instance != null) Instance.RequestDespawn(id); },
+            });
+
             if (HasNetworkID)
             {
                 SendSpawn(id, ownerId, ownerName, result.Width, result.Height, result.CleanPng, position, rotation, null);
@@ -321,6 +330,16 @@ namespace Basis.ImagePickup
             var pickup = BasisImagePickupObject.Build(this, transfer.Id, transfer.OwnerId, transfer.OwnerName, false, result.Texture, result.CleanPng, transfer.Position, transfer.Rotation);
             _images[transfer.Id] = pickup;
             IncrementSenderCount(transfer.OwnerId);
+
+            Guid imageId = transfer.Id;
+            BasisShareableRegistry.Register(new BasisShareableEntry
+            {
+                Id = imageId.ToString(),
+                Kind = BasisShareableKind.Image,
+                Title = $"Image {transfer.Width}x{transfer.Height}",
+                SharerName = transfer.OwnerName,
+                Remove = () => { if (Instance != null) Instance.RequestDespawn(imageId); },
+            });
         }
 
         private void HandleTransform(ushort senderId, BinaryReader reader)
@@ -399,6 +418,7 @@ namespace Basis.ImagePickup
                 _images.Remove(id);
             }
             _owned.Remove(id);
+            BasisShareableRegistry.Unregister(id.ToString());
         }
 
         private void IncrementSenderCount(ushort sender)

@@ -460,17 +460,6 @@ namespace Basis.EventDriver
             BasisContentSphereBillboardDriver.Dispose();
         }
 
-        /// <summary>
-        /// Renders Gizmos for debugging JigglePhysics when enabled.
-        /// </summary>
-        public void OnDrawGizmos()
-        {
-            if (!IsHeadlessClient && BasisLocalPlayer.PlayerReady)
-            {
-                BasisHintOffsetGizmos.DrawAll();
-            }
-        }
-
         public void OnDrawGizmosSelected()
         {
             if (IsHeadlessClient)
@@ -479,11 +468,6 @@ namespace Basis.EventDriver
             }
 
             JigglePhysics.OnDrawGizmos();
-            if (BasisLocalPlayer.PlayerReady)
-            {
-                BasisPlayerInteract.DrawAll();
-                BasisLocalPlayer.Instance.BasisLocalFootDriver.DrawGizmos();
-            }
         }
 
         // ── Editor-only profiling implementation ────────────────────

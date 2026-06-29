@@ -363,6 +363,26 @@
       "value": "Show the collision shapes used by inverse kinematics."
     },
     {
+      "key": "settings.developer.pointerRay.tooltip",
+      "value": "Show each pointer's raycast line and the placement box when positioning objects."
+    },
+    {
+      "key": "settings.developer.hintOffsets.tooltip",
+      "value": "Show IK hint trackers and their calibrated push up/out offsets."
+    },
+    {
+      "key": "settings.developer.footPlacement.tooltip",
+      "value": "Show procedural foot placement: step targets, arcs, and knee hints."
+    },
+    {
+      "key": "settings.developer.interactionHover.tooltip",
+      "value": "Show interaction hover spheres and lines to hovered objects."
+    },
+    {
+      "key": "settings.developer.seatTargets.tooltip",
+      "value": "Show the seated-pose solve targets for the back, knees, and feet."
+    },
+    {
       "key": "settings.developer.audioRanges.tooltip",
       "value": "Show your hearing-distance sphere and each speaker's full-volume range."
     },
@@ -5823,6 +5843,26 @@
       "value": "Draws the chest and hand collision capsules used by the IK solver to prevent the hands and arms from intersecting the torso. Useful when tuning ChestRadius, HandRadius, and CollisionSkin on the FullBodyIK constraint."
     },
     {
+      "key": "settings.developer.pointerRay",
+      "value": "Pointer Raycast"
+    },
+    {
+      "key": "settings.developer.hintOffsets",
+      "value": "IK Hint Offsets"
+    },
+    {
+      "key": "settings.developer.footPlacement",
+      "value": "Foot Placement"
+    },
+    {
+      "key": "settings.developer.interactionHover",
+      "value": "Interaction Hover"
+    },
+    {
+      "key": "settings.developer.seatTargets",
+      "value": "Seat Targets"
+    },
+    {
       "key": "settings.developer.audioRanges",
       "value": "Audio Ranges"
     },
@@ -7485,6 +7525,14 @@
     {
       "key": "settings.admin.title.lockDirectConnect.tooltip",
       "value": "Stop non-admin players from opening direct peer-to-peer connections. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockCilbox",
+      "value": "Lock Avatar Scripts (Cilbox)"
+    },
+    {
+      "key": "settings.admin.title.lockCilbox.tooltip",
+      "value": "Block sandboxed Cilbox code on avatars from running for everyone. Props and worlds keep their own scripts. Running avatar scripts stop at their next call; new ones never start. Admins are not exempt."
     },
     {
       "key": "settings.admin.minAvatarHeight",

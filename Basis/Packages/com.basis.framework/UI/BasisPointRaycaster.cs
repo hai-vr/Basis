@@ -496,30 +496,5 @@ namespace Basis.Scripts.UI
         public override void Raycast(PointerEventData eventData, List<RaycastResult> resultAppendList)
         {
         }
-
-        /// <summary>
-        /// Don't just draw unless selected
-        /// </summary>
-        private void OnDrawGizmosSelected()
-        {
-            if (!SMModuleDebugOptions.UseGizmos)
-                return;
-
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(ray.origin, ray.origin + ray.direction * EffectiveMaxDistance);
-
-            if (_mode == ControlMode.Placement && CurrentPlacement.HasHit)
-            {
-                Gizmos.color = Color.yellow;
-
-                Matrix4x4 old = Gizmos.matrix;
-                Gizmos.matrix = Matrix4x4.TRS(CurrentPlacement.Center, CurrentPlacement.Rotation, Vector3.one);
-
-                // DrawWireCube expects FULL size; CurrentPlacement.Extents is HALF size
-                Gizmos.DrawWireCube(Vector3.zero, CurrentPlacement.Extents * 2f);
-
-                Gizmos.matrix = old;
-            }
-        }
     }
 }

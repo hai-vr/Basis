@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -18,6 +19,10 @@ public class SMModuleDebugOptions : BasisSettingsBase
     public static bool UseLinkedTrackerLines = false;
     public static bool UseEyeGazeGizmo = false;
     public static bool UseIKColliders = false;
+    public static bool UseHintOffsets = false;
+    public static bool UseFootPlacement = false;
+    public static bool UseInteractionHover = false;
+    public static bool UseSeatTargets = false;
 
     // Single shared switch for billboarded text labels on every gizmo system
     // (tracker roles, linked-pair ids, IK collider names, and the audio gizmos,
@@ -50,6 +55,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_NETWORK_SYNC_BW => BasisSettingsDefaults.GizmoNetworkSyncBandwidth.BindingKey; // "gizmonetworksyncbandwidth"
     private static string K_GIZMO_NETWORK_PLAYERS => BasisSettingsDefaults.GizmoNetworkPlayers.BindingKey;        // "gizmonetworkplayers"
     private static string K_GIZMO_NETWORK_PLAYERS_BW => BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.BindingKey; // "gizmonetworkplayersbandwidth"
+    private static string K_GIZMO_POINTER_RAY => BasisSettingsDefaults.GizmoPointerRay.BindingKey;
+    private static string K_GIZMO_HINT_OFFSETS => BasisSettingsDefaults.GizmoHintOffsets.BindingKey;
+    private static string K_GIZMO_FOOT_PLACEMENT => BasisSettingsDefaults.GizmoFootPlacement.BindingKey;
+    private static string K_GIZMO_INTERACTION_HOVER => BasisSettingsDefaults.GizmoInteractionHover.BindingKey;
+    private static string K_GIZMO_SEAT_TARGETS => BasisSettingsDefaults.GizmoSeatTargets.BindingKey;
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -102,6 +112,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisAudioGizmos.Shutdown();
         BasisSyncGizmos.Shutdown();
         BasisPlayerNetworkGizmos.Shutdown();
+        BasisPointerRayGizmos.Shutdown();
+        BasisHintOffsetGizmos.Shutdown();
         base.OnDestroy();
     }
 
@@ -184,6 +196,44 @@ public class SMModuleDebugOptions : BasisSettingsBase
             {
                 BasisIKColliderGizmo.Shutdown();
             }
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_POINTER_RAY)
+        {
+            if (bool.TryParse(optionValue, out BasisPointerRayGizmos.Show) && !BasisPointerRayGizmos.Show)
+            {
+                BasisPointerRayGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_HINT_OFFSETS)
+        {
+            bool.TryParse(optionValue, out UseHintOffsets);
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_FOOT_PLACEMENT)
+        {
+            bool.TryParse(optionValue, out UseFootPlacement);
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_INTERACTION_HOVER)
+        {
+            bool.TryParse(optionValue, out UseInteractionHover);
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_SEAT_TARGETS)
+        {
+            bool.TryParse(optionValue, out UseSeatTargets);
             RecomputeUseGizmos();
             return;
         }
@@ -278,6 +328,11 @@ public class SMModuleDebugOptions : BasisSettingsBase
             UseLinkedTrackerLines ||
             UseEyeGazeGizmo ||
             UseIKColliders ||
+            BasisPointerRayGizmos.Show ||
+            UseHintOffsets ||
+            UseFootPlacement ||
+            UseInteractionHover ||
+            UseSeatTargets ||
             BasisAudioGizmos.ShowRanges ||
             BasisAudioGizmos.ShowListenerCone ||
             BasisAudioGizmos.ShowLevels ||
@@ -456,6 +511,17 @@ public class SMModuleDebugOptions : BasisSettingsBase
                 ? player.LocalRigDriver.BasisFullIKConstraint
                 : null;
             BasisIKColliderGizmo.Tick(ik != null, ik, UseGizmoLabels, _camPos);
+        }
+
+        BasisHintOffsetGizmos.Tick(UseHintOffsets, UseGizmoLabels, _camPos);
+        BasisPlayerInteract.UpdateHoverGizmos(UseInteractionHover);
+        BasisPointerRayGizmos.Tick(scale);
+
+        BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;
+        if (localPlayer != null)
+        {
+            localPlayer.BasisLocalFootDriver?.UpdateGizmos(UseFootPlacement, UseGizmoLabels, _camPos);
+            localPlayer.LocalSeatDriver?.UpdateSeatGizmos(UseSeatTargets, UseGizmoLabels, _camPos);
         }
 
         BasisAudioGizmos.Tick(scale);

@@ -285,6 +285,16 @@ public static class BasisContentShareManager
             {
                 BasisDebug.Log($"Content sphere created: {msg.SphereNetID} type={msg.ContentType}", BasisDebug.LogTag.Networking);
                 OnSphereCreated?.Invoke(Sphere);
+
+                string sphereId = msg.SphereNetID;
+                BasisShareableRegistry.Register(new BasisShareableEntry
+                {
+                    Id = sphereId,
+                    Kind = ToShareableKind(msg.ContentType),
+                    Title = msg.ContentType.ToString(),
+                    SharerName = serverMsg.SharerDisplayName,
+                    Remove = () => RequestRemoveSphere(sphereId),
+                });
             }
         }
     }
@@ -302,6 +312,7 @@ public static class BasisContentShareManager
             }
             BasisDebug.Log($"Content sphere removed: {sphereNetID}", BasisDebug.LogTag.Networking);
             OnSphereRemoved?.Invoke(sphereNetID);
+            BasisShareableRegistry.Unregister(sphereNetID);
         }
     }
 
@@ -316,7 +327,20 @@ public static class BasisContentShareManager
             {
                 Addressables.ReleaseInstance(kvp.Value.gameObject);
             }
+            BasisShareableRegistry.Unregister(kvp.Key);
         }
         ActiveSpheres.Clear();
+    }
+
+    private static BasisShareableKind ToShareableKind(ContentShareType type)
+    {
+        switch (type)
+        {
+            case ContentShareType.Avatar: return BasisShareableKind.Avatar;
+            case ContentShareType.Prop: return BasisShareableKind.Prop;
+            case ContentShareType.World: return BasisShareableKind.World;
+            case ContentShareType.Server: return BasisShareableKind.Server;
+            default: return BasisShareableKind.Other;
+        }
     }
 }

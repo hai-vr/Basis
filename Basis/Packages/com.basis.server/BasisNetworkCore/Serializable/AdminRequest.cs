@@ -134,6 +134,11 @@ namespace BasisNetworkCore.Serializable
 
             GlobalGetResourceLimits, // server→client: persisted DoS caps. Payload: [int maxDatabaseEntries][int maxDatabaseNameLength][int maxDatabasePayloadEntries][int maxContentSpheresPerPlayer]
             SetGlobalResourceLimits, // admin: set the persisted DoS caps. Payload: [int maxDatabaseEntries][int maxDatabaseNameLength][int maxDatabasePayloadEntries][int maxContentSpheresPerPlayer]
+
+            // admin: toggle the global Cilbox lock. While set, every client blocks sandboxed Cilbox
+            // code on avatars from running (props/worlds keep their own). State is appended as the
+            // trailing bool in GlobalGetLockState.
+            GlobalToggleCilbox,
         }
     }
 }

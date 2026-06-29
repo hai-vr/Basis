@@ -647,6 +647,9 @@ namespace Basis.BasisUI
                     BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
                     BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
 
+                    BasisShareableRegistry.OnChanged -= OnShareablesRegistryChanged;
+                    BasisShareableRegistry.OnChanged += OnShareablesRegistryChanged;
+
                     // force update this page
                     UpdateInstantiatedTab();
                 }
@@ -1931,6 +1934,8 @@ namespace Basis.BasisUI
             // rebuild the page items
             BuildItemsListForInstantiatedObjects(collections, page);
 
+            BuildShareablesList(page);
+
             // force rebuild it
             page.Descriptor.ForceRebuild();
         }
@@ -1986,6 +1991,73 @@ namespace Basis.BasisUI
                 string instanceId = entry.InstanceId;
 
                 CreateListEntry(entry, container, instanceId);
+            }
+        }
+
+        private static void OnShareablesRegistryChanged() => UpdateInstantiatedTab();
+
+        private static void BuildShareablesList(PanelTabPage tab)
+        {
+            RectTransform container = tab.Descriptor.ContentParent;
+
+            foreach (BasisShareableEntry entry in BasisShareableRegistry.GetAll())
+            {
+                if (entry == null) continue;
+
+                if (!string.IsNullOrWhiteSpace(_currentSearchQuery)
+                    && (string.IsNullOrEmpty(entry.Title) || entry.Title.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) < 0))
+                {
+                    continue;
+                }
+
+                CreateShareableListEntry(entry, container);
+            }
+        }
+
+        private static void CreateShareableListEntry(BasisShareableEntry entry, RectTransform parentTabGroup)
+        {
+            PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
+
+            if (itemListPanel.TabButtonParent.gameObject.TryGetComponent<UiStyleImage>(out UiStyleImage imageStyle))
+            {
+                imageStyle.SetStyle("Menu Element");
+            }
+
+            itemListPanel.Descriptor.SetWidth(1400);
+            itemListPanel.Descriptor.SetHeight(95);
+
+            PanelImage typePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            typePanelImage.SetSize(new Vector2(80, 80));
+            typePanelImage.SetIcon(ShareableIcon(entry.Kind));
+            typePanelImage.Descriptor.SetTooltip(entry.Kind.ToString());
+
+            PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
+            itemTextInfo._inputField.gameObject.SetActive(false);
+            itemTextInfo.Descriptor.SetTitle(string.IsNullOrEmpty(entry.Title) ? entry.Kind.ToString() : entry.Title);
+            if (!string.IsNullOrEmpty(entry.SharerName))
+            {
+                itemTextInfo.Descriptor.SetDescription(LibraryProviderStrUtil.TitleToCase(entry.SharerName));
+            }
+            itemTextInfo.Descriptor.SetHeight(50);
+            itemTextInfo.Descriptor.SetWidth(400);
+
+            PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
+            removeItem.Descriptor.SetTitle(string.Empty);
+            removeItem.SetIcon(AddressableAssets.Sprites.Trash);
+            removeItem.SetSize(new Vector2(80, 80));
+            removeItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
+            removeItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.remove.tooltip"));
+            removeItem.OnClicked += () => entry.Remove?.Invoke();
+        }
+
+        private static string ShareableIcon(BasisShareableKind kind)
+        {
+            switch (kind)
+            {
+                case BasisShareableKind.Avatar: return AddressableAssets.Sprites.Avatars;
+                case BasisShareableKind.World: return AddressableAssets.Sprites.World;
+                case BasisShareableKind.Server: return AddressableAssets.Sprites.Network;
+                default: return AddressableAssets.Sprites.Items;
             }
         }
 

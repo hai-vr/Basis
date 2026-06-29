@@ -671,55 +671,247 @@ namespace Basis.Scripts.BasisSdk.Interactions
             interactInput.HasvalidRay = true;
         }
 
-        public static void DrawAll()
+        private const int HoverCircleSeg = 16;
+        private const float HoverGizmoWidth = 0.004f;
+        private static readonly Color HoverListColor = Color.magenta;
+        private static readonly Color HoverTargetColor = Color.blue;
+        private static readonly Color HoverSphereColor = Color.gray;
+
+        private struct HoverGizmo
         {
-            if (Instance.InteractInputs == null)
+            public int TargetLine;
+            public int RingX;
+            public int RingY;
+            public int RingZ;
+            public List<int> ListLines;
+        }
+
+        private static readonly Dictionary<BasisInput, HoverGizmo> _hoverGizmos = new Dictionary<BasisInput, HoverGizmo>();
+        private static readonly HashSet<BasisInput> _hoverSeen = new HashSet<BasisInput>();
+        private static readonly List<BasisInput> _hoverStale = new List<BasisInput>();
+        private static readonly Vector3[] _hoverRingBuf = new Vector3[HoverCircleSeg];
+        private static bool _hoverHooked;
+
+        public static void UpdateHoverGizmos(bool show)
+        {
+            EnsureHoverHook();
+
+            if (!show || Instance == null || Instance.InteractInputs == null)
             {
+                HoverShutdown();
                 return;
             }
 
-            int count = Instance.InteractInputs.Length;
+            _hoverSeen.Clear();
+            BasisInteractInput[] devices = Instance.InteractInputs;
+            int count = devices.Length;
             for (int index = 0; index < count; index++)
             {
-                var device = Instance.InteractInputs[index];
-
+                BasisInteractInput device = devices[index];
                 if (device.input == null || device.input.hoverSphere == null)
                 {
                     continue;
                 }
 
-                Gizmos.color = Color.magenta;
-
-                if (device.input.hoverSphere.ResultCount > 1)
+                BasisInput input = device.input;
+                _hoverSeen.Add(input);
+                _hoverGizmos.TryGetValue(input, out HoverGizmo g);
+                if (g.ListLines == null)
                 {
-                    var hits = device.input.hoverSphere
-                        .Results[1..device.input.hoverSphere.ResultCount] // skip first, is colored later
-                        .Select(hit => hit.collider.TryGetComponent(out BasisInteractableObject component)
-                            ? (hit, component)
-                            : (default, null))
-                        .Where(hit => hit.component != null && hit.hit.distanceToCenter != float.NegativeInfinity);
+                    g.ListLines = new List<int>();
+                }
 
-                    // Hover list
-                    foreach (var hit in hits)
+                Vector3 origin = input.RaycastCoord.position;
+
+                int drawn = 0;
+                int resultCount = input.hoverSphere.ResultCount;
+                for (int r = 1; r < resultCount; r++)
+                {
+                    BasisHoverResult hit = input.hoverSphere.Results[r];
+                    if (hit.collider == null || hit.distanceToCenter == float.NegativeInfinity)
                     {
-                        Gizmos.DrawLine(device.input.RaycastCoord.position, hit.Item1.closestPointToCenter);
+                        continue;
+                    }
+                    if (!hit.collider.TryGetComponent(out BasisInteractableObject _))
+                    {
+                        continue;
+                    }
+                    int lineId = EnsureHoverListLine(g.ListLines, drawn);
+                    BasisGizmoManager.UpdateLineGizmo(lineId, origin, hit.closestPointToCenter);
+                    BasisGizmoManager.SetGizmoActive(lineId, true);
+                    drawn++;
+                }
+                for (int i = drawn; i < g.ListLines.Count; i++)
+                {
+                    BasisGizmoManager.SetGizmoActive(g.ListLines[i], false);
+                }
+
+                if (Instance.ClosestInfluencableHover(input.hoverSphere, input, out BasisHoverResult result, out _))
+                {
+                    if (g.TargetLine <= 0)
+                    {
+                        BasisGizmoManager.CreateLineGizmo("HoverTarget", out g.TargetLine, origin, result.closestPointToCenter, HoverGizmoWidth, HoverTargetColor);
+                    }
+                    else
+                    {
+                        BasisGizmoManager.UpdateLineGizmo(g.TargetLine, origin, result.closestPointToCenter);
+                        BasisGizmoManager.SetGizmoActive(g.TargetLine, true);
                     }
                 }
-
-                // Hover target
-                Gizmos.color = Color.blue;
-                if (Instance.ClosestInfluencableHover(device.input.hoverSphere, device.input, out var result, out _))
+                else if (g.TargetLine > 0)
                 {
-                    Gizmos.DrawLine(device.input.RaycastCoord.position, result.closestPointToCenter);
+                    BasisGizmoManager.SetGizmoActive(g.TargetLine, false);
                 }
 
-                Gizmos.color = Color.gray;
-
-                // Hover sphere
-                if (!IsDesktopCenterEye(device.input))
+                if (!IsDesktopCenterEye(input))
                 {
-                    Gizmos.DrawWireSphere(device.input.hoverSphere.WorldPosition, hoverRadius);
+                    UpdateHoverSphere(ref g, input.hoverSphere.WorldPosition, hoverRadius);
                 }
+                else
+                {
+                    SetHoverSphereActive(g, false);
+                }
+
+                _hoverGizmos[input] = g;
+            }
+
+            HoverPrune();
+        }
+
+        private static int EnsureHoverListLine(List<int> pool, int index)
+        {
+            while (pool.Count <= index)
+            {
+                BasisGizmoManager.CreateLineGizmo("HoverList", out int id, Vector3.zero, Vector3.zero, HoverGizmoWidth, HoverListColor);
+                pool.Add(id);
+            }
+            return pool[index];
+        }
+
+        private static void UpdateHoverSphere(ref HoverGizmo g, Vector3 center, float radius)
+        {
+            bool create = g.RingX <= 0;
+
+            FillRing(center, radius, Vector3.up, Vector3.forward);
+            if (create)
+            {
+                BasisGizmoManager.CreateLineGizmo("HoverRingX", out g.RingX, _hoverRingBuf, HoverGizmoWidth, HoverSphereColor, loop: true);
+            }
+            else
+            {
+                BasisGizmoManager.UpdateLineGizmo(g.RingX, _hoverRingBuf);
+                BasisGizmoManager.SetGizmoActive(g.RingX, true);
+            }
+
+            FillRing(center, radius, Vector3.right, Vector3.forward);
+            if (create)
+            {
+                BasisGizmoManager.CreateLineGizmo("HoverRingY", out g.RingY, _hoverRingBuf, HoverGizmoWidth, HoverSphereColor, loop: true);
+            }
+            else
+            {
+                BasisGizmoManager.UpdateLineGizmo(g.RingY, _hoverRingBuf);
+                BasisGizmoManager.SetGizmoActive(g.RingY, true);
+            }
+
+            FillRing(center, radius, Vector3.right, Vector3.up);
+            if (create)
+            {
+                BasisGizmoManager.CreateLineGizmo("HoverRingZ", out g.RingZ, _hoverRingBuf, HoverGizmoWidth, HoverSphereColor, loop: true);
+            }
+            else
+            {
+                BasisGizmoManager.UpdateLineGizmo(g.RingZ, _hoverRingBuf);
+                BasisGizmoManager.SetGizmoActive(g.RingZ, true);
+            }
+        }
+
+        private static void FillRing(Vector3 center, float radius, Vector3 a, Vector3 b)
+        {
+            float step = Mathf.PI * 2f / HoverCircleSeg;
+            for (int i = 0; i < HoverCircleSeg; i++)
+            {
+                float t = step * i;
+                _hoverRingBuf[i] = center + (a * Mathf.Cos(t) + b * Mathf.Sin(t)) * radius;
+            }
+        }
+
+        private static void SetHoverSphereActive(in HoverGizmo g, bool active)
+        {
+            if (g.RingX > 0) BasisGizmoManager.SetGizmoActive(g.RingX, active);
+            if (g.RingY > 0) BasisGizmoManager.SetGizmoActive(g.RingY, active);
+            if (g.RingZ > 0) BasisGizmoManager.SetGizmoActive(g.RingZ, active);
+        }
+
+        private static void HoverPrune()
+        {
+            if (_hoverGizmos.Count == _hoverSeen.Count)
+            {
+                return;
+            }
+            _hoverStale.Clear();
+            foreach (KeyValuePair<BasisInput, HoverGizmo> kvp in _hoverGizmos)
+            {
+                if (!_hoverSeen.Contains(kvp.Key))
+                {
+                    _hoverStale.Add(kvp.Key);
+                }
+            }
+            for (int i = 0; i < _hoverStale.Count; i++)
+            {
+                if (_hoverGizmos.TryGetValue(_hoverStale[i], out HoverGizmo g))
+                {
+                    DestroyHoverGizmo(g);
+                    _hoverGizmos.Remove(_hoverStale[i]);
+                }
+            }
+        }
+
+        private static void HoverShutdown()
+        {
+            if (_hoverGizmos.Count == 0)
+            {
+                return;
+            }
+            foreach (KeyValuePair<BasisInput, HoverGizmo> kvp in _hoverGizmos)
+            {
+                DestroyHoverGizmo(kvp.Value);
+            }
+            _hoverGizmos.Clear();
+        }
+
+        private static void DestroyHoverGizmo(HoverGizmo g)
+        {
+            if (g.TargetLine > 0) BasisGizmoManager.DestroyGizmo(g.TargetLine);
+            if (g.RingX > 0) BasisGizmoManager.DestroyGizmo(g.RingX);
+            if (g.RingY > 0) BasisGizmoManager.DestroyGizmo(g.RingY);
+            if (g.RingZ > 0) BasisGizmoManager.DestroyGizmo(g.RingZ);
+            if (g.ListLines != null)
+            {
+                for (int i = 0; i < g.ListLines.Count; i++)
+                {
+                    BasisGizmoManager.DestroyGizmo(g.ListLines[i]);
+                }
+            }
+        }
+
+        private static void EnsureHoverHook()
+        {
+            if (_hoverHooked)
+            {
+                return;
+            }
+            BasisGizmoManager.OnUseGizmosChanged += OnHoverMasterToggleChanged;
+            _hoverHooked = true;
+        }
+
+        // Master toggle going off destroys BasisGizmoManager's dictionaries, so our cached
+        // IDs are stale — forget them so the next tick re-creates cleanly.
+        private static void OnHoverMasterToggleChanged(bool state)
+        {
+            if (!state)
+            {
+                _hoverGizmos.Clear();
             }
         }
 

@@ -2200,6 +2200,31 @@ namespace Basis.BasisUI
             toggleIKColliders.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ikColliders.tooltip"));
             toggleIKColliders.AssignBinding(BasisSettingsDefaults.GizmoIKColliders);
 
+            PanelToggle togglePointerRay = PanelToggle.CreateNewEntry(container);
+            togglePointerRay.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.pointerRay"));
+            togglePointerRay.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.pointerRay.tooltip"));
+            togglePointerRay.AssignBinding(BasisSettingsDefaults.GizmoPointerRay);
+
+            PanelToggle toggleHintOffsets = PanelToggle.CreateNewEntry(container);
+            toggleHintOffsets.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.hintOffsets"));
+            toggleHintOffsets.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.hintOffsets.tooltip"));
+            toggleHintOffsets.AssignBinding(BasisSettingsDefaults.GizmoHintOffsets);
+
+            PanelToggle toggleFootPlacement = PanelToggle.CreateNewEntry(container);
+            toggleFootPlacement.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.footPlacement"));
+            toggleFootPlacement.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.footPlacement.tooltip"));
+            toggleFootPlacement.AssignBinding(BasisSettingsDefaults.GizmoFootPlacement);
+
+            PanelToggle toggleInteractionHover = PanelToggle.CreateNewEntry(container);
+            toggleInteractionHover.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.interactionHover"));
+            toggleInteractionHover.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.interactionHover.tooltip"));
+            toggleInteractionHover.AssignBinding(BasisSettingsDefaults.GizmoInteractionHover);
+
+            PanelToggle toggleSeatTargets = PanelToggle.CreateNewEntry(container);
+            toggleSeatTargets.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.seatTargets"));
+            toggleSeatTargets.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.seatTargets.tooltip"));
+            toggleSeatTargets.AssignBinding(BasisSettingsDefaults.GizmoSeatTargets);
+
             PanelToggle toggleAudioRanges = PanelToggle.CreateNewEntry(container);
             toggleAudioRanges.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioRanges"));
             toggleAudioRanges.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioRanges.tooltip"));
@@ -2929,6 +2954,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
             BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
             BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
+            BasisSettingsDefaults.GizmoPointerRay.ResetToDefault();
+            BasisSettingsDefaults.GizmoHintOffsets.ResetToDefault();
+            BasisSettingsDefaults.GizmoFootPlacement.ResetToDefault();
+            BasisSettingsDefaults.GizmoInteractionHover.ResetToDefault();
+            BasisSettingsDefaults.GizmoSeatTargets.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();

@@ -7,8 +7,7 @@ namespace Basis.Scripts.Debugging
     /// Runtime visualization of the FullBody IK self-collision capsules:
     /// three torso segments (hips→spine, spine→chest, chest→neck), two hand
     /// capsules, two upper-arm capsules. Built from BasisGizmoManager line
-    /// gizmos so it renders in-game; the editor-only equivalent is
-    /// BasisHandCollisionVisualizer (OnDrawGizmos). Driven from
+    /// gizmos so it renders in-game. Driven from
     /// SMModuleDebugOptions when the developer-tab toggle is on.
     /// </summary>
     public static class BasisIKColliderGizmo

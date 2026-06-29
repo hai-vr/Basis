@@ -1137,53 +1137,87 @@ public partial class BasisLocalFootDriver
     public float DerivedStepHeight => stepHeightCalc;
     public float DerivedStepTrigger => stepTriggerDist;
     public float DerivedFastSpeed => fastSpeedRef;
-    public void DrawGizmos()
+    private static readonly int[] _gCurrent = { -1, -1 };
+    private static readonly int[] _gForward = { -1, -1 };
+    private static readonly int[] _gIdeal = { -1, -1 };
+    private static readonly int[] _gPlantIdeal = { -1, -1 };
+    private static readonly int[] _gStepArc = { -1, -1 };
+    private static readonly int[] _gStepTarget = { -1, -1 };
+    private static readonly int[] _gKnee = { -1, -1 };
+    private static readonly int[] _gHipFoot = { -1, -1 };
+    private static readonly int[] _gLabel = { -1, -1 };
+    private static int _gBodyForward = -1;
+    private static int _gVelocity = -1;
+    private static bool _gizmosCreated;
+    private static bool _gizmosVisible;
+    private static bool _gizmoHooked;
+    private static readonly Vector3[] _stepArcBuf = new Vector3[17];
+    private const float FootGizmoLineWidth = 0.004f;
+
+    public void UpdateGizmos(bool show, bool showLabels, Vector3 cameraPos)
     {
-        if (!IsInitialized || left == null || right == null)
+        EnsureGizmoHook();
+
+        if (!show || !IsInitialized || left == null || right == null)
         {
+            SetGizmosVisible(false);
             return;
         }
 
-        DrawFoot(left, new Color(0.2f, 0.9f, 0.4f), new Color(1f, 0.85f, 0.1f));
-        DrawFoot(right, new Color(0.2f, 0.5f, 1f), new Color(1f, 0.5f, 0.1f));
+        EnsureGizmosCreated();
+
+        UpdateFootGizmos(0, left, new Color(0.2f, 0.9f, 0.4f), new Color(1f, 0.85f, 0.1f), showLabels, cameraPos);
+        UpdateFootGizmos(1, right, new Color(0.2f, 0.5f, 1f), new Color(1f, 0.5f, 0.1f), showLabels, cameraPos);
 
         if (hips != null)
         {
             Vector3 hp = hips.position;
             Vector3 bf = BodyForward();
-
-            Gizmos.color = new Color(1f, 1f, 1f, 0.8f);
-            Gizmos.DrawLine(hp, hp + bf * 0.4f);
+            BasisGizmoManager.UpdateLineGizmo(_gBodyForward, hp, hp + bf * 0.4f);
+            BasisGizmoManager.SetGizmoActive(_gBodyForward, true);
 
             if (smoothedVelocity.sqrMagnitude > 0.01f)
             {
-                Gizmos.color = new Color(1f, 0.2f, 1f, 0.8f);
-                Gizmos.DrawLine(hp, hp + smoothedVelocity * 0.5f);
+                BasisGizmoManager.UpdateLineGizmo(_gVelocity, hp, hp + smoothedVelocity * 0.5f);
+                BasisGizmoManager.SetGizmoActive(_gVelocity, true);
+            }
+            else
+            {
+                BasisGizmoManager.SetGizmoActive(_gVelocity, false);
             }
         }
+        else
+        {
+            BasisGizmoManager.SetGizmoActive(_gBodyForward, false);
+            BasisGizmoManager.SetGizmoActive(_gVelocity, false);
+        }
+
+        _gizmosVisible = true;
     }
 
-    private void DrawFoot(BasisFootState f, Color plantCol, Color stepCol)
+    private void UpdateFootGizmos(int slot, BasisFootState f, Color plantCol, Color stepCol, bool showLabels, Vector3 cameraPos)
     {
         bool stepping = f.phase == BasisFootPhase.Stepping;
         Color c = stepping ? stepCol : plantCol;
 
-        Gizmos.color = c;
-        Gizmos.DrawSphere(f.currentPos, 0.02f);
+        BasisGizmoManager.UpdateSphereGizmo(_gCurrent[slot], f.currentPos, Vector3.one * 0.04f);
+        BasisGizmoManager.UpdateGizmoColor(_gCurrent[slot], c);
+        BasisGizmoManager.SetGizmoActive(_gCurrent[slot], true);
 
-        Gizmos.color = new Color(0.2f, 0.4f, 1f, 0.9f);
-        Gizmos.DrawLine(f.currentPos, f.currentPos + f.currentRot * Vector3.forward * 0.07f);
+        BasisGizmoManager.UpdateLineGizmo(_gForward[slot], f.currentPos, f.currentPos + f.currentRot * Vector3.forward * 0.07f);
+        BasisGizmoManager.SetGizmoActive(_gForward[slot], true);
 
-        Gizmos.color = c * 0.4f;
-        Gizmos.DrawWireSphere(f.idealPos, 0.015f);
-        Gizmos.color = new Color(1f, 0.4f, 0.2f, 0.5f);
-        Gizmos.DrawLine(f.plantedPos, f.idealPos);
+        BasisGizmoManager.UpdateSphereGizmo(_gIdeal[slot], f.idealPos, Vector3.one * 0.03f);
+        BasisGizmoManager.UpdateGizmoColor(_gIdeal[slot], c * 0.4f);
+        BasisGizmoManager.SetGizmoActive(_gIdeal[slot], true);
+
+        BasisGizmoManager.UpdateLineGizmo(_gPlantIdeal[slot], f.plantedPos, f.idealPos);
+        BasisGizmoManager.SetGizmoActive(_gPlantIdeal[slot], true);
 
         if (stepping)
         {
-            Gizmos.color = stepCol * 0.6f;
             const int seg = 16;
-            Vector3 prev = f.stepStartPos;
+            _stepArcBuf[0] = f.stepStartPos;
             for (int i = 1; i <= seg; i++)
             {
                 float t = i / (float)seg;
@@ -1191,25 +1225,145 @@ public partial class BasisLocalFootDriver
                 Vector3 p = Vector3.Lerp(f.stepStartPos, f.stepTargetPos, e);
                 float lift = Mathf.Pow(t, 0.6f) * Mathf.Pow(1f - t, 1.4f) / 0.234f;
                 p += cachedPlayerUp * (Mathf.Clamp01(lift) * stepHeightCalc);
-                Gizmos.DrawLine(prev, p);
-                prev = p;
+                _stepArcBuf[i] = p;
             }
-            Gizmos.color = stepCol;
-            Gizmos.DrawWireSphere(f.stepTargetPos, 0.015f);
+            BasisGizmoManager.UpdateLineGizmo(_gStepArc[slot], _stepArcBuf);
+            BasisGizmoManager.UpdateGizmoColor(_gStepArc[slot], stepCol * 0.6f);
+            BasisGizmoManager.SetGizmoActive(_gStepArc[slot], true);
+
+            BasisGizmoManager.UpdateSphereGizmo(_gStepTarget[slot], f.stepTargetPos, Vector3.one * 0.03f);
+            BasisGizmoManager.SetGizmoActive(_gStepTarget[slot], true);
+        }
+        else
+        {
+            BasisGizmoManager.SetGizmoActive(_gStepArc[slot], false);
+            BasisGizmoManager.SetGizmoActive(_gStepTarget[slot], false);
         }
 
-        Gizmos.color = new Color(0f, 1f, 1f, 0.4f);
-        Gizmos.DrawLine(f.currentPos, f.kneeHint);
+        BasisGizmoManager.UpdateLineGizmo(_gKnee[slot], f.currentPos, f.kneeHint);
+        BasisGizmoManager.SetGizmoActive(_gKnee[slot], true);
 
-        if (hips != null) { Gizmos.color = c * 0.3f; Gizmos.DrawLine(hips.position, f.currentPos); }
+        if (hips != null)
+        {
+            BasisGizmoManager.UpdateLineGizmo(_gHipFoot[slot], hips.position, f.currentPos);
+            BasisGizmoManager.UpdateGizmoColor(_gHipFoot[slot], c * 0.3f);
+            BasisGizmoManager.SetGizmoActive(_gHipFoot[slot], true);
+        }
+        else
+        {
+            BasisGizmoManager.SetGizmoActive(_gHipFoot[slot], false);
+        }
 
-#if UNITY_EDITOR
-        float dist = HDist(f.plantedPos, f.idealPos);
-        string lbl = stepping
-            ? $"{f.name} STEP {Mathf.Clamp01(f.stepTimer / f.stepDur):P0}"
-            : $"{f.name} planted  drift:{dist * 100f:F1}cm";
-        UnityEditor.Handles.color = c;
-        UnityEditor.Handles.Label(f.currentPos + cachedPlayerUp * 0.06f, lbl);
-#endif
+        if (showLabels)
+        {
+            float dist = HDist(f.plantedPos, f.idealPos);
+            string lbl = stepping
+                ? $"{f.name} STEP {Mathf.Clamp01(f.stepTimer / f.stepDur):P0}"
+                : $"{f.name} planted  drift:{dist * 100f:F1}cm";
+            Vector3 labelPos = f.currentPos + cachedPlayerUp * 0.06f;
+            if (_gLabel[slot] <= 0)
+            {
+                BasisGizmoManager.CreateTextGizmo($"FootLabel_{f.name}", out _gLabel[slot], labelPos, lbl, c);
+            }
+            Quaternion rot = BasisGizmoManager.BillboardRotation(labelPos, cameraPos);
+            BasisGizmoManager.UpdateTextGizmo(_gLabel[slot], labelPos, rot, 0.02f * Mathf.Max(0.01f, BasisHeightDriver.ScaledToMatchValue), lbl, c);
+            BasisGizmoManager.SetGizmoActive(_gLabel[slot], true);
+        }
+        else if (_gLabel[slot] > 0)
+        {
+            BasisGizmoManager.DestroyGizmo(_gLabel[slot]);
+            _gLabel[slot] = -1;
+        }
+    }
+
+    private static void EnsureGizmosCreated()
+    {
+        if (_gizmosCreated)
+        {
+            return;
+        }
+        CreateFootGizmos(0, new Color(0.2f, 0.9f, 0.4f), new Color(1f, 0.85f, 0.1f));
+        CreateFootGizmos(1, new Color(0.2f, 0.5f, 1f), new Color(1f, 0.5f, 0.1f));
+        BasisGizmoManager.CreateLineGizmo("Foot_BodyForward", out _gBodyForward, Vector3.zero, Vector3.zero, FootGizmoLineWidth, new Color(1f, 1f, 1f, 0.8f));
+        BasisGizmoManager.CreateLineGizmo("Foot_Velocity", out _gVelocity, Vector3.zero, Vector3.zero, FootGizmoLineWidth, new Color(1f, 0.2f, 1f, 0.8f));
+        _gizmosCreated = true;
+        _gizmosVisible = true;
+    }
+
+    private static void CreateFootGizmos(int slot, Color plantCol, Color stepCol)
+    {
+        string n = slot == 0 ? "Left" : "Right";
+        BasisGizmoManager.CreateSphereGizmo($"Foot_{n}_Current", out _gCurrent[slot], Vector3.zero, 0.04f, plantCol);
+        BasisGizmoManager.CreateLineGizmo($"Foot_{n}_Forward", out _gForward[slot], Vector3.zero, Vector3.zero, FootGizmoLineWidth, new Color(0.2f, 0.4f, 1f, 0.9f));
+        BasisGizmoManager.CreateSphereGizmo($"Foot_{n}_Ideal", out _gIdeal[slot], Vector3.zero, 0.03f, plantCol * 0.4f);
+        BasisGizmoManager.CreateLineGizmo($"Foot_{n}_PlantIdeal", out _gPlantIdeal[slot], Vector3.zero, Vector3.zero, FootGizmoLineWidth, new Color(1f, 0.4f, 0.2f, 0.5f));
+        BasisGizmoManager.CreateLineGizmo($"Foot_{n}_StepArc", out _gStepArc[slot], _stepArcBuf, FootGizmoLineWidth, stepCol * 0.6f);
+        BasisGizmoManager.CreateSphereGizmo($"Foot_{n}_StepTarget", out _gStepTarget[slot], Vector3.zero, 0.03f, stepCol);
+        BasisGizmoManager.CreateLineGizmo($"Foot_{n}_Knee", out _gKnee[slot], Vector3.zero, Vector3.zero, FootGizmoLineWidth, new Color(0f, 1f, 1f, 0.4f));
+        BasisGizmoManager.CreateLineGizmo($"Foot_{n}_HipFoot", out _gHipFoot[slot], Vector3.zero, Vector3.zero, FootGizmoLineWidth, plantCol * 0.3f);
+    }
+
+    private static void SetGizmosVisible(bool visible)
+    {
+        if (!_gizmosCreated || _gizmosVisible == visible)
+        {
+            return;
+        }
+        for (int slot = 0; slot < 2; slot++)
+        {
+            BasisGizmoManager.SetGizmoActive(_gCurrent[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gForward[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gIdeal[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gPlantIdeal[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gStepArc[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gStepTarget[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gKnee[slot], visible);
+            BasisGizmoManager.SetGizmoActive(_gHipFoot[slot], visible);
+            if (_gLabel[slot] > 0)
+            {
+                BasisGizmoManager.SetGizmoActive(_gLabel[slot], visible);
+            }
+        }
+        BasisGizmoManager.SetGizmoActive(_gBodyForward, visible);
+        BasisGizmoManager.SetGizmoActive(_gVelocity, visible);
+        _gizmosVisible = visible;
+    }
+
+    private static void EnsureGizmoHook()
+    {
+        if (_gizmoHooked)
+        {
+            return;
+        }
+        BasisGizmoManager.OnUseGizmosChanged += OnGizmoMasterToggleChanged;
+        _gizmoHooked = true;
+    }
+
+    private static void OnGizmoMasterToggleChanged(bool state)
+    {
+        if (!state)
+        {
+            ResetGizmoState();
+        }
+    }
+
+    private static void ResetGizmoState()
+    {
+        for (int slot = 0; slot < 2; slot++)
+        {
+            _gCurrent[slot] = -1;
+            _gForward[slot] = -1;
+            _gIdeal[slot] = -1;
+            _gPlantIdeal[slot] = -1;
+            _gStepArc[slot] = -1;
+            _gStepTarget[slot] = -1;
+            _gKnee[slot] = -1;
+            _gHipFoot[slot] = -1;
+            _gLabel[slot] = -1;
+        }
+        _gBodyForward = -1;
+        _gVelocity = -1;
+        _gizmosCreated = false;
+        _gizmosVisible = false;
     }
 }

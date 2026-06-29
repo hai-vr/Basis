@@ -112,6 +112,12 @@ public class Configuration
     public int MaxContentSpheresPerPlayer = 32;
     public bool PlayspaceMoverLocked = false;
     public bool DirectConnectLocked = false;
+    /// <summary>
+    /// When true, every client blocks sandboxed Cilbox code on avatars from running; props and
+    /// worlds keep their own. Seeds BasisGlobalLockManager at boot and can be toggled live from the
+    /// admin panel; the state is broadcast to clients in GlobalGetLockState. Default off.
+    /// </summary>
+    public bool CilboxLocked = false;
 
     // ── REST API ──────────────────────────────────────────────────────────────
     /// <summary>Set to true to enable the REST management API.</summary>

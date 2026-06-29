@@ -6,132 +6,241 @@ using static Basis.Scripts.Avatar.BasisAvatarIKStageCalibration;
 namespace Basis.Scripts.Debugging
 {
     /// <summary>
-    /// Static gizmo drawer for visualizing hint trackers and their calibrated "push up/out" offsets.
-    /// Draws:
-    /// - A wire sphere at the raw hint tracker position
-    /// - A line showing the offset vector (rawPos -> biasedPos)
-    /// - A wire sphere at the biased hint position
+    /// Runtime visualisation of hint trackers and their calibrated "push up/out" offsets:
+    /// a sphere at the raw hint pose, an offset line to the biased pose, a sphere at the
+    /// biased pose, and an orientation triad. Built from BasisGizmoManager so it renders
+    /// in-game; driven from SMModuleDebugOptions under the GizmoHintOffsets toggle.
     /// </summary>
     public static class BasisHintOffsetGizmos
     {
-        // Global toggles
-        public static bool Enabled = true;
+        public static bool Show;
 
-        // Visual tuning
-        public static float RawSphereRadius = 0.02f;
-        public static float BiasedSphereRadius = 0.02f;
-        public static float AxisLength = 0.06f;
-        public static float LineThickness = 0f; // Gizmos has no thickness; kept for future Handles.
+        private const int RoleCount = 5;
+        private const float RawSphereSize = 0.03f;
+        private const float BiasedSphereSize = 0.03f;
+        private const float AxisLength = 0.06f;
+        private const float LineWidth = 0.003f;
+        private const float LabelScale = 0.02f;
 
-        // Colors
-        public static Color RawColor = new Color(1f, 1f, 0f, 0.9f);      // yellow
-        public static Color BiasedColor = new Color(0f, 1f, 1f, 0.9f);   // cyan
-        public static Color OffsetLineColor = new Color(1f, 0.25f, 0.25f, 0.95f); // red-ish
+        private static readonly Color RawColor = new Color(1f, 1f, 0f, 0.9f);
+        private static readonly Color BiasedColor = new Color(0f, 1f, 1f, 0.9f);
+        private static readonly Color OffsetLineColor = new Color(1f, 0.25f, 0.25f, 0.95f);
+        private static readonly Color XAxisColor = new Color(1f, 0.2f, 0.2f, 0.9f);
+        private static readonly Color YAxisColor = new Color(0.2f, 1f, 0.2f, 0.9f);
+        private static readonly Color ZAxisColor = new Color(0.2f, 0.4f, 1f, 0.9f);
 
-        public static Color XAxisColor = new Color(1f, 0.2f, 0.2f, 0.9f);
-        public static Color YAxisColor = new Color(0.2f, 1f, 0.2f, 0.9f);
-        public static Color ZAxisColor = new Color(0.2f, 0.4f, 1f, 0.9f);
-
-        /// <summary>
-        /// Draw all hint offsets using the current BasisLocalBoneDriver control world poses.
-        /// Call from some MonoBehaviour's OnDrawGizmos() / OnDrawGizmosSelected().
-        /// </summary>
-        public static void DrawAll()
+        private static readonly BasisBoneTrackedRole[] Roles =
         {
-            if (!Enabled) return;
+            BasisBoneTrackedRole.Chest,
+            BasisBoneTrackedRole.LeftLowerArm,
+            BasisBoneTrackedRole.RightLowerArm,
+            BasisBoneTrackedRole.LeftLowerLeg,
+            BasisBoneTrackedRole.RightLowerLeg,
+        };
 
-            // Chest is used as head hint driver in your pipeline
-            DrawForRole(BasisBoneTrackedRole.Chest, BasisLocalBoneDriver.ChestControl);
+        private static readonly int[] _rawSphere = NewIds();
+        private static readonly int[] _biasedSphere = NewIds();
+        private static readonly int[] _offsetLine = NewIds();
+        private static readonly int[] _axisX = NewIds();
+        private static readonly int[] _axisY = NewIds();
+        private static readonly int[] _axisZ = NewIds();
+        private static readonly int[] _label = NewIds();
+        private static readonly bool[] _slotVisible = new bool[RoleCount];
 
-            // Arm hints
-            DrawForRole(BasisBoneTrackedRole.LeftLowerArm, BasisLocalBoneDriver.LeftLowerArmControl);
-            DrawForRole(BasisBoneTrackedRole.RightLowerArm, BasisLocalBoneDriver.RightLowerArmControl);
+        private static bool _created;
+        private static bool _registered;
 
-            // Leg hints
-            DrawForRole(BasisBoneTrackedRole.LeftLowerLeg, BasisLocalBoneDriver.LeftLowerLegControl);
-            DrawForRole(BasisBoneTrackedRole.RightLowerLeg, BasisLocalBoneDriver.RightLowerLegControl);
-        }
-
-        /// <summary>
-        /// Draw a single hint role/control pair.
-        /// </summary>
-        public static void DrawForRole(BasisBoneTrackedRole role, BasisLocalBoneControl control)
+        public static void Tick(bool shouldShow, bool showLabels, Vector3 cameraPos)
         {
-            if (!Enabled) return;
-            if (control == null) return;
+            EnsureMasterToggleHook();
 
-            // We only draw if there is a stored bias for this role.
-            if (!BasisHintBiasStore.TryGet(role, out var localOffset))
+            if (!shouldShow)
+            {
+                HideAll();
                 return;
+            }
+            EnsureCreated();
 
-            Vector3 rawPos = control.OutgoingWorldData.position;
-            Quaternion rawRot = control.OutgoingWorldData.rotation;
+            float labelScale = LabelScale * Mathf.Max(0.01f, BasisHeightDriver.ScaledToMatchValue);
 
-            Vector3 biasedPos = rawPos + rawRot * localOffset;
+            for (int i = 0; i < RoleCount; i++)
+            {
+                BasisLocalBoneControl control = ControlForSlot(i);
+                if (control == null || !BasisHintBiasStore.TryGet(Roles[i], out Vector3 localOffset))
+                {
+                    SetSlotVisible(i, false);
+                    DestroyLabel(i);
+                    continue;
+                }
 
-            // Raw marker
-            Gizmos.color = RawColor;
-            Gizmos.DrawWireSphere(rawPos, RawSphereRadius);
+                Vector3 rawPos = control.OutgoingWorldData.position;
+                Quaternion rawRot = control.OutgoingWorldData.rotation;
+                Vector3 biasedPos = rawPos + rawRot * localOffset;
 
-            // Offset vector
-            Gizmos.color = OffsetLineColor;
-            Gizmos.DrawLine(rawPos, biasedPos);
+                BasisGizmoManager.UpdateSphereGizmo(_rawSphere[i], rawPos, Vector3.one * RawSphereSize);
+                BasisGizmoManager.UpdateSphereGizmo(_biasedSphere[i], biasedPos, Vector3.one * BiasedSphereSize);
+                BasisGizmoManager.UpdateLineGizmo(_offsetLine[i], rawPos, biasedPos);
+                BasisGizmoManager.UpdateLineGizmo(_axisX[i], rawPos, rawPos + rawRot * Vector3.right * AxisLength);
+                BasisGizmoManager.UpdateLineGizmo(_axisY[i], rawPos, rawPos + rawRot * Vector3.up * AxisLength);
+                BasisGizmoManager.UpdateLineGizmo(_axisZ[i], rawPos, rawPos + rawRot * Vector3.forward * AxisLength);
+                SetSlotVisible(i, true);
 
-            // Biased marker
-            Gizmos.color = BiasedColor;
-            Gizmos.DrawWireSphere(biasedPos, BiasedSphereRadius);
-
-            // Local axes at raw pose (helps see how localOffset rotates)
-            DrawAxes(rawPos, rawRot, AxisLength);
-
-            // Label (Editor-only; safe no-op in player if UNITY_EDITOR not defined)
-#if UNITY_EDITOR
-            UnityEditor.Handles.color = Color.white;
-            UnityEditor.Handles.Label(rawPos + Vector3.up * (RawSphereRadius * 2.5f), $"{role}\n|offset|={localOffset.magnitude:F3}m");
-#endif
+                if (showLabels)
+                {
+                    string text = $"{Roles[i]}\n|offset|={localOffset.magnitude:F3}m";
+                    Vector3 labelPos = rawPos + Vector3.up * (RawSphereSize * 2.5f);
+                    if (_label[i] <= 0)
+                    {
+                        BasisGizmoManager.CreateTextGizmo($"HintLabel_{Roles[i]}", out _label[i], labelPos, text, Color.white);
+                    }
+                    Quaternion rot = BasisGizmoManager.BillboardRotation(labelPos, cameraPos);
+                    BasisGizmoManager.UpdateTextGizmo(_label[i], labelPos, rot, labelScale, text, Color.white);
+                    BasisGizmoManager.SetGizmoActive(_label[i], true);
+                }
+                else
+                {
+                    DestroyLabel(i);
+                }
+            }
         }
 
-        /// <summary>
-        /// Draws an orientation triad at a pose (x=red,y=green,z=blue).
-        /// </summary>
-        public static void DrawAxes(Vector3 origin, Quaternion rot, float len)
+        public static void Shutdown()
         {
-            Vector3 x = rot * Vector3.right;
-            Vector3 y = rot * Vector3.up;
-            Vector3 z = rot * Vector3.forward;
-
-            Gizmos.color = XAxisColor;
-            Gizmos.DrawLine(origin, origin + x * len);
-
-            Gizmos.color = YAxisColor;
-            Gizmos.DrawLine(origin, origin + y * len);
-
-            Gizmos.color = ZAxisColor;
-            Gizmos.DrawLine(origin, origin + z * len);
-        }
-
-        /// <summary>
-        /// If you want to draw from the already-built IK submission data instead of controls,
-        /// this helper draws raw->biased using the data pose + stored local offset.
-        /// </summary>
-        public static void DrawFromPose(BasisBoneTrackedRole role, Vector3 rawPos, Quaternion rawRot)
-        {
-            if (!Enabled) return;
-            if (!BasisHintBiasStore.TryGet(role, out var localOffset))
+            if (!_created)
+            {
                 return;
+            }
+            for (int i = 0; i < RoleCount; i++)
+            {
+                BasisGizmoManager.DestroyGizmo(_rawSphere[i]);
+                BasisGizmoManager.DestroyGizmo(_biasedSphere[i]);
+                BasisGizmoManager.DestroyGizmo(_offsetLine[i]);
+                BasisGizmoManager.DestroyGizmo(_axisX[i]);
+                BasisGizmoManager.DestroyGizmo(_axisY[i]);
+                BasisGizmoManager.DestroyGizmo(_axisZ[i]);
+                DestroyLabel(i);
+            }
+            ResetState();
+        }
 
-            Vector3 biasedPos = rawPos + rawRot * localOffset;
+        private static BasisLocalBoneControl ControlForSlot(int i)
+        {
+            switch (i)
+            {
+                case 0: return BasisLocalBoneDriver.ChestControl;
+                case 1: return BasisLocalBoneDriver.LeftLowerArmControl;
+                case 2: return BasisLocalBoneDriver.RightLowerArmControl;
+                case 3: return BasisLocalBoneDriver.LeftLowerLegControl;
+                case 4: return BasisLocalBoneDriver.RightLowerLegControl;
+                default: return null;
+            }
+        }
 
-            Gizmos.color = RawColor;
-            Gizmos.DrawWireSphere(rawPos, RawSphereRadius);
+        private static void EnsureCreated()
+        {
+            if (_created)
+            {
+                return;
+            }
+            for (int i = 0; i < RoleCount; i++)
+            {
+                string role = Roles[i].ToString();
+                BasisGizmoManager.CreateSphereGizmo($"HintRaw_{role}", out _rawSphere[i], Vector3.zero, RawSphereSize, RawColor);
+                BasisGizmoManager.CreateSphereGizmo($"HintBiased_{role}", out _biasedSphere[i], Vector3.zero, BiasedSphereSize, BiasedColor);
+                BasisGizmoManager.CreateLineGizmo($"HintOffset_{role}", out _offsetLine[i], Vector3.zero, Vector3.zero, LineWidth, OffsetLineColor);
+                BasisGizmoManager.CreateLineGizmo($"HintAxisX_{role}", out _axisX[i], Vector3.zero, Vector3.zero, LineWidth, XAxisColor);
+                BasisGizmoManager.CreateLineGizmo($"HintAxisY_{role}", out _axisY[i], Vector3.zero, Vector3.zero, LineWidth, YAxisColor);
+                BasisGizmoManager.CreateLineGizmo($"HintAxisZ_{role}", out _axisZ[i], Vector3.zero, Vector3.zero, LineWidth, ZAxisColor);
+                BasisGizmoManager.SetGizmoActive(_rawSphere[i], false);
+                BasisGizmoManager.SetGizmoActive(_biasedSphere[i], false);
+                BasisGizmoManager.SetGizmoActive(_offsetLine[i], false);
+                BasisGizmoManager.SetGizmoActive(_axisX[i], false);
+                BasisGizmoManager.SetGizmoActive(_axisY[i], false);
+                BasisGizmoManager.SetGizmoActive(_axisZ[i], false);
+                _slotVisible[i] = false;
+            }
+            _created = true;
+        }
 
-            Gizmos.color = OffsetLineColor;
-            Gizmos.DrawLine(rawPos, biasedPos);
+        private static void SetSlotVisible(int i, bool active)
+        {
+            if (!_created || _slotVisible[i] == active)
+            {
+                return;
+            }
+            BasisGizmoManager.SetGizmoActive(_rawSphere[i], active);
+            BasisGizmoManager.SetGizmoActive(_biasedSphere[i], active);
+            BasisGizmoManager.SetGizmoActive(_offsetLine[i], active);
+            BasisGizmoManager.SetGizmoActive(_axisX[i], active);
+            BasisGizmoManager.SetGizmoActive(_axisY[i], active);
+            BasisGizmoManager.SetGizmoActive(_axisZ[i], active);
+            _slotVisible[i] = active;
+        }
 
-            Gizmos.color = BiasedColor;
-            Gizmos.DrawWireSphere(biasedPos, BiasedSphereRadius);
+        private static void HideAll()
+        {
+            if (!_created)
+            {
+                return;
+            }
+            for (int i = 0; i < RoleCount; i++)
+            {
+                SetSlotVisible(i, false);
+                DestroyLabel(i);
+            }
+        }
 
-            DrawAxes(rawPos, rawRot, AxisLength);
+        private static void DestroyLabel(int i)
+        {
+            if (_label[i] > 0)
+            {
+                BasisGizmoManager.DestroyGizmo(_label[i]);
+                _label[i] = -1;
+            }
+        }
+
+        private static void EnsureMasterToggleHook()
+        {
+            if (_registered)
+            {
+                return;
+            }
+            BasisGizmoManager.OnUseGizmosChanged += OnMasterToggleChanged;
+            _registered = true;
+        }
+
+        private static void OnMasterToggleChanged(bool state)
+        {
+            if (!state)
+            {
+                ResetState();
+            }
+        }
+
+        private static void ResetState()
+        {
+            for (int i = 0; i < RoleCount; i++)
+            {
+                _rawSphere[i] = -1;
+                _biasedSphere[i] = -1;
+                _offsetLine[i] = -1;
+                _axisX[i] = -1;
+                _axisY[i] = -1;
+                _axisZ[i] = -1;
+                _label[i] = -1;
+                _slotVisible[i] = false;
+            }
+            _created = false;
+        }
+
+        private static int[] NewIds()
+        {
+            int[] ids = new int[RoleCount];
+            for (int i = 0; i < RoleCount; i++)
+            {
+                ids[i] = -1;
+            }
+            return ids;
         }
     }
 }

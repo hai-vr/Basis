@@ -124,6 +124,12 @@ namespace Basis.BasisUI
                 listenerDampenGroup.ForceRebuild();
             };
 
+            // ─────────────── ADVANCED ───────────────
+            PanelSectionToggle advancedToggle = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor advancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                advancedToggle, container, BasisLocalization.Get("ui.advanced"), showGroupTitle: false);
+            container = advancedGroup.ContentParent;
+
             // ─────────────── VOICE BUFFER (advanced) ───────────────
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.
@@ -663,6 +669,9 @@ namespace Basis.BasisUI
                 }
                 tabDescriptor?.ForceRebuild();
             });
+
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(advancedToggle, advancedGroup, false,
+                _ => tabDescriptor?.ForceRebuild());
         }
 
         public static void ResetRemoteAudioToDefaults()

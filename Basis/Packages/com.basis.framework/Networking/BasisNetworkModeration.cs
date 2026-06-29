@@ -740,6 +740,16 @@ public static class BasisNetworkModeration
     public static event Action<bool> OnGlobalDirectConnectLockedChanged;
 
     /// <summary>
+    /// Server-pushed lock: while true, sandboxed Cilbox code on avatars is blocked from running on
+    /// every client. Props and worlds keep their own trusted Cilbox. Drives Cilbox.GloballyDisabled
+    /// through the shim bridge.
+    /// </summary>
+    public static bool GlobalCilboxLocked { get; private set; }
+
+    /// <summary>Fired when the Cilbox lock flag changes.</summary>
+    public static event Action<bool> OnGlobalCilboxLockChanged;
+
+    /// <summary>
     /// True when the local player holds the global-lock moderation permission (or the '*' wildcard),
     /// which exempts them from the admin-controlled avatar-scale clamp, playspace-mover lockout, and
     /// direct-connect lockout. Mirrors the server's permission check; direct connect is still gated
@@ -828,7 +838,17 @@ public static class BasisNetworkModeration
                 OnGlobalDirectConnectLockedChanged?.Invoke(GlobalDirectConnectLocked);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}", BasisDebug.LogTag.Networking);
+        // CilboxLocked appended after DirectConnectLocked — same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextCilboxLocked = reader.GetBool();
+            if (nextCilboxLocked != GlobalCilboxLocked)
+            {
+                GlobalCilboxLocked = nextCilboxLocked;
+                OnGlobalCilboxLockChanged?.Invoke(GlobalCilboxLocked);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -900,6 +920,15 @@ public static class BasisNetworkModeration
     public static void GlobalToggleDirectConnect()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleDirectConnect);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global Cilbox lock. While set, every client blocks sandboxed Cilbox code
+    /// on avatars from running. Server flips the flag and broadcasts the new lock state.
+    /// </summary>
+    public static void GlobalToggleCilbox()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleCilbox);
     }
 
     /// <summary>

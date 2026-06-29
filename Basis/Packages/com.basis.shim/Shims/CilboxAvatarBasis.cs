@@ -7,6 +7,7 @@ namespace Cilbox
 	[CilboxTarget]
 	public class CilboxAvatarBasis : CilboxBasisCommon
 	{
+
 		static readonly HashSet<string> extraWhiteListType = new HashSet<string>(){
 			// Avatar-specific Basis shim types
 			"Basis.Shims.BasisNet*", // Restrictive, only used as a type and for events.

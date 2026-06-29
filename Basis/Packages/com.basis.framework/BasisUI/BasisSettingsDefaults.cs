@@ -284,6 +284,17 @@ namespace Basis.BasisUI
         // useful when tuning ChestRadius / HandRadius / CollisionSkin.
         public static BasisSettingsBinding<bool> GizmoIKColliders = new("gizmoikcolliders", new BasisPlatformDefault<bool>(false));
 
+        // Pointer/physics raycast ray + placement box (was BasisPointRaycaster.OnDrawGizmosSelected).
+        public static BasisSettingsBinding<bool> GizmoPointerRay = new("gizmopointerray", new BasisPlatformDefault<bool>(false));
+        // IK hint tracker raw/biased offset markers + orientation triad.
+        public static BasisSettingsBinding<bool> GizmoHintOffsets = new("gizmohintoffsets", new BasisPlatformDefault<bool>(false));
+        // Procedural foot-placement phases, step arcs, knee hints.
+        public static BasisSettingsBinding<bool> GizmoFootPlacement = new("gizmofootplacement", new BasisPlatformDefault<bool>(false));
+        // Interaction hover spheres + hover/target lines.
+        public static BasisSettingsBinding<bool> GizmoInteractionHover = new("gizmointeractionhover", new BasisPlatformDefault<bool>(false));
+        // Seated-pose solve targets (back/knee/foot) + axes.
+        public static BasisSettingsBinding<bool> GizmoSeatTargets = new("gizmoseattargets", new BasisPlatformDefault<bool>(false));
+
         // Eye-gaze ray + endpoint-target gizmo. Off by default — only relevant on
         // headsets that surface gaze through OpenXR EyeGazeInteraction or a SteamVR
         // pose action, and the line in your face is noisy.
@@ -1522,6 +1533,11 @@ namespace Basis.BasisUI
             LinkedTrackerLines.LoadBindingValue();
             GizmoEyeGaze.LoadBindingValue();
             GizmoIKColliders.LoadBindingValue();
+            GizmoPointerRay.LoadBindingValue();
+            GizmoHintOffsets.LoadBindingValue();
+            GizmoFootPlacement.LoadBindingValue();
+            GizmoInteractionHover.LoadBindingValue();
+            GizmoSeatTargets.LoadBindingValue();
             GizmoAudioRanges.LoadBindingValue();
             GizmoAudioListenerCone.LoadBindingValue();
             GizmoAudioLevels.LoadBindingValue();

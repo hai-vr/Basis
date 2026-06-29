@@ -379,6 +379,11 @@ namespace BasisNetworkServer.Security
                         HandleDirectConnectToggle(peer));
                     break;
 
+                case AdminRequestMode.GlobalToggleCilbox:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Avatar Cilbox code", BasisGlobalLockManager.ToggleCilbox()));
+                    break;
+
                 case AdminRequestMode.SetGlobalAvatarScaleLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleAvatarScaleLimitsSet(peer, reader));

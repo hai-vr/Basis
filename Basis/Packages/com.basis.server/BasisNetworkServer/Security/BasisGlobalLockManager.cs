@@ -21,6 +21,7 @@ namespace BasisNetworkServer.Security
         private static int _cameraMetadataDisallowMask;
         private static int _playspaceMoverLocked;
         private static int _directConnectLocked;
+        private static int _cilboxLocked;
 
         public static bool AvatarsLocked => Interlocked.CompareExchange(ref _avatarsLocked, 0, 0) == 1;
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
@@ -31,6 +32,7 @@ namespace BasisNetworkServer.Security
         public static byte CameraMetadataDisallowMask => (byte)Interlocked.CompareExchange(ref _cameraMetadataDisallowMask, 0, 0);
         public static bool PlayspaceMoverLocked => Interlocked.CompareExchange(ref _playspaceMoverLocked, 0, 0) == 1;
         public static bool DirectConnectLocked => Interlocked.CompareExchange(ref _directConnectLocked, 0, 0) == 1;
+        public static bool CilboxLocked => Interlocked.CompareExchange(ref _cilboxLocked, 0, 0) == 1;
 
         /// <summary>
         /// Seed the initial lock state from the server configuration.
@@ -47,6 +49,7 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _cameraMetadataDisallowMask, config.CameraMetadataDisallowMask);
             Interlocked.Exchange(ref _playspaceMoverLocked, config.PlayspaceMoverLocked ? 1 : 0);
             Interlocked.Exchange(ref _directConnectLocked, config.DirectConnectLocked ? 1 : 0);
+            Interlocked.Exchange(ref _cilboxLocked, config.CilboxLocked ? 1 : 0);
         }
 
         /// <summary>
@@ -91,6 +94,11 @@ namespace BasisNetworkServer.Security
         public static bool ToggleDirectConnect() => Toggle(ref _directConnectLocked);
 
         /// <summary>
+        /// Toggle the global Cilbox lock. Returns the new state (true = sandboxed Cilbox code blocked).
+        /// </summary>
+        public static bool ToggleCilbox() => Toggle(ref _cilboxLocked);
+
+        /// <summary>
         /// Set the per-category camera photo-metadata disallow mask (set bit = disallowed).
         /// </summary>
         public static void SetCameraMetadataDisallowMask(byte mask) => Interlocked.Exchange(ref _cameraMetadataDisallowMask, mask);
@@ -130,6 +138,8 @@ namespace BasisNetworkServer.Security
             // Appended after BasisUserRestrictionMode — older clients that stop reading earlier still parse.
             writer.Put(PlayspaceMoverLocked);
             writer.Put(DirectConnectLocked);
+            // Appended after DirectConnectLocked — older clients that stop reading earlier still parse.
+            writer.Put(CilboxLocked);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -156,6 +166,8 @@ namespace BasisNetworkServer.Security
             // Appended after BasisUserRestrictionMode — older clients that stop reading earlier still parse.
             writer.Put(PlayspaceMoverLocked);
             writer.Put(DirectConnectLocked);
+            // Appended after DirectConnectLocked — older clients that stop reading earlier still parse.
+            writer.Put(CilboxLocked);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

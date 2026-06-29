@@ -3,7 +3,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
-using UnityEditor;
 using UnityEngine;
 namespace Basis.Scripts.Drivers
 {
@@ -685,11 +684,14 @@ namespace Basis.Scripts.Drivers
         public float DebugPointRadius = 0.03f;
         public float DebugAxisLength = 0.12f;
 
-        public void DrawGizmosSelected()
+        public void UpdateSeatGizmos(bool show, bool showLabels, Vector3 cameraPos)
         {
-            if (!DebugDrawGizmos) return;
-            if (LocalPlayer == null) return;
-            if (_seat == null) return;
+            EnsureSeatGizmoHook();
+            if (!show || !DebugDrawGizmos || LocalPlayer == null || _seat == null)
+            {
+                SetSeatGizmosVisible(false);
+                return;
+            }
 
             GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.OnTpose);
 
@@ -849,46 +851,178 @@ namespace Basis.Scripts.Drivers
             Vector3 lFootW = ToWorld(BasisLocalBoneDriver.LeftFootControl.TposeLocalScaled.position);
             Vector3 rFootW = ToWorld(BasisLocalBoneDriver.RightFootControl.TposeLocalScaled.position);
 
-            Gizmos.matrix = Matrix4x4.identity;
+            EnsureSeatGizmosCreated();
 
-            DrawAxes(seatT.position, seatWorldRot, DebugAxisLength * 0.75f);
-            DrawAxes(seatT.position, hipsWorldRot, DebugAxisLength * 0.95f);
+            UpdateSeatAxes(0, seatT.position, seatWorldRot, DebugAxisLength * 0.75f);
+            UpdateSeatAxes(3, seatT.position, hipsWorldRot, DebugAxisLength * 0.95f);
 
-            DrawPoint(backW, DebugPointRadius * 1.2f);
-            DrawPoint(kneeW, DebugPointRadius);
-            DrawPoint(footW, DebugPointRadius);
+            UpdateSeatPoint(0, backW, DebugPointRadius * 1.2f * 2f);
+            UpdateSeatPoint(1, kneeW, DebugPointRadius * 2f);
+            UpdateSeatPoint(2, footW, DebugPointRadius * 2f);
 
-            Gizmos.DrawLine(backW, kneeW);
-            Gizmos.DrawLine(kneeW, footW);
+            UpdateSeatSegment(0, backW, kneeW);
+            UpdateSeatSegment(1, kneeW, footW);
 
-            DrawAxes(backW, hipsWorldRot, DebugAxisLength);
-            DrawAxes(playerPos, playerRot, DebugAxisLength * 0.75f);
+            UpdateSeatAxes(6, backW, hipsWorldRot, DebugAxisLength);
+            UpdateSeatAxes(9, playerPos, playerRot, DebugAxisLength * 0.75f);
 
-            Gizmos.DrawLine(lUpperW, lLowerW);
-            Gizmos.DrawLine(rUpperW, rLowerW);
-            Gizmos.DrawLine(lLowerW, lFootW);
-            Gizmos.DrawLine(rLowerW, rFootW);
+            UpdateSeatSegment(2, lUpperW, lLowerW);
+            UpdateSeatSegment(3, rUpperW, rLowerW);
+            UpdateSeatSegment(4, lLowerW, lFootW);
+            UpdateSeatSegment(5, rLowerW, rFootW);
 
-#if UNITY_EDITOR
-            Handles.Label(backW, "Seat Back (pelvis target)");
-            Handles.Label(kneeW, "Seat Knee target");
-            Handles.Label(footW, "Seat Foot target");
-            Handles.Label(playerPos, "Avatar Root (placed)");
-            Handles.Label(hipsW, "Hips (override)");
-#endif
+            UpdateSeatLabel(0, backW, "Seat Back (pelvis target)", showLabels, cameraPos);
+            UpdateSeatLabel(1, kneeW, "Seat Knee target", showLabels, cameraPos);
+            UpdateSeatLabel(2, footW, "Seat Foot target", showLabels, cameraPos);
+            UpdateSeatLabel(3, playerPos, "Avatar Root (placed)", showLabels, cameraPos);
+            UpdateSeatLabel(4, hipsW, "Hips (override)", showLabels, cameraPos);
+
+            _seatGizmosVisible = true;
         }
 
-        private void DrawPoint(Vector3 p, float r) => Gizmos.DrawSphere(p, r);
+        private const float SeatGizmoLineWidth = 0.004f;
+        private static readonly int[] _seatAxisIds = NewSeatIds(12);
+        private static readonly int[] _seatPointIds = NewSeatIds(3);
+        private static readonly int[] _seatSegIds = NewSeatIds(6);
+        private static readonly int[] _seatLabelIds = NewSeatIds(5);
+        private static bool _seatGizmosCreated;
+        private static bool _seatGizmosVisible;
+        private static bool _seatGizmoHooked;
 
-        private void DrawAxes(Vector3 pos, Quaternion rot, float len)
+        private static readonly Color SeatAxisXColor = new Color(1f, 0.2f, 0.2f, 0.9f);
+        private static readonly Color SeatAxisYColor = new Color(0.2f, 1f, 0.2f, 0.9f);
+        private static readonly Color SeatAxisZColor = new Color(0.2f, 0.4f, 1f, 0.9f);
+        private static readonly Color SeatPointColor = new Color(1f, 0.9f, 0.2f, 0.9f);
+        private static readonly Color SeatSegColor = new Color(0.9f, 0.9f, 0.9f, 0.9f);
+
+        private static void EnsureSeatGizmosCreated()
         {
-            Vector3 r = rot * Vector3.right;
-            Vector3 u = rot * Vector3.up;
-            Vector3 f = rot * Vector3.forward;
+            if (_seatGizmosCreated)
+            {
+                return;
+            }
+            for (int i = 0; i < 12; i++)
+            {
+                Color c = (i % 3) == 0 ? SeatAxisXColor : (i % 3) == 1 ? SeatAxisYColor : SeatAxisZColor;
+                BasisGizmoManager.CreateLineGizmo($"SeatAxis_{i}", out _seatAxisIds[i], Vector3.zero, Vector3.zero, SeatGizmoLineWidth, c);
+                BasisGizmoManager.SetGizmoActive(_seatAxisIds[i], false);
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                BasisGizmoManager.CreateSphereGizmo($"SeatPoint_{i}", out _seatPointIds[i], Vector3.zero, 0.06f, SeatPointColor);
+                BasisGizmoManager.SetGizmoActive(_seatPointIds[i], false);
+            }
+            for (int i = 0; i < 6; i++)
+            {
+                BasisGizmoManager.CreateLineGizmo($"SeatSeg_{i}", out _seatSegIds[i], Vector3.zero, Vector3.zero, SeatGizmoLineWidth, SeatSegColor);
+                BasisGizmoManager.SetGizmoActive(_seatSegIds[i], false);
+            }
+            _seatGizmosCreated = true;
+            _seatGizmosVisible = true;
+        }
 
-            Gizmos.DrawLine(pos, pos + r * len);
-            Gizmos.DrawLine(pos, pos + u * len);
-            Gizmos.DrawLine(pos, pos + f * len);
+        private static void UpdateSeatAxes(int baseIdx, Vector3 pos, Quaternion rot, float len)
+        {
+            BasisGizmoManager.UpdateLineGizmo(_seatAxisIds[baseIdx + 0], pos, pos + rot * Vector3.right * len);
+            BasisGizmoManager.UpdateLineGizmo(_seatAxisIds[baseIdx + 1], pos, pos + rot * Vector3.up * len);
+            BasisGizmoManager.UpdateLineGizmo(_seatAxisIds[baseIdx + 2], pos, pos + rot * Vector3.forward * len);
+            BasisGizmoManager.SetGizmoActive(_seatAxisIds[baseIdx + 0], true);
+            BasisGizmoManager.SetGizmoActive(_seatAxisIds[baseIdx + 1], true);
+            BasisGizmoManager.SetGizmoActive(_seatAxisIds[baseIdx + 2], true);
+        }
+
+        private static void UpdateSeatPoint(int idx, Vector3 pos, float diameter)
+        {
+            BasisGizmoManager.UpdateSphereGizmo(_seatPointIds[idx], pos, Vector3.one * diameter);
+            BasisGizmoManager.SetGizmoActive(_seatPointIds[idx], true);
+        }
+
+        private static void UpdateSeatSegment(int idx, Vector3 a, Vector3 b)
+        {
+            BasisGizmoManager.UpdateLineGizmo(_seatSegIds[idx], a, b);
+            BasisGizmoManager.SetGizmoActive(_seatSegIds[idx], true);
+        }
+
+        private static void UpdateSeatLabel(int idx, Vector3 pos, string text, bool showLabels, Vector3 cameraPos)
+        {
+            if (showLabels)
+            {
+                if (_seatLabelIds[idx] <= 0)
+                {
+                    BasisGizmoManager.CreateTextGizmo($"SeatLabel_{idx}", out _seatLabelIds[idx], pos, text, Color.white);
+                }
+                Quaternion rot = BasisGizmoManager.BillboardRotation(pos, cameraPos);
+                BasisGizmoManager.UpdateTextGizmo(_seatLabelIds[idx], pos, rot, 0.02f * Mathf.Max(0.01f, BasisHeightDriver.ScaledToMatchValue), text, Color.white);
+                BasisGizmoManager.SetGizmoActive(_seatLabelIds[idx], true);
+            }
+            else if (_seatLabelIds[idx] > 0)
+            {
+                BasisGizmoManager.DestroyGizmo(_seatLabelIds[idx]);
+                _seatLabelIds[idx] = -1;
+            }
+        }
+
+        private static void SetSeatGizmosVisible(bool visible)
+        {
+            if (!_seatGizmosCreated || _seatGizmosVisible == visible)
+            {
+                return;
+            }
+            for (int i = 0; i < _seatAxisIds.Length; i++)
+            {
+                BasisGizmoManager.SetGizmoActive(_seatAxisIds[i], visible);
+            }
+            for (int i = 0; i < _seatPointIds.Length; i++)
+            {
+                BasisGizmoManager.SetGizmoActive(_seatPointIds[i], visible);
+            }
+            for (int i = 0; i < _seatSegIds.Length; i++)
+            {
+                BasisGizmoManager.SetGizmoActive(_seatSegIds[i], visible);
+            }
+            for (int i = 0; i < _seatLabelIds.Length; i++)
+            {
+                if (_seatLabelIds[i] > 0)
+                {
+                    BasisGizmoManager.SetGizmoActive(_seatLabelIds[i], visible);
+                }
+            }
+            _seatGizmosVisible = visible;
+        }
+
+        private static void EnsureSeatGizmoHook()
+        {
+            if (_seatGizmoHooked)
+            {
+                return;
+            }
+            BasisGizmoManager.OnUseGizmosChanged += OnSeatGizmoMasterToggleChanged;
+            _seatGizmoHooked = true;
+        }
+
+        private static void OnSeatGizmoMasterToggleChanged(bool state)
+        {
+            if (!state)
+            {
+                ResetSeatGizmoState();
+            }
+        }
+
+        private static void ResetSeatGizmoState()
+        {
+            for (int i = 0; i < _seatAxisIds.Length; i++) _seatAxisIds[i] = -1;
+            for (int i = 0; i < _seatPointIds.Length; i++) _seatPointIds[i] = -1;
+            for (int i = 0; i < _seatSegIds.Length; i++) _seatSegIds[i] = -1;
+            for (int i = 0; i < _seatLabelIds.Length; i++) _seatLabelIds[i] = -1;
+            _seatGizmosCreated = false;
+            _seatGizmosVisible = false;
+        }
+
+        private static int[] NewSeatIds(int n)
+        {
+            int[] ids = new int[n];
+            for (int i = 0; i < n; i++) ids[i] = -1;
+            return ids;
         }
     }
 }

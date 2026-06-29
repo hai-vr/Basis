@@ -125,6 +125,13 @@ namespace Basis.BasisUI
             directConnectLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalDirectConnectLocked);
             directConnectLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleDirectConnect();
 
+            PanelToggle cilboxLock = PanelToggle.CreateNewEntry(container);
+            cilboxLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockCilbox"));
+            cilboxLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockCilbox.tooltip"));
+            cilboxLock.Descriptor.SetDescription("Blocks sandboxed Cilbox code on avatars from running for every connected player. Props and worlds keep their own scripts. Running avatar scripts stop at their next call; new ones never start. Admins are not exempt.");
+            cilboxLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCilboxLocked);
+            cilboxLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCilbox();
+
             PanelSlider opusPacketLossSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             opusPacketLossSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.admin.opusFecLoss")));
             opusPacketLossSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFecLoss.tooltip"));
@@ -182,6 +189,7 @@ namespace Basis.BasisUI
 
             controller.PlayspaceMoverLockToggle = playspaceMoverLock;
             controller.DirectConnectLockToggle = directConnectLock;
+            controller.CilboxLockToggle = cilboxLock;
             controller.MinAvatarHeightSlider = minAvatarHeightSlider;
             controller.MaxAvatarHeightSlider = maxAvatarHeightSlider;
             controller.MinAvatarHeightMeters = BasisNetworkModeration.ServerMinAvatarEyeHeightMeters;
@@ -321,6 +329,13 @@ namespace Basis.BasisUI
             serverNameField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.serverName.tooltip"));
             serverNameField.Descriptor.SetDescription("Public name returned to clients in the server list.");
 
+            TMP_InputField serverNameInput = serverNameField.GetComponentInChildren<TMP_InputField>(true);
+            if (serverNameInput)
+            {
+                serverNameInput.lineType = TMP_InputField.LineType.MultiLineSubmit;
+                serverNameField.gameObject.AddComponent<PanelTextFieldAutoHeight>().Initialize(serverNameInput);
+            }
+
             PanelButton applyServerName = PanelButton.CreateNew(container);
             applyServerName.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyServerName"));
             applyServerName.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.applyServerName.tooltip"));
@@ -339,6 +354,7 @@ namespace Basis.BasisUI
             {
                 motdInput.lineType = TMP_InputField.LineType.MultiLineNewline;
                 motdInput.scrollSensitivity = 2f;
+                serverMotdField.gameObject.AddComponent<PanelTextFieldAutoHeight>().Initialize(motdInput);
             }
 
             PanelButton applyServerMotd = PanelButton.CreateNew(container);
@@ -468,9 +484,15 @@ namespace Basis.BasisUI
                 if (result == null || !result.Reachable) return;
 
                 if (nameField != null && string.IsNullOrEmpty(nameField.Value))
+                {
                     nameField.SetValueWithoutNotify(result.Name ?? string.Empty);
+                    nameField.GetComponent<PanelTextFieldAutoHeight>()?.Refresh();
+                }
                 if (motdField != null && string.IsNullOrEmpty(motdField.Value))
+                {
                     motdField.SetValueWithoutNotify(result.Motd ?? string.Empty);
+                    motdField.GetComponent<PanelTextFieldAutoHeight>()?.Refresh();
+                }
             }
             catch (Exception ex)
             {
@@ -630,6 +652,7 @@ namespace Basis.BasisUI
             public float MaxHearingRangeMeters;
             public PanelToggle PlayspaceMoverLockToggle;
             public PanelToggle DirectConnectLockToggle;
+            public PanelToggle CilboxLockToggle;
             public PanelSlider MinAvatarHeightSlider;
             public PanelSlider MaxAvatarHeightSlider;
             public float MinAvatarHeightMeters;
@@ -666,6 +689,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged += OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged += OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
+                BasisNetworkModeration.OnGlobalCilboxLockChanged += OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged += OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
@@ -687,6 +712,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
             }
@@ -704,6 +730,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
+                BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
             }
@@ -768,6 +795,11 @@ namespace Basis.BasisUI
             private void OnGlobalDirectConnectLockedChanged(bool locked)
             {
                 if (DirectConnectLockToggle != null) DirectConnectLockToggle.SetValueWithoutNotify(locked);
+            }
+
+            private void OnGlobalCilboxLockChanged(bool locked)
+            {
+                if (CilboxLockToggle != null) CilboxLockToggle.SetValueWithoutNotify(locked);
             }
 
             private void OnAvatarScaleLimitsChanged(float minMeters, float maxMeters)
