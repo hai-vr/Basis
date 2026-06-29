@@ -48,7 +48,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b68e02a3d21e52c4ca5f271ae91b3325, type: 3}
   m_Name: BasisVariableRateShadingFeature
   m_EditorClassIdentifier: Basis Framework::Basis.Scripts.Rendering.BasisVariableRateShadingFeature
-  m_Active: 1
+  m_Active: 0
   buildShader: {fileID: 7200000, guid: b215cd9e4a7f4c0a8d3e6f1b09a7c354, type: 3}
   gazeProjectDistance: 3
   yFlip: 0
