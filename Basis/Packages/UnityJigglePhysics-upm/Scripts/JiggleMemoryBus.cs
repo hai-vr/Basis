@@ -100,6 +100,12 @@ public class JiggleMemoryBus {
     private List<JiggleTree> pendingRemoveTrees;
     private List<JiggleTree> pendingAddTrees;
     private Dictionary<int, float3> pendingTeleports;
+    // rootID -> index into jiggleTreeStructsArray[0..treeCount]. Makes tree lookups
+    // (PreRemoveTree/RemoveTree/ApplyTeleport) O(1) instead of a linear scan, and lets
+    // RemoveTree swap-with-last instead of Array.Copy-compacting. Safe because tree array
+    // order is not load-bearing: every consumer iterates all trees or keys off rootID, and
+    // per-tree data rides transformIndexOffset stored in the struct, not the array slot.
+    private Dictionary<int, int> rootIDToTreeIndex;
 
     private List<JiggleTree> pendingProcessingAdds;
     private List<JiggleTree> pendingProcessingRemoves;
@@ -351,7 +357,8 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingAddTrees = new();
         pendingRemoveTrees = new();
         pendingTeleports = new();
-        
+        rootIDToTreeIndex = new();
+
         memoryFragmenter = new JiggleMemoryFragmenter(4096);
         personalColliderMemoryFragmenter = new JiggleMemoryFragmenter(2048);
         sceneColliderMemoryFragmenter = new JiggleMemoryFragmenter(2048);
@@ -475,32 +482,30 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
     }
 
     private void PreRemoveTree(JiggleTree tree) {
-        var id = tree.rootID;
-        for (int i = 0; i < treeCount; i++) {
-            var removedTree = jiggleTreeStructsArray[i];
-            if (removedTree.rootID != id) continue;
-            memoryFragmenter.Free((int)removedTree.transformIndexOffset, (int)removedTree.pointCount);
-            for (int j = (int)removedTree.transformIndexOffset; j < removedTree.transformIndexOffset + removedTree.pointCount; j++) {
-                transformAccessList[j] = GetDummyTransform(j);
-                transformRootAccessList[j] = GetDummyTransform(j);
-            }
-            for (int j = (int)removedTree.colliderIndexOffset; j < removedTree.colliderIndexOffset + removedTree.colliderCount; j++) {
-                personalColliderTransformAccessList[j] = GetDummyTransform(j);
-            }
-            break;
+        if (!rootIDToTreeIndex.TryGetValue(tree.rootID, out var i)) return;
+        var removedTree = jiggleTreeStructsArray[i];
+        memoryFragmenter.Free((int)removedTree.transformIndexOffset, (int)removedTree.pointCount);
+        for (int j = (int)removedTree.transformIndexOffset; j < removedTree.transformIndexOffset + removedTree.pointCount; j++) {
+            transformAccessList[j] = GetDummyTransform(j);
+            transformRootAccessList[j] = GetDummyTransform(j);
+        }
+        for (int j = (int)removedTree.colliderIndexOffset; j < removedTree.colliderIndexOffset + removedTree.colliderCount; j++) {
+            personalColliderTransformAccessList[j] = GetDummyTransform(j);
         }
     }
 
     private void RemoveTree(JiggleTree tree) {
         int id = tree.rootID;
         Profiler.BeginSample("JiggleMemoryBus.RemoveTree");
-        for (int i = 0; i < treeCount; i++) {
+        if (rootIDToTreeIndex.TryGetValue(id, out var i)) {
             var removedTree = jiggleTreeStructsArray[i];
-            if (removedTree.rootID != id) continue;
-            int shiftCount = treeCount - i - 1;
-            if (shiftCount > 0) {
-                System.Array.Copy(jiggleTreeStructsArray, i + 1, jiggleTreeStructsArray, i, shiftCount);
+            int lastIndex = treeCount - 1;
+            if (i != lastIndex) {
+                var lastTree = jiggleTreeStructsArray[lastIndex];
+                jiggleTreeStructsArray[i] = lastTree;
+                rootIDToTreeIndex[lastTree.rootID] = i;
             }
+            rootIDToTreeIndex.Remove(id);
             treeCount--;
             for (int j = (int)removedTree.transformIndexOffset;
                  j < removedTree.transformIndexOffset + removedTree.pointCount;
@@ -517,8 +522,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                 interpolationPose2.isVirtual = true;
                 interpolationPreviousPoseDataArray[j].pose = interpolationPose2;
             }
-
-            break;
         }
 
         Profiler.EndSample();
@@ -596,6 +599,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
         
         jiggleTreeStructsArray[treeCount] = jiggleTreeJobData;
+        rootIDToTreeIndex[jiggleTreeJobData.rootID] = treeCount;
         var root = jiggleTree.bones[0];
         if (!root) {
             root = GetDummyTransform(index);
@@ -972,14 +976,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
     private void ApplyTeleport(int rootID, float3 deltaPosition) {
         if (transformCount == 0) return;
-        int treeIndex = -1;
-        for (int i = 0; i < treeCount; i++) {
-            if (jiggleTreeStructsArray[i].rootID == rootID) {
-                treeIndex = i;
-                break;
-            }
-        }
-        if (treeIndex == -1) return;
+        if (!rootIDToTreeIndex.TryGetValue(rootID, out var treeIndex)) return;
 
         var tree = jiggleTreeStructsArray[treeIndex];
         int start = (int)tree.transformIndexOffset;

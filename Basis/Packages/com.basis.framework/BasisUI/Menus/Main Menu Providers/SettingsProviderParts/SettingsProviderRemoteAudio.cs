@@ -124,395 +124,467 @@ namespace Basis.BasisUI
                 listenerDampenGroup.ForceRebuild();
             };
 
-            // ─────────────── ADVANCED (collapsible) ───────────────
-            PanelSectionToggle advancedToggle = PanelSectionToggle.CreateNewEntry(container);
-            advancedToggle.SetTitle(BasisLocalization.Get("ui.advanced"));
-            int advancedStart = container.childCount;
-            RectTransform advancedContent = container;
-
-            // ─────────────── VOICE BUFFER GROUP (advanced) ───────────────
+            // ─────────────── VOICE BUFFER (advanced) ───────────────
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.
             // Buffer is 20 ms per frame, so 1 ≈ 20 ms.
-            PanelElementDescriptor voiceBufferGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            voiceBufferGroup.SetTitle(BasisLocalization.Get("settings.ra.title.voiceBuffer"));
-            voiceBufferGroup.SetDescription(
-                "How many 20 ms voice frames to buffer ahead of playback.\n" +
-                "Lower = less latency. Higher = smoother audio on jittery networks.\n" +
-                "Default: 1 (~20 ms).");
-
-            PanelSlider sliderJitterDepth = PanelSlider.CreateEntryAndBind(
-                voiceBufferGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.bufferedFrames"), 1f, 15f, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAJitterBufferDepth);
-            sliderJitterDepth.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.bufferedFrames.tooltip"));
-            sliderJitterDepth.Descriptor.SetDescription(
-                "Each frame is 20 ms. 1 = ~20 ms (default, low latency, more dropouts).\n" +
-                "5 = ~100 ms. 15 = ~300 ms (max resilience).");
-
-            PanelSlider sliderClipBufferScalar = PanelSlider.CreateEntryAndBind(
-                voiceBufferGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.clipBuffer"), 2f, 8f, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAClipBufferScalar);
-            sliderClipBufferScalar.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.clipBuffer.tooltip"));
-            sliderClipBufferScalar.Descriptor.SetDescription(
-                "Multiplier on the per-player AudioClip length used by Unity's AudioSource.\n" +
-                "Lower = tighter coupling to the decoded queue (less latency, more sensitive\n" +
-                "to underruns). Default: 2. Live audio sources reload in place when changed.");
-
-            // ─────────────── AUDIO SOURCE GROUP (advanced) ───────────────
-            PanelElementDescriptor audioSourceGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            audioSourceGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.audioSource"));
-
-            PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(audioSourceGroup);
-            toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
-            toggleLimitAudio.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAudio"));
-            toggleLimitAudio.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.limitAudio.tooltip"));
-
-            PanelSlider sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAudio"), 0, 250, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.MaxAudioSources);
-            sliderMaxAudioSources.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.maxAudio.tooltip"));
-
-            sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
-            toggleLimitAudio.OnValueChanged += (val) =>
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.ra.title.voiceBuffer"), () =>
             {
-                sliderMaxAudioSources.Descriptor.SetActive(val);
-                audioSourceGroup.ForceRebuild();
-            };
+                PanelSlider sliderJitterDepth = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.bufferedFrames"), 1f, 15f, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAJitterBufferDepth);
+                sliderJitterDepth.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.bufferedFrames.tooltip"));
+                sliderJitterDepth.Descriptor.SetDescription(
+                    "Each frame is 20 ms. 1 = ~20 ms (default, low latency, more dropouts).\n" +
+                    "5 = ~100 ms. 15 = ~300 ms (max resilience).");
 
-            PanelSlider sliderMinDistance = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.minDistance"), 0.1f, 10f, false, 2, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.RAMinDistance);
-            sliderMinDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.minDistance.tooltip"));
+                PanelSlider sliderClipBufferScalar = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.clipBuffer"), 2f, 8f, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAClipBufferScalar);
+                sliderClipBufferScalar.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.clipBuffer.tooltip"));
+                sliderClipBufferScalar.Descriptor.SetDescription(
+                    "Multiplier on the per-player AudioClip length used by Unity's AudioSource.\n" +
+                    "Lower = tighter coupling to the decoded queue (less latency, more sensitive\n" +
+                    "to underruns). Default: 2. Live audio sources reload in place when changed.");
+            }, false, _ => tabDescriptor?.ForceRebuild());
 
-            PanelDropdown dropdownRolloffMode = PanelDropdown.CreateNewEntry(audioSourceGroup);
-            dropdownRolloffMode.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.rolloffMode"));
-            dropdownRolloffMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.rolloffMode.tooltip"));
-            dropdownRolloffMode.AssignLocalizedEntries(
-                new List<string> { "Logarithmic", "Linear", "Custom" },
-                new List<string> { "settings.remoteAudio.rolloff.logarithmic", "settings.remoteAudio.rolloff.linear", "settings.remoteAudio.rolloff.custom" });
-            dropdownRolloffMode.AssignBinding(BasisSettingsDefaults.RARolloffMode);
-
-            PanelDropdown dropdownCurvePreset = PanelDropdown.CreateNewEntry(audioSourceGroup);
-            dropdownCurvePreset.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.curvePreset"));
-            dropdownCurvePreset.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.curvePreset.tooltip"));
-            dropdownCurvePreset.AssignLocalizedEntries(
-                new List<string> { "Default", "Sharp Falloff", "Gradual", "Inverse Square", "Flat", "User Defined" },
-                new List<string> { "settings.remoteAudio.curve.default", "settings.remoteAudio.curve.sharp", "settings.remoteAudio.curve.gradual", "settings.remoteAudio.curve.inverseSquare", "settings.remoteAudio.curve.flat", "settings.remoteAudio.curve.userDefined" });
-            dropdownCurvePreset.AssignBinding(BasisSettingsDefaults.RARolloffCurvePreset);
-
-            PanelSlider sliderCurvePoint25 = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.volume25"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RACurvePoint25);
-            sliderCurvePoint25.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.volume25.tooltip"));
-
-            PanelSlider sliderCurvePoint50 = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.volume50"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RACurvePoint50);
-            sliderCurvePoint50.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.volume50.tooltip"));
-
-            PanelSlider sliderCurvePoint75 = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.volume75"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RACurvePoint75);
-            sliderCurvePoint75.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.volume75.tooltip"));
-
-            // Curve preset visible when rolloff mode is Custom
-            // User curve sliders visible when rolloff is Custom AND preset is User Defined
-            bool isCustomRolloff = string.Equals(BasisSettingsDefaults.RARolloffMode.RawValue, "custom", StringComparison.OrdinalIgnoreCase);
-            bool isUserCurve = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
-            dropdownCurvePreset.Descriptor.SetActive(isCustomRolloff);
-            sliderCurvePoint25.Descriptor.SetActive(isCustomRolloff && isUserCurve);
-            sliderCurvePoint50.Descriptor.SetActive(isCustomRolloff && isUserCurve);
-            sliderCurvePoint75.Descriptor.SetActive(isCustomRolloff && isUserCurve);
-
-            dropdownRolloffMode.OnValueChanged += (val) =>
+            // ─────────────── AUDIO SOURCE (advanced) ───────────────
+            PanelSlider sliderMaxAudioSources = null;
+            PanelDropdown dropdownCurvePreset = null;
+            PanelSlider sliderCurvePoint25 = null;
+            PanelSlider sliderCurvePoint50 = null;
+            PanelSlider sliderCurvePoint75 = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.audioSource"), () =>
             {
-                bool custom = string.Equals(val, "custom", StringComparison.OrdinalIgnoreCase);
-                bool userDefined = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
-                dropdownCurvePreset.Descriptor.SetActive(custom);
-                sliderCurvePoint25.Descriptor.SetActive(custom && userDefined);
-                sliderCurvePoint50.Descriptor.SetActive(custom && userDefined);
-                sliderCurvePoint75.Descriptor.SetActive(custom && userDefined);
-                audioSourceGroup.ForceRebuild();
-            };
+                PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(container);
+                toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
+                toggleLimitAudio.Descriptor.SetTitle(BasisLocalization.Get("settings.general.limitAudio"));
+                toggleLimitAudio.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.limitAudio.tooltip"));
 
-            dropdownCurvePreset.OnValueChanged += (val) =>
+                sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.maxAudio"), 0, 250, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.MaxAudioSources);
+                sliderMaxAudioSources.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.maxAudio.tooltip"));
+
+                sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
+                toggleLimitAudio.OnValueChanged += (val) =>
+                {
+                    sliderMaxAudioSources.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+
+                PanelSlider sliderMinDistance = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.minDistance"), 0.1f, 10f, false, 2, ValueDisplayMode.Meters),
+                    BasisSettingsDefaults.RAMinDistance);
+                sliderMinDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.minDistance.tooltip"));
+
+                PanelDropdown dropdownRolloffMode = PanelDropdown.CreateNewEntry(container);
+                dropdownRolloffMode.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.rolloffMode"));
+                dropdownRolloffMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.rolloffMode.tooltip"));
+                dropdownRolloffMode.AssignLocalizedEntries(
+                    new List<string> { "Logarithmic", "Linear", "Custom" },
+                    new List<string> { "settings.remoteAudio.rolloff.logarithmic", "settings.remoteAudio.rolloff.linear", "settings.remoteAudio.rolloff.custom" });
+                dropdownRolloffMode.AssignBinding(BasisSettingsDefaults.RARolloffMode);
+
+                dropdownCurvePreset = PanelDropdown.CreateNewEntry(container);
+                dropdownCurvePreset.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.curvePreset"));
+                dropdownCurvePreset.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.curvePreset.tooltip"));
+                dropdownCurvePreset.AssignLocalizedEntries(
+                    new List<string> { "Default", "Sharp Falloff", "Gradual", "Inverse Square", "Flat", "User Defined" },
+                    new List<string> { "settings.remoteAudio.curve.default", "settings.remoteAudio.curve.sharp", "settings.remoteAudio.curve.gradual", "settings.remoteAudio.curve.inverseSquare", "settings.remoteAudio.curve.flat", "settings.remoteAudio.curve.userDefined" });
+                dropdownCurvePreset.AssignBinding(BasisSettingsDefaults.RARolloffCurvePreset);
+
+                sliderCurvePoint25 = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.volume25"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RACurvePoint25);
+                sliderCurvePoint25.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.volume25.tooltip"));
+
+                sliderCurvePoint50 = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.volume50"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RACurvePoint50);
+                sliderCurvePoint50.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.volume50.tooltip"));
+
+                sliderCurvePoint75 = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.volume75"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RACurvePoint75);
+                sliderCurvePoint75.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.volume75.tooltip"));
+
+                // Curve preset visible when rolloff mode is Custom
+                // User curve sliders visible when rolloff is Custom AND preset is User Defined
+                bool isCustomRolloff = string.Equals(BasisSettingsDefaults.RARolloffMode.RawValue, "custom", StringComparison.OrdinalIgnoreCase);
+                bool isUserCurve = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                dropdownCurvePreset.Descriptor.SetActive(isCustomRolloff);
+                sliderCurvePoint25.Descriptor.SetActive(isCustomRolloff && isUserCurve);
+                sliderCurvePoint50.Descriptor.SetActive(isCustomRolloff && isUserCurve);
+                sliderCurvePoint75.Descriptor.SetActive(isCustomRolloff && isUserCurve);
+
+                dropdownRolloffMode.OnValueChanged += (val) =>
+                {
+                    bool custom = string.Equals(val, "custom", StringComparison.OrdinalIgnoreCase);
+                    bool userDefined = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                    dropdownCurvePreset.Descriptor.SetActive(custom);
+                    sliderCurvePoint25.Descriptor.SetActive(custom && userDefined);
+                    sliderCurvePoint50.Descriptor.SetActive(custom && userDefined);
+                    sliderCurvePoint75.Descriptor.SetActive(custom && userDefined);
+                    tabDescriptor?.ForceRebuild();
+                };
+
+                dropdownCurvePreset.OnValueChanged += (val) =>
+                {
+                    bool userDefined = string.Equals(val, "user defined", StringComparison.OrdinalIgnoreCase);
+                    sliderCurvePoint25.Descriptor.SetActive(userDefined);
+                    sliderCurvePoint50.Descriptor.SetActive(userDefined);
+                    sliderCurvePoint75.Descriptor.SetActive(userDefined);
+                    tabDescriptor?.ForceRebuild();
+                };
+                /*
+                PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Degrees("Spread", 0f, 360f, true, 0),
+                    BasisSettingsDefaults.RASpread);
+
+                PanelSlider sliderDoppler = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced("Doppler Level", 0f, 5f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RADopplerLevel);
+                */
+                PanelSlider sliderSpatialBlend = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.spatialBlend"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RASpatialBlend);
+                sliderSpatialBlend.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.spatialBlend.tooltip"));
+                /*
+                PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced("Priority", 0f, 256f, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAPriority);
+                */
+            }, false, visible =>
             {
-                bool userDefined = string.Equals(val, "user defined", StringComparison.OrdinalIgnoreCase);
-                sliderCurvePoint25.Descriptor.SetActive(userDefined);
-                sliderCurvePoint50.Descriptor.SetActive(userDefined);
-                sliderCurvePoint75.Descriptor.SetActive(userDefined);
-                audioSourceGroup.ForceRebuild();
-            };
-            /*
-            PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Degrees("Spread", 0f, 360f, true, 0),
-                BasisSettingsDefaults.RASpread);
+                if (visible && sliderMaxAudioSources != null)
+                {
+                    sliderMaxAudioSources.Descriptor.SetActive(BasisSettingsDefaults.UseMaxAudioSources.RawValue);
+                    bool custom = string.Equals(BasisSettingsDefaults.RARolloffMode.RawValue, "custom", StringComparison.OrdinalIgnoreCase);
+                    bool userDefined = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                    dropdownCurvePreset.Descriptor.SetActive(custom);
+                    sliderCurvePoint25.Descriptor.SetActive(custom && userDefined);
+                    sliderCurvePoint50.Descriptor.SetActive(custom && userDefined);
+                    sliderCurvePoint75.Descriptor.SetActive(custom && userDefined);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
 
-            PanelSlider sliderDoppler = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced("Doppler Level", 0f, 5f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RADopplerLevel);
-            */
-            PanelSlider sliderSpatialBlend = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.spatialBlend"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RASpatialBlend);
-            sliderSpatialBlend.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.spatialBlend.tooltip"));
-            /*
-PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
-    audioSourceGroup,
-    PanelSlider.SliderSettings.Advanced("Priority", 0f, 256f, true, 0, ValueDisplayMode.Raw),
-    BasisSettingsDefaults.RAPriority);
-            */
-
-            // ─────────────── STEAM AUDIO - HRTF GROUP (advanced) ───────────────
-            PanelElementDescriptor hrtfGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            hrtfGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtf"));
-
-            PanelToggle toggleDirectBinaural = PanelToggle.CreateNewEntry(hrtfGroup);
-            toggleDirectBinaural.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.directBinaural"));
-            toggleDirectBinaural.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.directBinaural.tooltip"));
-            toggleDirectBinaural.AssignBinding(BasisSettingsDefaults.RADirectBinaural);
-
-            /*
-PanelToggle togglePerspectiveCorrection = PanelToggle.CreateNewEntry(hrtfGroup);
-togglePerspectiveCorrection.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.perspectiveCorrection"));
-togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCorrection);
-*/
-            PanelDropdown dropdownInterpolation = PanelDropdown.CreateNewEntry(hrtfGroup);
-            dropdownInterpolation.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtfInterpolation"));
-            dropdownInterpolation.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.hrtfInterpolation.tooltip"));
-            dropdownInterpolation.AssignLocalizedEntries(
-                new List<string> { "Nearest", "Bilinear" },
-                new List<string> { "settings.remoteAudio.interp.nearest", "settings.remoteAudio.interp.bilinear" });
-            dropdownInterpolation.AssignBinding(BasisSettingsDefaults.RAInterpolation);
-
-            PanelDropdown dropdownHrtfProfile = PanelDropdown.CreateNewEntry(hrtfGroup);
-            dropdownHrtfProfile.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtfProfile"));
-            dropdownHrtfProfile.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.hrtfProfile.tooltip"));
-            dropdownHrtfProfile.AssignEntries(GetHrtfProfileEntries());
-            dropdownHrtfProfile.AssignBinding(BasisSettingsDefaults.RAHrtfProfile);
-
-            // HRTF sub-settings only visible when Direct Binaural is enabled
-            bool binauralOn = BasisSettingsDefaults.RADirectBinaural.RawValue;
-            //togglePerspectiveCorrection.Descriptor.SetActive(binauralOn);
-            dropdownInterpolation.Descriptor.SetActive(binauralOn);
-            dropdownHrtfProfile.Descriptor.SetActive(binauralOn);
-            toggleDirectBinaural.OnValueChanged += (val) =>
+            // ─────────────── STEAM AUDIO - HRTF (advanced) ───────────────
+            PanelDropdown dropdownInterpolation = null;
+            PanelDropdown dropdownHrtfProfile = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.hrtf"), () =>
             {
-                //togglePerspectiveCorrection.Descriptor.SetActive(val);
-                dropdownInterpolation.Descriptor.SetActive(val);
-                dropdownHrtfProfile.Descriptor.SetActive(val);
-                hrtfGroup.ForceRebuild();
-            };
+                PanelToggle toggleDirectBinaural = PanelToggle.CreateNewEntry(container);
+                toggleDirectBinaural.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.directBinaural"));
+                toggleDirectBinaural.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.directBinaural.tooltip"));
+                toggleDirectBinaural.AssignBinding(BasisSettingsDefaults.RADirectBinaural);
 
-            // ─────────────── STEAM AUDIO - PROPAGATION GROUP ───────────────
-            PanelElementDescriptor propagationGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            propagationGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.propagation"));
+                /*
+                PanelToggle togglePerspectiveCorrection = PanelToggle.CreateNewEntry(container);
+                togglePerspectiveCorrection.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.perspectiveCorrection"));
+                togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCorrection);
+                */
+                dropdownInterpolation = PanelDropdown.CreateNewEntry(container);
+                dropdownInterpolation.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtfInterpolation"));
+                dropdownInterpolation.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.hrtfInterpolation.tooltip"));
+                dropdownInterpolation.AssignLocalizedEntries(
+                    new List<string> { "Nearest", "Bilinear" },
+                    new List<string> { "settings.remoteAudio.interp.nearest", "settings.remoteAudio.interp.bilinear" });
+                dropdownInterpolation.AssignBinding(BasisSettingsDefaults.RAInterpolation);
 
-            PanelToggle toggleDistanceAttenuation = PanelToggle.CreateNewEntry(propagationGroup);
-            toggleDistanceAttenuation.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.distanceAttenuation"));
-            toggleDistanceAttenuation.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.distanceAttenuation.tooltip"));
-            toggleDistanceAttenuation.AssignBinding(BasisSettingsDefaults.RADistanceAttenuation);
+                dropdownHrtfProfile = PanelDropdown.CreateNewEntry(container);
+                dropdownHrtfProfile.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.hrtfProfile"));
+                dropdownHrtfProfile.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.hrtfProfile.tooltip"));
+                dropdownHrtfProfile.AssignEntries(GetHrtfProfileEntries());
+                dropdownHrtfProfile.AssignBinding(BasisSettingsDefaults.RAHrtfProfile);
 
-            PanelDropdown dropdownDistanceAttenuationInput = PanelDropdown.CreateNewEntry(propagationGroup);
-            dropdownDistanceAttenuationInput.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.attenuationMode"));
-            dropdownDistanceAttenuationInput.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.attenuationMode.tooltip"));
-            dropdownDistanceAttenuationInput.AssignLocalizedEntries(
-                new List<string> { "Curve Driven", "Physics Based" },
-                new List<string> { "settings.remoteAudio.attenuation.curveDriven", "settings.remoteAudio.attenuation.physicsBased" });
-            dropdownDistanceAttenuationInput.AssignBinding(BasisSettingsDefaults.RADistanceAttenuationInput);
-
-            // Attenuation mode only visible when distance attenuation is enabled
-            bool distAttenOn = BasisSettingsDefaults.RADistanceAttenuation.RawValue;
-            dropdownDistanceAttenuationInput.Descriptor.SetActive(distAttenOn);
-            toggleDistanceAttenuation.OnValueChanged += (val) =>
+                // HRTF sub-settings only visible when Direct Binaural is enabled
+                bool binauralOn = BasisSettingsDefaults.RADirectBinaural.RawValue;
+                //togglePerspectiveCorrection.Descriptor.SetActive(binauralOn);
+                dropdownInterpolation.Descriptor.SetActive(binauralOn);
+                dropdownHrtfProfile.Descriptor.SetActive(binauralOn);
+                toggleDirectBinaural.OnValueChanged += (val) =>
+                {
+                    //togglePerspectiveCorrection.Descriptor.SetActive(val);
+                    dropdownInterpolation.Descriptor.SetActive(val);
+                    dropdownHrtfProfile.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+            }, false, visible =>
             {
-                dropdownDistanceAttenuationInput.Descriptor.SetActive(val);
-                propagationGroup.ForceRebuild();
-            };
+                if (visible && dropdownInterpolation != null)
+                {
+                    bool binauralOn = BasisSettingsDefaults.RADirectBinaural.RawValue;
+                    dropdownInterpolation.Descriptor.SetActive(binauralOn);
+                    dropdownHrtfProfile.Descriptor.SetActive(binauralOn);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
 
-            PanelToggle toggleAirAbsorption = PanelToggle.CreateNewEntry(propagationGroup);
-            toggleAirAbsorption.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.airAbsorption"));
-            toggleAirAbsorption.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airAbsorption.tooltip"));
-            toggleAirAbsorption.AssignBinding(BasisSettingsDefaults.RAAirAbsorption);
-
-            PanelDropdown dropdownAirAbsorptionInput = PanelDropdown.CreateNewEntry(propagationGroup);
-            dropdownAirAbsorptionInput.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.airAbsorptionMode"));
-            dropdownAirAbsorptionInput.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airAbsorptionMode.tooltip"));
-            dropdownAirAbsorptionInput.AssignLocalizedEntries(
-                new List<string> { "Simulation Defined", "User Defined" },
-                new List<string> { "settings.remoteAudio.airMode.simulation", "settings.remoteAudio.airMode.userDefined" });
-            dropdownAirAbsorptionInput.AssignBinding(BasisSettingsDefaults.RAAirAbsorptionInput);
-
-            PanelSlider sliderAirAbsorptionLow = PanelSlider.CreateEntryAndBind(
-                propagationGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.airLow"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAAirAbsorptionLow);
-            sliderAirAbsorptionLow.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airLow.tooltip"));
-
-            PanelSlider sliderAirAbsorptionMid = PanelSlider.CreateEntryAndBind(
-                propagationGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.airMid"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAAirAbsorptionMid);
-            sliderAirAbsorptionMid.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airMid.tooltip"));
-
-            PanelSlider sliderAirAbsorptionHigh = PanelSlider.CreateEntryAndBind(
-                propagationGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.airHigh"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAAirAbsorptionHigh);
-            sliderAirAbsorptionHigh.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airHigh.tooltip"));
-
-            // Air absorption sub-settings visibility depends on air absorption toggle + mode
-            bool airOn = BasisSettingsDefaults.RAAirAbsorption.RawValue;
-            bool airUserDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
-            dropdownAirAbsorptionInput.Descriptor.SetActive(airOn);
-            sliderAirAbsorptionLow.Descriptor.SetActive(airOn && airUserDefined);
-            sliderAirAbsorptionMid.Descriptor.SetActive(airOn && airUserDefined);
-            sliderAirAbsorptionHigh.Descriptor.SetActive(airOn && airUserDefined);
-
-            toggleAirAbsorption.OnValueChanged += (val) =>
+            // ─────────────── STEAM AUDIO - PROPAGATION (advanced) ───────────────
+            PanelDropdown dropdownDistanceAttenuationInput = null;
+            PanelDropdown dropdownAirAbsorptionInput = null;
+            PanelSlider sliderAirAbsorptionLow = null;
+            PanelSlider sliderAirAbsorptionMid = null;
+            PanelSlider sliderAirAbsorptionHigh = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.propagation"), () =>
             {
-                dropdownAirAbsorptionInput.Descriptor.SetActive(val);
-                bool userDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
-                sliderAirAbsorptionLow.Descriptor.SetActive(val && userDefined);
-                sliderAirAbsorptionMid.Descriptor.SetActive(val && userDefined);
-                sliderAirAbsorptionHigh.Descriptor.SetActive(val && userDefined);
-                propagationGroup.ForceRebuild();
-            };
+                PanelToggle toggleDistanceAttenuation = PanelToggle.CreateNewEntry(container);
+                toggleDistanceAttenuation.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.distanceAttenuation"));
+                toggleDistanceAttenuation.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.distanceAttenuation.tooltip"));
+                toggleDistanceAttenuation.AssignBinding(BasisSettingsDefaults.RADistanceAttenuation);
 
-            dropdownAirAbsorptionInput.OnValueChanged += (val) =>
+                dropdownDistanceAttenuationInput = PanelDropdown.CreateNewEntry(container);
+                dropdownDistanceAttenuationInput.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.attenuationMode"));
+                dropdownDistanceAttenuationInput.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.attenuationMode.tooltip"));
+                dropdownDistanceAttenuationInput.AssignLocalizedEntries(
+                    new List<string> { "Curve Driven", "Physics Based" },
+                    new List<string> { "settings.remoteAudio.attenuation.curveDriven", "settings.remoteAudio.attenuation.physicsBased" });
+                dropdownDistanceAttenuationInput.AssignBinding(BasisSettingsDefaults.RADistanceAttenuationInput);
+
+                // Attenuation mode only visible when distance attenuation is enabled
+                bool distAttenOn = BasisSettingsDefaults.RADistanceAttenuation.RawValue;
+                dropdownDistanceAttenuationInput.Descriptor.SetActive(distAttenOn);
+                toggleDistanceAttenuation.OnValueChanged += (val) =>
+                {
+                    dropdownDistanceAttenuationInput.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+
+                PanelToggle toggleAirAbsorption = PanelToggle.CreateNewEntry(container);
+                toggleAirAbsorption.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.airAbsorption"));
+                toggleAirAbsorption.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airAbsorption.tooltip"));
+                toggleAirAbsorption.AssignBinding(BasisSettingsDefaults.RAAirAbsorption);
+
+                dropdownAirAbsorptionInput = PanelDropdown.CreateNewEntry(container);
+                dropdownAirAbsorptionInput.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.airAbsorptionMode"));
+                dropdownAirAbsorptionInput.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airAbsorptionMode.tooltip"));
+                dropdownAirAbsorptionInput.AssignLocalizedEntries(
+                    new List<string> { "Simulation Defined", "User Defined" },
+                    new List<string> { "settings.remoteAudio.airMode.simulation", "settings.remoteAudio.airMode.userDefined" });
+                dropdownAirAbsorptionInput.AssignBinding(BasisSettingsDefaults.RAAirAbsorptionInput);
+
+                sliderAirAbsorptionLow = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.airLow"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAAirAbsorptionLow);
+                sliderAirAbsorptionLow.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airLow.tooltip"));
+
+                sliderAirAbsorptionMid = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.airMid"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAAirAbsorptionMid);
+                sliderAirAbsorptionMid.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airMid.tooltip"));
+
+                sliderAirAbsorptionHigh = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.airHigh"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAAirAbsorptionHigh);
+                sliderAirAbsorptionHigh.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.airHigh.tooltip"));
+
+                // Air absorption sub-settings visibility depends on air absorption toggle + mode
+                bool airOn = BasisSettingsDefaults.RAAirAbsorption.RawValue;
+                bool airUserDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                dropdownAirAbsorptionInput.Descriptor.SetActive(airOn);
+                sliderAirAbsorptionLow.Descriptor.SetActive(airOn && airUserDefined);
+                sliderAirAbsorptionMid.Descriptor.SetActive(airOn && airUserDefined);
+                sliderAirAbsorptionHigh.Descriptor.SetActive(airOn && airUserDefined);
+
+                toggleAirAbsorption.OnValueChanged += (val) =>
+                {
+                    dropdownAirAbsorptionInput.Descriptor.SetActive(val);
+                    bool userDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                    sliderAirAbsorptionLow.Descriptor.SetActive(val && userDefined);
+                    sliderAirAbsorptionMid.Descriptor.SetActive(val && userDefined);
+                    sliderAirAbsorptionHigh.Descriptor.SetActive(val && userDefined);
+                    tabDescriptor?.ForceRebuild();
+                };
+
+                dropdownAirAbsorptionInput.OnValueChanged += (val) =>
+                {
+                    bool userDefined = string.Equals(val, "user defined", StringComparison.OrdinalIgnoreCase);
+                    bool enabled = BasisSettingsDefaults.RAAirAbsorption.RawValue;
+                    sliderAirAbsorptionLow.Descriptor.SetActive(enabled && userDefined);
+                    sliderAirAbsorptionMid.Descriptor.SetActive(enabled && userDefined);
+                    sliderAirAbsorptionHigh.Descriptor.SetActive(enabled && userDefined);
+                    tabDescriptor?.ForceRebuild();
+                };
+            }, false, visible =>
             {
-                bool userDefined = string.Equals(val, "user defined", StringComparison.OrdinalIgnoreCase);
-                bool enabled = BasisSettingsDefaults.RAAirAbsorption.RawValue;
-                sliderAirAbsorptionLow.Descriptor.SetActive(enabled && userDefined);
-                sliderAirAbsorptionMid.Descriptor.SetActive(enabled && userDefined);
-                sliderAirAbsorptionHigh.Descriptor.SetActive(enabled && userDefined);
-                propagationGroup.ForceRebuild();
-            };
+                if (visible && dropdownDistanceAttenuationInput != null)
+                {
+                    dropdownDistanceAttenuationInput.Descriptor.SetActive(BasisSettingsDefaults.RADistanceAttenuation.RawValue);
+                    bool airOn = BasisSettingsDefaults.RAAirAbsorption.RawValue;
+                    bool airUserDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                    dropdownAirAbsorptionInput.Descriptor.SetActive(airOn);
+                    sliderAirAbsorptionLow.Descriptor.SetActive(airOn && airUserDefined);
+                    sliderAirAbsorptionMid.Descriptor.SetActive(airOn && airUserDefined);
+                    sliderAirAbsorptionHigh.Descriptor.SetActive(airOn && airUserDefined);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
 
-            // ─────────────── STEAM AUDIO - DIRECTIVITY GROUP ───────────────
-            PanelElementDescriptor directivityGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            directivityGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.directivity"));
-
-            PanelToggle toggleDirectivity = PanelToggle.CreateNewEntry(directivityGroup);
-            toggleDirectivity.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.directivity"));
-            toggleDirectivity.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.directivity.toggle.tooltip"));
-            toggleDirectivity.AssignBinding(BasisSettingsDefaults.RADirectivity);
-
-            PanelSlider sliderDipoleWeight = PanelSlider.CreateEntryAndBind(
-                directivityGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.dipoleWeight"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RADipoleWeight);
-            sliderDipoleWeight.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.dipoleWeight.tooltip"));
-
-            PanelSlider sliderDipolePower = PanelSlider.CreateEntryAndBind(
-                directivityGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.dipolePower"), 0f, 4f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RADipolePower);
-            sliderDipolePower.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.dipolePower.tooltip"));
-
-            // Dipole sliders only visible when directivity is enabled
-            bool directivityOn = BasisSettingsDefaults.RADirectivity.RawValue;
-            sliderDipoleWeight.Descriptor.SetActive(directivityOn);
-            sliderDipolePower.Descriptor.SetActive(directivityOn);
-            toggleDirectivity.OnValueChanged += (val) =>
+            // ─────────────── STEAM AUDIO - DIRECTIVITY (advanced) ───────────────
+            PanelSlider sliderDipoleWeight = null;
+            PanelSlider sliderDipolePower = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.directivity"), () =>
             {
-                sliderDipoleWeight.Descriptor.SetActive(val);
-                sliderDipolePower.Descriptor.SetActive(val);
-                directivityGroup.ForceRebuild();
-            };
+                PanelToggle toggleDirectivity = PanelToggle.CreateNewEntry(container);
+                toggleDirectivity.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.directivity"));
+                toggleDirectivity.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.directivity.toggle.tooltip"));
+                toggleDirectivity.AssignBinding(BasisSettingsDefaults.RADirectivity);
 
-            // ─────────────── STEAM AUDIO - OCCLUSION GROUP ───────────────
-            PanelElementDescriptor occlusionGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            occlusionGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.occlusion"));
+                sliderDipoleWeight = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.dipoleWeight"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RADipoleWeight);
+                sliderDipoleWeight.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.dipoleWeight.tooltip"));
 
-            PanelToggle toggleOcclusion = PanelToggle.CreateNewEntry(occlusionGroup);
-            toggleOcclusion.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.occlusion"));
-            toggleOcclusion.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusion.toggle.tooltip"));
-            toggleOcclusion.AssignBinding(BasisSettingsDefaults.RAOcclusion);
+                sliderDipolePower = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.dipolePower"), 0f, 4f, false, 2, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RADipolePower);
+                sliderDipolePower.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.dipolePower.tooltip"));
 
-            PanelDropdown dropdownOcclusionType = PanelDropdown.CreateNewEntry(occlusionGroup);
-            dropdownOcclusionType.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.occlusionType"));
-            dropdownOcclusionType.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusionType.tooltip"));
-            dropdownOcclusionType.AssignLocalizedEntries(
-                new List<string> { "Raycast", "Volumetric" },
-                new List<string> { "settings.remoteAudio.occlusionType.raycast", "settings.remoteAudio.occlusionType.volumetric" });
-            dropdownOcclusionType.AssignBinding(BasisSettingsDefaults.RAOcclusionType);
-
-            PanelSlider sliderOcclusionRadius = PanelSlider.CreateEntryAndBind(
-                occlusionGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.occlusionRadius"), 0f, 4f, false, 2, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.RAOcclusionRadius);
-            sliderOcclusionRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusionRadius.tooltip"));
-
-            PanelSlider sliderOcclusionSamples = PanelSlider.CreateEntryAndBind(
-                occlusionGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.occlusionSamples"), 1f, 128f, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAOcclusionSamples);
-            sliderOcclusionSamples.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusionSamples.tooltip"));
-
-            // Occlusion sub-settings only visible when occlusion is enabled
-            bool occlusionOn = BasisSettingsDefaults.RAOcclusion.RawValue;
-            dropdownOcclusionType.Descriptor.SetActive(occlusionOn);
-            sliderOcclusionRadius.Descriptor.SetActive(occlusionOn);
-            sliderOcclusionSamples.Descriptor.SetActive(occlusionOn);
-            toggleOcclusion.OnValueChanged += (val) =>
+                // Dipole sliders only visible when directivity is enabled
+                bool directivityOn = BasisSettingsDefaults.RADirectivity.RawValue;
+                sliderDipoleWeight.Descriptor.SetActive(directivityOn);
+                sliderDipolePower.Descriptor.SetActive(directivityOn);
+                toggleDirectivity.OnValueChanged += (val) =>
+                {
+                    sliderDipoleWeight.Descriptor.SetActive(val);
+                    sliderDipolePower.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+            }, false, visible =>
             {
-                dropdownOcclusionType.Descriptor.SetActive(val);
-                sliderOcclusionRadius.Descriptor.SetActive(val);
-                sliderOcclusionSamples.Descriptor.SetActive(val);
-                occlusionGroup.ForceRebuild();
-            };
+                if (visible && sliderDipoleWeight != null)
+                {
+                    bool directivityOn = BasisSettingsDefaults.RADirectivity.RawValue;
+                    sliderDipoleWeight.Descriptor.SetActive(directivityOn);
+                    sliderDipolePower.Descriptor.SetActive(directivityOn);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
 
-            // ─────────────── STEAM AUDIO - TRANSMISSION GROUP ───────────────
-            PanelElementDescriptor transmissionGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            transmissionGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.transmission"));
-
-            PanelToggle toggleTransmission = PanelToggle.CreateNewEntry(transmissionGroup);
-            toggleTransmission.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.transmission"));
-            toggleTransmission.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.transmission.toggle.tooltip"));
-            toggleTransmission.AssignBinding(BasisSettingsDefaults.RATransmission);
-
-            PanelDropdown dropdownTransmissionType = PanelDropdown.CreateNewEntry(transmissionGroup);
-            dropdownTransmissionType.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.transmissionType"));
-            dropdownTransmissionType.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.transmissionType.tooltip"));
-            dropdownTransmissionType.AssignLocalizedEntries(
-                new List<string> { "Frequency Independent", "Frequency Dependent" },
-                new List<string> { "settings.remoteAudio.transmissionType.independent", "settings.remoteAudio.transmissionType.dependent" });
-            dropdownTransmissionType.AssignBinding(BasisSettingsDefaults.RATransmissionType);
-
-            PanelSlider sliderMaxTransmissionSurfaces = PanelSlider.CreateEntryAndBind(
-                transmissionGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.transmissionSurfaces"), 1f, 8f, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAMaxTransmissionSurfaces);
-            sliderMaxTransmissionSurfaces.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.transmissionSurfaces.tooltip"));
-
-            // Transmission sub-settings only visible when transmission is enabled
-            bool transmissionOn = BasisSettingsDefaults.RATransmission.RawValue;
-            dropdownTransmissionType.Descriptor.SetActive(transmissionOn);
-            sliderMaxTransmissionSurfaces.Descriptor.SetActive(transmissionOn);
-            toggleTransmission.OnValueChanged += (val) =>
+            // ─────────────── STEAM AUDIO - OCCLUSION (advanced) ───────────────
+            PanelDropdown dropdownOcclusionType = null;
+            PanelSlider sliderOcclusionRadius = null;
+            PanelSlider sliderOcclusionSamples = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.occlusion"), () =>
             {
-                dropdownTransmissionType.Descriptor.SetActive(val);
-                sliderMaxTransmissionSurfaces.Descriptor.SetActive(val);
-                transmissionGroup.ForceRebuild();
-            };
+                PanelToggle toggleOcclusion = PanelToggle.CreateNewEntry(container);
+                toggleOcclusion.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.occlusion"));
+                toggleOcclusion.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusion.toggle.tooltip"));
+                toggleOcclusion.AssignBinding(BasisSettingsDefaults.RAOcclusion);
+
+                dropdownOcclusionType = PanelDropdown.CreateNewEntry(container);
+                dropdownOcclusionType.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.occlusionType"));
+                dropdownOcclusionType.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusionType.tooltip"));
+                dropdownOcclusionType.AssignLocalizedEntries(
+                    new List<string> { "Raycast", "Volumetric" },
+                    new List<string> { "settings.remoteAudio.occlusionType.raycast", "settings.remoteAudio.occlusionType.volumetric" });
+                dropdownOcclusionType.AssignBinding(BasisSettingsDefaults.RAOcclusionType);
+
+                sliderOcclusionRadius = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.occlusionRadius"), 0f, 4f, false, 2, ValueDisplayMode.Meters),
+                    BasisSettingsDefaults.RAOcclusionRadius);
+                sliderOcclusionRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusionRadius.tooltip"));
+
+                sliderOcclusionSamples = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.occlusionSamples"), 1f, 128f, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAOcclusionSamples);
+                sliderOcclusionSamples.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.occlusionSamples.tooltip"));
+
+                // Occlusion sub-settings only visible when occlusion is enabled
+                bool occlusionOn = BasisSettingsDefaults.RAOcclusion.RawValue;
+                dropdownOcclusionType.Descriptor.SetActive(occlusionOn);
+                sliderOcclusionRadius.Descriptor.SetActive(occlusionOn);
+                sliderOcclusionSamples.Descriptor.SetActive(occlusionOn);
+                toggleOcclusion.OnValueChanged += (val) =>
+                {
+                    dropdownOcclusionType.Descriptor.SetActive(val);
+                    sliderOcclusionRadius.Descriptor.SetActive(val);
+                    sliderOcclusionSamples.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+            }, false, visible =>
+            {
+                if (visible && dropdownOcclusionType != null)
+                {
+                    bool occlusionOn = BasisSettingsDefaults.RAOcclusion.RawValue;
+                    dropdownOcclusionType.Descriptor.SetActive(occlusionOn);
+                    sliderOcclusionRadius.Descriptor.SetActive(occlusionOn);
+                    sliderOcclusionSamples.Descriptor.SetActive(occlusionOn);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
+
+            // ─────────────── STEAM AUDIO - TRANSMISSION (advanced) ───────────────
+            PanelDropdown dropdownTransmissionType = null;
+            PanelSlider sliderMaxTransmissionSurfaces = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.transmission"), () =>
+            {
+                PanelToggle toggleTransmission = PanelToggle.CreateNewEntry(container);
+                toggleTransmission.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.transmission"));
+                toggleTransmission.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.transmission.toggle.tooltip"));
+                toggleTransmission.AssignBinding(BasisSettingsDefaults.RATransmission);
+
+                dropdownTransmissionType = PanelDropdown.CreateNewEntry(container);
+                dropdownTransmissionType.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.transmissionType"));
+                dropdownTransmissionType.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.transmissionType.tooltip"));
+                dropdownTransmissionType.AssignLocalizedEntries(
+                    new List<string> { "Frequency Independent", "Frequency Dependent" },
+                    new List<string> { "settings.remoteAudio.transmissionType.independent", "settings.remoteAudio.transmissionType.dependent" });
+                dropdownTransmissionType.AssignBinding(BasisSettingsDefaults.RATransmissionType);
+
+                sliderMaxTransmissionSurfaces = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.transmissionSurfaces"), 1f, 8f, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.RAMaxTransmissionSurfaces);
+                sliderMaxTransmissionSurfaces.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.transmissionSurfaces.tooltip"));
+
+                // Transmission sub-settings only visible when transmission is enabled
+                bool transmissionOn = BasisSettingsDefaults.RATransmission.RawValue;
+                dropdownTransmissionType.Descriptor.SetActive(transmissionOn);
+                sliderMaxTransmissionSurfaces.Descriptor.SetActive(transmissionOn);
+                toggleTransmission.OnValueChanged += (val) =>
+                {
+                    dropdownTransmissionType.Descriptor.SetActive(val);
+                    sliderMaxTransmissionSurfaces.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+            }, false, visible =>
+            {
+                if (visible && dropdownTransmissionType != null)
+                {
+                    bool transmissionOn = BasisSettingsDefaults.RATransmission.RawValue;
+                    dropdownTransmissionType.Descriptor.SetActive(transmissionOn);
+                    sliderMaxTransmissionSurfaces.Descriptor.SetActive(transmissionOn);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
             /*
             // ─────────────── STEAM AUDIO - MIX GROUP ───────────────
             PanelElementDescriptor mixGroup =
@@ -556,36 +628,41 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             };
             */
 
-            // ─────────────── LIP SYNC GROUP (advanced) ───────────────
-            PanelElementDescriptor lipSyncGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, advancedContent);
-            lipSyncGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.lipSync"));
-
-            PanelToggle toggleLimitLipSync = PanelToggle.CreateNewEntry(lipSyncGroup);
-            toggleLimitLipSync.AssignBinding(BasisSettingsDefaults.UseOpenLipSyncLimit);
-            toggleLimitLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.limitLipSync"));
-            toggleLimitLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.limitLipSync.tooltip"));
-
-            PanelSlider sliderLipSyncSlots = PanelSlider.CreateEntryAndBind(
-                lipSyncGroup,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.lipSyncSlots"), 0, 250, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.OpenLipSyncMaxSlots);
-            sliderLipSyncSlots.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.lipSyncSlots.tooltip"));
-            sliderLipSyncSlots.Descriptor.SetDescription(
-                "Number of concurrent OpenLipSync (neural viseme) instances.\n" +
-                "Higher = better lip sync on more players, but more CPU.\n" +
-                "Default: 30. Players beyond this get no visemes until a slot frees up.");
-
-            // Only show the slider when the limit toggle is enabled
-            sliderLipSyncSlots.Descriptor.SetActive(toggleLimitLipSync.Value);
-            toggleLimitLipSync.OnValueChanged += (val) =>
+            // ─────────────── LIP SYNC (advanced) ───────────────
+            PanelSlider sliderLipSyncSlots = null;
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.remoteAudio.lipSync"), () =>
             {
-                sliderLipSyncSlots.Descriptor.SetActive(val);
-                lipSyncGroup.ForceRebuild();
-            };
+                PanelToggle toggleLimitLipSync = PanelToggle.CreateNewEntry(container);
+                toggleLimitLipSync.AssignBinding(BasisSettingsDefaults.UseOpenLipSyncLimit);
+                toggleLimitLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.limitLipSync"));
+                toggleLimitLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.limitLipSync.tooltip"));
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(advancedToggle, container, advancedStart, false,
-                _ => tabDescriptor?.ForceRebuild());
+                sliderLipSyncSlots = PanelSlider.CreateEntryAndBind(
+                    container,
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.lipSyncSlots"), 0, 250, true, 0, ValueDisplayMode.Raw),
+                    BasisSettingsDefaults.OpenLipSyncMaxSlots);
+                sliderLipSyncSlots.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.lipSyncSlots.tooltip"));
+                sliderLipSyncSlots.Descriptor.SetDescription(
+                    "Number of concurrent OpenLipSync (neural viseme) instances.\n" +
+                    "Higher = better lip sync on more players, but more CPU.\n" +
+                    "Default: 30. Players beyond this get no visemes until a slot frees up.");
+
+                // Only show the slider when the limit toggle is enabled
+                sliderLipSyncSlots.Descriptor.SetActive(toggleLimitLipSync.Value);
+                toggleLimitLipSync.OnValueChanged += (val) =>
+                {
+                    sliderLipSyncSlots.Descriptor.SetActive(val);
+                    tabDescriptor?.ForceRebuild();
+                };
+            }, false, visible =>
+            {
+                if (visible && sliderLipSyncSlots != null)
+                {
+                    sliderLipSyncSlots.Descriptor.SetActive(BasisSettingsDefaults.UseOpenLipSyncLimit.RawValue);
+                }
+                tabDescriptor?.ForceRebuild();
+            });
         }
 
         public static void ResetRemoteAudioToDefaults()

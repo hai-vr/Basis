@@ -9,6 +9,11 @@ public class JiggleTreeSegment {
     public Transform transform { get; private set; }
     public JiggleTree jiggleTree { get; private set; }
     public JiggleTreeSegment parent { get; private set; }
+    // Direct child segments, maintained in SetParent (the only place parent changes). Lets
+    // RemoveJiggleTreeSegment re-parent children in O(children) instead of scanning every
+    // registered segment. Lazy (null until the first child) so childless segments cost nothing.
+    private List<JiggleTreeSegment> children;
+    public List<JiggleTreeSegment> GetChildren() => children;
     private IJiggleParameterProvider jiggleProvider;
     public JiggleRigData jiggleRigData => jiggleProvider.GetJiggleRigData();
     
@@ -21,7 +26,12 @@ public class JiggleTreeSegment {
 
     public void SetParent(JiggleTreeSegment jiggleTree) {
         parent?.SetDirty();
+        parent?.children?.Remove(this);
         parent = jiggleTree;
+        if (parent != null) {
+            parent.children ??= new List<JiggleTreeSegment>();
+            parent.children.Add(this);
+        }
         parent?.SetDirty();
         JigglePhysics.SetGlobalDirty();
     }

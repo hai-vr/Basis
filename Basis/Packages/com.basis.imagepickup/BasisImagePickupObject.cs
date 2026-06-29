@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.Device_Management.Devices;
 using TMPro;
 using UnityEngine;
 
@@ -8,8 +9,8 @@ namespace Basis.ImagePickup
 {
     /// <summary>
     /// A spawned image pickup. Front face shows the image on an unlit material; the back carries the
-    /// Hide/Save/Delete controls and the spawner label. The owner instance is grabbable; remote instances
-    /// are display only and follow transform updates from the owner.
+    /// Hide/Save/Delete controls and the spawner label. Any client can grab it; grabbing claims movement
+    /// authority and that client broadcasts the transform until someone else grabs it.
     /// </summary>
     public class BasisImagePickupObject : MonoBehaviour
     {
@@ -23,15 +24,23 @@ namespace Basis.ImagePickup
         private Texture2D _texture;
         private byte[] _cleanPng;
         private Material _material;
-        private Material _backMaterial;
         private MeshRenderer _frontRenderer;
         private BasisImagePickupManager _manager;
 
         private bool _hidden;
+        private bool _isController;
+        private Rigidbody _body;
+        private BasisPickupInteractable _interactable;
         private bool _hasRemoteTarget;
         private Vector3 _targetPosition;
         private Quaternion _targetRotation;
         private float _targetScale = 1f;
+
+        public float LastSendTime;
+        public Vector3 LastSentPosition;
+        public Quaternion LastSentRotation = Quaternion.identity;
+        public float LastSentScale = 1f;
+        public bool IsController => _isController;
 
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -60,55 +69,45 @@ namespace Basis.ImagePickup
             float panelHeight = BasisImagePickupSettings.BaseHeightMeters;
             float panelWidth = panelHeight * Mathf.Max(0.05f, aspect);
 
-            var front = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            front.name = "Front";
-            if (interactableLayer >= 0) front.layer = interactableLayer;
-            front.transform.SetParent(root.transform, false);
-            front.transform.localScale = new Vector3(panelWidth, panelHeight, 1f);
+            var card = new GameObject("Card");
+            if (interactableLayer >= 0) card.layer = interactableLayer;
+            card.transform.SetParent(root.transform, false);
+            card.transform.localScale = new Vector3(panelWidth, panelHeight, 1f);
+            card.AddComponent<MeshFilter>().sharedMesh = GetCardMesh();
 
-            if (front.TryGetComponent(out MeshCollider meshCollider)) DestroyImmediate(meshCollider);
-
-            pickup._frontRenderer = front.GetComponent<MeshRenderer>();
             pickup._material = new Material(BundledContentHolder.Instance.UnlitUrpShader);
             if (pickup._material.HasProperty(BaseMapId)) pickup._material.SetTexture(BaseMapId, texture);
             else pickup._material.mainTexture = texture;
             if (pickup._material.HasProperty(BaseColorId)) pickup._material.SetColor(BaseColorId, Color.white);
-            pickup._frontRenderer.sharedMaterial = pickup._material;
+            ConfigureTransparent(pickup._material);
 
-            var back = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            back.name = "Back";
-            if (interactableLayer >= 0) back.layer = interactableLayer;
-            back.transform.SetParent(root.transform, false);
-            back.transform.localScale = new Vector3(panelWidth, panelHeight, 1f);
-            back.transform.SetLocalPositionAndRotation(new Vector3(0f, 0f, 0.002f), Quaternion.Euler(0f, 180f, 0f));
+            pickup._frontRenderer = card.AddComponent<MeshRenderer>();
+            pickup._frontRenderer.sharedMaterials = new[] { pickup._material, GetSharedBackMaterial() };
+            pickup._frontRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            pickup._frontRenderer.receiveShadows = false;
 
-            if (back.TryGetComponent(out MeshCollider backMeshCollider)) DestroyImmediate(backMeshCollider);
+            pickup._isController = isOwner;
 
-            pickup._backMaterial = new Material(BundledContentHolder.Instance.UnlitUrpShader);
-            if (pickup._backMaterial.HasProperty(BaseColorId)) pickup._backMaterial.SetColor(BaseColorId, Color.white);
-            else pickup._backMaterial.color = Color.white;
-            back.GetComponent<MeshRenderer>().sharedMaterial = pickup._backMaterial;
+            var box = root.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = new Vector3(panelWidth, panelHeight, 0.02f);
 
-            if (isOwner)
-            {
-                var box = root.AddComponent<BoxCollider>();
-                box.isTrigger = true;
-                box.size = new Vector3(panelWidth, panelHeight, 0.02f);
+            var body = root.AddComponent<Rigidbody>();
+            body.isKinematic = !isOwner;
+            body.useGravity = false;
+            body.linearDamping = 1.5f;
+            body.angularDamping = 2.5f;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+            pickup._body = body;
 
-                var body = root.AddComponent<Rigidbody>();
-                body.isKinematic = false;
-                body.useGravity = false;
-                body.linearDamping = 1.5f;
-                body.angularDamping = 2.5f;
-                body.interpolation = RigidbodyInterpolation.Interpolate;
-
-                var interactable = root.AddComponent<BasisPickupInteractable>();
-                interactable.RigidRef = body;
-                interactable.GenerateColliderMesh = false;
-                interactable.enableScaleWithGesture = true;
-                interactable.minScalePercent = 25f;
-                interactable.maxScalePercent = 400f;
-            }
+            var interactable = root.AddComponent<BasisPickupInteractable>();
+            interactable.RigidRef = body;
+            interactable.GenerateColliderMesh = false;
+            interactable.enableScaleWithGesture = true;
+            interactable.minScalePercent = 25f;
+            interactable.maxScalePercent = 400f;
+            pickup._interactable = interactable;
+            interactable.OnInteractStartEvent.AddListener(pickup.OnLocalGrabbed);
 
             BasisImagePickupBackPanel.Build(root.transform, pickup, panelWidth, panelHeight);
             return pickup;
@@ -116,7 +115,7 @@ namespace Basis.ImagePickup
 
         private void Update()
         {
-            if (IsOwner || !_hasRemoteTarget) return;
+            if (_isController || !_hasRemoteTarget) return;
             transform.GetPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
             float t = Time.deltaTime * 12f;
             transform.SetPositionAndRotation(
@@ -124,6 +123,28 @@ namespace Basis.ImagePickup
                 Quaternion.Slerp(currentRot, _targetRotation, t));
             float scale = Mathf.Lerp(transform.localScale.x, _targetScale, t);
             transform.localScale = new Vector3(scale, scale, scale);
+        }
+
+        private void OnLocalGrabbed(BasisInput input)
+        {
+            if (_interactable != null) _interactable._previousKinematicValue = false;
+            if (!_isController && _manager != null) _manager.ClaimControl(ImageId);
+        }
+
+        public void SetController(bool value)
+        {
+            _isController = value;
+            if (!value)
+            {
+                transform.GetPositionAndRotation(out _targetPosition, out _targetRotation);
+                _targetScale = transform.localScale.x;
+                if (_body != null && !_body.isKinematic)
+                {
+                    _body.linearVelocity = Vector3.zero;
+                    _body.angularVelocity = Vector3.zero;
+                    _body.isKinematic = true;
+                }
+            }
         }
 
         public void SetRemoteTarget(Vector3 position, Quaternion rotation, float scale)
@@ -177,12 +198,67 @@ namespace Basis.ImagePickup
 #endif
         }
 
+        private static Mesh _cardMesh;
+        private static Material _sharedBackMaterial;
+
+        private static Mesh GetCardMesh()
+        {
+            if (_cardMesh != null) return _cardMesh;
+
+            var temp = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Mesh quad = temp.GetComponent<MeshFilter>().sharedMesh;
+            Vector3[] verts = quad.vertices;
+            Vector2[] uv = quad.uv;
+            int[] front = quad.triangles;
+            DestroyImmediate(temp);
+
+            int[] back = new int[front.Length];
+            for (int i = 0; i < front.Length; i += 3)
+            {
+                back[i] = front[i];
+                back[i + 1] = front[i + 2];
+                back[i + 2] = front[i + 1];
+            }
+
+            _cardMesh = new Mesh { name = "BasisImagePickupCard" };
+            _cardMesh.vertices = verts;
+            _cardMesh.uv = uv;
+            _cardMesh.subMeshCount = 2;
+            _cardMesh.SetTriangles(front, 0);
+            _cardMesh.SetTriangles(back, 1);
+            _cardMesh.RecalculateBounds();
+            return _cardMesh;
+        }
+
+        private static Material GetSharedBackMaterial()
+        {
+            if (_sharedBackMaterial != null) return _sharedBackMaterial;
+            _sharedBackMaterial = new Material(BundledContentHolder.Instance.UnlitUrpShader) { name = "BasisImagePickupBack" };
+            if (_sharedBackMaterial.HasProperty(BaseColorId)) _sharedBackMaterial.SetColor(BaseColorId, Color.white);
+            else _sharedBackMaterial.color = Color.white;
+            return _sharedBackMaterial;
+        }
+
+        private static void ConfigureTransparent(Material material)
+        {
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.SetFloat("_AlphaClip", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            material.SetOverrideTag("RenderType", "Transparent");
+        }
+
         private static string ShortId(Guid id) => id.ToString("N").Substring(0, 8);
 
         private void OnDestroy()
         {
             if (_material != null) Destroy(_material);
-            if (_backMaterial != null) Destroy(_backMaterial);
             if (_texture != null) Destroy(_texture);
         }
     }

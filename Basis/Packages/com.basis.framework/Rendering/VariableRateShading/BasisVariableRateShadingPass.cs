@@ -62,7 +62,7 @@ namespace Basis.Scripts.Rendering
             if (!ReferenceEquals(cameraData.camera, BasisLocalCameraDriver.CameraInstance))
                 return;
 
-            if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12)
+            if (!BasisVariableRateShadingFeature.IsSupported)
                 return;
 
             bool enabled = cameraData.xr.enabled

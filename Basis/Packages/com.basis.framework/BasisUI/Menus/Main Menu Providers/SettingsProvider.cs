@@ -1,6 +1,7 @@
 ﻿using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Rendering;
 using Basis.Network.Core;
 using BasisNetworkClient;
 using BasisPermissions;
@@ -432,11 +433,6 @@ namespace Basis.BasisUI
 
             BuildLanguageSelector(container, descriptor);
 
-            PanelToggle toggleRememberMenuState = PanelToggle.CreateNewEntry(container);
-            toggleRememberMenuState.AssignBinding(BasisSettingsDefaults.RememberMenuState);
-            toggleRememberMenuState.Descriptor.SetTitle(BasisLocalization.Get("settings.general.rememberMenuState"));
-            toggleRememberMenuState.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.rememberMenuState.tooltip"));
-
             // Range / visibility / audio-source-limit settings moved out of General:
             //   Avatar Range / Limit Avatars / View Cone Avatars → Graphics
             //   Hearing Range / Limit Audio Sources              → Audio
@@ -445,6 +441,11 @@ namespace Basis.BasisUI
             PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
                 BasisLocalization.Get("settings.general.interactions.title"), () =>
             {
+                PanelToggle toggleRememberMenuState = PanelToggle.CreateNewEntry(container);
+                toggleRememberMenuState.AssignBinding(BasisSettingsDefaults.RememberMenuState);
+                toggleRememberMenuState.Descriptor.SetTitle(BasisLocalization.Get("settings.general.rememberMenuState"));
+                toggleRememberMenuState.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.rememberMenuState.tooltip"));
+
                 PanelToggle toggleDisableSeats = PanelToggle.CreateNewEntry(container);
                 toggleDisableSeats.AssignBinding(BasisSettingsDefaults.DisableSeats);
                 toggleDisableSeats.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableSeats"));
@@ -1654,6 +1655,8 @@ namespace Basis.BasisUI
                 toggleVrsVr.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.vrs"));
                 toggleVrsVr.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.vrs.tooltip"));
                 toggleVrsVr.AssignBinding(BasisSettingsDefaults.DevVariableRateShading);
+                if (!BasisVariableRateShadingFeature.IsSupported)
+                    toggleVrsVr.SetInteractable(false, BasisLocalization.Get("settings.graphics.vrs.unsupported"));
 
                 sliderVrsInner = PanelSlider.CreateEntryAndBind(
                     container,
@@ -2151,6 +2154,8 @@ namespace Basis.BasisUI
             toggleVrsDesktop.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.vrs.desktop"));
             toggleVrsDesktop.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.vrs.desktop.tooltip"));
             toggleVrsDesktop.AssignBinding(BasisSettingsDefaults.DevVariableRateShadingDesktop);
+            if (!BasisVariableRateShadingFeature.IsSupported)
+                toggleVrsDesktop.SetInteractable(false, BasisLocalization.Get("settings.developer.vrs.unsupported"));
 
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(vrsToggle, container, vrsStart, false,
                 _ => descriptor.ForceRebuild());

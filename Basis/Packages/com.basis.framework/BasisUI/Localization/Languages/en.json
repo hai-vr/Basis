@@ -5711,6 +5711,10 @@
       "value": "Experimental. Applies variable rate shading in flatscreen (non-VR) mode, following gaze when eye tracking is available and otherwise keeping the screen center sharp. Requires DirectX 12 and VRS-capable hardware."
     },
     {
+      "key": "settings.developer.vrs.unsupported",
+      "value": "Unavailable — Variable Rate Shading requires DirectX 12. Your current graphics API does not support it."
+    },
+    {
       "key": "settings.graphics.vrs.title",
       "value": "Variable Rate Shading"
     },
@@ -5721,6 +5725,10 @@
     {
       "key": "settings.graphics.vrs.tooltip",
       "value": "Lowers shading rate in your peripheral vision and follows your eye-tracking gaze to keep the center sharp, improving GPU performance in VR. Requires DirectX 12 and VRS-capable hardware."
+    },
+    {
+      "key": "settings.graphics.vrs.unsupported",
+      "value": "Unavailable — Variable Rate Shading requires DirectX 12. Your current graphics API does not support it."
     },
     {
       "key": "settings.graphics.vrs.inner",

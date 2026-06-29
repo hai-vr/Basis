@@ -1254,6 +1254,7 @@ namespace SteamAudio
             Singleton.mSimulationThread.Start();
 
             Singleton.mStopDirectThread = false;
+            Singleton.mShuttingDown = false;
             Singleton.mDirectInFlight = false;
             Singleton.mDirectWakeHandle.Reset();
             Singleton.mDirectDoneHandle.Reset();

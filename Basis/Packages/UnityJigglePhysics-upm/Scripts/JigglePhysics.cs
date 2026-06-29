@@ -17,6 +17,7 @@ public static class JigglePhysics {
     private static readonly List<JiggleCollider> tempColliders = new ();
     private static readonly List<Transform> tempColliderTransforms = new ();
     private static List<JiggleTreeSegment> rootJiggleTreeSegments;
+    private static readonly List<JiggleTreeSegment> reparentScratch = new();
     private static bool initializedRendering = false;
     private static int skips = 0;
 
@@ -495,13 +496,22 @@ public static class JigglePhysics {
 
         jiggleRootLookup.Remove(jiggleTreeSegment.transform);
 
-        // Re-parent orphaned children to the removed segment's parent
-        foreach (var kvp in jiggleRootLookup) {
-            if (kvp.Value.parent != jiggleTreeSegment) continue;
-            kvp.Value.SetParent(jiggleTreeSegment.parent);
-            if (kvp.Value.parent == null && !rootJiggleTreeSegments.Contains(kvp.Value)) {
-                rootJiggleTreeSegments.Add(kvp.Value);
+        // Re-parent the removed segment's direct children to its parent. Driven off the
+        // segment's own child list (O(children)) instead of scanning every registered segment,
+        // which was O(N) per removal and O(N^2) across a mass disconnect. Snapshot into a
+        // scratch list first because SetParent mutates the live child list as we go.
+        var children = jiggleTreeSegment.GetChildren();
+        if (children != null && children.Count > 0) {
+            reparentScratch.Clear();
+            reparentScratch.AddRange(children);
+            for (int i = 0; i < reparentScratch.Count; i++) {
+                var child = reparentScratch[i];
+                child.SetParent(jiggleTreeSegment.parent);
+                if (child.parent == null && !rootJiggleTreeSegments.Contains(child)) {
+                    rootJiggleTreeSegments.Add(child);
+                }
             }
+            reparentScratch.Clear();
         }
 
         jiggleTreeSegment.SetDirty();

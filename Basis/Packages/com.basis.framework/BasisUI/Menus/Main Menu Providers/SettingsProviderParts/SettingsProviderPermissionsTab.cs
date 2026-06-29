@@ -225,9 +225,6 @@ namespace Basis.BasisUI
 
             // Initially hide the admin section until we know if the user is admin.
             adminToggle.gameObject.SetActive(false);
-
-            // Auto-fetch on open
-            BasisNetworkModeration.RequestPermissions();
         }
 
         /// <summary>
@@ -258,8 +255,20 @@ namespace Basis.BasisUI
 
             private void OnEnable()
             {
+                BasisNetworkModeration.OnPermissionsReceived -= OnPermissionsReceived;
                 BasisNetworkModeration.OnPermissionsReceived += OnPermissionsReceived;
+                SettingsProviderAdminTab.OnPlayerUuidSelected -= OnPlayerUuidSelected;
                 SettingsProviderAdminTab.OnPlayerUuidSelected += OnPlayerUuidSelected;
+
+                if (BasisNetworkModeration.LastPermissionSnapshot != null)
+                    RebuildDisplay(BasisNetworkModeration.LastPermissionSnapshot);
+                BasisNetworkModeration.RequestPermissions();
+            }
+
+            private void OnDisable()
+            {
+                BasisNetworkModeration.OnPermissionsReceived -= OnPermissionsReceived;
+                SettingsProviderAdminTab.OnPlayerUuidSelected -= OnPlayerUuidSelected;
             }
 
             private void OnDestroy()

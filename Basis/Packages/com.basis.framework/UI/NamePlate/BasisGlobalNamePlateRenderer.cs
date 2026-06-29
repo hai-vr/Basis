@@ -121,6 +121,32 @@ namespace Basis.Scripts.UI.NamePlate
             public float2 Uv0;
             public float2 Uv1;
         }
+
+        // Manual text merge (same idea as the panel, but the forked TMP SDF vertex is multi-channel:
+        // position + normal + color + 4-component UV0 (atlas + SDF scale in .w) + the plate id in UV2).
+        public static bool ManualMergeText = true;
+        private static NativeArray<TextVertex> textScratch;
+        private static NativeArray<Vector3> tmpNormal;
+        private static NativeArray<Color> tmpColor;
+        private static NativeArray<Vector4> tmpUv0v4;
+        private static readonly VertexAttributeDescriptor[] TextLayout =
+        {
+            new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
+            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
+            new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 4),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2),
+        };
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct TextVertex
+        {
+            public float3 Pos;
+            public float3 Normal;
+            public float4 Color;
+            public float4 Uv0;
+            public float2 Uv2;
+        }
         /// <summary>
         /// Build per-plate matrices from RemoteBoneJobSystem's computed pose (no Transform /
         /// isActiveAndEnabled reads). Falls back to the Transform path when the bone system isn't
@@ -350,10 +376,11 @@ namespace Basis.Scripts.UI.NamePlate
                 return;
             }
 
-            // Panel: build the merged buffers by hand (no CombineMeshes / CombineInstance[] GC).
-            if (isPanel && l.Gpu && ManualMergePanel)
+            // Build the merged buffers by hand (no CombineMeshes / CombineInstance[] GC).
+            if (l.Gpu && (isPanel ? ManualMergePanel : ManualMergeText))
             {
-                BuildPanelMerged(l);
+                if (isPanel) BuildPanelMerged(l);
+                else BuildTextMerged(l);
                 l.Mesh.bounds = new Bounds(Vector3.zero, Vector3.one * NoCullExtent);
                 return;
             }
@@ -479,6 +506,103 @@ namespace Basis.Scripts.UI.NamePlate
             l.Mesh.Clear();
             l.Mesh.SetVertexBufferParams(totalV, PanelLayout);
             l.Mesh.SetVertexBufferData(panelScratch, 0, 0, totalV);
+            l.Mesh.SetIndexBufferParams(totalI, IndexFormat.UInt32);
+            l.Mesh.SetIndexBufferData(indexScratch, 0, 0, totalI);
+            l.Mesh.subMeshCount = 1;
+            l.Mesh.SetSubMesh(0, new SubMeshDescriptor(0, totalI), MeshUpdateFlags.DontRecalculateBounds);
+        }
+
+        /// <summary>
+        /// Same as <see cref="BuildPanelMerged"/> for a text layer: concatenates the TMP SDF channels
+        /// (position + normal + color + 4-component UV0) plus the per-vertex plate id in UV2. The
+        /// forked TMP shader ignores TEXCOORD1, so it's omitted. Reads via MeshData typed getters so
+        /// channel formats convert safely.
+        /// </summary>
+        private static unsafe void BuildTextMerged(Layer l)
+        {
+            int n = l.Combine.Count;
+            srcMeshList.Clear();
+            for (int i = 0; i < n; i++) srcMeshList.Add(l.Combine[i].mesh);
+
+            using Mesh.MeshDataArray mda = Mesh.AcquireReadOnlyMeshData(srcMeshList);
+
+            int totalV = 0, totalI = 0, maxV = 0, maxI = 0;
+            for (int i = 0; i < n; i++)
+            {
+                int v = mda[i].vertexCount;
+                int ic = mda[i].GetSubMesh(0).indexCount;
+                totalV += v;
+                totalI += ic;
+                if (v > maxV) maxV = v;
+                if (ic > maxI) maxI = ic;
+            }
+
+            l.VertexCount = totalV;
+            if (totalV == 0)
+            {
+                SetLayerEnabled(l, false);
+                return;
+            }
+
+            EnsureScratch(ref textScratch, totalV);
+            EnsureScratch(ref indexScratch, totalI);
+            EnsureScratch(ref tmpPos, maxV);
+            EnsureScratch(ref tmpNormal, maxV);
+            EnsureScratch(ref tmpColor, maxV);
+            EnsureScratch(ref tmpUv0v4, maxV);
+            EnsureScratch(ref tmpIdx, maxI);
+
+            TextVertex* vp = (TextVertex*)textScratch.GetUnsafePtr();
+            uint* ip = (uint*)indexScratch.GetUnsafePtr();
+
+            int vOff = 0, iOff = 0;
+            for (int i = 0; i < n; i++)
+            {
+                Mesh.MeshData md = mda[i];
+                int vc = md.vertexCount;
+                int ic = md.GetSubMesh(0).indexCount;
+
+                md.GetVertices(tmpPos.GetSubArray(0, vc));
+                md.GetUVs(0, tmpUv0v4.GetSubArray(0, vc));
+                md.GetIndices(tmpIdx.GetSubArray(0, ic), 0);
+
+                if (md.HasVertexAttribute(VertexAttribute.Normal))
+                    md.GetNormals(tmpNormal.GetSubArray(0, vc));
+                else
+                    for (int j = 0; j < vc; j++) tmpNormal[j] = new Vector3(0f, 0f, -1f);
+
+                if (md.HasVertexAttribute(VertexAttribute.Color))
+                    md.GetColors(tmpColor.GetSubArray(0, vc));
+                else
+                    for (int j = 0; j < vc; j++) tmpColor[j] = Color.white;
+
+                float3* pp = (float3*)tmpPos.GetUnsafeReadOnlyPtr();
+                float3* np = (float3*)tmpNormal.GetUnsafeReadOnlyPtr();
+                float4* cp = (float4*)tmpColor.GetUnsafeReadOnlyPtr();   // Color is r,g,b,a floats == float4
+                float4* u0 = (float4*)tmpUv0v4.GetUnsafeReadOnlyPtr();
+                int* xp = (int*)tmpIdx.GetUnsafeReadOnlyPtr();
+
+                float2 uv2 = new float2(l.SrcPlate[i], 0f);
+                for (int j = 0; j < vc; j++)
+                {
+                    vp[vOff + j] = new TextVertex
+                    {
+                        Pos = pp[j],
+                        Normal = np[j],
+                        Color = cp[j],
+                        Uv0 = u0[j],
+                        Uv2 = uv2
+                    };
+                }
+                for (int k = 0; k < ic; k++) ip[iOff + k] = (uint)(xp[k] + vOff);
+
+                vOff += vc;
+                iOff += ic;
+            }
+
+            l.Mesh.Clear();
+            l.Mesh.SetVertexBufferParams(totalV, TextLayout);
+            l.Mesh.SetVertexBufferData(textScratch, 0, 0, totalV);
             l.Mesh.SetIndexBufferParams(totalI, IndexFormat.UInt32);
             l.Mesh.SetIndexBufferData(indexScratch, 0, 0, totalI);
             l.Mesh.subMeshCount = 1;
@@ -895,9 +1019,13 @@ namespace Basis.Scripts.UI.NamePlate
             if (plateSlot.IsCreated) plateSlot.Dispose();
             if (uvScratch.IsCreated) uvScratch.Dispose();
             if (panelScratch.IsCreated) panelScratch.Dispose();
+            if (textScratch.IsCreated) textScratch.Dispose();
             if (indexScratch.IsCreated) indexScratch.Dispose();
             if (tmpPos.IsCreated) tmpPos.Dispose();
+            if (tmpNormal.IsCreated) tmpNormal.Dispose();
+            if (tmpColor.IsCreated) tmpColor.Dispose();
             if (tmpUv0.IsCreated) tmpUv0.Dispose();
+            if (tmpUv0v4.IsCreated) tmpUv0v4.Dispose();
             if (tmpIdx.IsCreated) tmpIdx.Dispose();
             srcMeshList.Clear();
             snapArr = System.Array.Empty<BasisRemoteNamePlate>();

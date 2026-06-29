@@ -22,6 +22,8 @@ namespace Basis.Scripts.Rendering
         private BasisVariableRateShadingPass _pass;
         private BasisVariableRateShadingDebugPass _debugPass;
 
+        public static bool IsSupported => SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D12;
+
         public override void Create()
         {
             _pass = new BasisVariableRateShadingPass(buildShader)
@@ -39,6 +41,9 @@ namespace Basis.Scripts.Rendering
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             if (_pass == null || buildShader == null)
+                return;
+
+            if (!IsSupported)
                 return;
 
             if (!BasisSettingsDefaults.DevVariableRateShading.RawValue
