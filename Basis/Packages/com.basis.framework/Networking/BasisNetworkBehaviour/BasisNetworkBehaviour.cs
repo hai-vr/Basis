@@ -29,6 +29,7 @@ namespace Basis
         public bool IsOwnedLocallyOnClient = false;
         public ushort CurrentOwnerId;
         public BasisNetworkPlayer currentOwnedPlayer;
+        private bool ownerResolutionPending;
 
         /// <summary>
         /// the reason its start instead of awake is to make sure propagation occurs to everything no matter the net connect
@@ -56,6 +57,7 @@ namespace Basis
             BasisNetworkPlayer.OnLocalPlayerJoined -= OnLocalPlayerJoined;
             BasisNetworkPlayer.OnOwnershipTransfer -= LowLevelOwnershipTransfer;
             BasisNetworkPlayer.OnOwnershipReleased -= LowLevelOwnershipReleased;
+            BasisNetworkPlayer.OnPlayerJoined -= LowLevelResolvePendingOwner;
 
             BasisNetworkPlayer.OnPlayerJoined -= OnPlayerJoined;
             BasisNetworkPlayer.OnPlayerLeft -= OnPlayerLeft;
@@ -91,6 +93,7 @@ namespace Basis
                 }
                 BasisNetworkPlayer.OnOwnershipTransfer += LowLevelOwnershipTransfer;
                 BasisNetworkPlayer.OnOwnershipReleased += LowLevelOwnershipReleased;
+                BasisNetworkPlayer.OnPlayerJoined += LowLevelResolvePendingOwner;
 
                 Task<BasisIdResolutionResult> IDResolverAsync = BasisNetworkIdResolver.ResolveAsync(NetworkGuidID);
                 Task<BasisOwnershipResult> output = BasisNetworkOwnership.RequestCurrentOwnershipAsync(NetworkGuidID);
@@ -124,6 +127,7 @@ namespace Basis
         {
             if (uniqueEntityID == clientIdentifier)
             {
+                ownerResolutionPending = false;
                 OnServerOwnershipDestroyed();
             }
         }
@@ -137,15 +141,33 @@ namespace Basis
                 CurrentOwnerId = NetIdNewOwner;
                 if (BasisNetworkPlayers.GetPlayerById(CurrentOwnerId, out currentOwnedPlayer))
                 {
+                    ownerResolutionPending = false;
                     OnOwnershipTransfer(currentOwnedPlayer);
                 }
                 else
                 {
+                    ownerResolutionPending = true;
                     BasisUnInitializedPlayer UnInitializedPlayer = new BasisUnInitializedPlayer(CurrentOwnerId);
-                    BasisDebug.LogError($"No Owner for Id {CurrentOwnerId} Creating Fake {nameof(BasisUnInitializedPlayer)} this should only occur rarely");
                     UnInitializedPlayer.Initialize();
+                    currentOwnedPlayer = UnInitializedPlayer;
                     OnOwnershipTransfer(UnInitializedPlayer);
                 }
+            }
+        }
+        private void LowLevelResolvePendingOwner(BasisNetworkPlayer joinedPlayer)
+        {
+            if (ownerResolutionPending == false)
+            {
+                return;
+            }
+            if (joinedPlayer == null || joinedPlayer.playerId != CurrentOwnerId)
+            {
+                return;
+            }
+            if (BasisNetworkPlayers.GetPlayerById(CurrentOwnerId, out currentOwnedPlayer))
+            {
+                ownerResolutionPending = false;
+                OnOwnershipTransfer(currentOwnedPlayer);
             }
         }
         /// <summary>
