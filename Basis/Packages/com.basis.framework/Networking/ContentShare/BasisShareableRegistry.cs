@@ -45,5 +45,15 @@ public static class BasisShareableRegistry
         if (Entries.Remove(id)) OnChanged?.Invoke();
     }
 
+    public static void SetDetail(string id, string detail)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        if (Entries.TryGetValue(id, out BasisShareableEntry entry))
+        {
+            entry.Title = detail;
+            OnChanged?.Invoke();
+        }
+    }
+
     public static IReadOnlyCollection<BasisShareableEntry> GetAll() => Entries.Values;
 }

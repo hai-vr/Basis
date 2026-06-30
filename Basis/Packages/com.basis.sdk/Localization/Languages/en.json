@@ -384,6 +384,12 @@
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP is not available. Install Android Build Support (includes IL2CPP) in Unity Hub." },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "Running in Linux Editor. Some platform toolchains may not be available on this OS; the badges reflect what’s actually installed here." },
 
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "Build Scripting Backend (Windows / macOS)" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "Ask each build" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "Always IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "Always Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "Remembers the IL2CPP/Mono answer for Windows and macOS builds so you’re not asked every time. Forced platforms are unaffected: Android and iOS always use IL2CPP, Linux always uses Mono. Choosing a backend in the build prompt also updates this setting." },
+
     { "key": "projectSetup.platformQuality.foldout", "value": "Platform & Quality" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },
     { "key": "projectSetup.platformQuality.linux", "value": "Linux" },

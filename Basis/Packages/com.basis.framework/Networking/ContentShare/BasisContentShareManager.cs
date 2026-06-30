@@ -287,11 +287,17 @@ public static class BasisContentShareManager
                 OnSphereCreated?.Invoke(Sphere);
 
                 string sphereId = msg.SphereNetID;
+                string shareDetail = string.Empty;
+                if (msg.ContentType == ContentShareType.Server && !string.IsNullOrEmpty(msg.ContentURL))
+                {
+                    int passwordSeparator = msg.ContentURL.IndexOf('#');
+                    shareDetail = passwordSeparator >= 0 ? msg.ContentURL.Substring(0, passwordSeparator) : msg.ContentURL;
+                }
                 BasisShareableRegistry.Register(new BasisShareableEntry
                 {
                     Id = sphereId,
                     Kind = ToShareableKind(msg.ContentType),
-                    Title = msg.ContentType.ToString(),
+                    Title = shareDetail,
                     SharerName = serverMsg.SharerDisplayName,
                     Remove = () => RequestRemoveSphere(sphereId),
                 });

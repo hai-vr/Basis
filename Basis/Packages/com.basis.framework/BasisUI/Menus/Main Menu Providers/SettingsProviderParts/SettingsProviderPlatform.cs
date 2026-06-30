@@ -22,9 +22,12 @@ public static class SettingsProviderPlatform
         // Current mode info
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        infoGroup.SetTitle(BasisLocalization.Get("settings.platform.deviceMode"));
+        if (infoGroup.Header != null)
+        {
+            infoGroup.Header.gameObject.SetActive(false);
+        }
 
-       var currentModeField = PanelTextField.CreateNew(infoGroup.ContentParent);
+        var currentModeField = PanelTextField.CreateNew(infoGroup.ContentParent);
         currentModeField.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.activeMode"));
         currentModeField.SetValue(currentMode);
 

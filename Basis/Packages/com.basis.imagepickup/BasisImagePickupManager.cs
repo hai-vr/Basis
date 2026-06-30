@@ -119,7 +119,7 @@ namespace Basis.ImagePickup
             {
                 Id = id.ToString(),
                 Kind = BasisShareableKind.Image,
-                Title = $"Image {result.Width}x{result.Height}",
+                Title = $"{result.Width}x{result.Height}",
                 SharerName = ownerName,
                 Remove = () => { if (Instance != null) Instance.RequestDespawn(id); },
             });
@@ -336,7 +336,7 @@ namespace Basis.ImagePickup
             {
                 Id = imageId.ToString(),
                 Kind = BasisShareableKind.Image,
-                Title = $"Image {transfer.Width}x{transfer.Height}",
+                Title = $"{transfer.Width}x{transfer.Height}",
                 SharerName = transfer.OwnerName,
                 Remove = () => { if (Instance != null) Instance.RequestDespawn(imageId); },
             });

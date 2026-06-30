@@ -2004,10 +2004,10 @@ namespace Basis.BasisUI
             {
                 if (entry == null) continue;
 
-                if (!string.IsNullOrWhiteSpace(_currentSearchQuery)
-                    && (string.IsNullOrEmpty(entry.Title) || entry.Title.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) < 0))
+                if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
                 {
-                    continue;
+                    string haystack = ShareableDisplayName(entry) + " " + (entry.SharerName ?? string.Empty);
+                    if (haystack.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) < 0) continue;
                 }
 
                 CreateShareableListEntry(entry, container);
@@ -2029,14 +2029,14 @@ namespace Basis.BasisUI
             PanelImage typePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
             typePanelImage.SetSize(new Vector2(80, 80));
             typePanelImage.SetIcon(ShareableIcon(entry.Kind));
-            typePanelImage.Descriptor.SetTooltip(entry.Kind.ToString());
+            typePanelImage.Descriptor.SetTooltip(ShareableKindLabel(entry.Kind));
 
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false);
-            itemTextInfo.Descriptor.SetTitle(string.IsNullOrEmpty(entry.Title) ? entry.Kind.ToString() : entry.Title);
+            itemTextInfo.Descriptor.SetTitle(ShareableDisplayName(entry));
             if (!string.IsNullOrEmpty(entry.SharerName))
             {
-                itemTextInfo.Descriptor.SetDescription(LibraryProviderStrUtil.TitleToCase(entry.SharerName));
+                itemTextInfo.Descriptor.SetDescription(BasisLocalization.Get("library.shareable.sharedBy", LibraryProviderStrUtil.TitleToCase(entry.SharerName)));
             }
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
@@ -2059,6 +2059,25 @@ namespace Basis.BasisUI
                 case BasisShareableKind.Server: return AddressableAssets.Sprites.Network;
                 default: return AddressableAssets.Sprites.Items;
             }
+        }
+
+        private static string ShareableKindLabel(BasisShareableKind kind)
+        {
+            switch (kind)
+            {
+                case BasisShareableKind.Avatar: return BasisLocalization.Get("library.shareable.avatar");
+                case BasisShareableKind.Prop: return BasisLocalization.Get("library.shareable.prop");
+                case BasisShareableKind.World: return BasisLocalization.Get("library.shareable.world");
+                case BasisShareableKind.Server: return BasisLocalization.Get("library.shareable.server");
+                case BasisShareableKind.Image: return BasisLocalization.Get("library.shareable.image");
+                default: return BasisLocalization.Get("library.shareable.other");
+            }
+        }
+
+        private static string ShareableDisplayName(BasisShareableEntry entry)
+        {
+            string label = ShareableKindLabel(entry.Kind);
+            return string.IsNullOrEmpty(entry.Title) ? label : BasisLocalization.Get("library.shareable.withDetail", label, entry.Title);
         }
 
         private static BasisNetworkPlayer TryFindPlayer(string uuid) => BasisNetworkPlayers.Players.Values.FirstOrDefault(p => p.Player.UUID == uuid);

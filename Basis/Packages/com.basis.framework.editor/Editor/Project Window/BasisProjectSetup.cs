@@ -395,6 +395,10 @@ public partial class BasisProjectSetup : EditorWindow
                 DrawModuleAndBackendStatusRow();
             }
 
+            EditorGUILayout.Space(6);
+            DrawBuildScriptingBackendPreference();
+            EditorGUILayout.Space(4);
+
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button(Tr("projectSetup.buildModules.openBuildSettings", "Open Build Settings"))) EditorWindow.GetWindow(typeof(BuildPlayerWindow));

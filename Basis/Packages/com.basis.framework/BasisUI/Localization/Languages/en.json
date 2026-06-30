@@ -3139,6 +3139,38 @@
       "value": "Remove this item."
     },
     {
+      "key": "library.shareable.avatar",
+      "value": "Shared Avatar"
+    },
+    {
+      "key": "library.shareable.prop",
+      "value": "Shared Prop"
+    },
+    {
+      "key": "library.shareable.world",
+      "value": "Shared World"
+    },
+    {
+      "key": "library.shareable.server",
+      "value": "Shared Server"
+    },
+    {
+      "key": "library.shareable.image",
+      "value": "Shared Image"
+    },
+    {
+      "key": "library.shareable.other",
+      "value": "Shared Item"
+    },
+    {
+      "key": "library.shareable.sharedBy",
+      "value": "Shared by {0}"
+    },
+    {
+      "key": "library.shareable.withDetail",
+      "value": "{0} ({1})"
+    },
+    {
       "key": "library.instantiated.icon.admin.tooltip",
       "value": "Protected — only an admin can remove this item."
     },
@@ -5536,7 +5568,7 @@
     },
     {
       "key": "settings.platform.activeMode",
-      "value": "Active Mode"
+      "value": "Active Device Mode"
     },
     {
       "key": "settings.platform.vrRuntime",

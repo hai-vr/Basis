@@ -66,9 +66,18 @@ public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
             return;
         }
 
-        // 3) Ask for everything else (avoid dialogs in batch mode)
+        // 3) Use the remembered backend; prompt only when set to Ask
         bool useIl2Cpp;
-        if (Application.isBatchMode)
+        var backendPref = BasisBuildScriptingBackendPreference.Current;
+        if (backendPref == BasisBuildScriptingBackendPreference.Mode.IL2CPP)
+        {
+            useIl2Cpp = true;
+        }
+        else if (backendPref == BasisBuildScriptingBackendPreference.Mode.Mono)
+        {
+            useIl2Cpp = false;
+        }
+        else if (Application.isBatchMode)
         {
             // Safe default for CI: keep current backend (or change to true to default IL2CPP)
             useIl2Cpp = (currentBackend == ScriptingImplementation.IL2CPP);
@@ -77,10 +86,14 @@ public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
         {
             useIl2Cpp = EditorUtility.DisplayDialog(
                 "Scripting Backend",
-                $"Build target: {target}\n\nUse IL2CPP for this build?",
+                $"Build target: {target}\n\nUse IL2CPP for this build?\n\nYour choice is remembered for next time. Change it under Basis ▸ Project Setup ▸ Build & Modules.",
                 "Yes (IL2CPP)",
                 "No (Mono)"
             );
+
+            BasisBuildScriptingBackendPreference.Current = useIl2Cpp
+                ? BasisBuildScriptingBackendPreference.Mode.IL2CPP
+                : BasisBuildScriptingBackendPreference.Mode.Mono;
         }
 
         SetBackendIfNeeded(

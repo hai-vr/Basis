@@ -74,11 +74,15 @@ namespace Basis.BasisUI
             _fieldLayout.preferredHeight = target;
             _fieldRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, target);
 
-            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)transform);
-            if (transform.parent is RectTransform parentRect)
+            // Rebuild the parent layout group synchronously: it recomputes this row's grown/shrunk
+            // height and repositions the rows below it in the same pass. Marking only this field
+            // resizes it but leaves the siblings stacked off the stale height.
+            RectTransform reflowTarget = transform.parent as RectTransform;
+            if (reflowTarget == null)
             {
-                LayoutRebuilder.MarkLayoutForRebuild(parentRect);
+                reflowTarget = (RectTransform)transform;
             }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(reflowTarget);
         }
 
         private void OnDestroy()

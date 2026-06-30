@@ -434,7 +434,7 @@ public class BasisLocalEyeDriver
             _gazeMouthScale = math.saturate((dist - MouthWeightNearDist) / (MouthWeightFullDist - MouthWeightNearDist));
             _hasGazeTarget = true;
         }
-        else if ((object)_currentGazeTarget != null)
+        else if (_currentGazeTarget != null)
         {
             float3 focus = _currentGazeTarget.GetWorldFocusPoint();
             float2 yp = WorldPointToCanonicalYawPitch(focus, localHeadPos, invLocalHeadRot);
