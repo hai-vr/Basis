@@ -2229,7 +2229,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - BasisAuthoredMotionSystem.Dispose(
+    - BasisAvatarBufferPool.Deinitialize(
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -2409,38 +2409,6 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Callback invoked before rendering each frame (client), used to run
       final local player\n render-time simulation and to publish avatar changes."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.EventDriver.
-    MemberName: OnDrawGizmos
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - BasisHintOffsetGizmos.DrawAll(
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Renders Gizmos for debugging JigglePhysics when enabled.
     Remarks: 
     Returns: 
     Value: 
@@ -4704,68 +4672,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisAvatarPedestal
-    MemberName: BasisProgressReport
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Progress report object for monitoring loading operations.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisAvatarPedestal
-    MemberName: cancellationToken
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Cancellation token for aborting async avatar loading operations.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisAvatarPedestal
     MemberName: PedestalAnimatorController
     Kind: Field
     ParamCount: 0
@@ -4782,7 +4688,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Animator controller applied to pedestal avatars.
+    Summary: Progress report object for monitoring loading operations.
     Remarks: 
     Returns: 
     Value: 
@@ -5988,6 +5894,114 @@ MonoBehaviour:
       which the remote driver disables\n so it never ticks. The effective target
       becomes\n `min(original, limit + protectedCount)` \u2014 the user's cap applies
       only\n to the instances that are actually running."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisAvatarSetupBudget
+    MemberName: BasisAvatarSetupBudget
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Main-thread admission budget for the post-load avatar setup tail \u2014
+      the trim +\n calibration + bone-system registration that runs once a bundle
+      has finished loading."
+    Remarks: "The concurrency gates in BasisAvatarFactory only throttle the async
+      bundle\n I/O and are released before `InitializePlayerAvatar` runs, so a bulk
+      in-range\n transition (the View Range slider 0->100 at 1k players) would dump
+      hundreds of\n calibrations onto a single frame even though the downloads themselves
+      were paced. This caps\n how many setups start per frame; over-budget loads
+      yield to the next frame and resume.\n Pure main-thread frame pacing (no locks):
+      every awaiter resumes on Unity's synchronization\n context, so the counter
+      is only ever touched by one thread."
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisAvatarSetupBudget
+    MemberName: BudgetPerFrame
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Max post-load avatar setups admitted per frame. Tunable; treated as
+      at least 1.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Avatar.BasisAvatarSetupBudget
+    MemberName: WaitForSetupSlot
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - token.ThrowIfCancellationRequested(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Awaits a setup slot for the current frame. Returns synchronously while
+      the frame still has\n budget, otherwise yields frame-by-frame until one frees
+      up. Honors `token`\n so a disconnect mid-wait cancels the pending load like
+      any other await in the load path.\n Always makes progress (admits within BudgetPerFrame
+      frames), so it can never hang."
     Remarks: 
     Returns: 
     Value: 
@@ -8288,6 +8302,48 @@ MonoBehaviour:
       fires with\n the user's explicit choice (remembered by the caller); `onDismissed`\n
       fires if the prompt is closed without answering (left undecided, re-asked next
       time)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.BasisHighPlayerCapPerformanceMode
+    MemberName: BasisHighPlayerCapPerformanceMode
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Watches the instance population and, once per app run for each population
+      tier, offers to\n switch on a \"High Player Cap Performance Mode\" preset that
+      trades avatar fidelity for frame\n rate in large instances. Pumped from the
+      central tick; no MonoBehaviour.\n\n Each tier asks at most once per app lifetime
+      \u2014 the static \"asked\" flags reset on restart,\n so the offer comes back
+      the next time the app is launched into a crowded instance. Crossing\n a higher
+      tier supersedes the lower ones (their flags are marked asked at the same time),
+      so\n joining an already-huge instance shows a single prompt instead of stacking
+      several.\n\n Only the pose-update LOD bias tightens between tiers; every other
+      value in the preset is the\n same at every tier. The dialogue lists the exact
+      values it will apply, sourced from the same\n constants used to apply them,
+      so the text can never drift from the effect."
     Remarks: 
     Returns: 
     Value: 
@@ -15545,6 +15601,368 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisNetworkInfoView
+    MemberName: BasisNetworkInfoView
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Live, read-only reflection view of every metadata field on a synced
+      component \u2014 config,\n runtime sync state, ownership, the jitter-buffer
+      receiver and the value schema. Play-mode only."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisSyncIssue
+    MemberName: BasisSyncIssue
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: One validation message for a synced-component inspector.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisWireSection
+    MemberName: BasisWireSection
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: One labelled section in a Wire Size readout (e.g. Position, Rotation).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisWireSizeModel
+    MemberName: BasisWireSizeModel
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Filled by a component inspector each refresh to drive BasisSyncInspectorUI.WireSizeCard.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisSyncInspectorUI
+    MemberName: BasisSyncInspectorUI
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Shared Basis-styled building blocks for the synced-object / synced-transform
+      inspectors.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Card
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - title
+    - expanded
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "A titled section that collapses to a single header bar (like the per-axis
+      Compression dropdown), so a\n new user isn't faced with every field at once.
+      Children added to it land in the collapsible body.\n Pass `expanded` = false
+      to start collapsed (advanced / verbose sections)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: NetworkInfo
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - BasisNetworkInfoView.Build(target
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Collapsible, live-updating view of every network metadata field on the
+      component (play mode only).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ValidationContainer
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - VisualElement(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Live validation panel (red errors / yellow warnings) that re-evaluates
+      twice a second.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Described
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - element
+    - tooltip
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Sets a hover description on a control and returns it, for inline use
+      in Add(...).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: WireSizeCard
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - false
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Live wire-size readout. The component supplies its section breakdown
+      via `compute` each refresh.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: CompressionAxisRow
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - so
+    - axisProp
+    - axisProp.FindPropertyRelative("Bits"
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'One per-axis compression control: mode dropdown, Min/Max/Bits when
+      Ranged, plus a live precision/size readout (the "fitness" check).'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Highlight.BasisHighlightConfigOverride
     MemberName: BasisHighlightConfigOverride
     Kind: Type
@@ -17279,9 +17697,8 @@ MonoBehaviour:
     Summary: "Runtime visualization of the FullBody IK self-collision capsules:\n
       three torso segments (hips\u2192spine, spine\u2192chest, chest\u2192neck),
       two hand\n capsules, two upper-arm capsules. Built from BasisGizmoManager line\n
-      gizmos so it renders in-game; the editor-only equivalent is\n BasisHandCollisionVisualizer
-      (OnDrawGizmos). Driven from\n SMModuleDebugOptions when the developer-tab toggle
-      is on."
+      gizmos so it renders in-game. Driven from\n SMModuleDebugOptions when the developer-tab
+      toggle is on."
     Remarks: 
     Returns: 
     Value: 
@@ -20622,12 +21039,11 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
-    MemberName: DrawAll
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - null
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.HoverGizmo
+    MemberName: HoverGizmo
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -20635,7 +21051,7 @@ MonoBehaviour:
     IsSealed: 0
     IsStatic: 0
     IsPartial: 0
-    IsMemberStatic: 1
+    IsMemberStatic: 0
     IsMemberReadOnly: 0
     IsMemberConst: 0
     IsMemberVirtual: 0
@@ -21391,7 +21807,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisAvatarBuffer
-    MemberName: BoneRotations
+    MemberName: SecondsInterval
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -21574,108 +21990,6 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Dispose all buffers in the pool and clear it.\n Caller must ensure
       no concurrent Get/Release while deinitializing."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisBlendShapeDriver
-    MemberName: BasisBlendShapeDriver
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 1
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Static driver that orchestrates blendshape sync for all active instances.\n
-      Follows the Simulate/Apply pattern used throughout Basis.\n Wired into BasisEventDriver
-      \u2014 do NOT call from MonoBehaviour Update/LateUpdate.\n\n Simulate: captures
-      local blendshape weights, delta-encodes, stages for network send.\n Apply:
-      writes received remote blendshape weights to meshes."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: Simulate
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - _instances.RemoveAt(i
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Capture + encode local blendshape data and stage for piggyback on player
-      movement.\n Called from BasisEventDriver.LateUpdate after face tracking has
-      written weights."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: Apply
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - _instances.RemoveAt(i
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Apply received remote blendshape weights to meshes.\n Called from BasisEventDriver.LateUpdate
-      before shadow clone reads."
     Remarks: 
     Returns: 
     Value: 
@@ -22037,7 +22351,7 @@ MonoBehaviour:
     ParamNames:
     - entry
     - userName
-    - BasisLocalization.Get("menu.servers.status.initializing")
+    - ignoring."
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -22330,6 +22644,39 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: Connection/session management, server runner, time utilities, and send
       helpers.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: EnsureInitialized
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (_coreHandlersRegistered
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Registers the core channel handlers if not already done. Safe to call
+      repeatedly.
     Remarks: 
     Returns: 
     Value: 
@@ -24831,6 +25178,70 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: GlobalCilboxLocked
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Server-pushed lock: while true, sandboxed Cilbox code on avatars is
+      blocked from running on\n every client. Props and worlds keep their own trusted
+      Cilbox. Drives Cilbox.GloballyDisabled\n through the shim bridge."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Action
+    Kind: Event
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Fired when the Cilbox lock flag changes.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: LocalPlayerHasGlobalLockBypass
     Kind: Method
     ParamCount: 1
@@ -25119,6 +25530,40 @@ MonoBehaviour:
     Summary: "Admin: toggle the global direct-connect (P2P) lockout. Server flips
       the flag, persists it,\n broadcasts the new lock state, and refuses to broker
       P2P for non-admins while set."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: GlobalToggleCilbox
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - SendAdminRequest(AdminRequestMode.GlobalToggleCilbox
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Admin: toggle the global Cilbox lock. While set, every client blocks
+      sandboxed Cilbox code\n on avatars from running. Server flips the flag and
+      broadcasts the new lock state."
     Remarks: 
     Returns: 
     Value: 
@@ -28406,37 +28851,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisLoadInGameobjectAddressable
-    MemberName: RequiredChecks
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Validation checks that must pass before the content is allowed to load.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLoadInGameobjectAddressable
     MemberName: Selector
     Kind: Field
     ParamCount: 0
@@ -28453,8 +28867,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Selector type indicating the content category (Avatar, System, Prop).\n
-      Defaults to Prop."
+    Summary: Validation checks that must pass before the content is allowed to load.
     Remarks: 
     Returns: 
     Value: 
@@ -28909,6 +29322,310 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisJiggleColliderTier
+    MemberName: BasisJiggleColliderTier
+    Kind: Enum
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Detail level for a remote avatar's jiggle-collision colliders, selected
+      by distance.\n Each tier is a strict subset of the previous one."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisJiggleColliderLOD
+    MemberName: BasisJiggleColliderLOD
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Feet + arms + hand spheres + fingers (every authored collider).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisJiggleColliderLOD
+    MemberName: Enabled
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Master switch. When false, every avatar keeps its full collider set.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisJiggleColliderLOD
+    MemberName: ActiveCategories
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - tier
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'Which collider categories are active for a tier: [feet, arms, hands,
+      fingers].'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ApplyFromSettings
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Pushes the current setting values into this module. Call once at startup
+      and again on every\n settings change. On an enabled->disabled edge it restores
+      every remote to its full set."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ComputeTier
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - distanceSq
+    - (!Enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Maps a squared distance to a tier, applying hysteresis relative to
+      the tier the avatar is\n already in so boundary crossings don't flap. Returns
+      BasisJiggleColliderTier.Full\n when the feature is disabled."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisPlayerNetworkGizmos
+    MemberName: BasisPlayerNetworkGizmos
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-remote-player network visualisation \u2014 the player-pose analogue
+      of BasisSyncGizmos.\n Driven each frame from SMModuleDebugOptions under the
+      master gizmo gate.\n\n Each remote player whose pose buffer is interpolating
+      gets:\n  \u2022 a line from the last received hips pose (from) to the target
+      hips pose (to),\n  \u2022 a sphere riding that line at the live interpolated
+      position,\n  \u2022 a small marker at 'to', and an optional billboarded label
+      (name, interp %, buffer depth, rate).\n\n Colour tracks playback health off
+      the receiver's adaptive rate: green at rate 1.0, red as it\n slows to avoid
+      an underrun (starving), amber as it speeds up to clear a backlog. The Player\n
+      Bandwidth toggle adds received bytes-on-wire/sec and packet rate per player.
+      Player poses are\n clamped to the target on the wire \u2014 there is no extrapolation
+      overshoot like the value-sync gizmos."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisPlayerNetworkGizmos
+    MemberName: Tick
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - EnsureMasterHook(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Per-frame entry point. `scale` is the local avatar scale.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisPointerRayGizmos
+    MemberName: BasisPointerRayGizmos
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runtime visualisation of each pointer's physics raycast (the line from
+      the raycast\n origin out to EffectiveMaxDistance) plus the oriented placement
+      box while a raycaster\n is in Placement mode. Replaces BasisPointRaycaster.OnDrawGizmosSelected
+      so the ray\n renders in-game rather than only in the editor scene view. Driven
+      from\n SMModuleDebugOptions under the GizmoPointerRay toggle."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: ValidSettingsChange
     Kind: Method
@@ -28930,6 +29647,82 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Called when a valid setting change occurs.\n Provides which setting
       was matched and the new option value."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisSyncGizmos
+    MemberName: BasisSyncGizmos
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runtime visualisation of the generic value-sync interpolation pipeline\n
+      (BasisSyncedObject / BasisSyncedTransform and the other synced\n components).
+      Driven each frame from SMModuleDebugOptions under the master gizmo\n gate,
+      so it shows live in VR/desktop rather than only the editor scene view.\n\n
+      Per remote, interpolated object:\n  \u2022 a line from the last received keyframe
+      (from) to the target keyframe (to),\n  \u2022 a sphere riding that line at
+      the live interpolated position,\n  \u2022 a red overshoot segment past 'to'
+      whenever the buffer ran dry and it is extrapolating,\n  \u2022 a small marker
+      at 'to', and an optional billboarded label (#id, interp %, buffer depth).\n 
+      \u2022 with the Sync Bandwidth toggle, each object's received bytes-on-wire/sec
+      and packet rate.\n\n The sphere/label colour tracks jitter-buffer health: green
+      while the buffer sits at its\n target depth, amber as it starves, red while
+      extrapolating \u2014 so a cluster of red spheres\n reads at a glance as \"the
+      data flow can't keep up\"."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisSyncGizmos
+    MemberName: Tick
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - EnsureMasterHook(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Per-frame entry point. `scale` is the local avatar scale.
     Remarks: 
     Returns: 
     Value: 
@@ -29895,37 +30688,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.UI.BasisInputModuleHandler
-    MemberName: BasisUIRaycastProcess
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: UI raycast helper used during processing.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.UI.BasisInputModuleHandler
     MemberName: Instance
     Kind: Field
     ParamCount: 0
@@ -29942,7 +30704,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Singleton-style reference to the active handler.
+    Summary: UI raycast helper used during processing.
     Remarks: 
     Returns: 
     Value: 
@@ -32678,6 +33440,11 @@ MonoBehaviour:
       (instead of File.IO against StreamingAssets) is required because on\n Android
       the APK packs StreamingAssets into a compressed archive and\n Directory.GetFiles
       silently returns nothing \u2014 language discovery was\n broken on mobile builds.\n\n
+      Any package \u2014 not just com.basis.framework \u2014 can contribute strings:\n
+      every JSON tagged with the LanguageLabel label is loaded,\n and files that
+      share a `code` are merged by key into one table, so a\n package ships its own
+      `{code}.json` with namespaced keys and\n Get(string) resolves them from the
+      same flat namespace. No\n per-package API is needed; Get(string) is not specialized.\n\n
       Japanese (and other CJK languages) require a TMP font asset that includes\n
       the relevant glyph set. The default Basis TMP font only ships with Latin\n
       characters, so a CJK-capable fallback font must be assigned to\n TMP_Settings.fallbackFontAssets
@@ -33596,8 +34363,8 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.BasisUI.
-    MemberName: ActiveProvider
-    Kind: Field
+    MemberName: Release
+    Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -33610,7 +34377,7 @@ MonoBehaviour:
     IsMemberStatic: 0
     IsMemberReadOnly: 0
     IsMemberConst: 0
-    IsMemberVirtual: 0
+    IsMemberVirtual: 1
     IsMemberOverride: 0
     Summary: The provider that currently owns the active menu panel.
     Remarks: 
@@ -34809,6 +35576,41 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Create a TabPage with a Grid layout predefined for the content parent.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.PanelTextFieldAutoHeight
+    MemberName: PanelTextFieldAutoHeight
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: MonoBehaviour
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Grows a PanelTextField's input box to fit its text instead of clipping
+      or\n scrolling it. Drives the input's LayoutElement height from the measured
+      text;\n the element's existing ContentSizeFitter/LayoutGroup chain reflows
+      the row from there.\n Opt-in per field \u2014 most panel fields are intentionally
+      fixed-height."
     Remarks: 
     Returns: 
     Value: 
@@ -38750,10 +39552,200 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Backing store for jiggle colliders created for the avatar rig.\n Initialized
-      inline: the remote driver is a plain object (no Unity serialization\n to populate
-      this), so without the initializer it would be null and the jiggle\n remove/add
+    Summary: "Backing store for all jiggle colliders created for the avatar rig (every
+      category).\n Used for the initial full registration and for teardown. Initialized
+      inline: the remote\n driver is a plain object (no Unity serialization to populate
+      this), so without the\n initializer it would be null and the jiggle remove/add
       passes would dereference null."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: List
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 1
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Foot/toe colliders (one capsule or sphere per foot).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: List
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 1
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Upper- and lower-arm capsules (both sides).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: List
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 1
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Hand tip spheres (one per hand) \u2014 the coarsest stand-in for the
+      whole hand."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: List
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 1
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Per-finger capsules and finger-tip spheres (the bulk of the collider
+      count).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: HasJiggleColliders
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True once AddJiggleRigColliders has built a non-empty collider set.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: RegisteredColliderTier
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Which detail level of colliders is currently registered with the jiggle
+      system.
     Remarks: 
     Returns: 
     Value: 
@@ -38772,7 +39764,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - expected
+    - JiggleCollidersFingers.Clear(
     ParamDocs:
     - Bone transform mapping used to generate colliders for feet and hands/fingers.
     BaseTypeName: 
@@ -38803,12 +39795,49 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: JiggleCreatorHelper
+    MemberName: ApplyColliderLOD
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - 'JiggleCreatorHelper(Parents[i]'
+    - RegisteredColliderTier
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Adds or removes whole collider categories so the registered set matches
+      the requested\n detail tier. No-op when the tier is unchanged or no colliders
+      were ever built. Only the\n categories that differ between the old and new
+      tier are touched."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: JiggleCreatorHelper
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - target
+    - 'Parents[i]'
     ParamDocs:
+    - List the created colliders are appended to.
     - Transforms that will each receive a collider.
     BaseTypeName: 
     Interfaces: []
@@ -38839,13 +39868,15 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Drivers.
     MemberName: JiggleCreatorHelperCapsule
     Kind: Method
-    ParamCount: 4
+    ParamCount: 5
     ParamNames:
+    - target
     - Parents
     - 0.005f
     - true
     - 0f
     ParamDocs:
+    - List the created colliders are appended to.
     - Ordered bone transforms (e.g. proximal, intermediate, distal).
     - Base radius for the capsule/sphere. Default is `0.005`.
     BaseTypeName: 
@@ -38879,11 +39910,13 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Drivers.
     MemberName: JiggleCreatorHelper
     Kind: Method
-    ParamCount: 2
+    ParamCount: 3
     ParamNames:
+    - target
     - Parent
     - null
     ParamDocs:
+    - List the created collider is appended to.
     - Transform that defines the collider's transform and space.
     - "Base radius used to size the collider. Final radius is scaled by `1 / (Parent.lossyScale.magnitude
       / 3)`.\n Default is `0.005`."
@@ -38899,7 +39932,7 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Creates a single spherical jiggle collider for a given transform and
-      stores it in JiggleColliders.
+      appends it to `target`.
     Remarks: 
     Returns: 
     Value: 
@@ -39400,70 +40433,6 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Called on the main thread. If background inference completed, picks
       up new\n viseme weights. Applies cached weights to blendshapes. Never stalls."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisPickupSyncDriver
-    MemberName: BasisPickupSyncDriver
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 1
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Orchestrates pickup-sync networking for owned and remotely owned pickups:\n
-      sends local updates on a cadence and smoothly lerps remote transforms via a
-      Burst job."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisTranslationUpdate
-    MemberName: BasisTranslationUpdate
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Network translation update payload used to feed the interpolation system.
     Remarks: 
     Returns: 
     Value: 
@@ -41179,37 +42148,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.BasisLocalAvatarDriver
-    MemberName: Dictionary
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Stores the transforms for each tracked role at calibration time.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisLocalAvatarDriver
     MemberName: BasisAvatarScaleModifier
     Kind: Method
     ParamCount: 0
@@ -41226,7 +42164,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Runtime scale modification settings for the avatar.
+    Summary: Stores the transforms for each tracked role at calibration time.
     Remarks: 
     Returns: 
     Value: 
@@ -51568,8 +52506,10 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Per-eye calibration computed once at avatar setup; converts canonical
-      yaw/pitch to rig-local rotation.
+    Summary: "Index of this driver's pair in BasisRemoteFaceManagement's eye-transform
+      registry, or -1 when unowned. Replaces a per-frame driver\u2192pair dictionary
+      lookup; maintained by the reconcile and validated against the live registry
+      so a stale value is self-correcting."
     Remarks: 
     Returns: 
     Value: 
@@ -51918,6 +52858,628 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncRealInterp
+    MemberName: BasisSyncRealInterp
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runs the REAL Burst InterpolateSyncObjectsJob over a driver-style multi-slot
+      SoA layout,\n mirroring how BasisSyncDriver packs every remote object into
+      shared pools and interpolates\n them in one pass. This lets the offline harness
+      produce its \"other side\" output with the real job instead\n of a managed
+      mirror, so the multi-slot base arithmetic and the inactive-slot skip get exercised
+      \u2014 the\n parts a single-slot fidelity pin can never reach."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncRealInterp+Layout
+    MemberName: Layout
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-slot pool layout for a set of objects: contiguous continuous /
+      rotation / discrete windows plus the\n per-component interpolation mode, assigned
+      exactly as BasisSyncDriver.RebuildLayout does."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.
+    MemberName: Sample
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - L
+    - receivers
+    - i++
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Pulls each slot's Current/Next/InterpTime from its receiver, then runs
+      the real job; inactive (no-data) receivers leave their out values untouched.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.
+    MemberName: Run
+    Kind: Method
+    ParamCount: 8
+    ParamNames:
+    - L
+    - cur
+    - next
+    - t
+    - active
+    - L.ContTotal)
+    - L.RotTotal)
+    - L.DiscTotal
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runs the real job for every slot given explicit Current/Next values,
+      per-slot interp fraction, and active\n mask. Each active slot's interpolated
+      output is written into `outValues`[i]; inactive\n slots are skipped by the
+      job and left untouched."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.SceneTransport+BasisSyncSceneObjectSpec
+    MemberName: BasisSyncSceneObjectSpec
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'One object in a multi-object scene: a name and its field set (its schema).'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncSceneScenario
+    MemberName: BasisSyncSceneScenario
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "A scene of several synced objects sharing one wire. Adds the interactions
+      a single-object run can't reach:\n the real batch coalescing/demux (many objects'
+      payloads framed into one datagram and split on the far side,\n with shared-fate
+      loss), the real Burst interpolation over a multi-slot driver SoA, and a late-joiner
+      that\n only recovers via a keyframe."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncSceneSim
+    MemberName: BasisSyncSceneSim
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Offline exerciser for a BasisSyncSceneScenario. Drives K real senders/receivers
+      over a shared\n seeded network; in Batched mode it coalesces each frame's keyframes
+      and deltas through the real\n BasisSyncBatchWriter and demuxes them via BasisSyncBatchReader.
+      Produces one\n BasisSyncSimResult per object so each object's convergence is
+      scored independently."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncSim
+    MemberName: BasisSyncSim
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Offline, deterministic exerciser for the generic value-sync data path\n
+      (BasisSyncCodec + BasisSyncReceiver).\n\n It runs the real serialize \u2192
+      wire \u2192 deserialize \u2192 interpolate pipeline without a live\n network
+      or a MonoBehaviour: a faithful re-implementation of the owner send cadence\n
+      (mirrors `BasisSyncedObject.TransmitIfDue` / `FieldChanged`) drives the real
+      codec;\n a seeded packet network injects loss / duplication / reorder / jitter
+      / corruption; the real\n BasisSyncReceiver plays it back; and a managed copy
+      of\n `InterpolateSyncObjectsJob` samples the output. Every run is reproducible
+      from its seed,\n so the result CSV is stable.\n\n Out of scope (timing/transport,
+      not data correctness): distance reduction, relevance culling,\n P2P routing,
+      recipient filtering. Those don't change what comes out of the codec/receiver."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.
+    MemberName: Interpolate
+    Kind: Method
+    ParamCount: 5
+    ParamNames:
+    - schema
+    - cur
+    - nxt
+    - t
+    - (f.Pool
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Managed mirror of `InterpolateSyncObjectsJob` + the driver SoA fill:
+      continuous \u2192 lerp,\n angle \u2192 wrapped lerp, rotation \u2192 nlerp,
+      discrete \u2192 snap to next. Exposed so a fidelity test\n can pin it against
+      the real Burst job."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.SimFieldSpec
+    MemberName: SimFieldSpec
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: One synced field in a test object.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.SyncMotion+NetworkProfile
+    MemberName: NetworkProfile
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Impairment profile applied to the wire between owner and remote.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.SyncMotion+SimSender
+    MemberName: SimSender
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Faithful re-implementation of the owner send cadence (BasisSyncedObject.TransmitIfDue).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.SimNetwork
+    MemberName: SimNetwork
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Seeded packet network. Models LiteNetLib delivery semantics: ReliableOrdered
+      keyframes are\n never lost/reordered/corrupted (head-of-line ordered); Unreliable
+      deltas suffer the profile's\n loss / duplication / reorder (via latency jitter)
+      / corruption. The chaos profile overrides\n this and impairs everything."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncTruthSource
+    MemberName: BasisSyncTruthSource
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Deterministic input generator. Writes the owner's authoritative values
+      into the sender's local\n buffer each frame. Continuous fields follow the motion
+      curve; discrete fields step at a fixed\n cadence; rotation tumbles. Frozen
+      time (settle phase) yields constant values so the pipeline\n can converge."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncSimScenario
+    MemberName: BasisSyncSimScenario
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'A single scenario: a field set, a motion, a network profile, and the
+      sync config.'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncSimResult
+    MemberName: BasisSyncSimResult
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The outcome of one scenario \u2014 one CSV row."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.Testing.BasisSyncSimMatrix
+    MemberName: BasisSyncSimMatrix
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Builds and runs the full combinatorial test matrix over the value-sync
+      data path:\n field configs (every type x quantize x interpolate, plus composites
+      and transform-style layouts)\n x motion patterns x network impairment profiles
+      x optional feature flags (extrapolation,\n teleport threshold) x seeds. Feasibility-pruned
+      (e.g. teleport-threshold only on position-first\n layouts) so every row is
+      a meaningful combination.\n\n Driven by the Basis > Networking > Sync Test
+      Matrix editor window."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.EditorTools.BasisSyncTestRunnerWindow
+    MemberName: BasisSyncTestRunnerWindow
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: EditorWindow
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Editor front-end for BasisSyncSimMatrix. Runs the value-sync data path
+      through\n every combination of field types / features / motion / network impairment,
+      shows a pass-fail\n summary, and exports the full per-scenario result table
+      as CSV. Pure offline simulation \u2014\n no play mode, no live server required."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisLocalFootDriver
     MemberName: BasisLocalFootDriver
     Kind: Type
@@ -52163,146 +53725,11 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Static gizmo drawer for visualizing hint trackers and their calibrated
-      \"push up/out\" offsets.\n Draws:\n - A wire sphere at the raw hint tracker
-      position\n - A line showing the offset vector (rawPos -> biasedPos)\n - A wire
-      sphere at the biased hint position"
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Debugging.BasisHintOffsetGizmos
-    MemberName: DrawAll
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - (!Enabled
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Draw all hint offsets using the current BasisLocalBoneDriver control
-      world poses.\n Call from some MonoBehaviour's OnDrawGizmos() / OnDrawGizmosSelected()."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Debugging.
-    MemberName: DrawForRole
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - role
-    - null
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Draw a single hint role/control pair.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Debugging.
-    MemberName: DrawAxes
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - origin
-    - rot
-    - len
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Draws an orientation triad at a pose (x=red,y=green,z=blue).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Debugging.
-    MemberName: DrawFromPose
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - role
-    - rawPos
-    - localOffset)
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 1
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "If you want to draw from the already-built IK submission data instead
-      of controls,\n this helper draws raw->biased using the data pose + stored local
-      offset."
+    Summary: "Runtime visualisation of hint trackers and their calibrated \"push
+      up/out\" offsets:\n a sphere at the raw hint pose, an offset line to the biased
+      pose, a sphere at the\n biased pose, and an orientation triad. Built from BasisGizmoManager
+      so it renders\n in-game; driven from SMModuleDebugOptions under the GizmoHintOffsets
+      toggle."
     Remarks: 
     Returns: 
     Value: 
@@ -52914,6 +54341,75 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Decompresses a compressed uint into a Quaternion
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Compression.
+    MemberName: CompressSmallestThree
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - quaternion
+    - k_SqrtTwoOverTwoEncoding
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Smallest-three packing with a selectable magnitude-bit budget per component
+      (total bits =\n 2 + 3 * (1 + magnitudeBits)). magnitudeBits = 9 reproduces
+      CompressQuaternion (32 bits)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Compression.
+    MemberName: DecompressSmallestThree
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - compressed
+    - precisionMask
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Inverse of CompressSmallestThree; magnitudeBits must match the value
+      used to compress.
     Remarks: 
     Returns: 
     Value: 
@@ -54122,6 +55618,41 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisShareableRegistry
+    MemberName: BasisShareableRegistry
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Framework-side list of shareables currently active in the instance,
+      surfaced in the Library\n \"Instantiated\" tab. Content shares register their
+      spheres here, and optional add-on packages\n (e.g. the image pickup) register
+      their own entries, so the Library UI can monitor and remove them\n without
+      the framework referencing those packages."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: SpawnPreloadedMessage
     Kind: Method
@@ -54725,528 +56256,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: BasisBlendShapeSync
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: BasisNetworkAvatarBehaviour
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Network-synced blendshape component for avatars.\n Piggybacks on player
-      movement (AdditionalAvatarData, Channel 2, unreliable).\n\n Automatically filters
-      out viseme/blink/laughter blendshapes \u2014 those are\n reconstructed remotely
-      by OpenLipSync and BasisRemoteFaceManagement.\n Only face-tracking blendshapes
-      are synced.\n\n Timing is driven by BasisBlendShapeDriver (Simulate/Apply pattern),\n
-      NOT by MonoBehaviour Update/LateUpdate.\n\n Hooks:\n   SetWeight(filteredIndex,
-      weight) \u2014 set a synced blendshape from code\n   GetWeight(filteredIndex)        
-      \u2014 read current weight\n   OnWeightsReceived               \u2014 fires
-      on remote side after decode\n   SyncedIndices / SyncedCount     \u2014 introspect
-      what's being synced"
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: IsReady
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: True once initialization completes and the component is actively syncing.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: IsLocal
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: True if this is the local player's instance (sender).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: HasPendingData
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: True when remote data has been decoded but not yet applied to the mesh.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: SyncedCount
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Number of blendshapes being synced (excludes viseme/blink/laughter).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: SyncedIndices
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Mesh blendshape indices being synced. Index into this with filtered
-      indices.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBlendShapeSync
-    MemberName: OnWeightsReceived
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Fires on the remote side after weights are decoded from the network.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: SetWeight
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - filteredIndex
-    - weight
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Set a synced blendshape weight by its filtered index [0..SyncedCount).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: SetWeightByMeshIndex
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - meshIndex
-    - weight
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Set a blendshape weight by its mesh index. No-op if this index isn't
-      synced.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: GetWeight
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - 'TargetMesh.GetBlendShapeWeight(SyncedIndices[filteredIndex]'
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Get current weight by filtered index.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: GetMeshIndex
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - SyncedCount
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Get the mesh blendshape index for a filtered index, or -1 if invalid.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: GetFilteredIndex
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - meshIndex
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: Get the filtered index for a mesh blendshape index, or 255 if not synced.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: CaptureAndEncode
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Capture current blendshape weights from the mesh, delta-encode,\n and
-      stage for piggyback delivery on the next player movement packet.\n Called by
-      BasisBlendShapeDriver, not by Update."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: OnNetworkMessageServerReductionSystem
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - '!IsReady'
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 1
-    Summary: "Network callback: decode incoming blendshape data into persistent state.\n
-      Actual mesh application happens in ApplyReceivedWeights via the driver."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: ApplyReceivedWeights
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Apply decoded weights to the mesh. Only touches values that actually
-      changed.\n Called by BasisBlendShapeDriver.Apply()."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
-    MemberName: OnEditorSetup
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - avatarRoot
-    - null
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 1
-    Summary: "Auto-configures TargetMesh from the avatar's FaceVisemeMesh or FaceBlinkMesh.\n
-      Called by the Avatar SDK inspector when this component is added."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisBoneDeltaAndCompressJob
     MemberName: BasisBoneDeltaAndCompressJob
     Kind: Type
@@ -55789,6 +56798,43 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisObjectSyncNetworking
+    MemberName: BasisObjectSyncNetworking
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisPickupSyncNetworking
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "DEPRECATED compatibility shim \u2014 do not add this to new content.\n
+      The networked pickup is now BasisPickupSyncNetworking (it was moved into the
+      framework\n and renamed). Legacy content bundles serialized their pickup component
+      as \"BasisObjectSyncNetworking\"\n in this (BasisExamples) assembly, so this
+      concrete subclass lets that old content resolve to a real\n type and behave
+      as a modern synced pickup instead of coming in as a missing script."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: "BasisObjectSyncNetworking is deprecated \u2014 use BasisPickupSyncNetworking.
+      This shim only exists so legacy content bundles keep loading."
+    Platforms: []
   - TypeFullName: BasisPickupSyncNetworking
     MemberName: IsStatic
     Kind: Field
@@ -55822,6 +56868,111 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisPickupSyncNetworking
+    MemberName: RemoteDeadReckon
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Opt-in: also stream the Rigidbody's linear/angular velocity, and let
+      a free-flying remote copy simulate\n from it (prediction) with the synced pose
+      pulling it back (correction), instead of being kinematic and\n pose-driven.
+      Default off keeps the existing pose-only behaviour."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisPickupSyncNetworking
+    MemberName: AttachToHandOnGrab
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Opt-in: while a player holds this prop, stop streaming its world transform
+      and instead stream which\n hand holds it plus the hand-relative grab offset
+      (the difference between the holding hand bone and the\n prop). Every remote
+      re-parents the prop to its own copy of the owner's hand bone each frame, so
+      the\n prop stays glued to the hand with no position-interpolation lag and near-zero
+      traffic while held.\n On release it snaps back to normal transform sync. Default
+      off keeps the existing position streaming."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: SetIsKinematicOnPickup
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Owner side: if attach mode is on and we currently hold this prop, returns
+      which hand bone holds it\n (left/right; desktop maps to the dominant hand)
+      and that bone's live world pose."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: SetStatic
     Kind: Method
@@ -55840,9 +56991,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Apply or release the server-authoritative static / locked state (IBasisStaticLockable).\n
-      ControlState performs the actual freeze (drop + kinematic) or the restore when
-      toggled off."
+    Summary: Apply or release the server-authoritative static / locked state (IBasisStaticLockable).
     Remarks: 
     Returns: 
     Value: 
@@ -56787,7 +57936,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Receivers.
-    MemberName: TposeLocalRotations
+    MemberName: BoneTransforms
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -56805,38 +57954,6 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "T-pose local rotations for this receiver's avatar bones.\n Set during
       calibration and passed to RemoteBoneJobSystem for the skeleton apply job."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.Receivers.
-    MemberName: BoneTransforms
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Bone transforms for this receiver's avatar.\n Set during calibration
-      and passed to RemoteBoneJobSystem for the skeleton apply job."
     Remarks: 
     Returns: 
     Value: 
@@ -56955,6 +58072,39 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Receivers.
+    MemberName: AccountReceivedBytes
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _bwPackets
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Records received bytes-on-wire for this player (call from the packet
+      handler; thread-safe).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Receivers.
     MemberName: PreCompute
     Kind: Method
     ParamCount: 0
@@ -57024,7 +58174,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - unscaledDeltaTime
+    - _bwTime
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -58522,6 +59672,319 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncBatchWriter
+    MemberName: BasisSyncBatchWriter
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Frames several synced objects' update payloads into one scene-data
+      packet so a client owning many\n objects amortizes the per-packet header +
+      transport overhead. Each entry is [NetworkID u16][len u16][payload];\n the
+      reader walks entries until the buffer is exhausted (the scene-data length bounds
+      it). Because one packet\n carries a single delivery method and recipient set,
+      only objects that match on both can share a batch."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: TryAppend
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - networkId
+    - payload
+    - _buf.Length
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Appends one object's payload. Returns false (and writes nothing) if
+      it wouldn't fit \u2014 flush, then retry."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncBatchReader
+    MemberName: BasisSyncBatchReader
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Walks the entries written by BasisSyncBatchWriter. Payloads are returned
+      as offsets into the source buffer (no copy).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: TryRead
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - networkId
+    - payloadOffset
+    - _len
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Reads the next entry. Returns false at the end, or on a truncated/corrupt
+      tail (never throws).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncBatchCollector
+    MemberName: BasisSyncBatchCollector
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "EXPERIMENTAL, off by default. Coalesces a client's owned scene-data
+      sends into fewer packets to amortize the\n per-packet header + transport overhead.
+      Only broadcast (no explicit recipients), server-relayed (non-P2P-direct)\n
+      sends are batched; everything else falls back to an individual send.\n\n Enabling
+      is a SESSION-WIDE policy: it changes the wire framing for batched objects,
+      so every client must agree,\n and BatchMessageIndex must never be assigned
+      to a real networked object (reserve it in the id\n allocator) \u2014 otherwise
+      it collides with that object's receive handler. Verify a real batched round-trip
+      before\n shipping it on."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncBatchCollector
+    MemberName: BatchMessageIndex
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 1
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Reserved scene-data messageIndex that carries a batch. Must not collide
+      with any assigned NetworkID.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncBatchCollector
+    MemberName: SetEnabled
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (enabled
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Turn batching on/off for this client (session-wide policy). Registers/unregisters
+      the receive demux.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: TryEnqueue
+    Kind: Method
+    ParamCount: 6
+    ParamNames:
+    - networkId
+    - payload
+    - length
+    - delivery
+    - recipients
+    - false
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "True if the payload was accepted into a batch \u2014 the caller must
+      then NOT send it individually."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: Flush
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - FlushOne(true
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Sends any pending batches. Call once after a transmit pass (no-op when
+      disabled / empty).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncCodec
     MemberName: BasisSyncCodec
     Kind: Type
@@ -58540,9 +60003,191 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Wire (de)serialization for a BasisSyncSchema. Supports full keyframes
-      (every\n field) and dirty-mask deltas (changed fields only). Rotations use
-      Basis smallest-three\n quaternion packing; positions/scale/floats are full
-      float32 or optionally quantized."
+      (every\n field) and dirty-mask deltas (changed fields only). The header and
+      dirty mask stay byte-aligned;\n field payloads are packed into a contiguous
+      bitstream so continuous components can use any bit\n width (Raw 32-bit float,
+      Half 16-bit, or N-bit Ranged within [min,max]) and bools cost one bit.\n Rotations
+      use Basis smallest-three quaternion packing; discrete ints use zig-zag varints."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: WireBytes
+    Kind: Method
+    ParamCount: 7
+    ParamNames:
+    - payloadBits
+    - fieldCount
+    - checksum
+    - payloadBytes
+    - maskBytes
+    - keyframeBytes
+    - 7
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Actual on-wire byte breakdown for a payload of `payloadBits` bits across\n
+      `fieldCount` fields. A keyframe = header + payload (+ optional checksum); a
+      delta\n adds the dirty mask. The bit-packed payload rounds up to whole bytes
+      exactly once."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: Serialize
+    Kind: Method
+    ParamCount: 8
+    ParamNames:
+    - schema
+    - values
+    - keyframe
+    - dirtyMask
+    - seq
+    - intervalMs
+    - outBuf
+    - 8
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "As Serialize, optionally appending a 2-byte Fletcher-16 integrity trailer.
+      The receiver checks it\n (VerifyChecksum) and drops the packet on mismatch,
+      so a corrupted unreliable packet can\n neither apply a garbage value nor poison
+      the sequence high-water-mark."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: VerifyChecksum
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - buf
+    - 8)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True if the trailing 2-byte Fletcher-16 matches the packet body. Call
+      before trusting a packet's sequence/values.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BitWriter
+    MemberName: BitWriter
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: LSB-first bit packer over a byte buffer starting at a byte offset.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BitReader
+    MemberName: BitReader
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: LSB-first bit reader; returns 0 once the byte limit is exhausted (corrupt/truncated
+      safe).
     Remarks: 
     Returns: 
     Value: 
@@ -58591,13 +60236,45 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncedObject
-    MemberName: BasisSyncedObject
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: RemoteObjects
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Live list of remote (interpolated) synced objects, for debug visualisation.
+      Do not mutate.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncGizmoSample
+    MemberName: BasisSyncGizmoSample
     Kind: Type
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    BaseTypeName: BasisNetworkBehaviour
+    BaseTypeName: 
     Interfaces: []
     IsAbstract: 0
     IsSealed: 0
@@ -58614,6 +60291,177 @@ MonoBehaviour:
       a playback buffer with interpolation.\n Owner-authoritative (grab via TakeOwnership);
       only the owner's writes go on the wire.\n Optionally BindTransform so a remote
       transform is driven automatically by the Burst apply job."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: ApplyInterpolated
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: Driver-driven (post-interpolation, main thread) apply hook for remote
+      objects that compose their own output.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: TryGetSyncGizmoSample
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - IsOwnedLocallyOnClient
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Snapshot of this object's live interpolation state for the debug gizmos\n
+      (BasisSyncGizmos). Remote, receiving objects only \u2014 returns false on the
+      owner."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: TryGetSyncGizmoSpatial
+    Kind: Method
+    ParamCount: 4
+    ParamNames:
+    - from
+    - to
+    - fromWorld
+    - toWorld
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: Override to expose the from/to keyframe positions (world space) for
+      the sync gizmos. Return false if the object has no spatial channel.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: TryGetSyncWorldPosition
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - position
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: Override to supply the object's world position for distance/relevance
+      reduction. Return false to disable.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: Register
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - type
+    - interpolate
+    - type
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Declare any field with per-component compression. componentSpecs length
+      should match the type's component count (1 float, 2 Vector2, 3 Position/Scale,
+      4 Vector4/Color); ignored for discrete/rotation.
     Remarks: 
     Returns: 
     Value: 
@@ -58659,6 +60507,41 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: SnapReceiver
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _receiver?.ForceSnap(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Remote copies: collapse the interpolation buffer to the freshest received
+      frame on the next tick,\n skipping interpolation. Call after a discontinuity
+      in the meaning of the synced values (teleport,\n or a pickup toggling between
+      world and hand-relative encoding) so the copy snaps instead of sliding."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
     MemberName: OnBeforeTransmit
     Kind: Method
     ParamCount: 0
@@ -58690,6 +60573,346 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: KeyframeBackoffInterval
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - baseInterval
+    - idleCount
+    - shift
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Keyframe interval stretched by an idle backoff: after `idleCount` consecutive
+      keyframes\n with nothing changed, the interval is doubled each step (capped
+      at 2^`maxShift`\xD7). A\n late-joiner still gets an immediate keyframe (OnPlayerJoined
+      forces one) and any change resets the\n backoff, so recovery cadence is unchanged
+      for moving objects \u2014 only idle objects stop re-sending."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: ApplySyncConfig
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - UseChecksum
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Re-pushes extrapolation/teleport settings into the receiver. Call after
+      changing them at runtime.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: MigrateSerialized
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - 0f
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 1
+    IsMemberOverride: 0
+    Summary: "Convert content serialized before a field existed. fromVersion 0 =
+      pre-sync-system content (e.g. a\n legacy pickup/vehicle from a mod bundle that
+      never had these fields). Runs at deserialize, before\n Awake, so the schema
+      is built from the converted values. Override + call base for subclass fields."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisAxisCompression
+    MemberName: BasisAxisCompression
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Per-axis wire compression for one continuous component of a parameter.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncedParameters
+    MemberName: BasisSyncedParameters
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisSyncedObject
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Data-driven value sync. Build a list of named parameters in the inspector
+      (each with per-axis\n compression), then on the owner call Set*(name, value)
+      and on every other client read Get*(name)\n \u2014 values arrive smoothed through
+      the same playback buffer as BasisSyncedObject.\n Owner-authoritative (TakeOwnership
+      to become the authority)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: BuildParameterMap
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Resolves every declared parameter into a synced field. Runs once (from
+      Awake); only call it manually\n if you populated Parameters from code before
+      the object goes network-ready. Resolve a\n name to an id once with GetParameterId,
+      then drive it by id to skip the name lookup."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: GetParameterId
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - id
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Resolves a parameter name to a stable id once (like Animator.StringToHash).
+      Cache it and use the\n id-based Set*/Get* overloads to drive the parameter
+      without the per-call name lookup. Returns -1 if\n the name isn't declared."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncedRigidbody
+    MemberName: BasisSyncedRigidbody
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisSyncedObject
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Rigidbody sibling of BasisSyncedTransform. The owner streams the body's
+      world position and\n orientation (with the same per-axis compression and rotation
+      modes) plus linear / angular velocity; every\n other client drives its copy.
+      Remote bodies are made kinematic by default so physics never fights the\n synced
+      pose \u2014 turn that off to feed the synced velocity into a live simulation
+      instead. Owner-authoritative;\n call TakeOwnership() (e.g. on grab) to become
+      the authority."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisRotationSyncMode
+    MemberName: BasisRotationSyncMode
+    Kind: Enum
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: byte
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: How a synced transform encodes orientation on the wire.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisTransformAxisCompression
+    MemberName: BasisTransformAxisCompression
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Per-axis wire compression for a synced transform component.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncedTransform
     MemberName: BasisSyncedTransform
     Kind: Type
@@ -58707,14 +60930,220 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Drop-in transform sync built on BasisSyncedObject. Add it to a moving
-      object or\n pickup; the owner streams its transform and every other client's
-      copy is driven by the Burst\n apply job through the playback buffer. Call BasisNetworkBehaviour.TakeOwnership\n
-      (e.g. on grab) to become the authority.\n\n For custom values, use the code
-      API directly instead:\n ```\n\n var sync = gameObject.AddComponent<BasisSyncedObject>();\n
-      var velocity = sync.RegisterFloat();\n var team     = sync.RegisterUShort();\n
-      // owner:  sync.LocalSet(velocity, speed);  sync.LocalSet(team, 3);\n // remote:
-      float s = sync.GetFloat(velocity); ushort t = sync.GetUShort(team);\n \n```"
+    Summary: "Drop-in transform sync built on BasisSyncedObject. The owner streams
+      the enabled\n axes; every other client's copy is interpolated and composed
+      each frame. Per-axis toggles let\n you sync only what moves (e.g. a door =
+      rotation Y only in Euler mode), the rotation mode picks the\n orientation encoding
+      (smallest-three / quaternion / Euler), uniform scale streams one value to all
+      axes,\n per-axis compression (Half / Ranged) shrinks the float cost, and teleport-threshold
+      tunes late packets.\n\n For custom values use the code API on BasisSyncedObject
+      directly\n (RegisterFloat / RegisterColor / RegisterUShort / ... then LocalSet
+      / RemoteGet)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: EncodePose
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - p
+    - r
+    - p.z
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Writes an arbitrary pose into the enabled position / rotation / scale
+      channels (owner side),\n honouring the configured axis toggles, rotation mode
+      and scale mode. Exposed so a subclass can\n stream a remapped pose \u2014 e.g.
+      a hand-relative offset \u2014 through the same channels that\n OnBeforeTransmit
+      normally fills from the Target. Values are written verbatim (no\n WorldSpace
+      / RelativeTo handling); ComposeSyncedPose returns them unchanged when\n every
+      position axis is synced, which is the decode side a subclass pairs with this."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: ComposeSyncedPose
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - p
+    - r
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Decodes the interpolated pose for the enabled axes (in WorldSpace or
+      local space, matching\n transmit); unsynced channels hold the Target's live
+      value. Subclasses can use this to drive something\n other than the Target transform
+      \u2014 e.g. a Rigidbody with prediction + correction."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisQuantMode
+    MemberName: BasisQuantMode
+    Kind: Enum
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: byte
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: 'How a single continuous (float) component is packed: Raw (32-bit),
+      Half (16-bit), or N-bit Ranged within [Min,Max].'
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisQuantSpec
+    MemberName: BasisQuantSpec
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-component compression for a continuous field. Ranged maps [Min,
+      Max] onto Bits bits\n (step = (Max-Min)/(2^Bits-1)); pick Bits from the precision
+      the allowed distance needs."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: BitCount
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Wire size in bits for this spec.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: Step
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Quantization step (worst-case resolution) for Ranged; 0 for lossless-ish
+      modes.
     Remarks: 
     Returns: 
     Value: 
@@ -58748,6 +61177,76 @@ MonoBehaviour:
     Summary: "Ordered set of typed fields a synced object carries on the wire. Declare
       every field\n before the object goes network-ready (e.g. in Awake); the layout
       is locked afterwards."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncSchema
+    MemberName: AddField
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - type
+    - interpolate
+    - componentSpecs
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Declare a field with explicit per-component compression. specs length
+      should match the field's component count; missing/extra entries default to
+      Raw and are ignored for discrete/rotation fields.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.BasisSyncSchema
+    MemberName: AddRotation
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - interpolate
+    - magnitudeBits
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Declare a smallest-three rotation field with a magnitude-bit budget
+      per component (9 = a 32-bit packet).
     Remarks: 
     Returns: 
     Value: 
@@ -58880,6 +61379,75 @@ MonoBehaviour:
       baseline, stages\n timestamped frames, and interpolates a Current\u2192Next
       window with an adaptive playback rate,\n mirroring the remote-avatar receiver.
       Main-thread only (packets dispatch on the main thread)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: ConsumeValuesDirty
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "True if Current/Next changed since the last call (a new frame was staged
+      or the window advanced), then\n clears. Lets the driver skip re-copying unchanged
+      values into the interpolation pools every frame \u2014\n only the interp fraction
+      needs updating between frame advances."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.Sync.
+    MemberName: ForceSnap
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Request that playback collapse to the freshest received frame on the
+      next Advance,\n skipping interpolation. Use after a discontinuity in what the
+      synced values mean (teleport, or a\n pickup switching between world-space and
+      hand-relative encoding) so the remote copy snaps rather\n than sliding across
+      the jump."
     Remarks: 
     Returns: 
     Value: 
@@ -59500,6 +62068,42 @@ MonoBehaviour:
     Summary: "Pre-computed per-index flag: true when the remote player currently
       has their\n real avatar loaded (InAvatarRange and not fallback). Filled in
       the positions\n loop so managed objects are never touched during sorting."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisTransmissionResults
+    MemberName: MaxAvatarReloadsPerTick
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Max avatar (re)loads admitted per transmit tick when players cross
+      the avatar-range boundary.\n A bulk range change (e.g. the View Range slider
+      0->100 at 1k players) expires every player's\n debounce on the same tick; without
+      this cap they all call ReloadAvatar in one frame, dumping\n ~1000 bundle loads
+      + main-thread calibrations at once. Over-budget transitions stay pending and\n
+      commit on later ticks, ramping the crowd in over a few seconds instead of freezing."
     Remarks: 
     Returns: 
     Value: 
@@ -64402,11 +67006,11 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Gaze-driven Variable Rate Shading for desktop (DirectX 12). Generates
-      a per-frame\n shading rate image that keeps the foveal region sharp (1x1) and
-      coarsens the\n periphery (2x2 then 4x4), then binds it onto URP's opaque and
-      transparent passes.\n Add this only to the Desktop renderer; Quest keeps its
-      native OpenXR foveation."
+    Summary: "Gaze-driven Variable Rate Shading for desktop (DirectX 12). Builds
+      a per-frame\n shading rate image that keeps each eye's foveal region sharp
+      and coarsens the\n periphery, then binds it onto URP's depth, depth-normals,
+      opaque and transparent\n passes. Desktop only; Quest keeps its native OpenXR
+      foveation."
     Remarks: 
     Returns: 
     Value: 
@@ -64438,8 +67042,8 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Debug overlay: paints the produced shading rate image over the final
-      frame so the\n foveal regions are visible (red = 1x1 sharp, green = 2x2, dark
-      blue = 4x4). Enqueued\n only when the feature's Debug Visualize flag is on."
+      frame so the\n foveal regions are visible. Enqueued only when the feature's
+      Debug Visualize flag is on."
     Remarks: 
     Returns: 
     Value: 
@@ -65120,6 +67724,440 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: BasisGlobalNamePlateRenderer
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Merges every remote nameplate into a single panel mesh plus one text
+      mesh per font atlas,\n so the whole lobby's name labels cost ~2 draw calls
+      instead of ~2 per player.\n\n The merged geometry (topology + all vertex channels)
+      is built with CombineMeshes only when\n the baked-plate set changes \u2014
+      a setup-time op, never per frame. Each layer is billboarded one\n of two ways:\n 
+      - GPU (GpuBillboardPanel / GpuBillboardText): plate-local\n    positions +
+      a per-vertex plate id are uploaded once, and each frame the CPU pushes only
+      the\n    small per-plate matrix (+ panel color) buffers \u2014 the vertex shader
+      does the transform.\n  - CPU (fallback): a Burst job transforms the cached
+      local positions by the plates' current\n    matrices and pushes the position
+      buffer with revalidation disabled.\n Hidden plates collapse to a degenerate
+      point via a zero matrix, so visibility needs no rebuild."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: GpuBillboardPanel
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "GPU-billboard the panel layer in its vertex shader instead of transforming
+      + re-uploading\n its vertices on the CPU every frame. Flip to A/B against the
+      CPU path (rebuilds next frame)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: GpuBillboardText
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "GPU-billboard the text layers (forked TMP SDF shader). Flip to A/B
+      against the CPU path;\n the text layers are torn down + rebuilt on change (GPU/CPU
+      use different materials)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: MaxDistance
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Cull plates farther than this many metres from the viewer. 0 disables.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: CullBehind
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Cull plates behind the viewer (and far off to the sides).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: BehindDotThreshold
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "dot(camForward, dirToPlate) below this is culled (-0.25 \u2248 105\xB0
+      off-forward)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: CullOccluded
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Cull plates the viewer can't see through walls (linecast on OcclusionMask).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BasisGlobalNamePlateRenderer
+    MemberName: OcclusionMask
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Environment layers for through-wall occlusion. Empty (0) disables it
+      \u2014 set to your world/scenery layers."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: UseBoneSystemMatrices
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Build per-plate matrices from RemoteBoneJobSystem's computed pose (no
+      Transform /\n isActiveAndEnabled reads). Falls back to the Transform path when
+      the bone system isn't\n ready; flip to force the Transform path for A/B."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: MarkDirty
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Flags the merged geometry for a rebuild next frame (plate baked / removed).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: Rebuild
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - plates
+    - null
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Rebuilds topology if the plate set changed, then transforms positions
+      for the frame.\n Call once per frame after the plate transforms and colors
+      are final."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: Dispose
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - (!initialized
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Runs CombineMeshes once to produce the merged channels + topology.
+      For the GPU path it\n writes the owning plate id into a UV channel and leaves
+      positions plate-local; for the CPU\n path it caches each vertex's local position
+      and plate index for the per-frame transform."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.BuildMatricesJob
+    MemberName: BuildMatricesJob
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: IJobParallelFor
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Per-plate distance/angle cull + local\u2192root matrix from RemoteBoneJobSystem's
+      pose\n (hips + height) with a yaw-to-camera billboard and the uniform nameplate
+      scale \u2014\n replicating MappedNameplateApplyJob. Invoked via Run (Burst,
+      on the calling thread).\n Culled / invisible plates (slot < 0) collapse to
+      zero."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.UI.NamePlate.
     MemberName: Volatile.Read
     Kind: Method
@@ -65139,6 +68177,71 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Raw int for job gather \u2014 avoids bool\u2192ushort conversion."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: RenderActive
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Cached gameObject-active state for the global merge gather, so it never
+      calls the\n (managed\u2192native) isActiveAndEnabled per plate per frame. Maintained
+      by\n Initialize and RefreshActiveState."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: IsGloballyRenderable
+    Kind: Property
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True when this plate is baked and active, so the global merge should
+      include it.
     Remarks: 
     Returns: 
     Value: 
@@ -65265,6 +68368,41 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Time when the current chat message was set, for auto-clear.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: SetGlobalParts
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - panelMesh
+    - textMeshes
+    - DestroyGlobalParts(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Stores freshly baked global-render parts, releasing any previous ones.
+      Called by\n BasisRemoteNamePlateDriver.BakeNameMeshGlobal."
     Remarks: 
     Returns: 
     Value: 
@@ -65531,9 +68669,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "One-time load of the prefab-replacement assets (materials + TMP baking
-      object).\n Baker is parented under the BasisDeviceManagement root so it inherits
-      the\n framework's lifetime instead of needing DontDestroyOnLoad."
+    Summary: "Resolves the panel vertex-color material and primes the global merge
+      renderer.\n If the shader is missing (e.g. stripped from a build), disables
+      the global path so\n plates render per-plate as before instead of going invisible."
     Remarks: 
     Returns: 
     Value: 
@@ -65613,13 +68751,50 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.UI.NamePlate.
+    MemberName: BakeNameMeshGlobal
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - displayName
+    - textTransform)
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Shared baking front-half: pushes the name through the TMP baker and
+      computes the\n panel half-width plus the text submesh transform (horizontal
+      flip, with a uniform\n downscale folded in when the name exceeds MaxPlateHalfWidth).
+      Leaves the baker active\n so callers can read TMPro.TMP_Text.textInfo; callers
+      deactivate it."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.UI.NamePlate.
     MemberName: BakeNameMesh
     Kind: Method
     ParamCount: 3
     ParamNames:
     - displayName
     - filter
-    - null
+    - textTransform)
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -67940,7 +71115,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProvider
+  - TypeFullName: Basis.BasisUI.
     MemberName: List<
     Kind: Method
     ParamCount: 2
@@ -67975,7 +71150,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProvider
+  - TypeFullName: Basis.BasisUI.
     MemberName: FaceTrackingDebugBuilder
     Kind: Field
     ParamCount: 0
@@ -68009,7 +71184,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProvider
+  - TypeFullName: Basis.BasisUI.
     MemberName: EyeTrackingDebugBuilder
     Kind: Field
     ParamCount: 0
@@ -68042,7 +71217,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProvider
+  - TypeFullName: Basis.BasisUI.
     MemberName: TrackerSettingsExtraBuilder
     Kind: Field
     ParamCount: 0
@@ -68075,7 +71250,40 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProvider
+  - TypeFullName: Basis.BasisUI.
+    MemberName: AudioTabExtraBuilder
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "External hook to append a section to the Audio tab. Packages (e.g.\n
+      com.basis.mediaplayer) register a builder that populates the passed-in\n tab
+      content with their own controls."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
     MemberName: new
     Kind: Method
     ParamCount: 0
@@ -68108,7 +71316,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProvider
+  - TypeFullName: Basis.BasisUI.
     MemberName: new
     Kind: Method
     ParamCount: 0
@@ -68329,8 +71537,8 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: "Main menu provider that displays a searchable grid of all connected
-      players.\n Supports filtering by Name and UUID via dropdown.\n Clicking a remote
-      player opens their IndividualPlayerProvider panel."
+      players.\n Search matches against both display name and UUID.\n Clicking a
+      remote player opens their IndividualPlayerProvider panel."
     Remarks: 
     Returns: 
     Value: 
@@ -68344,7 +71552,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SearchMode+UserListController
+  - TypeFullName: Basis.BasisUI.SortMode+UserListController
     MemberName: UserListController
     Kind: Type
     ParamCount: 0
@@ -70429,37 +73637,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
-    MemberName: BasisUIRaycast
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: UI-specific raycasting/interaction helper.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
     MemberName: hoverSphere
     Kind: Field
     ParamCount: 0
@@ -70476,7 +73653,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: Hover Supported Raycasting
+    Summary: UI-specific raycasting/interaction helper.
     Remarks: 
     Returns: 
     Value: 
@@ -70646,6 +73823,39 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+    MemberName: RoleCanHaveMultiple
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - role
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: True if the given role may be held by multiple devices at once (the
+      hands).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: FallbackDeviceID
     Kind: Field
     ParamCount: 0
@@ -70676,7 +73886,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: BasisPointRaycasterRef
     Kind: Field
     ParamCount: 0
@@ -70707,7 +73917,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: HasRaycaster
     Kind: Field
     ParamCount: 0
@@ -70738,7 +73948,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: RaycastCoord
     Kind: Field
     ParamCount: 0
@@ -70769,7 +73979,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: BasisInverseOffsetFromBoneData
     Kind: Method
     ParamCount: 0
@@ -70800,7 +74010,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: HandBiasSplay
     Kind: Field
     ParamCount: 0
@@ -70832,7 +74042,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: HasRayCastOverrideSupport
     Kind: Field
     ParamCount: 0
@@ -70864,7 +74074,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: InitializeTracking
     Kind: Method
     ParamCount: 6
@@ -76001,14 +79211,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Score nearby avatar players and registered BasisGazeTarget objects,
-      pick best target.\n Computes social triangle focus points (left eye, right
-      eye, mouth) for the winner.\n\n Three phases:\n   1) Main thread builds NativeArray
-      inputs (managed reads of FaceIsVisible /\n      transform.position / sticky
-      managed-ref equality have to happen here).\n   2) BasisGazeSelectionJob scores
-      everything in Burst.\n   3) Main thread reads the result, fetches the winning
-      managed BasisGazeTarget\n      reference if applicable, and computes the social
-      triangle yaw/pitch."
+    Summary: "Per-frame gaze tick: VOR head-delta and winner reprojection run every
+      frame; the\n candidate scan + Burst scoring only run at SelectIntervalSeconds
+      cadence."
     Remarks: 
     Returns: 
     Value: 
@@ -76043,6 +79248,314 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Convert a world-space point to canonical yaw/pitch relative to the
       head.\n Canonical: +Z forward, +Y up, +X right."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncApplyTransformTests
+    MemberName: BasisSyncApplyTransformTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "The far side's final step: ApplySyncTransformsJob writes the interpolated
+      pool values onto the\n bound transforms. Verifies the pos+rot / pos-only /
+      rot-only / scale paths, world vs local space, the -1\n \"unbound component
+      untouched\" rule, and the Active==0 skip \u2014 driven through the real Burst
+      job over a real\n TransformAccessArray."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncCodecTests
+    MemberName: BasisSyncCodecTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Contract tests for the schema layout and the wire codec: field-pool
+      offset assignment, the\n lock / field-count limits, lossless round-trips per
+      field type, quantization precision and\n clamping, varint boundaries, and the
+      guarantee that no packet ever exceeds MaxSerializedSize\n (the buffer the sender
+      allocates)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncedParametersTests
+    MemberName: BasisSyncedParametersTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Coverage for the Animator-style parameter ids: a name resolves to a
+      stable id once, and the id-based\n Set*/Get* overloads drive the same field
+      as the name-based ones without the per-call dictionary lookup."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncMultiObjectTests
+    MemberName: BasisSyncMultiObjectTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Coverage for the interactions that only exist once several objects
+      share the wire: the real batch\n coalesce/demux through impairment, the real
+      Burst interpolation over a multi-slot driver SoA (vs the\n managed mirror,
+      at non-zero bases and with an inactive slot), the late-joiner that recovers
+      via a keyframe,\n and the owner cadence (idle keyframe backoff, rotation send
+      threshold) the wire actually carries."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncQuantTests
+    MemberName: BasisSyncQuantTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Coverage for the bit-packed codec and per-component quantization: Raw
+      is bit-exact, Half and\n Ranged stay within their resolution, Ranged clips
+      out of range, bools cost one bit, mixed-mode\n fields survive keyframe + delta,
+      smaller bit widths produce smaller packets, and decoding a\n truncated/corrupt
+      buffer never throws."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncReceiverTests
+    MemberName: BasisSyncReceiverTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Behavioural tests for BasisSyncReceiver (the playback / jitter buffer),
+      driven with\n hand-crafted packet sequences: keyframe gating, delta-on-baseline,
+      stale / duplicate rejection,\n sequence wraparound, teleport snapping, reset,
+      keyframe recovery, and decode robustness."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncSimTests
+    MemberName: BasisSyncSimTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "End-to-end coverage of the offline value-sync simulation: convergence
+      and robustness through the\n real codec + receiver under network impairment,
+      plus a fidelity pin of the harness's managed\n interpolation against the real
+      Burst job."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncTestSupport
+    MemberName: BasisSyncTestSupport
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Shared builders for the sync codec / receiver / sim tests.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Tests.Sync.BasisSyncTransformTests
+    MemberName: BasisSyncTransformTests
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Coverage for the synced-transform encoding choices: per-section Ranged
+      defaults, the Inherit/Raw/Half/Ranged\n mode-to-wire-width mapping, the rotation
+      sync modes (smallest-three, 4-float quaternion Half/Raw, Euler) and\n the uniform-scale
+      single-float saving. These mirror what BasisSyncedTransform registers, validated
+      through\n the real codec."
     Remarks: 
     Returns: 
     Value: 
@@ -77335,11 +80848,21 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Registers every language JSON under\n `Packages/com.basis.framework/BasisUI/Localization/Languages/`\n
-      as an Addressable with address `Languages/{code}` and the\n `language` label
-      that `BasisLocalization` loads at runtime.\n\n \n\nRuns as both a menu item
-      and an AssetPostprocessor\n so dropping a new language file into the folder
-      is enough to wire it\n up \u2014 no manual Addressables bookkeeping required."
+    Summary: "Registers every runtime language JSON as an Addressable with the\n
+      `language` label that `BasisLocalization` loads at runtime.\n\n \n\nAny package
+      can contribute strings, not just the framework: every\n `*.json` whose asset
+      path passes through a `Localization/Languages`\n folder is discovered through
+      the AssetDatabase, so it works\n regardless of how the package was added \u2014
+      embedded under `Packages/`,\n referenced locally, or installed from a registry/git
+      into the read-only\n package cache. Dropping `{code}.json` into\n `<your-package>/.../Localization/Languages/`
+      is enough; files\n that share a language code merge by key at runtime, so a
+      package only ships\n the keys it owns.\n\n\n\nThe SDK editor twin folder is
+      excluded \u2014 those strings belong to\n `BasisEditorLocalization`, which
+      loads from disk via AssetDatabase and\n must not ship in runtime bundles.\n\n\n\nRuns
+      as both a menu item and an AssetPostprocessor so\n importing a package (or
+      editing a language file) auto-registers it \u2014 no\n manual Addressables
+      bookkeeping required. A content rebuild is still needed\n before the strings
+      appear in a player build."
     Remarks: 
     Returns: 
     Value: 
@@ -77610,6 +81133,41 @@ MonoBehaviour:
     IsMemberVirtual: 0
     IsMemberOverride: 0
     Summary: Returns all member entries declared on the given type (no inheritance).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: CreateApiReferenceFoldout
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _db?.BuildIndex(
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Builds just the \"Basis API Reference\" foldout for this editor's target,
+      or null if the type\n has no docs in the DB. Lets a custom inspector keep the
+      reference instead of losing it to its\n CustomEditor override: inherit this
+      class and call this at the end of CreateInspectorGUI."
     Remarks: 
     Returns: 
     Value: 
@@ -78638,7 +82196,7 @@ MonoBehaviour:
     ParamCount: 2
     ParamNames:
     - pageUrl
-    - '''{pageUrl}''."'
+    - '''{BasisMediaUrlRouter.Redact(pageUrl)}''."'
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -78720,11 +82278,45 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Installs the yt-dlp resolver into BasisMediaUrlRouter at startup,\n
-      so any player URL field (e.g. `BasisMediaPlayerStreaming`) steers page URLs\n
-      through yt-dlp while directly-playable streams load unchanged. The player core\n
-      holds no reference to this package; removing the package removes the\n registration
-      (the router falls back to direct loads), with nothing dangling."
+    Summary: "Registers the yt-dlp resolver with BasisMediaUrlRouter at startup,
+      so any\n player URL field (e.g. `BasisMediaPlayerStreaming`) steers page URLs
+      through yt-dlp\n while directly-playable streams load unchanged. The player
+      core holds no reference to this\n package; removing the package removes the
+      registration (the router falls back to direct\n loads, or to another registered
+      resolver), with nothing dangling."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Integration.YtDlp.BasisYtDlpVideoResolver
+    MemberName: BasisYtDlpVideoResolver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: IBasisVideoResolver
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 1
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Routes page URLs (YouTube, Twitch, \u2026) through the in-process yt-dlp
+      resolver. Directly\n playable URLs are declined via CanResolve so the player
+      opens them itself."
     Remarks: 
     Returns: 
     Value: 
@@ -79551,6 +83143,42 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
+    MemberName: ReportLoadError
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - RaiseError(error
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Reports a load failure from an external URL resolver. A resolver that
+      takes ownership via\n BasisMediaUrlRouter resolves asynchronously, so the player
+      can't observe the\n outcome itself \u2014 it calls this (on the main thread)
+      when resolution fails, so the reason\n surfaces through LastErrorMessage and
+      OnError instead of the\n player sitting silently with no media."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: SyncedUrl
     Kind: Property
     ParamCount: 0
@@ -79582,6 +83210,42 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: IBasisVideoResolver
+    MemberName: IBasisVideoResolver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "A URL resolver registered with BasisMediaUrlRouter. Several resolvers\n
+      can be registered at once; the router tries them in descending Priority\n order
+      (registration order breaks ties) until one takes ownership of the load. A\n
+      resolver that declines lets the router fall through to the next one, and finally
+      to a\n direct load. Resolvers route only \u2014 they never gate host trust
+      (that's\n BasisMediaPlayerSecurity)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisMediaUrlRouter
     MemberName: BasisMediaUrlRouter
     Kind: Type
@@ -79599,17 +83263,7 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Optional URL-resolution seam between the player and a higher-level
-      resolver\n (e.g. the yt-dlp integration package). The player core has no reference
-      to any\n integration, so this is how a URL field can steer page URLs through
-      a resolver\n without the player depending on it.\n\n An integration installs
-      Resolver at load (e.g. via\n `RuntimeInitializeOnLoadMethod`). Callers with
-      a raw URL hand it to\n TryResolveAndLoad: the resolver either takes ownership
-      of the load\n (resolving a page URL to its stream(s) and loading them, possibly
-      async) and\n returns true, or returns false to let the caller load the URL
-      directly. When no\n integration is installed Resolver is null and every URL
-      loads\n directly \u2014 identical to having no integration at all. This routes
-      only; it never\n blocks a URL (host trust is enforced separately by BasisMediaPlayerSecurity)."
+    Summary: Higher runs first; equal priorities run in the order they registered.
     Remarks: 
     Returns: 
     Value: 
@@ -79624,10 +83278,11 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisMediaUrlRouter
-    MemberName: Resolver
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
+    MemberName: Register
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - resolver
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -79640,9 +83295,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Installed by an optional integration. Returns true if it took ownership
-      of the\n load for the given URL, false to let the caller load it directly.
-      Null when no\n integration is present."
+    Summary: "Registers `resolver` so TryResolveAndLoad consults it,\n keeping the
+      list ordered by descending IBasisVideoResolver.Priority\n (registration order
+      breaks ties). Registering the same instance twice is a no-op."
     Remarks: 
     Returns: 
     Value: 
@@ -79656,13 +83311,46 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisMediaUrlRouter
+  - TypeFullName: 
+    MemberName: Unregister
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - Resolvers.Remove(resolver
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Removes a resolver registered via Register. Returns false if it wasn't
+      registered.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
     MemberName: TryResolveAndLoad
     Kind: Method
     ParamCount: 2
     ParamNames:
     - player
-    - url
+    - i++
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -79675,9 +83363,9 @@ MonoBehaviour:
     IsMemberConst: 0
     IsMemberVirtual: 0
     IsMemberOverride: 0
-    Summary: "Routes `url` through the installed resolver, if any. Returns\n true
-      when the resolver took ownership (the caller should not also load); false\n
-      when there is no resolver or it declined (the caller loads directly)."
+    Summary: "Routes `url` through the registered resolvers in priority order.\n
+      Returns true as soon as one takes ownership (the caller should not also load);
+      false\n when none handle it (the caller loads directly)."
     Remarks: 
     Returns: 
     Value: 
@@ -79691,7 +83379,7 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisMediaUrlRouter
+  - TypeFullName: 
     MemberName: IsDirectlyPlayable
     Kind: Method
     ParamCount: 1
@@ -79716,6 +83404,81 @@ MonoBehaviour:
       watch page) and needs a resolver. This is the single\n source of truth for
       the live-vs-resolve steering; resolvers and callers both\n consult it. It classifies
       only \u2014 it never blocks (host trust is separate)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Redact
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - cut
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "A log-safe form of `url` \u2014 the scheme, host and path with the
+      query and\n fragment dropped, since those can carry signed tokens or private
+      identifiers that\n shouldn't reach logs. Returns the input unchanged when it
+      has no query/fragment, and a\n placeholder for null/blank."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: NormalizeUrl
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - '''\\'''
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Guarantees `url` carries a scheme so it can route and load as an\n
+      absolute URL. A bare web URL with no scheme (e.g. \"www.youtube.com/watch?v=\u2026\")
+      gets\n \"https://\" prepended, and a protocol-relative URL (\"//host/\u2026\")
+      gets \"https:\"; anything\n that already has a scheme (http(s)/rtsp/rtmp/rist/file/\u2026)
+      or is a local path (a single\n leading slash, a backslash UNC path like \\\\server\\share,
+      or a drive letter like C:\\) is\n returned trimmed but otherwise unchanged.
+      Because \"//host/\u2026\" is read as a protocol-relative\n web URL, a network
+      path must use the backslash UNC form (or a file:// URL), not forward\n slashes.
+      Null/whitespace passes through untouched."
     Remarks: 
     Returns: 
     Value: 
@@ -87026,6 +90789,40 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Network.Core.BasisDisplayNameSanitizer
+    MemberName: BasisDisplayNameSanitizer
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Normalizes player display names so a name that renders blank cannot
+      slip\n through. Strips control, format and known invisible glyphs, folds Unicode\n
+      whitespace to spaces and trims. Returns string.Empty when\n nothing renderable
+      remains."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Network.Core.BasisNetworkCommons
     MemberName: MaxConnections
     Kind: Field
@@ -89791,6 +93588,40 @@ MonoBehaviour:
     Summary: "Per-category bitmask of camera photo-metadata embedding categories
       disallowed for all\n clients. 0 = everything allowed (default). Seeds BasisGlobalLockManager
       at boot and is\n broadcast to clients in GlobalGetLockState."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Configuration
+    MemberName: CilboxLocked
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "When true, every client blocks sandboxed Cilbox code on avatars from
+      running; props and\n worlds keep their own. Seeds BasisGlobalLockManager at
+      boot and can be toggled live from the\n admin panel; the state is broadcast
+      to clients in GlobalGetLockState. Default off."
     Remarks: 
     Returns: 
     Value: 
@@ -103409,6 +107240,39 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisNetworkServer.Security.
+    MemberName: ToggleCilbox
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - _cilboxLocked
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 1
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: Toggle the global Cilbox lock. Returns the new state (true = sandboxed
+      Cilbox code blocked).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.Security.
     MemberName: SetCameraMetadataDisallowMask
     Kind: Method
     ParamCount: 1
@@ -112959,6 +116823,40 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Shims.BasisCilboxLockBridge
+    MemberName: BasisCilboxLockBridge
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: 
+    Interfaces: []
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 1
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Bridges the server-pushed global Cilbox admin lock to the sandbox runtime.
+      While the lock is\n set, avatar boxes (the ones that opt in via ObeysGlobalDisable)
+      abort in InterpreterEntry, so\n no sandboxed avatar code runs. This is the
+      only assembly that references both the Basis\n network layer and Cilbox."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Shims.
     MemberName: Unsubscribe
     Kind: Method
@@ -113546,6 +117444,42 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Network.Vehicles.BasisNetworkedVehicle
+    MemberName: BasisNetworkedVehicle
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    BaseTypeName: BasisSyncedTransform
+    Interfaces:
+    - IBasisStaticLockable
+    IsAbstract: 0
+    IsSealed: 0
+    IsStatic: 0
+    IsPartial: 0
+    IsMemberStatic: 0
+    IsMemberReadOnly: 0
+    IsMemberConst: 0
+    IsMemberVirtual: 0
+    IsMemberOverride: 0
+    Summary: "Networked vehicle built on BasisSyncedTransform: the body transform
+      plus per-wheel\n spin, per-steer angle, engine revs and steer ratio are synced
+      as typed fields and interpolated by\n the central sync engine. The local pilot
+      (seat occupant) takes ownership and drives the physics;\n every other client
+      interpolates the body + visuals."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Network.Vehicles.BasisNetworkedVehicle
     MemberName: IsLocked
     Kind: Property
     ParamCount: 0
@@ -113583,7 +117517,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - isStatic
+    - null
     ParamDocs: []
     BaseTypeName: 
     Interfaces: []
@@ -113598,8 +117532,8 @@ MonoBehaviour:
     IsMemberOverride: 0
     Summary: "Apply or release the server-authoritative static / locked state (IBasisStaticLockable).\n
       Locking freezes the rigidbody and disables wheels on every client; unlocking
-      restores the normal\n owner/remote state. The Simulate loop is also short-circuited
-      while locked (see Simulate)."
+      restores the normal\n owner/remote state. Sync transmit + apply are short-circuited
+      while locked."
     Remarks: 
     Returns: 
     Value: 
