@@ -7532,7 +7532,7 @@
     },
     {
       "key": "settings.admin.title.lockCilbox.tooltip",
-      "value": "Block sandboxed Cilbox code on avatars from running for everyone. Props and worlds keep their own scripts. Running avatar scripts stop at their next call; new ones never start. Admins are not exempt."
+      "value": "Strip sandboxed Cilbox code from avatars as they load so their scripts can't run. Applies to avatars loaded while this is on; anyone already loaded keeps theirs until they reload. Props and worlds are unaffected. Admins are not exempt."
     },
     {
       "key": "settings.admin.minAvatarHeight",

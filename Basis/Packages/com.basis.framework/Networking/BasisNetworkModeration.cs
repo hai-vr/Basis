@@ -740,9 +740,9 @@ public static class BasisNetworkModeration
     public static event Action<bool> OnGlobalDirectConnectLockedChanged;
 
     /// <summary>
-    /// Server-pushed lock: while true, sandboxed Cilbox code on avatars is blocked from running on
-    /// every client. Props and worlds keep their own trusted Cilbox. Drives Cilbox.GloballyDisabled
-    /// through the shim bridge.
+    /// Server-pushed lock: while true, every avatar that loads has its Cilbox sandbox host + proxies
+    /// stripped by ContentPolice, so no avatar script runs. Load-time only — avatars already loaded
+    /// keep their Cilbox until they reload. Props and worlds keep their own Cilbox.
     /// </summary>
     public static bool GlobalCilboxLocked { get; private set; }
 

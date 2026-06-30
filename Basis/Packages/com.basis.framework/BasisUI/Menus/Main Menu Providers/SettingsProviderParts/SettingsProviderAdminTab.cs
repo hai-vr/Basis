@@ -128,7 +128,7 @@ namespace Basis.BasisUI
             PanelToggle cilboxLock = PanelToggle.CreateNewEntry(container);
             cilboxLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockCilbox"));
             cilboxLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockCilbox.tooltip"));
-            cilboxLock.Descriptor.SetDescription("Blocks sandboxed Cilbox code on avatars from running for every connected player. Props and worlds keep their own scripts. Running avatar scripts stop at their next call; new ones never start. Admins are not exempt.");
+            cilboxLock.Descriptor.SetDescription("Strips sandboxed Cilbox code from avatars as they load, so their scripts can't run. Applies to avatars loaded while this is on; anyone already loaded keeps theirs until they reload. Props and worlds are unaffected. Admins are not exempt.");
             cilboxLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCilboxLocked);
             cilboxLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCilbox();
 

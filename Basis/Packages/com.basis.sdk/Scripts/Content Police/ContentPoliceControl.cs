@@ -12,6 +12,19 @@ public static class ContentPoliceControl
     public static bool ShaderPrewarmEnabled = false;
     public static bool MaterialCorrectionEnabled = false;
 
+    // Server-pushed admin lock, mirrored from BasisNetworkModeration.GlobalCilboxLocked by the
+    // shim bridge. While set, the avatar content walk strips the Cilbox sandbox host + proxies so
+    // no avatar script runs. Avatar content only — props and worlds keep their own Cilbox.
+    public static bool AvatarCilboxLocked = false;
+
+    // Cilbox lives in com.cnlohr.cilbox which this assembly does not reference, so the lock strip
+    // matches by full type name: the avatar sandbox host and its per-behaviour proxies.
+    private static readonly HashSet<string> LockedAvatarCilboxTypeNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "Cilbox.CilboxAvatarBasis",
+        "Cilbox.CilboxProxy",
+    };
+
     /// <summary>
     /// Creates a copy of a GameObject, removes any unapproved MonoBehaviours, and returns the cleaned copy through instantiation. 
     /// </summary>
@@ -151,6 +164,17 @@ public static class ContentPoliceControl
                             renderersForPrewarm.Add(vfxRenderer);
                             break;
                     }
+                    // Admin Cilbox lock: strip the sandbox host + proxies from avatar content even
+                    // though they're normally approved, so no avatar script can run. Avatar selector
+                    // only — props and worlds keep their own Cilbox.
+                    if (AvatarCilboxLocked && Selector == BundledContentHolder.Selector.Avatar
+                        && component != null && LockedAvatarCilboxTypeNames.Contains(component.GetType().FullName))
+                    {
+                        GameObject.DestroyImmediate(component);
+                        if (kinds != null) kinds[Index] = BasisComponentKind.Removed;
+                        continue;
+                    }
+
                     // Check if the component is a MonoBehaviour and not in the approved list
                     if (component is UnityEngine.Component monoBehaviour)
                     {

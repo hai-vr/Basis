@@ -3,10 +3,10 @@ using UnityEngine;
 namespace Basis.Shims
 {
 	/// <summary>
-	/// Bridges the server-pushed global Cilbox admin lock to the sandbox runtime. While the lock is
-	/// set, avatar boxes (the ones that opt in via ObeysGlobalDisable) abort in InterpreterEntry, so
-	/// no sandboxed avatar code runs. This is the only assembly that references both the Basis
-	/// network layer and Cilbox.
+	/// Mirrors the server-pushed admin Cilbox lock into ContentPolice. While set, ContentPolice
+	/// strips the Cilbox sandbox host + proxies from each avatar as it loads, so no avatar script
+	/// runs. Props and worlds keep their own Cilbox. Load-time only — avatars already loaded keep
+	/// their Cilbox until they reload.
 	/// </summary>
 	public static class BasisCilboxLockBridge
 	{
@@ -20,7 +20,7 @@ namespace Basis.Shims
 
 		private static void Apply(bool locked)
 		{
-			BasisDebug.LogError("Not Implementated!");
+			ContentPoliceControl.AvatarCilboxLocked = locked;
 		}
 	}
 }
