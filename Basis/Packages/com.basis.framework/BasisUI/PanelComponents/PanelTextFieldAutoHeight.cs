@@ -73,7 +73,12 @@ namespace Basis.BasisUI
             _fieldLayout.minHeight = target;
             _fieldLayout.preferredHeight = target;
             _fieldRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, target);
-            LayoutRebuilder.MarkLayoutForRebuild(_fieldRect);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)transform);
+            if (transform.parent is RectTransform parentRect)
+            {
+                LayoutRebuilder.MarkLayoutForRebuild(parentRect);
+            }
         }
 
         private void OnDestroy()

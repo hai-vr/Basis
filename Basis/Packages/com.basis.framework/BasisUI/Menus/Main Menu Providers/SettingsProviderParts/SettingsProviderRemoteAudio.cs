@@ -4,6 +4,7 @@ using SteamAudio;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 using Basis.Scripts.Settings;
 
 namespace Basis.BasisUI
@@ -81,8 +82,11 @@ namespace Basis.BasisUI
             }
         }
 
-        public static void BuildRemoteAudioUI(RectTransform container, PanelElementDescriptor tabDescriptor = null)
+        public static void BuildRemoteAudioUI(RectTransform container)
         {
+            RectTransform layoutRoot = container;
+            void RebuildLayout() => LayoutRebuilder.ForceRebuildLayoutImmediate(layoutRoot);
+
             // ─────────────── LISTENER DIRECTIONAL DAMPENING (always visible) ───────────────
             PanelElementDescriptor listenerDampenGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -121,7 +125,7 @@ namespace Basis.BasisUI
             sliderListenerConeAngle.OnValueChanged += (val) =>
             {
                 sliderListenerDampenAmount.Descriptor.SetActive(val < 360f);
-                listenerDampenGroup.ForceRebuild();
+                RebuildLayout();
             };
 
             // ─────────────── ADVANCED ───────────────
@@ -155,7 +159,7 @@ namespace Basis.BasisUI
                     "Multiplier on the per-player AudioClip length used by Unity's AudioSource.\n" +
                     "Lower = tighter coupling to the decoded queue (less latency, more sensitive\n" +
                     "to underruns). Default: 2. Live audio sources reload in place when changed.");
-            }, false, _ => tabDescriptor?.ForceRebuild());
+            }, false, _ => RebuildLayout());
 
             // ─────────────── AUDIO SOURCE (advanced) ───────────────
             PanelSlider sliderMaxAudioSources = null;
@@ -181,7 +185,7 @@ namespace Basis.BasisUI
                 toggleLimitAudio.OnValueChanged += (val) =>
                 {
                     sliderMaxAudioSources.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
 
                 PanelSlider sliderMinDistance = PanelSlider.CreateEntryAndBind(
@@ -241,7 +245,7 @@ namespace Basis.BasisUI
                     sliderCurvePoint25.Descriptor.SetActive(custom && userDefined);
                     sliderCurvePoint50.Descriptor.SetActive(custom && userDefined);
                     sliderCurvePoint75.Descriptor.SetActive(custom && userDefined);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
 
                 dropdownCurvePreset.OnValueChanged += (val) =>
@@ -250,7 +254,7 @@ namespace Basis.BasisUI
                     sliderCurvePoint25.Descriptor.SetActive(userDefined);
                     sliderCurvePoint50.Descriptor.SetActive(userDefined);
                     sliderCurvePoint75.Descriptor.SetActive(userDefined);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
                 /*
                 PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
@@ -286,7 +290,7 @@ namespace Basis.BasisUI
                     sliderCurvePoint50.Descriptor.SetActive(custom && userDefined);
                     sliderCurvePoint75.Descriptor.SetActive(custom && userDefined);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
 
             // ─────────────── STEAM AUDIO - HRTF (advanced) ───────────────
@@ -329,7 +333,7 @@ namespace Basis.BasisUI
                     //togglePerspectiveCorrection.Descriptor.SetActive(val);
                     dropdownInterpolation.Descriptor.SetActive(val);
                     dropdownHrtfProfile.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
             }, false, visible =>
             {
@@ -339,7 +343,7 @@ namespace Basis.BasisUI
                     dropdownInterpolation.Descriptor.SetActive(binauralOn);
                     dropdownHrtfProfile.Descriptor.SetActive(binauralOn);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
 
             // ─────────────── STEAM AUDIO - PROPAGATION (advanced) ───────────────
@@ -370,7 +374,7 @@ namespace Basis.BasisUI
                 toggleDistanceAttenuation.OnValueChanged += (val) =>
                 {
                     dropdownDistanceAttenuationInput.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
 
                 PanelToggle toggleAirAbsorption = PanelToggle.CreateNewEntry(container);
@@ -419,7 +423,7 @@ namespace Basis.BasisUI
                     sliderAirAbsorptionLow.Descriptor.SetActive(val && userDefined);
                     sliderAirAbsorptionMid.Descriptor.SetActive(val && userDefined);
                     sliderAirAbsorptionHigh.Descriptor.SetActive(val && userDefined);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
 
                 dropdownAirAbsorptionInput.OnValueChanged += (val) =>
@@ -429,7 +433,7 @@ namespace Basis.BasisUI
                     sliderAirAbsorptionLow.Descriptor.SetActive(enabled && userDefined);
                     sliderAirAbsorptionMid.Descriptor.SetActive(enabled && userDefined);
                     sliderAirAbsorptionHigh.Descriptor.SetActive(enabled && userDefined);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
             }, false, visible =>
             {
@@ -443,7 +447,7 @@ namespace Basis.BasisUI
                     sliderAirAbsorptionMid.Descriptor.SetActive(airOn && airUserDefined);
                     sliderAirAbsorptionHigh.Descriptor.SetActive(airOn && airUserDefined);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
 
             // ─────────────── STEAM AUDIO - DIRECTIVITY (advanced) ───────────────
@@ -477,7 +481,7 @@ namespace Basis.BasisUI
                 {
                     sliderDipoleWeight.Descriptor.SetActive(val);
                     sliderDipolePower.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
             }, false, visible =>
             {
@@ -487,7 +491,7 @@ namespace Basis.BasisUI
                     sliderDipoleWeight.Descriptor.SetActive(directivityOn);
                     sliderDipolePower.Descriptor.SetActive(directivityOn);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
 
             // ─────────────── STEAM AUDIO - OCCLUSION (advanced) ───────────────
@@ -532,7 +536,7 @@ namespace Basis.BasisUI
                     dropdownOcclusionType.Descriptor.SetActive(val);
                     sliderOcclusionRadius.Descriptor.SetActive(val);
                     sliderOcclusionSamples.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
             }, false, visible =>
             {
@@ -543,7 +547,7 @@ namespace Basis.BasisUI
                     sliderOcclusionRadius.Descriptor.SetActive(occlusionOn);
                     sliderOcclusionSamples.Descriptor.SetActive(occlusionOn);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
 
             // ─────────────── STEAM AUDIO - TRANSMISSION (advanced) ───────────────
@@ -579,7 +583,7 @@ namespace Basis.BasisUI
                 {
                     dropdownTransmissionType.Descriptor.SetActive(val);
                     sliderMaxTransmissionSurfaces.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
             }, false, visible =>
             {
@@ -589,7 +593,7 @@ namespace Basis.BasisUI
                     dropdownTransmissionType.Descriptor.SetActive(transmissionOn);
                     sliderMaxTransmissionSurfaces.Descriptor.SetActive(transmissionOn);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
             /*
             // ─────────────── STEAM AUDIO - MIX GROUP ───────────────
@@ -659,7 +663,7 @@ namespace Basis.BasisUI
                 toggleLimitLipSync.OnValueChanged += (val) =>
                 {
                     sliderLipSyncSlots.Descriptor.SetActive(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildLayout();
                 };
             }, false, visible =>
             {
@@ -667,11 +671,11 @@ namespace Basis.BasisUI
                 {
                     sliderLipSyncSlots.Descriptor.SetActive(BasisSettingsDefaults.UseOpenLipSyncLimit.RawValue);
                 }
-                tabDescriptor?.ForceRebuild();
+                RebuildLayout();
             });
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(advancedToggle, advancedGroup, false,
-                _ => tabDescriptor?.ForceRebuild());
+                _ => RebuildLayout());
         }
 
         public static void ResetRemoteAudioToDefaults()

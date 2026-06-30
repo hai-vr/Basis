@@ -852,7 +852,7 @@ namespace Basis.BasisUI
 
             // Remote Players (Spatial Audio) — also hosts Hearing Range and the
             // Audio Source cap, since both are "how do I hear other players" controls.
-            SettingsProviderRemoteAudio.BuildRemoteAudioUI(container, descriptor);
+            SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
 
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.audio", ResetAudioDefaults);

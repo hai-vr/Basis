@@ -131,6 +131,8 @@ namespace Basis.Scripts.Networking.Receivers
         private const float CatchupGain = 0.12f;          // 0.05..0.25 tune
         private const float MinPlaybackRate = 0.85f;
         private const float MaxPlaybackRate = 1.35f;
+        // EMA time constant (s) for the applied playback rate, smooths rate steps.
+        private const float RateSmoothingTau = 0.20f;
 
         // Adaptive jitter buffer depth. Floors at MinJitterDepth = 1 (one packet of
         // baseline cushion so the slowdown branch only fires on actual starvation, not
@@ -144,9 +146,11 @@ namespace Basis.Scripts.Networking.Receivers
         public static float InitialJitterDepth = 1f;
         private const float DepthBumpOnUnderrun = 0.5f;
         private const float DepthDecayPerSecond = 0.5f;
-        // Backlog within this many packets of the target is treated as noise —
-        // playback stays at rate 1.0 instead of snapping to MaxPlaybackRate.
-        private const float CatchupDeadband = 1.0f;
+        // Hysteretic catch-up band: stay at rate 1.0 until backlog exceeds Enter, then
+        // drain down to Exit before disengaging. The gap stops the boundary chattering
+        // green<->amber on routine +/-1-packet jitter.
+        private const float CatchupEnterDeadband = 2.0f;
+        private const float CatchupExitDeadband = 1.0f;
         // When true, every receiver's _dynamicJitterDepth is hard-pinned to MinJitterDepth
         // each frame: decay-toward-floor and bump-on-underrun are both skipped, so the
         // depth never drifts. Lets the user pick a fixed cushion via the override setting
@@ -154,6 +158,7 @@ namespace Basis.Scripts.Networking.Receivers
         public static bool JitterDepthLocked = false;
         private float _dynamicJitterDepth = InitialJitterDepth;
         private float _lastPlaybackRate = 1f;
+        private bool _catchingUp;
 
         // Received bytes-on-wire metering for the per-player network gizmos. Accumulated off the
         // main thread in AccountReceivedBytes (Interlocked) and windowed into a rate in ComputeData.
@@ -440,22 +445,28 @@ namespace Basis.Scripts.Networking.Receivers
                 }
                 float diff = (float)StagedCount - _dynamicJitterDepth;
                 float rate;
-                if (diff > CatchupDeadband)
-                {
-                    rate = 1f + CatchupGain * (diff - CatchupDeadband);
-                }
-                else if (diff < 0f)
+                if (diff < 0f)
                 {
                     rate = 1f + CatchupGain * diff;
+                    _catchingUp = false;
                 }
                 else
                 {
-                    rate = 1f;
+                    if (_catchingUp)
+                    {
+                        if (diff <= CatchupExitDeadband) _catchingUp = false;
+                    }
+                    else if (diff > CatchupEnterDeadband)
+                    {
+                        _catchingUp = true;
+                    }
+                    rate = _catchingUp ? 1f + CatchupGain * (diff - CatchupExitDeadband) : 1f;
                 }
                 rate = math.clamp(rate, MinPlaybackRate, MaxPlaybackRate);
-                _lastPlaybackRate = rate;
+                float rateSmoothing = 1f - math.exp(-(float)unscaledDeltaTime / RateSmoothingTau);
+                _lastPlaybackRate = math.lerp(_lastPlaybackRate, rate, rateSmoothing);
 
-                interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
+                interpolationTime += (unscaledDeltaTime / windowDuration * (double)_lastPlaybackRate);
                 if (!math.isfinite(interpolationTime))
                 {
                     interpolationTime = 1;
@@ -568,6 +579,7 @@ namespace Basis.Scripts.Networking.Receivers
             interpolationTime = 0f;
             _dynamicJitterDepth = InitialJitterDepth;
             _lastPlaybackRate = 1f;
+            _catchingUp = false;
             // Clear any packets that arrived before init (rare, but safe)
             while (PayloadQueue.TryDequeue(out var buf))
             {

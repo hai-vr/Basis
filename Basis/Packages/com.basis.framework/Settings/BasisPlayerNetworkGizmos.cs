@@ -11,7 +11,7 @@ using UnityEngine;
 /// Each remote player whose pose buffer is interpolating gets:
 ///  • a line from the last received hips pose (from) to the target hips pose (to),
 ///  • a sphere riding that line at the live interpolated position,
-///  • a small marker at 'to', and an optional billboarded label (name, interp %, buffer depth, rate).
+///  • a small marker at 'to', and an optional billboarded label (interp %, buffer depth, rate).
 ///
 /// Colour tracks playback health off the receiver's adaptive rate: green at rate 1.0, red as it
 /// slows to avoid an underrun (starving), amber as it speeds up to clear a backlog. The Player
@@ -193,9 +193,7 @@ public static class BasisPlayerNetworkGizmos
     private static string BuildLabel(BasisNetworkReceiver r, bool showState, bool showBw)
     {
         _text.Clear();
-        string name = r.displayName;
-        if (string.IsNullOrEmpty(name)) _text.Append('#').Append(r.playerId);
-        else _text.Append(name).Append(" #").Append(r.playerId);
+        _text.Append('#').Append(r.playerId);
 
         if (showState)
         {

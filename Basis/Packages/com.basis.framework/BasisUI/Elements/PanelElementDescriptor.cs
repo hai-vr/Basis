@@ -95,6 +95,7 @@ namespace Basis.BasisUI
         protected string _tooltip;
         private bool _titleSet;
         private bool _descriptionSet;
+        private bool _iconSet;
 
         protected bool _iconIsAddressable;
 
@@ -127,15 +128,15 @@ namespace Basis.BasisUI
             if (IconImage && !IconBackground) IconBackground = IconImage.gameObject;
             if (_clearOnAwake)
             {
-                SetIcon((Sprite)null);
-                SetTitle(string.Empty);
-                SetDescription(string.Empty);
+                if (!_iconSet) SetIcon((Sprite)null);
+                if (!_titleSet) SetTitle(string.Empty);
+                if (!_descriptionSet) SetDescription(string.Empty);
             }
             else
             {
-                SetIcon(DefaultIcon);
-                SetTitle(DefaultTitle);
-                SetDescription(DefaultDescription);
+                if (!_iconSet) SetIcon(DefaultIcon);
+                if (!_titleSet) SetTitle(DefaultTitle);
+                if (!_descriptionSet) SetDescription(DefaultDescription);
             }
         }
 
@@ -154,7 +155,7 @@ namespace Basis.BasisUI
                 value = DefaultIcon;
             }
 
-
+            _iconSet = true;
             _iconSprite = value;
             IconBackground.gameObject.SetActive(value);
             IconImage.enabled = value;

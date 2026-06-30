@@ -7,10 +7,10 @@ namespace Basis.BasisUI
 {
     public static class SettingsProviderNetworkTab
     {
-        // Steady-state cushion used when the user hasn't enabled the manual override.
-        // Matches the default in BasisNetworkReceiver so toggling the override off
-        // restores stock behaviour rather than whatever the slider last held.
-        private const int DefaultJitterDepth = 1;
+        // Steady-state cushion applied when the user hasn't enabled the manual override.
+        // This is the stock target depth; toggling the override off restores it rather
+        // than whatever the slider last held.
+        private const int DefaultJitterDepth = 2;
 
         [RuntimeInitializeOnLoadMethod]
         static void Init()
