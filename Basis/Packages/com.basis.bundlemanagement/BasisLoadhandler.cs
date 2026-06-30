@@ -217,11 +217,19 @@ public static class BasisLoadHandler
         return $"{url}|{HashUnlockPassword(loadableBundle?.UnlockPassword)}";
     }
 
+    // Hashing the unlock password (SHA256.Create + ComputeHash) is the bulk of GetBundleKey's
+    // cost and the key is recomputed several times per load for the same (usually empty) password.
+    // Memoize per distinct password so it is paid once.
+    private static readonly ConcurrentDictionary<string, string> _passwordHashCache = new ConcurrentDictionary<string, string>();
+
     private static string HashUnlockPassword(string unlockPassword)
     {
-        using SHA256 sha = SHA256.Create();
-        byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(unlockPassword ?? string.Empty));
-        return BitConverter.ToString(hash).Replace("-", string.Empty);
+        return _passwordHashCache.GetOrAdd(unlockPassword ?? string.Empty, password =>
+        {
+            using SHA256 sha = SHA256.Create();
+            byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
+            return BitConverter.ToString(hash).Replace("-", string.Empty);
+        });
     }
 
     public static bool IsUrlLoadedInMemory(string remoteUrl)

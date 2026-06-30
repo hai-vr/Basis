@@ -235,16 +235,24 @@ namespace Basis.Scripts.Drivers
         /// <summary>Which detail level of colliders is currently registered with the jiggle system.</summary>
         public BasisJiggleColliderTier RegisteredColliderTier = BasisJiggleColliderTier.Full;
 
+        // Retained so deferred finger colliders can be built lazily on LOD tier-up (see ApplyColliderLOD).
+        private BasisTransformMapping _jiggleColliderMapping;
+        private bool _fingersBuilt;
+
         /// <summary>
         /// Creates a set of jiggle colliders for the provided mapping and registers them with the global <see cref="JigglePhysics"/>.
         /// </summary>
         /// <param name="Mapping">Bone transform mapping used to generate colliders for feet and hands/fingers.</param>
+        /// <param name="allowColliderLOD">When true (remote avatars), finger colliders may be deferred and built on demand by the distance LOD instead of at load.</param>
         /// <remarks>
         /// Feet receive a slightly larger default collider radius than hands/fingers.
         /// Created colliders are cached in <see cref="JiggleColliders"/> and added via <see cref="JigglePhysics.AddJiggleCollider(JiggleColliderSerializable)"/>.
         /// </remarks>
-        public void AddJiggleRigColliders(BasisTransformMapping Mapping)
+        public void AddJiggleRigColliders(BasisTransformMapping Mapping, bool allowColliderLOD = false)
         {
+            _jiggleColliderMapping = Mapping;
+            _fingersBuilt = false;
+
             JiggleCollidersFeet.Clear();
             JiggleCollidersArms.Clear();
             JiggleCollidersHands.Clear();
@@ -268,6 +276,35 @@ namespace Basis.Scripts.Drivers
             JiggleCreatorHelperCapsule(JiggleCollidersArms, new Transform[] { Mapping.RightUpperArm, Mapping.RightLowerArm, Mapping.rightHand }, 0.025f, addTipSphere: false);
             JiggleCreatorHelper(JiggleCollidersHands, Mapping.rightHand, 0.015f);
 
+            // Fingers are the bulk of the build cost and the first category the distance LOD drops.
+            // For remote avatars with the LOD on, skip them at load and register at NoFingers; the LOD
+            // pass builds them lazily only if the avatar turns out to be close enough to need them.
+            bool deferFingers = allowColliderLOD && BasisJiggleColliderLOD.Enabled;
+            if (!deferFingers)
+            {
+                BuildFingerColliders(Mapping);
+                _fingersBuilt = true;
+            }
+
+            JiggleColliders.Clear();
+            int total = JiggleCollidersFeet.Count + JiggleCollidersArms.Count + JiggleCollidersHands.Count + JiggleCollidersFingers.Count;
+            if (JiggleColliders.Capacity < total) JiggleColliders.Capacity = total;
+            JiggleColliders.AddRange(JiggleCollidersFeet);
+            JiggleColliders.AddRange(JiggleCollidersArms);
+            JiggleColliders.AddRange(JiggleCollidersHands);
+            JiggleColliders.AddRange(JiggleCollidersFingers);
+
+            HasJiggleColliders = total > 0 || deferFingers;
+            RegisteredColliderTier = deferFingers ? BasisJiggleColliderTier.NoFingers : BasisJiggleColliderTier.Full;
+
+            // Batch-add the full set at once to avoid O(n²) dedup in JiggleMemoryBus. The distance
+            // LOD pass (BasisTransmissionResults) trims remote avatars back down afterward.
+            JigglePhysics.AddJiggleColliders(JiggleColliders);
+        }
+
+        private void BuildFingerColliders(BasisTransformMapping Mapping)
+        {
+            JiggleCollidersFingers.Clear();
             JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftThumb);
             JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftIndex);
             JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.LeftMiddle);
@@ -279,21 +316,6 @@ namespace Basis.Scripts.Drivers
             JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightMiddle);
             JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightRing);
             JiggleCreatorHelperCapsule(JiggleCollidersFingers, Mapping.RightLittle);
-
-            JiggleColliders.Clear();
-            int total = JiggleCollidersFeet.Count + JiggleCollidersArms.Count + JiggleCollidersHands.Count + JiggleCollidersFingers.Count;
-            if (JiggleColliders.Capacity < total) JiggleColliders.Capacity = total;
-            JiggleColliders.AddRange(JiggleCollidersFeet);
-            JiggleColliders.AddRange(JiggleCollidersArms);
-            JiggleColliders.AddRange(JiggleCollidersHands);
-            JiggleColliders.AddRange(JiggleCollidersFingers);
-
-            HasJiggleColliders = total > 0;
-            RegisteredColliderTier = BasisJiggleColliderTier.Full;
-
-            // Batch-add the full set at once to avoid O(n²) dedup in JiggleMemoryBus. The distance
-            // LOD pass (BasisTransmissionResults) trims remote avatars back down afterward.
-            JigglePhysics.AddJiggleColliders(JiggleColliders);
         }
 
         /// <summary>
@@ -310,6 +332,15 @@ namespace Basis.Scripts.Drivers
 
             bool[] cur = BasisJiggleColliderLOD.ActiveCategories(RegisteredColliderTier);
             bool[] next = BasisJiggleColliderLOD.ActiveCategories(target);
+
+            // Build the deferred finger colliders the first time a tier actually needs them, and add
+            // them to the teardown union so RemoveJiggleRigColliders unregisters them later.
+            if (next[3] && !_fingersBuilt && _jiggleColliderMapping != null)
+            {
+                BuildFingerColliders(_jiggleColliderMapping);
+                JiggleColliders.AddRange(JiggleCollidersFingers);
+                _fingersBuilt = true;
+            }
 
             ApplyColliderCategoryDelta(JiggleCollidersFeet, cur[0], next[0]);
             ApplyColliderCategoryDelta(JiggleCollidersArms, cur[1], next[1]);
@@ -513,6 +544,8 @@ namespace Basis.Scripts.Drivers
             JiggleCollidersFingers.Clear();
             HasJiggleColliders = false;
             RegisteredColliderTier = BasisJiggleColliderTier.Full;
+            _fingersBuilt = false;
+            _jiggleColliderMapping = null;
         }
         /// <summary>
         /// Applies per-renderer flags for local-avatar SkinnedMeshRenderers and ensures the face mesh has its shadow-only clone.

@@ -32,6 +32,8 @@ public struct JiggleRigData {
     
     [NonSerialized]
     private Dictionary<Transform, JiggleTransformCachedData> transformToCachedDataMap;
+    [NonSerialized]
+    private HashSet<Transform> excludedSet;
 
     private bool TryUpdateSerialization() {
         switch (serializedVersion) {
@@ -89,15 +91,27 @@ public struct JiggleRigData {
     }
 
     public void RegenerateCacheLookup() {
-        transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>();
         var count = transformCachedData.Length;
+        transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>(count);
         for (int i = 0; i < count; i++) {
             var cachedData = transformCachedData[i];
             transformToCachedDataMap[cachedData.bone] = cachedData;
         }
+        if (excludedTransforms != null && excludedTransforms.Length > 0) {
+            var excludedCount = excludedTransforms.Length;
+            excludedSet = new HashSet<Transform>(excludedCount);
+            for (int i = 0; i < excludedCount; i++) {
+                excludedSet.Add(excludedTransforms[i]);
+            }
+        } else {
+            excludedSet = null;
+        }
     }
 
     public bool GetIsExcluded(Transform t) {
+        if (excludedSet != null) {
+            return excludedSet.Contains(t);
+        }
         var count = excludedTransforms.Length;
         for (int i = 0; i < count; i++) {
             if (excludedTransforms[i] == t) {
@@ -146,32 +160,52 @@ public struct JiggleRigData {
         if (!rootBone) {
             return;
         }
-        JigglePhysics.VisitForLength(rootBone, this, rootBone.position, 0f, out var totalLength);
         var data = new List<JiggleTransformCachedData>();
-        VisitAndSetCacheData(data, rootBone, rootBone.position, 0f, totalLength);
+        float maxLength = 0f;
+        VisitAndSetCacheData(data, rootBone, rootBone.position, 0f, ref maxLength);
+        var totalLength = Mathf.Max(maxLength, 0.001f);
+        var dataCount = data.Count;
+        for (int i = 0; i < dataCount; i++) {
+            var entry = data[i];
+            entry.normalizedDistanceFromRoot /= totalLength;
+            data[i] = entry;
+        }
         transformCachedData = data.ToArray();
         RegenerateCacheLookup();
     }
-    
-    private void VisitAndSetCacheData(List<JiggleTransformCachedData> data, Transform t, Vector3 lastPosition, float currentLength, float totalLength) {
+
+    private void VisitAndSetCacheData(List<JiggleTransformCachedData> data, Transform t, Vector3 lastPosition, float currentLength, ref float maxLength) {
         if (t == null || GetIsExcluded(t)) {
             return;
         }
-        var validChildrenCount = GetValidChildrenCount(t);
         var scale = t.lossyScale;
         currentLength += Vector3.Distance(lastPosition, t.position);
+        if (currentLength > maxLength) maxLength = currentLength;
         t.GetLocalPositionAndRotation(out var localPosition, out var localRotation);
         var position = t.position;
         data.Add(new JiggleTransformCachedData() {
             bone = t,
             restLocalPosition = localPosition,
             restLocalRotation = new Vector4(localRotation.x, localRotation.y, localRotation.z, localRotation.w),
-            normalizedDistanceFromRoot = currentLength / totalLength,
+            normalizedDistanceFromRoot = currentLength,
             lossyScale = (scale.x + scale.y + scale.z)/3f,
         });
-        for (int i = 0; i < validChildrenCount; i++) {
-            var child = GetValidChild(t, i);
-            VisitAndSetCacheData(data, child, position, currentLength, totalLength);
+        var childCount = t.childCount;
+        for (int i = 0; i < childCount; i++) {
+            var child = t.GetChild(i);
+            if (child == null || GetIsExcluded(child)) continue;
+            VisitAndSetCacheData(data, child, position, currentLength, ref maxLength);
+        }
+    }
+
+    public void GetValidChildrenInto(Transform t, List<Transform> into) {
+        into.Clear();
+        if (t == null) return;
+        var childCount = t.childCount;
+        for (int i = 0; i < childCount; i++) {
+            var child = t.GetChild(i);
+            if (child == null || GetIsExcluded(child)) continue;
+            into.Add(child);
         }
     }
 

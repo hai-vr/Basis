@@ -66,7 +66,7 @@ namespace Basis.ImagePickup
             rect.sizeDelta = new Vector2(120f, 80f);
 
             var image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.14f, 0.14f, 0.18f, 0.92f);
+            image.color = new Color(0.80f, 0.82f, 0.88f, 0.95f);
             image.raycastTarget = true;
 
             var button = buttonObject.AddComponent<Button>();
@@ -91,7 +91,7 @@ namespace Basis.ImagePickup
             tmp.text = text;
             tmp.fontSize = fontSize;
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = Color.white;
+            tmp.color = Color.black;
             tmp.raycastTarget = false;
             Shader distanceField = Shader.Find("TextMeshPro/Distance Field");
             if (distanceField != null) tmp.fontMaterial.shader = distanceField;

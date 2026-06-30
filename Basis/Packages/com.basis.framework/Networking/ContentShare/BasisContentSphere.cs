@@ -417,6 +417,7 @@ public class BasisContentSphere : BasisInteractableObject
         {
             if (wrapper.GetState() == BasisInteractInputState.Hovering)
             {
+                Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Interacting);
                 WasPressed();
                 OnInteractStartEvent?.Invoke(input);
             }

@@ -318,6 +318,10 @@ namespace Basis.Scripts.UI.NamePlate
         public void DeInitialize()
         {
             BasisRemoteNamePlateDriver.Unregister(this);
+            // Drop out of the global merge gather immediately: snapArr can still hold this plate until
+            // its deferred topology rebuild, and a recycled playerId must not resurface our name on the
+            // new player. Replaces the per-plate Unity null check in GatherFromBoneSystem.
+            RenderActive = false;
             if (BasisRemotePlayer != null)
             {
                 // Unsubscribe all events we hooked up

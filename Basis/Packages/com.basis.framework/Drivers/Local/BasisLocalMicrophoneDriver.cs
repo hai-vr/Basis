@@ -52,7 +52,7 @@ public static class BasisLocalMicrophoneDriver
     public static bool IsInitialize = false;
     public static string MicrophoneDevice = null;
 
-    private const float DeviceScanIntervalSeconds = 1f;
+    private const float DeviceScanIntervalSeconds = 2f;
     private static float _deviceScanTimer;
     private static string[] _knownDevices;
 

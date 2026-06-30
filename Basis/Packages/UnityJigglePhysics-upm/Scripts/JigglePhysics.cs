@@ -18,6 +18,11 @@ public static class JigglePhysics {
     private static readonly List<Transform> tempColliderTransforms = new ();
     private static List<JiggleTreeSegment> rootJiggleTreeSegments;
     private static readonly List<JiggleTreeSegment> reparentScratch = new();
+    // One reusable valid-child buffer per recursion depth, so Visit enumerates each bone's
+    // children once instead of re-scanning the Transform hierarchy. Depth-indexed because a
+    // node and its descendants are live on the stack simultaneously; same-depth siblings run
+    // sequentially and never alias.
+    private static readonly List<List<Transform>> visitChildListPool = new();
     private static bool initializedRendering = false;
     private static int skips = 0;
 
@@ -245,8 +250,8 @@ public static class JigglePhysics {
         }
         jobs ??= new JiggleJobs(fixedTime, fixedDeltaTime);
         jobs.SetFixedDeltaTime(fixedDeltaTime);
-        GetJiggleTrees();
-        _globalDirty = false;
+        bool backlogRemains = GetJiggleTrees();
+        _globalDirty = backlogRemains;
         return jobs;
     }
 
@@ -258,10 +263,21 @@ public static class JigglePhysics {
     private const int PRUNE_CADENCE = 64;
     private static int pruneFlushCounter;
 
-    private static void GetJiggleTrees() {
+    // <= 0 = unlimited (original behavior). Caps tree (re)builds per dirty flush so a burst of
+    // rig enables (many avatars loading the same frame) amortizes over several frames instead
+    // of spiking the main thread. Over-budget trees stay dirty and rebuild on later flushes.
+    private static int maxTreeRegenerationsPerFlush = 4;
+    public static void SetMaxTreeRegenerationsPerFlush(int value) => maxTreeRegenerationsPerFlush = value;
+
+    private static bool GetJiggleTrees() {
         Profiler.BeginSample("JiggleRoot.GetJiggleTrees");
         bool prune = ++pruneFlushCounter >= PRUNE_CADENCE;
         if (prune) pruneFlushCounter = 0;
+
+        int budget = maxTreeRegenerationsPerFlush;
+        bool limited = budget > 0;
+        int regenerated = 0;
+        bool backlogRemains = false;
 
         for (int i = rootJiggleTreeSegments.Count - 1; i >= 0; i--) {
             var seg = rootJiggleTreeSegments[i];
@@ -282,10 +298,18 @@ public static class JigglePhysics {
             if (!needsRegen) {
                 continue;
             }
+            // Dead-segment pruning above still runs for every root; only the expensive rebuild
+            // is budgeted. Leave the rest dirty and signal a backlog so the next flush continues.
+            if (limited && regenerated >= budget) {
+                backlogRemains = true;
+                continue;
+            }
             seg.RegenerateJiggleTreeIfNeeded();
             jobs.ScheduleAdd(seg.jiggleTree);
+            regenerated++;
         }
         Profiler.EndSample();
+        return backlogRemains;
     }
 
     public static JiggleTree CreateJiggleTree(JiggleRigData jiggleRig, JiggleTree tree) {
@@ -321,7 +345,7 @@ public static class JigglePhysics {
         jiggleRig.rootBone.GetLocalPositionAndRotation(out var localPosition, out var localRotation);
         tempRestLocalPositions.Add(localPosition);
         tempRestLocalRotations.Add(localRotation);
-        Visit(jiggleRig.rootBone, tempTransforms, tempPoints, tempParameters, tempRestLocalPositions, tempRestLocalRotations, 0, jiggleRig, backProjection, 0f, out int childIndex);
+        Visit(jiggleRig.rootBone, tempTransforms, tempPoints, tempParameters, tempRestLocalPositions, tempRestLocalRotations, 0, jiggleRig, backProjection, 0f, 0, out int childIndex);
         if (childIndex != -1) {
             var rootPoint = tempPoints[0];
             AddChildToPoint(ref rootPoint, childIndex);
@@ -352,7 +376,7 @@ public static class JigglePhysics {
         }
     }
 
-    private static void Visit(Transform t, List<Transform> transforms, List<JiggleSimulatedPoint> points, List<JigglePointParameters> parameters, List<Vector3> restLocalPositions, List<Quaternion> restLocalRotations, int parentIndex, JiggleRigData lastJiggleRig, Vector3 lastPosition, float currentLength, out int newIndex) {
+    private static void Visit(Transform t, List<Transform> transforms, List<JiggleSimulatedPoint> points, List<JigglePointParameters> parameters, List<Vector3> restLocalPositions, List<Quaternion> restLocalRotations, int parentIndex, JiggleRigData lastJiggleRig, Vector3 lastPosition, float currentLength, int depth, out int newIndex) {
         if (t == null) {
             newIndex = -1;
             return;
@@ -361,14 +385,16 @@ public static class JigglePhysics {
             lastJiggleRig = currentJiggleTreeSegment.jiggleRigData;
         }
         if (!lastJiggleRig.GetIsExcluded(t)) {
-            var validChildrenCount = lastJiggleRig.GetValidChildrenCount(t);
+            var children = BorrowVisitChildList(depth);
+            lastJiggleRig.GetValidChildrenInto(t, children);
+            var validChildrenCount = children.Count;
             var currentPosition = t.position;
             var cache = lastJiggleRig.GetCache(t);
-            if (Vector3.Distance(t.position, lastPosition) < MERGE_DISTANCE) {
+            if (Vector3.Distance(currentPosition, lastPosition) < MERGE_DISTANCE) {
                 if (validChildrenCount > 0) {
                     for (int i = 0; i < validChildrenCount; i++) {
-                        var child = lastJiggleRig.GetValidChild(t, i);
-                        Visit(child, transforms, points, parameters, restLocalPositions, restLocalRotations, parentIndex, lastJiggleRig, lastPosition, currentLength, out int childIndex);
+                        var child = children[i];
+                        Visit(child, transforms, points, parameters, restLocalPositions, restLocalRotations, parentIndex, lastJiggleRig, lastPosition, currentLength, depth + 1, out int childIndex);
                         if (childIndex != -1) {
                             var record = points[parentIndex];
                             AddChildToPoint(ref record, childIndex);
@@ -422,9 +448,9 @@ public static class JigglePhysics {
             }
 
             if (points[parentIndex].hasTransform) {
-                currentLength += Vector3.Distance(lastPosition, t.position);
+                currentLength += Vector3.Distance(lastPosition, currentPosition);
             }
-            
+
 
             points.Add(new JiggleSimulatedPoint() { // Regular point
                 position = currentPosition,
@@ -437,7 +463,7 @@ public static class JigglePhysics {
             });
             parameters.Add(parameter);
             newIndex = points.Count - 1;
-            
+
             if (validChildrenCount == 0) {
                 transforms.Add(t);
                 restLocalPositions.Add(cache.restLocalPosition);
@@ -457,8 +483,8 @@ public static class JigglePhysics {
                 points[newIndex] = record;
             } else {
                 for (int i = 0; i < validChildrenCount; i++) {
-                    var child = lastJiggleRig.GetValidChild(t, i);
-                    Visit(child, transforms, points, parameters, restLocalPositions, restLocalRotations, newIndex, lastJiggleRig, currentPosition, currentLength, out int childIndex);
+                    var child = children[i];
+                    Visit(child, transforms, points, parameters, restLocalPositions, restLocalRotations, newIndex, lastJiggleRig, currentPosition, currentLength, depth + 1, out int childIndex);
                     if (childIndex != -1) {
                         var record = points[newIndex];
                         AddChildToPoint(ref record, childIndex);
@@ -470,6 +496,15 @@ public static class JigglePhysics {
             newIndex = -1;
         }
 
+    }
+
+    private static List<Transform> BorrowVisitChildList(int depth) {
+        while (visitChildListPool.Count <= depth) {
+            visitChildListPool.Add(new List<Transform>());
+        }
+        var list = visitChildListPool[depth];
+        list.Clear();
+        return list;
     }
 
     private static unsafe void AddChildToPoint(ref JiggleSimulatedPoint point, int childIndex) {

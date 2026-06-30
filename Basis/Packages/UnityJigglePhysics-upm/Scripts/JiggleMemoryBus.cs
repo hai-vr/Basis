@@ -143,6 +143,12 @@ public class JiggleMemoryBus {
     private int currentPersonalColliderTransformAccessIndex = 0;
     private int currentSceneColliderTransformAccessIndex = 0;
 
+    // Per-tick cap on TransformAccessArray (un)registrations during a Commit. This is the
+    // per-frame work bound for the sliced rebuild: lower it to shrink per-frame Commit cost
+    // (more frames to finish a structural change), raise it to converge faster per frame.
+    private static int transformAccessBatchSize = 256;
+    public static void SetTransformAccessBatchSize(int value) => transformAccessBatchSize = Mathf.Max(1, value);
+
     private static List<Transform> dummyTransforms;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -649,7 +655,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
     public void CommitColliders() {
         if (commitSceneColliderState == CommitState.Idle) {
-            doubleBufferSceneColliderTransformAccessArray.ClearIfNeeded();
+            doubleBufferSceneColliderTransformAccessArray.ClearIfNeeded(transformAccessBatchSize);
             var pendingAddSceneColliderCount = pendingSceneColliderAdd.Count;
             var pendingRemoveSceneColliderCount = pendingSceneColliderRemove.Count;
 
@@ -697,7 +703,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             currentSceneColliderTransformAccessIndex = 0;
             commitSceneColliderState = CommitState.ProcessingTransformAccess;
         } else if (commitSceneColliderState == CommitState.ProcessingTransformAccess) {
-            doubleBufferSceneColliderTransformAccessArray.GenerateNewAccessArrays(ref currentSceneColliderTransformAccessIndex, out var hasFinishedSceneColliders, sceneColliderTransformAccessList);
+            doubleBufferSceneColliderTransformAccessArray.GenerateNewAccessArrays(ref currentSceneColliderTransformAccessIndex, out var hasFinishedSceneColliders, sceneColliderTransformAccessList, transformAccessBatchSize);
             if (!hasFinishedSceneColliders) return;
             NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
             doubleBufferSceneColliderTransformAccessArray.Flip();
@@ -707,9 +713,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
     public void CommitTrees() {
         if (commitTreeState == CommitState.Idle) {
-            doubleBufferTransformAccessArray.ClearIfNeeded();
-            doubleBufferTransformRootAccessArray.ClearIfNeeded();
-            doubleBufferPersonalColliderTransformAccessArray.ClearIfNeeded();
+            doubleBufferTransformAccessArray.ClearIfNeeded(transformAccessBatchSize);
+            doubleBufferTransformRootAccessArray.ClearIfNeeded(transformAccessBatchSize);
+            doubleBufferPersonalColliderTransformAccessArray.ClearIfNeeded(transformAccessBatchSize);
 
             var commandCount = pendingCommands.Count;
             if (commandCount == 0) {
@@ -833,11 +839,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             currentPersonalColliderTransformAccessIndex = 0;
             commitTreeState = CommitState.ProcessingTransformAccess;
         } else if (commitTreeState == CommitState.ProcessingTransformAccess) {
-            doubleBufferTransformAccessArray.GenerateNewAccessArrays(ref currentTransformAccessIndex, out var hasFinishedTransforms, transformAccessList);
+            doubleBufferTransformAccessArray.GenerateNewAccessArrays(ref currentTransformAccessIndex, out var hasFinishedTransforms, transformAccessList, transformAccessBatchSize);
             if (!hasFinishedTransforms) return;
-            doubleBufferTransformRootAccessArray.GenerateNewAccessArrays(ref currentRootTransformAccessIndex, out var hasFinishedRoots, transformRootAccessList);
+            doubleBufferTransformRootAccessArray.GenerateNewAccessArrays(ref currentRootTransformAccessIndex, out var hasFinishedRoots, transformRootAccessList, transformAccessBatchSize);
             if (!hasFinishedRoots) return;
-            doubleBufferPersonalColliderTransformAccessArray.GenerateNewAccessArrays(ref currentPersonalColliderTransformAccessIndex, out var hasFinishedColliders, personalColliderTransformAccessList);
+            doubleBufferPersonalColliderTransformAccessArray.GenerateNewAccessArrays(ref currentPersonalColliderTransformAccessIndex, out var hasFinishedColliders, personalColliderTransformAccessList, transformAccessBatchSize);
             if (!hasFinishedColliders) return;
             ReadIn();
             var processingPendingRemoveCount = pendingProcessingRemoves.Count;

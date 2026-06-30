@@ -12,6 +12,7 @@ namespace Basis.ImagePickup
         public byte[] CleanPng;
         public int Width;
         public int Height;
+        public bool HasAlpha;
     }
 
     /// <summary>
@@ -127,6 +128,8 @@ namespace Basis.ImagePickup
                 }
             }
 
+            result.HasAlpha = HasTransparency(finalTexture);
+
             finalTexture.wrapMode = TextureWrapMode.Clamp;
             finalTexture.Apply(false, true);
 
@@ -136,6 +139,16 @@ namespace Basis.ImagePickup
             result.Width = finalTexture.width;
             result.Height = finalTexture.height;
             return result;
+        }
+
+        private static bool HasTransparency(Texture2D texture)
+        {
+            Color32[] pixels = texture.GetPixels32();
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                if (pixels[i].a < 255) return true;
+            }
+            return false;
         }
 
         private static bool ExceedsDisplayCaps(int width, int height)

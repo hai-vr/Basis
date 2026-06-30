@@ -300,11 +300,7 @@ public static class BasisAvatarModelCache
 
     private static void RestorePosesFromCache(Basis.Scripts.Common.BasisTransformMapping mapping, Animator animator, Entry entry)
     {
-        mapping.RootRotation = animator.transform.rotation;
-        mapping.RootPosition = animator.transform.position;
-        mapping.TposeFromRoot.Clear();
-        mapping.TposeLocal.Clear();
-        mapping.TposeWorld.Clear();
+        animator.transform.GetPositionAndRotation(out mapping.RootPosition, out mapping.RootRotation);
 
         int boneCount = (int)HumanBodyBones.LastBone;
         var cachedLocal = entry.TposeLocal;

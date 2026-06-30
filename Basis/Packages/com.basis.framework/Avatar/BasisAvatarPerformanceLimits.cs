@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
 using GatorDragonGames.JigglePhysics;
 using UnityEngine;
@@ -515,7 +516,7 @@ namespace Basis.Scripts.Avatar
         /// the caller can surface it in per-player UI.
         /// </summary>
         /// <param name="root">The instantiated avatar root GameObject.</param>
-        public static PerformanceInfo TrimExcessComponents(GameObject root, Component[] preWalked = null)
+        public static PerformanceInfo TrimExcessComponents(GameObject root, IReadOnlyList<Component> preWalked = null)
         {
             PerformanceInfo info = default;
 
@@ -533,7 +534,7 @@ namespace Basis.Scripts.Avatar
                 protectedAnimator = avatarRef.Animator;
             }
 
-            Component[] components = preWalked ?? root.GetComponentsInChildren<Component>(true);
+            IReadOnlyList<Component> components = preWalked ?? root.GetComponentsInChildren<Component>(true);
 
             // Animators: the canonical BasisAvatar.Animator is protected. Without it the
             // remote humanoid driver can't run at all (AvatarAnimatorTransform is set
@@ -602,11 +603,11 @@ namespace Basis.Scripts.Avatar
         /// keep limit. Used for components living in packages this assembly cannot
         /// reference at compile time (e.g. <c>CilboxProxy</c>).
         /// </summary>
-        private static int TrimComponentsByName(Component[] components, string typeName, int limit)
+        private static int TrimComponentsByName(IReadOnlyList<Component> components, string typeName, int limit)
         {
             int kept = 0;
             int destroyed = 0;
-            for (int i = 0; i < components.Length; i++)
+            for (int i = 0; i < components.Count; i++)
             {
                 if (!(components[i] is MonoBehaviour mb)) continue;
                 if (mb == null) continue;
@@ -622,11 +623,11 @@ namespace Basis.Scripts.Avatar
             return destroyed;
         }
 
-        private static int TrimComponents<T>(Component[] components, int limit) where T : Component
+        private static int TrimComponents<T>(IReadOnlyList<Component> components, int limit) where T : Component
         {
             int kept = 0;
             int destroyed = 0;
-            for (int i = 0; i < components.Length; i++)
+            for (int i = 0; i < components.Count; i++)
             {
                 if (!(components[i] is T typed)) continue;
                 if (typed == null) continue;
@@ -649,12 +650,12 @@ namespace Basis.Scripts.Avatar
         /// The user's "Max Animators" is therefore a cap on *ticking* animators,
         /// and the protected one gets a free pass.
         /// </summary>
-        private static int TrimAnimators(Component[] components, int limit, Animator protectedAnimator)
+        private static int TrimAnimators(IReadOnlyList<Component> components, int limit, Animator protectedAnimator)
         {
             // Count non-protected animators — those are the ones the limit applies
             // to. The protected one is always kept and accounts for 0 slots.
             int nonProtectedCount = 0;
-            for (int i = 0; i < components.Length; i++)
+            for (int i = 0; i < components.Count; i++)
             {
                 if (components[i] is Animator a && a != null && a != protectedAnimator)
                 {
@@ -669,7 +670,7 @@ namespace Basis.Scripts.Avatar
             // without consuming a keep slot.
             int keptNonProtected = 0;
             int destroyed = 0;
-            for (int i = 0; i < components.Length; i++)
+            for (int i = 0; i < components.Count; i++)
             {
                 if (!(components[i] is Animator animator)) continue;
                 if (animator == null) continue;

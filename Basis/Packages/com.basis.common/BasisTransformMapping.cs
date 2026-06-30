@@ -561,14 +561,14 @@ namespace Basis.Scripts.Common
         }
 
         // All captured bones (skip missing/null)
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeFromRoot = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeLocal = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
+        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeFromRoot = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
+        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeLocal = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
         /// <summary>
         /// Root-relative positions at world scale (no division by localScale).
         /// Unlike TposeFromRoot which uses InverseTransformPoint (divides by scale),
         /// these give correct meter values regardless of the avatar root's localScale.
         /// </summary>
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeWorld = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
+        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeWorld = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
         public Quaternion RootRotation; // rotation during calibration
         public Vector3 RootPosition;
         public Vector3 AvatarForwards;
@@ -835,5 +835,12 @@ namespace Basis.Scripts.Common
 
             return true;
         }
+    }
+
+    public sealed class HumanBodyBonesComparer : IEqualityComparer<HumanBodyBones>
+    {
+        public static readonly HumanBodyBonesComparer Instance = new HumanBodyBonesComparer();
+        public bool Equals(HumanBodyBones x, HumanBodyBones y) => x == y;
+        public int GetHashCode(HumanBodyBones obj) => (int)obj;
     }
 }

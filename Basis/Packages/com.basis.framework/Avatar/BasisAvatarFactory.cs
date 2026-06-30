@@ -432,6 +432,7 @@ namespace Basis.Scripts.Avatar
                 ? loadHarvest.AuthoredMotions.ToArray()
                 : avatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
             avatar.Harvest = null;
+            loadHarvest.ReturnToPool();
             Player.BasisAvatar.IsOwnedLocally = Player.IsLocal;
 
             switch (Player)

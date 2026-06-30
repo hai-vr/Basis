@@ -255,8 +255,8 @@ public static class BasisBundleBuild
         Dictionary<string, int> componentCounts = new Dictionary<string, int>();
 
         BasisContentHarvest harvest = BasisContentHarvest.BuildFrom(root, true);
-        Component[] components = harvest.Components;
-        BasisComponentKind[] kinds = harvest.Kinds;
+        List<Component> components = harvest.Components;
+        List<BasisComponentKind> kinds = harvest.Kinds;
 
         // Dedupe skinned bones across all SMRs. Every SMR's bones[] array points at
         // the same skeleton Transforms, so summing smr.bones.Length multiplied the
@@ -316,8 +316,8 @@ public static class BasisBundleBuild
                 }
             }
         }
-
-        for (int i = 0; i < components.Length; i++)
+        int length = components.Count;
+        for (int i = 0; i < length; i++)
         {
             Component comp = components[i];
             if (comp == null)

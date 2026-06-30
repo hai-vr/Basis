@@ -62,18 +62,82 @@ namespace Basis.Scripts.BasisSdk
 
     /// <summary>
     /// Snapshot of the single component walk ContentPoliceControl already performs at load.
-    /// Holds the raw <see cref="Component"/> array plus a parallel <see cref="BasisComponentKind"/>
+    /// Holds the raw <see cref="Component"/> list plus a parallel <see cref="BasisComponentKind"/>
     /// tag, letting downstream load steps classify by byte switch instead of re-running
     /// GetComponent / is-chains. Lives on <see cref="BasisContentBase"/> and is transient — the
     /// load path nulls it once consumed.
     /// </summary>
     public sealed class BasisContentHarvest
     {
-        public Component[] Components;
-        public BasisComponentKind[] Kinds;
+        public List<Component> Components;
+        public List<BasisComponentKind> Kinds;
         public List<Renderer> Renderers;
         public List<SkinnedMeshRenderer> SkinnedMeshRenderers;
         public List<BasisAuthoredMotion> AuthoredMotions;
+
+        // Per-type free lists backing Rent()/ReturnToPool(). Main-thread only — the
+        // content walk instantiates GameObjects and so can never run off the main
+        // thread, which is why these stacks need no locking.
+        private static class Pool<T>
+        {
+            private static readonly Stack<List<T>> Free = new Stack<List<T>>();
+            public static List<T> Rent() => Free.Count > 0 ? Free.Pop() : new List<T>(64);
+            public static void Return(List<T> list)
+            {
+                if (list == null) return;
+                list.Clear();
+                Free.Push(list);
+            }
+        }
+
+        /// <summary>
+        /// Builds a harvest with all five collections rented and empty — the shape a full
+        /// content-removal walk (or <see cref="BuildFrom"/>) populates. Pair with <see cref="ReturnToPool"/>.
+        /// </summary>
+        public static BasisContentHarvest Rent()
+        {
+            BasisContentHarvest harvest = new BasisContentHarvest();
+            harvest.RentBuffers();
+            return harvest;
+        }
+
+        /// <summary>Rents any of the five buffers still null; the content-removal walk fills them all.</summary>
+        public void RentBuffers()
+        {
+            Components ??= Pool<Component>.Rent();
+            Kinds ??= Pool<BasisComponentKind>.Rent();
+            Renderers ??= Pool<Renderer>.Rent();
+            SkinnedMeshRenderers ??= Pool<SkinnedMeshRenderer>.Rent();
+            AuthoredMotions ??= Pool<BasisAuthoredMotion>.Rent();
+        }
+
+        /// <summary>
+        /// Rents only the renderer bucket. The no-content-removal path fills just this and leaves
+        /// the other buckets null, so a later <c>EnsureHarvest</c> still rebuilds a full snapshot.
+        /// </summary>
+        public void RentRenderers()
+        {
+            Renderers ??= Pool<Renderer>.Rent();
+        }
+
+        /// <summary>
+        /// Returns the five collections to their pools and nulls them. Call only once every
+        /// consumer is done with the snapshot (the load path copies the buckets it keeps via
+        /// ToArray first). Safe to skip — the lists then fall back to ordinary GC.
+        /// </summary>
+        public void ReturnToPool()
+        {
+            Pool<Component>.Return(Components);
+            Pool<BasisComponentKind>.Return(Kinds);
+            Pool<Renderer>.Return(Renderers);
+            Pool<SkinnedMeshRenderer>.Return(SkinnedMeshRenderers);
+            Pool<BasisAuthoredMotion>.Return(AuthoredMotions);
+            Components = null;
+            Kinds = null;
+            Renderers = null;
+            SkinnedMeshRenderers = null;
+            AuthoredMotions = null;
+        }
 
         /// <summary>
         /// Maps a component to its <see cref="BasisComponentKind"/>. Single source of truth for the
@@ -143,20 +207,15 @@ namespace Basis.Scripts.BasisSdk
         /// </summary>
         public static BasisContentHarvest BuildFrom(GameObject root, bool includeInactive = true)
         {
-            Component[] components = root.GetComponentsInChildren<Component>(includeInactive);
-            int count = components.Length;
-            BasisContentHarvest harvest = new BasisContentHarvest
-            {
-                Components = components,
-                Kinds = new BasisComponentKind[count],
-                Renderers = new List<Renderer>(),
-                SkinnedMeshRenderers = new List<SkinnedMeshRenderer>(),
-                AuthoredMotions = new List<BasisAuthoredMotion>(),
-            };
+            BasisContentHarvest harvest = Rent();
+            List<Component> components = harvest.Components;
+            root.GetComponentsInChildren(includeInactive, components);
+            int count = components.Count;
+            List<BasisComponentKind> kinds = harvest.Kinds;
             for (int i = 0; i < count; i++)
             {
                 Component component = components[i];
-                harvest.Kinds[i] = Classify(component);
+                kinds.Add(Classify(component));
                 if (component is Renderer renderer)
                 {
                     harvest.Renderers.Add(renderer);
@@ -183,7 +242,8 @@ namespace Basis.Scripts.BasisSdk
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T UnsafeAs<T>(int i) where T : Component
         {
-            return UnsafeUtility.As<Component, T>(ref Components[i]);
+            Component component = Components[i];
+            return UnsafeUtility.As<Component, T>(ref component);
         }
 
         /// <summary>

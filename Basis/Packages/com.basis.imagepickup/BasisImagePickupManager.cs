@@ -103,7 +103,7 @@ namespace Basis.ImagePickup
 
             GetSpawnPose(out Vector3 position, out Quaternion rotation);
 
-            var pickup = BasisImagePickupObject.Build(this, id, ownerId, ownerName, true, result.Texture, result.CleanPng, position, rotation);
+            var pickup = BasisImagePickupObject.Build(this, id, ownerId, ownerName, true, result.Texture, result.CleanPng, result.HasAlpha, position, rotation);
             _images[id] = pickup;
             _owned[id] = new OwnedImage
             {
@@ -327,7 +327,7 @@ namespace Basis.ImagePickup
                 return;
             }
 
-            var pickup = BasisImagePickupObject.Build(this, transfer.Id, transfer.OwnerId, transfer.OwnerName, false, result.Texture, result.CleanPng, transfer.Position, transfer.Rotation);
+            var pickup = BasisImagePickupObject.Build(this, transfer.Id, transfer.OwnerId, transfer.OwnerName, false, result.Texture, result.CleanPng, result.HasAlpha, transfer.Position, transfer.Rotation);
             _images[transfer.Id] = pickup;
             IncrementSenderCount(transfer.OwnerId);
 

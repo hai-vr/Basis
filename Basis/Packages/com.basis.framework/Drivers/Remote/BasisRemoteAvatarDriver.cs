@@ -428,7 +428,7 @@ namespace Basis.Scripts.Drivers
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
             if (BasisPlayerSettingsData.AvatarInteraction && Player.IsConsideredFallBackAvatar == false)
             {
-                AddJiggleRigColliders(References);
+                AddJiggleRigColliders(References, allowColliderLOD: true);
             }
         }
 

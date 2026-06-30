@@ -48,7 +48,7 @@ namespace Basis.ImagePickup
         public byte[] CleanPng => _cleanPng;
         public bool IsHidden => _hidden;
 
-        public static BasisImagePickupObject Build(BasisImagePickupManager manager, Guid id, ushort ownerId, string ownerName, bool isOwner, Texture2D texture, byte[] cleanPng, Vector3 position, Quaternion rotation)
+        public static BasisImagePickupObject Build(BasisImagePickupManager manager, Guid id, ushort ownerId, string ownerName, bool isOwner, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
         {
             var root = new GameObject($"BasisImagePickup_{ShortId(id)}");
             root.transform.SetPositionAndRotation(position, rotation);
@@ -79,7 +79,7 @@ namespace Basis.ImagePickup
             if (pickup._material.HasProperty(BaseMapId)) pickup._material.SetTexture(BaseMapId, texture);
             else pickup._material.mainTexture = texture;
             if (pickup._material.HasProperty(BaseColorId)) pickup._material.SetColor(BaseColorId, Color.white);
-            ConfigureTransparent(pickup._material);
+            if (cutout) ConfigureCutout(pickup._material);
 
             pickup._frontRenderer = card.AddComponent<MeshRenderer>();
             pickup._frontRenderer.sharedMaterials = new[] { pickup._material, GetSharedBackMaterial() };
@@ -239,19 +239,20 @@ namespace Basis.ImagePickup
             return _sharedBackMaterial;
         }
 
-        private static void ConfigureTransparent(Material material)
+        private static void ConfigureCutout(Material material)
         {
-            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Surface", 0f);
             material.SetFloat("_Blend", 0f);
-            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_ZWrite", 0f);
-            material.SetFloat("_AlphaClip", 0f);
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.DisableKeyword("_ALPHATEST_ON");
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+            material.SetFloat("_ZWrite", 1f);
+            material.SetFloat("_AlphaClip", 1f);
+            material.SetFloat("_Cutoff", 0.5f);
+            material.EnableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
             material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-            material.SetOverrideTag("RenderType", "Transparent");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+            material.SetOverrideTag("RenderType", "TransparentCutout");
         }
 
         private static string ShortId(Guid id) => id.ToString("N").Substring(0, 8);

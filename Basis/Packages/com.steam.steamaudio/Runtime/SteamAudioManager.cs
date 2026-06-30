@@ -78,6 +78,7 @@ namespace SteamAudio
         public int CurrentArrayListener;
 
         private SteamAudioSource[] mSources = new SteamAudioSource[8];
+        private readonly HashSet<SteamAudioSource> mSourceSet = new HashSet<SteamAudioSource>();
         private SteamAudioListener[] mListeners = new SteamAudioListener[4];
 
         private TransformAccessArray mSourceTransforms;
@@ -1377,38 +1378,38 @@ namespace SteamAudio
         }
         public static void AddSource(SteamAudioSource source)
         {
-            if (Singleton == null || source == null)
+            SteamAudioManager s = Singleton;
+            if (s == null || source == null)
                 return;
 
-            Singleton.EnsureTransformArraysCreated();
+            if (!s.mSourceSet.Add(source))
+                return;
 
-            var arr = Singleton.mSources;
-            int count = Singleton.CurrentArraySource;
+            s.EnsureTransformArraysCreated();
 
-            for (int i = 0; i < count; i++)
-            {
-                if (arr[i] == source)
-                    return;
-            }
-
-            EnsureCapacity(ref Singleton.mSources, count + 1);
-            Singleton.mSources[count] = source;
-            Singleton.CurrentArraySource++;
+            int count = s.CurrentArraySource;
+            EnsureCapacity(ref s.mSources, count + 1);
+            s.mSources[count] = source;
+            s.CurrentArraySource++;
 
             // Keep transform array in sync with source array index
-            Singleton.mSourceTransforms.Add(source.transform);
+            s.mSourceTransforms.Add(source.transform);
 
             // Ensure pose buffers can hold new count
-            Singleton.EnsureSourceCapacity(Singleton.CurrentArraySource);
+            s.EnsureSourceCapacity(s.CurrentArraySource);
         }
 
         public static void RemoveSource(SteamAudioSource source)
         {
-            if (Singleton == null || source == null)
+            SteamAudioManager s = Singleton;
+            if (s == null || source == null)
                 return;
 
-            var arr = Singleton.mSources;
-            int count = Singleton.CurrentArraySource;
+            if (!s.mSourceSet.Remove(source))
+                return;
+
+            var arr = s.mSources;
+            int count = s.CurrentArraySource;
 
             for (int i = 0; i < count; i++)
             {
@@ -1421,10 +1422,10 @@ namespace SteamAudio
                     arr[last] = null;
 
                     // swap-remove in TransformAccessArray (keeps indices aligned)
-                    if (Singleton.mSourceTransforms.isCreated)
-                        Singleton.mSourceTransforms.RemoveAtSwapBack(i);
+                    if (s.mSourceTransforms.isCreated)
+                        s.mSourceTransforms.RemoveAtSwapBack(i);
 
-                    Singleton.CurrentArraySource--;
+                    s.CurrentArraySource--;
                     return;
                 }
             }
