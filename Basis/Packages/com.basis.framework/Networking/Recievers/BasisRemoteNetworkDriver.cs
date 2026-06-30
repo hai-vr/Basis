@@ -561,28 +561,32 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Burst job that copies the filtered bone-rotation block for a player from the
-    /// network's per-player slot (indexed by external key) into the packed dst array
-    /// (indexed by player order in <paramref name="PlayerKeys"/>).
+    /// Burst job that reads each player's filtered bone-rotation deltas from the network slots
+    /// and composes them with cached T-pose locals into final localRotations in one pass.
+    /// Iterates the flat [player0_bone0..bone(N-1), player1_bone0..] layout, so index →
+    /// (playerIdx, boneIdx) is a divmod by BoneCount.
     /// </summary>
     [BurstCompile]
-    unsafe struct BulkCopySkeletonDeltasJob : IJobParallelFor
+    struct ComputeSkeletonRotationsFromNetworkJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<int> PlayerKeys;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcBoneRotations;
-        [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> Dst;
+        [ReadOnly] public NativeArray<quaternion> TposeLocal;
+        [WriteOnly] public NativeArray<quaternion> Rotations;
         public int BoneCount;
         public int CapacityFixed;
 
-        public void Execute(int playerIdx)
+        public void Execute(int index)
         {
+            int playerIdx = index / BoneCount;
+            int boneIdx = index - playerIdx * BoneCount;
             int playerKey = PlayerKeys[playerIdx];
-            if ((uint)playerKey >= (uint)CapacityFixed) return;
 
-            int bytes = BoneCount * UnsafeUtility.SizeOf<quaternion>();
-            quaternion* src = (quaternion*)SrcBoneRotations.GetUnsafeReadOnlyPtr() + playerKey * BoneCount;
-            quaternion* dst = (quaternion*)Dst.GetUnsafePtr() + playerIdx * BoneCount;
-            UnsafeUtility.MemCpy(dst, src, bytes);
+            quaternion delta = (uint)playerKey < (uint)CapacityFixed
+                ? SrcBoneRotations[playerKey * BoneCount + boneIdx]
+                : quaternion.identity;
+
+            Rotations[index] = math.mul(TposeLocal[index], delta);
         }
     }
 
@@ -633,28 +637,26 @@ public static class BasisRemoteNetworkDriver
 
 
     /// <summary>
-    /// Schedules a Burst <see cref="BulkCopySkeletonDeltasJob"/> that copies the filtered
-    /// bone-rotation deltas from the network per-player slots into a packed dst array.
-    /// Replaces the per-frame main-thread MemCpy loop in RemoteBoneJobSystem.Schedule().
+    /// Schedules <see cref="ComputeSkeletonRotationsFromNetworkJob"/> — the merged delta-gather +
+    /// T-pose multiply that replaces the old ScheduleBulkCopySkeletonDeltas plus separate compute
+    /// job, removing one dispatch and the intermediate packed-delta buffer.
     /// </summary>
-    public static JobHandle ScheduleBulkCopySkeletonDeltas(
-        NativeArray<int> playerKeys, int count,
-        NativeArray<quaternion> dst, int boneCount,
-        JobHandle deps = default)
+    public static JobHandle ScheduleComputeSkeletonRotations(
+        NativeArray<int> playerKeys, int totalBones, int boneCount,
+        NativeArray<quaternion> tposeLocal, NativeArray<quaternion> rotations,
+        int batch, JobHandle deps = default)
     {
-        if (!_initialized || count == 0) return deps;
+        if (!_initialized || totalBones == 0) return deps;
 
-        int workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
-        int batch = math.max(1, count / workers);
-
-        return new BulkCopySkeletonDeltasJob
+        return new ComputeSkeletonRotationsFromNetworkJob
         {
             PlayerKeys = playerKeys,
             SrcBoneRotations = _filteredBoneRotations,
+            TposeLocal = tposeLocal,
+            Rotations = rotations,
             BoneCount = boneCount,
             CapacityFixed = FixedCapacity,
-            Dst = dst,
-        }.Schedule(count, batch, deps);
+        }.Schedule(totalBones, batch, deps);
     }
 
     static IntPtr _ptrFilteredPositions;

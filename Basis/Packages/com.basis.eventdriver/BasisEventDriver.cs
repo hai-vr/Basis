@@ -494,7 +494,7 @@ namespace Basis.EventDriver
                     BasisEventDriverProfilerData.RemoteAudioDriverCount = BasisRemoteAudioDriver.DriversCount;
                     break;
                 case PROF_NAMEPLATE_COMPLETE:
-                    BasisEventDriverProfilerData.NamePlateJobWasIncomplete = !BasisRemoteNamePlateDriver.handle.IsCompleted;
+                    BasisEventDriverProfilerData.NamePlateJobWasIncomplete = false;
                     break;
             }
             BasisEventDriverProfilerData.Begin();

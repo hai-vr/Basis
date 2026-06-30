@@ -491,16 +491,13 @@ public class BasisLocalEyeDriver
         for (int i = 0; i < receiverCount; i++)
         {
             var receiver = snapshot[i];
-            // Read the internal backing field directly. The public Player property
-            // is preserved for Cilbox-script backwards compatibility but Mono's
-            // editor JIT doesn't reliably inline its AggressiveInlining getter, so
-            // hot per-frame paths in this assembly bypass it via _player.
-            // _player is invariantly non-null for any receiver in ReceiversSnapshot
-            // (see BasisNetworkPlayer doc) — skip the null check on the hot path.
-            // UI / async paths use BasisNetworkPlayer.TryGetPlayer instead.
-            // FaceIsVisible is maintained per-frame by BasisMeshRendererCheck;
+            // RemotePlayer is the concrete BasisRemotePlayer (same object as _player,
+            // assigned in Initialize) so reading FaceIsVisible skips the IBasisPlayer
+            // interface getter callvirt the editor JIT won't inline. Invariantly
+            // non-null for any receiver in ReceiversSnapshot — no null check needed.
+            // FaceIsVisible is a cached flag maintained by BasisMeshRendererCheck;
             // skipping invisible faces here keeps the job's per-player branch cheap.
-            if (!receiver._player.FaceIsVisible)
+            if (!receiver.RemotePlayer.FaceIsVisible)
                 continue;
 
             int playerId = receiver.playerId;

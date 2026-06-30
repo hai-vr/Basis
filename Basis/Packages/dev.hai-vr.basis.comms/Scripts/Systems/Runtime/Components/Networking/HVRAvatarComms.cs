@@ -30,6 +30,8 @@ namespace HVR.Basis.Comms
         private HVRVariableNetworking _variableNetworking;
 
         private List<GameObject> _netObjects;
+        private readonly List<IHVRInitializable> _initializables = new List<IHVRInitializable>();
+        private readonly List<HVRNetworkingCarrier> _carriers = new List<HVRNetworkingCarrier>();
 
         public HVRAvatarComms()
         {
@@ -68,8 +70,8 @@ namespace HVR.Basis.Comms
             }
 
 
-            var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
-            foreach (var initializable in allInitializables)
+            avatar.GetComponentsInChildren(true, _initializables);
+            foreach (var initializable in _initializables)
             {
                 initializable.OnHVRAvatarReady(isWearer);
             }
@@ -84,31 +86,33 @@ namespace HVR.Basis.Comms
 
         private void OnReadyBothAvatarAndNetwork(bool isWearer)
         {
-            var allInitializables = avatar.GetComponentsInChildren<IHVRInitializable>(true);
-
-            var carriers = new List<HVRNetworkingCarrier>();
-            foreach (var initializable in allInitializables)
+            _carriers.Clear();
+            foreach (var initializable in _initializables)
             {
-                if (initializable is HVRNetworkingCarrier carrier) carriers.Add(carrier);
+                if (initializable is HVRNetworkingCarrier carrier) _carriers.Add(carrier);
             }
-            int carrierscount = carriers.Count;
+            int carrierscount = _carriers.Count;
             if (carrierscount < 5)
             {
                 throw new InvalidOperationException("Broke assumption: At least 5 Networking Carriers are required.");
             }
             for (var index = 0; index < carrierscount; index++)
             {
-                carriers[index].index = index;
+                _carriers[index].index = index;
             }
 
-            if (_netObjects != null)
+            if (_netObjects == null)
+            {
+                _netObjects = new List<GameObject>();
+            }
+            else
             {
                 foreach (var netObject in _netObjects)
                 {
                     if (null != netObject) Destroy(netObject);
                 }
+                _netObjects.Clear();
             }
-            _netObjects = new List<GameObject>();
 
             var holder = new GameObject("GeneratedNetworking__VariableNetworking")
             {
@@ -119,16 +123,16 @@ namespace HVR.Basis.Comms
             _variableNetworking = holder.AddComponent<HVRVariableNetworking>();
             _variableNetworking.isWearer = isWearer;
             _variableNetworking.comms = this;
-            _variableNetworking.transmitter = carriers[VariableNetworkingCarrier];
+            _variableNetworking.transmitter = _carriers[VariableNetworkingCarrier];
             holder.SetActive(true);
 
-            foreach (var initializable in allInitializables)
+            foreach (var initializable in _initializables)
             {
                 initializable.OnHVRReadyBothAvatarAndNetwork(isWearer);
             }
 
 
-            _variableNetworkingProcessing = AvatarMessageProcessing.ForFeature(carriers[VariableNetworkingCarrier], isWearer, avatar.LinkedPlayerID, _variableNetworking, true);
+            _variableNetworkingProcessing = AvatarMessageProcessing.ForFeature(_carriers[VariableNetworkingCarrier], isWearer, avatar.LinkedPlayerID, _variableNetworking, true);
 
             StartCoroutine(SendInitialPacketNextFrame());
         }

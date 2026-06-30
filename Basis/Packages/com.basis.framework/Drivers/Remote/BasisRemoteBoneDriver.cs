@@ -331,28 +331,9 @@ public struct MappedNameplateApplyJob : IJobParallelForTransform
 }
 
 /// <summary>
-/// Burst IJobParallelFor that composes T-pose local rotation with the network delta into
-/// a final localRotation per bone. Splitting this off the transform-write path lets the
-/// math fully spread across worker threads — IJobParallelForTransform serializes bones
-/// inside each root hierarchy (51 bones per avatar on a single core), which made the
-/// combined apply job the heaviest in the pipeline.
-/// </summary>
-[BurstCompile]
-public struct ComputeSkeletonRotationsJob : IJobParallelFor
-{
-    [ReadOnly] public NativeArray<quaternion> TposeLocal;
-    [ReadOnly] public NativeArray<quaternion> FilteredDeltas;
-    [WriteOnly] public NativeArray<quaternion> Rotations;
-
-    public void Execute(int index)
-    {
-        Rotations[index] = math.mul(TposeLocal[index], FilteredDeltas[index]);
-    }
-}
-
-/// <summary>
-/// Burst job that writes precomputed bone localRotations to transforms. Now does only the
-/// transform side of the work — the quaternion multiply lives in <see cref="ComputeSkeletonRotationsJob"/>.
+/// Burst job that writes precomputed bone localRotations to transforms. Does only the
+/// transform side of the work — the quaternion multiply lives in the merged
+/// ComputeSkeletonRotationsFromNetworkJob (BasisRemoteNetworkDriver).
 /// Runs across ALL remote players' bones in a single flat TransformAccessArray.
 /// </summary>
 [BurstCompile]
@@ -492,9 +473,7 @@ public static class RemoteBoneJobSystem
     static NativeList<quaternion> sSkeletonTpose;
     /// <summary>Valid mask (1 = bone exists, 0 = null/skip), flat parallel to sSkeletonBones.</summary>
     static NativeList<byte> sSkeletonValid;
-    /// <summary>Filtered deltas copied from BasisRemoteNetworkDriver each frame.</summary>
-    static NativeArray<quaternion> sSkeletonDeltas;
-    /// <summary>Precomputed local rotations (TposeLocal × FilteredDeltas) consumed by <see cref="ApplySkeletonRotationsJob"/>.</summary>
+    /// <summary>Precomputed local rotations (T-pose × network delta) consumed by <see cref="ApplySkeletonRotationsJob"/>.</summary>
     static NativeArray<quaternion> sSkeletonRotations;
     /// <summary>Dummy transform for null bone slots in the TAA.</summary>
     static Transform sDummyBone;
@@ -640,7 +619,6 @@ public static class RemoteBoneJobSystem
         if (sSkeletonBones.isCreated) sSkeletonBones.Dispose();
         if (sSkeletonTpose.IsCreated) sSkeletonTpose.Dispose();
         if (sSkeletonValid.IsCreated) sSkeletonValid.Dispose();
-        if (sSkeletonDeltas.IsCreated) sSkeletonDeltas.Dispose();
         if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
         if (sDummyBone != null) { UnityEngine.Object.Destroy(sDummyBone.gameObject); sDummyBone = null; }
 
@@ -1183,52 +1161,32 @@ public static class RemoteBoneJobSystem
             HasChange = sTmpScaleChanged,
         }.Schedule(sAvatarScale, bulkAndDeriveJob);
 
-        // Skeleton: split into a fully parallel compute pass + a transform-write pass.
-        //
-        // ComputeSkeletonRotationsJob (IJobParallelFor) does the math.mul across all
-        // 51×AuthoringLength bones with an adaptive batch size, so the multiplies
-        // saturate every worker. ApplySkeletonRotationsJob (IJobParallelForTransform)
-        // then writes the precomputed quaternions to the bone transforms; that pass
-        // is hierarchy-bound (51 bones per avatar are sequential within one worker),
-        // but it now does only a memory write, not a quaternion multiply.
-        //
-        // Inputs (sSkeletonTpose / sSkeletonValid / sSkeletonDeltas) are all filled
-        // on the main thread above. The compute pass has no job dep — it runs
-        // concurrently with scale / sim / hips / mouth / nameplate.
+        // Skeleton: one compute pass (ComputeSkeletonRotationsFromNetworkJob — gathers each
+        // player's filtered bone deltas from the network slots and multiplies by the cached
+        // T-pose locals) feeding a transform-write pass (ApplySkeletonRotationsJob). The
+        // gather+multiply used to be two dispatches round-tripping a packed delta buffer;
+        // reading the network array in the compute job drops both. The compute pass has no job
+        // dep — it runs concurrently with scale / sim / hips / mouth / nameplate.
         JobHandle skeletonJob = default;
         int totalBones = sSkeletonTpose.Length;
         if (totalBones > 0)
         {
-            // Ensure deltas + rotations buffers match current size
-            if (!sSkeletonDeltas.IsCreated || sSkeletonDeltas.Length != totalBones)
-            {
-                if (sSkeletonDeltas.IsCreated) sSkeletonDeltas.Dispose();
-                sSkeletonDeltas = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
-            }
             if (!sSkeletonRotations.IsCreated || sSkeletonRotations.Length != totalBones)
             {
                 if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
                 sSkeletonRotations = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
             }
 
-            // Schedule the bone-delta bulk copy on a worker so it doesn't block main
-            // thread and adds an extra in-flight job for the scheduler to dispatch.
-            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
-            var bulkSkeletonJob = BasisRemoteNetworkDriver.ScheduleBulkCopySkeletonDeltas(
-                sKeyArray, AuthoringLength,
-                sSkeletonDeltas, boneCount);
-
             // Adaptive batch — same reasoning as BoneSimulation: a fixed batch leaves
             // small bone counts running on a single worker.
+            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
             int boneBatch = math.max(1, math.min(maxBatchSize,
                 (totalBones + workerCount - 1) / workerCount));
 
-            var computeRotationsJob = new ComputeSkeletonRotationsJob
-            {
-                TposeLocal = sSkeletonTpose.AsDeferredJobArray(),
-                FilteredDeltas = sSkeletonDeltas,
-                Rotations = sSkeletonRotations,
-            }.Schedule(totalBones, boneBatch, bulkSkeletonJob);
+            var computeRotationsJob = BasisRemoteNetworkDriver.ScheduleComputeSkeletonRotations(
+                sKeyArray, totalBones, boneCount,
+                sSkeletonTpose.AsDeferredJobArray(), sSkeletonRotations,
+                boneBatch);
 
             skeletonJob = new ApplySkeletonRotationsJob
             {
@@ -1282,6 +1240,10 @@ public static class RemoteBoneJobSystem
         pending = JobHandle.CombineDependencies(pending, hipsWorldJob);
         pending = JobHandle.CombineDependencies(pending, skeletonJob);
         sPending = pending;
+
+        // Kick the queued batch so workers start now and overlap the main-thread simulate
+        // work between here and CompleteRemoteBoneJobSystemJobs at the tail of the tick.
+        JobHandle.ScheduleBatchedJobs();
         return pending;
     }
 

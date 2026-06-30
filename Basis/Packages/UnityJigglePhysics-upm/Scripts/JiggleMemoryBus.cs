@@ -32,20 +32,9 @@ public class JiggleMemoryBus {
     // : IContainer<JiggleTreeStruct> {
     public int treeCapacity { get; private set; }
     public int transformCapacity { get; private set; }
-    private JiggleTreeJobData[] jiggleTreeStructsArray;
-    
-    private JiggleTransform[] inputPosesPreviousArray;
-    private JiggleTransform[] inputPosesCurrentArray;
-    
-    private JiggleTransform[] simulateInputPosesArray;
-    private JiggleTransform[] restPoseTransformsArray;
-    private JiggleTransform[] previousLocalRestPoseTransformsArray;
-    private float3[] rootOutputPositionsArray;
-    private JiggleTransform[] interpolationOutputPosesArray;
-    private PoseData[] simulationOutputPoseDataArray;
-    private PoseData[] interpolationCurrentPoseDataArray;
-    private PoseData[] interpolationPreviousPoseDataArray;
-    private JiggleCollider[] personalColliderArray;
+    // Scene colliders stay managed-authoritative: CommitColliders is their writer and copies this into
+    // the native sceneColliders. Trees, the transform working set, and personal colliders are now
+    // native-authoritative (mutated in place during CommitTrees), so their managed mirrors are gone.
     private JiggleCollider[] sceneColliderArray;
 
     private JiggleCollider[] personalColliderArrayOutput;
@@ -100,7 +89,7 @@ public class JiggleMemoryBus {
     private List<JiggleTree> pendingRemoveTrees;
     private List<JiggleTree> pendingAddTrees;
     private Dictionary<int, float3> pendingTeleports;
-    // rootID -> index into jiggleTreeStructsArray[0..treeCount]. Makes tree lookups
+    // rootID -> index into jiggleTreeStructs[0..treeCount]. Makes tree lookups
     // (PreRemoveTree/RemoveTree/ApplyTeleport) O(1) instead of a linear scan, and lets
     // RemoveTree swap-with-last instead of Array.Copy-compacting. Safe because tree array
     // order is not load-bearing: every consumer iterates all trees or keys off rootID, and
@@ -244,71 +233,43 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
     private void ResizePersonalColliderCapacity(int newColliderCapacity) {
         personalColliderMemoryFragmenter.Resize(newColliderCapacity);
-        var newColliders = new JiggleCollider[newColliderCapacity];
         personalColliderArrayOutput = new JiggleCollider[newColliderCapacity];
-        if (personalColliderArray != null) {
-            System.Array.Copy(personalColliderArray, newColliders, System.Math.Min(personalColliderCount, personalColliderArray.Length));
-        }
-        personalColliderArray = newColliders;
+        var newColliders = new NativeArray<JiggleCollider>(newColliderCapacity, Allocator.Persistent);
         if (personalColliders.IsCreated) {
+            NativeArray<JiggleCollider>.Copy(personalColliders, newColliders, System.Math.Min(personalColliderCount, personalColliders.Length));
             personalColliders.Dispose();
         }
-        personalColliders = new NativeArray<JiggleCollider>(personalColliderArray, Allocator.Persistent);
+        personalColliders = newColliders;
         personalColliderCapacity = newColliderCapacity;
     }
 
     private void ResizeTransformCapacity(int newTransformCapacity) {
         memoryFragmenter.Resize(newTransformCapacity);
-        var newSimulateInputPosesArray = new JiggleTransform[newTransformCapacity];
-        var newRestPoseTransformsArray = new JiggleTransform[newTransformCapacity];
-        var newPreviousLocalRestPoseTransformsArray = new JiggleTransform[newTransformCapacity];
-        var newRootOutputPositionsArray = new float3[newTransformCapacity];
-        var newInterpolationOutputPosesArray = new JiggleTransform[newTransformCapacity];
-        var newSimulationOutputPoseDataArray = new PoseData[newTransformCapacity];
-        var newInterpolationCurrentPoseDataArray = new PoseData[newTransformCapacity];
-        var newInterpolationPreviousPoseDataArray = new PoseData[newTransformCapacity];
-        var newInterpolationOutputPosesArrayOutput = new JiggleTransform[newTransformCapacity];
-        var newInputPosesPrevious = new JiggleTransform[newTransformCapacity];
-        var newInputPosesCurrent = new JiggleTransform[newTransformCapacity];
 
-        if (jiggleTreeStructsArray != null) {
-            System.Array.Copy(simulateInputPosesArray, newSimulateInputPosesArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(restPoseTransformsArray, newRestPoseTransformsArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(previousLocalRestPoseTransformsArray, newPreviousLocalRestPoseTransformsArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(rootOutputPositionsArray, newRootOutputPositionsArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(interpolationOutputPosesArray, newInterpolationOutputPosesArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(simulationOutputPoseDataArray, newSimulationOutputPoseDataArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(interpolationCurrentPoseDataArray, newInterpolationCurrentPoseDataArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(interpolationPreviousPoseDataArray, newInterpolationPreviousPoseDataArray,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(inputPosesCurrentArray, newInputPosesCurrent,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(inputPosesPreviousArray, newInputPosesPrevious,
-                System.Math.Min(transformCount, newTransformCapacity));
-            System.Array.Copy(interpolationOutputPosesArrayOutput, newInterpolationOutputPosesArrayOutput,
-                System.Math.Min(transformCount, newTransformCapacity));
-        }
+        var newInputPosesPrevious = new NativeArray<JiggleTransform>(newTransformCapacity, Allocator.Persistent);
+        var newInputPosesCurrent = new NativeArray<JiggleTransform>(newTransformCapacity, Allocator.Persistent);
+        var newSimulateInputPoses = new NativeArray<JiggleTransform>(newTransformCapacity, Allocator.Persistent);
+        var newRestPoseTransforms = new NativeArray<JiggleTransform>(newTransformCapacity, Allocator.Persistent);
+        var newPreviousLocalRestPoseTransforms = new NativeArray<JiggleTransform>(newTransformCapacity, Allocator.Persistent);
+        var newRootOutputPositions = new NativeArray<float3>(newTransformCapacity, Allocator.Persistent);
+        var newInterpolationOutputPoses = new NativeArray<JiggleTransform>(newTransformCapacity, Allocator.Persistent);
+        var newSimulationOutputPoseData = new NativeArray<PoseData>(newTransformCapacity, Allocator.Persistent);
+        var newInterpolationCurrentPoseData = new NativeArray<PoseData>(newTransformCapacity, Allocator.Persistent);
+        var newInterpolationPreviousPoseData = new NativeArray<PoseData>(newTransformCapacity, Allocator.Persistent);
 
-        inputPosesCurrentArray = newInputPosesCurrent;
-        inputPosesPreviousArray = newInputPosesPrevious;
-        simulateInputPosesArray = newSimulateInputPosesArray;
-        restPoseTransformsArray = newRestPoseTransformsArray;
-        previousLocalRestPoseTransformsArray = newPreviousLocalRestPoseTransformsArray;
-        rootOutputPositionsArray = newRootOutputPositionsArray;
-        interpolationOutputPosesArray = newInterpolationOutputPosesArray;
-        simulationOutputPoseDataArray = newSimulationOutputPoseDataArray;
-        interpolationCurrentPoseDataArray = newInterpolationCurrentPoseDataArray;
-        interpolationPreviousPoseDataArray = newInterpolationPreviousPoseDataArray;
-        interpolationOutputPosesArrayOutput = newInterpolationOutputPosesArrayOutput;
+        if (simulateInputPoses.IsCreated) {
+            int copyCount = System.Math.Min(transformCount, newTransformCapacity);
+            NativeArray<JiggleTransform>.Copy(inputPosesPrevious, newInputPosesPrevious, copyCount);
+            NativeArray<JiggleTransform>.Copy(inputPosesCurrent, newInputPosesCurrent, copyCount);
+            NativeArray<JiggleTransform>.Copy(simulateInputPoses, newSimulateInputPoses, copyCount);
+            NativeArray<JiggleTransform>.Copy(restPoseTransforms, newRestPoseTransforms, copyCount);
+            NativeArray<JiggleTransform>.Copy(previousLocalRestPoseTransforms, newPreviousLocalRestPoseTransforms, copyCount);
+            NativeArray<float3>.Copy(rootOutputPositions, newRootOutputPositions, copyCount);
+            NativeArray<JiggleTransform>.Copy(interpolationOutputPoses, newInterpolationOutputPoses, copyCount);
+            NativeArray<PoseData>.Copy(simulationOutputPoseData, newSimulationOutputPoseData, copyCount);
+            NativeArray<PoseData>.Copy(interpolationCurrentPoseData, newInterpolationCurrentPoseData, copyCount);
+            NativeArray<PoseData>.Copy(interpolationPreviousPoseData, newInterpolationPreviousPoseData, copyCount);
 
-        if (jiggleTreeStructs.IsCreated) {
             inputPosesPrevious.Dispose();
             inputPosesCurrent.Dispose();
             simulateInputPoses.Dispose();
@@ -321,35 +282,32 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             interpolationPreviousPoseData.Dispose();
         }
 
-        inputPosesPrevious = new NativeArray<JiggleTransform>(inputPosesPreviousArray, Allocator.Persistent);
-        inputPosesCurrent = new NativeArray<JiggleTransform>(inputPosesCurrentArray, Allocator.Persistent);
-        simulateInputPoses = new NativeArray<JiggleTransform>(simulateInputPosesArray, Allocator.Persistent);
-        restPoseTransforms = new NativeArray<JiggleTransform>(restPoseTransformsArray, Allocator.Persistent);
-        previousLocalRestPoseTransforms = new NativeArray<JiggleTransform>(previousLocalRestPoseTransformsArray, Allocator.Persistent);
-        rootOutputPositions = new NativeArray<float3>(rootOutputPositionsArray, Allocator.Persistent);
-        interpolationOutputPoses = new NativeArray<JiggleTransform>(interpolationOutputPosesArray, Allocator.Persistent);
-        simulationOutputPoseData = new NativeArray<PoseData>(simulationOutputPoseDataArray, Allocator.Persistent);
-        interpolationCurrentPoseData = new NativeArray<PoseData>(interpolationCurrentPoseDataArray, Allocator.Persistent);
-        interpolationPreviousPoseData = new NativeArray<PoseData>(interpolationPreviousPoseDataArray, Allocator.Persistent);
+        inputPosesPrevious = newInputPosesPrevious;
+        inputPosesCurrent = newInputPosesCurrent;
+        simulateInputPoses = newSimulateInputPoses;
+        restPoseTransforms = newRestPoseTransforms;
+        previousLocalRestPoseTransforms = newPreviousLocalRestPoseTransforms;
+        rootOutputPositions = newRootOutputPositions;
+        interpolationOutputPoses = newInterpolationOutputPoses;
+        simulationOutputPoseData = newSimulationOutputPoseData;
+        interpolationCurrentPoseData = newInterpolationCurrentPoseData;
+        interpolationPreviousPoseData = newInterpolationPreviousPoseData;
+
+        interpolationOutputPosesArrayOutput = new JiggleTransform[newTransformCapacity];
 
         transformCapacity = newTransformCapacity;
     }
 
     private void ResizeTreeCapacity(int newTreeCapacity) {
-        var newJiggleTreeStructsArray = new JiggleTreeJobData[newTreeCapacity];
         jiggleTreeStructsArrayOutput = new JiggleTreeJobData[newTreeCapacity];
 
-        if (jiggleTreeStructsArray != null) {
-            System.Array.Copy(jiggleTreeStructsArray, newJiggleTreeStructsArray, System.Math.Min(treeCount, jiggleTreeStructsArray.Length));
-        }
-
-        jiggleTreeStructsArray = newJiggleTreeStructsArray;
-
+        var newJiggleTreeStructs = new NativeArray<JiggleTreeJobData>(newTreeCapacity, Allocator.Persistent);
         if (jiggleTreeStructs.IsCreated) {
+            NativeArray<JiggleTreeJobData>.Copy(jiggleTreeStructs, newJiggleTreeStructs, System.Math.Min(treeCount, jiggleTreeStructs.Length));
             jiggleTreeStructs.Dispose();
         }
 
-        jiggleTreeStructs = new NativeArray<JiggleTreeJobData>(jiggleTreeStructsArray, Allocator.Persistent);
+        jiggleTreeStructs = newJiggleTreeStructs;
         treeCapacity = newTreeCapacity;
     }
 
@@ -374,8 +332,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         ResizeTransformCapacity(4096);
         ResizeTreeCapacity(512);
 
-        WriteOut();
-
         transformAccessList = new List<Transform>();
         transformRootAccessList = new List<Transform>();
         personalColliderTransformAccessList = new List<Transform>();
@@ -399,36 +355,12 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         NativeArray<T>.Copy(native, array, count);
     }
 
-    private void ReadIn() {
-        Profiler.BeginSample("JiggleMemoryBus.ReadIn");
-        if (!jiggleTreeStructs.IsCreated) {
-            Profiler.EndSample();
-            return;
-        }
-
-        ReadIn(jiggleTreeStructs, jiggleTreeStructsArray, treeCount);
-
-        ReadIn(inputPosesCurrent, inputPosesCurrentArray, transformCount);
-        ReadIn(inputPosesPrevious, inputPosesPreviousArray, transformCount);
-        ReadIn(simulateInputPoses, simulateInputPosesArray, transformCount);
-        ReadIn(restPoseTransforms, restPoseTransformsArray, transformCount);
-        ReadIn(previousLocalRestPoseTransforms, previousLocalRestPoseTransformsArray, transformCount);
-        ReadIn(rootOutputPositions, rootOutputPositionsArray, transformCount);
-        ReadIn(interpolationOutputPoses, interpolationOutputPosesArray, transformCount);
-        ReadIn(simulationOutputPoseData, simulationOutputPoseDataArray, transformCount);
-        ReadIn(interpolationCurrentPoseData, interpolationCurrentPoseDataArray, transformCount);
-        ReadIn(interpolationPreviousPoseData, interpolationPreviousPoseDataArray, transformCount);
-        // These get set at AddTransformsToSlice, which is too early, don't read them in because they'll be zeros...
-        //ReadIn(personalColliders, personalColliderArray, personalColliderCount);
-        Profiler.EndSample();
-    }
-
     #if UNITY_EDITOR && JIGGLE_VALIDATE
     // Per-frame NaN/allocation diagnostics — opt-in via the JIGGLE_VALIDATE scripting define. Off by
     // default: this walks every point every frame (O(points)), and Sanitize() already repairs NaNs.
     private bool GetIsValid(out string failReason) {
         for (int i = 0; i < treeCount; i++) {
-            var tree = jiggleTreeStructsArray[i];
+            var tree = jiggleTreeStructs[i];
             if (!tree.GetIsValid(out failReason)) {
                 return false;
             }
@@ -451,7 +383,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
 
         for (int i = 0; i < transformCount; i++) {
-            var transformInfo = simulationOutputPoseDataArray[i];
+            var transformInfo = simulationOutputPoseData[i];
             if (!transformInfo.pose.isVirtual) {
                 if (!memoryFragmenter.GetIsAllocated(i)) {
                     failReason = $"Transform index {i} is not allocated, invalid access!";
@@ -465,31 +397,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
     }
     #endif
 
-    private void WriteOut() {
-        #if UNITY_EDITOR && JIGGLE_VALIDATE
-        if (!GetIsValid(out var failReason)) {
-            Debug.LogError(failReason);
-        }
-        #endif
-        Profiler.BeginSample("JiggleMemoryBus.WriteOut");
-        NativeArray<JiggleTreeJobData>.Copy(jiggleTreeStructsArray, jiggleTreeStructs, treeCount);
-        NativeArray<JiggleTransform>.Copy(inputPosesCurrentArray, inputPosesCurrent, transformCount);
-        NativeArray<JiggleTransform>.Copy(inputPosesPreviousArray, inputPosesPrevious, transformCount);
-        NativeArray<JiggleTransform>.Copy(simulateInputPosesArray, simulateInputPoses, transformCount);
-        NativeArray<JiggleTransform>.Copy(restPoseTransformsArray, restPoseTransforms, transformCount);
-        NativeArray<JiggleTransform>.Copy(previousLocalRestPoseTransformsArray, previousLocalRestPoseTransforms, transformCount);
-        NativeArray<float3>.Copy(rootOutputPositionsArray, rootOutputPositions, transformCount);
-        NativeArray<JiggleTransform>.Copy(interpolationOutputPosesArray, interpolationOutputPoses, transformCount);
-        NativeArray<PoseData>.Copy(simulationOutputPoseDataArray, simulationOutputPoseData, transformCount);
-        NativeArray<PoseData>.Copy(interpolationCurrentPoseDataArray, interpolationCurrentPoseData, transformCount);
-        NativeArray<PoseData>.Copy(interpolationPreviousPoseDataArray, interpolationPreviousPoseData, transformCount);
-        NativeArray<JiggleCollider>.Copy(personalColliderArray, personalColliders, personalColliderCount);
-        Profiler.EndSample();
-    }
-
     private void PreRemoveTree(JiggleTree tree) {
         if (!rootIDToTreeIndex.TryGetValue(tree.rootID, out var i)) return;
-        var removedTree = jiggleTreeStructsArray[i];
+        var removedTree = jiggleTreeStructs[i];
         memoryFragmenter.Free((int)removedTree.transformIndexOffset, (int)removedTree.pointCount);
         for (int j = (int)removedTree.transformIndexOffset; j < removedTree.transformIndexOffset + removedTree.pointCount; j++) {
             transformAccessList[j] = GetDummyTransform(j);
@@ -504,11 +414,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         int id = tree.rootID;
         Profiler.BeginSample("JiggleMemoryBus.RemoveTree");
         if (rootIDToTreeIndex.TryGetValue(id, out var i)) {
-            var removedTree = jiggleTreeStructsArray[i];
+            var removedTree = jiggleTreeStructs[i];
             int lastIndex = treeCount - 1;
             if (i != lastIndex) {
-                var lastTree = jiggleTreeStructsArray[lastIndex];
-                jiggleTreeStructsArray[i] = lastTree;
+                var lastTree = jiggleTreeStructs[lastIndex];
+                jiggleTreeStructs[i] = lastTree;
                 rootIDToTreeIndex[lastTree.rootID] = i;
             }
             rootIDToTreeIndex.Remove(id);
@@ -516,17 +426,17 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             for (int j = (int)removedTree.transformIndexOffset;
                  j < removedTree.transformIndexOffset + removedTree.pointCount;
                  j++) {
-                var pose = simulationOutputPoseDataArray[j].pose;
-                pose.isVirtual = true;
-                simulationOutputPoseDataArray[j].pose = pose;
+                var simData = simulationOutputPoseData[j];
+                simData.pose.isVirtual = true;
+                simulationOutputPoseData[j] = simData;
 
-                var interpolationPose = interpolationCurrentPoseDataArray[j].pose;
-                interpolationPose.isVirtual = true;
-                interpolationCurrentPoseDataArray[j].pose = interpolationPose;
+                var interpCurr = interpolationCurrentPoseData[j];
+                interpCurr.pose.isVirtual = true;
+                interpolationCurrentPoseData[j] = interpCurr;
 
-                var interpolationPose2 = interpolationPreviousPoseDataArray[j].pose;
-                interpolationPose2.isVirtual = true;
-                interpolationPreviousPoseDataArray[j].pose = interpolationPose2;
+                var interpPrev = interpolationPreviousPoseData[j];
+                interpPrev.pose.isVirtual = true;
+                interpolationPreviousPoseData[j] = interpPrev;
             }
         }
 
@@ -569,7 +479,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             for (int i = 0; i < jiggleTreeJobData.colliderCount; i++) {
                 var collider = jiggleTree.personalColliders[i];
                 collider.enabled = true;
-                personalColliderArray[colliderStartIndex + i] = collider;
+                personalColliders[colliderStartIndex + i] = collider;
                 personalColliderTransformAccessList[colliderStartIndex + i] = jiggleTree.personalColliderTransforms[i];
             }
 
@@ -604,7 +514,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             throw new System.Exception($"JigglePhysics: Invalid index when adding tree to memory bus! {jiggleTree.rootID}:{index}");
         }
         
-        jiggleTreeStructsArray[treeCount] = jiggleTreeJobData;
+        jiggleTreeStructs[treeCount] = jiggleTreeJobData;
         rootIDToTreeIndex[jiggleTreeJobData.rootID] = treeCount;
         var root = jiggleTree.bones[0];
         if (!root) {
@@ -631,21 +541,21 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                     position = jiggleTree.restPositions[o],
                     rotation = jiggleTree.restRotations[o],
                 };
-                simulateInputPosesArray[index + o] = pose;
-                restPoseTransformsArray[index + o] = localPose;
-                previousLocalRestPoseTransformsArray[index + o] = localPose;
-                rootOutputPositionsArray[index + o] = rootPos;
-                interpolationOutputPosesArray[index + o] = pose;
+                simulateInputPoses[index + o] = pose;
+                restPoseTransforms[index + o] = localPose;
+                previousLocalRestPoseTransforms[index + o] = localPose;
+                rootOutputPositions[index + o] = rootPos;
+                interpolationOutputPoses[index + o] = pose;
                 var poseData = new PoseData() {
                     pose = pose,
                     rootOffset = new float3(0f),
                     rootPosition = rootPos,
                 };
-                simulationOutputPoseDataArray[index + o] = poseData;
-                interpolationCurrentPoseDataArray[index + o] = poseData;
-                interpolationPreviousPoseDataArray[index + o] = poseData;
-                inputPosesCurrentArray[index + o] = pose;
-                inputPosesPreviousArray[index + o] = pose;
+                simulationOutputPoseData[index + o] = poseData;
+                interpolationCurrentPoseData[index + o] = poseData;
+                interpolationPreviousPoseData[index + o] = poseData;
+                inputPosesCurrent[index + o] = pose;
+                inputPosesPrevious[index + o] = pose;
             }
         }
 
@@ -735,19 +645,18 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             {
                 bool needsResize = false;
                 if (transformCount + newTransforms >= transformCapacity) {
-                    if (!needsResize) { ReadIn(); needsResize = true; }
                     ResizeTransformCapacity(Mathf.NextPowerOfTwo(transformCount+newTransforms+1));
+                    needsResize = true;
                 }
                 if (treeCount + newTrees >= treeCapacity) {
-                    if (!needsResize) { ReadIn(); needsResize = true; }
                     ResizeTreeCapacity(Mathf.NextPowerOfTwo(treeCount+newTrees+1));
+                    needsResize = true;
                 }
                 if (personalColliderCount + newPersonalColliders >= personalColliderCapacity) {
-                    if (!needsResize) { ReadIn(); needsResize = true; }
                     ResizePersonalColliderCapacity(Mathf.NextPowerOfTwo(personalColliderCount+newPersonalColliders+1));
+                    needsResize = true;
                 }
                 if (needsResize) {
-                    WriteOut();
                     return;
                 }
             }
@@ -845,7 +754,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             if (!hasFinishedRoots) return;
             doubleBufferPersonalColliderTransformAccessArray.GenerateNewAccessArrays(ref currentPersonalColliderTransformAccessIndex, out var hasFinishedColliders, personalColliderTransformAccessList, transformAccessBatchSize);
             if (!hasFinishedColliders) return;
-            ReadIn();
             var processingPendingRemoveCount = pendingProcessingRemoves.Count;
             var processingPendingAddCount = pendingProcessingAdds.Count;
 
@@ -885,7 +793,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
             #endregion
 
-            WriteOut();
+            #if UNITY_EDITOR && JIGGLE_VALIDATE
+            if (!GetIsValid(out var failReason)) {
+                Debug.LogError(failReason);
+            }
+            #endif
             doubleBufferTransformAccessArray.Flip();
             doubleBufferTransformRootAccessArray.Flip();
             doubleBufferPersonalColliderTransformAccessArray.Flip();
@@ -984,7 +896,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         if (transformCount == 0) return;
         if (!rootIDToTreeIndex.TryGetValue(rootID, out var treeIndex)) return;
 
-        var tree = jiggleTreeStructsArray[treeIndex];
+        var tree = jiggleTreeStructs[treeIndex];
         int start = (int)tree.transformIndexOffset;
         int end = start + (int)tree.pointCount;
         if (end > transformCount) return;
@@ -993,44 +905,36 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             var inputPrev = inputPosesPrevious[i];
             inputPrev.position += deltaPosition;
             inputPosesPrevious[i] = inputPrev;
-            inputPosesPreviousArray[i] = inputPrev;
 
             var inputCurr = inputPosesCurrent[i];
             inputCurr.position += deltaPosition;
             inputPosesCurrent[i] = inputCurr;
-            inputPosesCurrentArray[i] = inputCurr;
 
             var simInput = simulateInputPoses[i];
             simInput.position += deltaPosition;
             simulateInputPoses[i] = simInput;
-            simulateInputPosesArray[i] = simInput;
 
             var interpOut = interpolationOutputPoses[i];
             interpOut.position += deltaPosition;
             interpolationOutputPoses[i] = interpOut;
-            interpolationOutputPosesArray[i] = interpOut;
 
             var rootOut = rootOutputPositions[i] + deltaPosition;
             rootOutputPositions[i] = rootOut;
-            rootOutputPositionsArray[i] = rootOut;
 
             var simPose = simulationOutputPoseData[i];
             simPose.pose.position += deltaPosition;
             simPose.rootPosition += deltaPosition;
             simulationOutputPoseData[i] = simPose;
-            simulationOutputPoseDataArray[i] = simPose;
 
             var interpCurr = interpolationCurrentPoseData[i];
             interpCurr.pose.position += deltaPosition;
             interpCurr.rootPosition += deltaPosition;
             interpolationCurrentPoseData[i] = interpCurr;
-            interpolationCurrentPoseDataArray[i] = interpCurr;
 
             var interpPrev = interpolationPreviousPoseData[i];
             interpPrev.pose.position += deltaPosition;
             interpPrev.rootPosition += deltaPosition;
             interpolationPreviousPoseData[i] = interpPrev;
-            interpolationPreviousPoseDataArray[i] = interpPrev;
         }
 
         tree.Translate(deltaPosition);

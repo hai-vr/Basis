@@ -4,10 +4,6 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using System.Collections.Generic;
 using TMPro;
-using Unity.Burst;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -783,10 +779,10 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         // =========================================================
-        // Optimized job system (double-buffered + safe structural changes)
+        // Plate registry + per-frame pulse simulation (safe structural changes)
         // =========================================================
 
-        // Manually-managed array (not List<T>) so the per-frame gather/apply loops
+        // Manually-managed array (not List<T>) so the per-frame compute/apply loops
         // index a plain T[] instead of going through List<T>.this[]'s bounds-check
         // and indirection — that overhead showed up in the profiler.
         // `count` (declared below) is the live element count, maintained eagerly
@@ -797,21 +793,11 @@ namespace Basis.Scripts.UI.NamePlate
         private static readonly List<BasisRemoteNamePlate> pendingAdd = new(64);
         private static readonly List<BasisRemoteNamePlate> pendingRemove = new(64);
 
-        // Double-buffer inputs so we don't need Complete() at the start.
-        private static NativeArray<PlateInput> inputA;
-        private static NativeArray<PlateInput> inputB;
+        // Pulse results computed in ScheduleSimulate, applied in CompleteNamePlates.
+        private static PlateOutput[] results = new PlateOutput[256];
 
-        // Double-buffer outputs (optional but keeps everything symmetric)
-        private static NativeArray<PlateOutput> outputA;
-        private static NativeArray<PlateOutput> outputB;
-
-        private static int writeBuffer; // 0 => A, 1 => B
-        private static bool allocated;
-        private static int capacity;
-
-        public static JobHandle handle;
         public static int count;
-        private static bool jobScheduled;
+        private static bool pulseComputed;
 
         public static void Register(BasisRemoteNamePlate p)
         {
@@ -828,13 +814,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static void Dispose()
         {
-            if (jobScheduled)
-            {
-                handle.Complete();
-                jobScheduled = false;
-            }
-
-            DisposeArrays();
+            pulseComputed = false;
 
             System.Array.Clear(plates, 0, count);
             indexOf.Clear();
@@ -849,20 +829,8 @@ namespace Basis.Scripts.UI.NamePlate
                 PanelVertexColorMaterial = null;
             }
 
-            allocated = false;
-            capacity = 0;
             count = 0;
             _initialized = false;
-        }
-
-        private static void DisposeArrays()
-        {
-            if (!allocated) return;
-
-            if (inputA.IsCreated) inputA.Dispose();
-            if (inputB.IsCreated) inputB.Dispose();
-            if (outputA.IsCreated) outputA.Dispose();
-            if (outputB.IsCreated) outputB.Dispose();
         }
 
         /// <summary>
@@ -874,6 +842,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (!ShouldRunJobs())
             {
+                pulseComputed = false;
                 return;
             }
 
@@ -889,19 +858,6 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static void ScheduleSimulate(double now, float hold, float fade, float4 normalColor)
         {
-            // If a job is still running, don't stomp buffers.
-            if (jobScheduled && !handle.IsCompleted)
-            {
-                return;
-            }
-
-            // If it finished, complete it now so we can apply structural changes/resizes safely.
-            if (jobScheduled)
-            {
-                handle.Complete();
-                jobScheduled = false;
-            }
-
             if (pendingRemove.Count > 0 || pendingAdd.Count > 0)
             {
                 ApplyPendingStructuralChanges();
@@ -909,75 +865,70 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (count == 0)
             {
+                pulseComputed = false;
                 return;
             }
 
-            EnsureCapacity(count);
+            if (results.Length < count)
+            {
+                results = new PlateOutput[math.ceilpow2(count)];
+            }
 
-            // Flip buffers (write into one, job reads that one, apply reads outputs of that one)
-            writeBuffer ^= 1;
-
-            var inBuf = (writeBuffer == 0) ? inputA : inputB;
-            var outBuf = (writeBuffer == 0) ? outputA : outputB;
-
-            // Gather inputs via unsafe pointers to bypass NativeArray safety checks.
             // `plates` is a plain T[] (not List<T>) so indexing skips the List indexer overhead.
             var arr = plates;
-            unsafe
+            for (int i = 0; i < count; i++)
             {
-                PlateInput* pIn = (PlateInput*)inBuf.GetUnsafePtr();
-
-                for (int i = 0; i < count; i++)
-                {
-                    var p = arr[i];
-                    bool pulsing = p.GetIsPulsingForJob();
-
-                    // Mid-pulse audibility recheck: if the player became inaudible
-                    // (mute, block, out-of-range, audio source unloaded, etc.) while
-                    // a pulse was in flight, snap the plate back to normal now
-                    // instead of letting the 0.7s hold+fade finish the transition.
-                    if (pulsing && !p.CanCurrentlyBeHeard())
-                    {
-                        float4 rc = p.GetRestingColorFloat4ForJob();
-                        p.ApplyColorFromJob(new Color(rc.x, rc.y, rc.z, rc.w));
-                        p.StopPulseFromJob();
-                        pulsing = false;
-                    }
-
-                    var input = new PlateInput { isVisible = (ushort)p.IsVisibleRaw };
-                    input.restingColor = p.GetRestingColorFloat4ForJob();
-                    if (pulsing)
-                    {
-                        input.isPulsing = 1;
-                        input.startTime = p.GetTalkStartTimeForJob();
-                        input.talkColor = p.GetTalkColorFloat4ForJob();
-                    }
-                    pIn[i] = input;
-                }
+                results[i] = ComputePulse(arr[i], now, hold, fade);
             }
 
-            var job = new NamePlatePulseJob
-            {
-                now = now,
-                hold = hold,
-                fade = fade,
-                normalColor = normalColor,
-                inputs = inBuf,
-                outputs = outBuf
-            };
+            pulseComputed = true;
+        }
 
-            // For small counts, run inline — job system scheduling overhead
-            // exceeds the trivial per-item computation (branch + lerp).
-            if (count <= 64)
+        private static PlateOutput ComputePulse(BasisRemoteNamePlate p, double now, float hold, float fade)
+        {
+            PlateOutput o = default;
+
+            if (!p.GetIsPulsingForJob())
             {
-                job.Run(count);
-                handle = default;
+                return o;
             }
-            else
+
+            // Mid-pulse audibility recheck: if the player became inaudible (mute, block,
+            // out-of-range, audio source unloaded, etc.) while a pulse was in flight, snap
+            // the plate back to normal now instead of letting the hold+fade finish.
+            if (!p.CanCurrentlyBeHeard())
             {
-                handle = job.Schedule(count, 64);
+                float4 rc = p.GetRestingColorFloat4ForJob();
+                p.ApplyColorFromJob(new Color(rc.x, rc.y, rc.z, rc.w));
+                p.StopPulseFromJob();
+                return o;
             }
-            jobScheduled = true;
+
+            if (p.IsVisibleRaw == 0)
+            {
+                o.stopPulsing = 1;
+                return o;
+            }
+
+            double elapsed = now - p.GetTalkStartTimeForJob();
+            if (elapsed < hold)
+            {
+                return o;
+            }
+
+            float t = (float)((elapsed - hold) / fade);
+            if (t >= 1f)
+            {
+                o.color = p.GetRestingColorFloat4ForJob();
+                o.hasChange = 1;
+                o.stopPulsing = 1;
+                return o;
+            }
+
+            t = math.saturate(t);
+            o.color = math.lerp(p.GetTalkColorFloat4ForJob(), p.GetRestingColorFloat4ForJob(), t);
+            o.hasChange = 1;
+            return o;
         }
 
         /// <summary>
@@ -996,35 +947,27 @@ namespace Basis.Scripts.UI.NamePlate
                 }
             }
 
-            if (jobScheduled && count != 0)
+            if (pulseComputed && count != 0)
             {
-                handle.Complete();
-                jobScheduled = false;
+                pulseComputed = false;
 
-                var outBuf = (writeBuffer == 0) ? outputA : outputB;
                 var arr = plates;
-
-                unsafe
+                for (int i = 0; i < count; i++)
                 {
-                    PlateOutput* pOut = (PlateOutput*)outBuf.GetUnsafeReadOnlyPtr();
+                    var p = arr[i];
+                    PlateOutput o = results[i];
 
-                    for (int i = 0; i < count; i++)
+                    if (o.stopPulsing != 0)
+                        p.StopPulseFromJob();
+
+                    if (o.hasChange != 0)
                     {
-                        var p = arr[i];
-                        PlateOutput o = pOut[i];
-
-                        if (o.stopPulsing != 0)
-                            p.StopPulseFromJob();
-
-                        if (o.hasChange != 0)
-                        {
-                            float4 c = o.color;
-                            p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
-                        }
-
-                        p.UpdateChatTimeout();
-                        p.RefreshTypingIndicatorAnimation();
+                        float4 c = o.color;
+                        p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
                     }
+
+                    p.UpdateChatTimeout();
+                    p.RefreshTypingIndicatorAnimation();
                 }
             }
 
@@ -1038,16 +981,12 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         /// <summary>
-        /// Completes any in-flight pulse job and flushes queued plate add/removes into
+        /// Discards this frame's pulse results and flushes queued plate add/removes into
         /// the live array. Safe to call off the per-frame path (e.g. on settings changes).
         /// </summary>
         private static void FlushPendingStructuralChanges()
         {
-            if (jobScheduled)
-            {
-                handle.Complete();
-                jobScheduled = false;
-            }
+            pulseComputed = false;
 
             if (pendingAdd.Count > 0 || pendingRemove.Count > 0)
             {
@@ -1104,115 +1043,11 @@ namespace Basis.Scripts.UI.NamePlate
             pendingAdd.Clear();
         }
 
-        private static void EnsureCapacity(int countNeeded)
-        {
-            if (allocated && capacity >= countNeeded)
-                return;
-
-            int newCap = math.max(64, math.ceilpow2(countNeeded));
-
-            var newInA = new NativeArray<PlateInput>(newCap, Allocator.Persistent);
-            var newInB = new NativeArray<PlateInput>(newCap, Allocator.Persistent);
-            var newOutA = new NativeArray<PlateOutput>(newCap, Allocator.Persistent);
-            var newOutB = new NativeArray<PlateOutput>(newCap, Allocator.Persistent);
-
-            if (allocated)
-            {
-                int copy = math.min(capacity, newCap);
-                NativeArray<PlateInput>.Copy(inputA, newInA, copy);
-                NativeArray<PlateInput>.Copy(inputB, newInB, copy);
-                NativeArray<PlateOutput>.Copy(outputA, newOutA, copy);
-                NativeArray<PlateOutput>.Copy(outputB, newOutB, copy);
-
-                DisposeArrays();
-            }
-
-            inputA = newInA;
-            inputB = newInB;
-            outputA = newOutA;
-            outputB = newOutB;
-
-            capacity = newCap;
-            allocated = true;
-        }
-
-        public struct PlateInput
-        {
-            public ushort isPulsing; // 0/1
-            public ushort isVisible; // 0/1
-            public double startTime;
-            public float4 talkColor;
-            public float4 restingColor;
-        }
-
         public struct PlateOutput
         {
             public float4 color;
             public ushort hasChange;   // 0/1
             public ushort stopPulsing; // 0/1
-        }
-
-        [BurstCompile]
-        public struct NamePlatePulseJob : IJobParallelFor
-        {
-            public double now;
-            public float hold;
-            public float fade;
-
-            public float4 normalColor;
-
-            [ReadOnly] public NativeArray<PlateInput> inputs;
-            public NativeArray<PlateOutput> outputs;
-
-            public void Execute(int i)
-            {
-                // Fast clear
-                var o = new PlateOutput
-                {
-                    hasChange = 0,
-                    stopPulsing = 0,
-                    color = 0
-                };
-
-                var st = inputs[i];
-
-                if (st.isPulsing == 0)
-                {
-                    outputs[i] = o;
-                    return;
-                }
-
-                if (st.isVisible == 0)
-                {
-                    o.stopPulsing = 1;
-                    outputs[i] = o;
-                    return;
-                }
-
-                double elapsed = now - st.startTime;
-
-                if (elapsed < hold)
-                {
-                    outputs[i] = o;
-                    return;
-                }
-
-                float t = (float)((elapsed - hold) / fade);
-
-                if (t >= 1f)
-                {
-                    o.color = st.restingColor;
-                    o.hasChange = 1;
-                    o.stopPulsing = 1;
-                    outputs[i] = o;
-                    return;
-                }
-
-                t = math.saturate(t);
-                o.color = math.lerp(st.talkColor, st.restingColor, t);
-                o.hasChange = 1;
-                outputs[i] = o;
-            }
         }
     }
 }

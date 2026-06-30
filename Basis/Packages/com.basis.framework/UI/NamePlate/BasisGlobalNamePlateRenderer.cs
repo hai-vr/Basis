@@ -126,9 +126,10 @@ namespace Basis.Scripts.UI.NamePlate
         // position + normal + color + 4-component UV0 (atlas + SDF scale in .w) + the plate id in UV2).
         public static bool ManualMergeText = true;
         private static NativeArray<TextVertex> textScratch;
-        private static NativeArray<Vector3> tmpNormal;
-        private static NativeArray<Color> tmpColor;
-        private static NativeArray<Vector4> tmpUv0v4;
+        // Per-source-mesh write offsets + plate id, filled on the main thread and read by MergeTextJob.
+        private static NativeArray<int> textVOff;
+        private static NativeArray<int> textIOff;
+        private static NativeArray<int> textPlateId;
         private static readonly VertexAttributeDescriptor[] TextLayout =
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
@@ -518,7 +519,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// forked TMP shader ignores TEXCOORD1, so it's omitted. Reads via MeshData typed getters so
         /// channel formats convert safely.
         /// </summary>
-        private static unsafe void BuildTextMerged(Layer l)
+        private static void BuildTextMerged(Layer l)
         {
             int n = l.Combine.Count;
             srcMeshList.Clear();
@@ -526,15 +527,18 @@ namespace Basis.Scripts.UI.NamePlate
 
             using Mesh.MeshDataArray mda = Mesh.AcquireReadOnlyMeshData(srcMeshList);
 
-            int totalV = 0, totalI = 0, maxV = 0, maxI = 0;
+            EnsureScratch(ref textVOff, n);
+            EnsureScratch(ref textIOff, n);
+            EnsureScratch(ref textPlateId, n);
+
+            int totalV = 0, totalI = 0;
             for (int i = 0; i < n; i++)
             {
-                int v = mda[i].vertexCount;
-                int ic = mda[i].GetSubMesh(0).indexCount;
-                totalV += v;
-                totalI += ic;
-                if (v > maxV) maxV = v;
-                if (ic > maxI) maxI = ic;
+                textVOff[i] = totalV;
+                textIOff[i] = totalI;
+                textPlateId[i] = l.SrcPlate[i];
+                totalV += mda[i].vertexCount;
+                totalI += mda[i].GetSubMesh(0).indexCount;
             }
 
             l.VertexCount = totalV;
@@ -546,59 +550,20 @@ namespace Basis.Scripts.UI.NamePlate
 
             EnsureScratch(ref textScratch, totalV);
             EnsureScratch(ref indexScratch, totalI);
-            EnsureScratch(ref tmpPos, maxV);
-            EnsureScratch(ref tmpNormal, maxV);
-            EnsureScratch(ref tmpColor, maxV);
-            EnsureScratch(ref tmpUv0v4, maxV);
-            EnsureScratch(ref tmpIdx, maxI);
 
-            TextVertex* vp = (TextVertex*)textScratch.GetUnsafePtr();
-            uint* ip = (uint*)indexScratch.GetUnsafePtr();
-
-            int vOff = 0, iOff = 0;
-            for (int i = 0; i < n; i++)
+            // Each plate's channel reads (the per-mesh MeshData getters) + interleave run in Burst on a
+            // worker, writing into the plate's own disjoint slice of the merged buffers (offsets above).
+            var job = new MergeTextJob
             {
-                Mesh.MeshData md = mda[i];
-                int vc = md.vertexCount;
-                int ic = md.GetSubMesh(0).indexCount;
-
-                md.GetVertices(tmpPos.GetSubArray(0, vc));
-                md.GetUVs(0, tmpUv0v4.GetSubArray(0, vc));
-                md.GetIndices(tmpIdx.GetSubArray(0, ic), 0);
-
-                if (md.HasVertexAttribute(VertexAttribute.Normal))
-                    md.GetNormals(tmpNormal.GetSubArray(0, vc));
-                else
-                    for (int j = 0; j < vc; j++) tmpNormal[j] = new Vector3(0f, 0f, -1f);
-
-                if (md.HasVertexAttribute(VertexAttribute.Color))
-                    md.GetColors(tmpColor.GetSubArray(0, vc));
-                else
-                    for (int j = 0; j < vc; j++) tmpColor[j] = Color.white;
-
-                float3* pp = (float3*)tmpPos.GetUnsafeReadOnlyPtr();
-                float3* np = (float3*)tmpNormal.GetUnsafeReadOnlyPtr();
-                float4* cp = (float4*)tmpColor.GetUnsafeReadOnlyPtr();   // Color is r,g,b,a floats == float4
-                float4* u0 = (float4*)tmpUv0v4.GetUnsafeReadOnlyPtr();
-                int* xp = (int*)tmpIdx.GetUnsafeReadOnlyPtr();
-
-                float2 uv2 = new float2(l.SrcPlate[i], 0f);
-                for (int j = 0; j < vc; j++)
-                {
-                    vp[vOff + j] = new TextVertex
-                    {
-                        Pos = pp[j],
-                        Normal = np[j],
-                        Color = cp[j],
-                        Uv0 = u0[j],
-                        Uv2 = uv2
-                    };
-                }
-                for (int k = 0; k < ic; k++) ip[iOff + k] = (uint)(xp[k] + vOff);
-
-                vOff += vc;
-                iOff += ic;
-            }
+                Src = mda,
+                VOff = textVOff,
+                IOff = textIOff,
+                PlateId = textPlateId,
+                OutVerts = textScratch,
+                OutIdx = indexScratch
+            };
+            if (totalV >= ParallelVertexThreshold) job.Schedule(n, 16).Complete();
+            else job.Run(n);
 
             l.Mesh.Clear();
             l.Mesh.SetVertexBufferParams(totalV, TextLayout);
@@ -1024,11 +989,11 @@ namespace Basis.Scripts.UI.NamePlate
             if (textScratch.IsCreated) textScratch.Dispose();
             if (indexScratch.IsCreated) indexScratch.Dispose();
             if (tmpPos.IsCreated) tmpPos.Dispose();
-            if (tmpNormal.IsCreated) tmpNormal.Dispose();
-            if (tmpColor.IsCreated) tmpColor.Dispose();
             if (tmpUv0.IsCreated) tmpUv0.Dispose();
-            if (tmpUv0v4.IsCreated) tmpUv0v4.Dispose();
             if (tmpIdx.IsCreated) tmpIdx.Dispose();
+            if (textVOff.IsCreated) textVOff.Dispose();
+            if (textIOff.IsCreated) textIOff.Dispose();
+            if (textPlateId.IsCreated) textPlateId.Dispose();
             srcMeshList.Clear();
             snapArr = System.Array.Empty<BasisRemoteNamePlate>();
             plateCapacity = 0;
@@ -1082,6 +1047,73 @@ namespace Basis.Scripts.UI.NamePlate
                 int gi = PlateIdx[v];
                 World[v] = math.transform(Matrices[gi], Local[v]);
                 Colors[v] = PlateColors[gi];
+            }
+        }
+
+        /// <summary>
+        /// Reads each source text mesh's channels (position/normal/color/UV0) via the MeshData typed
+        /// getters and writes the interleaved <see cref="TextVertex"/> plus offset indices into the
+        /// merged buffers at the plate's precomputed slice. Burst across worker threads replaces the
+        /// single-threaded per-mesh read + interleave that dominated the topology rebuild.
+        /// </summary>
+        [BurstCompile]
+        private struct MergeTextJob : IJobParallelFor
+        {
+            [ReadOnly] public Mesh.MeshDataArray Src;
+            [ReadOnly] public NativeArray<int> VOff;
+            [ReadOnly] public NativeArray<int> IOff;
+            [ReadOnly] public NativeArray<int> PlateId;
+            [NativeDisableParallelForRestriction] public NativeArray<TextVertex> OutVerts;
+            [NativeDisableParallelForRestriction] public NativeArray<uint> OutIdx;
+
+            public void Execute(int i)
+            {
+                Mesh.MeshData md = Src[i];
+                int vc = md.vertexCount;
+                int vo = VOff[i];
+
+                var pos = new NativeArray<Vector3>(vc, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                var uv0 = new NativeArray<Vector4>(vc, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                md.GetVertices(pos);
+                md.GetUVs(0, uv0);
+
+                var nrm = new NativeArray<Vector3>(vc, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                if (md.HasVertexAttribute(VertexAttribute.Normal)) md.GetNormals(nrm);
+                else for (int j = 0; j < vc; j++) nrm[j] = new Vector3(0f, 0f, -1f);
+
+                var col = new NativeArray<Color>(vc, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                if (md.HasVertexAttribute(VertexAttribute.Color)) md.GetColors(col);
+                else for (int j = 0; j < vc; j++) col[j] = new Color(1f, 1f, 1f, 1f);
+
+                NativeArray<float3> pp = pos.Reinterpret<float3>();
+                NativeArray<float3> np = nrm.Reinterpret<float3>();
+                NativeArray<float4> cp = col.Reinterpret<float4>();   // Color is r,g,b,a floats == float4
+                NativeArray<float4> u0 = uv0.Reinterpret<float4>();
+
+                float2 uv2 = new float2(PlateId[i], 0f);
+                for (int j = 0; j < vc; j++)
+                {
+                    OutVerts[vo + j] = new TextVertex
+                    {
+                        Pos = pp[j],
+                        Normal = np[j],
+                        Color = cp[j],
+                        Uv0 = u0[j],
+                        Uv2 = uv2
+                    };
+                }
+
+                int ic = md.GetSubMesh(0).indexCount;
+                int io = IOff[i];
+                var idx = new NativeArray<int>(ic, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                md.GetIndices(idx, 0);
+                for (int k = 0; k < ic; k++) OutIdx[io + k] = (uint)(idx[k] + vo);
+
+                pos.Dispose();
+                uv0.Dispose();
+                nrm.Dispose();
+                col.Dispose();
+                idx.Dispose();
             }
         }
 

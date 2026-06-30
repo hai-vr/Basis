@@ -44,10 +44,33 @@ public static class BasisBundleLoadAsset
                             ChecksRequired.ChangeCollidersToCorrectLayer = ChangeColidersToCorrectLayer;
                             ChecksRequired.ScrubPersistentUnityEvents = true;
                             BasisContentHarvest harvest = BasisAvatar != null ? new BasisContentHarvest() : null;
+                            // Instantiate (phase one) and the component strip/scrub walk (phase two) are
+                            // each a multi-ms main-thread cost; running both in one frame is the load hitch.
+                            // BeginContentControl parks the clone inactive after Instantiate; yield a frame
+                            // before FinishContentControl runs the walk + activate so the two never share a
+                            // frame. The budget gate still spreads concurrent loads across frames on top of that.
                             await BasisLoadFrameBudget.WaitForBudgetAsync();
-                            double scrubStart = BasisLoadFrameBudget.BeginStep();
-                            GameObject CreatedCopy = ContentPoliceControl.ContentControl(DisabledGameobject,loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop, harvest);
-                            BasisLoadFrameBudget.EndStep(scrubStart);
+                            double instantiateStart = BasisLoadFrameBudget.BeginStep();
+                            ContentPoliceControl.ContentControlState scrubState = ContentPoliceControl.BeginContentControl(DisabledGameobject, loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop, harvest);
+                            BasisLoadFrameBudget.EndStep(instantiateStart);
+                            GameObject CreatedCopy;
+                            if (scrubState.RemovalWalkPending)
+                            {
+                                await Task.Yield();
+                                await BasisLoadFrameBudget.WaitForBudgetAsync();
+                                double walkStart = BasisLoadFrameBudget.BeginStep();
+                                CreatedCopy = ContentPoliceControl.FinishContentControl(scrubState);
+                                BasisLoadFrameBudget.EndStep(walkStart);
+                            }
+                            else
+                            {
+                                CreatedCopy = ContentPoliceControl.FinishContentControl(scrubState);
+                            }
+                            if (CreatedCopy == null)
+                            {
+                                BasisDebug.LogError("ContentControl returned null; clone was destroyed during the frame-split load.");
+                                return null;
+                            }
                             if (harvest != null && CreatedCopy != null && CreatedCopy.TryGetComponent(out Basis.Scripts.BasisSdk.BasisAvatar createdAvatar))
                             {
                                 createdAvatar.Harvest = harvest;
