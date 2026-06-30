@@ -43,6 +43,7 @@ public class JiggleTreeSegment {
         JigglePhysics.SetGlobalDirty();
     }
 
+    private System.Action<JiggleTree> _onDirty;
     private void OnDirty(JiggleTree obj) {
         SetDirty();
     }
@@ -61,15 +62,16 @@ public class JiggleTreeSegment {
     
 
     public void RegenerateJiggleTreeIfNeeded() {
+        _onDirty ??= OnDirty;
         if (jiggleTree == null) {
             jiggleTree = JigglePhysics.CreateJiggleTree(jiggleRigData, jiggleTree);
-            jiggleTree.dirtied += OnDirty;
+            jiggleTree.dirtied += _onDirty;
             return;
         }
         if (jiggleTree.dirty) {
-            jiggleTree.dirtied -= OnDirty;
+            jiggleTree.dirtied -= _onDirty;
             jiggleTree = JigglePhysics.CreateJiggleTree(jiggleRigData, jiggleTree);
-            jiggleTree.dirtied += OnDirty;
+            jiggleTree.dirtied += _onDirty;
         }
     }
 

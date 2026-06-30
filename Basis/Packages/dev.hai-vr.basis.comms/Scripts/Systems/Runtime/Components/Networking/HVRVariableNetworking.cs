@@ -32,7 +32,7 @@ namespace HVR.Basis.Comms
         private void Awake() => _behaviour = isWearer ? new HVRVariableBehaviour_Wearer(this) : new HVRVariableBehaviour_Remote(this);
         private void OnEnable() => HVRCommsUpdateDriver.Register(this);
         private void OnDisable() => HVRCommsUpdateDriver.Unregister(this);
-        internal void SimulateTick() => _behaviour.Update();
+        internal void SimulateTick(float deltaTime) => _behaviour.Update(deltaTime);
         private void OnDestroy() => _behaviour.OnDestroy();
 
         public void RequireVariable(HVRVariable variable) => _behaviour.RequireVariable(variable);
@@ -73,7 +73,7 @@ namespace HVR.Basis.Comms
 
         internal interface IHVRVariableBehaviour : IFeatureReceiver
         {
-            public void Update();
+            public void Update(float deltaTime);
             void RequireVariable(HVRVariable variable);
             void OnDestroy();
         }
@@ -209,7 +209,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            public void Update()
+            public void Update(float deltaTime)
             {
                 if (_newVariablesAddressIds.Count > 0)
                 {
@@ -218,14 +218,14 @@ namespace HVR.Basis.Comms
                 }
 
                 // This runs every 5 seconds in general.
-                _timeLeftUpgradeAddresses += Time.deltaTime;
+                _timeLeftUpgradeAddresses += deltaTime;
                 if (_timeLeftUpgradeAddresses > UpgradeAddressesDeltaSeconds)
                 {
                     UpgradeOrDowngradeAddressesIfNecessary();
                 }
 
                 // This runs every 0.1 seconds in general.
-                _timeLeftUpdateValues += Time.deltaTime;
+                _timeLeftUpdateValues += deltaTime;
                 if (_timeLeftUpdateValues > _state.transmissionDeltaSeconds)
                 {
                     DoTick(_timeLeftUpdateValues);
@@ -616,11 +616,10 @@ namespace HVR.Basis.Comms
             }
 
             private readonly Dictionary<int, float> L_result = new(); // is field due to PR guidelines
-            public void Update()
+            public void Update(float deltaTime)
             {
                 if (UseInterpolationTape)
                 {
-                    var deltaTime = Time.deltaTime;
                     if (_lowFrequencyInterpolator.HasPendingWork)
                     {
                         SubmitToVariableStore(_lowFrequencyInterpolator.Advance(deltaTime, L_result));

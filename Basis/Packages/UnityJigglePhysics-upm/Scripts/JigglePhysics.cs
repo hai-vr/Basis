@@ -257,11 +257,12 @@ public static class JigglePhysics {
 
     // Out-of-band root-Transform destruction (asset bundle unload, scene teardown, a rig
     // whose OnDisable was skipped) is rare and otherwise handled immediately by
-    // RemoveJiggleTreeSegment, so the dead-segment prune — two Unity `== null` checks per
-    // root, O(total trees) every dirty flush — only runs once per PRUNE_CADENCE flushes
-    // instead of scanning all ~N roots each time a single tree goes dirty.
+    // RemoveJiggleTreeSegment, so the dead-segment prune — two Unity `== null` checks per root,
+    // one of them behind a per-root interface call — is spread as a rolling slice of
+    // ~N/PRUNE_CADENCE roots per flush. Same per-root cadence as the old once-per-PRUNE_CADENCE
+    // sweep, but without the O(N) spike on the sweep frame.
     private const int PRUNE_CADENCE = 64;
-    private static int pruneFlushCounter;
+    private static int pruneCursor;
 
     // <= 0 = unlimited (original behavior). Caps tree (re)builds per dirty flush so a burst of
     // rig enables (many avatars loading the same frame) amortizes over several frames instead
@@ -271,22 +272,39 @@ public static class JigglePhysics {
 
     private static bool GetJiggleTrees() {
         Profiler.BeginSample("JiggleRoot.GetJiggleTrees");
-        bool prune = ++pruneFlushCounter >= PRUNE_CADENCE;
-        if (prune) pruneFlushCounter = 0;
+        int count = rootJiggleTreeSegments.Count;
+
+        // This flush's rolling dead-prune window: ~count/PRUNE_CADENCE roots, advancing each flush
+        // so every root is validity-checked once per PRUNE_CADENCE flushes without an O(count) spike.
+        if (pruneCursor >= count) pruneCursor = 0;
+        int sliceSize = math.max(1, (count + PRUNE_CADENCE - 1) / PRUNE_CADENCE);
+        int pruneSliceStart = pruneCursor;
+        int pruneSliceEnd = math.min(pruneCursor + sliceSize, count);
+        pruneCursor = pruneSliceEnd >= count ? 0 : pruneSliceEnd;
 
         int budget = maxTreeRegenerationsPerFlush;
         bool limited = budget > 0;
         int regenerated = 0;
         bool backlogRemains = false;
 
-        for (int i = rootJiggleTreeSegments.Count - 1; i >= 0; i--) {
+        for (int i = count - 1; i >= 0; i--) {
             var seg = rootJiggleTreeSegments[i];
-            // Cheap path: a clean, already-built tree on a non-prune flush needs no work and
-            // skips the expensive Unity null checks below. Dirty/new trees (and every root on
-            // a prune flush) fall through and are still null-guarded before regeneration.
             var currentTree = seg.jiggleTree;
             bool needsRegen = currentTree is not { dirty: false };
-            if (!needsRegen && !prune) {
+            bool inPruneSlice = i >= pruneSliceStart && i < pruneSliceEnd;
+
+            // Cheap path: a clean, already-built tree outside this flush's prune slice needs no
+            // work and skips the expensive Unity null + interface-call validity check below.
+            if (!needsRegen && !inPruneSlice) {
+                continue;
+            }
+            // Over-budget dirty/new roots defer cheaply — without the validity check — unless the
+            // prune slice covers them this flush. This is the hot fix: a backlog of dirty roots no
+            // longer pays the per-root interface call + Unity null checks every single flush while
+            // waiting its turn under the regeneration budget; only the ≤budget roots actually being
+            // rebuilt (plus the small rolling prune slice) hit the expensive check.
+            if (needsRegen && !inPruneSlice && limited && regenerated >= budget) {
+                backlogRemains = true;
                 continue;
             }
             if (seg.transform == null || seg.jiggleRigData.rootBone == null) {
@@ -298,8 +316,6 @@ public static class JigglePhysics {
             if (!needsRegen) {
                 continue;
             }
-            // Dead-segment pruning above still runs for every root; only the expensive rebuild
-            // is budgeted. Leave the rest dirty and signal a backlog so the next flush continues.
             if (limited && regenerated >= budget) {
                 backlogRemains = true;
                 continue;

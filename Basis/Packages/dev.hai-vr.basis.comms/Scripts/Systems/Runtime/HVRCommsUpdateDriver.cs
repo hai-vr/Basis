@@ -106,10 +106,11 @@ namespace HVR.Basis.Comms
         {
             using (VariableNetworkingMarker.Auto())
             {
+                var deltaTime = UnityEngine.Time.deltaTime;
                 var items = VariableNetworkers.Snapshot(out var count);
                 for (var i = 0; i < count; i++)
                 {
-                    try { items[i].SimulateTick(); }
+                    try { items[i].SimulateTick(deltaTime); }
                     catch (Exception ex) { BasisDebug.LogError($"HVRVariableNetworking update failed: {ex}"); }
                 }
             }

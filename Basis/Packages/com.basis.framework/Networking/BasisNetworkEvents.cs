@@ -110,14 +110,24 @@ public static class BasisNetworkEvents
             // CreateRemotePlayer work into the budgeted lifecycle queue.
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                ServerReadyMessage srm = new ServerReadyMessage();
-                srm.Deserialize(Reader);
-                Reader.Recycle();
-                BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                try
                 {
-                    BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                });
+                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                    ServerReadyMessage srm = new ServerReadyMessage();
+                    srm.Deserialize(Reader);
+                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                    {
+                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    BNL.LogError($"Dropping corrupt remote-player spawn packet: {ex.Message}");
+                }
+                finally
+                {
+                    Reader.Recycle();
+                }
             });
         });
 
@@ -131,14 +141,24 @@ public static class BasisNetworkEvents
             //same as remote player but just used at the start
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                ServerReadyMessage srm = new ServerReadyMessage();
-                srm.Deserialize(Reader);
-                Reader.Recycle();
-                BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                try
                 {
-                    BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                });
+                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                    ServerReadyMessage srm = new ServerReadyMessage();
+                    srm.Deserialize(Reader);
+                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                    {
+                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    BNL.LogError($"Dropping corrupt remote-player spawn packet: {ex.Message}");
+                }
+                finally
+                {
+                    Reader.Recycle();
+                }
             });
         });
 

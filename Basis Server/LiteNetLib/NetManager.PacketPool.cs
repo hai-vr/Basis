@@ -1,11 +1,12 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 
 namespace LiteNetLib
 {
     public partial class NetManager
     {
-        private NetPacket _poolHead;
+        private readonly ConcurrentQueue<NetPacket> _pool = new ConcurrentQueue<NetPacket>();
         private int _poolCount;
 
         /// <summary>
@@ -14,7 +15,7 @@ namespace LiteNetLib
         public int PacketPoolSize = 1000;
 
         public int PoolCount => _poolCount;
-        
+
         private NetPacket PoolGetWithData(PacketProperty property, byte[] data, int start, int length)
         {
             int headerSize = NetPacket.GetHeaderSize(property);
@@ -44,13 +45,8 @@ namespace LiteNetLib
             if (size > NetConstants.MaxPacketSize)
                 return new NetPacket(size);
 
-            NetPacket packet;
-            do
-            {
-                packet = _poolHead;
-                if (packet == null)
-                    return new NetPacket(size);
-            } while (Interlocked.CompareExchange(ref _poolHead, packet.Next, packet) != packet);
+            if (!_pool.TryDequeue(out NetPacket packet))
+                return new NetPacket(size);
             Interlocked.Decrement(ref _poolCount);
 
             packet.Next = null;
@@ -71,12 +67,8 @@ namespace LiteNetLib
 
             //Clean fragmented flag
             packet.RawData[0] = 0;
-            NetPacket oldHead;
-            do
-            {
-                oldHead = _poolHead;
-                packet.Next = oldHead;
-            } while (Interlocked.CompareExchange(ref _poolHead, packet, oldHead) != oldHead);
+            packet.Next = null;
+            _pool.Enqueue(packet);
             Interlocked.Increment(ref _poolCount);
         }
     }

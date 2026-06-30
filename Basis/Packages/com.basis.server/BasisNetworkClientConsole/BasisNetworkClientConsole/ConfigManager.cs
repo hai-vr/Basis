@@ -13,6 +13,9 @@ namespace Basis.Config
         public static string AvatarUrl = "http://localhost/avatar";
         public static int AvatarLoadMode = 1;
 
+        public static bool UseRandomAvatarFromKeyStore = true;
+        public static string AvatarKeyStorePath = "";
+
         private static readonly object _lock = new();
         static XElement? Child(XElement parent, string name) =>
             parent.Elements().FirstOrDefault(e => e.Name.LocalName == name);
@@ -41,6 +44,25 @@ namespace Basis.Config
             }
 
             if (!int.TryParse(el.Value, out var value))
+            {
+                BNL.Log($"Invalid <{name}> value '{el.Value}', using fallback {fallback}.");
+                return fallback;
+            }
+
+            BNL.Log($"Loaded {name}: {value}");
+            return value;
+        }
+
+        static bool ReadBool(XElement root, string name, bool fallback)
+        {
+            var el = Child(root, name);
+            if (el == null)
+            {
+                BNL.Log($"Missing <{name}>, using fallback {fallback}.");
+                return fallback;
+            }
+
+            if (!bool.TryParse(el.Value.Trim(), out var value))
             {
                 BNL.Log($"Invalid <{name}> value '{el.Value}', using fallback {fallback}.");
                 return fallback;
@@ -83,7 +105,11 @@ namespace Basis.Config
                                 new XComment(" Avatar source each fake client advertises. For AvatarLoadMode 0 this is the (encrypted .BEE) bundle download URL. string. "),
                                 new XElement("AvatarUrl", AvatarUrl),
                                 new XComment(" How receiving clients load the avatar: 0 = AssetBundle (download from AvatarUrl), 1 = Addressables, 2 = In-scene. Allowed: 0, 1 or 2. "),
-                                new XElement("AvatarLoadMode", AvatarLoadMode)
+                                new XElement("AvatarLoadMode", AvatarLoadMode),
+                                new XComment(" When true, each fake client advertises a random avatar from the Basis client's saved avatars (ItemKeyStore.json, Mode = Avatar) so load tests cover varied avatar types. When false, every client uses the single AvatarUrl/AvatarPassword/AvatarLoadMode above. bool: true or false. "),
+                                new XElement("UseRandomAvatarFromKeyStore", UseRandomAvatarFromKeyStore),
+                                new XComment(" Path to the avatar keystore (ItemKeyStore.json) read when UseRandomAvatarFromKeyStore is true. Leave empty to auto-detect the local Basis client's persistentDataPath. string. "),
+                                new XElement("AvatarKeyStorePath", AvatarKeyStorePath)
                             )
                         );
 
@@ -132,6 +158,8 @@ namespace Basis.Config
                     AvatarPassword = ReadString(root, "AvatarPassword", AvatarPassword);
                     AvatarUrl = ReadString(root, "AvatarUrl", AvatarUrl);
                     AvatarLoadMode = ReadInt(root, "AvatarLoadMode", AvatarLoadMode);
+                    UseRandomAvatarFromKeyStore = ReadBool(root, "UseRandomAvatarFromKeyStore", UseRandomAvatarFromKeyStore);
+                    AvatarKeyStorePath = ReadString(root, "AvatarKeyStorePath", AvatarKeyStorePath);
                 }
                 catch (Exception ex)
                 {

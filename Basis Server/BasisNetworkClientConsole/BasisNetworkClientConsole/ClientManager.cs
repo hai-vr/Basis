@@ -25,6 +25,7 @@ namespace Basis.Network
         // Cached once — config doesn't change at runtime
         private byte[] _cachedPasswordBytes;
         private byte[] _cachedAvatarBytes;
+        private (byte[] bytes, byte loadMode)[] _avatarPool;
 
         public void Prepare()
         {
@@ -39,8 +40,50 @@ namespace Basis.Network
             };
             _cachedAvatarBytes = avatarInfo.EncodeToBytes();
 
+            BuildAvatarPool();
+
             FinalPeers = new NetPeer[ClientCount];
             FinalClients = new NetworkClient[ClientCount];
+        }
+
+        private void BuildAvatarPool()
+        {
+            if (!ConfigManager.UseRandomAvatarFromKeyStore)
+            {
+                return;
+            }
+
+            var avatars = AvatarKeyStoreLoader.Load(ConfigManager.AvatarKeyStorePath, (byte)ConfigManager.AvatarLoadMode);
+            if (avatars.Count == 0)
+            {
+                BNL.LogWarning("UseRandomAvatarFromKeyStore is on but no avatars were found; falling back to the configured AvatarUrl.");
+                return;
+            }
+
+            _avatarPool = new (byte[] bytes, byte loadMode)[avatars.Count];
+            for (int i = 0; i < avatars.Count; i++)
+            {
+                var info = new BasisAvatarNetworkLoad
+                {
+                    URL = avatars[i].Url,
+                    UnlockPassword = avatars[i].Password
+                };
+                _avatarPool[i] = (info.EncodeToBytes(), avatars[i].LoadMode);
+                BNL.Log($"Avatar pool [{i}] loadMode={avatars[i].LoadMode} url={avatars[i].Url}");
+            }
+
+            BNL.Log($"Loaded {_avatarPool.Length} avatar(s) from keystore for random assignment.");
+        }
+
+        private (byte[] bytes, byte loadMode) PickAvatar()
+        {
+            var pool = _avatarPool;
+            if (pool != null && pool.Length > 0)
+            {
+                return pool[Random.Shared.Next(pool.Length)];
+            }
+
+            return (_cachedAvatarBytes, (byte)ConfigManager.AvatarLoadMode);
         }
 
         public async Task StartClientsAsync()
@@ -49,6 +92,7 @@ namespace Basis.Network
             {
                 var name = NameGenerator.GenerateRandomPlayerName();
                 var identity = new ConsoleClientIdentity();
+                var (avatarBytes, avatarLoadMode) = PickAvatar();
 
                 var readyMessage = new ReadyMessage
                 {
@@ -60,8 +104,8 @@ namespace Basis.Network
                     },
                     clientAvatarChangeMessage = new ClientAvatarChangeMessage
                     {
-                        byteArray = _cachedAvatarBytes,
-                        loadMode = (byte)ConfigManager.AvatarLoadMode,
+                        byteArray = avatarBytes,
+                        loadMode = avatarLoadMode,
                         LocalAvatarIndex = 0,
                     },
                     localAvatarSyncMessage = new LocalAvatarSyncMessage
@@ -109,6 +153,7 @@ namespace Basis.Network
 
             var name = NameGenerator.GenerateRandomPlayerName();
             var identity = new ConsoleClientIdentity();
+            var (avatarBytes, avatarLoadMode) = PickAvatar();
 
             var readyMessage = new ReadyMessage
             {
@@ -120,8 +165,8 @@ namespace Basis.Network
                 },
                 clientAvatarChangeMessage = new ClientAvatarChangeMessage
                 {
-                    byteArray = _cachedAvatarBytes,
-                    loadMode = (byte)ConfigManager.AvatarLoadMode,
+                    byteArray = avatarBytes,
+                    loadMode = avatarLoadMode,
                     LocalAvatarIndex = 1,
 
                 },

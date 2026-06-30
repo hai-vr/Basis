@@ -109,6 +109,17 @@ namespace Basis.BasisUI
         private static readonly int OutlineCornerScale = Shader.PropertyToID("_OutlineCornerScale");
         private static readonly int OutlineDotScale = Shader.PropertyToID("_CenterDotScale");
 
+        private const float MinOutlineWorldSize = 0.15f;
+        private const float MinOutlineStrokeScale = 0.08f;
+
+        private static Vector3 ClampOutlineScale(Vector3 scale)
+        {
+            return new Vector3(
+                Mathf.Max(Mathf.Abs(scale.x), MinOutlineWorldSize),
+                Mathf.Max(Mathf.Abs(scale.y), MinOutlineWorldSize),
+                Mathf.Max(Mathf.Abs(scale.z), MinOutlineWorldSize));
+        }
+
         private static void SetOutlineColor(GameObject target, Color color)
         {
             foreach (Renderer r in target.GetComponentsInChildren<Renderer>(true))
@@ -125,7 +136,7 @@ namespace Basis.BasisUI
 
         private static void UpdateOutlineScale(GameObject targetOutlineGameObject)
         {
-            float scale = targetOutlineGameObject.transform.localScale.magnitude / 10;
+            float scale = Mathf.Max(targetOutlineGameObject.transform.localScale.magnitude / 10f, MinOutlineStrokeScale);
             foreach (Renderer r in targetOutlineGameObject.GetComponentsInChildren<Renderer>(true))
             {
                 foreach (Material mat in r.materials)
@@ -244,7 +255,7 @@ namespace Basis.BasisUI
 
                     // placement.Extents is HALF-size; preview cube scale expects FULL size
                     // TODO: this needs to account for the scale of the object
-                    PlacementCube.transform.localScale = placement.Extents * 2f;
+                    PlacementCube.transform.localScale = ClampOutlineScale(placement.Extents * 2f);
 
                     // update its selection
                     UpdateOutlineScale(PlacementCube);
@@ -327,7 +338,7 @@ namespace Basis.BasisUI
         {
             Vector3 worldCenter = selectedGameObjectRef.transform.TransformPoint(connector.Bounds.center);
             selectionGameObjectRef.transform.SetPositionAndRotation(worldCenter, selectedGameObjectRef.transform.rotation);
-            selectionGameObjectRef.transform.localScale = new Vector3( selectedGameObjectRef.transform.localScale.x * connector.Bounds.size.x, selectedGameObjectRef.transform.localScale.y * connector.Bounds.size.y, selectedGameObjectRef.transform.localScale.z * connector.Bounds.size.z  );
+            selectionGameObjectRef.transform.localScale = ClampOutlineScale(new Vector3(selectedGameObjectRef.transform.localScale.x * connector.Bounds.size.x, selectedGameObjectRef.transform.localScale.y * connector.Bounds.size.y, selectedGameObjectRef.transform.localScale.z * connector.Bounds.size.z));
             UpdateOutlineScale(selectionGameObjectRef);
         }
 

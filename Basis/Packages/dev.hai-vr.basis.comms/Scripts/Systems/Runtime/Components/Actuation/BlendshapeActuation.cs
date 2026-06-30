@@ -76,9 +76,25 @@ namespace HVR.Basis.Comms
 
             foreach (var target in actuator.Targets)
             {
-                foreach (var blendshapeIndex in target.BlendshapeIndices)
+                var renderer = target.Renderer;
+                var lastWeights = target.LastWeights;
+                if (lastWeights != null)
                 {
-                    target.Renderer.SetBlendShapeWeight(blendshapeIndex, output0100);
+                    foreach (var blendshapeIndex in target.BlendshapeIndices)
+                    {
+                        if (lastWeights[blendshapeIndex] != output0100)
+                        {
+                            renderer.SetBlendShapeWeight(blendshapeIndex, output0100);
+                            lastWeights[blendshapeIndex] = output0100;
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var blendshapeIndex in target.BlendshapeIndices)
+                    {
+                        renderer.SetBlendShapeWeight(blendshapeIndex, output0100);
+                    }
                 }
             }
         }
@@ -207,6 +223,29 @@ namespace HVR.Basis.Comms
             {
                 var addressIndex = computedActuator.AddressIndex;
                 _addressBaseIndexToActuators[addressIndex][actuatorWriteIndexPerAddressIndex[addressIndex]++] = computedActuator;
+            }
+
+            var lastWeightsByRenderer = new Dictionary<SkinnedMeshRenderer, float[]>();
+            foreach (var computedActuator in _computedActuators)
+            {
+                foreach (var target in computedActuator.Targets)
+                {
+                    if (target.Renderer == null)
+                    {
+                        continue;
+                    }
+                    if (!lastWeightsByRenderer.TryGetValue(target.Renderer, out var lastWeights))
+                    {
+                        var mesh = target.Renderer.sharedMesh;
+                        lastWeights = new float[mesh != null ? mesh.blendShapeCount : 0];
+                        for (var i = 0; i < lastWeights.Length; i++)
+                        {
+                            lastWeights[i] = float.NaN;
+                        }
+                        lastWeightsByRenderer.Add(target.Renderer, lastWeights);
+                    }
+                    target.LastWeights = lastWeights;
+                }
             }
 
             List<AddressOverride> defaultOverrides = null;
@@ -431,11 +470,16 @@ namespace HVR.Basis.Comms
                     if (null != target.Renderer && null != target.Renderer.sharedMesh)
                     {
                         var blendshapeCount = target.Renderer.sharedMesh.blendShapeCount;
+                        var lastWeights = target.LastWeights;
                         foreach (var blendshapeIndex in target.BlendshapeIndices)
                         {
                             if (blendshapeIndex < blendshapeCount)
                             {
                                 target.Renderer.SetBlendShapeWeight(blendshapeIndex, 0);
+                                if (lastWeights != null && blendshapeIndex < lastWeights.Length)
+                                {
+                                    lastWeights[blendshapeIndex] = 0f;
+                                }
                             }
                         }
                     }
@@ -510,6 +554,7 @@ namespace HVR.Basis.Comms
         {
             public SkinnedMeshRenderer Renderer;
             public int[] BlendshapeIndices;
+            internal float[] LastWeights;
         }
 
         private class RequestedFeature
