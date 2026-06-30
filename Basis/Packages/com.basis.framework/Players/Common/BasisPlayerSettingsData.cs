@@ -44,6 +44,13 @@ public struct BasisPlayerSettingsData
     public bool IsBlocked;
 
     /// <summary>
+    /// When true, this player's avatar is always rendered on the local client,
+    /// bypassing distance-range, max-visible-avatar cap, and view-cone culling.
+    /// Blocking and the avatar performance filter still apply.
+    /// </summary>
+    public bool AlwaysShowAvatar;
+
+    /// <summary>
     /// Version number of the settings schema. Used to upgrade old files gracefully.
     /// A value of <c>0</c> after deserialization signals a missing/corrupt record.
     /// </summary>
@@ -64,7 +71,8 @@ public struct BasisPlayerSettingsData
     /// <param name="avatarInteraction">Whether the avatar can be interacted with.</param>
     /// <param name="chatVisible">Whether chat messages from this player are visible.</param>
     /// <param name="isBlocked">Whether this player is blocked (audio/avatar/nameplate hidden).</param>
-    public BasisPlayerSettingsData(string uuid, float volumeLevel, bool avatarVisible, bool avatarInteraction, bool chatVisible = true, bool isBlocked = false)
+    /// <param name="alwaysShowAvatar">Whether this player's avatar bypasses spatial visibility culling.</param>
+    public BasisPlayerSettingsData(string uuid, float volumeLevel, bool avatarVisible, bool avatarInteraction, bool chatVisible = true, bool isBlocked = false, bool alwaysShowAvatar = false)
     {
         UUID = uuid;
         VolumeLevel = volumeLevel;
@@ -72,7 +80,8 @@ public struct BasisPlayerSettingsData
         AvatarInteraction = avatarInteraction;
         ChatVisible = chatVisible;
         IsBlocked = isBlocked;
-        Version = 4;
+        AlwaysShowAvatar = alwaysShowAvatar;
+        Version = 5;
     }
 
     /// <summary>

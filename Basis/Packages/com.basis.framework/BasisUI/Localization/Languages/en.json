@@ -1719,6 +1719,14 @@
       "value": "Return this player's voice to normal distance-based spatial audio."
     },
     {
+      "key": "menu.individualPlayer.fullquality.enable.tooltip",
+      "value": "Send this player's High-quality avatar data to everyone, skipping the distance reduction system. Uses more bandwidth."
+    },
+    {
+      "key": "menu.individualPlayer.fullquality.disable.tooltip",
+      "value": "Return this player to the normal distance-based reduction system."
+    },
+    {
       "key": "settings.permissions.refresh.tooltip",
       "value": "Fetch the latest permission groups and user assignments from the server."
     },
@@ -2391,6 +2399,14 @@
       "value": "Toggles rendering of this player's avatar on your client."
     },
     {
+      "key": "menu.individualPlayer.alwaysShowAvatar",
+      "value": "Always Show Avatar"
+    },
+    {
+      "key": "menu.individualPlayer.alwaysShowAvatar.description",
+      "value": "Always render this player's avatar, even when distance, the max visible avatar cap, or the view cone filter would normally replace it with the loading avatar. Blocking and the performance filter still apply."
+    },
+    {
       "key": "menu.individualPlayer.enableInteractions",
       "value": "Enable Interactions"
     },
@@ -2713,6 +2729,14 @@
     {
       "key": "menu.individualPlayer.shout.enable",
       "value": "Enable Shout Mode"
+    },
+    {
+      "key": "menu.individualPlayer.fullquality.enable",
+      "value": "Enable Full-Quality Broadcast"
+    },
+    {
+      "key": "menu.individualPlayer.fullquality.disable",
+      "value": "Disable Full-Quality Broadcast"
     },
     {
       "key": "menu.individualPlayer.shout.disable",
@@ -7565,6 +7589,14 @@
     {
       "key": "settings.admin.title.lockCilbox.tooltip",
       "value": "Strip sandboxed Cilbox code from avatars as they load so their scripts can't run. Applies to avatars loaded while this is on; anyone already loaded keeps theirs until they reload. Props and worlds are unaffected. Admins are not exempt."
+    },
+    {
+      "key": "settings.admin.title.lockSharedImages",
+      "value": "Lock Shared Images"
+    },
+    {
+      "key": "settings.admin.title.lockSharedImages.tooltip",
+      "value": "Stop non-admin players from sharing new image pickups, and from receiving images shared while this is on. Admins are unaffected."
     },
     {
       "key": "settings.admin.minAvatarHeight",

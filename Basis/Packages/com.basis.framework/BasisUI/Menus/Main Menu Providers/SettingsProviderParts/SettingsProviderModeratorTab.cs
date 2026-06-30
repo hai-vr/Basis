@@ -218,6 +218,31 @@ namespace Basis.BasisUI
                     BasisNetworkModeration.DisableShoutMode(target.playerId);
                 });
 
+            // Full-quality broadcast
+            PanelButton enableFullQuality = PanelButton.CreateNew(actionsGroup.ContentParent);
+            enableFullQuality.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.fullquality.enable"));
+            enableFullQuality.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.fullquality.enable.tooltip"));
+            GuardedClick(enableFullQuality, "Enable full-quality broadcast?",
+                "Send this player's full-quality avatar data to everyone, bypassing the distance reduction system? Uses more bandwidth.", "Enable",
+                () =>
+                {
+                    BasisNetworkPlayer target = controller.GetEffectivePlayer();
+                    if (target == null) { BasisDebug.LogError("No player available."); return; }
+                    BasisNetworkModeration.SetFullQualityBroadcast(target.playerId, true);
+                });
+
+            PanelButton disableFullQuality = PanelButton.CreateNew(actionsGroup.ContentParent);
+            disableFullQuality.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.fullquality.disable"));
+            disableFullQuality.Descriptor.SetTooltip(BasisLocalization.Get("menu.individualPlayer.fullquality.disable.tooltip"));
+            GuardedClick(disableFullQuality, "Disable full-quality broadcast?",
+                "Return this player to the normal distance reduction system?", "Disable",
+                () =>
+                {
+                    BasisNetworkPlayer target = controller.GetEffectivePlayer();
+                    if (target == null) { BasisDebug.LogError("No player available."); return; }
+                    BasisNetworkModeration.SetFullQualityBroadcast(target.playerId, false);
+                });
+
             controller.RebuildPlayerList();
             descriptor.ForceRebuild();
             return tab;

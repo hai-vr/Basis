@@ -840,6 +840,14 @@ namespace Basis.Scripts.UI.NamePlate
         {
             ProcessBakeQueue();
 
+            // CompleteNamePlates rebuilds the global merge from plates/count every frame even while
+            // disabled, so the registry must stay current regardless of ShouldRunJobs — otherwise
+            // plates that bake while nameplates are off never enter the merge and stay missing on re-enable.
+            if (pendingAdd.Count > 0 || pendingRemove.Count > 0)
+            {
+                ApplyPendingStructuralChanges();
+            }
+
             if (!ShouldRunJobs())
             {
                 pulseComputed = false;

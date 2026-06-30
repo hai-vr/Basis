@@ -50,7 +50,7 @@ namespace Basis.ImagePickup
 
             pickup.HideLabel = CreateButton(canvasRect, uiLayer, "Hide", new Vector2(-130f, -120f), pickup.OnHidePressed);
             CreateButton(canvasRect, uiLayer, "Save", new Vector2(0f, -120f), pickup.OnSavePressed);
-            CreateButton(canvasRect, uiLayer, "Delete", new Vector2(130f, -120f), pickup.OnDeletePressed);
+            pickup.DeleteLabel = CreateButton(canvasRect, uiLayer, "Delete", new Vector2(130f, -120f), pickup.OnDeletePressed);
 
             canvasObject.SetActive(true);
         }

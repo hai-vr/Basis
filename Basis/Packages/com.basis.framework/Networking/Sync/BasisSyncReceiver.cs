@@ -55,6 +55,10 @@ namespace Basis.Scripts.Networking.Sync
         private double _serverClock;
         private bool _serverClockSeeded;
         private float _dynamicDepth = 2f;
+        // Steady-state staged-frame target (the buffer's latency floor, in send intervals). Lower = less
+        // latency, less tolerance to jitter/loss before a hitch. Configurable per object; default keeps the
+        // historical depth of 2. _dynamicDepth still climbs above this on underruns and decays back to it.
+        private float _depthFloor = MinJitterDepth + 1f;
         private bool _valuesDirty = true;
         private bool _snapRequested;
 
@@ -85,7 +89,7 @@ namespace Basis.Scripts.Networking.Sync
             _lastCont = schema.ContCount > 0 ? new float[schema.ContCount] : System.Array.Empty<float>();
         }
 
-        public void Configure(bool extrapolate, double maxExtrapSeconds, bool teleport, float teleportThresholdSq, int teleportStart, int teleportCount, bool verifyChecksum = false)
+        public void Configure(bool extrapolate, double maxExtrapSeconds, bool teleport, float teleportThresholdSq, int teleportStart, int teleportCount, bool verifyChecksum = false, float bufferDepth = MinJitterDepth + 1f)
         {
             _extrapolate = extrapolate;
             _maxExtrapSeconds = maxExtrapSeconds;
@@ -94,6 +98,11 @@ namespace Basis.Scripts.Networking.Sync
             _teleportStart = teleportStart;
             _teleportCount = teleportCount;
             _verifyChecksum = verifyChecksum;
+            _depthFloor = math.clamp(bufferDepth, MinJitterDepth, MaxJitterDepth);
+            // Fresh object: start playback at the target floor. Mid-stream change: don't stomp a value that
+            // has climbed above the floor under jitter — let it decay back down on its own.
+            if (!_serverClockSeeded) _dynamicDepth = _depthFloor;
+            else if (_dynamicDepth < _depthFloor) _dynamicDepth = _depthFloor;
         }
 
         public bool HasData => _current != null;
@@ -275,7 +284,7 @@ namespace Basis.Scripts.Networking.Sync
                     _interpTime = 0.0;
                 }
 
-                _dynamicDepth = math.max(_dynamicDepth - (float)(dt * 0.5), MinJitterDepth + 1f);
+                _dynamicDepth = math.max(_dynamicDepth - (float)(dt * 0.5), _depthFloor);
             }
             else
             {
@@ -303,7 +312,7 @@ namespace Basis.Scripts.Networking.Sync
             _hasKeyframe = false;
             _serverClockSeeded = false;
             _serverClock = 0.0;
-            _dynamicDepth = 2f;
+            _dynamicDepth = _depthFloor;
             _haveLastCont = false;
             _bwBytes = 0;
             _bwPackets = 0;

@@ -35,6 +35,14 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     /// </summary>
     public bool AttachToHandOnGrab = false;
 
+    /// <summary>
+    /// While a player holds this prop, ignore distance-based send-rate reduction so the item being actively
+    /// manipulated and watched stays full-rate (otherwise its send rate — and therefore the remote jitter
+    /// buffer that rides on it — is throttled by distance to the nearest viewer, which is the main cause of
+    /// laggy held props at range). Turn off to keep legacy distance throttling while held.
+    /// </summary>
+    public bool FullRateWhileHeld = true;
+
     private BasisSyncHandle _velX = BasisSyncHandle.Invalid;
     private BasisSyncHandle _velY = BasisSyncHandle.Invalid;
     private BasisSyncHandle _velZ = BasisSyncHandle.Invalid;
@@ -217,6 +225,19 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             rb.rotation = Quaternion.Slerp(rb.rotation, worldRot, correction);
             if (Target != null) Target.localScale = ls;
         }
+    }
+
+    /// <summary>Full-rate while the owner is holding it (see <see cref="FullRateWhileHeld"/>).</summary>
+    protected override bool ShouldSuppressDistanceReduction() => FullRateWhileHeld && IsHeldByOwner();
+
+    /// <summary>True if the local owner currently has this prop grabbed in either hand (or desktop).</summary>
+    private bool IsHeldByOwner()
+    {
+        if (BasisPickupInteractable == null) return false;
+        BasisInputSources inputs = BasisPickupInteractable.Inputs;
+        return inputs.leftHand.GetState() == BasisInteractInputState.Interacting
+            || inputs.rightHand.GetState() == BasisInteractInputState.Interacting
+            || inputs.desktopCenterEye.GetState() == BasisInteractInputState.Interacting;
     }
 
     /// <summary>

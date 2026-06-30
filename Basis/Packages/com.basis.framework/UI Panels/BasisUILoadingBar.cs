@@ -118,6 +118,10 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
+                if (this == null)
+                {
+                    return;
+                }
                 var operation = loadingOperations.Find(op => op.Key == key);
                 if (operation != null)
                 {
@@ -137,7 +141,11 @@ namespace Basis.Scripts.UI.UI_Panels
 
         private void ProcessQueue()
         {
-            if (loadingOperations.Count > 0 && Instance != null)
+            if (this == null)
+            {
+                return;
+            }
+            if (loadingOperations.Count > 0)
             {
                 var operation = GetFirstLoadingOperation();
                 if (operation != null)

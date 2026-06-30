@@ -45,6 +45,14 @@ namespace Basis.Scripts.Networking.Sync
         public DeliveryMethod KeyframeDelivery = DeliveryMethod.ReliableOrdered;
         public bool Extrapolate = false;
         public float MaxExtrapolationSeconds = 0.2f;
+
+        /// <summary>
+        /// Playback buffer depth target, in send intervals (1-4). The remote holds roughly this many staged
+        /// frames ahead of the interpolation window — the dominant, fixed share of perceived latency. 2 (default)
+        /// matches the historical smoothing; 1 roughly halves the buffer latency (snappier, less tolerant of
+        /// jitter/loss). Re-apply with ApplySyncConfig() if changed at runtime.
+        /// </summary>
+        [Range(1f, 4f)] public float JitterBufferDepth = 2f;
         public bool UseTeleportThreshold = false;
         public float TeleportThreshold = 3f;
         public bool DistanceReduction = true;
@@ -422,6 +430,14 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Owner hook fired right before serialization; push live source values into LocalSet here.</summary>
         protected virtual void OnBeforeTransmit() { }
 
+        /// <summary>
+        /// Override to skip distance-based send-rate reduction for this tick even when DistanceReduction is on
+        /// — e.g. while a pickup is actively held, so the thing the player is manipulating and watching stays
+        /// full-rate instead of being throttled (and then buffered) by its distance to the nearest viewer.
+        /// Relevance culling, if enabled, still applies.
+        /// </summary>
+        protected virtual bool ShouldSuppressDistanceReduction() => false;
+
         public override void OnNetworkReady()
         {
             EnsureBuffers();
@@ -492,7 +508,7 @@ namespace Basis.Scripts.Networking.Sync
                 {
                     recipients = RelevanceCulling ? _cachedRecipients : null;
                     if (RelevanceCulling && recipients != null && recipients.Length == 0) return;
-                    if (DistanceReduction)
+                    if (DistanceReduction && !ShouldSuppressDistanceReduction())
                     {
                         var meta = BasisNetworkManagement.ServerMetaDataMessage;
                         if (meta.SlowestSendRate > 0f)
@@ -620,7 +636,7 @@ namespace Basis.Scripts.Networking.Sync
         public void ApplySyncConfig()
         {
             _rotDotThreshold = Mathf.Cos(Mathf.Deg2Rad * Mathf.Max(0f, RotationSendThresholdDegrees) * 0.5f);
-            _receiver?.Configure(Extrapolate, MaxExtrapolationSeconds, UseTeleportThreshold, TeleportThreshold * TeleportThreshold, TeleportWatchStart, TeleportWatchCount, UseChecksum);
+            _receiver?.Configure(Extrapolate, MaxExtrapolationSeconds, UseTeleportThreshold, TeleportThreshold * TeleportThreshold, TeleportWatchStart, TeleportWatchCount, UseChecksum, Mathf.Clamp(JitterBufferDepth, 1f, 4f));
         }
 
         // ── Serialized-data migration (keeps legacy bundle / mod content working after a refactor) ──

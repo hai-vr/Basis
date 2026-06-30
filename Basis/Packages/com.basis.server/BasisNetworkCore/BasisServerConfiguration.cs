@@ -118,6 +118,13 @@ public class Configuration
     /// admin panel; the state is broadcast to clients in GlobalGetLockState. Default off.
     /// </summary>
     public bool CilboxLocked = false;
+    /// <summary>
+    /// When true, non-bypass clients cannot share new image pickups and won't accept inbound ones.
+    /// Enforced client-side — image pickups ride the generic scene relay, so the server can't single
+    /// them out the way it blocks content shares. Seeds BasisGlobalLockManager at boot, can be toggled
+    /// live from the admin panel, and is broadcast to clients in GlobalGetLockState. Default off.
+    /// </summary>
+    public bool ImagesLocked = false;
 
     // ── REST API ──────────────────────────────────────────────────────────────
     /// <summary>Set to true to enable the REST management API.</summary>

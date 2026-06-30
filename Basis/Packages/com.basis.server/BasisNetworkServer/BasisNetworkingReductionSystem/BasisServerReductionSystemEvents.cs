@@ -59,6 +59,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public NetPeer Peer;
         public bool IsActive;
 
+        // Admin-set: bypass the distance reduction system and fan High data to every receiver at the source rate.
+        public bool BypassReduction;
+
         // Used for distance decisions
         public Basis.Scripts.Networking.Compression.Vector3 Position;
 
@@ -143,6 +146,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         };
 
         public static ShardedConcurrentDictionary<PlayerState> playerStates = new();
+
+        // Admin-flagged full-quality broadcast ids. Authoritative across PlayerState recreation;
+        // mirrored onto PlayerState.BypassReduction for the hot send loop. Cleared on disconnect.
+        private static readonly ConcurrentDictionary<int, bool> _bypassReductionIds = new();
         // Double-buffered message dictionaries: swap and clear instead of allocating per tick.
         private static ShardedConcurrentDictionary<QueuedMessage> currentMessages = new();
         private static ShardedConcurrentDictionary<QueuedMessage> _backMessages = new();
@@ -446,6 +453,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             while (playersToRemove.TryDequeue(out int id))
             {
+                _bypassReductionIds.TryRemove(id, out _);
                 if (playerStates.TryRemove(id, out var removedState))
                 {
                     removedState.IsActive = false;
@@ -698,20 +706,26 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         continue;
                     }
 
+                    PlayerState stateJ = activeCopy[index].state;
+
+                    // Full-quality broadcast bypasses the distance throttle + quality reduction; the new-data gate still bounds it to the source rate.
+                    bool bypassReduction = stateJ.BypassReduction;
+
                     // 2. Interval check using cached distance results (no float math)
-                    long elapsed = nowTicks - tracking[jId].LastSentTime;
-                    long required = tracking[jId].CachedIntervalTicks;
-                    if (required <= 0) required = minIntervalTicks;
-                    if (elapsed < required)
+                    if (!bypassReduction)
                     {
-                        continue;
+                        long elapsed = nowTicks - tracking[jId].LastSentTime;
+                        long required = tracking[jId].CachedIntervalTicks;
+                        if (required <= 0) required = minIntervalTicks;
+                        if (elapsed < required)
+                        {
+                            continue;
+                        }
                     }
 
                     // 3. Quality + interval byte from distance cache
-                    int qi = tracking[jId].CachedQualityIndex;
-                    byte startAtZeroInterval = tracking[jId].CachedIntervalByte;
-
-                    PlayerState stateJ = activeCopy[index].state;
+                    int qi = bypassReduction ? 3 : tracking[jId].CachedQualityIndex;
+                    byte startAtZeroInterval = bypassReduction ? (byte)0 : tracking[jId].CachedIntervalByte;
 
                     // Lazy pre-serialization: skip if not serialized, mark needed for next tick
                     int srcLen = stateJ.SerializedKeyframeLength[qi];
@@ -1098,6 +1112,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             _tickWake.Set();
         }
 
+        public static void SetBypassReduction(int id, bool enable)
+        {
+            if (enable) _bypassReductionIds[id] = true;
+            else _bypassReductionIds.TryRemove(id, out _);
+
+            if (playerStates.TryGetValue(id, out var state))
+                state.BypassReduction = enable;
+        }
+
         public static void RemovePlayer(int id)
         {
             playersToRemove.Enqueue(id);
@@ -1225,6 +1248,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     HasReceivedFirst = true,
                     OutboundSequence = 0,
                     SmallId = id <= byte.MaxValue,
+                    BypassReduction = _bypassReductionIds.ContainsKey(id),
                 };
 
                 if (isHighQuality)
@@ -1286,6 +1310,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     state.Peer = message.FromPeer;
                     state.HasReceivedFirst = false;
                     state.SmallId = id <= byte.MaxValue;
+                    state.BypassReduction = _bypassReductionIds.ContainsKey(id);
                 }
 
                 // Drop stale inbound packets (unreliable can deliver out of order)

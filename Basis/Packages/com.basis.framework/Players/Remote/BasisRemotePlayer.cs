@@ -319,6 +319,14 @@ namespace Basis.Scripts.BasisSdk.Players
         public bool BypassPerformanceLimits;
 
         /// <summary>
+        /// Per-player override mirrored from <see cref="BasisPlayerSettingsData.AlwaysShowAvatar"/>.
+        /// When true, this player's real avatar is loaded regardless of distance range,
+        /// the max-visible-avatar cap, or the view-cone filter. Blocking, the performance
+        /// filter, and a failed/hidden avatar still take precedence. Persisted per UUID.
+        /// </summary>
+        public bool AlwaysShowAvatar;
+
+        /// <summary>
         /// Effective block state: local persisted block OR remote session temp block.
         /// Performance blocks are deliberately not folded in here because they don't
         /// hide the player entirely — only swap the avatar mesh for the fallback.
@@ -487,6 +495,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
 
                 IsBlocked = BasisPlayerSettingsData.IsBlocked;
+                AlwaysShowAvatar = BasisPlayerSettingsData.AlwaysShowAvatar;
 
                 bool effectivelyBlocked = IsEffectivelyBlocked;
 
@@ -514,7 +523,7 @@ namespace Basis.Scripts.BasisSdk.Players
                     BlockReason = perfResult.Reason,
                 };
 
-                if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && !IsBlockedByPerformance && InAvatarRange && !HasFailedAvatarLoadGlobally)
+                if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && !IsBlockedByPerformance && (InAvatarRange || AlwaysShowAvatar) && !HasFailedAvatarLoadGlobally)
                 {
                     await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
                 }
@@ -558,7 +567,8 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // If state drifted during the load, re-evaluate immediately.
             // Otherwise set cooldown to prevent oscillation.
-            bool stateMismatch = (InAvatarRange && IsConsideredFallBackAvatar) || (!InAvatarRange && !IsConsideredFallBackAvatar);
+            bool effectiveInRange = InAvatarRange || AlwaysShowAvatar;
+            bool stateMismatch = (effectiveInRange && IsConsideredFallBackAvatar) || (!effectiveInRange && !IsConsideredFallBackAvatar);
             if (stateMismatch)
             {
                 ReloadAvatar();

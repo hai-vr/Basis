@@ -136,9 +136,26 @@ namespace BasisNetworkCore.Serializable
             SetGlobalResourceLimits, // admin: set the persisted DoS caps. Payload: [int maxDatabaseEntries][int maxDatabaseNameLength][int maxDatabasePayloadEntries][int maxContentSpheresPerPlayer]
 
             // admin: toggle the global Cilbox lock. While set, every client blocks sandboxed Cilbox
-            // code on avatars from running (props/worlds keep their own). State is appended as the
-            // trailing bool in GlobalGetLockState.
+            // code on avatars from running (props/worlds keep their own). State is appended in
+            // GlobalGetLockState.
             GlobalToggleCilbox,
+
+            // admin: toggle the global shared-image lock. While set, non-bypass clients can't share
+            // new image pickups and won't accept inbound ones. Enforced client-side — image pickups
+            // ride the generic scene relay, so the server can't single them out the way it blocks
+            // content shares. State is appended as the trailing bool in GlobalGetLockState.
+            GlobalToggleImages,
+
+            // admin: enable/disable full-quality broadcast for a player. Payload: [ushort targetId][bool enable].
+            // Session-only. While set the server bypasses the distance reduction system for that player.
+            SetFullQualityBroadcast,
+
+            // admin: set the server avatar-reduction (BSR) tuning. Persisted to config.xml and re-applied live.
+            // Payload: [int defaultIntervalMs][int baseMultiplier][float increaseRate][float slowestSendRate]
+            //          [float highDist][float medDist][float lowDist][bool bundleCompression]
+            //          [int bundleMinMessages][int bundleMinBytes][bool profiling]
+            SetGlobalReductionSettings,
+            GlobalGetReductionSettings, // server→client: current BSR reduction settings (same field order as SetGlobalReductionSettings)
         }
     }
 }

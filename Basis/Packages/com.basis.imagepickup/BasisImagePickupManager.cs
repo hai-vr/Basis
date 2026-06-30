@@ -90,6 +90,12 @@ namespace Basis.ImagePickup
         /// <summary>Validates a PNG file, spawns the owner pickup locally, and broadcasts it to all peers.</summary>
         public bool SpawnFromFile(string path)
         {
+            if (BasisNetworkModeration.GlobalImagesLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
+            {
+                BasisDebug.LogWarning("Image pickup blocked: an admin has locked shared images on this server.");
+                return false;
+            }
+
             BasisImageValidationResult result = BasisImageSecurity.ValidateFile(path);
             if (!result.Ok)
             {
@@ -141,7 +147,7 @@ namespace Basis.ImagePickup
         {
             if (HasNetworkID)
             {
-                SendCustomNetworkEvent(EncodeDespawn(id), DeliveryMethod.ReliableOrdered, null);
+                SendCustomNetworkEventDirect(EncodeDespawn(id), DeliveryMethod.ReliableOrdered, null);
             }
             RemoveImage(id);
         }
@@ -152,7 +158,7 @@ namespace Basis.ImagePickup
             if (!_images.TryGetValue(id, out BasisImagePickupObject pickup) || pickup == null) return;
             if (pickup.IsController) return;
             pickup.SetController(true);
-            if (HasNetworkID) SendCustomNetworkEvent(EncodeClaim(id), DeliveryMethod.ReliableOrdered, null);
+            if (HasNetworkID) SendCustomNetworkEventDirect(EncodeClaim(id), DeliveryMethod.ReliableOrdered, null);
         }
 
         private void Update()
@@ -179,7 +185,7 @@ namespace Basis.ImagePickup
                 pickup.LastSentPosition = position;
                 pickup.LastSentRotation = rotation;
                 pickup.LastSentScale = scale;
-                SendCustomNetworkEvent(EncodeTransform(entry.Key, position, rotation, scale), DeliveryMethod.Sequenced, null);
+                SendCustomNetworkEventDirect(EncodeTransform(entry.Key, position, rotation, scale), DeliveryMethod.ReliableOrdered, null);
             }
 
             CleanupExpiredTransfers(now);
@@ -223,13 +229,14 @@ namespace Basis.ImagePickup
             _lastSpawnTimeBySender.Remove(left);
         }
 
-        public override void OnNetworkMessage(ushort senderId, byte[] buffer, DeliveryMethod deliveryMethod)
+        public override void OnDirectNetworkMessage(ushort senderId, byte[] buffer, DeliveryMethod deliveryMethod)
         {
             if (buffer == null || buffer.Length < 1) return;
 
             using var stream = new MemoryStream(buffer, false);
             using var reader = new BinaryReader(stream, Encoding.UTF8);
             byte opcode = reader.ReadByte();
+            BasisDebug.Log($"Image pickup RX: opcode={opcode} from player {senderId} ({buffer.Length} bytes), my NetworkID={NetworkID}.");
             try
             {
                 switch (opcode)
@@ -373,6 +380,7 @@ namespace Basis.ImagePickup
         private bool CanAcceptSpawn(ushort sender, int totalBytes, int width, int height, int totalChunks, out string reason)
         {
             reason = null;
+            if (BasisNetworkModeration.GlobalImagesLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass()) { reason = "shared images locked by admin"; return false; }
             if (!BasisImagePickupSettings.ReceiveEnabled) { reason = "receiving disabled"; return false; }
             if (totalBytes <= 0 || totalBytes > BasisImagePickupSettings.MaxImageBytes) { reason = "size"; return false; }
             if (width <= 0 || height <= 0 || width > BasisImagePickupSettings.MaxDimension || height > BasisImagePickupSettings.MaxDimension) { reason = "dimensions"; return false; }
@@ -441,13 +449,13 @@ namespace Basis.ImagePickup
             int chunkSize = BasisImagePickupSettings.ChunkPayloadBytes;
             int totalChunks = (png.Length + chunkSize - 1) / chunkSize;
 
-            SendCustomNetworkEvent(EncodeSpawn(id, ownerId, ownerName, width, height, png.Length, totalChunks, position, rotation), DeliveryMethod.ReliableOrdered, recipients);
+            SendCustomNetworkEventDirect(EncodeSpawn(id, ownerId, ownerName, width, height, png.Length, totalChunks, position, rotation), DeliveryMethod.ReliableOrdered, recipients);
 
             for (int i = 0; i < totalChunks; i++)
             {
                 int offset = i * chunkSize;
                 int length = Mathf.Min(chunkSize, png.Length - offset);
-                SendCustomNetworkEvent(EncodeChunk(id, i, png, offset, length), DeliveryMethod.ReliableOrdered, recipients);
+                SendCustomNetworkEventDirect(EncodeChunk(id, i, png, offset, length), DeliveryMethod.ReliableOrdered, recipients);
             }
         }
 

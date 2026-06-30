@@ -20,6 +20,7 @@ namespace Basis.ImagePickup
         public bool IsOwner;
 
         public TextMeshProUGUI HideLabel;
+        public TextMeshProUGUI DeleteLabel;
 
         private Texture2D _texture;
         private byte[] _cleanPng;
@@ -28,6 +29,7 @@ namespace Basis.ImagePickup
         private BasisImagePickupManager _manager;
 
         private bool _hidden;
+        private bool _deleteArmed;
         private bool _isController;
         private Rigidbody _body;
         private BasisPickupInteractable _interactable;
@@ -186,7 +188,24 @@ namespace Basis.ImagePickup
 
         public void OnDeletePressed()
         {
+            if (!_deleteArmed)
+            {
+                _deleteArmed = true;
+                if (DeleteLabel != null) DeleteLabel.text = "Confirm?";
+                CancelInvoke(nameof(DisarmDelete));
+                Invoke(nameof(DisarmDelete), 3f);
+                return;
+            }
+
+            CancelInvoke(nameof(DisarmDelete));
+            _deleteArmed = false;
             if (_manager != null) _manager.RequestDespawn(ImageId);
+        }
+
+        private void DisarmDelete()
+        {
+            _deleteArmed = false;
+            if (DeleteLabel != null) DeleteLabel.text = "Delete";
         }
 
         private static string SaveFolder()

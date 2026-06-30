@@ -121,7 +121,7 @@ public static class NetworkServer
         _peerSnapshot = Array.Empty<NetPeer>();
     }
 
-    private static void InitializePulseSettings()
+    public static void InitializePulseSettings()
     {
         BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
         BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;

@@ -936,6 +936,23 @@ namespace Basis.BasisUI
                 }
             };
 
+            PanelToggle alwaysShowAvatarToggle = PanelToggle.CreateNewEntry(avatarGroup.ContentParent);
+            alwaysShowAvatarToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.alwaysShowAvatar"));
+            alwaysShowAvatarToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.alwaysShowAvatar.description"));
+            alwaysShowAvatarToggle.SetValueWithoutNotify(settings.AlwaysShowAvatar);
+            alwaysShowAvatarToggle.OnValueChanged += async on =>
+            {
+                var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+                s.AlwaysShowAvatar = on;
+                await BasisPlayerSettingsManager.SetPlayerSettings(s);
+
+                if (remotePlayer != null)
+                {
+                    remotePlayer.AlwaysShowAvatar = on;
+                    remotePlayer.ReloadAvatar();
+                }
+            };
+
             // ---- Block group ----
             var blockGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             blockGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.block"));

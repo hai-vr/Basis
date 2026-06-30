@@ -22,6 +22,7 @@ namespace BasisNetworkServer.Security
         private static int _playspaceMoverLocked;
         private static int _directConnectLocked;
         private static int _cilboxLocked;
+        private static int _imagesLocked;
 
         public static bool AvatarsLocked => Interlocked.CompareExchange(ref _avatarsLocked, 0, 0) == 1;
         public static bool PropsLocked => Interlocked.CompareExchange(ref _propsLocked, 0, 0) == 1;
@@ -33,6 +34,7 @@ namespace BasisNetworkServer.Security
         public static bool PlayspaceMoverLocked => Interlocked.CompareExchange(ref _playspaceMoverLocked, 0, 0) == 1;
         public static bool DirectConnectLocked => Interlocked.CompareExchange(ref _directConnectLocked, 0, 0) == 1;
         public static bool CilboxLocked => Interlocked.CompareExchange(ref _cilboxLocked, 0, 0) == 1;
+        public static bool ImagesLocked => Interlocked.CompareExchange(ref _imagesLocked, 0, 0) == 1;
 
         /// <summary>
         /// Seed the initial lock state from the server configuration.
@@ -50,6 +52,7 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _playspaceMoverLocked, config.PlayspaceMoverLocked ? 1 : 0);
             Interlocked.Exchange(ref _directConnectLocked, config.DirectConnectLocked ? 1 : 0);
             Interlocked.Exchange(ref _cilboxLocked, config.CilboxLocked ? 1 : 0);
+            Interlocked.Exchange(ref _imagesLocked, config.ImagesLocked ? 1 : 0);
         }
 
         /// <summary>
@@ -99,6 +102,14 @@ namespace BasisNetworkServer.Security
         public static bool ToggleCilbox() => Toggle(ref _cilboxLocked);
 
         /// <summary>
+        /// Toggle the global shared-image lock. Returns the new state (true = sharing/showing new
+        /// image pickups blocked for non-bypass clients). Enforced client-side: image pickups ride
+        /// the generic scene relay, so the server can't single them out the way it blocks content
+        /// shares — clients honor the broadcast flag instead.
+        /// </summary>
+        public static bool ToggleImages() => Toggle(ref _imagesLocked);
+
+        /// <summary>
         /// Set the per-category camera photo-metadata disallow mask (set bit = disallowed).
         /// </summary>
         public static void SetCameraMetadataDisallowMask(byte mask) => Interlocked.Exchange(ref _cameraMetadataDisallowMask, mask);
@@ -140,6 +151,8 @@ namespace BasisNetworkServer.Security
             writer.Put(DirectConnectLocked);
             // Appended after DirectConnectLocked — older clients that stop reading earlier still parse.
             writer.Put(CilboxLocked);
+            // Appended after CilboxLocked — older clients that stop reading earlier still parse.
+            writer.Put(ImagesLocked);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -168,6 +181,8 @@ namespace BasisNetworkServer.Security
             writer.Put(DirectConnectLocked);
             // Appended after DirectConnectLocked — older clients that stop reading earlier still parse.
             writer.Put(CilboxLocked);
+            // Appended after CilboxLocked — older clients that stop reading earlier still parse.
+            writer.Put(ImagesLocked);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

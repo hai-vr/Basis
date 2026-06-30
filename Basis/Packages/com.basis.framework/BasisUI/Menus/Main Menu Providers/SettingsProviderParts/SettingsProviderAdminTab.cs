@@ -132,6 +132,13 @@ namespace Basis.BasisUI
             cilboxLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCilboxLocked);
             cilboxLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCilbox();
 
+            PanelToggle imagesLock = PanelToggle.CreateNewEntry(container);
+            imagesLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockSharedImages"));
+            imagesLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockSharedImages.tooltip"));
+            imagesLock.Descriptor.SetDescription("Stops non-admin players from sharing new image pickups, and from receiving images shared while this is on. Images already shared stay until removed. Admins are unaffected.");
+            imagesLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalImagesLocked);
+            imagesLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleImages();
+
             PanelSlider opusPacketLossSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             opusPacketLossSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.admin.opusFecLoss")));
             opusPacketLossSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFecLoss.tooltip"));
@@ -190,6 +197,7 @@ namespace Basis.BasisUI
             controller.PlayspaceMoverLockToggle = playspaceMoverLock;
             controller.DirectConnectLockToggle = directConnectLock;
             controller.CilboxLockToggle = cilboxLock;
+            controller.ImagesLockToggle = imagesLock;
             controller.MinAvatarHeightSlider = minAvatarHeightSlider;
             controller.MaxAvatarHeightSlider = maxAvatarHeightSlider;
             controller.MinAvatarHeightMeters = BasisNetworkModeration.ServerMinAvatarEyeHeightMeters;
@@ -249,6 +257,100 @@ namespace Basis.BasisUI
             controller.MaxContentSpheresField = maxContentSpheresField;
 
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
+
+            // --- Avatar reduction (BSR) tuning; persisted to config.xml, re-applied live ---
+            PanelSectionToggle reductionToggle = PanelSectionToggle.CreateNewEntry(container);
+            reductionToggle.SetTitle("Avatar Reduction System");
+            int reductionStart = container.childCount;
+
+            PanelTextField reductionIntervalField = PanelTextField.CreateNewEntry(container);
+            reductionIntervalField.Descriptor.SetTitle("Default Send Interval (ms)");
+            reductionIntervalField.Descriptor.SetDescription("Base avatar send interval in milliseconds for the closest peers. Larger = lower rate for everyone.");
+            reductionIntervalField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSMillisecondDefaultInterval.ToString());
+
+            PanelTextField reductionBaseMultiplierField = PanelTextField.CreateNewEntry(container);
+            reductionBaseMultiplierField.Descriptor.SetTitle("Base Multiplier");
+            reductionBaseMultiplierField.Descriptor.SetDescription("Multiplier applied to the base interval before distance scaling. 1 = no extra scaling.");
+            reductionBaseMultiplierField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRBaseMultiplier.ToString());
+
+            PanelTextField reductionIncreaseRateField = PanelTextField.CreateNewEntry(container);
+            reductionIncreaseRateField.Descriptor.SetTitle("Distance Increase Rate");
+            reductionIncreaseRateField.Descriptor.SetDescription("How quickly the send interval grows with squared distance. Higher = distant avatars throttle faster.");
+            reductionIncreaseRateField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSIncreaseRate.ToString());
+
+            PanelTextField reductionSlowestSendRateField = PanelTextField.CreateNewEntry(container);
+            reductionSlowestSendRateField.Descriptor.SetTitle("Slowest Send Rate (new joins)");
+            reductionSlowestSendRateField.Descriptor.SetDescription("Slowest send-rate floor handed to clients for very distant peers. Only affects clients that join after the change.");
+            reductionSlowestSendRateField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSlowestSendRate.ToString());
+
+            PanelTextField reductionHighDistanceField = PanelTextField.CreateNewEntry(container);
+            reductionHighDistanceField.Descriptor.SetTitle("High Quality Distance (m)");
+            reductionHighDistanceField.Descriptor.SetDescription("Within this many metres a receiver gets High-quality avatar data.");
+            reductionHighDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerHighQualityDistance.ToString());
+
+            PanelTextField reductionMediumDistanceField = PanelTextField.CreateNewEntry(container);
+            reductionMediumDistanceField.Descriptor.SetTitle("Medium Quality Distance (m)");
+            reductionMediumDistanceField.Descriptor.SetDescription("Out to this distance a receiver gets Medium-quality avatar data (beyond the High range).");
+            reductionMediumDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerMediumQualityDistance.ToString());
+
+            PanelTextField reductionLowDistanceField = PanelTextField.CreateNewEntry(container);
+            reductionLowDistanceField.Descriptor.SetTitle("Low Quality Distance (m)");
+            reductionLowDistanceField.Descriptor.SetDescription("Out to this distance a receiver gets Low-quality data; beyond it, VeryLow.");
+            reductionLowDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerLowQualityDistance.ToString());
+
+            PanelToggle reductionBundleToggle = PanelToggle.CreateNewEntry(container);
+            reductionBundleToggle.Descriptor.SetTitle("Avatar Bundle Compression");
+            reductionBundleToggle.Descriptor.SetDescription("Bundle and LZ4-compress per-receiver avatar messages. Clients must support the matching decoder.");
+            reductionBundleToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableAvatarBundleCompression);
+            controller.ReductionBundleCompression = BasisNetworkModeration.ServerEnableAvatarBundleCompression;
+            reductionBundleToggle.OnValueChanged += value => controller.ReductionBundleCompression = value;
+
+            PanelTextField reductionBundleMinMessagesField = PanelTextField.CreateNewEntry(container);
+            reductionBundleMinMessagesField.Descriptor.SetTitle("Bundle Min Messages");
+            reductionBundleMinMessagesField.Descriptor.SetDescription("Minimum queued avatar messages to one receiver before a bundle is attempted.");
+            reductionBundleMinMessagesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinMessages.ToString());
+
+            PanelTextField reductionBundleMinBytesField = PanelTextField.CreateNewEntry(container);
+            reductionBundleMinBytesField.Descriptor.SetTitle("Bundle Min Bytes");
+            reductionBundleMinBytesField.Descriptor.SetDescription("Minimum uncompressed bundle size in bytes before LZ4 compression is attempted.");
+            reductionBundleMinBytesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinBytes.ToString());
+
+            PanelToggle reductionProfilingToggle = PanelToggle.CreateNewEntry(container);
+            reductionProfilingToggle.Descriptor.SetTitle("BSR Profiling");
+            reductionProfilingToggle.Descriptor.SetDescription("Enables reduction-system profiling counters on the server.");
+            reductionProfilingToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableBSRProfiling);
+            controller.ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
+            reductionProfilingToggle.OnValueChanged += value => controller.ReductionProfiling = value;
+
+            PanelButton applyReductionSettings = PanelButton.CreateNew(container);
+            applyReductionSettings.Descriptor.SetTitle("Apply Reduction Settings");
+            applyReductionSettings.OnClicked += () =>
+            {
+                if (!int.TryParse(reductionIntervalField.Value, out int interval)) interval = BasisNetworkModeration.ServerBSRSMillisecondDefaultInterval;
+                if (!int.TryParse(reductionBaseMultiplierField.Value, out int baseMultiplier)) baseMultiplier = BasisNetworkModeration.ServerBSRBaseMultiplier;
+                if (!float.TryParse(reductionIncreaseRateField.Value, out float increaseRate)) increaseRate = BasisNetworkModeration.ServerBSRSIncreaseRate;
+                if (!float.TryParse(reductionSlowestSendRateField.Value, out float slowest)) slowest = BasisNetworkModeration.ServerBSRSlowestSendRate;
+                if (!float.TryParse(reductionHighDistanceField.Value, out float high)) high = BasisNetworkModeration.ServerHighQualityDistance;
+                if (!float.TryParse(reductionMediumDistanceField.Value, out float medium)) medium = BasisNetworkModeration.ServerMediumQualityDistance;
+                if (!float.TryParse(reductionLowDistanceField.Value, out float low)) low = BasisNetworkModeration.ServerLowQualityDistance;
+                if (!int.TryParse(reductionBundleMinMessagesField.Value, out int minMessages)) minMessages = BasisNetworkModeration.ServerAvatarBundleMinMessages;
+                if (!int.TryParse(reductionBundleMinBytesField.Value, out int minBytes)) minBytes = BasisNetworkModeration.ServerAvatarBundleMinBytes;
+                BasisNetworkModeration.SetGlobalReductionSettings(interval, baseMultiplier, increaseRate, slowest, high, medium, low, controller.ReductionBundleCompression, minMessages, minBytes, controller.ReductionProfiling);
+            };
+
+            controller.ReductionIntervalField = reductionIntervalField;
+            controller.ReductionBaseMultiplierField = reductionBaseMultiplierField;
+            controller.ReductionIncreaseRateField = reductionIncreaseRateField;
+            controller.ReductionSlowestSendRateField = reductionSlowestSendRateField;
+            controller.ReductionHighDistanceField = reductionHighDistanceField;
+            controller.ReductionMediumDistanceField = reductionMediumDistanceField;
+            controller.ReductionLowDistanceField = reductionLowDistanceField;
+            controller.ReductionBundleToggle = reductionBundleToggle;
+            controller.ReductionBundleMinMessagesField = reductionBundleMinMessagesField;
+            controller.ReductionBundleMinBytesField = reductionBundleMinBytesField;
+            controller.ReductionProfilingToggle = reductionProfilingToggle;
+
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(reductionToggle, container, reductionStart, false, _ => descriptor.ForceRebuild());
 
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
             PanelSectionToggle cameraPolicyToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -653,6 +755,7 @@ namespace Basis.BasisUI
             public PanelToggle PlayspaceMoverLockToggle;
             public PanelToggle DirectConnectLockToggle;
             public PanelToggle CilboxLockToggle;
+            public PanelToggle ImagesLockToggle;
             public PanelSlider MinAvatarHeightSlider;
             public PanelSlider MaxAvatarHeightSlider;
             public float MinAvatarHeightMeters;
@@ -661,6 +764,19 @@ namespace Basis.BasisUI
             public PanelTextField MaxDatabaseNameLengthField;
             public PanelTextField MaxDatabasePayloadEntriesField;
             public PanelTextField MaxContentSpheresField;
+            public PanelTextField ReductionIntervalField;
+            public PanelTextField ReductionBaseMultiplierField;
+            public PanelTextField ReductionIncreaseRateField;
+            public PanelTextField ReductionSlowestSendRateField;
+            public PanelTextField ReductionHighDistanceField;
+            public PanelTextField ReductionMediumDistanceField;
+            public PanelTextField ReductionLowDistanceField;
+            public PanelToggle ReductionBundleToggle;
+            public PanelTextField ReductionBundleMinMessagesField;
+            public PanelTextField ReductionBundleMinBytesField;
+            public PanelToggle ReductionProfilingToggle;
+            public bool ReductionBundleCompression;
+            public bool ReductionProfiling;
             public System.Action<byte> ApplyCameraMask;
 
             private void OnEnable()
@@ -691,10 +807,14 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged += OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
                 BasisNetworkModeration.OnGlobalCilboxLockChanged += OnGlobalCilboxLockChanged;
+                BasisNetworkModeration.OnGlobalImagesLockedChanged -= OnGlobalImagesLockedChanged;
+                BasisNetworkModeration.OnGlobalImagesLockedChanged += OnGlobalImagesLockedChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged += OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged += OnResourceLimitsChanged;
+                BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
+                BasisNetworkModeration.OnReductionSettingsChanged += OnReductionSettingsChanged;
             }
 
             private void OnDisable()
@@ -713,8 +833,10 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
+                BasisNetworkModeration.OnGlobalImagesLockedChanged -= OnGlobalImagesLockedChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
+                BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
             }
 
             private void OnDestroy()
@@ -731,8 +853,10 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalPlayspaceMoverLockedChanged -= OnGlobalPlayspaceMoverLockedChanged;
                 BasisNetworkModeration.OnGlobalDirectConnectLockedChanged -= OnGlobalDirectConnectLockedChanged;
                 BasisNetworkModeration.OnGlobalCilboxLockChanged -= OnGlobalCilboxLockChanged;
+                BasisNetworkModeration.OnGlobalImagesLockedChanged -= OnGlobalImagesLockedChanged;
                 BasisNetworkModeration.OnAvatarScaleLimitsChanged -= OnAvatarScaleLimitsChanged;
                 BasisNetworkModeration.OnResourceLimitsChanged -= OnResourceLimitsChanged;
+                BasisNetworkModeration.OnReductionSettingsChanged -= OnReductionSettingsChanged;
             }
 
             private void OnGlobalLockStateChanged(bool avatars, bool props, bool worlds, bool servers)
@@ -802,6 +926,11 @@ namespace Basis.BasisUI
                 if (CilboxLockToggle != null) CilboxLockToggle.SetValueWithoutNotify(locked);
             }
 
+            private void OnGlobalImagesLockedChanged(bool locked)
+            {
+                if (ImagesLockToggle != null) ImagesLockToggle.SetValueWithoutNotify(locked);
+            }
+
             private void OnAvatarScaleLimitsChanged(float minMeters, float maxMeters)
             {
                 MinAvatarHeightMeters = minMeters;
@@ -816,6 +945,23 @@ namespace Basis.BasisUI
                 if (MaxDatabaseNameLengthField != null) MaxDatabaseNameLengthField.SetValueWithoutNotify(nameLength.ToString());
                 if (MaxDatabasePayloadEntriesField != null) MaxDatabasePayloadEntriesField.SetValueWithoutNotify(payloadEntries.ToString());
                 if (MaxContentSpheresField != null) MaxContentSpheresField.SetValueWithoutNotify(spheres.ToString());
+            }
+
+            private void OnReductionSettingsChanged()
+            {
+                if (ReductionIntervalField != null) ReductionIntervalField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSMillisecondDefaultInterval.ToString());
+                if (ReductionBaseMultiplierField != null) ReductionBaseMultiplierField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRBaseMultiplier.ToString());
+                if (ReductionIncreaseRateField != null) ReductionIncreaseRateField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSIncreaseRate.ToString());
+                if (ReductionSlowestSendRateField != null) ReductionSlowestSendRateField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSlowestSendRate.ToString());
+                if (ReductionHighDistanceField != null) ReductionHighDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerHighQualityDistance.ToString());
+                if (ReductionMediumDistanceField != null) ReductionMediumDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerMediumQualityDistance.ToString());
+                if (ReductionLowDistanceField != null) ReductionLowDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerLowQualityDistance.ToString());
+                if (ReductionBundleToggle != null) ReductionBundleToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableAvatarBundleCompression);
+                ReductionBundleCompression = BasisNetworkModeration.ServerEnableAvatarBundleCompression;
+                if (ReductionBundleMinMessagesField != null) ReductionBundleMinMessagesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinMessages.ToString());
+                if (ReductionBundleMinBytesField != null) ReductionBundleMinBytesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinBytes.ToString());
+                if (ReductionProfilingToggle != null) ReductionProfilingToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableBSRProfiling);
+                ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
             }
         }
     }

@@ -62,6 +62,7 @@ namespace BasisPermissions
         public const string ModerationGlobalLock = "basis.moderation.globallock";
         public const string ModerationHeadlessAudio = "basis.moderation.headlessaudio";
         public const string ModerationOpusBitrate = "basis.moderation.opusbitrate";
+        public const string ModerationFullQualityBroadcast = "basis.moderation.fullqualitybroadcast";
         /// <summary>Add/remove UUIDs on the server's allow-list (separate from ban management).</summary>
         public const string ModerationAllowlist = "basis.moderation.whitelist";
         public const string AdminLogs = "basis.admin.logs";
@@ -792,6 +793,7 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.ModerationGlobalLock);
                     adm.Nodes.Add(PermNodes.ModerationHeadlessAudio);
                     adm.Nodes.Add(PermNodes.ModerationOpusBitrate);
+                    adm.Nodes.Add(PermNodes.ModerationFullQualityBroadcast);
                     adm.Nodes.Add(PermNodes.PermissionsView);
 
                     adm.Nodes.Add(PermNodes.ResourceLockBypassAvatar);

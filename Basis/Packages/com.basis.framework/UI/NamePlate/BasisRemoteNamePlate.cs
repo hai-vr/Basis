@@ -211,6 +211,7 @@ namespace Basis.Scripts.UI.NamePlate
             if (this == null || BasisRemotePlayer == null) return;
 
             BasisRemotePlayer.IsBlocked = settings.IsBlocked;
+            BasisRemotePlayer.AlwaysShowAvatar = settings.AlwaysShowAvatar;
             RefreshActiveState();
         }
         private void SetPlateColor(Color c)

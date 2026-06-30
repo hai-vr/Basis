@@ -135,7 +135,7 @@ public class JiggleMemoryBus {
     // Per-tick cap on TransformAccessArray (un)registrations during a Commit. This is the
     // per-frame work bound for the sliced rebuild: lower it to shrink per-frame Commit cost
     // (more frames to finish a structural change), raise it to converge faster per frame.
-    private static int transformAccessBatchSize = 256;
+    private static int transformAccessBatchSize = 512;
     public static void SetTransformAccessBatchSize(int value) => transformAccessBatchSize = Mathf.Max(1, value);
 
     private static List<Transform> dummyTransforms;

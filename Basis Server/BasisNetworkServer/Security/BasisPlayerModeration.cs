@@ -318,6 +318,11 @@ namespace BasisNetworkServer.Security
                         HandleShoutMode(peer, reader, mode == AdminRequestMode.EnableShoutMode));
                     break;
 
+                case AdminRequestMode.SetFullQualityBroadcast:
+                    Require(peer, PermNodes.ModerationFullQualityBroadcast, () =>
+                        HandleFullQualityBroadcast(peer, reader));
+                    break;
+
                 // ===== GLOBAL LOCK =====
                 case AdminRequestMode.GlobalToggleAvatars:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
@@ -384,6 +389,11 @@ namespace BasisNetworkServer.Security
                         HandleGlobalToggle(peer, "Avatar Cilbox code", BasisGlobalLockManager.ToggleCilbox()));
                     break;
 
+                case AdminRequestMode.GlobalToggleImages:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Shared image", BasisGlobalLockManager.ToggleImages()));
+                    break;
+
                 case AdminRequestMode.SetGlobalAvatarScaleLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleAvatarScaleLimitsSet(peer, reader));
@@ -392,6 +402,11 @@ namespace BasisNetworkServer.Security
                 case AdminRequestMode.SetGlobalResourceLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleResourceLimitsSet(peer, reader));
+                    break;
+
+                case AdminRequestMode.SetGlobalReductionSettings:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleReductionSettingsSet(peer, reader));
                     break;
 
                 case AdminRequestMode.RequestAllLogs:
@@ -722,6 +737,14 @@ namespace BasisNetworkServer.Security
             BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(id, enable, (ushort)peer.Id);
         }
 
+        private static void HandleFullQualityBroadcast(NetPeer peer, NetPacketReader reader)
+        {
+            ushort id = reader.GetUShort();
+            bool enable = reader.GetBool();
+            BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents.SetBypassReduction(id, enable);
+            SendBackMessage(peer, $"Full-quality broadcast {(enable ? "ENABLED" : "DISABLED")} for player {id}.");
+        }
+
         private static void HandleCrashReportingSet(NetPeer peer, NetPacketReader reader)
         {
             bool enabled = reader.GetBool();
@@ -788,6 +811,70 @@ namespace BasisNetworkServer.Security
             SaveConfig();
             BasisResourceLimitManager.BroadcastState();
             SendBackMessage(peer, $"Resource limits set: db entries {BasisResourceLimitManager.MaxDatabaseEntries}, name length {BasisResourceLimitManager.MaxDatabaseNameLength}, payload entries {BasisResourceLimitManager.MaxDatabasePayloadEntries}, spheres/player {BasisResourceLimitManager.MaxContentSpheresPerPlayer}.");
+        }
+
+        private static void HandleReductionSettingsSet(NetPeer peer, NetPacketReader reader)
+        {
+            var config = NetworkServer.Configuration;
+            config.BSRSMillisecondDefaultInterval = reader.GetInt();
+            config.BSRBaseMultiplier = reader.GetInt();
+            config.BSRSIncreaseRate = reader.GetFloat();
+            config.BSRSlowestSendRate = reader.GetFloat();
+            config.HighQualityDistance = reader.GetFloat();
+            config.MediumQualityDistance = reader.GetFloat();
+            config.LowQualityDistance = reader.GetFloat();
+            config.EnableAvatarBundleCompression = reader.GetBool();
+            config.AvatarBundleMinMessages = reader.GetInt();
+            config.AvatarBundleMinBytes = reader.GetInt();
+            config.EnableBSRProfiling = reader.GetBool();
+
+            if (config.BSRSMillisecondDefaultInterval < 1) config.BSRSMillisecondDefaultInterval = 1;
+            if (config.BSRBaseMultiplier < 1) config.BSRBaseMultiplier = 1;
+            if (config.BSRSIncreaseRate < 0f) config.BSRSIncreaseRate = 0f;
+            if (config.BSRSlowestSendRate < 0f) config.BSRSlowestSendRate = 0f;
+            if (config.HighQualityDistance < 0f) config.HighQualityDistance = 0f;
+            if (config.MediumQualityDistance < 0f) config.MediumQualityDistance = 0f;
+            if (config.LowQualityDistance < 0f) config.LowQualityDistance = 0f;
+            if (config.AvatarBundleMinMessages < 1) config.AvatarBundleMinMessages = 1;
+            if (config.AvatarBundleMinBytes < 0) config.AvatarBundleMinBytes = 0;
+
+            NetworkServer.InitializePulseSettings();
+            SaveConfig();
+            BroadcastReductionSettings();
+            SendBackMessage(peer, $"Reduction settings set: interval {config.BSRSMillisecondDefaultInterval}ms, base x{config.BSRBaseMultiplier}, rate {config.BSRSIncreaseRate}, slowest {config.BSRSlowestSendRate}, distances {config.HighQualityDistance}/{config.MediumQualityDistance}/{config.LowQualityDistance}m, bundle {config.EnableAvatarBundleCompression} (min {config.AvatarBundleMinMessages}msg/{config.AvatarBundleMinBytes}B), profiling {config.EnableBSRProfiling}. SlowestSendRate applies to new joins only.");
+        }
+
+        private static void WriteReductionSettings(NetDataWriter writer)
+        {
+            var config = NetworkServer.Configuration;
+            new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetReductionSettings);
+            writer.Put(config.BSRSMillisecondDefaultInterval);
+            writer.Put(config.BSRBaseMultiplier);
+            writer.Put(config.BSRSIncreaseRate);
+            writer.Put(config.BSRSlowestSendRate);
+            writer.Put(config.HighQualityDistance);
+            writer.Put(config.MediumQualityDistance);
+            writer.Put(config.LowQualityDistance);
+            writer.Put(config.EnableAvatarBundleCompression);
+            writer.Put(config.AvatarBundleMinMessages);
+            writer.Put(config.AvatarBundleMinBytes);
+            writer.Put(config.EnableBSRProfiling);
+        }
+
+        private static void BroadcastReductionSettings()
+        {
+            var writer = NetworkServer.RentWriter();
+            WriteReductionSettings(writer);
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.AdminChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        public static void SendReductionSettingsToPeer(NetPeer peer)
+        {
+            var writer = NetworkServer.RentWriter();
+            WriteReductionSettings(writer);
+            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
         }
 
         /// <summary>

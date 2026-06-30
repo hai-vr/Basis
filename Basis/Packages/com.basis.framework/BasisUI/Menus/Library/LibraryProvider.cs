@@ -2047,7 +2047,12 @@ namespace Basis.BasisUI
             removeItem.SetSize(new Vector2(80, 80));
             removeItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
             removeItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.remove.tooltip"));
-            removeItem.OnClicked += () => entry.Remove?.Invoke();
+            removeItem.OnClicked += async () =>
+            {
+                bool confirmed = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, ShareableDisplayName(entry), ShareableKindLabel(entry.Kind));
+                if (!confirmed) return;
+                entry.Remove?.Invoke();
+            };
         }
 
         private static string ShareableIcon(BasisShareableKind kind)
