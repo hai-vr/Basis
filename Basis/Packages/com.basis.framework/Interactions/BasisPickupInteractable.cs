@@ -38,6 +38,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public bool CanSelfSteal = true;
 
         /// <summary>
+        /// VR only: which controller input drops this pickup while it is auto-held
+        /// (<see cref="BasisAutoHold.Yes"/>). Desktop always drops with right-click.
+        /// </summary>
+        [Tooltip("VR: button that drops an auto-held pickup (AutoHold = Yes). Desktop uses right-click.")]
+        public BasisInputKey HoldDropKey = BasisInputKey.Primary2DAxisClick;
+
+        /// <summary>
         /// If <see langword="true"/>, the object will smoothly interpolate to the hand position/rotation on pickup.
         /// </summary>
         [Tooltip("The object will move to the player's hand instead of keeping its offset on pickup")]
@@ -1106,17 +1113,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Desktop-only: determines whether a held object should be dropped using the secondary trigger (e.g., right-click).
+        /// Determines whether the player has asked to drop this pickup while it is auto-held.
+        /// Desktop uses right-click (center-eye secondary trigger); VR uses <see cref="HoldDropKey"/>
+        /// on the holding controller.
         /// </summary>
         /// <param name="input">Input to test.</param>
-        /// <returns>True when desktop center-eye secondary trigger is pressed.</returns>
+        /// <returns>True when the drop input is active for the current device.</returns>
         public override bool IsHoldDropTriggered(BasisInput input)
         {
-            return
-                // special case for desktop (right-click)
-                input.TryGetRole(out var role) &&
-                role == BasisBoneTrackedRole.CenterEye &&
-                input.CurrentInputState.SecondaryTrigger > .8f;
+            if (input.TryGetRole(out var role) && role == BasisBoneTrackedRole.CenterEye)
+            {
+                return input.CurrentInputState.SecondaryTrigger > 0.8f;
+            }
+
+            return HasState(input.CurrentInputState, HoldDropKey);
         }
 
         private IEnumerator MoveAfterDelayCoroutine() {

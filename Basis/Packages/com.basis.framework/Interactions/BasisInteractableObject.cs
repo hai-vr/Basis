@@ -45,14 +45,25 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public enum BasisAutoHold
         {
             /// <summary>
-            /// Object remains held after interaction until explicitly dropped.
+            /// Auto-hold on every device (desktop and VR). The object stays held after the grip is
+            /// released until the drop input fires (see <see cref="IsHoldDropTriggered"/>).
             /// </summary>
-            Yes,
+            Yes = 0,
 
             /// <summary>
-            /// Object does not remain held after interaction ends.
+            /// Never auto-hold. The object releases as soon as the grip/trigger is let go.
             /// </summary>
-            No
+            No = 1,
+        }
+
+        /// <summary>
+        /// Whether auto-hold (staying held after release) is enabled for this object.
+        /// Centralizes the check so callers don't compare against <see cref="AutoHold"/> directly.
+        /// </summary>
+        /// <returns><c>true</c> when <see cref="AutoHold"/> is <see cref="BasisAutoHold.Yes"/>.</returns>
+        public bool IsAutoHoldActive()
+        {
+            return AutoHold == BasisAutoHold.Yes;
         }
         public BasisInputKey InputKey = BasisInputKey.Trigger;
         public enum BasisInputKey
@@ -360,6 +371,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public virtual bool IsHoldDropTriggered(BasisInput input)
         {
             return true;
+        }
+
+        /// <summary>
+        /// Whether a currently auto-held object should be released for this input this frame:
+        /// either auto-hold is not enabled, or the drop input has fired.
+        /// Lets the interaction poller keep the release decision in one place.
+        /// </summary>
+        /// <param name="input">The input holding the object.</param>
+        /// <returns>True if the held object should be released.</returns>
+        public bool ShouldReleaseAutoHold(BasisInput input)
+        {
+            return !IsAutoHoldActive() || IsHoldDropTriggered(input);
         }
         protected bool CheckUsabilityWithState(BasisInput input, BasisInteractInputState requiredState)
         {

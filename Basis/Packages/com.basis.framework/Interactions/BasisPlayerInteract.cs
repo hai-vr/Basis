@@ -8,7 +8,6 @@ using Unity.Burst;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using static Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject;
 
 namespace Basis.Scripts.BasisSdk.Interactions
 {
@@ -213,11 +212,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     if (interactInput.lastTarget != null)
                     {
                         // Implementation could allow for hovering and holding of the same object, clear independently
-                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() && interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
-                        bool holdDropTriggered = interactInput.lastTarget.IsHoldDropTriggered(interactInput.input);
-
                         // Drop logic: drop when not triggered, or when autohold drop is pressed
-                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input) && (!autoHold || holdDropTriggered))
+                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input) && interactInput.lastTarget.ShouldReleaseAutoHold(interactInput.input))
                         {
                             interactInput.lastTarget.OnInteractEnd(interactInput.input);
                         }
@@ -367,8 +363,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // -----------------------------
             if (!isSameTarget && interactInput.lastTarget != null)
             {
-                bool holdDropTriggered = interactInput.lastTarget.IsHoldDropTriggered(interactInput.input);
-
                 // If we're holding the last target (trigger pressed)
                 if (interactInput.lastTarget.IsInteractTriggered(interactInput.input))
                 {
@@ -378,7 +372,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
                     }
 
-                    bool shouldHold = hitInteractable.AutoHold == BasisAutoHold.Yes;
+                    bool shouldHold = hitInteractable.IsAutoHoldActive();
 
                     // Start interaction on new hit if allowed
                     if (hitInteractable.CanInteract(interactInput.input) &&
@@ -394,13 +388,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     bool removeTarget = false;
 
                     bool lastTargetIsHeld = interactInput.lastTarget.IsInteractingWith(interactInput.input);
-                    bool autoHoldDropped = true;
-                    if (lastTargetIsHeld && IsDesktopCenterEye(interactInput.input))
-                    {
-                        autoHoldDropped =
-                            interactInput.lastTarget.AutoHold != BasisAutoHold.Yes ||
-                            (interactInput.lastTarget.AutoHold == BasisAutoHold.Yes && holdDropTriggered);
-                    }
+                    bool autoHoldDropped = !lastTargetIsHeld || interactInput.lastTarget.ShouldReleaseAutoHold(interactInput.input);
 
                     // If last target is interacting and we should drop, end interaction
                     if (interactInput.lastTarget.IsInteractingWith(interactInput.input) && autoHoldDropped)
@@ -444,7 +432,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     hitInteractable.OnHoverEnd(interactInput.input, canInteractNow);
                 }
 
-                bool shouldHold = hitInteractable.AutoHold == BasisAutoHold.Yes;
+                bool shouldHold = hitInteractable.IsAutoHoldActive();
 
                 if (hitInteractable.CanInteract(interactInput.input))
                 {
@@ -459,14 +447,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
 
             // Not interacting this frame
-            bool autoHoldDroppedSameTarget = true;
-            if (IsDesktopCenterEye(interactInput.input))
-            {
-                autoHoldDroppedSameTarget =
-                    hitInteractable.AutoHold != BasisAutoHold.Yes ||
-                    (hitInteractable.AutoHold == BasisAutoHold.Yes &&
-                     hitInteractable.IsHoldDropTriggered(interactInput.input));
-            }
+            bool autoHoldDroppedSameTarget = hitInteractable.ShouldReleaseAutoHold(interactInput.input);
 
             // End interaction if grip is confirmed released (with grace period
             // to prevent false drops during fast VR hand movement)
