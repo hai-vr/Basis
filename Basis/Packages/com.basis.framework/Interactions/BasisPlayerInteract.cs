@@ -169,6 +169,27 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     continue;
                 }
 
+                bool gripDown = interactInput.input.CurrentInputState.GripButton;
+                bool gripPressedAgain = gripDown && !interactInput.wasGripDown;
+                interactInput.wasGripDown = gripDown;
+
+                // Auto-hold: pressing grab again drops the held pickup (VR only; desktop uses right-click)
+                if (gripPressedAgain
+                    && interactInput.lastTarget != null
+                    && interactInput.lastTarget.IsInteractingWith(interactInput.input)
+                    && interactInput.lastTarget.IsAutoHoldActive()
+                    && !IsDesktopCenterEye(interactInput.input))
+                {
+                    interactInput.lastTarget.OnInteractEnd(interactInput.input);
+                    if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
+                    {
+                        interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
+                    }
+                    interactInput.lastTarget = null;
+                    InteractInputs[index] = interactInput;
+                    continue;
+                }
+
                 BasisHoverSphere hoverSphere = interactInput.input.hoverSphere;
 
                 // Poll hover

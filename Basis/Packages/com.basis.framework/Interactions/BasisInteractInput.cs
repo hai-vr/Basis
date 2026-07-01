@@ -14,6 +14,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public BasisInteractableObject lastTarget;
         [SerializeField]
         public bool HasvalidRay;
+        [System.NonSerialized]
+        public bool wasGripDown;
 
         public bool IsInput(BasisInput IsInputInput)
         {
