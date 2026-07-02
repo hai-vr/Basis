@@ -22,11 +22,11 @@ public class CueGrip : MonoBehaviour
         pickup.OnPickupUse.AddListener(OnPickupUse);
         if (BasisDeviceManagement.IsCurrentModeVR())
         {
-            pickup.AutoHold = BasisInteractableObject.BasisAutoHold.No;
+            pickup.AutoHold = BasisInteractableObject.BasisAutoHold.None;
         }
         else
         {
-            pickup.AutoHold = BasisInteractableObject.BasisAutoHold.Yes;
+            pickup.AutoHold = BasisInteractableObject.BasisAutoHold.DesktopOnly;
         }
     }
     private void OnPickupUse(BasisPickUpUseMode mode)
