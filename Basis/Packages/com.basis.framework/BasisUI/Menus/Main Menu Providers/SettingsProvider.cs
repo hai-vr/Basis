@@ -499,6 +499,19 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             });
 
+            // Passthrough / mixed reality — standalone VR only (Quest).
+            if (BasisDeviceManagement.IsMobileHardware() && BasisDeviceManagement.IsCurrentModeVR())
+            {
+                PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                    BasisLocalization.Get("settings.general.passthrough.title"), () =>
+                {
+                    PanelToggle togglePassthrough = PanelToggle.CreateNewEntry(container);
+                    togglePassthrough.AssignBinding(BasisSettingsDefaults.EnablePassthrough);
+                    togglePassthrough.Descriptor.SetTitle(BasisLocalization.Get("settings.general.passthrough"));
+                    togglePassthrough.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.passthrough.tooltip"));
+                }, false, _ => descriptor.ForceRebuild());
+            }
+
             // Third-person camera is desktop-only; hide the entire section in VR/XR.
             if (BasisDeviceManagement.IsUserInDesktop())
             {
@@ -680,6 +693,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
+            BasisSettingsDefaults.EnablePassthrough.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
             BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();

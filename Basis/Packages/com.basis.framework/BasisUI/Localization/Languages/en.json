@@ -3523,6 +3523,22 @@
       "value": "HUD"
     },
     {
+      "key": "settings.general.passthrough.title",
+      "value": "Mixed Reality"
+    },
+    {
+      "key": "settings.general.passthrough",
+      "value": "Passthrough"
+    },
+    {
+      "key": "settings.general.passthrough.tooltip",
+      "value": "Show your real surroundings behind the world. Standalone VR headsets (Quest) only."
+    },
+    {
+      "key": "settings.general.passthrough.description",
+      "value": "Replaces the world's sky with your headset's passthrough camera feed so you can see your room. Standalone VR only."
+    },
+    {
       "key": "settings.general.desktopReticle",
       "value": "Desktop Reticle"
     },

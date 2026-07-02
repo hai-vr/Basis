@@ -429,6 +429,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> DesktopReticle = new("desktopreticle", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> EnablePassthrough = new("enablepassthrough", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> EnableThirdPersonCamera = new("enablethirdpersoncamera", new BasisPlatformDefault<bool>(true));
 
         // True = listener stays at the player's head while third-person is active.
@@ -1690,6 +1692,7 @@ namespace Basis.BasisUI
             LimitAvatarPreviewRate.LoadBindingValue();
             AvatarPreviewRenderHz.LoadBindingValue();
             DesktopReticle.LoadBindingValue();
+            EnablePassthrough.LoadBindingValue();
             EnableThirdPersonCamera.LoadBindingValue();
             AudioListenerFollowsHead.LoadBindingValue();
             MicrophoneIcon.LoadBindingValue();

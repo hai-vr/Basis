@@ -22,6 +22,28 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &-8377521960917039191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee936f3faf78e2a48bbd83d49ab272b0, type: 3}
+  m_Name: BasisPassthroughFeature Android
+  m_EditorClassIdentifier: BasisOpenXR::Basis.OpenXR.BasisPassthroughFeature
+  m_enabled: 1
+  nameUi: Basis Passthrough
+  version: 1.0.0
+  featureIdInternal: com.basis.openxr.feature.passthrough
+  openxrExtensionStrings: XR_FB_passthrough
+  company: Basis
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
 --- !u!114 &-7922043599202136257
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1185,6 +1207,7 @@ MonoBehaviour:
   - {fileID: 6814664173189161179}
   - {fileID: -6839859109901797412}
   - {fileID: 6719199143533333913}
+  - {fileID: -8377521960917039191}
   - {fileID: -5306176883744656445}
   - {fileID: -5613220336340229018}
   - {fileID: -3753664232341013626}
