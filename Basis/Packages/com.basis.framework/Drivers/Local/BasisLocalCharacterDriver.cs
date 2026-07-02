@@ -119,8 +119,6 @@ namespace Basis.Scripts.BasisCharacterController
         /// </summary>
         [field: SerializeField] public float MovementSpeedScale { get; private set; }
         [field: SerializeField] public float MovementSpeedBoost { get; private set; }
-        private float DefaultMovementSpeedMultiplier = 0.625f;
-        private float MaximumMovementSpeedBoost = 1.6f;
         /// <summary>
         /// A value between 0 and 1 representing the character's crouch state, where 0 is fully crouched and 1 is fully standing.
         /// </summary>
@@ -178,7 +176,6 @@ namespace Basis.Scripts.BasisCharacterController
             {
                 HasEvents = true;
             }
-            MaximumMovementSpeedBoost = MaximumMovementSpeed / DefaultMovementSpeed;
             SetMovementSpeedMultiplier(GetMultiplierForMovementSpeed(DefaultMovementSpeed));
             Validate();
             CalculateCharacterSize();
@@ -378,8 +375,8 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void UpdateMovementSpeed(bool maxSpeed)
         {
-            var topSpeed = maxSpeed ? 1f : DefaultMovementSpeedMultiplier;
-            var boostSpeed = maxSpeed ? MaximumMovementSpeedBoost : 1f;
+            var topSpeed = GetMultiplierForMovementSpeed(maxSpeed ? MaximumMovementSpeed : DefaultMovementSpeed);
+            var boostSpeed = maxSpeed ? MaximumMovementSpeed / DefaultMovementSpeed : 1f;
             // inverse of crouch blend so standing is the least value, multiply by the boost that running gives
             MovementSpeedBoost = (1 - CrouchBlend) * boostSpeed;
             SetMovementSpeedMultiplier(topSpeed * CrouchBlend * MovementVector.magnitude);

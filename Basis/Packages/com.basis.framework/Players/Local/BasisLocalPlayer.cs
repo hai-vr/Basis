@@ -631,6 +631,16 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
             }
         }
+        public float GetMinimumMovementSpeed() => LocalCharacterDriver.MinimumMovementSpeed;
+        public void SetMinimumMovementSpeed(float value) => LocalCharacterDriver.MinimumMovementSpeed = value;
+        public float GetDefaultMovementSpeed() => LocalCharacterDriver.DefaultMovementSpeed;
+        public void SetDefaultMovementSpeed(float value) => LocalCharacterDriver.DefaultMovementSpeed = value;
+        public float GetMaximumMovementSpeed() => LocalCharacterDriver.MaximumMovementSpeed;
+        public void SetMaximumMovementSpeed(float value) => LocalCharacterDriver.MaximumMovementSpeed = value;
+        public float GetJumpHeight() => LocalCharacterDriver.jumpHeight;
+        public void SetJumpHeight(float value) => LocalCharacterDriver.jumpHeight = value;
+        public float GetGravityValue() => LocalCharacterDriver.gravityValue;
+        public void SetGravityValue(float value) => LocalCharacterDriver.gravityValue = value;
         /// <summary>
         /// Delegate type for scheduling a callback on the next frame.
         /// </summary>

@@ -34,6 +34,7 @@ org.basisvr.generator.equals
 org.basisvr.base128
 org.basisvr.simplebase
 nuget.meamod.dns
+com.unity.render-pipelines.universal
 
 # Unity-asset deps used by framework, eventdriver, shim.
 UnityJigglePhysics-upm
