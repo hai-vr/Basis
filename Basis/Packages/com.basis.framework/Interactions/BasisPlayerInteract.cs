@@ -222,7 +222,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                 }
                 // Direct grab detection: hand-proximity grab for VR hands
-                else if (TryDetectDirectGrab(interactInput, out BasisInteractableObject grabTarget))
+                else if (TryDetectDirectGrab(interactInput, gripPressedAgain, out BasisInteractableObject grabTarget))
                 {
                     HandleDirectGrab(grabTarget, ref interactInput);
                 }
@@ -584,7 +584,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Attempts to find a directly grabbable interactable near the hand bone position.
         /// Only activates for hand inputs when grip is pressed.
         /// </summary>
-        private bool TryDetectDirectGrab(BasisInteractInput interactInput, out BasisInteractableObject grabTarget)
+        private bool TryDetectDirectGrab(BasisInteractInput interactInput, bool gripPressedAgain, out BasisInteractableObject grabTarget)
         {
             grabTarget = null;
             BasisInput input = interactInput.input;
@@ -593,10 +593,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (interactInput.lastTarget != null && interactInput.lastTarget.IsInteractingWith(input))
                 return false;
 
-            // Only for hand roles with grip pressed
+            // Require a fresh grip press: a grip still held from a drop must not re-grab (intentional grab only)
+            if (!gripPressedAgain) return false;
+
+            // Only for hand roles
             if (!input.TryGetRole(out BasisBoneTrackedRole role)) return false;
             if (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand) return false;
-            if (!input.CurrentInputState.GripButton) return false;
 
             // Get the hand bone world position
             if (!input.HasControl || input.Control == null) return false;

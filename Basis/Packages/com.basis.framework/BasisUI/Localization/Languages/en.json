@@ -3519,6 +3519,18 @@
       "value": "Prevent picking up props placed in the world."
     },
     {
+      "key": "settings.general.disableVRAutoHold",
+      "value": "Disable VR Auto-Hold"
+    },
+    {
+      "key": "settings.general.disableVRAutoHold.tooltip",
+      "value": "Always hold the grab button to keep a pickup held in VR, even when a world sets it to auto-hold."
+    },
+    {
+      "key": "settings.general.disableVRAutoHold.description",
+      "value": "Ignore VR auto-hold on pickups, so you must keep holding the grab button to carry them."
+    },
+    {
       "key": "settings.general.hud.title",
       "value": "HUD"
     },

@@ -455,6 +455,11 @@ namespace Basis.BasisUI
                 toggleDisablePropPickup.AssignBinding(BasisSettingsDefaults.DisablePropPickup);
                 toggleDisablePropPickup.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disablePropPickup"));
                 toggleDisablePropPickup.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disablePropPickup.tooltip"));
+
+                PanelToggle toggleDisableVRAutoHold = PanelToggle.CreateNewEntry(container);
+                toggleDisableVRAutoHold.AssignBinding(BasisSettingsDefaults.DisableVRAutoHold);
+                toggleDisableVRAutoHold.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableVRAutoHold"));
+                toggleDisableVRAutoHold.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableVRAutoHold.tooltip"));
             }, false, _ => descriptor.ForceRebuild());
 
             // HUD overlays — heads-up display elements rendered over the scene.

@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using System;
@@ -36,7 +37,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Determines whether the interactable should automatically be held after interaction.
         /// </summary>
         [SerializeField]
-        public BasisAutoHold AutoHold = BasisAutoHold.No;
+        public BasisAutoHold AutoHold = BasisAutoHold.None;
 
         /// <summary>
         /// Enum for controlling automatic hold behavior after interaction.
@@ -45,25 +46,39 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public enum BasisAutoHold
         {
             /// <summary>
-            /// Auto-hold on every device (desktop and VR). The object stays held after the grip is
-            /// released until the drop input fires (see <see cref="IsHoldDropTriggered"/>).
+            /// Auto-hold on desktop only; VR must keep holding the grab input.
             /// </summary>
-            Yes = 0,
+            DesktopOnly = 0,
 
             /// <summary>
-            /// Never auto-hold. The object releases as soon as the grip/trigger is let go.
+            /// Object never remains held; drops as soon as the grab input is released.
             /// </summary>
-            No = 1,
+            None = 1,
+
+            /// <summary>
+            /// Auto-hold on desktop and in VR.
+            /// </summary>
+            Everywhere = 2,
         }
 
         /// <summary>
-        /// Whether auto-hold (staying held after release) is enabled for this object.
+        /// Whether auto-hold (staying held after release) is active for this object on the current device.
+        /// VR players can opt out via <see cref="BasisSettingsDefaults.DisableVRAutoHold"/>.
         /// Centralizes the check so callers don't compare against <see cref="AutoHold"/> directly.
         /// </summary>
-        /// <returns><c>true</c> when <see cref="AutoHold"/> is <see cref="BasisAutoHold.Yes"/>.</returns>
         public bool IsAutoHoldActive()
         {
-            return AutoHold == BasisAutoHold.Yes;
+            switch (AutoHold)
+            {
+                case BasisAutoHold.Everywhere:
+                    if (!Device_Management.BasisDeviceManagement.IsUserInDesktop() && BasisSettingsDefaults.DisableVRAutoHold.RawValue)
+                        return false;
+                    return true;
+                case BasisAutoHold.DesktopOnly:
+                    return Device_Management.BasisDeviceManagement.IsUserInDesktop();
+                default:
+                    return false;
+            }
         }
         public BasisInputKey InputKey = BasisInputKey.Trigger;
         public enum BasisInputKey
