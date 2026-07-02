@@ -386,3 +386,16 @@ MonoBehaviour:
   - Basis.Shims.BasisOsc
   - UnityEngine.Video.VideoPlayer
   - Basis.Scripts.BasisSdk.Highlight.BasisHighlightOverride
+  - ftLightmapsStorage
+  - BakeryLightmapGroupSelector
+  - BakeryLightmappedPrefab
+  - BakeryVolume
+  - BakerySector
+  - BakeryDirectLight
+  - BakeryPointLight
+  - BakerySkyLight
+  - BakeryLightMesh
+  - BakeryLightFilter
+  - BakeryAlwaysRender
+  - BakeryPackAsSingleSquare
+  - BakerySharedLodUv
