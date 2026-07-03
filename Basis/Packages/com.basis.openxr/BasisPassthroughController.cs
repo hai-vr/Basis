@@ -6,21 +6,25 @@ using UnityEngine;
 namespace Basis.OpenXR
 {
     /// <summary>
-    /// Bridges the <see cref="BasisSettingsDefaults.EnablePassthrough"/> setting to the
-    /// <see cref="BasisPassthroughFeature"/> and the local camera: while passthrough is active it
-    /// clears the main camera to transparent (and drops the skybox) so the real world shows through,
-    /// restoring the world's original clear settings when it turns off. Only takes effect on
-    /// standalone VR hardware with a runtime that supports the extension.
+    /// Bridges the <see cref="BasisSettingsDefaults.EnablePassthrough"/> setting to
+    /// <see cref="BasisPassthroughFeature"/> and the local camera. While active it clears the main
+    /// camera to transparent and removes the skybox (both the camera component and RenderSettings)
+    /// so the real world shows through; it saves and restores the world's values on toggle and
+    /// re-captures them on each scene load. Only takes effect on standalone VR hardware whose
+    /// runtime supports passthrough.
     /// </summary>
     public static class BasisPassthroughController
     {
+        const string Tag = "[BasisPassthrough]";
+
         static bool s_Initialized;
         static bool s_DesiredActive;
 
         static bool s_Saved;
         static CameraClearFlags s_SavedFlags;
         static Color s_SavedBackground;
-        static Material s_SavedSkybox;
+        static Material s_SavedCameraSky;
+        static Material s_SavedRenderSky;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Initialize()
@@ -36,42 +40,61 @@ namespace Basis.OpenXR
             Apply();
         }
 
-        static void OnSettingChanged(bool _) => Apply();
-        static void OnBootModeChanged(string _) => Apply();
+        static void OnSettingChanged(bool value)
+        {
+            Debug.Log($"{Tag} Setting changed -> {value}");
+            Apply();
+        }
+
+        static void OnBootModeChanged(string mode)
+        {
+            Debug.Log($"{Tag} Boot mode changed -> {mode}");
+            Apply();
+        }
 
         static void OnRenderSettingsApplied()
         {
             if (s_DesiredActive)
             {
+                Debug.Log($"{Tag} Scene loaded while active — recapturing world visuals and re-applying passthrough clear.");
                 s_Saved = false;
-                ApplyCameraClear(true);
+                ApplyVisuals(true);
             }
         }
 
-        public static void NotifyRuntimeReady() => Apply();
+        public static void NotifyRuntimeReady()
+        {
+            Debug.Log($"{Tag} Runtime ready (IsSupported={BasisPassthroughFeature.IsSupported}).");
+            Apply();
+        }
 
         public static void NotifyRuntimeLost()
         {
+            Debug.Log($"{Tag} Runtime lost — restoring world visuals.");
             s_DesiredActive = false;
-            ApplyCameraClear(false);
+            ApplyVisuals(false);
         }
 
         static void Apply()
         {
-            bool want = BasisSettingsDefaults.EnablePassthrough.RawValue
-                        && BasisDeviceManagement.IsMobileHardware()
-                        && BasisDeviceManagement.IsCurrentModeVR()
-                        && BasisPassthroughFeature.IsSupported;
+            bool setting = BasisSettingsDefaults.EnablePassthrough.RawValue;
+            bool mobile = BasisDeviceManagement.IsMobileHardware();
+            bool vr = BasisDeviceManagement.IsCurrentModeVR();
+            bool supported = BasisPassthroughFeature.IsSupported;
+            bool want = setting && mobile && vr && supported;
+
+            Debug.Log($"{Tag} Apply: setting={setting} mobile={mobile} vr={vr} supported={supported} -> want={want}");
 
             s_DesiredActive = want;
             BasisPassthroughFeature.SetActive(want);
-            ApplyCameraClear(want);
+            ApplyVisuals(want);
         }
 
-        static void ApplyCameraClear(bool on)
+        static void ApplyVisuals(bool on)
         {
             if (!BasisLocalCameraDriver.HasInstance)
             {
+                Debug.Log($"{Tag} ApplyVisuals({on}) skipped — camera not ready yet (will re-apply on scene load).");
                 return;
             }
             Camera cam = BasisLocalCameraDriver.Instance.Camera;
@@ -79,7 +102,7 @@ namespace Basis.OpenXR
             {
                 return;
             }
-            cam.TryGetComponent(out Skybox sky);
+            cam.TryGetComponent(out Skybox camSky);
 
             if (on)
             {
@@ -87,25 +110,30 @@ namespace Basis.OpenXR
                 {
                     s_SavedFlags = cam.clearFlags;
                     s_SavedBackground = cam.backgroundColor;
-                    s_SavedSkybox = sky != null ? sky.material : null;
+                    s_SavedCameraSky = camSky != null ? camSky.material : null;
+                    s_SavedRenderSky = RenderSettings.skybox;
                     s_Saved = true;
                 }
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
-                if (sky != null)
+                if (camSky != null)
                 {
-                    sky.material = null;
+                    camSky.material = null;
                 }
+                RenderSettings.skybox = null;
+                Debug.Log($"{Tag} Visuals ON — clear=SolidColor(a=0), skybox removed.");
             }
             else if (s_Saved)
             {
                 cam.clearFlags = s_SavedFlags;
                 cam.backgroundColor = s_SavedBackground;
-                if (sky != null)
+                if (camSky != null)
                 {
-                    sky.material = s_SavedSkybox;
+                    camSky.material = s_SavedCameraSky;
                 }
+                RenderSettings.skybox = s_SavedRenderSky;
                 s_Saved = false;
+                Debug.Log($"{Tag} Visuals OFF — restored clear/skybox.");
             }
         }
     }
