@@ -127,6 +127,8 @@ namespace Basis.Scripts.UI
                 LineRenderer.useWorldSpace = true;
                 LineRenderer.textureMode = LineTextureMode.Tile;
                 LineRenderer.applyActiveColorSpace = false;
+                LineRenderer.sortingLayerID = 0;
+                LineRenderer.sortingOrder = short.MaxValue;
                 BasisRaycastLineCustomization.StyleUiLine(LineRenderer);
             }
             if (basisInput.DeviceMatchSettings.HasRayCastRadical)

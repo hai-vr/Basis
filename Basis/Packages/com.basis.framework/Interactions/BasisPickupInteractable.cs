@@ -1106,17 +1106,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Desktop-only: determines whether a held object should be dropped using the secondary trigger (e.g., right-click).
+        /// Desktop drop for an auto-held pickup: right-click (center-eye secondary trigger).
+        /// In VR the pickup is dropped by pressing grab again (handled in the interaction poller).
+        /// Override to add a device-specific drop button.
         /// </summary>
         /// <param name="input">Input to test.</param>
-        /// <returns>True when desktop center-eye secondary trigger is pressed.</returns>
+        /// <returns>True when the desktop drop input is active.</returns>
         public override bool IsHoldDropTriggered(BasisInput input)
         {
-            return
-                // special case for desktop (right-click)
-                input.TryGetRole(out var role) &&
+            return input.TryGetRole(out var role) &&
                 role == BasisBoneTrackedRole.CenterEye &&
-                input.CurrentInputState.SecondaryTrigger > .8f;
+                input.CurrentInputState.SecondaryTrigger > 0.8f;
         }
 
         private IEnumerator MoveAfterDelayCoroutine() {

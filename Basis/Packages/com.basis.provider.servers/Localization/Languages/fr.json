@@ -6,6 +6,7 @@
       "key": "menu.servers.username",
       "value": "Nom d'utilisateur"
     },
+    { "key": "menu.servers.username.hint", "value": "Entrez un nom d'utilisateur pour vous connecter" },
     {
       "key": "menu.servers.connect",
       "value": "Se connecter"

@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "Android Build Support مفقود. ثبّته في Unity Hub لبناء Quest." },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP غير متاح. ثبّت Android Build Support (يتضمن IL2CPP) في Unity Hub." },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "يعمل في Linux Editor. قد لا تكون بعض سلاسل الأدوات للمنصات متاحة على هذا النظام؛ تعكس الشارات ما هو مثبَّت فعلاً هنا." },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "الخلفية البرمجية للبناء (Windows / macOS)" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "اسأل في كل بناء" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "دائمًا IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "دائمًا Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "يتذكّر إجابة IL2CPP/Mono لبنيات Windows وmacOS حتى لا تُسأل في كل مرة. المنصّات المفروضة غير متأثرة: Android وiOS يستخدمان دائمًا IL2CPP، وLinux يستخدم دائمًا Mono. اختيار خلفية في مطالبة البناء يحدّث هذا الإعداد أيضًا." },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "النظام الأساسي والجودة" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },

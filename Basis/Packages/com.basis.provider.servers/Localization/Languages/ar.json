@@ -6,6 +6,7 @@
       "key": "menu.servers.username",
       "value": "اسم المستخدم"
     },
+    { "key": "menu.servers.username.hint", "value": "أدخل اسم مستخدم للاتصال" },
     {
       "key": "menu.servers.connect",
       "value": "اتصال"

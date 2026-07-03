@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "Android Build Support がありません。Quest 向けにビルドするには Unity Hub からインストールしてください。" },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP は利用できません。Unity Hub から Android Build Support (IL2CPP を含む) をインストールしてください。" },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "Linux エディターで実行中です。一部のプラットフォームツールチェーンはこの OS では利用できない場合があります。バッジは実際にここにインストールされているものを反映しています。" },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "ビルドスクリプティングバックエンド（Windows / macOS）" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "ビルドごとに確認" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "常にIL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "常にMono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "WindowsとmacOSのビルドについてIL2CPP/Monoの回答を記憶し、毎回確認されないようにします。強制されるプラットフォームは影響を受けません。AndroidとiOSは常にIL2CPPを、Linuxは常にMonoを使用します。ビルドのプロンプトでバックエンドを選択すると、この設定も更新されます。" },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "プラットフォームと品質" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },

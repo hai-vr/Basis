@@ -69,6 +69,8 @@ namespace Basis.Scripts.Drivers
 
         public Vector3 MobileMicrophoneViewportPosition = new(0.5f, 0.1f, 1f);
 
+        public Vector3 VRMicrophoneLocalOffset = new(-0.175f, -0.17f, 0.5f);
+
         /// <summary>True when the camera is in Third-Person mode.</summary>
         public bool IsThirdPerson = false;
 
@@ -640,9 +642,10 @@ namespace Basis.Scripts.Drivers
                 }
                 if (CameraData.allowXRRendering)
                 {
-                    ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera, Position);
-                    // XR drives ParentOfUI directly; invalidate the desktop layout cache so it
-                    // recomputes when we return to the desktop path.
+                    Vector3 offset = VRMicrophoneLocalOffset;
+                    offset.x += microphoneIconDriver.IconPositionOffset.x;
+                    offset.y += microphoneIconDriver.IconPositionOffset.y;
+                    ParentOfUI.localPosition = offset * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
                     _micLayoutValid = false;
                 }
                 else

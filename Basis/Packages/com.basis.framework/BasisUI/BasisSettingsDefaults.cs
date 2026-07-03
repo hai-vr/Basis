@@ -429,6 +429,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> DesktopReticle = new("desktopreticle", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> EnablePassthrough = new("enablepassthrough", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> EnableThirdPersonCamera = new("enablethirdpersoncamera", new BasisPlatformDefault<bool>(true));
 
         // True = listener stays at the player's head while third-person is active.
@@ -696,6 +698,7 @@ namespace Basis.BasisUI
         // ---------------- INTERACTIONS ----------------
         public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> ForceGridSnap = new("forcegridsnap", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> GridSnapSize = new("gridsnapsize", new BasisPlatformDefault<float>(0.25f));
         public static BasisSettingsBinding<bool> ForceRotationSnap = new("forcerotationsnap", new BasisPlatformDefault<bool>(false));
@@ -1690,6 +1693,7 @@ namespace Basis.BasisUI
             LimitAvatarPreviewRate.LoadBindingValue();
             AvatarPreviewRenderHz.LoadBindingValue();
             DesktopReticle.LoadBindingValue();
+            EnablePassthrough.LoadBindingValue();
             EnableThirdPersonCamera.LoadBindingValue();
             AudioListenerFollowsHead.LoadBindingValue();
             MicrophoneIcon.LoadBindingValue();
@@ -1711,6 +1715,7 @@ namespace Basis.BasisUI
             LimitKnee.LoadBindingValue();
             DisableSeats.LoadBindingValue();
             DisablePropPickup.LoadBindingValue();
+            DisableVRAutoHold.LoadBindingValue();
             ForceGridSnap.LoadBindingValue();
             GridSnapSize.LoadBindingValue();
             ForceRotationSnap.LoadBindingValue();

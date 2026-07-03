@@ -6,6 +6,7 @@
       "key": "menu.servers.username",
       "value": "उपयोगकर्ता नाम"
     },
+    { "key": "menu.servers.username.hint", "value": "जुड़ने के लिए एक उपयोगकर्ता नाम दर्ज करें" },
     {
       "key": "menu.servers.connect",
       "value": "कनेक्ट करें"
