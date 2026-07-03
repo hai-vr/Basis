@@ -97,7 +97,7 @@ public sealed class BasisRestApiRoutes
     private void ListPlayers(HttpListenerResponse res)
     {
         var entries = _control.ListPlayers().Select(p =>
-            $$"""{"netId":{{p.NetId}},"uuid":{{JsonSerializer.Serialize(p.Uuid)}},"displayName":{{JsonSerializer.Serialize(p.DisplayName)}},"platform":{{JsonSerializer.Serialize(p.Platform)}}}""");
+            $$"""{"netId":{{p.NetId}},"uuid":{{JsonSerializer.Serialize(p.Uuid)}},"displayName":{{JsonSerializer.Serialize(p.DisplayName)}},"platform":{{JsonSerializer.Serialize(p.Platform)}},"position":{{JsonSerializer.Serialize(p.Position)}}}""");
         WriteJson(res, $$"""{"players":[{{string.Join(",", entries)}}]}""");
     }
 

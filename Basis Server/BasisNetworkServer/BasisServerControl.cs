@@ -1,5 +1,6 @@
 #if !UNITY_2017_1_OR_NEWER
 using Basis.Network.Core;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
 using System;
 using System.Collections.Generic;
@@ -21,7 +22,7 @@ namespace Basis.Network.Server
     public record WorldLoadParams(string Url, string Password, bool Persistent, LoadStrategy Strategy);
     public record SwitchWorldParams(string Url, string Password, bool Persistent, string AnnounceMessage, int Delay);
     public record WorldInfo(string NetId, string Url, bool Persistent, bool AdminLocked, LoadStrategy Strategy);
-    public record PlayerInfo(int NetId, string Uuid, string DisplayName, string Platform);
+    public record PlayerInfo(int NetId, string Uuid, string DisplayName, string Platform, float[] Position = null);
 
     public interface IServerControl
     {
@@ -140,7 +141,12 @@ namespace Basis.Network.Server
                     displayName = meta.playerDisplayName ?? string.Empty;
                     platform    = meta.playerPlatform   ?? string.Empty;
                 }
-                result.Add(new PlayerInfo(kv.Key, uuid, displayName, platform));
+                float[] position = null;
+                if (BasisServerReductionSystemEvents.playerStates.TryGetValue(kv.Key, out var state) && state.IsActive)
+                {
+                    position = new[] { state.Position.x, state.Position.y, state.Position.z };
+                }
+                result.Add(new PlayerInfo(kv.Key, uuid, displayName, platform, position));
             }
             return result;
         }
