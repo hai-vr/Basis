@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "Android Build Support ontbreekt. Installeer het in Unity Hub om voor Quest te bouwen." },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP is niet beschikbaar. Installeer Android Build Support (bevat IL2CPP) in Unity Hub." },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "Draait in Linux Editor. Sommige platform-toolchains zijn op dit OS mogelijk niet beschikbaar; de badges geven weer wat hier daadwerkelijk geïnstalleerd is." },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "Build-scriptingbackend (Windows / macOS)" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "Vragen bij elke build" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "Altijd IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "Altijd Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "Onthoudt het IL2CPP/Mono-antwoord voor Windows- en macOS-builds zodat het je niet elke keer wordt gevraagd. Geforceerde platforms worden niet beïnvloed: Android en iOS gebruiken altijd IL2CPP, Linux gebruikt altijd Mono. Het kiezen van een backend in de build-prompt werkt deze instelling ook bij." },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "Platform & Kwaliteit" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },

@@ -6,6 +6,7 @@
       "key": "menu.servers.username",
       "value": "Gebruikersnaam"
     },
+    { "key": "menu.servers.username.hint", "value": "Voer een gebruikersnaam in om verbinding te maken" },
     {
       "key": "menu.servers.connect",
       "value": "Verbinden"

@@ -173,6 +173,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 bool gripPressedAgain = gripDown && !interactInput.wasGripDown;
                 interactInput.wasGripDown = gripDown;
 
+                // After a grab-again drop, wait for grip release so the same press can't re-grab the pickup
+                if (interactInput.suppressGrabUntilRelease)
+                {
+                    if (gripDown)
+                    {
+                        InteractInputs[index] = interactInput;
+                        continue;
+                    }
+                    interactInput.suppressGrabUntilRelease = false;
+                }
+
                 // Auto-hold: pressing grab again drops the held pickup (VR only; desktop uses right-click)
                 if (gripPressedAgain
                     && interactInput.lastTarget != null
@@ -186,6 +197,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
                     }
                     interactInput.lastTarget = null;
+                    interactInput.suppressGrabUntilRelease = true;
                     InteractInputs[index] = interactInput;
                     continue;
                 }

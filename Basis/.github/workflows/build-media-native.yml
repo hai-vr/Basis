@@ -1,0 +1,125 @@
+name: build-media-native
+
+# Builds the basis_media_native stub backends for the four platforms that can't be
+# produced on a Windows dev box: Linux x86_64, Windows ARM64, macOS (x86_64 + arm64)
+# and iOS arm64. These are STUB backends (other/basis_decoder_stub.c) — they link the
+# portable protocol/demux core but never decode frames — so they need none of Unity's
+# PluginAPI headers and build with each runner's stock cmake toolchain, no secrets.
+#
+# The two REAL backends (Windows x86_64 + Android arm64) are NOT built here: they
+# compile unity/basis_unity_plugin.cpp against Unity's PluginAPI headers, which ship
+# with the editor and aren't redistributable. Build those locally (see Native~/README
+# and the build-*.bat scripts) or wire up the optional unity-headers path noted at the
+# bottom of this file.
+#
+# Each job uploads its binary as an artifact. Download it and drop it into
+# Packages/com.basis.mediaplayer/Plugins/<platform>/ — Unity writes the .meta on
+# import. macOS and iOS have no committed binary yet, so this is their first build.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Packages/com.basis.mediaplayer/Native~/**'
+      - '.github/workflows/build-media-native.yml'
+
+permissions:
+  contents: read
+
+env:
+  NATIVE_DIR: Packages/com.basis.mediaplayer/Native~
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure and build (stub)
+        run: |
+          cmake -S "$NATIVE_DIR" -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Linux-x86_64
+          path: build/libbasis_media_native.so
+          if-no-files-found: error
+
+  windows-arm64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure and build (stub, ARM64)
+        shell: pwsh
+        run: |
+          cmake -S "$env:NATIVE_DIR" -B build -A ARM64
+          cmake --build build --config Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-ARM64
+          path: build/Release/basis_media_native.dll
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure and build x86_64 + arm64 (stub)
+        run: |
+          for arch in x86_64 arm64; do
+            cmake -S "$NATIVE_DIR" -B "build-$arch" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_OSX_ARCHITECTURES="$arch" \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+            cmake --build "build-$arch" -j
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-x86_64
+          path: build-x86_64/libbasis_media_native.dylib
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-arm64
+          path: build-arm64/libbasis_media_native.dylib
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure and build arm64 static (stub)
+        run: |
+          cmake -S "$NATIVE_DIR" -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+          cmake --build build-ios --config Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iOS-arm64
+          path: build-ios/Release-iphoneos/libbasis_media_native.a
+          if-no-files-found: error
+
+# ---------------------------------------------------------------------------
+# Optional: the two REAL backends in CI.
+#
+# Windows x86_64 and Android arm64 need Unity's PluginAPI headers. To build them
+# here, install the editor (e.g. game-ci/unity-builder or a cached Unity install),
+# then pass its headers to cmake:
+#
+#   -DUNITY_PLUGIN_API_DIR="<UnityEditor>/Editor/Data/PluginAPI"
+#
+# Windows x64:  cmake -S $NATIVE_DIR -B build -A x64 -DUNITY_PLUGIN_API_DIR=<...>
+#               cmake --build build --config Release
+#               -> build/Release/basis_media_native.dll  (Plugins/Windows/x86_64)
+#
+# Android:      cmake -S $NATIVE_DIR -B build -G Ninja \
+#                 -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+#                 -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 \
+#                 -DUNITY_PLUGIN_API_DIR=<...>
+#               cmake --build build
+#               -> build/libbasis_media_native.so  (Plugins/Android/arm64-v8a)
+#
+# These headers are under the Unity Companion License, so they can't be committed to
+# the repo — source them from a licensed editor install at build time.
+# ---------------------------------------------------------------------------

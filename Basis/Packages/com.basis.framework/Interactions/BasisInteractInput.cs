@@ -16,6 +16,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public bool HasvalidRay;
         [System.NonSerialized]
         public bool wasGripDown;
+        [System.NonSerialized]
+        public bool suppressGrabUntilRelease;
 
         public bool IsInput(BasisInput IsInputInput)
         {

@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "Android Build Support موجود نہیں۔ Quest کے لیے بنانے کے لیے Unity Hub میں اسے نصب کریں۔" },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP دستیاب نہیں۔ Unity Hub میں Android Build Support (IL2CPP سمیت) نصب کریں۔" },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "Linux Editor میں چل رہا ہے۔ کچھ پلیٹ فارم ٹول چینز اس OS پر دستیاب نہیں ہو سکتے؛ بیجز ظاہر کرتے ہیں کہ یہاں کیا واقعی نصب ہے۔" },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "بلڈ اسکرپٹنگ بیک اینڈ (Windows / macOS)" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "ہر بلڈ پر پوچھیں" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "ہمیشہ IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "ہمیشہ Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "Windows اور macOS بلڈز کے لیے IL2CPP/Mono جواب یاد رکھتا ہے تاکہ آپ سے ہر بار نہ پوچھا جائے۔ جبری پلیٹ فارمز متاثر نہیں ہوتے: Android اور iOS ہمیشہ IL2CPP استعمال کرتے ہیں، Linux ہمیشہ Mono استعمال کرتا ہے۔ بلڈ پرامپٹ میں کوئی بیک اینڈ منتخب کرنا بھی اس ترتیب کو اپ ڈیٹ کرتا ہے۔" },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "پلیٹ فارم اور کوالٹی" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },

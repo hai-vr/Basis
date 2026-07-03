@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "缺少 Android Build Support。請在 Unity Hub 中安裝以建置 Quest。" },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP 不可用。請在 Unity Hub 中安裝 Android Build Support（含 IL2CPP）。" },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "正在 Linux Editor 中執行。某些平台工具鏈在此 OS 上可能不可用；徽章反映此處實際安裝的內容。" },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "建置腳本後端（Windows / macOS）" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "每次建置時詢問" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "一律使用 IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "一律使用 Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "記住 Windows 與 macOS 建置的 IL2CPP/Mono 選擇，讓您不必每次都被詢問。強制指定的平台不受影響：Android 與 iOS 一律使用 IL2CPP，Linux 一律使用 Mono。在建置提示中選擇後端也會更新此設定。" },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "平台與品質" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },

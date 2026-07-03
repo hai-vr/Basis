@@ -117,18 +117,19 @@ namespace Basis.Scripts.Drivers
         }
 
         // ---------------- Layout Helpers ----------------
-        public Vector3 CalculateClampedLocal(Camera cam, Vector3 Position)
+        public Vector3 CalculateClampedLocal(Camera cam)
         {
-            cam.CalculateFrustumCorners(FrustumRequest, 1, Camera.MonoOrStereoscopicEye.Left, corners);
+            float depth = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+
+            cam.CalculateFrustumCorners(FrustumRequest, depth, Camera.MonoOrStereoscopicEye.Left, corners);
 
             Vector3 BL = corners[0];
             Vector3 TL = corners[1];
             Vector3 TR = corners[2];
+            Vector3 BR = corners[3];
 
-            float frustumWidth = (TR - TL).magnitude;
-            float frustumHeight = (TL - BL).magnitude;
-            float halfW = frustumWidth * 0.5f;
-            float halfH = frustumHeight * 0.5f;
+            float halfW = (TR - TL).magnitude * 0.5f;
+            float halfH = (TL - BL).magnitude * 0.5f;
 
             float marginU = Mathf.Clamp01(iconHalfRU.x / Mathf.Max(halfW, 1e-4f)) + VRextraViewportPad;
             float marginV = Mathf.Clamp01(iconHalfRU.y / Mathf.Max(halfH, 1e-4f)) + VRextraViewportPad;
@@ -136,13 +137,12 @@ namespace Basis.Scripts.Drivers
             float u = Mathf.Clamp(VRdesiredNormXY.x + IconPositionOffset.x, -1f + marginU, 1f - marginU);
             float v = Mathf.Clamp(VRdesiredNormXY.y + IconPositionOffset.y, -1f + marginV, 1f - marginV);
 
-            Vector3 centerAtDepth = cam.transform.InverseTransformPoint(Position + cam.transform.forward * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
+            float s = (u + 1f) * 0.5f;
+            float t = (v + 1f) * 0.5f;
 
-            Vector3 rightLocal = (TR - TL).normalized;
-            Vector3 upLocal = (TL - BL).normalized;
-
-            Vector3 localPos = centerAtDepth + rightLocal * (u * halfW) + upLocal * (v * halfH);
-            return localPos;
+            Vector3 bottom = Vector3.LerpUnclamped(BL, BR, s);
+            Vector3 top = Vector3.LerpUnclamped(TL, TR, s);
+            return Vector3.LerpUnclamped(bottom, top, t);
         }
 
         public Vector2 GetIconHalfSizeRUInCameraSpace(Camera cam, Transform uiRoot)

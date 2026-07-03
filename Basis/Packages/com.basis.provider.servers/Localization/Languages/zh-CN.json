@@ -6,6 +6,7 @@
       "key": "menu.servers.username",
       "value": "用户名"
     },
+    { "key": "menu.servers.username.hint", "value": "输入用户名以连接" },
     {
       "key": "menu.servers.connect",
       "value": "连接"

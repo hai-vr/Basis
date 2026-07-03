@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "Android Build Support गायब है। Quest के लिए बिल्ड करने के लिए इसे Unity Hub में स्थापित करें।" },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP उपलब्ध नहीं है। Unity Hub में Android Build Support (IL2CPP सहित) स्थापित करें।" },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "Linux संपादक में चल रहा है। इस OS पर कुछ प्लेटफ़ॉर्म टूलचेन उपलब्ध नहीं हो सकते; बैज वही दर्शाते हैं जो वास्तव में यहाँ स्थापित हैं।" },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "बिल्ड स्क्रिप्टिंग बैकएंड (Windows / macOS)" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "हर बिल्ड पर पूछें" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "हमेशा IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "हमेशा Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "Windows और macOS बिल्ड के लिए IL2CPP/Mono उत्तर याद रखता है ताकि आपसे हर बार न पूछा जाए। बाध्य प्लेटफ़ॉर्म अप्रभावित रहते हैं: Android और iOS हमेशा IL2CPP का उपयोग करते हैं, Linux हमेशा Mono का उपयोग करता है। बिल्ड प्रॉम्प्ट में कोई बैकएंड चुनना भी इस सेटिंग को अपडेट करता है।" },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "प्लेटफ़ॉर्म और गुणवत्ता" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },

@@ -6,6 +6,7 @@
       "key": "menu.servers.username",
       "value": "صارف نام"
     },
+    { "key": "menu.servers.username.hint", "value": "منسلک ہونے کے لیے ایک صارف نام درج کریں" },
     {
       "key": "menu.servers.connect",
       "value": "کنیکٹ کریں"

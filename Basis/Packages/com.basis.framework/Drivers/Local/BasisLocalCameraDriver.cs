@@ -640,7 +640,7 @@ namespace Basis.Scripts.Drivers
                 }
                 if (CameraData.allowXRRendering)
                 {
-                    ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera, Position);
+                    ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera);
                     // XR drives ParentOfUI directly; invalidate the desktop layout cache so it
                     // recomputes when we return to the desktop path.
                     _micLayoutValid = false;

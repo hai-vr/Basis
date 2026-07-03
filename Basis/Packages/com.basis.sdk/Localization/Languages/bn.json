@@ -382,6 +382,11 @@
     { "key": "projectSetup.buildModules.errAndroidMissing", "value": "Android Build Support নেই। Quest-এর জন্য বিল্ড করতে Unity Hub-এ এটি ইনস্টল করুন।" },
     { "key": "projectSetup.buildModules.errAndroidIl2cppMissing", "value": "Android IL2CPP উপলব্ধ নয়। Unity Hub-এ Android Build Support (IL2CPP সহ) ইনস্টল করুন।" },
     { "key": "projectSetup.buildModules.linuxEditorNotice", "value": "Linux Editor-এ চলছে। কিছু প্ল্যাটফর্ম টুলচেইন এই OS-এ উপলব্ধ নাও থাকতে পারে; ব্যাজগুলি দেখায় এখানে আসলে কী ইনস্টল আছে।" },
+    { "key": "projectSetup.buildModules.scriptingBackendHeader", "value": "বিল্ড স্ক্রিপ্টিং ব্যাকএন্ড (Windows / macOS)" },
+    { "key": "projectSetup.buildModules.scriptingBackendAsk", "value": "প্রতিটি বিল্ডে জিজ্ঞাসা করুন" },
+    { "key": "projectSetup.buildModules.scriptingBackendIl2cpp", "value": "সর্বদা IL2CPP" },
+    { "key": "projectSetup.buildModules.scriptingBackendMono", "value": "সর্বদা Mono" },
+    { "key": "projectSetup.buildModules.scriptingBackendHelp", "value": "Windows এবং macOS বিল্ডের জন্য IL2CPP/Mono উত্তর মনে রাখে যাতে আপনাকে প্রতিবার জিজ্ঞাসা করা না হয়। বাধ্যতামূলক প্ল্যাটফর্ম প্রভাবিত হয় না: Android এবং iOS সর্বদা IL2CPP ব্যবহার করে, Linux সর্বদা Mono ব্যবহার করে। বিল্ড প্রম্পটে একটি ব্যাকএন্ড বেছে নিলে এই সেটিংও আপডেট হয়।" },
 
     { "key": "projectSetup.platformQuality.foldout", "value": "প্ল্যাটফর্ম এবং গুণমান" },
     { "key": "projectSetup.platformQuality.windows", "value": "Windows" },
