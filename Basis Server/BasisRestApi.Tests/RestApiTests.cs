@@ -238,6 +238,61 @@ namespace BasisRestApi.Tests
             Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         }
 
+        // ── GET /api/players ──────────────────────────────────────────────────
+
+        [Fact]
+        public async Task GetPlayers_Empty_ReturnsEmptyList()
+        {
+            var res = await _authed.GetAsync("/api/players");
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            Assert.Equal(0, doc.RootElement.GetProperty("players").GetArrayLength());
+        }
+
+        [Fact]
+        public async Task GetPlayers_PositionIsArrayWhenKnown_NullWhenNot()
+        {
+            ushort port = FreePort();
+            using var handler = new BasisRestApiHandler(new Configuration
+            {
+                ApiEnabled = true, ApiKey = ApiKey, ApiHost = "localhost", ApiPort = port,
+            }, new FakeControl
+            {
+                Players = new[]
+                {
+                    new PlayerInfo(1, "uuid-1", "Alice", "desktop", new[] { 1.5f, 2f, -3.25f }),
+                    new PlayerInfo(2, "uuid-2", "Bob", "vr"),
+                },
+            });
+            using var client = new HttpClient { BaseAddress = new Uri($"http://localhost:{port}") };
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {ApiKey}");
+
+            var res = await client.GetAsync("/api/players");
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            var players = JsonDocument.Parse(await res.Content.ReadAsStringAsync())
+                .RootElement.GetProperty("players");
+
+            var pos = players[0].GetProperty("position");
+            Assert.Equal(3, pos.GetArrayLength());
+            Assert.Equal(1.5f, pos[0].GetSingle());
+            Assert.Equal(2f, pos[1].GetSingle());
+            Assert.Equal(-3.25f, pos[2].GetSingle());
+            Assert.Equal(JsonValueKind.Null, players[1].GetProperty("position").ValueKind);
+        }
+
+        private sealed class FakeControl : IServerControl
+        {
+            public IReadOnlyList<PlayerInfo> Players = Array.Empty<PlayerInfo>();
+            public void AnnounceAll(string message) { }
+            public bool AnnouncePlayer(string uuid, string message) => false;
+            public string LoadWorld(WorldLoadParams p) => "0";
+            public bool UnloadWorld(string netId) => false;
+            public int ClearAllWorlds() => 0;
+            public IReadOnlyList<WorldInfo> ListWorlds() => Array.Empty<WorldInfo>();
+            public IReadOnlyList<PlayerInfo> ListPlayers() => Players;
+            public string SwitchWorld(SwitchWorldParams p, CancellationToken cancellationToken = default) => "0";
+        }
+
         // ── POST /api/announce/{uuid} ─────────────────────────────────────────
 
         [Fact]
