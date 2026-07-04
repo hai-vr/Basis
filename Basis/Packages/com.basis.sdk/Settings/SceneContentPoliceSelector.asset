@@ -399,3 +399,4 @@ MonoBehaviour:
   - BakeryAlwaysRender
   - BakeryPackAsSingleSquare
   - BakerySharedLodUv
+  - Basis.Shims.BasisActionTrigger
