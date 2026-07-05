@@ -258,8 +258,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: BasisSDK::BasisProp
   BasisBundleDescription:
-    AssetBundleName: BasisMediaPlayer
-    AssetBundleDescription: 0.01 Made by the basis team
+    AssetBundleName: Basis Multichannel Media Player
+    AssetBundleDescription: 0.1.0 Made by the Basis team
     AssetBundleIcon: {fileID: 0}
     Tags:
     - MediaPlayer
