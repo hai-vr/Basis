@@ -157,7 +157,7 @@ static void capture_devices() {
                  * only legal with Unity's own render pass ended. Declare that
                  * precondition so the event dispatcher enforces it at every
                  * dispatch, whatever recording mode Unity is in. */
-                UnityVulkanPluginEventConfig cfg;
+                UnityVulkanPluginEventConfig cfg = {};
                 cfg.renderPassPrecondition = kUnityVulkanRenderPass_EnsureOutside;
                 cfg.graphicsQueueAccess = kUnityVulkanGraphicsQueueAccess_DontCare;
                 cfg.flags = kUnityVulkanEventConfigFlag_EnsurePreviousFrameSubmission
