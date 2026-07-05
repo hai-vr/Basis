@@ -152,6 +152,18 @@ static void capture_devices() {
                 s_vkDevice   = (uint64_t)(uintptr_t)inst.device;
                 s_vkQueue    = (uint64_t)(uintptr_t)inst.graphicsQueue;
                 s_vkQueueFamily = inst.queueFamilyIndex;
+                /* The render events record pipeline barriers, their own render
+                 * pass and state changes into Unity's command buffer, which is
+                 * only legal with Unity's own render pass ended. Declare that
+                 * precondition so the event dispatcher enforces it at every
+                 * dispatch, whatever recording mode Unity is in. */
+                UnityVulkanPluginEventConfig cfg;
+                cfg.renderPassPrecondition = kUnityVulkanRenderPass_EnsureOutside;
+                cfg.graphicsQueueAccess = kUnityVulkanGraphicsQueueAccess_DontCare;
+                cfg.flags = kUnityVulkanEventConfigFlag_EnsurePreviousFrameSubmission
+                          | kUnityVulkanEventConfigFlag_ModifiesCommandBuffersState;
+                vk->ConfigureEvent(BASIS_RENDER_UPDATE, &cfg);
+                vk->ConfigureEvent(BASIS_RENDER_RELEASE, &cfg);
             }
             break;
         }
