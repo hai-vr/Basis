@@ -473,6 +473,7 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
 
     sdp_media_t video, audio; int nmedia;
     memset(&video, 0, sizeof(video)); memset(&audio, 0, sizeof(audio));
+    video.pt = audio.pt = -1; /* pt 0 is a valid payload type; -1 marks the media absent */
     nmedia = parse_sdp(body, blen, &video, &audio);
     if (nmedia == 0 || video.pt < 0) { sink->on_error(sink->user, "RTSP: no usable media in SDP"); basis_io_close(r.io); return -1; }
 
