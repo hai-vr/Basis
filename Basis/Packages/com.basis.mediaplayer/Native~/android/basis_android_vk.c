@@ -134,6 +134,15 @@ void basis_vk_set_hardware_buffer(basis_vk_present* v, AHardwareBuffer* ahb, int
 
 /* ---- slot (per-frame source image) ------------------------------------- */
 
+/* Wait out any in-flight submissions (capped) before destroying resources
+ * their command buffers reference — slot images/descriptors and the Unity
+ * framebuffer alike. Never-submitted fences were created signaled. */
+static void wait_in_flight(basis_vk_present* v) {
+    for (int i = 0; i < BASIS_VK_RING; ++i)
+        if (v->ring[i].inUse && v->ring[i].fence)
+            vkWaitForFences(v->device, 1, &v->ring[i].fence, VK_TRUE, 1000000000ull);
+}
+
 static void destroy_slot(basis_vk_present* v, basis_vk_slot* s) {
     if (s->view)   { vkDestroyImageView(v->device, s->view, NULL); s->view = VK_NULL_HANDLE; }
     if (s->image)  { vkDestroyImage(v->device, s->image, NULL); s->image = VK_NULL_HANDLE; }
@@ -224,6 +233,7 @@ static VkShaderModule make_module(basis_vk_present* v, const uint32_t* code, siz
 }
 
 static void destroy_format_objects(basis_vk_present* v) {
+    wait_in_flight(v); /* slots may still be in flight on a mid-stream external-format change */
     for (int i = 0; i < BASIS_VK_RING; ++i) destroy_slot(v, &v->ring[i]);
     if (v->pipeline)   { vkDestroyPipeline(v->device, v->pipeline, NULL); v->pipeline = VK_NULL_HANDLE; }
     if (v->renderPass) { vkDestroyRenderPass(v->device, v->renderPass, NULL); v->renderPass = VK_NULL_HANDLE; }
@@ -371,6 +381,7 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
 }
 
 static void destroy_unity_fbo(basis_vk_present* v) {
+    if (v->fbo) wait_in_flight(v); /* in-flight command buffers reference the framebuffer */
     if (v->fbo)            { vkDestroyFramebuffer(v->device, v->fbo, NULL); v->fbo = VK_NULL_HANDLE; }
     if (v->unityImageView) { vkDestroyImageView(v->device, v->unityImageView, NULL); v->unityImageView = VK_NULL_HANDLE; }
     v->cachedUnityImage = VK_NULL_HANDLE;
@@ -592,11 +603,7 @@ uint64_t basis_vk_frame_counter(basis_vk_present* v) { return v ? v->frameCounte
 
 void basis_vk_release(basis_vk_present* v) {
     if (!v || !v->device) return;
-    /* Wait out in-flight submissions (capped) so slot resources are GPU-idle
-     * before destruction. Never-submitted fences were created signaled. */
-    for (int i = 0; i < BASIS_VK_RING; ++i)
-        if (v->ring[i].inUse && v->ring[i].fence)
-            vkWaitForFences(v->device, 1, &v->ring[i].fence, VK_TRUE, 1000000000ull);
+    /* destroy_format_objects waits the in-flight fences before touching slots */
     destroy_format_objects(v);   /* also destroys ring slots */
     destroy_unity_fbo(v);
     destroy_cmd_objects(v);
