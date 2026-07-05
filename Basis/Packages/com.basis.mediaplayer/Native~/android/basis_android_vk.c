@@ -134,13 +134,20 @@ void basis_vk_set_hardware_buffer(basis_vk_present* v, AHardwareBuffer* ahb, int
 
 /* ---- slot (per-frame source image) ------------------------------------- */
 
-/* Wait out any in-flight submissions (capped) before destroying resources
- * their command buffers reference — slot images/descriptors and the Unity
- * framebuffer alike. Never-submitted fences were created signaled. */
+/* Wait out any in-flight submissions before destroying resources their
+ * command buffers reference — slot images/descriptors and the Unity
+ * framebuffer alike. Never-submitted fences were created signaled. The wait
+ * is capped: a resolve draw that hasn't completed after 1s means a wedged or
+ * lost device, where hanging teardown would be worse than proceeding — but
+ * log it so a teardown-on-hang is diagnosable. */
 static void wait_in_flight(basis_vk_present* v) {
     for (int i = 0; i < BASIS_VK_RING; ++i)
-        if (v->ring[i].inUse && v->ring[i].fence)
-            vkWaitForFences(v->device, 1, &v->ring[i].fence, VK_TRUE, 1000000000ull);
+        if (v->ring[i].inUse && v->ring[i].fence) {
+            VkResult r = vkWaitForFences(v->device, 1, &v->ring[i].fence, VK_TRUE, 1000000000ull);
+            if (r != VK_SUCCESS)
+                __android_log_print(ANDROID_LOG_WARN, "basis_media",
+                    "wait_in_flight: slot %d fence wait returned %d; destroying anyway", i, (int)r);
+        }
 }
 
 static void destroy_slot(basis_vk_present* v, basis_vk_slot* s) {
