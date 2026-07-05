@@ -33,9 +33,14 @@
 
 /* ---- PCM ring ----------------------------------------------------------- */
 
+/* Interleaved float FIFO. Same alignment contract as the Windows ring: drops
+ * are always whole-frame counts, so the surviving stream keeps its channel
+ * phase; reads may return partial frames — the managed splitter carries
+ * sub-frame remainders across pulls. Neither end anchors head/tail to an
+ * absolute frame boundary. */
 typedef struct {
     float* buf; int cap, head, tail;
-    int frame; /* floats per interleaved frame; overflow drops whole frames so the channel alignment survives */
+    int frame; /* floats per interleaved frame (channel count) */
     pthread_mutex_t m;
 } pcm_ring;
 
