@@ -178,8 +178,9 @@ static void drain_audio_output(basis_decoder_t* d) {
             AMediaFormat* f = AMediaCodec_getOutputFormat(d->acodec);
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_SAMPLE_RATE, &d->asr);
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &d->ach);
-            int32_t enc = 0; /* android.media.AudioFormat.ENCODING_PCM_*: 2 = 16-bit, 4 = float */
-            if (AMediaFormat_getInt32(f, "pcm-encoding", &enc)) d->apcm_float = (enc == 4);
+            int32_t enc = 2; /* android.media.AudioFormat.ENCODING_PCM_*: 2 = 16-bit (the default when the key is absent), 4 = float */
+            AMediaFormat_getInt32(f, "pcm-encoding", &enc);
+            d->apcm_float = (enc == 4);
             if (d->ach > 0 && d->ach != d->pcm.frame) ring_set_frame(&d->pcm, d->ach);
             __android_log_print(ANDROID_LOG_INFO, "basis_media",
                 "audio output format: %d Hz, %d ch, pcm-encoding %d", d->asr, d->ach, (int)enc);
