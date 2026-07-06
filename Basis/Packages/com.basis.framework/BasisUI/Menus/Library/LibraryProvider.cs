@@ -2041,6 +2041,31 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
+            // Optional secondary action (registered by the entry's provider —
+            // e.g. a Share/Unshare toggle): a labeled button beside the trash,
+            // with an optional consent-style yes/no dialog in front of it.
+            if (!string.IsNullOrEmpty(entry.ActionLabel))
+            {
+                PanelButton actionItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
+                actionItem.Descriptor.SetTitle(entry.ActionLabel);
+                actionItem.SetSize(new Vector2(180, 80));
+                actionItem.OnClicked += async () =>
+                {
+                    if (!string.IsNullOrEmpty(entry.ActionConfirmTitle))
+                    {
+                        DialogBox<bool> confirmDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
+                            entry.ActionConfirmTitle,
+                            entry.ActionConfirmBody ?? string.Empty,
+                            AddressableAssets.Sprites.Information,
+                            true
+                        );
+                        LibraryProviderDialogRemove.BuildDialogButtons(confirmDialog);
+                        if (!await confirmDialog.WaitAsync()) return;
+                    }
+                    entry.Action?.Invoke();
+                };
+            }
+
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
             removeItem.Descriptor.SetTitle(string.Empty);
             removeItem.SetIcon(AddressableAssets.Sprites.Trash);

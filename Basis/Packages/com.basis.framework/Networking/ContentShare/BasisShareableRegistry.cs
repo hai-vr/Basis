@@ -18,6 +18,16 @@ public sealed class BasisShareableEntry
     public string Title;
     public string SharerName;
     public Action Remove;
+
+    /// <summary>Optional secondary action, rendered as a labeled button next to the
+    /// remove button (e.g. a "Share"/"Unshare" toggle). Null/empty label = no button.
+    /// The registering package owns the semantics; the Library UI just presents it.</summary>
+    public string ActionLabel;
+    public Action Action;
+    /// <summary>Non-null = the Library shows a yes/no dialog with this title/body
+    /// before invoking <see cref="Action"/> (for consent-style actions).</summary>
+    public string ActionConfirmTitle;
+    public string ActionConfirmBody;
 }
 
 /// <summary>
@@ -51,6 +61,21 @@ public static class BasisShareableRegistry
         if (Entries.TryGetValue(id, out BasisShareableEntry entry))
         {
             entry.Title = detail;
+            OnChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Update an entry's secondary action presentation (label + optional
+    /// confirm text) — e.g. flipping a Share button to Unshare after it's invoked.
+    /// The Action delegate itself stays as registered.</summary>
+    public static void SetAction(string id, string label, string confirmTitle = null, string confirmBody = null)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        if (Entries.TryGetValue(id, out BasisShareableEntry entry))
+        {
+            entry.ActionLabel = label;
+            entry.ActionConfirmTitle = confirmTitle;
+            entry.ActionConfirmBody = confirmBody;
             OnChanged?.Invoke();
         }
     }
