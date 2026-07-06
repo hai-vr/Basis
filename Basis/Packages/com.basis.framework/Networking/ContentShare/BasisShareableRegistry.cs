@@ -67,7 +67,8 @@ public static class BasisShareableRegistry
 
     /// <summary>Update an entry's secondary action presentation (label + optional
     /// confirm text) — e.g. flipping a Share button to Unshare after it's invoked.
-    /// The Action delegate itself stays as registered.</summary>
+    /// A null/empty label removes the button. The Action delegate itself stays as
+    /// registered.</summary>
     public static void SetAction(string id, string label, string confirmTitle = null, string confirmBody = null)
     {
         if (string.IsNullOrEmpty(id)) return;
@@ -76,6 +77,18 @@ public static class BasisShareableRegistry
             entry.ActionLabel = label;
             entry.ActionConfirmTitle = confirmTitle;
             entry.ActionConfirmBody = confirmBody;
+            OnChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Update who shared an entry (rendered as "shared by …") after
+    /// registration — e.g. once a received share's sharer is identified.</summary>
+    public static void SetSharerName(string id, string sharerName)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        if (Entries.TryGetValue(id, out BasisShareableEntry entry))
+        {
+            entry.SharerName = sharerName;
             OnChanged?.Invoke();
         }
     }
