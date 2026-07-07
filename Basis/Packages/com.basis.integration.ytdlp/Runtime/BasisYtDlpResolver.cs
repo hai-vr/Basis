@@ -96,6 +96,21 @@ namespace Basis.Integration.YtDlp
             BasisMediaSource source = SelectSource(info);
             if (source == null || string.IsNullOrEmpty(source.Uri))
                 throw new YtDlpException($"yt-dlp returned no player-ingestible format for '{BasisMediaUrlRouter.Redact(pageUrl)}'.");
+            // Carry display metadata on the source: the player keys its metadata on
+            // the page URL (matching what networking syncs, not the per-client CDN
+            // endpoint) and shows the real title. Everything here comes from the
+            // extraction that just ran — no extra fetch.
+            source.Metadata = new BasisMediaMetadata
+            {
+                SourceUrl = pageUrl,
+                Title = info.Title,
+                Uploader = info.Uploader,
+                ThumbnailUrl = info.Thumbnail,
+                Duration = info.Duration.HasValue && info.Duration.Value > 0
+                    ? TimeSpan.FromSeconds(info.Duration.Value)
+                    : (TimeSpan?)null,
+                Provider = "ytdlp",
+            };
             return source;
         }
 
