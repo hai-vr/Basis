@@ -3,6 +3,7 @@
     "rootNamespace": "Basis.ImagePickup",
     "references": [
         "Basis Framework",
+        "BasisEventDriver",
         "BasisSDK",
         "BasisCommon",
         "BasisNetworkCore",
@@ -10,11 +11,15 @@
         "BasisDebug",
         "UnityEngine.UI",
         "Unity.TextMeshPro",
-        "Unity.RenderPipelines.Universal.Runtime"
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
+    "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,

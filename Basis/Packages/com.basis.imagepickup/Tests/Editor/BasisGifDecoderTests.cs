@@ -1,0 +1,640 @@
+using System;
+using System.IO;
+using System.Threading;
+using NUnit.Framework;
+using Unity.Collections;
+using UnityEngine;
+
+namespace Basis.ImagePickup.Tests
+{
+	public class BasisGifDecoderTests
+	{
+		private const string AnimatedGif =
+			"R0lGODlhAgABAIEAAAD/AP8AAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQFCgAAACwAAAAAAgABAAAIBQADAAgIACH5BAkUAAAALAAAAAACAAEAgQAAAAAA/wAAAAAAAAgFAAMACAgAOw==";
+		private const string InterlacedPreviousGif =
+			"R0lGODlhAgAEAIEAAAAAAP8AAP//AP///yH5BAQBAAAALAAAAAACAAQAAAIHDMMwDMMwBQAh+QQMAQAAACwAAAAAAgAEAMEAAAD/AAAA/wAAAP8CBwzDcRRFEAUAIfkEBAEAAAAsAAAAAAEAAQAAAgJUAQA7";
+
+		[Test]
+		public void BurstGifDecoderPreservesGifFeatures()
+		{
+			using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(
+				Convert.FromBase64String(InterlacedPreviousGif)
+			);
+			BasisBurstGifDecodeResult result = request.Complete();
+			Assert.That(result.Ok, Is.True, result.Error);
+			try
+			{
+				Assert.That(result.Animation.FrameCount, Is.EqualTo(3));
+				Assert.That(
+					result.Animation.GetFrame(1).Disposal,
+					Is.EqualTo(BasisAnimationDisposal.Previous)
+				);
+				Color32[] pixels = result.Animation.CopyFramePixelsToManaged(1);
+				Assert.That(pixels.Length, Is.EqualTo(8));
+				Assert.That(result.PosterPixels.Length, Is.EqualTo(8));
+			}
+			finally
+			{
+				result.Dispose();
+			}
+		}
+
+		[TestCase(false)]
+		[TestCase(true)]
+		public void ClaimedBurstGifResultSurvivesRequestDisposal(bool useTryComplete)
+		{
+			var request = BasisBurstGifDecoder.Schedule(
+				Convert.FromBase64String(AnimatedGif)
+			);
+			BasisBurstGifDecodeResult result;
+			if (useTryComplete)
+			{
+				while (!request.TryComplete(out result))
+					Thread.Yield();
+			}
+			else
+			{
+				result = request.Complete();
+			}
+
+			request.Dispose();
+			try
+			{
+				Assert.That(result.Ok, Is.True, result.Error);
+				Assert.That(result.Animation.FrameCount, Is.EqualTo(2));
+				Assert.That(result.PosterPixels.IsCreated, Is.True);
+			}
+			finally
+			{
+				result.Dispose();
+			}
+		}
+
+		[Test]
+		public void BurstGifDecoderAcceptsCleanEndOfFileWithoutTrailer()
+		{
+			byte[] source = Convert.FromBase64String(AnimatedGif);
+			Assert.That(source[^1], Is.EqualTo(0x3B));
+			Array.Resize(ref source, source.Length - 1);
+
+			using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(
+				source
+			);
+			using BasisBurstGifDecodeResult result = request.Complete();
+			Assert.That(result.Ok, Is.True, result.Error);
+			Assert.That(result.Animation.FrameCount, Is.EqualTo(2));
+		}
+
+		[Test]
+		public void LaterTransparentFrameDoesNotEraseOpaqueLogicalBackground()
+		{
+			byte[] source = Convert.FromBase64String(AnimatedGif);
+			int firstGraphicControl = FindGraphicControlExtension(source, 0);
+			Assert.That(firstGraphicControl, Is.GreaterThanOrEqualTo(0));
+			source[firstGraphicControl + 3] &= 0xFE;
+
+			using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(
+				source
+			);
+			using BasisBurstGifDecodeResult result = request.Complete();
+			Assert.That(result.Ok, Is.True, result.Error);
+			Assert.That(
+				result.Animation.BackgroundColor,
+				Is.EqualTo(new Color32(0, 255, 0, 255))
+			);
+		}
+
+		[TestCase(false)]
+		[TestCase(true)]
+		public void ClaimedAnimationEncodeResultSurvivesRequestDisposal(
+			bool useTryComplete
+		)
+		{
+			long payloadBytesBefore = BasisNativeAnimationPayload.TotalAllocatedBytes;
+			using BasisAnimatedImageData source = DecodeGif(AnimatedGif);
+			var request = BasisBurstAnimationCodec.ScheduleEncode(source);
+			BasisBurstAnimationEncodeResult result;
+			if (useTryComplete)
+			{
+				while (!request.TryComplete(out result))
+					Thread.Yield();
+			}
+			else
+			{
+				result = request.Complete();
+			}
+
+			request.Dispose();
+			try
+			{
+				Assert.That(result.Ok, Is.True, result.Error);
+				Assert.That(result.Payload, Is.Not.Null);
+				Assert.That(result.Payload.IsCreated, Is.True);
+				Assert.That(result.Payload.Length, Is.GreaterThan(0));
+				Assert.That(
+					result.Payload.AllocatedBytes,
+					Is.EqualTo(result.Payload.Length)
+				);
+				Assert.That(
+					BasisNativeAnimationPayload.TotalAllocatedBytes,
+					Is.EqualTo(payloadBytesBefore + result.Payload.AllocatedBytes)
+				);
+			}
+			finally
+			{
+				result.Payload?.Dispose();
+			}
+			Assert.That(
+				BasisNativeAnimationPayload.TotalAllocatedBytes,
+				Is.EqualTo(payloadBytesBefore)
+			);
+		}
+
+		[TestCase(false)]
+		[TestCase(true)]
+		public void ClaimedAnimationDecodeResultSurvivesRequestDisposal(
+			bool useTryComplete
+		)
+		{
+			using BasisAnimatedImageData source = DecodeGif(AnimatedGif);
+			using BasisBurstAnimationEncodeRequest encode =
+				BasisBurstAnimationCodec.ScheduleEncode(source);
+			BasisBurstAnimationEncodeResult encoded = encode.Complete();
+			Assert.That(encoded.Ok, Is.True, encoded.Error);
+			try
+			{
+				var request = BasisBurstAnimationCodec.ScheduleDecode(
+					encoded.Payload.Bytes,
+					encoded.Payload.Length,
+					false
+				);
+				BasisBurstAnimationDecodeResult result;
+				if (useTryComplete)
+				{
+					while (!request.TryComplete(out result))
+						Thread.Yield();
+				}
+				else
+				{
+					result = request.Complete();
+				}
+
+				request.Dispose();
+				try
+				{
+					Assert.That(result.Ok, Is.True, result.Error);
+					Assert.That(result.Animation, Is.Not.Null);
+					Assert.That(result.Animation.IsCreated, Is.True);
+					Assert.That(
+						result.Animation.FrameCount,
+						Is.EqualTo(source.FrameCount)
+					);
+				}
+				finally
+				{
+					result.Animation?.Dispose();
+				}
+			}
+			finally
+			{
+				encoded.Payload.Dispose();
+			}
+		}
+
+		[Test]
+		public void BurstLz4CodecRoundTripsNativeAnimation()
+		{
+			using BasisAnimatedImageData source = DecodeGif(AnimatedGif);
+			using BasisBurstAnimationEncodeRequest encode =
+				BasisBurstAnimationCodec.ScheduleEncode(source);
+			BasisBurstAnimationEncodeResult encoded = encode.Complete();
+			Assert.That(encoded.Ok, Is.True, encoded.Error);
+			try
+			{
+				using BasisBurstAnimationDecodeRequest decode =
+					BasisBurstAnimationCodec.ScheduleDecode(
+						encoded.Payload.Bytes,
+						encoded.Payload.Length,
+						false
+					);
+				BasisBurstAnimationDecodeResult decoded = decode.Complete();
+				Assert.That(decoded.Ok, Is.True, decoded.Error);
+				using (decoded.Animation)
+				{
+					Assert.That(
+						decoded.Animation.FrameCount,
+						Is.EqualTo(source.FrameCount)
+					);
+					Assert.That(
+						decoded.Animation.GetFrame(1).Disposal,
+						Is.EqualTo(source.GetFrame(1).Disposal)
+					);
+					Assert.That(
+						decoded.Animation.CopyFramePixelsToManaged(1),
+						Is.EqualTo(source.CopyFramePixelsToManaged(1))
+					);
+				}
+			}
+			finally
+			{
+				encoded.Payload.Dispose();
+			}
+		}
+
+		[Test]
+		public void Lz4ExtendedLengthRejectsIntegerOverflow()
+		{
+			int length = int.MaxValue - 10;
+
+			Assert.That(
+				BasisBurstAnimationCodec.TryAccumulateLz4Length(ref length, 11),
+				Is.False
+			);
+			Assert.That(length, Is.EqualTo(int.MaxValue - 10));
+		}
+
+		[Test]
+		public void FrameMetadataRejectsCoordinateOverflow()
+		{
+			int recordOffset = BasisBurstAnimationCodec.BodyHeaderBytes;
+			using var raw = new NativeArray<byte>(
+				recordOffset + BasisBurstAnimationCodec.FrameRecordBytes,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var frames = new NativeArray<BasisAnimatedImageFrame>(
+				1,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var frameEnds = new NativeArray<long>(
+				1,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var errors = new NativeArray<int>(
+				2,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+
+			WriteInt32(raw, recordOffset, int.MaxValue);
+			WriteInt32(raw, recordOffset + 8, 1);
+			WriteInt32(raw, recordOffset + 12, 1);
+			WriteInt32(raw, recordOffset + 20, 1);
+			WriteInt64(
+				raw,
+				recordOffset + 24,
+				BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds
+			);
+			WriteInt64(
+				raw,
+				recordOffset + 32,
+				BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds
+			);
+			WriteByte(raw, recordOffset + 40, (byte)BasisAnimationBlend.Source);
+			WriteByte(raw, recordOffset + 41, (byte)BasisAnimationDisposal.None);
+
+			new BasisAnimationUnpackFramesJob
+			{
+				Raw = raw,
+				Header = new BasisAnimationBodyHeader
+				{
+					CanvasWidth = 1,
+					CanvasHeight = 1,
+					FrameCount = 1,
+					PixelCount = 1,
+					TotalDurationMicroseconds =
+						BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds,
+				},
+				Frames = frames,
+				FrameEnds = frameEnds,
+				Errors = errors,
+			}.Execute(0);
+
+			Assert.That(
+				errors[0],
+				Is.EqualTo((int)BasisAnimationCodecError.InvalidFrame)
+			);
+		}
+
+		[TestCase(16)]
+		[TestCase(17)]
+		public void AnimationDecodeFailureKeepsNonOwnedCallerPayload(int sourceLength)
+		{
+			var payload = new NativeArray<byte>(
+				sourceLength,
+				Allocator.TempJob,
+				NativeArrayOptions.ClearMemory
+			);
+			try
+			{
+				using BasisBurstAnimationDecodeRequest decode =
+					BasisBurstAnimationCodec.ScheduleDecode(
+						payload,
+						BasisBurstAnimationCodec.OuterHeaderBytes,
+						false
+					);
+				BasisBurstAnimationDecodeResult result = decode.Complete();
+				Assert.That(result.Ok, Is.False);
+				Assert.DoesNotThrow(() =>
+				{
+					byte first = payload[0];
+					Assert.That(first, Is.EqualTo(0));
+				});
+			}
+			finally
+			{
+				if (payload.IsCreated)
+					payload.Dispose();
+			}
+		}
+
+		[Test]
+		public void OuterHeaderReservedBytesAreRejected()
+		{
+			using BasisAnimatedImageData source = DecodeGif(AnimatedGif);
+			using BasisBurstAnimationEncodeRequest request =
+				BasisBurstAnimationCodec.ScheduleEncode(source);
+			BasisBurstAnimationEncodeResult encoded = request.Complete();
+			try
+			{
+				NativeArray<byte> payloadBytes = encoded.Payload.Bytes;
+				payloadBytes[5] = 1;
+				using BasisBurstAnimationDecodeRequest decode =
+					BasisBurstAnimationCodec.ScheduleDecode(
+						payloadBytes,
+						encoded.Payload.Length,
+						false
+					);
+				BasisBurstAnimationDecodeResult result = decode.Complete();
+				Assert.That(result.Ok, Is.False);
+				Assert.That(result.Error, Does.Contain("reserved"));
+			}
+			finally
+			{
+				encoded.Payload.Dispose();
+			}
+		}
+
+		[Test]
+		public void BodyHeaderReservedByteIsRejected()
+		{
+			int rawLength =
+				BasisBurstAnimationCodec.BodyHeaderBytes
+				+ BasisBurstAnimationCodec.FrameRecordBytes
+				+ 4;
+			using var raw = new NativeArray<byte>(
+				rawLength,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var result = new NativeArray<BasisAnimationBodyHeader>(
+				1,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			WriteInt32(raw, 0, 1);
+			WriteInt32(raw, 4, 1);
+			WriteInt32(raw, 12, 1);
+			WriteByte(raw, 23, 1);
+			WriteInt64(
+				raw,
+				24,
+				BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds
+			);
+			WriteInt32(raw, 32, 1);
+			WriteInt32(
+				raw,
+				36,
+				BasisBurstAnimationCodec.BodyHeaderBytes
+					+ BasisBurstAnimationCodec.FrameRecordBytes
+			);
+
+			new BasisAnimationParseBodyHeaderJob
+			{
+				Raw = raw,
+				Result = result,
+			}.Execute();
+
+			Assert.That(
+				result[0].Error,
+				Is.EqualTo(BasisAnimationCodecError.InvalidHeader)
+			);
+		}
+
+		[Test]
+		public void FrameReservedBytesAreRejected()
+		{
+			int recordOffset = BasisBurstAnimationCodec.BodyHeaderBytes;
+			using var raw = new NativeArray<byte>(
+				recordOffset + BasisBurstAnimationCodec.FrameRecordBytes,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var frames = new NativeArray<BasisAnimatedImageFrame>(
+				1,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var frameEnds = new NativeArray<long>(
+				1,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			using var errors = new NativeArray<int>(
+				2,
+				Allocator.Temp,
+				NativeArrayOptions.ClearMemory
+			);
+			WriteInt32(raw, recordOffset + 8, 1);
+			WriteInt32(raw, recordOffset + 12, 1);
+			WriteInt32(raw, recordOffset + 20, 1);
+			WriteInt64(
+				raw,
+				recordOffset + 24,
+				BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds
+			);
+			WriteInt64(
+				raw,
+				recordOffset + 32,
+				BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds
+			);
+			WriteByte(raw, recordOffset + 40, (byte)BasisAnimationBlend.Source);
+			WriteByte(raw, recordOffset + 41, (byte)BasisAnimationDisposal.None);
+			WriteByte(raw, recordOffset + 42, 1);
+
+			new BasisAnimationUnpackFramesJob
+			{
+				Raw = raw,
+				Header = new BasisAnimationBodyHeader
+				{
+					CanvasWidth = 1,
+					CanvasHeight = 1,
+					FrameCount = 1,
+					PixelCount = 1,
+					TotalDurationMicroseconds =
+						BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds,
+				},
+				Frames = frames,
+				FrameEnds = frameEnds,
+				Errors = errors,
+			}.Execute(0);
+
+			Assert.That(
+				errors[0],
+				Is.EqualTo((int)BasisAnimationCodecError.InvalidFrame)
+			);
+		}
+
+		[Test]
+		public void BurstCodecRejectsCorruptedPayload()
+		{
+			using BasisAnimatedImageData source = DecodeGif(AnimatedGif);
+			using BasisBurstAnimationEncodeRequest request =
+				BasisBurstAnimationCodec.ScheduleEncode(source);
+			BasisBurstAnimationEncodeResult encoded = request.Complete();
+			try
+			{
+				NativeArray<byte> payloadBytes = encoded.Payload.Bytes;
+				payloadBytes[0] ^= 0x7F;
+				using BasisBurstAnimationDecodeRequest decode =
+					BasisBurstAnimationCodec.ScheduleDecode(
+						payloadBytes,
+						encoded.Payload.Length,
+						false
+					);
+				BasisBurstAnimationDecodeResult result = decode.Complete();
+				Assert.That(result.Ok, Is.False);
+				Assert.That(result.Error, Does.Contain("magic"));
+			}
+			finally
+			{
+				encoded.Payload.Dispose();
+			}
+		}
+
+		[Test]
+		public void BurstPacketBuilderCreatesBoundedBatches()
+		{
+			using BasisAnimatedImageData source = DecodeGif(AnimatedGif);
+			using BasisBurstAnimationEncodeRequest encode =
+				BasisBurstAnimationCodec.ScheduleEncode(source);
+			BasisBurstAnimationEncodeResult encoded = encode.Complete();
+			try
+			{
+				using var packetRequest = BasisAnimatedImageJobs.SchedulePacketBuild(
+					Guid.NewGuid(),
+					encoded.Payload,
+					638000000000000000L,
+					2,
+					6,
+					7,
+					32,
+					0,
+					2
+				);
+				using BasisAnimationPacketBatch batch = packetRequest.Complete();
+				Assert.That(batch.Ok, Is.True, batch.Error);
+				Assert.That(batch.HasHeader, Is.True);
+				Assert.That(batch.PacketCount, Is.InRange(1, 2));
+				var header = new byte[batch.HeaderLength];
+				batch.CopyHeaderTo(header);
+				Assert.That(header[0], Is.EqualTo(6));
+				var packet = new byte[batch.GetPacketLength(0)];
+				batch.CopyPacketTo(0, packet);
+				Assert.That(packet[0], Is.EqualTo(7));
+			}
+			finally
+			{
+				encoded.Payload.Dispose();
+			}
+		}
+
+		[Test]
+		public void AsynchronousGifPipelineFinalizesPoster()
+		{
+			string path = Path.Combine(
+				Path.GetTempPath(),
+				$"BasisBurstGif_{Guid.NewGuid():N}.gif"
+			);
+			File.WriteAllBytes(path, Convert.FromBase64String(AnimatedGif));
+			BasisImageValidationResult finalized = default;
+			try
+			{
+				using var request = BasisAnimatedImageJobs.ScheduleGifDecode(path);
+				BasisGifDecodeJobResult worker = request.Complete();
+				Assert.That(worker.CleanPng, Is.Not.Null.And.Not.Empty);
+				Assert.That(worker.PosterPixels, Has.Length.EqualTo(2));
+				finalized = BasisAnimatedImageJobs.FinalizeGifDecode(worker);
+				Assert.That(finalized.Ok, Is.True, finalized.Error);
+				Assert.That(finalized.Animation.FrameCount, Is.EqualTo(2));
+				Assert.That(finalized.AnimationPayload, Is.Not.Null);
+			}
+			finally
+			{
+				if (finalized.Texture != null)
+					UnityEngine.Object.DestroyImmediate(finalized.Texture);
+				finalized.Animation?.Dispose();
+				finalized.AnimationPayload?.Dispose();
+				if (File.Exists(path))
+					File.Delete(path);
+			}
+		}
+
+		private static int FindGraphicControlExtension(byte[] source, int startIndex)
+		{
+			for (int i = Math.Max(0, startIndex); i + 3 < source.Length; i++)
+			{
+				if (source[i] == 0x21 && source[i + 1] == 0xF9 && source[i + 2] == 4)
+					return i;
+			}
+			return -1;
+		}
+
+		private static void WriteByte(
+			NativeArray<byte> destination,
+			int offset,
+			byte value
+		)
+		{
+			destination[offset] = value;
+		}
+
+		private static void WriteInt32(
+			NativeArray<byte> destination,
+			int offset,
+			int value
+		)
+		{
+			destination[offset] = (byte)value;
+			destination[offset + 1] = (byte)(value >> 8);
+			destination[offset + 2] = (byte)(value >> 16);
+			destination[offset + 3] = (byte)(value >> 24);
+		}
+
+		private static void WriteInt64(
+			NativeArray<byte> destination,
+			int offset,
+			long value
+		)
+		{
+			ulong unsigned = (ulong)value;
+			for (int i = 0; i < 8; i++)
+				destination[offset + i] = (byte)(unsigned >> (i * 8));
+		}
+
+		private static BasisAnimatedImageData DecodeGif(string encoded)
+		{
+			using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(
+				Convert.FromBase64String(encoded)
+			);
+			using BasisBurstGifDecodeResult result = request.Complete();
+			Assert.That(result, Is.Not.Null);
+			Assert.That(result.Ok, Is.True, result.Error);
+			BasisAnimatedImageData animation = result.Animation;
+			result.Animation = null;
+			return animation;
+		}
+	}
+}
