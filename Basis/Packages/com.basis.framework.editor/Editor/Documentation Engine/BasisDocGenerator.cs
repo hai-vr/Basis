@@ -15,7 +15,6 @@ public static class BasisDocGenerator
     // Package IDs we want to scan (directories will be resolved at runtime)
     private static readonly string[] PackageIdsToScan = new[]
     {
-        "com.basis.addon.snapcontrols",
         "com.basis.bundlemanagement",
         "com.basis.common",
         "com.basis.developer.exceptions",
@@ -25,14 +24,11 @@ public static class BasisDocGenerator
         "com.basis.framework",
         "com.basis.framework.editor",
         "com.basis.gizmos",
-        "com.basis.integration.audiolink",
-        "com.basis.integration.ytdlp",
         "com.basis.mediapipe",
         "com.basis.mediaplayer",
         "com.basis.openlipsync",
         "com.basis.openvr",
         "com.basis.openxr",
-        "com.basis.pooltable",
         "com.basis.profilerintergration",
         "com.basis.provider.servers",
         "com.basis.sdk",

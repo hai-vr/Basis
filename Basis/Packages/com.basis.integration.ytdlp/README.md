@@ -1,7 +1,7 @@
 # Basis yt-dlp Integration
 
 Resolves **page URLs** — a YouTube or Twitch watch page — into the actual stream(s)
-the [Basis Media Player](../com.basis.mediaplayer/README.md) can open, using yt-dlp
+the [Basis Media Player](https://github.com/BasisVR/BasisMediaPlayer) can open, using yt-dlp
 running in-process. An **optional bolt-on**: the player works without it; this just
 adds common-site resolution.
 
@@ -29,7 +29,7 @@ so it can be added or removed cleanly (see *Removing it*).
 **Codec ceiling: H.264 + AAC, ~1080p.** 4K YouTube is VP9/AV1-only, which the player
 can't decode, so format selection caps the chosen video at 1080p `avc1` with `mp4a`
 audio. Above ~360p YouTube serves video and audio separately, so those resolve to a
-[split stream](../com.basis.mediaplayer/README.md#split-stream-separate-video--audio)
+[split stream](https://github.com/BasisVR/BasisMediaPlayer#split-stream-separate-video--audio)
 the player syncs on one clock.
 
 ## Usage
@@ -80,4 +80,4 @@ A direct HTTP stream with **no file extension** can't be told apart from a page 
 with this package installed it is sent to yt-dlp and fails, rather than loading
 directly. Give direct HTTP streams a recognised extension, or use a transport scheme
 (`rtsp`/`rtmp`). See the
-[player README](../com.basis.mediaplayer/README.md#page-urls-optional-resolver-package).
+[player README](https://github.com/BasisVR/BasisMediaPlayer#page-urls-optional-resolver-package).

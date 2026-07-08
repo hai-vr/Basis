@@ -51,5 +51,8 @@ msbuild.wrn
 # Docker
 Docker/*
 !Docker/README.md
+!Docker/README.md.meta
 !Docker/Dockerfile
+!Docker/Dockerfile.meta
 !Docker/docker-compose.yml
+!Docker/docker-compose.yml.meta

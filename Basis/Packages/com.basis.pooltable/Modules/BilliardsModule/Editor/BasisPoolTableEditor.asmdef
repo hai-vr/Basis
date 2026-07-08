@@ -2,7 +2,7 @@
     "name": "BasisPoolTableEditor",
     "rootNamespace": "",
     "references": [
-        "GUID:f909e1a792b432b4c8831df54107efd8"
+        "BasisPoolTable"
     ],
     "includePlatforms": [
         "Editor"
