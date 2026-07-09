@@ -735,6 +735,14 @@ namespace Basis.BasisUI.MediaPlayer
             }
         }
 
+        // TMP's <noparse> is not nestable: an embedded </noparse> in player- or
+        // remote-supplied text (titles ride the networking layer; error strings
+        // echo URLs) terminates the block and the remainder parses as rich text
+        // again — markup injection into the Status line. Breaking every '<' with
+        // a zero-width space renders identically and keeps any tag inert.
+        private static string SanitizeForMarkup(string s) =>
+            string.IsNullOrEmpty(s) ? s : s.Replace("<", "<\u200B");
+
         private static string FormatTime(int totalSeconds)
         {
             if (totalSeconds < 0) totalSeconds = 0;
@@ -779,16 +787,16 @@ namespace Basis.BasisUI.MediaPlayer
 
             // What's playing, per the player's metadata (URL-derived defaults,
             // resolver/playlist enrichment when present). Player-supplied text
-            // is wrapped in <noparse> like the error strings below.
+            // is sanitized AND wrapped in <noparse>, like the error strings below.
             if (!string.IsNullOrEmpty(_metaTitle))
-                _statusBuilder.Append("\n<b><noparse>").Append(_metaTitle).Append("</noparse></b>");
+                _statusBuilder.Append("\n<b><noparse>").Append(SanitizeForMarkup(_metaTitle)).Append("</noparse></b>");
             if (!string.IsNullOrEmpty(_metaUploader))
-                _statusBuilder.Append("\n<color=#9AA0A6><noparse>").Append(_metaUploader).Append("</noparse></color>");
+                _statusBuilder.Append("\n<color=#9AA0A6><noparse>").Append(SanitizeForMarkup(_metaUploader)).Append("</noparse></color>");
 
             if (status == BasisMediaPlayerStatus.Error)
             {
                 if (!string.IsNullOrEmpty(err))
-                    _statusBuilder.Append("\n<color=#E5534B><noparse>").Append(err).Append("</noparse></color>");
+                    _statusBuilder.Append("\n<color=#E5534B><noparse>").Append(SanitizeForMarkup(err)).Append("</noparse></color>");
             }
             else
             {
@@ -799,7 +807,7 @@ namespace Basis.BasisUI.MediaPlayer
                 // video still plays, so the state word stays accurate and this is
                 // surfaced as a separate amber note.
                 if (!string.IsNullOrEmpty(err))
-                    _statusBuilder.Append("\n<color=#E6C15A>Issue: <noparse>").Append(err).Append("</noparse></color>");
+                    _statusBuilder.Append("\n<color=#E6C15A>Issue: <noparse>").Append(SanitizeForMarkup(err)).Append("</noparse></color>");
             }
 
             string markup = _statusBuilder.ToString();
