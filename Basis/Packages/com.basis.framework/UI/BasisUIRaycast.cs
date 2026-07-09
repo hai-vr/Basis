@@ -380,6 +380,24 @@ namespace Basis.Scripts.UI
 
             if (HasLineRenderer)
             {
+                // Defensive: the line must be immune to ANY transform in its hierarchy. useWorldSpace
+                // makes positions absolute, but normalize the renderer's lossyScale too (worlds/systems
+                // that scale the player hierarchy otherwise scale the rendered width/geometry) and
+                // re-assert world space in case anything flipped it.
+                if (LineRenderer.useWorldSpace == false)
+                {
+                    LineRenderer.useWorldSpace = true;
+                }
+                Vector3 lossy = LineRenderer.transform.lossyScale;
+                if (Mathf.Abs(lossy.x - 1f) > 1e-3f || Mathf.Abs(lossy.y - 1f) > 1e-3f || Mathf.Abs(lossy.z - 1f) > 1e-3f)
+                {
+                    Vector3 local = LineRenderer.transform.localScale;
+                    LineRenderer.transform.localScale = new Vector3(
+                        lossy.x > 1e-6f ? local.x / lossy.x : 1f,
+                        lossy.y > 1e-6f ? local.y / lossy.y : 1f,
+                        lossy.z > 1e-6f ? local.z / lossy.z : 1f);
+                }
+
                 const float endOffset = 0.01f; // tweak in meters (VR usually likes 0.005–0.02)
 
                 Vector3 start = BasisPointRaycaster.ray.origin;
@@ -401,10 +419,17 @@ namespace Basis.Scripts.UI
                 string interactLine = input != null && input.InteractionLineRenderer != null && input.InteractionLineRenderer.enabled
                     ? $"interactLine {input.InteractionLineRenderer.GetPosition(0)}->{input.InteractionLineRenderer.GetPosition(1)}"
                     : "interactLine off";
+                // bounds.center is where Unity is ACTUALLY rendering the line — if it disagrees with
+                // the midpoint of the written positions, the mismatch is in rendering space, and the
+                // ratio names the culprit factor.
+                Vector3 writtenMid = (LineRenderer.GetPosition(0) + LineRenderer.GetPosition(1)) * 0.5f;
                 BasisDebug.Log(
                     $"PointerChain dev={input?.UniqueDeviceIdentifier} scale={BasisHeightDriver.DeviceScale:F3} " +
                     $"handVisual={handWorld} rayOrigin={BasisPointRaycaster.ray.origin} hit={PhysicHit.point} " +
-                    $"uiLine {LineRenderer.GetPosition(0)}->{LineRenderer.GetPosition(1)} reticle={(HasRedicalRenderer && highlightQuadInstance != null ? highlightQuadInstance.transform.position.ToString() : "n/a")} {interactLine}",
+                    $"uiLine {LineRenderer.GetPosition(0)}->{LineRenderer.GetPosition(1)} worldSpace={LineRenderer.useWorldSpace} " +
+                    $"renderedCenter={LineRenderer.bounds.center} writtenMid={writtenMid} lineLossy={LineRenderer.transform.lossyScale} " +
+                    $"playerLossy={(BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.transform.lossyScale.ToString() : "n/a")} " +
+                    $"reticle={(HasRedicalRenderer && highlightQuadInstance != null ? highlightQuadInstance.transform.position.ToString() : "n/a")} {interactLine}",
                     BasisDebug.LogTag.Input);
             }
         }

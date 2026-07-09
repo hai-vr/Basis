@@ -394,7 +394,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
             st.SignedDist = sd;
             st.Plane = plane;
 
-            if (plane.GetDistanceToPoint(input.RaycastCoord.position) <= 0f)
+            // The finger only counts as pressing from the canvas' front when
+            // the hand itself is on the front (+forward) side — a fingertip
+            // that pierced in from the back must not hover or press.
+            Vector3 handPos = input.HasControl && input.Control != null
+                ? input.Control.OutgoingWorldData.position
+                : input.RaycastCoord.position;
+            if (plane.GetDistanceToPoint(handPos) <= 0f)
             {
                 if (st.Phase != TouchPhase.None) EndTouch(st, input);
                 return;

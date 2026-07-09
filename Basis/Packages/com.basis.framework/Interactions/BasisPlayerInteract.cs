@@ -338,9 +338,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                         if (input.input.InteractionLineRenderer != null)
                         {
-                            input.input.InteractionLineRenderer.SetPosition(0, startPos);
-                            input.input.InteractionLineRenderer.SetPosition(1, endPos);
-                            input.input.InteractionLineRenderer.enabled = true;
+                            LineRenderer line = input.input.InteractionLineRenderer;
+                            // Same defensive normalization as the UI line: immune to any scaled ancestor.
+                            Vector3 lineLossy = line.transform.lossyScale;
+                            if (Mathf.Abs(lineLossy.x - 1f) > 1e-3f || Mathf.Abs(lineLossy.y - 1f) > 1e-3f || Mathf.Abs(lineLossy.z - 1f) > 1e-3f)
+                            {
+                                Vector3 lineLocal = line.transform.localScale;
+                                line.transform.localScale = new Vector3(
+                                    lineLossy.x > 1e-6f ? lineLocal.x / lineLossy.x : 1f,
+                                    lineLossy.y > 1e-6f ? lineLocal.y / lineLossy.y : 1f,
+                                    lineLossy.z > 1e-6f ? lineLocal.z / lineLossy.z : 1f);
+                            }
+                            line.SetPosition(0, startPos);
+                            line.SetPosition(1, endPos);
+                            line.enabled = true;
                         }
                     }
                     else
