@@ -1,4 +1,5 @@
 #if BASIS_FRAMEWORK_EXISTS
+using System.Collections.Generic;
 using System.Text;
 using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
@@ -44,6 +45,15 @@ namespace Basis.Integration.SlimeVR
             enableToggle.Descriptor.SetDescription("Look for a local SlimeVR server and stay connected to it.");
             enableToggle.SetValueWithoutNotify(BasisSlimeVRSettings.Enable.RawValue);
             enableToggle.OnValueChanged += value => BasisSlimeVRSettings.Enable.SetValue(value);
+
+            PanelDropdown transportDropdown = PanelDropdown.CreateNewEntry(content);
+            transportDropdown.Descriptor.SetTitle("Connection Method");
+            transportDropdown.Descriptor.SetDescription("WebSocket works with every SlimeVR server today. Pipe is SlimeVR's newer native connection (the one that stays when websockets are deprecated) and needs a server build whose pipe works.");
+            transportDropdown.AssignEntries(
+                new List<string> { BasisSlimeVRSettings.TransportWebSocket, BasisSlimeVRSettings.TransportPipe },
+                new List<string> { "WebSocket", "Pipe" });
+            transportDropdown.SetValueWithoutNotify(BasisSlimeVRSettings.Transport.RawValue);
+            transportDropdown.OnValueChanged += value => BasisSlimeVRSettings.Transport.SetValue(value);
 
             PanelToggle applyToggle = PanelToggle.CreateNewEntry(content);
             applyToggle.Descriptor.SetTitle("Auto Apply Body Measurements");

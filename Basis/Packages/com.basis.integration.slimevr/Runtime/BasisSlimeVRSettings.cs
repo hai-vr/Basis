@@ -16,6 +16,17 @@ namespace Basis.Integration.SlimeVR
         /// <summary>Automatically apply SlimeVR's body proportions (eye height + arm span) to the Basis height system.</summary>
         public static readonly BasisSettingsBinding<bool> ApplyBodyMeasurements =
             new BasisSettingsBinding<bool>("slimevr_applybodymeasurements", new BasisPlatformDefault<bool>(true));
+
+        public const string TransportWebSocket = "websocket";
+        public const string TransportPipe = "pipe";
+
+        /// <summary>
+        /// How to talk to the SlimeVR server: "websocket" (works on every released server today)
+        /// or "pipe" (SlimeVR's native transport — Windows named pipe / unix socket — the one that
+        /// stays once websockets are deprecated, but it needs a server whose pipe bridge works).
+        /// </summary>
+        public static readonly BasisSettingsBinding<string> Transport =
+            new BasisSettingsBinding<string>("slimevr_transport", new BasisPlatformDefault<string>(TransportWebSocket));
     }
 }
 #endif

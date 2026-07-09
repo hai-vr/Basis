@@ -22,33 +22,37 @@ has about your body, so you don't have to calibrate your size in Basis at all.
 
 ## How it connects
 
-Transports, tried in order:
+The transport is a user setting (`slimevr_transport`, see below):
 
-1. **Named pipe / unix socket** (server v20.1+): `\\.\pipe\SlimeVRRpc` on Windows,
-   `$XDG_RUNTIME_DIR/SlimeVRRpc` on Linux. Framing: 4-byte little-endian length prefix that
-   includes itself, then a flatbuffers `MessageBundle`. This is SlimeVR's forward path.
-2. **Websocket** `ws://127.0.0.1:21110` (every released server): one `MessageBundle` per binary
-   message, no length prefix.
+- **WebSocket** (default) `ws://127.0.0.1:21110`: one `MessageBundle` per binary message, no
+  length prefix. Works with every released server today.
+- **Pipe** (server v20.1+): `\\.\pipe\SlimeVRRpc` on Windows, `$XDG_RUNTIME_DIR/SlimeVRRpc` unix
+  socket on Linux. Framing: 4-byte little-endian length prefix that includes itself, then a
+  flatbuffers `MessageBundle`. This is SlimeVR's forward path — websockets are slated for
+  deprecation — so the default flips here once fixed servers are the norm.
 
 A background thread owns the connection, reconnects every few seconds while the server is absent,
 and marshals everything onto the main thread through `BasisDeviceManagement.mainThreadActions`.
 When no SlimeVR server is installed the integration idles at zero cost beyond a periodic failed
 connect.
 
-**Server pipe bug (as of v20.1.0 / 2026-06 main):** the Windows named pipe bridge accepts
+**Server pipe bug (as of v20.1.0 / 2026-07 main):** the Windows named pipe bridge accepts
 connections and reads requests, but every response it writes is a zero-byte write —
 `WindowsNamedPipeRpcConnection.send` builds the length-prefixed buffer `src` and then sends
 `bytes.array(), bytes.remaining()`, which is 0 after `src.put(bytes)` consumed the buffer (fix:
-send `src.array(), src.remaining()`). Its reader also rejects any message over 1024 bytes. The
-client detects the mute pipe (no response within 6 s of the connect-time request) and retries
-preferring the websocket, so the integration works on every server version today and will use
-the pipe automatically once the server side is fixed.
+send `src.array(), src.remaining()`). Its reader also kills the connection on any message over
+1024 bytes (fix: compare `buf.capacity()`). Both fixes are verified: a server built from patched
+main serves this client over the pipe end-to-end (full skeleton config, datafeed, resets,
+heartbeats — byte-identical data to the websocket). On a broken/mute pipe the client logs a hint
+after 6 s pointing at the WebSocket setting, then keeps retrying the selected transport.
 
 ## Settings
 
 Settings > Tracker Settings > SlimeVR:
 
 - **Connect To SlimeVR** (`slimevr_enable`, default on)
+- **Connection Method** (`slimevr_transport`, `"websocket"` default / `"pipe"`) — applied live;
+  changing it reconnects.
 - **Auto Apply Body Measurements** (`slimevr_applybodymeasurements`, default on)
 
 Seated mode is respected: measurements received while seated are held and applied when you stand.

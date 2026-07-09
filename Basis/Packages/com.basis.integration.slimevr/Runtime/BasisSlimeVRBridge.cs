@@ -61,6 +61,7 @@ namespace Basis.Integration.SlimeVR
                 Application.quitting += Shutdown;
                 BasisSlimeVRSettings.Enable.OnChanged += OnEnableSettingChanged;
                 BasisSlimeVRSettings.ApplyBodyMeasurements.OnChanged += OnApplySettingChanged;
+                BasisSlimeVRSettings.Transport.OnChanged += OnTransportSettingChanged;
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChanged;
             }
 
@@ -78,6 +79,7 @@ namespace Basis.Integration.SlimeVR
             }
             _client = new BasisSolarXRClient
             {
+                Transport = SelectedTransport,
                 Log = message => BasisDebug.Log(message, BasisDebug.LogTag.Device),
                 LogError = message => BasisDebug.LogError(message, BasisDebug.LogTag.Device),
                 ConnectionChanged = connected => RunOnMainThread(() => HandleConnectionChanged(connected)),
@@ -85,7 +87,7 @@ namespace Basis.Integration.SlimeVR
                 TrackersReceived = QueueTrackers
             };
             _client.Start();
-            BasisDebug.Log("SlimeVR integration enabled, watching for a local SlimeVR server", BasisDebug.LogTag.Device);
+            BasisDebug.Log($"SlimeVR integration enabled, watching for a local SlimeVR server ({_client.Transport})", BasisDebug.LogTag.Device);
         }
 
         private static void StopClient()
@@ -205,6 +207,21 @@ namespace Basis.Integration.SlimeVR
             {
                 TryApplyBodyMeasurements(LastBodyMetrics);
             }
+        }
+
+        private static SolarXRTransportKind SelectedTransport =>
+            string.Equals(BasisSlimeVRSettings.Transport.RawValue, BasisSlimeVRSettings.TransportPipe, StringComparison.OrdinalIgnoreCase)
+                ? SolarXRTransportKind.Pipe
+                : SolarXRTransportKind.WebSocket;
+
+        private static void OnTransportSettingChanged(string _)
+        {
+            if (_client == null)
+            {
+                return;
+            }
+            StopClient();
+            StartClient();
         }
 
         private static void OnPlayersHeightChanged(BasisHeightDriver.HeightModeChange mode)

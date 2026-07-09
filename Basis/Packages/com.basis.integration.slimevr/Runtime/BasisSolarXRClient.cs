@@ -52,10 +52,23 @@ namespace Basis.Integration.SlimeVR
     }
 
     /// <summary>
-    /// Talks to a local SlimeVR server over the SolarXR protocol. Transports, tried in order:
-    /// the RPC named pipe \\.\pipe\SlimeVRRpc on Windows / unix socket elsewhere (server v20.1+,
-    /// framed as a 4-byte little-endian length prefix that includes itself + MessageBundle), then
-    /// the websocket on ws://127.0.0.1:21110 (all servers; one MessageBundle per binary message).
+    /// Which SolarXR transport <see cref="BasisSolarXRClient"/> uses. WebSocket works on every
+    /// released server today; Pipe (Windows named pipe / unix socket elsewhere) is the transport
+    /// SlimeVR keeps once websockets are deprecated, but needs a server whose pipe bridge
+    /// actually responds (broken up to and including v20.1.0).
+    /// </summary>
+    public enum SolarXRTransportKind
+    {
+        WebSocket,
+        Pipe
+    }
+
+    /// <summary>
+    /// Talks to a local SlimeVR server over the SolarXR protocol, using the transport selected
+    /// by <see cref="Transport"/>: the websocket on ws://127.0.0.1:21110 (all servers; one
+    /// MessageBundle per binary message), or the RPC named pipe \\.\pipe\SlimeVRRpc on Windows /
+    /// unix socket elsewhere (server v20.1+, framed as a 4-byte little-endian length prefix that
+    /// includes itself + MessageBundle).
     /// Runs a background worker thread that connects, retries while the server is absent, and
     /// keeps a skeleton-config poll + datafeed alive. All callbacks fire ON THE WORKER THREAD.
     /// </summary>
@@ -66,16 +79,17 @@ namespace Basis.Integration.SlimeVR
 
         public string EndpointName = DefaultEndpointName;
         public string WebSocketUrl = DefaultWebSocketUrl;
-        public bool EnableWebSocketFallback = true;
+        public SolarXRTransportKind Transport = SolarXRTransportKind.WebSocket;
         public int ConnectTimeoutMs = 2000;
         public int ReconnectDelayMs = 5000;
         /// <summary>
         /// A healthy server answers the connect-time skeleton config request within milliseconds;
-        /// if NOTHING arrives in this window the transport is considered mute and the client
-        /// retries preferring the websocket. Guards against the server-side pipe bridge bug where
+        /// if NOTHING arrives in this window the transport is considered mute and the connection
+        /// is torn down and retried. On the pipe this catches the server-side bridge bug where
         /// \\.\pipe\SlimeVRRpc accepts connections and reads requests but every response is a
-        /// zero-byte write (SlimeVR v20.1 WindowsNamedPipeRpcConnection.send sends
-        /// bytes.remaining() == 0 after src.put(bytes) consumed it).
+        /// zero-byte write (up to v20.1.0, WindowsNamedPipeRpcConnection.send sends
+        /// bytes.remaining() == 0 after src.put(bytes) consumed it), and a log points the user
+        /// at the WebSocket setting.
         /// </summary>
         public int FirstMessageTimeoutMs = 6000;
         /// <summary>Re-request the skeleton config at this cadence so SlimeVR-side recalibration (autobone, height calibration, manual edits) flows through.</summary>
@@ -104,7 +118,7 @@ namespace Basis.Integration.SlimeVR
         private uint _txId;
         private readonly System.Diagnostics.Stopwatch _pollClock = System.Diagnostics.Stopwatch.StartNew();
         private long _lastSkeletonPollMs;
-        private bool _preferWebSocket;
+        private bool _warnedMutePipe;
 
         public void Start()
         {
@@ -209,27 +223,7 @@ namespace Basis.Integration.SlimeVR
 
         private ISolarXRTransport Connect(CancellationToken token)
         {
-            if (_preferWebSocket && EnableWebSocketFallback)
-            {
-                try
-                {
-                    return ConnectWebSocket(token);
-                }
-                catch
-                {
-                    return ConnectNative();
-                }
-            }
-
-            try
-            {
-                return ConnectNative();
-            }
-            catch when (EnableWebSocketFallback)
-            {
-                // Servers older than v20.1 only expose the websocket API.
-                return ConnectWebSocket(token);
-            }
+            return Transport == SolarXRTransportKind.Pipe ? ConnectNative() : ConnectWebSocket(token);
         }
 
         private ISolarXRTransport ConnectNative()
@@ -298,10 +292,10 @@ namespace Basis.Integration.SlimeVR
                 }
                 catch (TimeoutException)
                 {
-                    if (!receivedAnything && EnableWebSocketFallback && TransportName != "websocket" && !_preferWebSocket)
+                    if (!receivedAnything && TransportName != "websocket" && !_warnedMutePipe)
                     {
-                        _preferWebSocket = true;
-                        Log($"SlimeVR accepted the {TransportName} connection but never responded (server pipe bridge bug); retrying over the websocket");
+                        _warnedMutePipe = true;
+                        Log($"SlimeVR accepted the {TransportName} connection but never responded — the server's pipe bridge is broken (all builds up to v20.1.0); update the server or set the SlimeVR connection method to WebSocket");
                     }
                     throw;
                 }
