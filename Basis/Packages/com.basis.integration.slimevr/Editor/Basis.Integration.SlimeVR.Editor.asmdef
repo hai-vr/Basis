@@ -1,0 +1,27 @@
+{
+    "name": "Basis.Integration.SlimeVR.Editor",
+    "rootNamespace": "Basis.Integration.SlimeVR.Editor",
+    "references": [
+        "Basis.Integration.SlimeVR",
+        "Basis Framework"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BASIS_FRAMEWORK_EXISTS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.basis.framework",
+            "expression": "",
+            "define": "BASIS_FRAMEWORK_EXISTS"
+        }
+    ],
+    "noEngineReferences": false
+}

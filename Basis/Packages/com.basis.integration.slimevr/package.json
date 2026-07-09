@@ -1,0 +1,16 @@
+{
+  "name": "com.basis.integration.slimevr",
+  "displayName": "Basis SlimeVR Integration",
+  "version": "0.0.1",
+  "description": "Talks to a running SlimeVR server over its SolarXR protocol (named pipe / unix socket) and automatically applies the user's real body measurements to Basis: eye height, arm span and skeleton proportions come straight from SlimeVR, so no manual height calibration is needed. Also exposes live tracker status, battery levels and reset actions for other systems.",
+  "author": {
+    "name": "BasisVR",
+    "url": "https://github.com/BasisVR"
+  },
+  "license": "MIT",
+  "vpmDependencies": {
+    "com.basis.framework": "0.0.1",
+    "com.basis.settings": "1.0.0",
+    "com.basis.sdk": "0.0.1"
+  }
+}
