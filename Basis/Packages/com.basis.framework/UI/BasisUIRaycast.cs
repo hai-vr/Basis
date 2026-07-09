@@ -398,10 +398,13 @@ namespace Basis.Scripts.UI
                         lossy.z > 1e-6f ? local.z / lossy.z : 1f);
                 }
 
-                const float endOffset = 0.01f; // tweak in meters (VR usually likes 0.005–0.02)
+                // World-space standoff so the line tip doesn't z-fight the panel — MUST scale with the
+                // avatar: a constant 0.01 m is a full body-relative metre of "line stops short of the
+                // canvas" at 0.01 avatar scale (field report: "the distance from the canvas").
+                float endOffset = BasisPlayerInteract.AvatarScaledRange(0.01f);
 
                 Vector3 start = BasisPointRaycaster.ray.origin;
-                Vector3 end = PhysicHit.point + PhysicHit.normal * endOffset;
+                Vector3 end = GetVisualSurfacePoint() + PhysicHit.normal * endOffset;
 
                 LineRenderer.SetPosition(0, start);
                 LineRenderer.SetPosition(1, end);
@@ -434,6 +437,35 @@ namespace Basis.Scripts.UI
             }
         }
 
+        /// <summary>
+        /// The physics hit lands on the COLLIDER face, which sits half the collider depth in front of
+        /// the visual canvas plane (unit-scale world canvases: several real centimetres — the "distance
+        /// from the canvas"). Snap the visual contact point along the ray onto the canvas plane so the
+        /// line tip and reticle touch the panel the user actually sees, whatever the collider depth
+        /// convention. Falls back to the raw hit when no canvas is resolved or the geometry is odd.
+        /// </summary>
+        private Vector3 GetVisualSurfacePoint()
+        {
+            Vector3 point = PhysicHit.point;
+            if (FoundCanvas == null)
+            {
+                return point;
+            }
+            Transform canvasTransform = FoundCanvas.transform;
+            Plane plane = new Plane(canvasTransform.forward, canvasTransform.position);
+            if (plane.Raycast(BasisPointRaycaster.ray, out float enter))
+            {
+                Vector3 snapped = BasisPointRaycaster.ray.GetPoint(enter);
+                // Cap the correction: it should only ever bridge the collider-face standoff, never
+                // fling the tip on a grazing-angle intersection.
+                if ((snapped - point).sqrMagnitude <= 0.25f)
+                {
+                    return snapped;
+                }
+            }
+            return point;
+        }
+
         private void UpdateReticleRenderer()
         {
             if (!HasRedicalRenderer)
@@ -447,7 +479,7 @@ namespace Basis.Scripts.UI
             if (show)
             {
                 HighlightState = ActiveStateOfHightlight.On;
-                highlightQuadInstance.transform.SetPositionAndRotation(PhysicHit.point, Quaternion.LookRotation(PhysicHit.normal));
+                highlightQuadInstance.transform.SetPositionAndRotation(GetVisualSurfacePoint(), Quaternion.LookRotation(PhysicHit.normal));
             }
             else
             {
