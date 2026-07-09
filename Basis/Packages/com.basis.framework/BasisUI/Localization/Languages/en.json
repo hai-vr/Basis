@@ -2107,6 +2107,14 @@
       "value": "Calibrating"
     },
     {
+      "key": "calibration.pullTriggers",
+      "value": "T-Pose, then pull both triggers"
+    },
+    {
+      "key": "calibration.clickToConfirm",
+      "value": "Click again to calibrate"
+    },
+    {
       "key": "calibration.additionalHeight",
       "value": "Additional Player Height"
     },

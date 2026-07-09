@@ -358,11 +358,20 @@ namespace Basis.BasisUI
                 // Standard single-pose calibration — clear any stale pitch data
                 _pitchStep = PitchCalibrationStep.None;
                 BasisHeightDriver.HasPitchCalibratedHeight = false;
-                Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrating"));
+                Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
                 localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
                 BasisCalibrationLockInVisualizer.Begin();
                 SubscribeToTriggers();
             }
+        }
+
+        // The wait-for-confirmation label must say HOW to confirm: VR completes by pulling both
+        // triggers (matching the pitch-step labels), desktop by clicking the button again.
+        private static string GetAwaitConfirmTitle()
+        {
+            return BasisLocalization.Get(BasisDeviceManagement.IsUserInDesktop()
+                ? "calibration.clickToConfirm"
+                : "calibration.pullTriggers");
         }
 
         private void SubscribeToTriggers()
@@ -536,7 +545,7 @@ namespace Basis.BasisUI
         private void StartStandardCalibration()
         {
             _pitchStep = PitchCalibrationStep.None;
-            Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrating"));
+            Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
             BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
             BasisCalibrationLockInVisualizer.Begin();
             // Reset trigger state so they need to press again for final calibration

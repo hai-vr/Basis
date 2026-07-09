@@ -67,8 +67,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private readonly FingerTouchState[] _hand = new FingerTouchState[2];
         private BasisInput _leftInput;
         private BasisInput _rightInput;
-        private bool _leftHolding;
-        private bool _rightHolding;
+        private bool _leftHandBusy;
+        private bool _rightHandBusy;
 
         private enum TouchPhase : byte { None, Hovering, Pressing }
 
