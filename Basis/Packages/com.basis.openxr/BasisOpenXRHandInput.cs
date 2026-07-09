@@ -72,7 +72,7 @@ public class BasisOpenXRHandInput : BasisInputController
 
         if (string.IsNullOrEmpty(devicePath))
         {
-            Debug.LogError("Device path is null or empty.");
+            BasisDebug.LogError("Device path is null or empty.", BasisDebug.LogTag.Device);
             return;
         }
         Trigger = new InputActionProperty(new InputAction(devicePath + "/trigger", InputActionType.Value, devicePath + "/trigger", expectedControlType: "Float"));

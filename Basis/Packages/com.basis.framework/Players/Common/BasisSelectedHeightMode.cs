@@ -20,5 +20,13 @@ namespace Basis.Scripts.BasisSdk.Players
         /// eye position is tracked directly.
         /// </summary>
         EyeHeight,
+
+        /// <summary>
+        /// Automatically picks between EyeHeight and ArmSpan per avatar: whichever metric pair
+        /// yields the larger DeviceScale wins, so the player's full reach always covers the
+        /// avatar's arms (arms can always straighten) and the viewpoint lands at-or-above the
+        /// avatar's eyes. Resolved by BasisHeightDriver.ResolveHeightMode.
+        /// </summary>
+        Auto,
     }
 }

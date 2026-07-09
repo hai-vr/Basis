@@ -52,6 +52,7 @@ namespace Basis.Scripts.UI
         public bool HasRedicalRenderer = false;
 
         public bool CachedLinerRenderState = false;
+        private float _nextPointerDebugTime;
         public RaycastHit PhysicHit;
         public bool DidPhysicHit = false;
         public Collider HitCollider;
@@ -379,14 +380,90 @@ namespace Basis.Scripts.UI
 
             if (HasLineRenderer)
             {
-                const float endOffset = 0.01f; // tweak in meters (VR usually likes 0.005–0.02)
+                // Defensive: the line must be immune to ANY transform in its hierarchy. useWorldSpace
+                // makes positions absolute, but normalize the renderer's lossyScale too (worlds/systems
+                // that scale the player hierarchy otherwise scale the rendered width/geometry) and
+                // re-assert world space in case anything flipped it.
+                if (LineRenderer.useWorldSpace == false)
+                {
+                    LineRenderer.useWorldSpace = true;
+                }
+                Vector3 lossy = LineRenderer.transform.lossyScale;
+                if (Mathf.Abs(lossy.x - 1f) > 1e-3f || Mathf.Abs(lossy.y - 1f) > 1e-3f || Mathf.Abs(lossy.z - 1f) > 1e-3f)
+                {
+                    Vector3 local = LineRenderer.transform.localScale;
+                    LineRenderer.transform.localScale = new Vector3(
+                        lossy.x > 1e-6f ? local.x / lossy.x : 1f,
+                        lossy.y > 1e-6f ? local.y / lossy.y : 1f,
+                        lossy.z > 1e-6f ? local.z / lossy.z : 1f);
+                }
+
+                // World-space standoff so the line tip doesn't z-fight the panel — MUST scale with the
+                // avatar: a constant 0.01 m is a full body-relative metre of "line stops short of the
+                // canvas" at 0.01 avatar scale (field report: "the distance from the canvas").
+                float endOffset = BasisPlayerInteract.AvatarScaledRange(0.01f);
 
                 Vector3 start = BasisPointRaycaster.ray.origin;
-                Vector3 end = PhysicHit.point + PhysicHit.normal * endOffset;
+                Vector3 end = GetVisualSurfacePoint() + PhysicHit.normal * endOffset;
 
                 LineRenderer.SetPosition(0, start);
                 LineRenderer.SetPosition(1, end);
             }
+
+            // Pointer-chain diagnostic (tick EnableDebug on this hand's BasisPointRaycaster): one line
+            // per second with every stage of the pointer, so a scale/alignment mismatch between what is
+            // FELT (hand), COMPUTED (ray/hit) and DRAWN (line/reticle/interact line) reads directly off
+            // the log. All values world-space.
+            if (BasisPointRaycaster.EnableDebug && Time.unscaledTime >= _nextPointerDebugTime)
+            {
+                _nextPointerDebugTime = Time.unscaledTime + 1f;
+                var input = BasisPointRaycaster.BasisInput;
+                Vector3 handWorld = input != null ? input.transform.position : Vector3.zero;
+                string interactLine = input != null && input.InteractionLineRenderer != null && input.InteractionLineRenderer.enabled
+                    ? $"interactLine {input.InteractionLineRenderer.GetPosition(0)}->{input.InteractionLineRenderer.GetPosition(1)}"
+                    : "interactLine off";
+                // bounds.center is where Unity is ACTUALLY rendering the line — if it disagrees with
+                // the midpoint of the written positions, the mismatch is in rendering space, and the
+                // ratio names the culprit factor.
+                Vector3 writtenMid = (LineRenderer.GetPosition(0) + LineRenderer.GetPosition(1)) * 0.5f;
+                BasisDebug.Log(
+                    $"PointerChain dev={input?.UniqueDeviceIdentifier} scale={BasisHeightDriver.DeviceScale:F3} " +
+                    $"handVisual={handWorld} rayOrigin={BasisPointRaycaster.ray.origin} hit={PhysicHit.point} " +
+                    $"uiLine {LineRenderer.GetPosition(0)}->{LineRenderer.GetPosition(1)} worldSpace={LineRenderer.useWorldSpace} " +
+                    $"renderedCenter={LineRenderer.bounds.center} writtenMid={writtenMid} lineLossy={LineRenderer.transform.lossyScale} " +
+                    $"playerLossy={(BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.transform.lossyScale.ToString() : "n/a")} " +
+                    $"reticle={(HasRedicalRenderer && highlightQuadInstance != null ? highlightQuadInstance.transform.position.ToString() : "n/a")} {interactLine}",
+                    BasisDebug.LogTag.Input);
+            }
+        }
+
+        /// <summary>
+        /// The physics hit lands on the COLLIDER face, which sits half the collider depth in front of
+        /// the visual canvas plane (unit-scale world canvases: several real centimetres — the "distance
+        /// from the canvas"). Snap the visual contact point along the ray onto the canvas plane so the
+        /// line tip and reticle touch the panel the user actually sees, whatever the collider depth
+        /// convention. Falls back to the raw hit when no canvas is resolved or the geometry is odd.
+        /// </summary>
+        private Vector3 GetVisualSurfacePoint()
+        {
+            Vector3 point = PhysicHit.point;
+            if (FoundCanvas == null)
+            {
+                return point;
+            }
+            Transform canvasTransform = FoundCanvas.transform;
+            Plane plane = new Plane(canvasTransform.forward, canvasTransform.position);
+            if (plane.Raycast(BasisPointRaycaster.ray, out float enter))
+            {
+                Vector3 snapped = BasisPointRaycaster.ray.GetPoint(enter);
+                // Cap the correction: it should only ever bridge the collider-face standoff, never
+                // fling the tip on a grazing-angle intersection.
+                if ((snapped - point).sqrMagnitude <= 0.25f)
+                {
+                    return snapped;
+                }
+            }
+            return point;
         }
 
         private void UpdateReticleRenderer()
@@ -402,7 +479,7 @@ namespace Basis.Scripts.UI
             if (show)
             {
                 HighlightState = ActiveStateOfHightlight.On;
-                highlightQuadInstance.transform.SetPositionAndRotation(PhysicHit.point, Quaternion.LookRotation(PhysicHit.normal));
+                highlightQuadInstance.transform.SetPositionAndRotation(GetVisualSurfacePoint(), Quaternion.LookRotation(PhysicHit.normal));
             }
             else
             {

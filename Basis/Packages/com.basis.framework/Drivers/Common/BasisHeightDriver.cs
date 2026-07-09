@@ -74,14 +74,88 @@ public static class BasisHeightDriver
         ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
         ScheduleHeightChangeCallback(HeightModeChange.OnApplyHeightAndScale);
+
+        // DeviceScale (and possibly the avatar) just re-resolved: re-derive the calibrated FBT position
+        // offsets so the existing T-pose calibration keeps fitting (avatar swap / scale slider) instead
+        // of going stale by the scale delta. No-op with no stored calibration.
+        Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
     }
 
     public static void OnAvatarFBCalibration()
     {
         HasUserCalibratedHeight = true;
         CapturePlayerHeight();
+        PersistCalibratedBodySize();
         ApplyScaleAndHeight();
         ScheduleHeightChangeCallback(HeightModeChange.OnAvatarFBCalibration);
+    }
+
+    // Plausibility band for persisted body measurements (metres): outside this, treat as junk.
+    public const float MinPlausibleBodyMeasure = 0.8f;
+    public const float MaxPlausibleBodyMeasure = 2.8f;
+
+    /// <summary>
+    /// Saves the explicitly calibrated body size so the NEXT session boots at the right scale instead
+    /// of the fallback (seeded back in <see cref="CapturePlayerHeight"/>). Seated calibrations measure
+    /// the virtual standing eye, not the player's body, so they are never saved.
+    /// </summary>
+    private static void PersistCalibratedBodySize()
+    {
+        if (SMModuleSitStand.IsSteatedMode || HasGenuinePlayerEyeHeight == false)
+        {
+            return;
+        }
+        bool eyePlausible = PlayerEyeHeight >= MinPlausibleBodyMeasure && PlayerEyeHeight <= MaxPlausibleBodyMeasure;
+        bool spanPlausible = PlayerArmSpan >= MinPlausibleBodyMeasure && PlayerArmSpan <= MaxPlausibleBodyMeasure;
+
+        // A measurement that reads far shorter than its sibling implies was under-measured — a
+        // physically-seated calibration reads the eye ~25-35% short, bent arms read the span short.
+        // Don't overwrite the saved good value with it; the sibling still saves.
+        bool eyeLooksUnderMeasured = spanPlausible
+            && BasisCalibrationMath.AutoHeightModePicksArmSpan(PlayerEyeHeight, PlayerArmSpan);
+        bool spanLooksUnderMeasured = eyePlausible
+            && BasisCalibrationMath.ImpliedHeightFromEye(PlayerEyeHeight)
+               > BasisCalibrationMath.ImpliedHeightFromSpan(PlayerArmSpan) * BasisCalibrationMath.AutoModeEyePreferenceBand;
+
+        if (eyePlausible && eyeLooksUnderMeasured == false)
+        {
+            Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(PlayerEyeHeight);
+        }
+        if (spanPlausible && spanLooksUnderMeasured == false)
+        {
+            Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.SetValue(PlayerArmSpan);
+        }
+    }
+
+    /// <summary>
+    /// Seeds the last session's calibrated body size when no genuine measurement exists yet, so the
+    /// default scale is right from the very first avatar load (and the standing height is restored on
+    /// leaving seated mode) instead of the fallback / a stance-dependent first poll. Never seeds while
+    /// seated — there the virtual standing eye (FallbackHeightInMeters) must stay the denominator.
+    /// Self-limiting: seeding marks the height genuine, and explicit calibrates re-poll regardless.
+    /// </summary>
+    private static void SeedPersistedBodySize()
+    {
+        if (HasGenuinePlayerEyeHeight || SMModuleSitStand.IsSteatedMode)
+        {
+            return;
+        }
+        float savedEye = Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.RawValue;
+        if (savedEye < MinPlausibleBodyMeasure || savedEye > MaxPlausibleBodyMeasure)
+        {
+            return;
+        }
+        PlayerEyeHeight = savedEye;
+        HasGenuinePlayerEyeHeight = true;
+        // The saved size originated from an explicit calibration, so the pre-calibration ballpark
+        // auto-scale estimator must not fight it.
+        HasUserCalibratedHeight = true;
+        float savedSpan = Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.RawValue;
+        if (savedSpan >= MinPlausibleBodyMeasure && savedSpan <= MaxPlausibleBodyMeasure)
+        {
+            PlayerArmSpan = savedSpan;
+        }
+        BasisDebug.Log($"Seeded last session's calibrated body size: eye {PlayerEyeHeight:F3}m span {PlayerArmSpan:F3}m", BasisDebug.LogTag.Avatar);
     }
     public static void ScheduleHeightChangeCallback(HeightModeChange Mode)
     {
@@ -131,7 +205,10 @@ public static class BasisHeightDriver
     {
         OnAvatarFBCalibration,
         OnTpose,
-        OnApplyHeightAndScale
+        OnApplyHeightAndScale,
+        // Sit/stand mode switch: the eye teleports vertically, so consumers that normally hold their
+        // anchor through scale changes (the play-space-stable menu) must re-anchor fully.
+        OnSitStandChanged
     }
 
     public static bool ApplyRuntimeOscEyeHeightOverride(float eyeHeightMeters)
@@ -165,6 +242,7 @@ public static class BasisHeightDriver
         RevaluateUnscaledHeight(SMModuleCalibration.HeightMode);
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
         ScheduleHeightChangeCallback(mode);
+        Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
     }
 
     public static bool TryGetMatchedEyeHeightOverrideMeters(BasisRemotePlayer target, out float eyeHeightMeters)
@@ -234,9 +312,44 @@ public static class BasisHeightDriver
         }
     }
 
+    /// <summary>
+    /// Entering VR: whatever eye height the previous mode left applied is not the player's VR
+    /// standing height (desktop's is a virtual value, and it gets marked genuine), so the applied
+    /// calibration must be dropped and REAPPLIED from stored data — the persisted body size seeds
+    /// back in, the scale re-resolves, FBT position offsets reproject, and the FBT rotation
+    /// references re-derive. Without this, a desktop stint poisoned the VR scale until the user
+    /// manually recalibrated. Fresh installs with nothing persisted fall through to the normal
+    /// live-poll flow.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void HookBootModeChanged()
+    {
+        BasisDeviceManagement.OnBootModeChanged -= OnBootModeChangedReapplyCalibration;
+        BasisDeviceManagement.OnBootModeChanged += OnBootModeChangedReapplyCalibration;
+    }
+
+    private static void OnBootModeChangedReapplyCalibration(string mode)
+    {
+        if (BasisDeviceManagement.IsCurrentModeVR() == false)
+        {
+            return;
+        }
+        // Remove the previous mode's applied measurement…
+        HasGenuinePlayerEyeHeight = false;
+        if (BasisLocalPlayer.Instance == null)
+        {
+            return; // boot-time switch: the first avatar load runs this same reapply flow itself
+        }
+        // …and reapply the stored calibration through the normal pipeline.
+        CapturePlayerHeight(recaptureEyeHeight: false);
+        ApplyScaleAndHeight();
+        Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.ApplyCalibrationToCurrentAvatar();
+    }
+
     public static void CapturePlayerHeight(bool recaptureEyeHeight = true)
     {
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
+        SeedPersistedBodySize();
         if (BasisCalibrationMath.ShouldRecaptureEyeHeight(recaptureEyeHeight, HasGenuinePlayerEyeHeight))
         {
             BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
@@ -295,8 +408,45 @@ public static class BasisHeightDriver
         ScheduleHeightChangeCallback(HeightModeChange.OnTpose);
     }
 
+    private static BasisSelectedHeightMode s_lastAutoResolvedMode = BasisSelectedHeightMode.EyeHeight;
+
+    /// <summary>
+    /// Resolves <see cref="BasisSelectedHeightMode.Auto"/> to a concrete metric pair by trusting the
+    /// LONGER of the player's own measurements (see BasisCalibrationMath.AutoHeightModePicksArmSpan):
+    /// body metrics under-measure easily (seated/slouched → short eye height, bent arms → short span)
+    /// but cannot over-measure, so the larger implied body height is the trustworthy one. Arm span
+    /// wins only when the eye measurement is implausibly short against the measured reach — the
+    /// "calibrated sitting in a chair with arms out" case. Desktop always resolves to EyeHeight.
+    /// Concrete modes pass through untouched.
+    /// </summary>
+    public static BasisSelectedHeightMode ResolveHeightMode(BasisSelectedHeightMode mode)
+    {
+        if (mode != BasisSelectedHeightMode.Auto)
+        {
+            return mode;
+        }
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            return BasisSelectedHeightMode.EyeHeight;
+        }
+        float playerEye = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters);
+        float playerSpan = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
+        BasisSelectedHeightMode resolved = BasisCalibrationMath.AutoHeightModePicksArmSpan(playerEye, playerSpan)
+            ? BasisSelectedHeightMode.ArmSpan
+            : BasisSelectedHeightMode.EyeHeight;
+        if (resolved != s_lastAutoResolvedMode)
+        {
+            s_lastAutoResolvedMode = resolved;
+            BasisDebug.Log(
+                $"Auto height mode resolved to {resolved}: implied body height from eye {BasisCalibrationMath.ImpliedHeightFromEye(playerEye):F2}m vs from span {BasisCalibrationMath.ImpliedHeightFromSpan(playerSpan):F2}m",
+                BasisDebug.LogTag.Avatar);
+        }
+        return resolved;
+    }
+
     public static void RevaluateUnscaledHeight(BasisSelectedHeightMode Height)
     {
+        Height = ResolveHeightMode(Height);
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
@@ -318,6 +468,7 @@ public static class BasisHeightDriver
         {
             Height = BasisSelectedHeightMode.EyeHeight;
         }
+        Height = ResolveHeightMode(Height);
 
         var player = BasisLocalPlayer.Instance;
         if (player == null)

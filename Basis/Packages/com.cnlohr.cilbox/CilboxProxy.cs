@@ -26,6 +26,15 @@ namespace Cilbox
 		private bool proxyWasSetup = false;
 		private bool proxyLoadInProgress = false;
 
+		public bool disabled = false;
+
+		public void DisableProxy()
+		{
+			if( disabled ) return;
+			disabled = true;
+			enabled = false;
+		}
+
 		private void ProxyDebugLog( string message )
 		{
 				Debug.Log( $"[CilboxProxy:{gameObject.name}] {message}" );
@@ -43,7 +52,7 @@ namespace Cilbox
 			cls = box.GetClass( className );
 
 			fieldsObjects = new List< UnityEngine.Object >();
-			FieldInfo[] fi = mToSteal.GetType().GetFields( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance );
+			FieldInfo[] fi = CilboxUtil.GetInstanceFieldsBaseFirst( mToSteal.GetType() );
 
 			List< Serializee > lstObjects = new List< Serializee >();
 
@@ -204,7 +213,7 @@ namespace Cilbox
 				bool verboseLogging = box.verboseLogging;
 
 #if UNITY_EDITOR
-				new ProfilerMarker($"Initialize {className}").Auto();
+				using var initMarker = new ProfilerMarker($"Initialize {className}").Auto();
 #endif
 				var sb = new System.Text.StringBuilder("/" + transform.name);
 				Transform aparent = transform.parent;
@@ -378,6 +387,7 @@ namespace Cilbox
 					if( dict.TryGetValue( "fo", out seFO ) &&
 						Int32.TryParse( seFO.AsString(), out iFO ) &&
 						objectSlots != null &&
+						iFO >= 0 &&
 						iFO < objectSlots.Count )
 					{
 						if (dict.TryGetValue("or", out var seOr))
@@ -513,6 +523,7 @@ namespace Cilbox
 		}
 		void FixedUpdate() { if( proxyWasSetup ) box.InterpretIID( cls, this, ImportFunctionID.FixedUpdate, null ); }
 		void Update() { if( proxyWasSetup ) box.InterpretIID( cls, this, ImportFunctionID.Update, null ); }
+		void LateUpdate() { if( proxyWasSetup ) box.InterpretIID( cls, this, ImportFunctionID.LateUpdate, null ); }
 		void OnEnable() { if( proxyWasSetup ) box.InterpretIID( cls, this, ImportFunctionID.OnEnable, null ); }
 		void OnDisable() { if( proxyWasSetup ) box.InterpretIID( cls, this, ImportFunctionID.OnDisable, null ); }
 		void OnDestroy() { if( proxyWasSetup ) box.InterpretIID( cls, this, ImportFunctionID.OnDestroy, null ); }
@@ -520,6 +531,10 @@ namespace Cilbox
 		void OnTriggerExit(Collider c) { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnTriggerExit, new object[] { c }); }
 		void OnCollisionEnter(Collision c) { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnCollisionEnter, new object[] { c }); }
 		void OnCollisionExit(Collision c) { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnCollisionExit, new object[] { c }); }
+		void OnTriggerStay(Collider c) { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnTriggerStay, new object[] { c }); }
+		void OnCollisionStay(Collision c) { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnCollisionStay, new object[] { c }); }
+		void OnRenderObject() { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnRenderObject, null); }
+		void OnWillRenderObject() { if (proxyWasSetup) box.InterpretIID(cls, this, ImportFunctionID.OnWillRenderObject, null); }
 	}
 }
 

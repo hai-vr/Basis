@@ -16,8 +16,14 @@ public static class BasisLocalHeightCalculator
 
         if (!hasLeft && !hasRight)
         {
-            BasisDebug.LogWarning("No hands found. Using fallback.", BasisDebug.LogTag.Avatar);
-            BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+            // Keep the seeded/last-known span when the hands simply aren't tracked yet (boot, sleeping
+            // controllers) — only fall back when we have nothing plausible at all.
+            if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure
+                || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
+            {
+                BasisDebug.LogWarning("No hands found. Using fallback.", BasisDebug.LogTag.Avatar);
+                BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+            }
             return;
         }
 
@@ -27,7 +33,11 @@ public static class BasisLocalHeightCalculator
         {
             if (lockToInput?.BasisInput == null)
             {
-                BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+                if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure
+                    || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
+                {
+                    BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+                }
                 return;
             }
 
@@ -72,6 +82,10 @@ public static class BasisLocalHeightCalculator
         {
             BasisHeightDriver.PlayerCenterEyeVerticalOffset = 0f;
             BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
+            // NOT genuine: this is the virtual standing eye, not the player's body. Leaving it genuine
+            // locked 1.61 m in as the "known standing height", so leaving seated mode could never
+            // restore the real one (the persisted-size seed only fills in when nothing genuine exists).
+            genuine = false;
             BasisDebug.Log($"Seated mode; using standard eye height {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
         }
         else if (BasisHeightDriver.HasPitchCalibratedHeight)
@@ -194,6 +208,22 @@ public static class BasisLocalHeightCalculator
             BasisDebug.LogError("Missing BasisLocalPlayer");
             return;
         }
+
+        // Preferred source: the load-time raw-joint T-pose snapshot (unscaled, root-local) — no live
+        // bone read and no dependence on the avatar being physically T-posed or unscaled right now.
+        if (BasisLocalAvatarDriver.HasTposeBoneSnapshot
+            && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.LeftHand, out var leftBind)
+            && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.RightHand, out var rightBind))
+        {
+            Vector3 lb = leftBind.position;
+            Vector3 rb = rightBind.position;
+            BasisHeightDriver.AvatarArmSpan = Vector3.Distance(new Vector3(lb.x, 0f, lb.z), new Vector3(rb.x, 0f, rb.z));
+            BasisDebug.Log($"Current Avatar Arm Span (from T-pose snapshot): {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
+            return;
+        }
+
+        // Fallback (first capture during avatar load, before the snapshot exists): the avatar is
+        // physically T-posed at that point, so live bones are valid.
         Animator animator = Local.BasisAvatar != null ? Local.BasisAvatar.Animator : null;
         Transform leftHand = animator != null ? animator.GetBoneTransform(HumanBodyBones.LeftHand) : null;
         Transform rightHand = animator != null ? animator.GetBoneTransform(HumanBodyBones.RightHand) : null;
@@ -215,7 +245,7 @@ public static class BasisLocalHeightCalculator
         BasisHeightDriver.AvatarArmSpan = ArmLength;
         BasisDebug.Log($"Current Avatar Arm Span: {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
     }
-    private static void ValidateEyeToArm(ref float eyeHeight, ref float armSpan, float fallbackEyeHeight, string label)
+    private static void ValidateEyeToArm(ref float eyeHeight, ref float armSpan, float fallbackEyeHeight, string label, float maxAbsoluteSpan)
     {
         // Eye height sanity
         if (eyeHeight <= 0f)
@@ -247,12 +277,27 @@ public static class BasisLocalHeightCalculator
         float maxAllowed = eyeHeight * (1f + EyeArmTolerance);
         if (armSpan > maxAllowed)
         {
-            BasisDebug.LogWarning(
-                $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}). " +
-                $"Clamping to max allowed: {maxAllowed}",
-                BasisDebug.LogTag.Avatar
-            );
-            armSpan = maxAllowed;
+            // Do NOT clamp the span down to the eye-implied band: arms cannot over-measure, so a
+            // span far beyond the eye height almost always means the EYE was under-measured
+            // (calibrated while physically seated/slouched with arms out) — clamping here destroyed
+            // the one good measurement, and clamped authored long-armed avatars too. Only reject
+            // spans beyond the caller's absolute plausibility cap.
+            if (armSpan > maxAbsoluteSpan)
+            {
+                BasisDebug.LogWarning(
+                    $"{label} arm span ({armSpan}) exceeds the absolute plausibility cap {maxAbsoluteSpan}. Clamping.",
+                    BasisDebug.LogTag.Avatar
+                );
+                armSpan = maxAbsoluteSpan;
+            }
+            else
+            {
+                BasisDebug.Log(
+                    $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}); " +
+                    "keeping it — the eye height was likely under-measured (seated/slouched capture).",
+                    BasisDebug.LogTag.Avatar
+                );
+            }
         }
     }
 
@@ -262,17 +307,20 @@ public static class BasisLocalHeightCalculator
             ref BasisHeightDriver.PlayerEyeHeight,
             ref BasisHeightDriver.PlayerArmSpan,
             BasisHeightDriver.FallbackHeightInMeters,
-            "Player"
+            "Player",
+            BasisHeightDriver.MaxPlausibleBodyMeasure
         );
     }
 
     public static void ValidateEyeToArmSizesAvatar()
     {
+        // Avatar spans are authored geometry — arbitrarily long arms are legitimate, so no cap.
         ValidateEyeToArm(
             ref BasisHeightDriver.AvatarEyeHeight,
             ref BasisHeightDriver.AvatarArmSpan,
             BasisHeightDriver.FallbackHeightInMeters,
-            "Avatar"
+            "Avatar",
+            float.MaxValue
         );
     }
 }

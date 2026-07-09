@@ -100,8 +100,8 @@ namespace Basis.BasisUI
             scalingModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikMode"));
             scalingModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikMode.tooltip"));
             scalingModeDropdown.AssignLocalizedEntries(
-                new List<string> { "Eye Height", "Arm Distance" },
-                new List<string> { "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
+                new List<string> { "Auto", "Eye Height", "Arm Distance" },
+                new List<string> { "settings.bodyTracking.ikMode.auto", "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
             scalingModeDropdown.AssignBinding(BasisSettingsDefaults.IKMode);
 
             var spineLockModeDropdown = PanelDropdown.CreateNewEntry(container);
@@ -274,6 +274,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableStandingEyeHeightCorrection.ResetToDefault();
             BasisSettingsDefaults.EnableStandingHeightNudge.ResetToDefault();
             BasisSettingsDefaults.AdditionalPlayerHeight.ResetToDefault();
+            // Forget the persisted body size so the next boot (and this session) starts from a true
+            // uncalibrated state instead of re-seeding the old measurements.
+            BasisSettingsDefaults.SavedPlayerEyeHeight.ResetToDefault();
+            BasisSettingsDefaults.SavedPlayerArmSpan.ResetToDefault();
+            BasisHeightDriver.HasGenuinePlayerEyeHeight = false;
             BasisHeightDriver.HasUserCalibratedHeight = false;
             BasisAutoScaleEstimator.Reset();
             BasisHeightDriver.ApplyScaleAndHeight();
@@ -353,11 +358,20 @@ namespace Basis.BasisUI
                 // Standard single-pose calibration — clear any stale pitch data
                 _pitchStep = PitchCalibrationStep.None;
                 BasisHeightDriver.HasPitchCalibratedHeight = false;
-                Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrating"));
+                Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
                 localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
                 BasisCalibrationLockInVisualizer.Begin();
                 SubscribeToTriggers();
             }
+        }
+
+        // The wait-for-confirmation label must say HOW to confirm: VR completes by pulling both
+        // triggers (matching the pitch-step labels), desktop by clicking the button again.
+        private static string GetAwaitConfirmTitle()
+        {
+            return BasisLocalization.Get(BasisDeviceManagement.IsUserInDesktop()
+                ? "calibration.clickToConfirm"
+                : "calibration.pullTriggers");
         }
 
         private void SubscribeToTriggers()
@@ -531,7 +545,7 @@ namespace Basis.BasisUI
         private void StartStandardCalibration()
         {
             _pitchStep = PitchCalibrationStep.None;
-            Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrating"));
+            Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
             BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
             BasisCalibrationLockInVisualizer.Begin();
             // Reset trigger state so they need to press again for final calibration

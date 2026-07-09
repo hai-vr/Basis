@@ -22,6 +22,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     public static bool UseHintOffsets = false;
     public static bool UseFootPlacement = false;
     public static bool UseInteractionHover = false;
+    public static bool UseFingerTouchGizmo = false;
     public static bool UseSeatTargets = false;
 
     // Single shared switch for billboarded text labels on every gizmo system
@@ -59,6 +60,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_HINT_OFFSETS => BasisSettingsDefaults.GizmoHintOffsets.BindingKey;
     private static string K_GIZMO_FOOT_PLACEMENT => BasisSettingsDefaults.GizmoFootPlacement.BindingKey;
     private static string K_GIZMO_INTERACTION_HOVER => BasisSettingsDefaults.GizmoInteractionHover.BindingKey;
+    private static string K_GIZMO_FINGER_TOUCH => BasisSettingsDefaults.GizmoFingerTouch.BindingKey;
     private static string K_GIZMO_SEAT_TARGETS => BasisSettingsDefaults.GizmoSeatTargets.BindingKey;
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
@@ -231,6 +233,16 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
+        if (matchedSettingName == K_GIZMO_FINGER_TOUCH)
+        {
+            if (bool.TryParse(optionValue, out UseFingerTouchGizmo) && !UseFingerTouchGizmo)
+            {
+                BasisDirectTouch.GizmoShutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
         if (matchedSettingName == K_GIZMO_SEAT_TARGETS)
         {
             bool.TryParse(optionValue, out UseSeatTargets);
@@ -332,6 +344,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             UseHintOffsets ||
             UseFootPlacement ||
             UseInteractionHover ||
+            UseFingerTouchGizmo ||
             UseSeatTargets ||
             BasisAudioGizmos.ShowRanges ||
             BasisAudioGizmos.ShowListenerCone ||
@@ -515,6 +528,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
 
         BasisHintOffsetGizmos.Tick(UseHintOffsets, UseGizmoLabels, _camPos);
         BasisPlayerInteract.UpdateHoverGizmos(UseInteractionHover);
+        BasisDirectTouch.UpdateGizmos(UseFingerTouchGizmo);
         BasisPointerRayGizmos.Tick(scale);
 
         BasisLocalPlayer localPlayer = BasisLocalPlayer.Instance;

@@ -42,13 +42,13 @@ namespace Basis.OpenXR
 
         static void OnSettingChanged(bool value)
         {
-            Debug.Log($"{Tag} Setting changed -> {value}");
+            BasisDebug.Log($"{Tag} Setting changed -> {value}", BasisDebug.LogTag.Device);
             Apply();
         }
 
         static void OnBootModeChanged(string mode)
         {
-            Debug.Log($"{Tag} Boot mode changed -> {mode}");
+            BasisDebug.Log($"{Tag} Boot mode changed -> {mode}", BasisDebug.LogTag.Device);
             Apply();
         }
 
@@ -56,7 +56,7 @@ namespace Basis.OpenXR
         {
             if (s_DesiredActive)
             {
-                Debug.Log($"{Tag} Scene loaded while active — recapturing world visuals and re-applying passthrough clear.");
+                BasisDebug.Log($"{Tag} Scene loaded while active — recapturing world visuals and re-applying passthrough clear.", BasisDebug.LogTag.Device);
                 s_Saved = false;
                 ApplyVisuals(true);
             }
@@ -64,13 +64,13 @@ namespace Basis.OpenXR
 
         public static void NotifyRuntimeReady()
         {
-            Debug.Log($"{Tag} Runtime ready (IsSupported={BasisPassthroughFeature.IsSupported}).");
+            BasisDebug.Log($"{Tag} Runtime ready (IsSupported={BasisPassthroughFeature.IsSupported}).", BasisDebug.LogTag.Device);
             Apply();
         }
 
         public static void NotifyRuntimeLost()
         {
-            Debug.Log($"{Tag} Runtime lost — restoring world visuals.");
+            BasisDebug.Log($"{Tag} Runtime lost — restoring world visuals.", BasisDebug.LogTag.Device);
             s_DesiredActive = false;
             ApplyVisuals(false);
         }
@@ -83,7 +83,7 @@ namespace Basis.OpenXR
             bool supported = BasisPassthroughFeature.IsSupported;
             bool want = setting && mobile && vr && supported;
 
-            Debug.Log($"{Tag} Apply: setting={setting} mobile={mobile} vr={vr} supported={supported} -> want={want}");
+            BasisDebug.Log($"{Tag} Apply: setting={setting} mobile={mobile} vr={vr} supported={supported} -> want={want}", BasisDebug.LogTag.Device);
 
             s_DesiredActive = want;
             BasisPassthroughFeature.SetActive(want);
@@ -94,7 +94,7 @@ namespace Basis.OpenXR
         {
             if (!BasisLocalCameraDriver.HasInstance)
             {
-                Debug.Log($"{Tag} ApplyVisuals({on}) skipped — camera not ready yet (will re-apply on scene load).");
+                BasisDebug.Log($"{Tag} ApplyVisuals({on}) skipped — camera not ready yet (will re-apply on scene load).", BasisDebug.LogTag.Device);
                 return;
             }
             Camera cam = BasisLocalCameraDriver.Instance.Camera;
@@ -121,7 +121,7 @@ namespace Basis.OpenXR
                     camSky.material = null;
                 }
                 RenderSettings.skybox = null;
-                Debug.Log($"{Tag} Visuals ON — clear=SolidColor(a=0), skybox removed.");
+                BasisDebug.Log($"{Tag} Visuals ON — clear=SolidColor(a=0), skybox removed.", BasisDebug.LogTag.Device);
             }
             else if (s_Saved)
             {
@@ -133,7 +133,7 @@ namespace Basis.OpenXR
                 }
                 RenderSettings.skybox = s_SavedRenderSky;
                 s_Saved = false;
-                Debug.Log($"{Tag} Visuals OFF — restored clear/skybox.");
+                BasisDebug.Log($"{Tag} Visuals OFF — restored clear/skybox.", BasisDebug.LogTag.Device);
             }
         }
     }

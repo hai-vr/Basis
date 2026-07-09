@@ -65,8 +65,14 @@ namespace Basis.BasisUI
         private bool _hasLocalMoveEvent;
 
         private const float MIN_Z_SCALE = 0.01f;
-        // MIN_TMP_RENDER_SCALE is empirical: TMP rendered block glyphs on the main menu below roughly 0.05328 world scale during OSC tiny-avatar testing.
-        private const float MIN_TMP_RENDER_SCALE = 0.055f;
+        // Degenerate-value guard ONLY — deliberately far below any playable avatar scale. The old
+        // 0.055 floor (empirical TMP block-glyph limit before the atlas was mipmapped —
+        // BasisTMPAtlasMipmapBaker) rendered the menu 5.5x OVERSIZED and 5.5x TOO FAR at 0.01 avatar
+        // scale (anchor distance scales by the floored root too), while the hand/camera/raycast were
+        // true-scale: the ray hit the right targets but the pointer swept the panel at a 5.5x
+        // mismatched rate ("moving left and right but scaled by something"). The menu must stay
+        // proportional to the avatar; tiny-scale text legibility is the mipmapped atlas' job.
+        public const float MIN_TMP_RENDER_SCALE = 0.005f;
 
         // --- PlaySpaceStable state (from v1) ---
         private bool _stableHasAnchor;
@@ -147,6 +153,19 @@ namespace Basis.BasisUI
         {
             if (change == BasisHeightDriver.HeightModeChange.OnTpose)
             {
+                return;
+            }
+
+            if (change == BasisHeightDriver.HeightModeChange.OnSitStandChanged)
+            {
+                // Sit/stand teleports the eye vertically: the play-space-stable anchor is now at the
+                // wrong height. Do NOT re-anchor synchronously here — this callback drains early in
+                // the frame, BEFORE the device poll that applies the new vertical offset, so capturing
+                // now anchors at the PRE-lift camera and the menu never moves on Y. Drop the anchor
+                // instead: the per-frame UpdateUILocation (AfterSimulateOnLate, post-poll) recaptures
+                // at the post-lift camera the same frame; a closed menu recaptures on open.
+                _stableHasAnchor = false;
+                ApplyScaleOnly();
                 return;
             }
 
@@ -294,7 +313,7 @@ namespace Basis.BasisUI
             transform.localScale = Vector3.one * GetRenderSafeMenuScale(BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
         }
 
-        private static float GetRenderSafeMenuScale(float avatarRelativeScale)
+        public static float GetRenderSafeMenuScale(float avatarRelativeScale)
         {
             if (float.IsNaN(avatarRelativeScale) || float.IsInfinity(avatarRelativeScale) || avatarRelativeScale <= 0f)
             {

@@ -1,3 +1,5 @@
+using Basis.BasisUI;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -21,16 +23,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
     public class BasisDirectTouch
     {
         // ── Geometry ────────────────────────────────────────────────────
-        [Tooltip("Fallback offset when avatar has no index finger bones")]
+        // User-tunable via BasisSettingsDefaults (VR Finger Touch settings);
+        // refreshed from the bindings once per Poll. Values here are the
+        // compiled-in fallbacks used before the first refresh.
+        [Tooltip("Fallback offset when avatar has no finger bones")]
         public static float FingerLength = 0.1f;
         [Tooltip("Extra offset past the distal bone to approximate the actual fingertip")]
         public static float DistalTipOffset = 0.015f;
-        public static float FingerRadius = 0.015f;
+        public static float FingerRadius = 0.00375f;
 
         // ── Thresholds ─────────────────────────────────────────────────
         public static float HoverDistance = 0.04f;
         public static float PressDepth = 0.01f;
         public static float ReleaseDistance = 0.025f;
+        [Tooltip("Touch is disabled while the touch finger's curl is below this (extended ≈ 0.75, fist ≈ -1)")]
+        public static float FistCurlThreshold = 0f;
 
         // ── Scroll ─────────────────────────────────────────────────────
         public static float ScrollSensitivity = 800f;
@@ -60,6 +67,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private readonly FingerTouchState[] _hand = new FingerTouchState[2];
         private BasisInput _leftInput;
         private BasisInput _rightInput;
+        private bool _leftHandBusy;
+        private bool _rightHandBusy;
 
         private enum TouchPhase : byte { None, Hovering, Pressing }
 
@@ -131,29 +140,74 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public void Poll(BasisInteractInput[] interactInputs)
         {
-            if (BasisDeviceManagement.IsUserInDesktop()) { ClearAll(); return; }
+            if (BasisDeviceManagement.IsUserInDesktop()) { ClearAll(); TickGizmos(); return; }
+            if (BasisSettingsDefaults.DisableVRFingerTouch.RawValue) { ClearAll(); TickGizmos(); return; }
             if (interactInputs == null) return;
             if (EventSystem.current == null) return;
 
+            RefreshTuning();
             ResolveHands(interactInputs);
 
-            if (_leftInput  != null) ProcessTouch(_hand[0], _leftInput);
-            if (_rightInput != null) ProcessTouch(_hand[1], _rightInput);
+            if (_leftInput != null)
+            {
+                if (!_leftHandBusy && IsFingerExtended(true)) ProcessTouch(_hand[0], _leftInput);
+                else if (_hand[0].Phase != TouchPhase.None) EndTouch(_hand[0], _leftInput);
+            }
+            if (_rightInput != null)
+            {
+                if (!_rightHandBusy && IsFingerExtended(false)) ProcessTouch(_hand[1], _rightInput);
+                else if (_hand[1].Phase != TouchPhase.None) EndTouch(_hand[1], _rightInput);
+            }
+
+            TickGizmos();
+        }
+
+        /// <summary>
+        /// Pulls the user-tunable values from settings once per frame.
+        /// Threshold ordering is enforced here (press &lt; release &lt; hover)
+        /// so bad slider combinations can't wedge the state machine into a
+        /// press/release oscillation loop.
+        /// </summary>
+        private static void RefreshTuning()
+        {
+            float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            FingerLength = BasisSettingsDefaults.FingerTouchFingerLength.RawValue * scale;
+            DistalTipOffset = BasisSettingsDefaults.FingerTouchTipOffset.RawValue * scale;
+            FingerRadius = BasisSettingsDefaults.FingerTouchRadius.RawValue * scale;
+            ScrollSensitivity = BasisSettingsDefaults.FingerTouchScrollSensitivity.RawValue;
+
+            PressDepth = BasisSettingsDefaults.FingerTouchPressDepth.RawValue * scale;
+            ReleaseDistance = Mathf.Max(BasisSettingsDefaults.FingerTouchReleaseDistance.RawValue * scale, PressDepth + 0.005f * scale);
+            HoverDistance = Mathf.Max(BasisSettingsDefaults.FingerTouchHoverDistance.RawValue * scale, ReleaseDistance + 0.005f * scale);
         }
 
         private void ResolveHands(BasisInteractInput[] inputs)
         {
             BasisInput newL = null, newR = null;
+            string hands = BasisSettingsDefaults.FingerTouchHands.RawValue;
+            bool allowLeft = hands != BasisSettingsDefaults.FingerTouchHands_Right;
+            bool allowRight = hands != BasisSettingsDefaults.FingerTouchHands_Left;
             int len = inputs.Length;
 
+            bool busyL = false, busyR = false;
             for (int i = 0; i < len; i++)
             {
                 BasisInput inp = inputs[i].input;
                 if (inp == null || !inp.HasControl) continue;
                 if (!inp.TryGetRole(out BasisBoneTrackedRole role)) continue;
-                if (role == BasisBoneTrackedRole.LeftHand)       newL = inp;
-                else if (role == BasisBoneTrackedRole.RightHand) newR = inp;
+                if (allowLeft && role == BasisBoneTrackedRole.LeftHand)
+                {
+                    newL = inp;
+                    busyL = IsHandBusy(inputs[i], inp);
+                }
+                else if (allowRight && role == BasisBoneTrackedRole.RightHand)
+                {
+                    newR = inp;
+                    busyR = IsHandBusy(inputs[i], inp);
+                }
             }
+            _leftHandBusy = busyL;
+            _rightHandBusy = busyR;
 
             if (newL != _leftInput)
             {
@@ -165,6 +219,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 if (_hand[1].Phase != TouchPhase.None) CleanupState(_hand[1]);
                 _rightInput = newR;
             }
+        }
+
+        /// <summary>
+        /// True while the hand is holding an interactable, or its fingertip
+        /// is within touch range of the interactable it is hovering — either
+        /// means grab intent, so direct touch is suppressed for that hand.
+        /// </summary>
+        private static bool IsHandBusy(BasisInteractInput interactInput, BasisInput input)
+        {
+            BasisInteractableObject target = interactInput.lastTarget;
+            if (target == null) return false;
+            if (target.IsInteractingWith(input)) return true;
+            if (!target.IsHoveredBy(input)) return false;
+            Vector3 tip = GetFingertip(input);
+            return Vector3.Distance(target.GetClosestPoint(tip), tip) <= FingerRadius + HoverDistance;
         }
 
         private void ClearAll()
@@ -182,39 +251,111 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         /// <summary>
         /// Returns the world-space fingertip position for a hand input.
-        /// Prefers the avatar's index-finger distal bone (+ small tip offset)
-        /// when available; falls back to hand position + forward * FingerLength.
+        /// Prefers the distal bone of the finger chosen in settings (+ small
+        /// tip offset) when available; falls back to hand position + forward
+        /// * FingerLength.
         /// </summary>
         private static Vector3 GetFingertip(BasisInput input)
         {
             BasisTransformMapping map = BasisLocalAvatarDriver.Mapping;
-            if (map != null && input.TryGetRole(out BasisBoneTrackedRole role))
+            if (map != null && input.TryGetRole(out BasisBoneTrackedRole role)
+                && (role == BasisBoneTrackedRole.LeftHand || role == BasisBoneTrackedRole.RightHand))
             {
-                Transform distal = null;
-                bool has = false;
-
-                if (role == BasisBoneTrackedRole.LeftHand)
-                {
-                    has = map.HasLeftIndex[2];
-                    distal = map.LeftIndex[2];
-                }
-                else if (role == BasisBoneTrackedRole.RightHand)
-                {
-                    has = map.HasRightIndex[2];
-                    distal = map.RightIndex[2];
-                }
-
-                if (has && distal != null)
+                bool isLeft = role == BasisBoneTrackedRole.LeftHand;
+                if (TryGetTouchFingerBones(map, isLeft, out Transform distal, out Transform intermediate))
                 {
                     // The distal bone is the last joint; the actual tip
-                    // extends a little further along the bone's forward.
-                    return distal.position + distal.forward * DistalTipOffset;
+                    // extends a little further along the finger.
+                    Vector3 tip = distal.position;
+                    Vector3 along = intermediate != null ? tip - intermediate.position : distal.forward;
+                    if (along.sqrMagnitude > 1e-10f)
+                        tip += along.normalized * DistalTipOffset;
+                    return tip;
                 }
             }
 
             // Fallback: offset from hand along the pointing direction
             return input.RaycastCoord.position
                  + input.RaycastCoord.rotation * (Vector3.forward * FingerLength);
+        }
+
+        /// <summary>
+        /// Resolves the distal and intermediate bones of the finger selected
+        /// in settings, degrading to the index finger when the avatar is
+        /// missing the chosen finger's bones.
+        /// </summary>
+        private static bool TryGetTouchFingerBones(BasisTransformMapping map, bool isLeft, out Transform distal, out Transform intermediate)
+        {
+            bool has;
+            switch (BasisSettingsDefaults.FingerTouchFinger.RawValue)
+            {
+                case BasisSettingsDefaults.FingerTouchFinger_Thumb:
+                    has = isLeft ? map.HasLeftThumb[2] : map.HasRightThumb[2];
+                    distal = isLeft ? map.LeftThumb[2] : map.RightThumb[2];
+                    intermediate = isLeft ? map.LeftThumb[1] : map.RightThumb[1];
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Middle:
+                    has = isLeft ? map.HasLeftMiddle[2] : map.HasRightMiddle[2];
+                    distal = isLeft ? map.LeftMiddle[2] : map.RightMiddle[2];
+                    intermediate = isLeft ? map.LeftMiddle[1] : map.RightMiddle[1];
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Ring:
+                    has = isLeft ? map.HasLeftRing[2] : map.HasRightRing[2];
+                    distal = isLeft ? map.LeftRing[2] : map.RightRing[2];
+                    intermediate = isLeft ? map.LeftRing[1] : map.RightRing[1];
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Little:
+                    has = isLeft ? map.HasLeftLittle[2] : map.HasRightLittle[2];
+                    distal = isLeft ? map.LeftLittle[2] : map.RightLittle[2];
+                    intermediate = isLeft ? map.LeftLittle[1] : map.RightLittle[1];
+                    break;
+                default:
+                    has = false;
+                    distal = null;
+                    intermediate = null;
+                    break;
+            }
+
+            if (!has || distal == null)
+            {
+                has = isLeft ? map.HasLeftIndex[2] : map.HasRightIndex[2];
+                distal = isLeft ? map.LeftIndex[2] : map.RightIndex[2];
+                intermediate = isLeft ? map.LeftIndex[1] : map.RightIndex[1];
+            }
+            return has && distal != null;
+        }
+
+        /// <summary>
+        /// True when the touch finger is extended enough to signal press
+        /// intent; curled toward a fist disables direct touch entirely.
+        /// </summary>
+        private static bool IsFingerExtended(bool isLeft)
+        {
+            BasisLocalPlayer player = BasisLocalPlayer.Instance;
+            if (player == null || player.LocalHandDriver == null) return true;
+            BasisFingerPose pose = isLeft ? player.LocalHandDriver.LeftHand : player.LocalHandDriver.RightHand;
+            if (pose == null) return true;
+
+            float curl;
+            switch (BasisSettingsDefaults.FingerTouchFinger.RawValue)
+            {
+                case BasisSettingsDefaults.FingerTouchFinger_Thumb:
+                    curl = pose.ThumbPercentage.x;
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Middle:
+                    curl = pose.MiddlePercentage.x;
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Ring:
+                    curl = pose.RingPercentage.x;
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Little:
+                    curl = pose.LittlePercentage.x;
+                    break;
+                default:
+                    curl = pose.IndexPercentage.x;
+                    break;
+            }
+            return curl >= FistCurlThreshold;
         }
 
         // ================================================================
@@ -247,11 +388,23 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (best == null) { if (st.Phase != TouchPhase.None) EndTouch(st, input); return; }
 
             RectTransform rt = best.GetComponent<RectTransform>();
-            Vector3 fwd = rt.forward;
+            Vector3 fwd = CanvasFrontNormal(best, rt);
             Plane plane = new Plane(fwd, rt.position);
             float sd = plane.GetDistanceToPoint(tip);
             st.SignedDist = sd;
             st.Plane = plane;
+
+            // The finger only counts as pressing from the canvas' front when
+            // the hand itself is on the front (+forward) side — a fingertip
+            // that pierced in from the back must not hover or press.
+            Vector3 handPos = input.HasControl && input.Control != null
+                ? input.Control.OutgoingWorldData.position
+                : input.RaycastCoord.position;
+            if (plane.GetDistanceToPoint(handPos) <= 0f)
+            {
+                if (st.Phase != TouchPhase.None) EndTouch(st, input);
+                return;
+            }
 
             Vector3 proj = tip - fwd * sd;
 
@@ -291,6 +444,29 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         UpdatePress(st, proj, cam);
                     break;
             }
+        }
+
+        /// <summary>
+        /// World-space normal of the canvas' readable/pressable face,
+        /// pointing toward where a viewer would stand. UI meshes read
+        /// correctly from the side their graphics' forward points away
+        /// from (Unity's ignoreReversedGraphics rule), and canvases in the
+        /// wild are authored facing either way relative to their root. A
+        /// majority vote over the first few graphics decides, snapped to
+        /// ±root forward so a tilted decoration can't skew the plane.
+        /// </summary>
+        private static Vector3 CanvasFrontNormal(Canvas canvas, RectTransform rt)
+        {
+            var graphics = GraphicRegistry.GetGraphicsForCanvas(canvas);
+            int count = Mathf.Min(graphics.Count, 8);
+            if (count == 0) return rt.forward;
+
+            Vector3 rootFwd = rt.forward;
+            int aligned = 0;
+            for (int i = 0; i < count; i++)
+                if (Vector3.Dot(graphics[i].transform.forward, rootFwd) >= 0f) aligned++;
+
+            return aligned * 2 >= count ? -rootFwd : rootFwd;
         }
 
         // ================================================================
@@ -334,7 +510,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             EnsureEventData(st);
             WriteEventData(st, surf, cam);
             EmitEnter(st, target);
-            input.PlayHaptic(HoverHapticDuration, HoverHapticAmplitude, HoverHapticFrequency);
+            PlayTouchHaptic(input, HoverHapticDuration, HoverHapticAmplitude, HoverHapticFrequency);
         }
 
         private void UpdateHover(FingerTouchState st, GameObject target,
@@ -386,7 +562,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 ExecuteEvents.Execute(drag, ed, ExecuteEvents.initializePotentialDrag);
 
             st.PrevSurface = surf;
-            input.PlayHaptic(PressHapticDuration, PressHapticAmplitude, PressHapticFrequency);
+            PlayTouchHaptic(input, PressHapticDuration, PressHapticAmplitude, PressHapticFrequency);
         }
 
         private void UpdatePress(FingerTouchState st, Vector3 surf, Camera cam)
@@ -446,7 +622,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 if (ch == ed.pointerPress)
                 {
                     ExecuteEvents.Execute(ed.pointerPress, ed, ExecuteEvents.pointerClickHandler);
-                    input.PlayHaptic(ClickHapticDuration, ClickHapticAmplitude, ClickHapticFrequency);
+                    PlayTouchHaptic(input, ClickHapticDuration, ClickHapticAmplitude, ClickHapticFrequency);
                 }
             }
 
@@ -458,6 +634,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
             ed.rawPointerPress = null;
             ed.dragging = false;
             ed.pointerDrag = null;
+        }
+
+        private static void PlayTouchHaptic(BasisInput input, float duration, float amplitude, float frequency)
+        {
+            if (!BasisSettingsDefaults.FingerTouchHaptics.RawValue) return;
+            input.PlayHaptic(duration, amplitude, frequency);
         }
 
         private void EndTouch(FingerTouchState st, BasisInput input)
@@ -525,6 +707,132 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     ExecuteEvents.Execute(st.Hovered[i], st.EventData, ExecuteEvents.pointerExitHandler);
             st.ClearHovered();
             if (st.EventData != null) st.EventData.pointerEnter = null;
+        }
+
+        // ================================================================
+        // Gizmos  (ticked by SMModuleDebugOptions)
+        // ================================================================
+
+        // Fingertip touch-sphere visualization for tuning the finger-touch
+        // settings: one sphere per hand at the live touch point, sized to the
+        // configured touch radius and tinted by phase.
+        private static readonly Color GizmoIdleColor = Color.gray;
+        private static readonly Color GizmoHoverColor = Color.yellow;
+        private static readonly Color GizmoPressColor = Color.green;
+        private static readonly Color GizmoDisabledColor = Color.red;
+
+        private struct FingerGizmo
+        {
+            public int Sphere;
+            public TouchPhase Phase;
+            public bool Suppressed;
+        }
+
+        private static readonly FingerGizmo[] _fingerGizmos = new FingerGizmo[2];
+        private static bool _gizmoHooked;
+
+        private static bool _gizmosEnabled;
+
+        public static void UpdateGizmos(bool show)
+        {
+            EnsureGizmoHook();
+            _gizmosEnabled = show;
+            if (!show || Instance == null)
+            {
+                GizmoShutdown();
+            }
+        }
+
+        // Positions are written from Poll (after IK) so the spheres don't
+        // trail the hands by a frame while the player moves.
+        private void TickGizmos()
+        {
+            if (!_gizmosEnabled) return;
+            UpdateHandGizmo(0, _leftInput, _hand[0].Phase, _leftHandBusy);
+            UpdateHandGizmo(1, _rightInput, _hand[1].Phase, _rightHandBusy);
+        }
+
+        private static void UpdateHandGizmo(int slot, BasisInput input, TouchPhase phase, bool busy)
+        {
+            FingerGizmo g = _fingerGizmos[slot];
+
+            if (input == null)
+            {
+                if (g.Sphere > 0)
+                {
+                    BasisGizmoManager.DestroyGizmo(g.Sphere);
+                    _fingerGizmos[slot] = default;
+                }
+                return;
+            }
+
+            bool suppressed = busy || !IsFingerExtended(slot == 0);
+
+            // Sphere color is fixed at creation — recreate when the phase or suppression changes.
+            if (g.Sphere > 0 && (g.Phase != phase || g.Suppressed != suppressed))
+            {
+                BasisGizmoManager.DestroyGizmo(g.Sphere);
+                g.Sphere = 0;
+            }
+
+            Vector3 tip = GetFingertip(input);
+            // Unit-sphere mesh: scale equals diameter.
+            float diameter = FingerRadius * 2f;
+
+            if (g.Sphere <= 0)
+            {
+                Color color = suppressed ? GizmoDisabledColor
+                            : phase == TouchPhase.Pressing ? GizmoPressColor
+                            : phase == TouchPhase.Hovering ? GizmoHoverColor
+                            : GizmoIdleColor;
+                if (!BasisGizmoManager.CreateSphereGizmo(slot == 0 ? "FingerTouchLeft" : "FingerTouchRight", out g.Sphere, tip, diameter, color))
+                {
+                    return;
+                }
+                g.Phase = phase;
+                g.Suppressed = suppressed;
+            }
+            else
+            {
+                BasisGizmoManager.UpdateSphereGizmo(g.Sphere, tip, Vector3.one * diameter);
+            }
+
+            _fingerGizmos[slot] = g;
+        }
+
+        public static void GizmoShutdown()
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                if (_fingerGizmos[i].Sphere > 0)
+                {
+                    BasisGizmoManager.DestroyGizmo(_fingerGizmos[i].Sphere);
+                }
+                _fingerGizmos[i] = default;
+            }
+        }
+
+        private static void EnsureGizmoHook()
+        {
+            if (_gizmoHooked)
+            {
+                return;
+            }
+            BasisGizmoManager.OnUseGizmosChanged += OnGizmoMasterToggleChanged;
+            _gizmoHooked = true;
+        }
+
+        // Master toggle going off destroys BasisGizmoManager's dictionaries, so our
+        // cached IDs are stale — forget them so the next tick re-creates cleanly.
+        private static void OnGizmoMasterToggleChanged(bool state)
+        {
+            if (!state)
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    _fingerGizmos[i] = default;
+                }
+            }
         }
     }
 }

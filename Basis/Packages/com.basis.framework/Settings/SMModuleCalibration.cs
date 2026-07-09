@@ -9,7 +9,7 @@ using UnityEngine.Animations.Rigging;
 
 public class SMModuleCalibration : BasisSettingsBase
 {
-    public static BasisSelectedHeightMode HeightMode = BasisSelectedHeightMode.EyeHeight;
+    public static BasisSelectedHeightMode HeightMode = BasisSelectedHeightMode.Auto;
     public static BasisIKLockMode CurrentIKLockMode = BasisIKLockMode.LockBoth;
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
@@ -225,6 +225,13 @@ public class SMModuleCalibration : BasisSettingsBase
                         case "arm distance":
                             BasisDebug.Log($"Height Mode Set To {optionValue}");
                             HeightMode = BasisDeviceManagement.IsUserInDesktop() ? BasisSelectedHeightMode.EyeHeight : BasisSelectedHeightMode.ArmSpan;
+                            break;
+
+                        case "auto":
+                            BasisDebug.Log($"Height Mode Set To {optionValue}");
+                            // Stored as Auto; BasisHeightDriver.ResolveHeightMode picks the concrete
+                            // metric pair per avatar (and forces EyeHeight on desktop).
+                            HeightMode = BasisSelectedHeightMode.Auto;
                             break;
                     }
 
