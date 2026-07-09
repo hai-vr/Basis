@@ -388,7 +388,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (best == null) { if (st.Phase != TouchPhase.None) EndTouch(st, input); return; }
 
             RectTransform rt = best.GetComponent<RectTransform>();
-            Vector3 fwd = rt.forward;
+            Vector3 fwd = CanvasFrontNormal(best, rt);
             Plane plane = new Plane(fwd, rt.position);
             float sd = plane.GetDistanceToPoint(tip);
             st.SignedDist = sd;
@@ -444,6 +444,29 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         UpdatePress(st, proj, cam);
                     break;
             }
+        }
+
+        /// <summary>
+        /// World-space normal of the canvas' readable/pressable face,
+        /// pointing toward where a viewer would stand. UI meshes read
+        /// correctly from the side their graphics' forward points away
+        /// from (Unity's ignoreReversedGraphics rule), and canvases in the
+        /// wild are authored facing either way relative to their root. A
+        /// majority vote over the first few graphics decides, snapped to
+        /// ±root forward so a tilted decoration can't skew the plane.
+        /// </summary>
+        private static Vector3 CanvasFrontNormal(Canvas canvas, RectTransform rt)
+        {
+            var graphics = GraphicRegistry.GetGraphicsForCanvas(canvas);
+            int count = Mathf.Min(graphics.Count, 8);
+            if (count == 0) return rt.forward;
+
+            Vector3 rootFwd = rt.forward;
+            int aligned = 0;
+            for (int i = 0; i < count; i++)
+                if (Vector3.Dot(graphics[i].transform.forward, rootFwd) >= 0f) aligned++;
+
+            return aligned * 2 >= count ? -rootFwd : rootFwd;
         }
 
         // ================================================================
