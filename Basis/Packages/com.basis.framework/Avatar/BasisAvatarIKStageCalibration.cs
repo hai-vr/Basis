@@ -143,13 +143,24 @@ namespace Basis.Scripts.Avatar
                 // Avatar still goes into T-pose because ComputeHints reads chest/hips reference
                 // rotations from it. The classifier itself doesn't touch the avatar.
                 BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
-                BasisLocalPlayer.Instance.DriveTpose();
 
                 // PutAvatarIntoTPose just re-captured the avatar eye height; recompute height/scale now so
                 // DeviceScale uses it on THIS pass and classification below runs at the final scale. The
                 // OnAvatarFBCalibration() at the top ran against the pre-calibration (often previous-avatar)
                 // height, which left the nudge wrong after one calibration and only settled on a second pass.
                 BasisHeightDriver.ApplyScaleAndHeight();
+
+                // DeviceScale just changed, but every input's ScaledDeviceCoord (and the bone-control
+                // incoming fed from it) was produced by the LAST device poll at the PRE-calibration scale.
+                // CalculateOffset below reads those coords against avatar-bone references at the NEW scale,
+                // so any scale delta this pass baked a proportional position error into every tracker
+                // offset — the "calibrate two or three times until the avatar fits" convergence. Re-derive
+                // the scaled coords from the already-polled unscaled data at the final scale, re-simulate
+                // the bone controls, and only then head-align the T-posed avatar, so DriveTpose, the
+                // classifier's hand reads and the offset capture all see ONE consistent scale frame.
+                RefreshScaledDeviceCoords();
+                BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
+                BasisLocalPlayer.Instance.DriveTpose();
 
                 Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
 
@@ -346,6 +357,27 @@ namespace Basis.Scripts.Avatar
             }
 
             BasisCalibrationDebugRecorder.Meta("ConstellationStatus", ConstellationDebug.Status);
+        }
+
+        // Re-runs the scale-dependent tail of each input's poll (ScaledDeviceCoord + control incoming)
+        // against the current DeviceScale, without device I/O or input events. See FullBodyCalibration.
+        private static void RefreshScaledDeviceCoords()
+        {
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
+            if (devices == null)
+            {
+                return;
+            }
+            int count = devices.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                BasisInput input = devices[Index];
+                if (input == null)
+                {
+                    continue;
+                }
+                input.RefreshScaledDeviceCoordFromLastPoll();
+            }
         }
 
         /// <summary>

@@ -810,6 +810,20 @@ namespace Basis.Scripts.Device_Management.Devices
         }
 
         /// <summary>
+        /// Re-derives <see cref="ScaledDeviceCoord"/> (and the bound control's incoming pose) from the
+        /// most recent poll's <see cref="UnscaledDeviceCoord"/> at the CURRENT scale — the scale-dependent
+        /// tail of the per-frame poll with no device I/O and no input-event processing. Calibration calls
+        /// this right after changing <see cref="BasisHeightDriver.DeviceScale"/> so offset capture never
+        /// reads coords produced at the previous frame's scale. Devices whose scaled pose is not
+        /// UnscaledDeviceCoord × DeviceScale (desktop eye, XR simulate) override with their own mapping.
+        /// </summary>
+        public virtual void RefreshScaledDeviceCoordFromLastPoll()
+        {
+            ConvertToScaledDeviceCoord();
+            ControlOnlyAsDevice();
+        }
+
+        /// <summary>
         /// Writes the device’s scaled pose directly into the bound bone control.
         /// </summary>
         public void ControlOnlyAsDevice()

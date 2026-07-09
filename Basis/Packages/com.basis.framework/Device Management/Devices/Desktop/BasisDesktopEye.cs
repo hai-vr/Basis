@@ -319,6 +319,18 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 UpdateInputEvents(HasPlayerControlSupport: true, hasPlayerRaycastSupport: false); // control raycast
             }
         }
+
+        /// <summary>
+        /// The desktop eye scales its pose by <see cref="BasisHeightDriver.AppliedUpScale"/> rather than
+        /// DeviceScale, so reproduce the poll's own mapping from the last-polled unscaled pose.
+        /// </summary>
+        public override void RefreshScaledDeviceCoordFromLastPoll()
+        {
+            float deviceScale = BasisHeightDriver.AppliedUpScale;
+            ScaledDeviceCoord.rotation = OffsetCoords.rotation * UnscaledDeviceCoord.rotation;
+            ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * (UnscaledDeviceCoord.position * deviceScale));
+            ControlOnlyAsDevice();
+        }
         private void DoRenderRaycast()
         {
             if (!hasRoleAssigned || !IsComputingRaycast)

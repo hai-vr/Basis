@@ -40,6 +40,36 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
         /// turning this on will mean that the positions get scaled relative to the overridden height.
         /// </summary>
         public bool AccountForScale = false;
+
+        /// <summary>
+        /// This device's scaled pose is an avatar-world passthrough of <see cref="FollowMovement"/>,
+        /// not UnscaledDeviceCoord × DeviceScale, so reproduce the poll's own mapping here.
+        /// </summary>
+        public override void RefreshScaledDeviceCoordFromLastPoll()
+        {
+            if (FollowMovement == null)
+            {
+                return;
+            }
+
+            FollowMovement.GetLocalPositionAndRotation(out Vector3 localPos, out Quaternion localRot);
+
+            float avatarScale = BasisHeightDriver.ScaledToMatchValue;
+            if (avatarScale <= 0f) avatarScale = 1f;
+
+            UnscaledDeviceCoord.position = localPos / avatarScale;
+            UnscaledDeviceCoord.rotation = localRot;
+
+            ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * localPos);
+            ScaledDeviceCoord.rotation = OffsetCoords.rotation * localRot;
+
+            if (AccountForScale)
+            {
+                ScaledDeviceCoord.position *= BasisHeightDriver.AvatarToPlayerRatioScaled;
+            }
+
+            ControlOnlyAsDevice();
+        }
         /// <summary>
         /// Polls the simulated device pose (and optional jitter), updates scaled coordinates,
         /// and forwards values to the bound bone control when a role is assigned.
