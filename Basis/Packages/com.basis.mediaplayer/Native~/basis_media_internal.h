@@ -47,10 +47,13 @@ typedef struct basis_media_sink {
                             const uint8_t* extradata, int extradata_len,
                             int width, int height);
 
-    /* One coded video access unit in Annex B form (start-code separated NALUs),
-     * with presentation timestamp in microseconds. key != 0 marks an IDR/keyframe. */
+    /* One coded video access unit in Annex B form (start-code separated NALUs).
+     * pts_us is the presentation timestamp; dts_us the decode timestamp, used
+     * for delivery pacing (composition offsets can put pts_us further ahead
+     * than the pacing lead — a demuxer without decode timestamps passes
+     * pts_us for both). key != 0 marks an IDR/keyframe. */
     void (*on_video_au)(void* user, const uint8_t* annexb, int len,
-                        int64_t pts_us, int key);
+                        int64_t pts_us, int64_t dts_us, int key);
 
     /* Called once when the audio codec/config is first known. For AAC, `asc` is
      * the AudioSpecificConfig (2+ bytes) when available. */
@@ -67,6 +70,17 @@ typedef struct basis_media_sink {
     void (*on_error)(void* user, const char* message);
     void (*on_end_of_stream)(void* user);
 
+    /* Total media duration once the container/playlist reveals one (VOD).
+     * Live sources never call it. May be NULL (standalone harnesses); may fire
+     * again on a reconnect re-parsing the same index. */
+    void (*on_duration)(void* user, int64_t duration_us);
+
+    /* Absolute-seek handshake for on-demand sources. A demuxer that can seek
+     * polls it between samples: returns 1 and writes the target when a request
+     * is pending, 0 otherwise. Each sink hands out a request once. May be NULL
+     * (standalone harnesses, sources that never seek). */
+    int (*take_seek)(void* user, int64_t* out_target_us);
+
     /* Demuxers poll this in their read loops; return 0 to unwind and exit. */
     int (*is_running)(void* user);
 } basis_media_sink_t;
@@ -74,6 +88,12 @@ typedef struct basis_media_sink {
 /* Generic blocking byte source for demuxers that read a continuous stream
  * (MPEG-TS / fMP4 over TCP or HTTP). Returns bytes read, 0 on EOF, <0 on error. */
 typedef int (*basis_read_fn)(void* ctx, uint8_t* buf, int len);
+
+/* Repositions a byte source to an absolute offset (a ranged HTTP refetch).
+ * Returns 0 on success — subsequent reads deliver from `abs_offset`. Called by
+ * a demuxer between its own reads, on its own thread; sources that can't
+ * reposition simply aren't given one (demuxers receive NULL). */
+typedef int (*basis_reseek_fn)(void* ctx, int64_t abs_offset);
 
 /* ---- Platform decode/present backend (windows/ + android/) --------------- */
 
