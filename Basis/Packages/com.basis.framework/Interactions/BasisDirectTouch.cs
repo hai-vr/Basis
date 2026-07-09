@@ -140,8 +140,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public void Poll(BasisInteractInput[] interactInputs)
         {
-            if (BasisDeviceManagement.IsUserInDesktop()) { ClearAll(); return; }
-            if (BasisSettingsDefaults.DisableVRFingerTouch.RawValue) { ClearAll(); return; }
+            if (BasisDeviceManagement.IsUserInDesktop()) { ClearAll(); TickGizmos(); return; }
+            if (BasisSettingsDefaults.DisableVRFingerTouch.RawValue) { ClearAll(); TickGizmos(); return; }
             if (interactInputs == null) return;
             if (EventSystem.current == null) return;
 
@@ -150,14 +150,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (_leftInput != null)
             {
-                if (!_leftHolding && IsFingerExtended(true)) ProcessTouch(_hand[0], _leftInput);
+                if (!_leftHandBusy && IsFingerExtended(true)) ProcessTouch(_hand[0], _leftInput);
                 else if (_hand[0].Phase != TouchPhase.None) EndTouch(_hand[0], _leftInput);
             }
             if (_rightInput != null)
             {
-                if (!_rightHolding && IsFingerExtended(false)) ProcessTouch(_hand[1], _rightInput);
+                if (!_rightHandBusy && IsFingerExtended(false)) ProcessTouch(_hand[1], _rightInput);
                 else if (_hand[1].Phase != TouchPhase.None) EndTouch(_hand[1], _rightInput);
             }
+
+            TickGizmos();
         }
 
         /// <summary>
@@ -168,14 +170,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         private static void RefreshTuning()
         {
-            FingerLength = BasisSettingsDefaults.FingerTouchFingerLength.RawValue;
-            DistalTipOffset = BasisSettingsDefaults.FingerTouchTipOffset.RawValue;
-            FingerRadius = BasisSettingsDefaults.FingerTouchRadius.RawValue;
+            float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            FingerLength = BasisSettingsDefaults.FingerTouchFingerLength.RawValue * scale;
+            DistalTipOffset = BasisSettingsDefaults.FingerTouchTipOffset.RawValue * scale;
+            FingerRadius = BasisSettingsDefaults.FingerTouchRadius.RawValue * scale;
             ScrollSensitivity = BasisSettingsDefaults.FingerTouchScrollSensitivity.RawValue;
 
-            PressDepth = BasisSettingsDefaults.FingerTouchPressDepth.RawValue;
-            ReleaseDistance = Mathf.Max(BasisSettingsDefaults.FingerTouchReleaseDistance.RawValue, PressDepth + 0.005f);
-            HoverDistance = Mathf.Max(BasisSettingsDefaults.FingerTouchHoverDistance.RawValue, ReleaseDistance + 0.005f);
+            PressDepth = BasisSettingsDefaults.FingerTouchPressDepth.RawValue * scale;
+            ReleaseDistance = Mathf.Max(BasisSettingsDefaults.FingerTouchReleaseDistance.RawValue * scale, PressDepth + 0.005f * scale);
+            HoverDistance = Mathf.Max(BasisSettingsDefaults.FingerTouchHoverDistance.RawValue * scale, ReleaseDistance + 0.005f * scale);
         }
 
         private void ResolveHands(BasisInteractInput[] inputs)
@@ -186,7 +189,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             bool allowRight = hands != BasisSettingsDefaults.FingerTouchHands_Left;
             int len = inputs.Length;
 
-            bool holdL = false, holdR = false;
+            bool busyL = false, busyR = false;
             for (int i = 0; i < len; i++)
             {
                 BasisInput inp = inputs[i].input;
@@ -195,16 +198,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 if (allowLeft && role == BasisBoneTrackedRole.LeftHand)
                 {
                     newL = inp;
-                    holdL = inputs[i].lastTarget != null && inputs[i].lastTarget.IsInteractingWith(inp);
+                    busyL = IsHandBusy(inputs[i], inp);
                 }
                 else if (allowRight && role == BasisBoneTrackedRole.RightHand)
                 {
                     newR = inp;
-                    holdR = inputs[i].lastTarget != null && inputs[i].lastTarget.IsInteractingWith(inp);
+                    busyR = IsHandBusy(inputs[i], inp);
                 }
             }
-            _leftHolding = holdL;
-            _rightHolding = holdR;
+            _leftHandBusy = busyL;
+            _rightHandBusy = busyR;
 
             if (newL != _leftInput)
             {
@@ -216,6 +219,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 if (_hand[1].Phase != TouchPhase.None) CleanupState(_hand[1]);
                 _rightInput = newR;
             }
+        }
+
+        /// <summary>
+        /// True while the hand is holding an interactable, or its fingertip
+        /// is within touch range of the interactable it is hovering — either
+        /// means grab intent, so direct touch is suppressed for that hand.
+        /// </summary>
+        private static bool IsHandBusy(BasisInteractInput interactInput, BasisInput input)
+        {
+            BasisInteractableObject target = interactInput.lastTarget;
+            if (target == null) return false;
+            if (target.IsInteractingWith(input)) return true;
+            if (!target.IsHoveredBy(input)) return false;
+            Vector3 tip = GetFingertip(input);
+            return Vector3.Distance(target.GetClosestPoint(tip), tip) <= FingerRadius + HoverDistance;
         }
 
         private void ClearAll()
@@ -678,22 +696,28 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private static readonly FingerGizmo[] _fingerGizmos = new FingerGizmo[2];
         private static bool _gizmoHooked;
 
+        private static bool _gizmosEnabled;
+
         public static void UpdateGizmos(bool show)
         {
             EnsureGizmoHook();
-
-            BasisDirectTouch dt = Instance;
-            if (!show || dt == null)
+            _gizmosEnabled = show;
+            if (!show || Instance == null)
             {
                 GizmoShutdown();
-                return;
             }
-
-            UpdateHandGizmo(0, dt._leftInput, dt._hand[0].Phase, dt._leftHolding);
-            UpdateHandGizmo(1, dt._rightInput, dt._hand[1].Phase, dt._rightHolding);
         }
 
-        private static void UpdateHandGizmo(int slot, BasisInput input, TouchPhase phase, bool holding)
+        // Positions are written from Poll (after IK) so the spheres don't
+        // trail the hands by a frame while the player moves.
+        private void TickGizmos()
+        {
+            if (!_gizmosEnabled) return;
+            UpdateHandGizmo(0, _leftInput, _hand[0].Phase, _leftHandBusy);
+            UpdateHandGizmo(1, _rightInput, _hand[1].Phase, _rightHandBusy);
+        }
+
+        private static void UpdateHandGizmo(int slot, BasisInput input, TouchPhase phase, bool busy)
         {
             FingerGizmo g = _fingerGizmos[slot];
 
@@ -707,7 +731,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
-            bool suppressed = holding || !IsFingerExtended(slot == 0);
+            bool suppressed = busy || !IsFingerExtended(slot == 0);
 
             // Sphere color is fixed at creation — recreate when the phase or suppression changes.
             if (g.Sphere > 0 && (g.Phase != phase || g.Suppressed != suppressed))

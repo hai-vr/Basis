@@ -34,6 +34,22 @@ namespace Basis.Scripts.BasisSdk.Interactions
         [Tooltip("Search radius for direct grab detection around hand bones")]
         public static float grabSearchRadius = 0.25f;
 
+        /// <summary>
+        /// Interaction ranges (hover, grab search, cosmetic line offsets) are authored in metres for a
+        /// default-size avatar. Scale them with the avatar so a shrunken player doesn't hover/grab
+        /// across the room — the unscaled 0.5 m hover bubble on a tiny avatar lit the interaction line
+        /// toward random props while pointing at UI ("the line points the wrong direction").
+        /// </summary>
+        public static float AvatarScaledRange(float baseRange)
+        {
+            float s = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            if (float.IsNaN(s) || float.IsInfinity(s) || s <= 0f)
+            {
+                s = 1f;
+            }
+            return baseRange * s;
+        }
+
         private static readonly Collider[] _grabHitBuffer = new Collider[32];
 
         [SerializeField]
@@ -204,7 +220,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 BasisHoverSphere hoverSphere = interactInput.input.hoverSphere;
 
-                // Poll hover
+                // Poll hover — radius rescaled per frame so avatar scale changes apply immediately
+                hoverSphere.Radius = AvatarScaledRange(hoverRadius);
                 hoverSphere.PollSystem(interactInput.input.RaycastCoord.position);
 
                 BasisInteractableObject hitInteractable = PointRaycasterFindInteractable(interactInput);
@@ -305,9 +322,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
                             Vector3 camDir = input.input.RaycastCoord.rotation * Vector3.right * dominantHandFactor;
                             startPos =
                                 input.input.RaycastCoord.position +
-                                (input.input.RaycastCoord.rotation * Vector3.forward * 0.1f) +
-                                Vector3.down * 0.1f +
-                                (camDir * 0.125f);
+                                (input.input.RaycastCoord.rotation * Vector3.forward * AvatarScaledRange(0.1f)) +
+                                Vector3.down * AvatarScaledRange(0.1f) +
+                                (camDir * AvatarScaledRange(0.125f));
                             // Move the line a bit further out of the way for desktop players by finding the closest
                             // point to the line origin biased towards the edge of the object in the direction of
                             // the dominant hand
@@ -617,7 +634,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Vector3 handPos = input.Control.OutgoingWorldData.position;
 
             // Overlap sphere at hand position to find nearby colliders
-            int hitCount = Physics.OverlapSphereNonAlloc(handPos, grabSearchRadius, _grabHitBuffer, Mask, TriggerInteraction);
+            int hitCount = Physics.OverlapSphereNonAlloc(handPos, AvatarScaledRange(grabSearchRadius), _grabHitBuffer, Mask, TriggerInteraction);
 
             float closestDist = float.MaxValue;
 
@@ -781,7 +798,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 if (!IsDesktopCenterEye(input))
                 {
-                    UpdateHoverSphere(ref g, input.hoverSphere.WorldPosition, hoverRadius);
+                    UpdateHoverSphere(ref g, input.hoverSphere.WorldPosition, AvatarScaledRange(hoverRadius));
                 }
                 else
                 {
