@@ -67,6 +67,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private readonly FingerTouchState[] _hand = new FingerTouchState[2];
         private BasisInput _leftInput;
         private BasisInput _rightInput;
+        private bool _leftHolding;
+        private bool _rightHolding;
 
         private enum TouchPhase : byte { None, Hovering, Pressing }
 
@@ -148,12 +150,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (_leftInput != null)
             {
-                if (IsFingerExtended(true)) ProcessTouch(_hand[0], _leftInput);
+                if (!_leftHolding && IsFingerExtended(true)) ProcessTouch(_hand[0], _leftInput);
                 else if (_hand[0].Phase != TouchPhase.None) EndTouch(_hand[0], _leftInput);
             }
             if (_rightInput != null)
             {
-                if (IsFingerExtended(false)) ProcessTouch(_hand[1], _rightInput);
+                if (!_rightHolding && IsFingerExtended(false)) ProcessTouch(_hand[1], _rightInput);
                 else if (_hand[1].Phase != TouchPhase.None) EndTouch(_hand[1], _rightInput);
             }
         }
@@ -184,14 +186,25 @@ namespace Basis.Scripts.BasisSdk.Interactions
             bool allowRight = hands != BasisSettingsDefaults.FingerTouchHands_Left;
             int len = inputs.Length;
 
+            bool holdL = false, holdR = false;
             for (int i = 0; i < len; i++)
             {
                 BasisInput inp = inputs[i].input;
                 if (inp == null || !inp.HasControl) continue;
                 if (!inp.TryGetRole(out BasisBoneTrackedRole role)) continue;
-                if (allowLeft && role == BasisBoneTrackedRole.LeftHand)        newL = inp;
-                else if (allowRight && role == BasisBoneTrackedRole.RightHand) newR = inp;
+                if (allowLeft && role == BasisBoneTrackedRole.LeftHand)
+                {
+                    newL = inp;
+                    holdL = inputs[i].lastTarget != null && inputs[i].lastTarget.IsInteractingWith(inp);
+                }
+                else if (allowRight && role == BasisBoneTrackedRole.RightHand)
+                {
+                    newR = inp;
+                    holdR = inputs[i].lastTarget != null && inputs[i].lastTarget.IsInteractingWith(inp);
+                }
             }
+            _leftHolding = holdL;
+            _rightHolding = holdR;
 
             if (newL != _leftInput)
             {
@@ -653,11 +666,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private static readonly Color GizmoIdleColor = Color.gray;
         private static readonly Color GizmoHoverColor = Color.yellow;
         private static readonly Color GizmoPressColor = Color.green;
+        private static readonly Color GizmoDisabledColor = Color.red;
 
         private struct FingerGizmo
         {
             public int Sphere;
             public TouchPhase Phase;
+            public bool Suppressed;
         }
 
         private static readonly FingerGizmo[] _fingerGizmos = new FingerGizmo[2];
@@ -674,15 +689,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
-            UpdateHandGizmo(0, dt._leftInput, dt._hand[0].Phase);
-            UpdateHandGizmo(1, dt._rightInput, dt._hand[1].Phase);
+            UpdateHandGizmo(0, dt._leftInput, dt._hand[0].Phase, dt._leftHolding);
+            UpdateHandGizmo(1, dt._rightInput, dt._hand[1].Phase, dt._rightHolding);
         }
 
-        private static void UpdateHandGizmo(int slot, BasisInput input, TouchPhase phase)
+        private static void UpdateHandGizmo(int slot, BasisInput input, TouchPhase phase, bool holding)
         {
             FingerGizmo g = _fingerGizmos[slot];
 
-            if (input == null || !IsFingerExtended(slot == 0))
+            if (input == null)
             {
                 if (g.Sphere > 0)
                 {
@@ -692,8 +707,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
-            // Sphere color is fixed at creation — recreate when the phase changes.
-            if (g.Sphere > 0 && g.Phase != phase)
+            bool suppressed = holding || !IsFingerExtended(slot == 0);
+
+            // Sphere color is fixed at creation — recreate when the phase or suppression changes.
+            if (g.Sphere > 0 && (g.Phase != phase || g.Suppressed != suppressed))
             {
                 BasisGizmoManager.DestroyGizmo(g.Sphere);
                 g.Sphere = 0;
@@ -705,7 +722,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (g.Sphere <= 0)
             {
-                Color color = phase == TouchPhase.Pressing ? GizmoPressColor
+                Color color = suppressed ? GizmoDisabledColor
+                            : phase == TouchPhase.Pressing ? GizmoPressColor
                             : phase == TouchPhase.Hovering ? GizmoHoverColor
                             : GizmoIdleColor;
                 if (!BasisGizmoManager.CreateSphereGizmo(slot == 0 ? "FingerTouchLeft" : "FingerTouchRight", out g.Sphere, tip, diameter, color))
@@ -713,6 +731,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     return;
                 }
                 g.Phase = phase;
+                g.Suppressed = suppressed;
             }
             else
             {

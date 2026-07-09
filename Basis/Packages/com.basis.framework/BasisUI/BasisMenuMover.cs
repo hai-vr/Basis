@@ -153,9 +153,13 @@ namespace Basis.BasisUI
             if (change == BasisHeightDriver.HeightModeChange.OnSitStandChanged)
             {
                 // Sit/stand teleports the eye vertically: the play-space-stable anchor is now at the
-                // wrong height, so drop it and re-anchor fully instead of the usual scale-only refresh.
+                // wrong height. Do NOT re-anchor synchronously here — this callback drains early in
+                // the frame, BEFORE the device poll that applies the new vertical offset, so capturing
+                // now anchors at the PRE-lift camera and the menu never moves on Y. Drop the anchor
+                // instead: the per-frame UpdateUILocation (AfterSimulateOnLate, post-poll) recaptures
+                // at the post-lift camera the same frame; a closed menu recaptures on open.
                 _stableHasAnchor = false;
-                SetRootMode(GetFindCurrentMode());
+                ApplyScaleOnly();
                 return;
             }
 
