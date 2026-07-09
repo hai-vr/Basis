@@ -362,8 +362,34 @@ public static class BasisHeightDriver
         ScheduleHeightChangeCallback(HeightModeChange.OnTpose);
     }
 
+    /// <summary>
+    /// Resolves <see cref="BasisSelectedHeightMode.Auto"/> to a concrete metric pair: whichever
+    /// yields the LARGER DeviceScale wins (see BasisCalibrationMath.AutoHeightModePicksArmSpan) —
+    /// arm span exactly when the avatar is longer-armed relative to the player, so the player's
+    /// full reach always covers the avatar's arms and the viewpoint lands at-or-above the avatar's
+    /// eyes. Desktop always resolves to EyeHeight. Concrete modes pass through untouched.
+    /// </summary>
+    public static BasisSelectedHeightMode ResolveHeightMode(BasisSelectedHeightMode mode)
+    {
+        if (mode != BasisSelectedHeightMode.Auto)
+        {
+            return mode;
+        }
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            return BasisSelectedHeightMode.EyeHeight;
+        }
+        bool picksArmSpan = BasisCalibrationMath.AutoHeightModePicksArmSpan(
+            SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters),
+            SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters),
+            SanitizePositive(AvatarArmSpan, FallbackHeightInMeters),
+            SanitizePositive(PlayerArmSpan, FallbackHeightInMeters));
+        return picksArmSpan ? BasisSelectedHeightMode.ArmSpan : BasisSelectedHeightMode.EyeHeight;
+    }
+
     public static void RevaluateUnscaledHeight(BasisSelectedHeightMode Height)
     {
+        Height = ResolveHeightMode(Height);
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
@@ -385,6 +411,7 @@ public static class BasisHeightDriver
         {
             Height = BasisSelectedHeightMode.EyeHeight;
         }
+        Height = ResolveHeightMode(Height);
 
         var player = BasisLocalPlayer.Instance;
         if (player == null)

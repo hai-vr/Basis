@@ -100,8 +100,8 @@ namespace Basis.BasisUI
             scalingModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.ikMode"));
             scalingModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.ikMode.tooltip"));
             scalingModeDropdown.AssignLocalizedEntries(
-                new List<string> { "Eye Height", "Arm Distance" },
-                new List<string> { "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
+                new List<string> { "Auto", "Eye Height", "Arm Distance" },
+                new List<string> { "settings.bodyTracking.ikMode.auto", "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
             scalingModeDropdown.AssignBinding(BasisSettingsDefaults.IKMode);
 
             var spineLockModeDropdown = PanelDropdown.CreateNewEntry(container);

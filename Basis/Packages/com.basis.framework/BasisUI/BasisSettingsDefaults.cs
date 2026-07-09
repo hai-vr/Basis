@@ -449,7 +449,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> HearingRangeIndicator = new("hearingrangeindicator", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> MicrophoneRangeIndicator = new("microphonerangeindicator", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<string> IKMode = new("ikmode", new BasisPlatformDefault<string>("eye height"));
+        public static BasisSettingsBinding<string> IKMode = new("ikmode", new BasisPlatformDefault<string>("auto"));
 
         public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v2", new BasisPlatformDefault<string>("lock both"));
 

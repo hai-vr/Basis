@@ -138,6 +138,24 @@ public static class BasisCalibrationMath
     /// only while no genuine standing eye height exists yet; once one does, an avatar load reuses it so fit no
     /// longer shifts with head pose at swap time. Explicit recalibration passes recapture=true to re-measure.
     /// </summary>
+    /// <summary>
+    /// Auto height-mode decision: true = use the arm-span metric pair. Picks the pair yielding the
+    /// LARGER DeviceScale (avatarSpan/playerSpan vs avatarEye/playerEye, compared cross-multiplied
+    /// to avoid divides), i.e. arm span wins exactly when the avatar is longer-armed relative to
+    /// the player. max(DeviceScale) means the player's scaled reach always covers the avatar's
+    /// arms — the arms can always straighten — and the viewpoint lands at-or-above the avatar's
+    /// eyes; the smaller pick would instead leave reach chronically short. Non-positive inputs
+    /// disqualify the span pair (eye height wins).
+    /// </summary>
+    public static bool AutoHeightModePicksArmSpan(float avatarEye, float playerEye, float avatarSpan, float playerSpan)
+    {
+        if (avatarSpan <= 0f || playerSpan <= 0f || avatarEye <= 0f || playerEye <= 0f)
+        {
+            return false;
+        }
+        return avatarSpan * playerEye > avatarEye * playerSpan;
+    }
+
     public static bool ShouldRecaptureEyeHeight(bool recapture, bool hasGenuine)
     {
         return recapture || !hasGenuine;
