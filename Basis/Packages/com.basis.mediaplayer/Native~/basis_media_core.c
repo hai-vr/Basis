@@ -303,7 +303,13 @@ static void sink_state(void* user, basis_media_state_t s) { basis_engine_set_sta
 static void sink_error(void* user, const char* m) { basis_engine_set_error((basis_media_engine_t*)user, m); }
 static void sink_eos(void* user) { basis_engine_set_state((basis_media_engine_t*)user, BASIS_MEDIA_STATE_ENDED); }
 static void sink_duration(void* user, int64_t us) { basis_media_engine_t* e = (basis_media_engine_t*)user; if (us > 0) e->duration_us = us; }
-static int  sink_is_running(void* user) { basis_media_engine_t* e = (basis_media_engine_t*)user; return e->running; }
+/* A raised error is fatal to the current demux run: the reconnect loop already
+ * treats an error state as non-retryable, so stopping here makes the protocol
+ * demuxer leave promptly instead of streaming a still-decodable track on past a
+ * fatal parse error (e.g. an unsupported stz2 track alongside a valid one). The
+ * unlocked state read matches the lock-free `running` checks throughout the hot
+ * demux/pace loops; a stale read only costs one extra iteration. */
+static int  sink_is_running(void* user) { basis_media_engine_t* e = (basis_media_engine_t*)user; return e->running && e->state != BASIS_MEDIA_STATE_ERROR; }
 
 static int take_seek_common(basis_media_engine_t* e, volatile long* taken, int64_t* out_target_us) {
     if (*taken == e->seek_seq) return 0;
