@@ -149,6 +149,14 @@ namespace Basis.Scripts.Drivers
             player.BasisAvatar.Animator.applyRootMotion = false;
             player.BasisAvatar.HumanScale = player.BasisAvatar.Animator.humanScale;
 
+            // The previous avatar's raw-joint T-pose snapshot is stale for this avatar. Clear it BEFORE
+            // the T-pose height capture below, or CalculateAvatarArmSpan serves the OLD avatar's arm
+            // span (its live-bone fallback never fires while a snapshot exists) — which made every
+            // avatar swap mis-scale in ArmSpan/Auto mode until the user recalibrated. The fresh
+            // snapshot is captured further down, before SetBodySettings consumes it.
+            TposeBoneSnapshot.Clear();
+            HasTposeBoneSnapshot = false;
+
             // Enter T-Pose for calibration
             PutAvatarIntoTPose();
 
