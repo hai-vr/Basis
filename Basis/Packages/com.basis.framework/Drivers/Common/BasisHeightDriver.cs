@@ -312,6 +312,40 @@ public static class BasisHeightDriver
         }
     }
 
+    /// <summary>
+    /// Entering VR: whatever eye height the previous mode left applied is not the player's VR
+    /// standing height (desktop's is a virtual value, and it gets marked genuine), so the applied
+    /// calibration must be dropped and REAPPLIED from stored data — the persisted body size seeds
+    /// back in, the scale re-resolves, FBT position offsets reproject, and the FBT rotation
+    /// references re-derive. Without this, a desktop stint poisoned the VR scale until the user
+    /// manually recalibrated. Fresh installs with nothing persisted fall through to the normal
+    /// live-poll flow.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void HookBootModeChanged()
+    {
+        BasisDeviceManagement.OnBootModeChanged -= OnBootModeChangedReapplyCalibration;
+        BasisDeviceManagement.OnBootModeChanged += OnBootModeChangedReapplyCalibration;
+    }
+
+    private static void OnBootModeChangedReapplyCalibration(string mode)
+    {
+        if (BasisDeviceManagement.IsCurrentModeVR() == false)
+        {
+            return;
+        }
+        // Remove the previous mode's applied measurement…
+        HasGenuinePlayerEyeHeight = false;
+        if (BasisLocalPlayer.Instance == null)
+        {
+            return; // boot-time switch: the first avatar load runs this same reapply flow itself
+        }
+        // …and reapply the stored calibration through the normal pipeline.
+        CapturePlayerHeight(recaptureEyeHeight: false);
+        ApplyScaleAndHeight();
+        Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.ApplyCalibrationToCurrentAvatar();
+    }
+
     public static void CapturePlayerHeight(bool recaptureEyeHeight = true)
     {
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
