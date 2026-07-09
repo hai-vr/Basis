@@ -52,6 +52,7 @@ namespace Basis.Scripts.UI
         public bool HasRedicalRenderer = false;
 
         public bool CachedLinerRenderState = false;
+        private float _nextPointerDebugTime;
         public RaycastHit PhysicHit;
         public bool DidPhysicHit = false;
         public Collider HitCollider;
@@ -386,6 +387,25 @@ namespace Basis.Scripts.UI
 
                 LineRenderer.SetPosition(0, start);
                 LineRenderer.SetPosition(1, end);
+            }
+
+            // Pointer-chain diagnostic (tick EnableDebug on this hand's BasisPointRaycaster): one line
+            // per second with every stage of the pointer, so a scale/alignment mismatch between what is
+            // FELT (hand), COMPUTED (ray/hit) and DRAWN (line/reticle/interact line) reads directly off
+            // the log. All values world-space.
+            if (BasisPointRaycaster.EnableDebug && Time.unscaledTime >= _nextPointerDebugTime)
+            {
+                _nextPointerDebugTime = Time.unscaledTime + 1f;
+                var input = BasisPointRaycaster.BasisInput;
+                Vector3 handWorld = input != null ? input.transform.position : Vector3.zero;
+                string interactLine = input != null && input.InteractionLineRenderer != null && input.InteractionLineRenderer.enabled
+                    ? $"interactLine {input.InteractionLineRenderer.GetPosition(0)}->{input.InteractionLineRenderer.GetPosition(1)}"
+                    : "interactLine off";
+                BasisDebug.Log(
+                    $"PointerChain dev={input?.UniqueDeviceIdentifier} scale={BasisHeightDriver.DeviceScale:F3} " +
+                    $"handVisual={handWorld} rayOrigin={BasisPointRaycaster.ray.origin} hit={PhysicHit.point} " +
+                    $"uiLine {LineRenderer.GetPosition(0)}->{LineRenderer.GetPosition(1)} reticle={(HasRedicalRenderer && highlightQuadInstance != null ? highlightQuadInstance.transform.position.ToString() : "n/a")} {interactLine}",
+                    BasisDebug.LogTag.Input);
             }
         }
 

@@ -394,6 +394,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
             st.SignedDist = sd;
             st.Plane = plane;
 
+            if (plane.GetDistanceToPoint(input.RaycastCoord.position) <= 0f)
+            {
+                if (st.Phase != TouchPhase.None) EndTouch(st, input);
+                return;
+            }
+
             Vector3 proj = tip - fwd * sd;
 
             Camera cam = best.worldCamera;
