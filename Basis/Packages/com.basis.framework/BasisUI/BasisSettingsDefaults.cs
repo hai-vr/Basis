@@ -292,6 +292,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> GizmoFootPlacement = new("gizmofootplacement", new BasisPlatformDefault<bool>(false));
         // Interaction hover spheres + hover/target lines.
         public static BasisSettingsBinding<bool> GizmoInteractionHover = new("gizmointeractionhover", new BasisPlatformDefault<bool>(false));
+        // VR finger-touch fingertip sphere, tinted by touch phase (BasisDirectTouch).
+        public static BasisSettingsBinding<bool> GizmoFingerTouch = new("gizmofingertouch", new BasisPlatformDefault<bool>(false));
         // Seated-pose solve targets (back/knee/foot) + axes.
         public static BasisSettingsBinding<bool> GizmoSeatTargets = new("gizmoseattargets", new BasisPlatformDefault<bool>(false));
 
@@ -699,6 +701,31 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
+
+        // ---------------- VR FINGER TOUCH ----------------
+        // Direct fingertip presses on world-space UI in VR (BasisDirectTouch).
+        // Distances are meters; defaults mirror the original hardcoded tuning.
+        public static BasisSettingsBinding<bool> DisableVRFingerTouch = new("disablevrfingertouch", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> FingerTouchFinger = new("fingertouchfinger", new BasisPlatformDefault<string>(FingerTouchFinger_Index));
+        public static BasisSettingsBinding<string> FingerTouchHands = new("fingertouchhands", new BasisPlatformDefault<string>(FingerTouchHands_Both));
+        public static BasisSettingsBinding<float> FingerTouchTipOffset = new("fingertouchtipoffset", new BasisPlatformDefault<float>(0.015f));
+        public static BasisSettingsBinding<float> FingerTouchFingerLength = new("fingertouchfingerlength", new BasisPlatformDefault<float>(0.1f));
+        public static BasisSettingsBinding<float> FingerTouchRadius = new("fingertouchradius", new BasisPlatformDefault<float>(0.015f));
+        public static BasisSettingsBinding<float> FingerTouchHoverDistance = new("fingertouchhoverdistance", new BasisPlatformDefault<float>(0.04f));
+        public static BasisSettingsBinding<float> FingerTouchPressDepth = new("fingertouchpressdepth", new BasisPlatformDefault<float>(0.01f));
+        public static BasisSettingsBinding<float> FingerTouchReleaseDistance = new("fingertouchreleasedistance", new BasisPlatformDefault<float>(0.025f));
+        public static BasisSettingsBinding<float> FingerTouchScrollSensitivity = new("fingertouchscrollsensitivity", new BasisPlatformDefault<float>(800f));
+        public static BasisSettingsBinding<bool> FingerTouchHaptics = new("fingertouchhaptics", new BasisPlatformDefault<bool>(true));
+
+        public const string FingerTouchFinger_Thumb = "Thumb";
+        public const string FingerTouchFinger_Index = "Index";
+        public const string FingerTouchFinger_Middle = "Middle";
+        public const string FingerTouchFinger_Ring = "Ring";
+        public const string FingerTouchFinger_Little = "Little";
+
+        public const string FingerTouchHands_Both = "Both";
+        public const string FingerTouchHands_Left = "Left";
+        public const string FingerTouchHands_Right = "Right";
         public static BasisSettingsBinding<bool> ForceGridSnap = new("forcegridsnap", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> GridSnapSize = new("gridsnapsize", new BasisPlatformDefault<float>(0.25f));
         public static BasisSettingsBinding<bool> ForceRotationSnap = new("forcerotationsnap", new BasisPlatformDefault<bool>(false));
@@ -1540,6 +1567,7 @@ namespace Basis.BasisUI
             GizmoHintOffsets.LoadBindingValue();
             GizmoFootPlacement.LoadBindingValue();
             GizmoInteractionHover.LoadBindingValue();
+            GizmoFingerTouch.LoadBindingValue();
             GizmoSeatTargets.LoadBindingValue();
             GizmoAudioRanges.LoadBindingValue();
             GizmoAudioListenerCone.LoadBindingValue();
@@ -1716,6 +1744,17 @@ namespace Basis.BasisUI
             DisableSeats.LoadBindingValue();
             DisablePropPickup.LoadBindingValue();
             DisableVRAutoHold.LoadBindingValue();
+            DisableVRFingerTouch.LoadBindingValue();
+            FingerTouchFinger.LoadBindingValue();
+            FingerTouchHands.LoadBindingValue();
+            FingerTouchTipOffset.LoadBindingValue();
+            FingerTouchFingerLength.LoadBindingValue();
+            FingerTouchRadius.LoadBindingValue();
+            FingerTouchHoverDistance.LoadBindingValue();
+            FingerTouchPressDepth.LoadBindingValue();
+            FingerTouchReleaseDistance.LoadBindingValue();
+            FingerTouchScrollSensitivity.LoadBindingValue();
+            FingerTouchHaptics.LoadBindingValue();
             ForceGridSnap.LoadBindingValue();
             GridSnapSize.LoadBindingValue();
             ForceRotationSnap.LoadBindingValue();

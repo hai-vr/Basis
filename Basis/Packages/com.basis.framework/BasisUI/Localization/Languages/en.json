@@ -379,6 +379,10 @@
       "value": "Show interaction hover spheres and lines to hovered objects."
     },
     {
+      "key": "settings.developer.fingerTouch.tooltip",
+      "value": "Show the fingertip touch sphere in VR. Gray when idle, yellow while hovering, green while pressing."
+    },
+    {
       "key": "settings.developer.seatTargets.tooltip",
       "value": "Show the seated-pose solve targets for the back, knees, and feet."
     },
@@ -3531,6 +3535,134 @@
       "value": "Ignore VR auto-hold on pickups, so you must keep holding the grab button to carry them."
     },
     {
+      "key": "settings.general.disableVRFingerTouch",
+      "value": "Disable VR Finger Touch"
+    },
+    {
+      "key": "settings.general.disableVRFingerTouch.tooltip",
+      "value": "Stop your index fingertip from hovering and pressing menus in VR. You can still point and click with the controller laser."
+    },
+    {
+      "key": "settings.general.disableVRFingerTouch.description",
+      "value": "Prevent direct fingertip presses on VR menus, so UI only responds to the laser pointer."
+    },
+    {
+      "key": "settings.general.fingerTouch.title",
+      "value": "VR Finger Touch"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger",
+      "value": "Touch Finger"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.tooltip",
+      "value": "Which finger presses menus in VR. Falls back to the index finger if the avatar is missing the chosen finger."
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.index",
+      "value": "Index"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.thumb",
+      "value": "Thumb"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.middle",
+      "value": "Middle"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.ring",
+      "value": "Ring"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.little",
+      "value": "Little"
+    },
+    {
+      "key": "settings.general.fingerTouch.hands",
+      "value": "Touch Hands"
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.tooltip",
+      "value": "Limit finger touch to one hand, or allow both."
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.both",
+      "value": "Both"
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.left",
+      "value": "Left"
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.right",
+      "value": "Right"
+    },
+    {
+      "key": "settings.general.fingerTouch.tipOffset",
+      "value": "Fingertip Offset"
+    },
+    {
+      "key": "settings.general.fingerTouch.tipOffset.tooltip",
+      "value": "How far past the last finger bone the touch point sits."
+    },
+    {
+      "key": "settings.general.fingerTouch.fingerLength",
+      "value": "Fallback Finger Length"
+    },
+    {
+      "key": "settings.general.fingerTouch.fingerLength.tooltip",
+      "value": "Distance from the hand to the touch point when the avatar has no finger bones."
+    },
+    {
+      "key": "settings.general.fingerTouch.radius",
+      "value": "Touch Radius"
+    },
+    {
+      "key": "settings.general.fingerTouch.radius.tooltip",
+      "value": "Size of the fingertip touch sphere. Bigger is easier to hit, smaller is more precise."
+    },
+    {
+      "key": "settings.general.fingerTouch.hoverDistance",
+      "value": "Hover Distance"
+    },
+    {
+      "key": "settings.general.fingerTouch.hoverDistance.tooltip",
+      "value": "How close the fingertip must get to a menu before hovering starts."
+    },
+    {
+      "key": "settings.general.fingerTouch.pressDepth",
+      "value": "Press Distance"
+    },
+    {
+      "key": "settings.general.fingerTouch.pressDepth.tooltip",
+      "value": "How close to the surface the fingertip must get to press."
+    },
+    {
+      "key": "settings.general.fingerTouch.releaseDistance",
+      "value": "Release Distance"
+    },
+    {
+      "key": "settings.general.fingerTouch.releaseDistance.tooltip",
+      "value": "How far the fingertip must pull back to release a press."
+    },
+    {
+      "key": "settings.general.fingerTouch.scrollSensitivity",
+      "value": "Scroll Sensitivity"
+    },
+    {
+      "key": "settings.general.fingerTouch.scrollSensitivity.tooltip",
+      "value": "How fast dragging your fingertip scrolls content."
+    },
+    {
+      "key": "settings.general.fingerTouch.haptics",
+      "value": "Touch Haptics"
+    },
+    {
+      "key": "settings.general.fingerTouch.haptics.tooltip",
+      "value": "Vibrate the controller when the fingertip hovers, presses, and clicks."
+    },
+    {
       "key": "settings.general.hud.title",
       "value": "HUD"
     },
@@ -5941,6 +6073,10 @@
     {
       "key": "settings.developer.interactionHover",
       "value": "Interaction Hover"
+    },
+    {
+      "key": "settings.developer.fingerTouch",
+      "value": "Finger Touch"
     },
     {
       "key": "settings.developer.seatTargets",
