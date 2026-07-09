@@ -139,7 +139,7 @@ namespace Basis.OpenXR
                 {
                     d_originalEndFrame = Marshal.GetDelegateForFunctionPointer<Type_xrEndFrame>(real);
                     function = Marshal.GetFunctionPointerForDelegate(s_endFrameHook);
-                    Debug.Log($"{Tag} Installed xrEndFrame interception hook.");
+                    BasisDebug.Log($"{Tag} Installed xrEndFrame interception hook.", BasisDebug.LogTag.Device);
                     return 0;
                 }
                 function = IntPtr.Zero;
@@ -151,10 +151,10 @@ namespace Basis.OpenXR
         protected override bool OnInstanceCreate(ulong instance)
         {
             IsSupported = OpenXRRuntime.IsExtensionEnabled(ExtensionString);
-            Debug.Log($"{Tag} OnInstanceCreate: {ExtensionString} enabled = {IsSupported}");
+            BasisDebug.Log($"{Tag} OnInstanceCreate: {ExtensionString} enabled = {IsSupported}", BasisDebug.LogTag.Device);
             if (!IsSupported)
             {
-                Debug.LogWarning($"{Tag} Extension NOT enabled — tick the 'Basis Passthrough' OpenXR feature for Android in Project Settings > XR > OpenXR.");
+                BasisDebug.LogWarning($"{Tag} Extension NOT enabled — tick the 'Basis Passthrough' OpenXR feature for Android in Project Settings > XR > OpenXR.", BasisDebug.LogTag.Device);
                 return base.OnInstanceCreate(instance);
             }
 
@@ -176,7 +176,7 @@ namespace Basis.OpenXR
             {
                 return Marshal.GetDelegateForFunctionPointer<T>(p);
             }
-            Debug.LogError($"{Tag} Failed to resolve {name}");
+            BasisDebug.LogError($"{Tag} Failed to resolve {name}", BasisDebug.LogTag.Device);
             return null;
         }
 
@@ -205,7 +205,7 @@ namespace Basis.OpenXR
         {
             if (d_createPassthrough == null || d_createLayer == null)
             {
-                Debug.LogError($"{Tag} Cannot create passthrough — function pointers missing.");
+                BasisDebug.LogError($"{Tag} Cannot create passthrough — function pointers missing.", BasisDebug.LogTag.Device);
                 return;
             }
 
@@ -218,7 +218,7 @@ namespace Basis.OpenXR
             int r = d_createPassthrough.Invoke(s_Session, ref createInfo, out s_Passthrough);
             if (r != 0)
             {
-                Debug.LogError($"{Tag} xrCreatePassthroughFB failed: {r}");
+                BasisDebug.LogError($"{Tag} xrCreatePassthroughFB failed: {r}", BasisDebug.LogTag.Device);
                 return;
             }
 
@@ -233,7 +233,7 @@ namespace Basis.OpenXR
             r = d_createLayer.Invoke(s_Session, ref layerInfo, out s_Layer);
             if (r != 0)
             {
-                Debug.LogError($"{Tag} xrCreatePassthroughLayerFB failed: {r}");
+                BasisDebug.LogError($"{Tag} xrCreatePassthroughLayerFB failed: {r}", BasisDebug.LogTag.Device);
                 d_destroyPassthrough?.Invoke(s_Passthrough);
                 s_Passthrough = 0;
                 return;
@@ -253,7 +253,7 @@ namespace Basis.OpenXR
             EnsureLayersCapacity(8);
 
             s_LayerCreated = true;
-            Debug.Log($"{Tag} Passthrough created (handle={s_Passthrough}, layer={s_Layer}).");
+            BasisDebug.Log($"{Tag} Passthrough created (handle={s_Passthrough}, layer={s_Layer}).", BasisDebug.LogTag.Device);
             BasisPassthroughController.NotifyRuntimeReady();
         }
 
@@ -277,7 +277,7 @@ namespace Basis.OpenXR
             if (!IsSupported || !s_LayerCreated)
             {
                 s_Inject = false;
-                Debug.Log($"{Tag} SetActive({on}) ignored — IsSupported={IsSupported}, layerCreated={s_LayerCreated}.");
+                BasisDebug.Log($"{Tag} SetActive({on}) ignored — IsSupported={IsSupported}, layerCreated={s_LayerCreated}.", BasisDebug.LogTag.Device);
                 return;
             }
             if (on)
@@ -285,14 +285,14 @@ namespace Basis.OpenXR
                 int startResult = d_startPassthrough?.Invoke(s_Passthrough) ?? -1;
                 int resumeResult = d_resumeLayer?.Invoke(s_Layer) ?? -1;
                 s_Inject = startResult == 0;
-                Debug.Log($"{Tag} SetActive(true): xrPassthroughStartFB={startResult}, xrPassthroughLayerResumeFB={resumeResult} (0 == success, inject={s_Inject}).");
+                BasisDebug.Log($"{Tag} SetActive(true): xrPassthroughStartFB={startResult}, xrPassthroughLayerResumeFB={resumeResult} (0 == success, inject={s_Inject}).", BasisDebug.LogTag.Device);
             }
             else
             {
                 s_Inject = false;
                 d_pauseLayer?.Invoke(s_Layer);
                 d_pausePassthrough?.Invoke(s_Passthrough);
-                Debug.Log($"{Tag} SetActive(false): passthrough paused.");
+                BasisDebug.Log($"{Tag} SetActive(false): passthrough paused.", BasisDebug.LogTag.Device);
             }
         }
 
@@ -302,7 +302,7 @@ namespace Basis.OpenXR
             if (!s_LoggedFirstFrame)
             {
                 s_LoggedFirstFrame = true;
-                Debug.Log($"{Tag} xrEndFrame hook is being called by the runtime.");
+                BasisDebug.Log($"{Tag} xrEndFrame hook is being called by the runtime.", BasisDebug.LogTag.Device);
             }
             if (!s_Inject || !s_LayerCreated || frameEndInfo == IntPtr.Zero || d_originalEndFrame == null)
             {
@@ -327,7 +327,7 @@ namespace Basis.OpenXR
 
             if ((s_FrameLog++ % 300) == 0)
             {
-                Debug.Log($"{Tag} EndFrame inject: {count} app layers -> submitting {count + 1} (passthrough underlay at index 0).");
+                BasisDebug.Log($"{Tag} EndFrame inject: {count} app layers -> submitting {count + 1} (passthrough underlay at index 0).", BasisDebug.LogTag.Device);
             }
 
             info.layerCount = count + 1;
