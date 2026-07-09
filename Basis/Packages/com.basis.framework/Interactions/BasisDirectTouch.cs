@@ -1,4 +1,5 @@
 using Basis.BasisUI;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -35,6 +36,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static float HoverDistance = 0.04f;
         public static float PressDepth = 0.01f;
         public static float ReleaseDistance = 0.025f;
+        [Tooltip("Touch is disabled while the touch finger's curl is below this (extended ≈ 0.75, fist ≈ -1)")]
+        public static float FistCurlThreshold = 0f;
 
         // ── Scroll ─────────────────────────────────────────────────────
         public static float ScrollSensitivity = 800f;
@@ -143,8 +146,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
             RefreshTuning();
             ResolveHands(interactInputs);
 
-            if (_leftInput  != null) ProcessTouch(_hand[0], _leftInput);
-            if (_rightInput != null) ProcessTouch(_hand[1], _rightInput);
+            if (_leftInput != null)
+            {
+                if (IsFingerExtended(true)) ProcessTouch(_hand[0], _leftInput);
+                else if (_hand[0].Phase != TouchPhase.None) EndTouch(_hand[0], _leftInput);
+            }
+            if (_rightInput != null)
+            {
+                if (IsFingerExtended(false)) ProcessTouch(_hand[1], _rightInput);
+                else if (_hand[1].Phase != TouchPhase.None) EndTouch(_hand[1], _rightInput);
+            }
         }
 
         /// <summary>
@@ -220,11 +231,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 && (role == BasisBoneTrackedRole.LeftHand || role == BasisBoneTrackedRole.RightHand))
             {
                 bool isLeft = role == BasisBoneTrackedRole.LeftHand;
-                if (TryGetTouchFingerDistal(map, isLeft, out Transform distal))
+                if (TryGetTouchFingerBones(map, isLeft, out Transform distal, out Transform intermediate))
                 {
                     // The distal bone is the last joint; the actual tip
-                    // extends a little further along the bone's forward.
-                    return distal.position + distal.forward * DistalTipOffset;
+                    // extends a little further along the finger.
+                    Vector3 tip = distal.position;
+                    Vector3 along = intermediate != null ? tip - intermediate.position : distal.forward;
+                    if (along.sqrMagnitude > 1e-10f)
+                        tip += along.normalized * DistalTipOffset;
+                    return tip;
                 }
             }
 
@@ -234,11 +249,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Resolves the distal bone of the finger selected in settings,
-        /// degrading to the index finger when the avatar is missing the
-        /// chosen finger's bones.
+        /// Resolves the distal and intermediate bones of the finger selected
+        /// in settings, degrading to the index finger when the avatar is
+        /// missing the chosen finger's bones.
         /// </summary>
-        private static bool TryGetTouchFingerDistal(BasisTransformMapping map, bool isLeft, out Transform distal)
+        private static bool TryGetTouchFingerBones(BasisTransformMapping map, bool isLeft, out Transform distal, out Transform intermediate)
         {
             bool has;
             switch (BasisSettingsDefaults.FingerTouchFinger.RawValue)
@@ -246,22 +261,27 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 case BasisSettingsDefaults.FingerTouchFinger_Thumb:
                     has = isLeft ? map.HasLeftThumb[2] : map.HasRightThumb[2];
                     distal = isLeft ? map.LeftThumb[2] : map.RightThumb[2];
+                    intermediate = isLeft ? map.LeftThumb[1] : map.RightThumb[1];
                     break;
                 case BasisSettingsDefaults.FingerTouchFinger_Middle:
                     has = isLeft ? map.HasLeftMiddle[2] : map.HasRightMiddle[2];
                     distal = isLeft ? map.LeftMiddle[2] : map.RightMiddle[2];
+                    intermediate = isLeft ? map.LeftMiddle[1] : map.RightMiddle[1];
                     break;
                 case BasisSettingsDefaults.FingerTouchFinger_Ring:
                     has = isLeft ? map.HasLeftRing[2] : map.HasRightRing[2];
                     distal = isLeft ? map.LeftRing[2] : map.RightRing[2];
+                    intermediate = isLeft ? map.LeftRing[1] : map.RightRing[1];
                     break;
                 case BasisSettingsDefaults.FingerTouchFinger_Little:
                     has = isLeft ? map.HasLeftLittle[2] : map.HasRightLittle[2];
                     distal = isLeft ? map.LeftLittle[2] : map.RightLittle[2];
+                    intermediate = isLeft ? map.LeftLittle[1] : map.RightLittle[1];
                     break;
                 default:
                     has = false;
                     distal = null;
+                    intermediate = null;
                     break;
             }
 
@@ -269,8 +289,42 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 has = isLeft ? map.HasLeftIndex[2] : map.HasRightIndex[2];
                 distal = isLeft ? map.LeftIndex[2] : map.RightIndex[2];
+                intermediate = isLeft ? map.LeftIndex[1] : map.RightIndex[1];
             }
             return has && distal != null;
+        }
+
+        /// <summary>
+        /// True when the touch finger is extended enough to signal press
+        /// intent; curled toward a fist disables direct touch entirely.
+        /// </summary>
+        private static bool IsFingerExtended(bool isLeft)
+        {
+            BasisLocalPlayer player = BasisLocalPlayer.Instance;
+            if (player == null || player.LocalHandDriver == null) return true;
+            BasisFingerPose pose = isLeft ? player.LocalHandDriver.LeftHand : player.LocalHandDriver.RightHand;
+            if (pose == null) return true;
+
+            float curl;
+            switch (BasisSettingsDefaults.FingerTouchFinger.RawValue)
+            {
+                case BasisSettingsDefaults.FingerTouchFinger_Thumb:
+                    curl = pose.ThumbPercentage.x;
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Middle:
+                    curl = pose.MiddlePercentage.x;
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Ring:
+                    curl = pose.RingPercentage.x;
+                    break;
+                case BasisSettingsDefaults.FingerTouchFinger_Little:
+                    curl = pose.LittlePercentage.x;
+                    break;
+                default:
+                    curl = pose.IndexPercentage.x;
+                    break;
+            }
+            return curl >= FistCurlThreshold;
         }
 
         // ================================================================
@@ -628,7 +682,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             FingerGizmo g = _fingerGizmos[slot];
 
-            if (input == null)
+            if (input == null || !IsFingerExtended(slot == 0))
             {
                 if (g.Sphere > 0)
                 {

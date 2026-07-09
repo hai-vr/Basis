@@ -138,22 +138,43 @@ public static class BasisCalibrationMath
     /// only while no genuine standing eye height exists yet; once one does, an avatar load reuses it so fit no
     /// longer shifts with head pose at swap time. Explicit recalibration passes recapture=true to re-measure.
     /// </summary>
+    /// <summary>Standing eye height as a fraction of full body height (eyes sit ~7% below the crown).</summary>
+    public const float EyeToHeightRatio = 0.93f;
+    /// <summary>Arm span as a fraction of full body height (ape index ≈ 1).</summary>
+    public const float SpanToHeightRatio = 1.0f;
     /// <summary>
-    /// Auto height-mode decision: true = use the arm-span metric pair. Picks the pair yielding the
-    /// LARGER DeviceScale (avatarSpan/playerSpan vs avatarEye/playerEye, compared cross-multiplied
-    /// to avoid divides), i.e. arm span wins exactly when the avatar is longer-armed relative to
-    /// the player. max(DeviceScale) means the player's scaled reach always covers the avatar's
-    /// arms — the arms can always straighten — and the viewpoint lands at-or-above the avatar's
-    /// eyes; the smaller pick would instead leave reach chronically short. Non-positive inputs
-    /// disqualify the span pair (eye height wins).
+    /// How much taller the span-implied body must be than the eye-implied body before Auto trusts the
+    /// arm span instead: normal anatomical variation (long-armed players, a few %) stays inside the
+    /// band, while a broken eye measurement — calibrating while seated/slouched reads 25-35% short —
+    /// falls far outside it.
     /// </summary>
-    public static bool AutoHeightModePicksArmSpan(float avatarEye, float playerEye, float avatarSpan, float playerSpan)
+    public const float AutoModeEyePreferenceBand = 1.08f;
+
+    /// <summary>Full body height implied by a standing eye-height measurement.</summary>
+    public static float ImpliedHeightFromEye(float playerEye) => playerEye / EyeToHeightRatio;
+    /// <summary>Full body height implied by an arm-span measurement.</summary>
+    public static float ImpliedHeightFromSpan(float playerSpan) => playerSpan / SpanToHeightRatio;
+
+    /// <summary>
+    /// Auto height-mode decision: trust the LONGER of the player's two body measurements. Both
+    /// metrics under-measure easily (bent arms → short span; calibrating while seated or slouched →
+    /// short eye height) but neither can over-measure past the real body, so the larger implied body
+    /// height is the more trustworthy measurement. Eye height is preferred inside the tolerance band
+    /// (it is the stabler metric and carries the standing-eye corrections); the span pair wins only
+    /// when the eye measurement is implausibly short against the measured reach — e.g. calibrated
+    /// sitting in a chair with arms out. Non-positive inputs disqualify that metric.
+    /// </summary>
+    public static bool AutoHeightModePicksArmSpan(float playerEye, float playerSpan)
     {
-        if (avatarSpan <= 0f || playerSpan <= 0f || avatarEye <= 0f || playerEye <= 0f)
+        if (playerEye <= 0f)
+        {
+            return playerSpan > 0f;
+        }
+        if (playerSpan <= 0f)
         {
             return false;
         }
-        return avatarSpan * playerEye > avatarEye * playerSpan;
+        return ImpliedHeightFromSpan(playerSpan) > ImpliedHeightFromEye(playerEye) * AutoModeEyePreferenceBand;
     }
 
     public static bool ShouldRecaptureEyeHeight(bool recapture, bool hasGenuine)

@@ -245,7 +245,7 @@ public static class BasisLocalHeightCalculator
         BasisHeightDriver.AvatarArmSpan = ArmLength;
         BasisDebug.Log($"Current Avatar Arm Span: {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
     }
-    private static void ValidateEyeToArm(ref float eyeHeight, ref float armSpan, float fallbackEyeHeight, string label)
+    private static void ValidateEyeToArm(ref float eyeHeight, ref float armSpan, float fallbackEyeHeight, string label, float maxAbsoluteSpan)
     {
         // Eye height sanity
         if (eyeHeight <= 0f)
@@ -277,12 +277,27 @@ public static class BasisLocalHeightCalculator
         float maxAllowed = eyeHeight * (1f + EyeArmTolerance);
         if (armSpan > maxAllowed)
         {
-            BasisDebug.LogWarning(
-                $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}). " +
-                $"Clamping to max allowed: {maxAllowed}",
-                BasisDebug.LogTag.Avatar
-            );
-            armSpan = maxAllowed;
+            // Do NOT clamp the span down to the eye-implied band: arms cannot over-measure, so a
+            // span far beyond the eye height almost always means the EYE was under-measured
+            // (calibrated while physically seated/slouched with arms out) — clamping here destroyed
+            // the one good measurement, and clamped authored long-armed avatars too. Only reject
+            // spans beyond the caller's absolute plausibility cap.
+            if (armSpan > maxAbsoluteSpan)
+            {
+                BasisDebug.LogWarning(
+                    $"{label} arm span ({armSpan}) exceeds the absolute plausibility cap {maxAbsoluteSpan}. Clamping.",
+                    BasisDebug.LogTag.Avatar
+                );
+                armSpan = maxAbsoluteSpan;
+            }
+            else
+            {
+                BasisDebug.Log(
+                    $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} larger than {label} eye height ({eyeHeight}); " +
+                    "keeping it — the eye height was likely under-measured (seated/slouched capture).",
+                    BasisDebug.LogTag.Avatar
+                );
+            }
         }
     }
 
@@ -292,17 +307,20 @@ public static class BasisLocalHeightCalculator
             ref BasisHeightDriver.PlayerEyeHeight,
             ref BasisHeightDriver.PlayerArmSpan,
             BasisHeightDriver.FallbackHeightInMeters,
-            "Player"
+            "Player",
+            BasisHeightDriver.MaxPlausibleBodyMeasure
         );
     }
 
     public static void ValidateEyeToArmSizesAvatar()
     {
+        // Avatar spans are authored geometry — arbitrarily long arms are legitimate, so no cap.
         ValidateEyeToArm(
             ref BasisHeightDriver.AvatarEyeHeight,
             ref BasisHeightDriver.AvatarArmSpan,
             BasisHeightDriver.FallbackHeightInMeters,
-            "Avatar"
+            "Avatar",
+            float.MaxValue
         );
     }
 }

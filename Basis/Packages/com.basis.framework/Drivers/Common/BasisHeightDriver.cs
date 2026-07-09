@@ -105,11 +105,23 @@ public static class BasisHeightDriver
         {
             return;
         }
-        if (PlayerEyeHeight >= MinPlausibleBodyMeasure && PlayerEyeHeight <= MaxPlausibleBodyMeasure)
+        bool eyePlausible = PlayerEyeHeight >= MinPlausibleBodyMeasure && PlayerEyeHeight <= MaxPlausibleBodyMeasure;
+        bool spanPlausible = PlayerArmSpan >= MinPlausibleBodyMeasure && PlayerArmSpan <= MaxPlausibleBodyMeasure;
+
+        // A measurement that reads far shorter than its sibling implies was under-measured — a
+        // physically-seated calibration reads the eye ~25-35% short, bent arms read the span short.
+        // Don't overwrite the saved good value with it; the sibling still saves.
+        bool eyeLooksUnderMeasured = spanPlausible
+            && BasisCalibrationMath.AutoHeightModePicksArmSpan(PlayerEyeHeight, PlayerArmSpan);
+        bool spanLooksUnderMeasured = eyePlausible
+            && BasisCalibrationMath.ImpliedHeightFromEye(PlayerEyeHeight)
+               > BasisCalibrationMath.ImpliedHeightFromSpan(PlayerArmSpan) * BasisCalibrationMath.AutoModeEyePreferenceBand;
+
+        if (eyePlausible && eyeLooksUnderMeasured == false)
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(PlayerEyeHeight);
         }
-        if (PlayerArmSpan >= MinPlausibleBodyMeasure && PlayerArmSpan <= MaxPlausibleBodyMeasure)
+        if (spanPlausible && spanLooksUnderMeasured == false)
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.SetValue(PlayerArmSpan);
         }
@@ -362,12 +374,16 @@ public static class BasisHeightDriver
         ScheduleHeightChangeCallback(HeightModeChange.OnTpose);
     }
 
+    private static BasisSelectedHeightMode s_lastAutoResolvedMode = BasisSelectedHeightMode.EyeHeight;
+
     /// <summary>
-    /// Resolves <see cref="BasisSelectedHeightMode.Auto"/> to a concrete metric pair: whichever
-    /// yields the LARGER DeviceScale wins (see BasisCalibrationMath.AutoHeightModePicksArmSpan) —
-    /// arm span exactly when the avatar is longer-armed relative to the player, so the player's
-    /// full reach always covers the avatar's arms and the viewpoint lands at-or-above the avatar's
-    /// eyes. Desktop always resolves to EyeHeight. Concrete modes pass through untouched.
+    /// Resolves <see cref="BasisSelectedHeightMode.Auto"/> to a concrete metric pair by trusting the
+    /// LONGER of the player's own measurements (see BasisCalibrationMath.AutoHeightModePicksArmSpan):
+    /// body metrics under-measure easily (seated/slouched → short eye height, bent arms → short span)
+    /// but cannot over-measure, so the larger implied body height is the trustworthy one. Arm span
+    /// wins only when the eye measurement is implausibly short against the measured reach — the
+    /// "calibrated sitting in a chair with arms out" case. Desktop always resolves to EyeHeight.
+    /// Concrete modes pass through untouched.
     /// </summary>
     public static BasisSelectedHeightMode ResolveHeightMode(BasisSelectedHeightMode mode)
     {
@@ -379,12 +395,19 @@ public static class BasisHeightDriver
         {
             return BasisSelectedHeightMode.EyeHeight;
         }
-        bool picksArmSpan = BasisCalibrationMath.AutoHeightModePicksArmSpan(
-            SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters),
-            SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters),
-            SanitizePositive(AvatarArmSpan, FallbackHeightInMeters),
-            SanitizePositive(PlayerArmSpan, FallbackHeightInMeters));
-        return picksArmSpan ? BasisSelectedHeightMode.ArmSpan : BasisSelectedHeightMode.EyeHeight;
+        float playerEye = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters);
+        float playerSpan = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
+        BasisSelectedHeightMode resolved = BasisCalibrationMath.AutoHeightModePicksArmSpan(playerEye, playerSpan)
+            ? BasisSelectedHeightMode.ArmSpan
+            : BasisSelectedHeightMode.EyeHeight;
+        if (resolved != s_lastAutoResolvedMode)
+        {
+            s_lastAutoResolvedMode = resolved;
+            BasisDebug.Log(
+                $"Auto height mode resolved to {resolved}: implied body height from eye {BasisCalibrationMath.ImpliedHeightFromEye(playerEye):F2}m vs from span {BasisCalibrationMath.ImpliedHeightFromSpan(playerSpan):F2}m",
+                BasisDebug.LogTag.Avatar);
+        }
+        return resolved;
     }
 
     public static void RevaluateUnscaledHeight(BasisSelectedHeightMode Height)
