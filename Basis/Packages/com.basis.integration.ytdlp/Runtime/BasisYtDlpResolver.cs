@@ -70,7 +70,9 @@ namespace Basis.Integration.YtDlp
                 // Uri and AudioUri through BasisMediaPlayerSecurity.IsUrlAllowed — public
                 // https hosts pass; a host allowlist or page-URL-approval policy is the
                 // deferred decision.
-                player.LoadSource(source);
+                // Hand back the captured generation so the player matches this to the
+                // metadata seed its LoadUrl planted, rather than one a racing load left.
+                player.LoadResolvedSource(source, loadGen);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)

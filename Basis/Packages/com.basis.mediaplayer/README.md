@@ -210,9 +210,13 @@ internal static class MyResolverInstaller
 - **Async resolves must guard against stale loads.** If `TryResolve` resolves
   asynchronously, capture `player.LoadGeneration` before you start and skip your
   `LoadSource` / `LoadUrl` when the async work completes if it no longer matches. The player
-  bumps `LoadGeneration` on every `LoadUrl`, so without this a slow resolve of an earlier URL
-  can overwrite a newer load. Return `true` as soon as you take ownership (kick off the
-  resolve), not when it finishes.
+  bumps `LoadGeneration` on every source replacement — `LoadUrl`, `LoadLocalPath`,
+  `LoadSource` and a direct `Source` assignment — so without this a slow resolve of an
+  earlier URL can overwrite a newer load. Return `true` as soon as you take ownership (kick
+  off the resolve), not when it finishes. When you complete the load, call
+  `player.LoadResolvedSource(source, capturedGeneration)` rather than `LoadSource` so the
+  URL-derived metadata the originating `LoadUrl` seeded is matched to your load and not to
+  an unrelated `LoadSource` that raced the resolve.
 - **Main thread only.** The resolver list is unsynchronised — `Register` / `Unregister`
   and resolution all run on Unity's main thread. Registering from
   `RuntimeInitializeOnLoadMethod` and resolving from the player's load path satisfies this.

@@ -237,6 +237,12 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             // source carries none).
             LoadGeneration++;
             metadataSeedGeneration = -1;
+            // A CPU source has no BasisMediaSource; drop the native-descriptor
+            // identity so ActiveMediaSource stops reporting the previous media
+            // and no descriptor origin lingers into the next load.
+            activeMediaSource = null;
+            activeSourceOrigin = null;
+            activeSourceUri = null;
             if (metadata != null)
             {
                 metadata = null;
@@ -423,6 +429,11 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     // (rather than a bool) stops a seed abandoned by a resolver-less or failed
     // load from attaching to the next unrelated one.
     private int metadataSeedGeneration = -1;
+    // LoadGeneration a resolver continuation captured at LoadUrl time and handed
+    // back through LoadResolvedSource; -1 for a plain LoadSource. Matching it to
+    // metadataSeedGeneration is what ties a continuation to the seed its own
+    // LoadUrl planted, so an unrelated LoadSource racing the resolve can't adopt it.
+    private int resolvedContinuationGeneration = -1;
     // Metadata origin of the active source (the page URL a resolver started
     // from), kept player-side so a reload of the same instance keeps its origin
     // without the player writing state back into the caller's BasisMediaSource.
@@ -553,6 +564,17 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         LoadSource(activeMediaSource);
     }
 
+    // Entry point for an async resolver continuation (the yt-dlp integration):
+    // it hands back the LoadGeneration it captured when LoadUrl kicked it off, so
+    // the URL-derived metadata seed that LoadUrl planted is matched to THIS load
+    // and not adopted by an unrelated direct LoadSource that raced the resolve.
+    // Otherwise identical to LoadSource.
+    public void LoadResolvedSource(BasisMediaSource media, int originatingGeneration)
+    {
+        resolvedContinuationGeneration = originatingGeneration;
+        LoadSource(media);
+    }
+
     // Resolves the descriptor to the OS-codec engine and starts it. All network
     // URLs (rtsp/rtspt/rtmp/rtmps/http/https) are decoded by basis_media_native
     // straight into a GPU texture. The CPU IBasisFrameSource path is reserved for
@@ -563,6 +585,11 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         {
             throw new ArgumentNullException(nameof(media));
         }
+
+        // A plain LoadSource carries no continuation token; only the
+        // LoadResolvedSource path just below sets one for this call.
+        int continuationGeneration = resolvedContinuationGeneration;
+        resolvedContinuationGeneration = -1;
 
         LastErrorMessage = null;
         BasisMediaSource previousMediaSource = activeMediaSource;
@@ -578,7 +605,10 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         // reload; a different instance rebuilds even on a matching origin so
         // the previous load's enrichment and consumer-stamped fields don't leak
         // into a fresh load. Source-carried enrichment then layers on top.
-        bool seeded = metadataSeedGeneration == LoadGeneration;
+        // The seed belongs to the resolver continuation that its LoadUrl kicked
+        // off, identified by the generation that continuation handed back; a
+        // direct LoadSource racing the resolve carries no token and can't adopt it.
+        bool seeded = metadataSeedGeneration >= 0 && metadataSeedGeneration == continuationGeneration;
         metadataSeedGeneration = -1;
         // Every source replacement is a new load operation: a resolver still in
         // flight for an earlier URL sees the generation move and stands down.
@@ -624,38 +654,49 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     private async System.Threading.Tasks.Task StartNativeEngineForSourceAsync(BasisMediaSource media)
     {
-        // The decision may resolve a frame or more later (dialog / DNS), so re-check
-        // this is still the source we were asked to load before starting the engine.
-        if (!ReferenceEquals(activeMediaSource, media)) return;
+        // Snapshot the load's identity and descriptor before the first await: the
+        // trust/DNS checks resume a frame or more later, by which point a newer load
+        // may have replaced this one, or the caller may have mutated the
+        // BasisMediaSource it still holds. The generation pins "is this still the
+        // load we were started for" — and unlike an object-identity check it also
+        // catches a CPU Source assignment, which keeps no BasisMediaSource. The
+        // locals pin "what were we asked to open" so a mutated Uri can't redirect
+        // the validated open to a host that never passed the trust/DNS gate.
+        int loadGeneration = LoadGeneration;
+        string uri = media.Uri;
+        string audioUri = media.AudioUri;
+        BasisMediaDelivery delivery = media.Delivery;
+        string nativeUri = ResolveNativeUri(media);
+        string nativeAudioUri = ResolveNativeAudioUri(media);
 
         try
         {
-            if (string.IsNullOrEmpty(media.Uri))
+            if (string.IsNullOrEmpty(uri))
                 throw new ArgumentException("BasisMediaSource.Uri is required.", nameof(media));
-            if (!BasisMediaPlayerSecurity.IsUrlAllowed(media.Uri, out string blockReason))
-                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{media.Uri}': {blockReason}");
+            if (!BasisMediaPlayerSecurity.IsUrlAllowed(uri, out string blockReason))
+                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{uri}': {blockReason}");
             // The separate audio stream is its own network fetch, so it passes the
             // same trust gate as the video URL.
-            if (!string.IsNullOrEmpty(media.AudioUri) &&
-                !BasisMediaPlayerSecurity.IsUrlAllowed(media.AudioUri, out string audioBlockReason))
-                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load audio '{media.AudioUri}': {audioBlockReason}");
+            if (!string.IsNullOrEmpty(audioUri) &&
+                !BasisMediaPlayerSecurity.IsUrlAllowed(audioUri, out string audioBlockReason))
+                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load audio '{audioUri}': {audioBlockReason}");
 
-            string dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(media.Uri);
-            if (dnsReason == null && !string.IsNullOrEmpty(media.AudioUri))
-                dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(media.AudioUri);
+            string dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(uri);
+            if (dnsReason == null && !string.IsNullOrEmpty(audioUri))
+                dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(audioUri);
             if (dnsReason != null)
-                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{media.Uri}': {dnsReason}");
+                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{uri}': {dnsReason}");
 
-            if (!ReferenceEquals(activeMediaSource, media)) return;
+            if (loadGeneration != LoadGeneration) return;
 
-            SetNativeEngine(new BasisNativeVideoSource(ResolveNativeUri(media), ResolveNativeAudioUri(media), media.Delivery));
+            SetNativeEngine(new BasisNativeVideoSource(nativeUri, nativeAudioUri, delivery));
         }
         catch (Exception ex)
         {
-            if (ReferenceEquals(activeMediaSource, media)) HandleError(ex);
+            if (loadGeneration == LoadGeneration) HandleError(ex);
         }
 
-        if (ReferenceEquals(activeMediaSource, media)) ApplyMediaSourceSettings(media);
+        if (loadGeneration == LoadGeneration) ApplyMediaSourceSettings(media);
     }
 
     // RIST exposes a receive-buffer depth that librist parses straight from the URL
