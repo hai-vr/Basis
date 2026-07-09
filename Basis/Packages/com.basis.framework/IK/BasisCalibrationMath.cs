@@ -77,14 +77,26 @@ public static class BasisCalibrationMath
         ScaleDeviceCoord(calibUnscaledTrackerPos, calibUnscaledTrackerRot, deviceScale, offsetPos, offsetRot, out Vector3 trackerPos, out Quaternion trackerRot);
         ScaleDeviceCoord(calibUnscaledHeadPos, calibUnscaledHeadRot, deviceScale, offsetPos, offsetRot, out Vector3 headPos, out Quaternion headRot);
 
-        // DriveTpose's anchor: yaw-only head frame, root offset so the head bone lands on the head.
-        Vector3 flatFwd = headRot * Vector3.forward;
-        flatFwd.y = 0f;
-        Quaternion rootRot = flatFwd.sqrMagnitude < 1e-6f ? Quaternion.identity : Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
-        Vector3 rootPos = headPos - rootRot * headTposeLocalScaled;
+        ComputeTposeAnchor(headPos, headRot, headTposeLocalScaled, out Vector3 rootPos, out Quaternion rootRot);
 
         Vector3 reference = rootPos + rootRot * boneTposeLocalScaled;
         ComputeInverseOffset(trackerPos, trackerRot, reference, Quaternion.identity, out inverseOffsetPosition, out _);
+    }
+
+    /// <summary>
+    /// DriveTpose's anchor math, shared by everything that needs "where the T-posed avatar is
+    /// anchored" WITHOUT reading the live avatar root: yaw-flatten the head, place the root so the
+    /// head bone lands on the head. Reading the live AnimatorRoot instead is only valid in the
+    /// instant after DriveTpose physically placed it — this derives the same frame from the head
+    /// pose alone, so it also holds for captures where the avatar was never physically T-posed
+    /// (device-reconnect offset captures, T-pose-free calibration).
+    /// </summary>
+    public static void ComputeTposeAnchor(Vector3 headPos, Quaternion headRot, Vector3 headTposeLocalScaled, out Vector3 anchorPos, out Quaternion anchorRot)
+    {
+        Vector3 flatFwd = headRot * Vector3.forward;
+        flatFwd.y = 0f;
+        anchorRot = flatFwd.sqrMagnitude < 1e-6f ? Quaternion.identity : Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
+        anchorPos = headPos - anchorRot * headTposeLocalScaled;
     }
 
     /// <summary>

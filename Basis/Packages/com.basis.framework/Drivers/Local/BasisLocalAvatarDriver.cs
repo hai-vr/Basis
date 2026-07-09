@@ -202,17 +202,19 @@ namespace Basis.Scripts.Drivers
 
             CollectHeadChopEntries(harvestedHeadChop);
 
+            // Capture the raw-joint T-pose snapshot while the avatar is still physically T-posed and
+            // Mapping is populated — BEFORE SetBodySettings, whose rig build re-derives the FBT rotation
+            // offsets (ApplyCalibrationToCurrentAvatar) from this snapshot; capturing later would hand
+            // that rebuild the previous avatar's binds. Everything downstream (arm span, offset capture
+            // references, offset reprojection) derives from this data instead of live bone reads.
+            CaptureTposeBoneSnapshot();
+
             player.AvatarTransform.rotation = player.transform.rotation;
             player.LocalBoneDriver.SimulateAndApplyWithoutLerp(player);
             player.LocalRigDriver.SetBodySettings();
 
 
             CalculateTransformPositions(player, player.LocalBoneDriver);
-
-            // Capture the raw-joint T-pose snapshot while the avatar is still physically T-posed and
-            // Mapping is populated. Everything downstream (arm span, offset capture references, offset
-            // reprojection) derives from this data instead of live bone reads.
-            CaptureTposeBoneSnapshot();
 
             ComputeOffsets(player.LocalBoneDriver);
 

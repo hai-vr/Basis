@@ -397,15 +397,20 @@ namespace Basis.Scripts.Device_Management.Devices
             BasisLocalAvatarDriver avatarDriver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
             if (avatarDriver != null && TryGetRole(out BasisBoneTrackedRole role))
             {
-                var mapping = BasisLocalAvatarDriver.Mapping;
+                BasisLocalBoneControl headControl = BasisLocalBoneDriver.HeadControl;
                 if (BasisLocalAvatarDriver.HasTposeBoneSnapshot
                     && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(role, out var bind)
-                    && mapping.HasAnimatorRoot && mapping.AnimatorRoot != null)
+                    && headControl != null)
                 {
-                    mapping.AnimatorRoot.GetPositionAndRotation(out Vector3 rootPos, out Quaternion rootRot);
+                    // Anchor derived from the head (the same math DriveTpose uses to PLACE the avatar
+                    // root), not read from the live root: reading the root is only valid in the instant
+                    // after DriveTpose ran, and is wrong for captures outside a T-posed calibration
+                    // (device-reconnect restores, T-pose-free calibration).
+                    var headWorld = headControl.OutgoingWorldData;
+                    BasisCalibrationMath.ComputeTposeAnchor(headWorld.position, headWorld.rotation, headControl.TposeLocalScaled.position, out Vector3 anchorPos, out Quaternion anchorRot);
                     float avatarScale = avatarDriver.ScaleAvatarModification != null ? avatarDriver.ScaleAvatarModification.ApplyScale : 1f;
                     if (float.IsNaN(avatarScale) || float.IsInfinity(avatarScale) || avatarScale <= 1e-6f) avatarScale = 1f;
-                    Vector3 world = rootPos + rootRot * (bind.position * avatarScale);
+                    Vector3 world = anchorPos + anchorRot * (bind.position * avatarScale);
                     referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(world);
                 }
                 else if (avatarDriver.StoredRolesTransforms != null
