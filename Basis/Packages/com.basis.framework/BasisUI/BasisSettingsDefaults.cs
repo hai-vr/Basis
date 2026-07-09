@@ -465,6 +465,14 @@ namespace Basis.BasisUI
         // regardless of the stored metres, and the slider is hidden in the calibration panel. Off by default.
         public static BasisSettingsBinding<bool> EnableStandingEyeHeightCorrection = new("enablestandingeyeheightcorrection", new BasisPlatformDefault<bool>(false));
 
+        // The player's body size measured at their last explicit calibration (metres). Seeded back into
+        // BasisHeightDriver at boot so the very first avatar fits at the right scale instead of the
+        // 1.61 m fallback / a stance-dependent first poll. 0 = never calibrated (no seed). Cleared by
+        // Reset Calibration. Standing measurements only -- seated calibrations use the virtual standing
+        // eye and are never saved here.
+        public static BasisSettingsBinding<float> SavedPlayerEyeHeight = new("savedplayereyeheight", new BasisPlatformDefault<float>(0f));
+        public static BasisSettingsBinding<float> SavedPlayerArmSpan = new("savedplayerarmspan", new BasisPlatformDefault<float>(0f));
+
         // Gate for the standing-height nudge in the calibration window: shows the ± buttons AND applies the value
         // below. Off by default.
         public static BasisSettingsBinding<bool> EnableStandingHeightNudge = new("enablestandingheightnudge", new BasisPlatformDefault<bool>(false));
@@ -710,7 +718,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> FingerTouchHands = new("fingertouchhands", new BasisPlatformDefault<string>(FingerTouchHands_Both));
         public static BasisSettingsBinding<float> FingerTouchTipOffset = new("fingertouchtipoffset", new BasisPlatformDefault<float>(0.015f));
         public static BasisSettingsBinding<float> FingerTouchFingerLength = new("fingertouchfingerlength", new BasisPlatformDefault<float>(0.1f));
-        public static BasisSettingsBinding<float> FingerTouchRadius = new("fingertouchradius", new BasisPlatformDefault<float>(0.015f));
+        public static BasisSettingsBinding<float> FingerTouchRadius = new("fingertouchradius_v2", new BasisPlatformDefault<float>(0.00375f));
         public static BasisSettingsBinding<float> FingerTouchHoverDistance = new("fingertouchhoverdistance", new BasisPlatformDefault<float>(0.04f));
         public static BasisSettingsBinding<float> FingerTouchPressDepth = new("fingertouchpressdepth", new BasisPlatformDefault<float>(0.01f));
         public static BasisSettingsBinding<float> FingerTouchReleaseDistance = new("fingertouchreleasedistance", new BasisPlatformDefault<float>(0.025f));
@@ -1518,6 +1526,8 @@ namespace Basis.BasisUI
             EnableStandingEyeHeightCorrection.LoadBindingValue();
             EnableStandingHeightNudge.LoadBindingValue();
             AdditionalPlayerHeight.LoadBindingValue();
+            SavedPlayerEyeHeight.LoadBindingValue();
+            SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();

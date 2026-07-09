@@ -150,6 +150,15 @@ namespace Basis.BasisUI
                 return;
             }
 
+            if (change == BasisHeightDriver.HeightModeChange.OnSitStandChanged)
+            {
+                // Sit/stand teleports the eye vertically: the play-space-stable anchor is now at the
+                // wrong height, so drop it and re-anchor fully instead of the usual scale-only refresh.
+                _stableHasAnchor = false;
+                SetRootMode(GetFindCurrentMode());
+                return;
+            }
+
             if (InUse == PanelGroupRootMode.PlaySpaceStable && _stableHasAnchor)
             {
                 ApplyScaleOnly();

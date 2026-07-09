@@ -16,8 +16,14 @@ public static class BasisLocalHeightCalculator
 
         if (!hasLeft && !hasRight)
         {
-            BasisDebug.LogWarning("No hands found. Using fallback.", BasisDebug.LogTag.Avatar);
-            BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+            // Keep the seeded/last-known span when the hands simply aren't tracked yet (boot, sleeping
+            // controllers) — only fall back when we have nothing plausible at all.
+            if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure
+                || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
+            {
+                BasisDebug.LogWarning("No hands found. Using fallback.", BasisDebug.LogTag.Avatar);
+                BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+            }
             return;
         }
 
@@ -27,7 +33,11 @@ public static class BasisLocalHeightCalculator
         {
             if (lockToInput?.BasisInput == null)
             {
-                BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+                if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.MinPlausibleBodyMeasure
+                    || BasisHeightDriver.PlayerArmSpan > BasisHeightDriver.MaxPlausibleBodyMeasure)
+                {
+                    BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
+                }
                 return;
             }
 
@@ -72,6 +82,10 @@ public static class BasisLocalHeightCalculator
         {
             BasisHeightDriver.PlayerCenterEyeVerticalOffset = 0f;
             BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
+            // NOT genuine: this is the virtual standing eye, not the player's body. Leaving it genuine
+            // locked 1.61 m in as the "known standing height", so leaving seated mode could never
+            // restore the real one (the persisted-size seed only fills in when nothing genuine exists).
+            genuine = false;
             BasisDebug.Log($"Seated mode; using standard eye height {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
         }
         else if (BasisHeightDriver.HasPitchCalibratedHeight)

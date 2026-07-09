@@ -29,7 +29,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static float FingerLength = 0.1f;
         [Tooltip("Extra offset past the distal bone to approximate the actual fingertip")]
         public static float DistalTipOffset = 0.015f;
-        public static float FingerRadius = 0.015f;
+        public static float FingerRadius = 0.00375f;
 
         // ── Thresholds ─────────────────────────────────────────────────
         public static float HoverDistance = 0.04f;

@@ -274,6 +274,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableStandingEyeHeightCorrection.ResetToDefault();
             BasisSettingsDefaults.EnableStandingHeightNudge.ResetToDefault();
             BasisSettingsDefaults.AdditionalPlayerHeight.ResetToDefault();
+            // Forget the persisted body size so the next boot (and this session) starts from a true
+            // uncalibrated state instead of re-seeding the old measurements.
+            BasisSettingsDefaults.SavedPlayerEyeHeight.ResetToDefault();
+            BasisSettingsDefaults.SavedPlayerArmSpan.ResetToDefault();
+            BasisHeightDriver.HasGenuinePlayerEyeHeight = false;
             BasisHeightDriver.HasUserCalibratedHeight = false;
             BasisAutoScaleEstimator.Reset();
             BasisHeightDriver.ApplyScaleAndHeight();

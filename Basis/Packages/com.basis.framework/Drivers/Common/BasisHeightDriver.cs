@@ -85,8 +85,65 @@ public static class BasisHeightDriver
     {
         HasUserCalibratedHeight = true;
         CapturePlayerHeight();
+        PersistCalibratedBodySize();
         ApplyScaleAndHeight();
         ScheduleHeightChangeCallback(HeightModeChange.OnAvatarFBCalibration);
+    }
+
+    // Plausibility band for persisted body measurements (metres): outside this, treat as junk.
+    public const float MinPlausibleBodyMeasure = 0.8f;
+    public const float MaxPlausibleBodyMeasure = 2.8f;
+
+    /// <summary>
+    /// Saves the explicitly calibrated body size so the NEXT session boots at the right scale instead
+    /// of the fallback (seeded back in <see cref="CapturePlayerHeight"/>). Seated calibrations measure
+    /// the virtual standing eye, not the player's body, so they are never saved.
+    /// </summary>
+    private static void PersistCalibratedBodySize()
+    {
+        if (SMModuleSitStand.IsSteatedMode || HasGenuinePlayerEyeHeight == false)
+        {
+            return;
+        }
+        if (PlayerEyeHeight >= MinPlausibleBodyMeasure && PlayerEyeHeight <= MaxPlausibleBodyMeasure)
+        {
+            Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(PlayerEyeHeight);
+        }
+        if (PlayerArmSpan >= MinPlausibleBodyMeasure && PlayerArmSpan <= MaxPlausibleBodyMeasure)
+        {
+            Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.SetValue(PlayerArmSpan);
+        }
+    }
+
+    /// <summary>
+    /// Seeds the last session's calibrated body size when no genuine measurement exists yet, so the
+    /// default scale is right from the very first avatar load (and the standing height is restored on
+    /// leaving seated mode) instead of the fallback / a stance-dependent first poll. Never seeds while
+    /// seated — there the virtual standing eye (FallbackHeightInMeters) must stay the denominator.
+    /// Self-limiting: seeding marks the height genuine, and explicit calibrates re-poll regardless.
+    /// </summary>
+    private static void SeedPersistedBodySize()
+    {
+        if (HasGenuinePlayerEyeHeight || SMModuleSitStand.IsSteatedMode)
+        {
+            return;
+        }
+        float savedEye = Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.RawValue;
+        if (savedEye < MinPlausibleBodyMeasure || savedEye > MaxPlausibleBodyMeasure)
+        {
+            return;
+        }
+        PlayerEyeHeight = savedEye;
+        HasGenuinePlayerEyeHeight = true;
+        // The saved size originated from an explicit calibration, so the pre-calibration ballpark
+        // auto-scale estimator must not fight it.
+        HasUserCalibratedHeight = true;
+        float savedSpan = Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.RawValue;
+        if (savedSpan >= MinPlausibleBodyMeasure && savedSpan <= MaxPlausibleBodyMeasure)
+        {
+            PlayerArmSpan = savedSpan;
+        }
+        BasisDebug.Log($"Seeded last session's calibrated body size: eye {PlayerEyeHeight:F3}m span {PlayerArmSpan:F3}m", BasisDebug.LogTag.Avatar);
     }
     public static void ScheduleHeightChangeCallback(HeightModeChange Mode)
     {
@@ -136,7 +193,10 @@ public static class BasisHeightDriver
     {
         OnAvatarFBCalibration,
         OnTpose,
-        OnApplyHeightAndScale
+        OnApplyHeightAndScale,
+        // Sit/stand mode switch: the eye teleports vertically, so consumers that normally hold their
+        // anchor through scale changes (the play-space-stable menu) must re-anchor fully.
+        OnSitStandChanged
     }
 
     public static bool ApplyRuntimeOscEyeHeightOverride(float eyeHeightMeters)
@@ -243,6 +303,7 @@ public static class BasisHeightDriver
     public static void CapturePlayerHeight(bool recaptureEyeHeight = true)
     {
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
+        SeedPersistedBodySize();
         if (BasisCalibrationMath.ShouldRecaptureEyeHeight(recaptureEyeHeight, HasGenuinePlayerEyeHeight))
         {
             BasisLocalHeightCalculator.CalculatePlayerEyeHeight();

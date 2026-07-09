@@ -539,7 +539,7 @@ namespace Basis.BasisUI
 
                 PanelSlider sliderTouchRadius = PanelSlider.CreateEntryAndBind(
                     container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.radius"), 0.005f, 0.05f, false, 3, ValueDisplayMode.Meters),
+                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.radius"), 0.001f, 0.05f, false, 3, ValueDisplayMode.Meters),
                     BasisSettingsDefaults.FingerTouchRadius);
                 sliderTouchRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.radius.tooltip"));
                 fingerTouchTuning.Add(sliderTouchRadius.Descriptor);
