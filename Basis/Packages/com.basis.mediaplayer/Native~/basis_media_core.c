@@ -169,6 +169,21 @@ struct basis_media_engine {
     /* diagnostics (demux thread writes, main thread reads; minor races OK) */
     volatile long video_au_count;
     volatile long audio_frame_count;
+
+    /* Total media duration reported by the demuxer (VOD); 0 = unknown/live.
+     * Demux thread writes once, main thread reads — a torn read on 32-bit is
+     * the worst case and Windows/Android are 64-bit. */
+    volatile int64_t duration_us;
+
+    /* Absolute-seek handshake. The main thread posts target+seq under e->lock;
+     * each demux leg takes a posted request once (its own taken counter — a
+     * split source's two legs both reposition). HLS repositions at the segment
+     * source instead: active_hls is set while run_hls owns a context. */
+    long seek_seq;
+    int64_t seek_target_us;
+    volatile long seek_taken_main;
+    volatile long seek_taken_audio;
+    void* active_hls;   /* guarded by e->lock */
 };
 
 /* ---- state/error helpers (exported to internal) ------------------------- */
@@ -247,10 +262,13 @@ static void sink_video_format(void* user, basis_codec_t codec, const uint8_t* ed
     basis_decoder_set_video_format(e->decoder, codec, ed, ed_len, w, h);
     mutex_unlock(&e->submit_lock);
 }
-static void sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, int key) {
+static void sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, int64_t dts, int key) {
     basis_media_engine_t* e = (basis_media_engine_t*)user;
     if (!e->running) return;
-    pace_gate(e, pts);              /* paced mode: hold until ~real time; no-op otherwise */
+    /* Pace on the decode timestamp: gating on pts would sleep out a composition
+     * offset the decoder still needs the AU inside of, and starve the other
+     * track's earlier samples queued behind this one on the demux thread. */
+    pace_gate(e, dts);              /* paced mode: hold until ~real time; no-op otherwise */
     if (!e->running) return;        /* may have been stopped while pacing */
     e->video_au_count++;
     mutex_lock(&e->submit_lock);
@@ -284,7 +302,40 @@ static void sink_audio_frame(void* user, const uint8_t* data, int len, int64_t p
 static void sink_state(void* user, basis_media_state_t s) { basis_engine_set_state((basis_media_engine_t*)user, s); }
 static void sink_error(void* user, const char* m) { basis_engine_set_error((basis_media_engine_t*)user, m); }
 static void sink_eos(void* user) { basis_engine_set_state((basis_media_engine_t*)user, BASIS_MEDIA_STATE_ENDED); }
-static int  sink_is_running(void* user) { basis_media_engine_t* e = (basis_media_engine_t*)user; return e->running; }
+static void sink_duration(void* user, int64_t us) { basis_media_engine_t* e = (basis_media_engine_t*)user; if (us > 0) e->duration_us = us; }
+/* A raised error is fatal to the current demux run: the reconnect loop already
+ * treats an error state as non-retryable, so stopping here makes the protocol
+ * demuxer leave promptly instead of streaming a still-decodable track on past a
+ * fatal parse error (e.g. an unsupported stz2 track alongside a valid one). The
+ * unlocked state read matches the lock-free `running` checks throughout the hot
+ * demux/pace loops; a stale read only costs one extra iteration. */
+static int  sink_is_running(void* user) { basis_media_engine_t* e = (basis_media_engine_t*)user; return e->running && e->state != BASIS_MEDIA_STATE_ERROR; }
+
+static int take_seek_common(basis_media_engine_t* e, volatile long* taken, int64_t* out_target_us) {
+    if (*taken == e->seek_seq) return 0;
+    mutex_lock(&e->lock);
+    long seq = e->seek_seq;
+    int64_t us = e->seek_target_us;
+    /* Re-anchor delivery pacing: only post-seek samples flow on this leg from
+     * here, and against the old anchor they'd read as far-future (a forward
+     * seek stalls the demux thread for the jump distance) or as late (a
+     * backward seek floods through unpaced and fast-forwards back). The next
+     * paced sample re-establishes base/wall from its own timestamp. */
+    if (*taken != seq) e->pace_started = 0;
+    mutex_unlock(&e->lock);
+    if (*taken == seq) return 0;
+    *taken = seq;
+    *out_target_us = us;
+    return 1;
+}
+static int sink_take_seek(void* user, int64_t* out_target_us) {
+    basis_media_engine_t* e = (basis_media_engine_t*)user;
+    return take_seek_common(e, &e->seek_taken_main, out_target_us);
+}
+static int audio_sink_take_seek(void* user, int64_t* out_target_us) {
+    basis_media_engine_t* e = (basis_media_engine_t*)user;
+    return take_seek_common(e, &e->seek_taken_audio, out_target_us);
+}
 
 static void install_sink(basis_media_engine_t* e) {
     e->sink.user = e;
@@ -295,6 +346,8 @@ static void install_sink(basis_media_engine_t* e) {
     e->sink.on_state = sink_state;
     e->sink.on_error = sink_error;
     e->sink.on_end_of_stream = sink_eos;
+    e->sink.on_duration = sink_duration;
+    e->sink.take_seek = sink_take_seek;
     e->sink.is_running = sink_is_running;
 }
 
@@ -306,8 +359,8 @@ static void install_sink(basis_media_engine_t* e) {
 static void audio_sink_video_format(void* user, basis_codec_t codec, const uint8_t* ed, int ed_len, int w, int h) {
     (void)user; (void)codec; (void)ed; (void)ed_len; (void)w; (void)h;
 }
-static void audio_sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, int key) {
-    (void)user; (void)au; (void)len; (void)pts; (void)key;
+static void audio_sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, int64_t dts, int key) {
+    (void)user; (void)au; (void)len; (void)pts; (void)dts; (void)key;
 }
 static void audio_sink_state(void* user, basis_media_state_t s) { (void)user; (void)s; }
 static void audio_sink_eos(void* user) { (void)user; }
@@ -321,6 +374,8 @@ static void install_audio_sink(basis_media_engine_t* e) {
     e->audio_sink.on_state = audio_sink_state;
     e->audio_sink.on_error = sink_error;               /* a failed audio leg is an engine error */
     e->audio_sink.on_end_of_stream = audio_sink_eos;
+    e->audio_sink.on_duration = sink_duration;         /* either leg may know the timeline */
+    e->audio_sink.take_seek = audio_sink_take_seek;    /* both legs reposition on a seek */
     e->audio_sink.is_running = sink_is_running;
 }
 
@@ -403,6 +458,8 @@ typedef struct {
     int cap, head, tail, count;   /* count/head/tail guarded by lock */
     int eof;                      /* producer done (reader hit EOF/error) */
     int closing;                  /* consumer done (tells the reader to stop) */
+    volatile int reseek_park;     /* consumer repositioning: reader must park */
+    volatile int reader_parked;   /* reader acknowledged the park */
     volatile int* running;        /* engine running flag, for prompt stop */
     basis_mutex_t lock;
 } byte_ring_t;
@@ -439,7 +496,7 @@ static void ring_write(byte_ring_t* r, const uint8_t* data, int n, volatile int*
         int closing = r->closing;
         mutex_unlock(&r->lock);
         if (off < n) {
-            if (!*running || closing) return;
+            if (!*running || closing || r->reseek_park) return; /* parked writes drop pre-seek bytes */
             sleep_ms(2);   /* full: wait for the demuxer to drain */
         }
     }
@@ -479,8 +536,23 @@ typedef struct {
 static void reader_body(reader_args_t* a) {
     uint8_t tmp[65536];
     while (*a->running && !a->ring->closing) {
+        if (a->ring->reseek_park) {
+            /* The demuxer is repositioning the source underneath us: acknowledge
+             * and idle until it finishes (http_reseek aborts a parked read, so a
+             * blocked net_read also lands here via n <= 0). */
+            a->ring->reader_parked = 1;
+            sleep_ms(2);
+            continue;
+        }
+        if (a->ring->eof) { sleep_ms(5); continue; } /* drained; stay alive for a reseek */
         int n = a->net_read(a->net_ctx, tmp, (int)sizeof(tmp));
-        if (n <= 0) break;   /* EOF or error */
+        if (n <= 0) {
+            if (a->ring->reseek_park) continue;  /* aborted for a reseek, not EOF */
+            mutex_lock(&a->ring->lock);
+            a->ring->eof = 1;
+            mutex_unlock(&a->ring->lock);
+            continue;
+        }
         ring_write(a->ring, tmp, n, a->running);
     }
     mutex_lock(&a->ring->lock);
@@ -492,6 +564,40 @@ static void reader_body(reader_args_t* a) {
 static DWORD WINAPI reader_entry(LPVOID p) { reader_body((reader_args_t*)p); return 0; }
 #else
 static void* reader_entry(void* p) { reader_body((reader_args_t*)p); return NULL; }
+#endif
+
+#if defined(_WIN32)
+/* Byte-source reseek for the HTTP VOD path (handed to the MP4 demuxer). Parks
+ * the read-ahead reader, swaps the response for a ranged one, flushes buffered
+ * bytes and the replayed sniff prefix, and resumes. Runs on the demux thread. */
+typedef struct {
+    void* http;
+    byte_ring_t* ring;      /* NULL when the demuxer reads the source directly */
+    prefix_src_t* ps;
+    volatile int* running;
+} http_seek_src_t;
+
+static int http_reseek(void* ctx, int64_t abs_offset) {
+    http_seek_src_t* s = (http_seek_src_t*)ctx;
+    if (s->ring) {
+        s->ring->reseek_park = 1;
+        basis_win_http_abort(s->http);   /* unblock a read the reader is parked in */
+        while (!s->ring->reader_parked && *s->running) sleep_ms(1);
+    } else {
+        basis_win_http_abort(s->http);   /* demux thread is the only reader */
+    }
+    int rc = basis_win_http_reseek(s->http, abs_offset);
+    s->ps->prefix_pos = s->ps->prefix_len;   /* sniffed offset-0 bytes must not replay */
+    if (s->ring) {
+        mutex_lock(&s->ring->lock);
+        s->ring->head = s->ring->tail = s->ring->count = 0;
+        s->ring->eof = (rc != 0);            /* failed reseek reads as end-of-stream */
+        mutex_unlock(&s->ring->lock);
+        s->ring->reader_parked = 0;
+        s->ring->reseek_park = 0;
+    }
+    return rc;
+}
 #endif
 
 /* HLS / LL-HLS: the URL is a playlist, not a continuous byte stream. The HLS
@@ -514,16 +620,33 @@ static void run_hls(demux_ctx_t* c) {
      * has no endlist. A forced hint skips this. */
     if (c->e->paced_hint == 0 && basis_hls_is_vod(hls))
         c->e->paced = 1;
+    /* Report the timeline only when seeks will actually work (a non-zero
+     * duration is the managed layer's seekability signal): TS-segment VOD.
+     * fMP4 VOD plays fine but stays timeline-less for now. */
+    if (basis_hls_can_seek(hls)) {
+        long total_ms = basis_hls_duration_ms(hls);
+        if (total_ms > 0 && c->sink->on_duration)
+            c->sink->on_duration(c->sink->user, (int64_t)total_ms * 1000);
+    }
     /* HLS buffers segments and delivers faster than real time, so always pace delivery —
      * even for live (paced=0), which still presents at and converges to the live edge.
      * This replaces basis_hls.c's byte-rate token bucket (disabled there) with PTS-exact
      * AU pacing that tracks VBR and recovers from stalls. */
     c->e->pace_delivery = 1;
     c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
+    /* Seeks reposition inside the HLS source (segment granularity) via
+     * basis_media_seek_us -> basis_hls_seek_ms, so the demuxer gets no
+     * byte-level reseek here. */
+    mutex_lock(&c->e->lock);
+    c->e->active_hls = hls;
+    mutex_unlock(&c->e->lock);
     if (is_fmp4)
-        basis_mp4_run(c->sink, basis_hls_read, hls);
+        basis_mp4_run(c->sink, basis_hls_read, hls, NULL, NULL);
     else
         basis_ts_run(c->sink, basis_hls_read, hls);
+    mutex_lock(&c->e->lock);
+    c->e->active_hls = NULL;
+    mutex_unlock(&c->e->lock);
     basis_hls_close(hls);
 #else
     c->sink->on_error(c->sink->user, "HLS playback currently requires the Windows backend.");
@@ -633,8 +756,20 @@ static void run_http_like(demux_ctx_t* c) {
         else { ring_free(&ring); use_readahead = 0; }
     }
 
+    /* A seekable VOD body gets a reseek hook so the MP4 demuxer can honour
+     * absolute seeks with a ranged refetch; everything else demuxes as before. */
+    basis_reseek_fn reseek = NULL;
+    void* reseek_ctx = NULL;
+#if defined(_WIN32)
+    http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running };
+    if (c->e->paced && basis_win_http_can_reseek(src)) {
+        reseek = http_reseek;
+        reseek_ctx = &seek_src;
+    }
+#endif
+
     if (is_mp4)
-        basis_mp4_run(c->sink, demux_read, demux_ctx);
+        basis_mp4_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
     else
         basis_ts_run(c->sink, demux_read, demux_ctx); /* default to MPEG-TS */
 
@@ -996,6 +1131,29 @@ BASIS_API int BASIS_CALL basis_media_get_frame_origin(basis_media_engine_t* e) {
 BASIS_API int64_t BASIS_CALL basis_media_get_position_us(basis_media_engine_t* e) {
     if (!e || !e->decoder) return -1;
     return basis_decoder_get_position_us(e->decoder);
+}
+
+BASIS_API int64_t BASIS_CALL basis_media_get_duration_us(basis_media_engine_t* e) {
+    return e ? e->duration_us : 0; /* 0 = unknown / live */
+}
+
+BASIS_API int BASIS_CALL basis_media_seek_us(basis_media_engine_t* e, int64_t target_us) {
+    if (!e || target_us < 0) return -1;
+    int64_t dur = e->duration_us;
+    if (dur <= 0) return -1;                 /* no seekable timeline (live / unindexed) */
+    if (target_us > dur) target_us = dur;
+    mutex_lock(&e->lock);
+    e->seek_target_us = target_us;
+    e->seek_seq++;
+    void* hls = e->active_hls;
+    int rc = hls ? basis_hls_request_seek(hls, target_us / 1000) : 0;
+    /* HLS repositions inside the segment source — the TS demuxer never sees a
+     * take_seek, so re-anchor pacing here. A stray pre-flush sample can win the
+     * re-anchor, but it costs one more re-anchor when the flushed data lands,
+     * not a stall. */
+    if (hls && rc == 0) e->pace_started = 0;
+    mutex_unlock(&e->lock);
+    return rc;
 }
 
 BASIS_API int BASIS_CALL basis_media_poll_caption(basis_media_engine_t* e, char* buf, int buf_size,

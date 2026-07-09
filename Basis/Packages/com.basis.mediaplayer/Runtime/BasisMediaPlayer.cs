@@ -231,6 +231,23 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             try { source?.Dispose(); } catch (Exception ex) { BasisDebug.LogError($"BasisMediaPlayer source dispose failed: {ex.Message}", BasisDebug.LogTag.Video); }
             source = value;
             seekableSource = value as IBasisSeekableFrameSource;
+            // A direct assignment is a source replacement like any load: stand
+            // down in-flight resolver continuations and the LoadUrl seed, and
+            // stop reporting the previous media's metadata as current (a CPU
+            // source carries none).
+            LoadGeneration++;
+            metadataSeedGeneration = -1;
+            // A CPU source has no BasisMediaSource; drop the native-descriptor
+            // identity so ActiveMediaSource stops reporting the previous media
+            // and no descriptor origin lingers into the next load.
+            activeMediaSource = null;
+            activeSourceOrigin = null;
+            activeSourceUri = null;
+            if (metadata != null)
+            {
+                metadata = null;
+                OnMetadataChanged?.Invoke(null);
+            }
             ResetSourceState();
             AttachSource();
             if (AutoPlayOnSourceAssigned && source != null) Play();
@@ -296,9 +313,19 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         }
     }
 
-    public TimeSpan Duration => seekableSource != null && seekableSource.IsPrepared
-        ? seekableSource.Duration
-        : TimeSpan.Zero;
+    public TimeSpan Duration
+    {
+        get
+        {
+            if (seekableSource != null && seekableSource.IsPrepared) return seekableSource.Duration;
+            if (nativeEngine != null)
+            {
+                long us = nativeEngine.DurationUs;
+                if (us > 0) return TimeSpan.FromTicks(us * 10L);
+            }
+            return TimeSpan.Zero;
+        }
+    }
 
     public TimeSpan Position
     {
@@ -327,12 +354,17 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     // Display metadata for the current media — title/filename at minimum,
     // richer fields when an integration supplied them. Null until the first
-    // load; after that always set. See BasisMediaMetadata for the layering.
-    public BasisMediaMetadata Metadata => metadata;
+    // load (and after a direct CPU Source assignment, which carries none);
+    // otherwise always set. Returns a snapshot — mutating it doesn't reach the
+    // player and raises no events; push changes through ApplyMetadata instead.
+    // See BasisMediaMetadata for the layering.
+    public BasisMediaMetadata Metadata => metadata?.Clone();
 
-    // Bumped on every LoadUrl. An async resolver (the yt-dlp integration) captures this
+    // Bumped on every source replacement — LoadUrl, LoadLocalPath, LoadSource and
+    // direct Source assignment. An async resolver (the yt-dlp integration) captures this
     // before resolving and skips its LoadSource if it changed meanwhile, so a slow resolve
-    // of an earlier URL can't overwrite a newer load. Read-only to callers.
+    // of an earlier URL can't overwrite a newer load, whichever entry point the newer
+    // load came through. Read-only to callers.
     public int LoadGeneration { get; private set; }
 
     public System.Collections.Generic.IReadOnlyList<BasisBitrateTrack> BitrateTracks =>
@@ -392,7 +424,21 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     private long lastEnqueuedPtsUs;
     private BasisMediaSource activeMediaSource;
     private BasisMediaMetadata metadata;
-    private bool metadataSeededByLoadUrl;
+    // Generation whose LoadUrl seeded `metadata` and is still awaiting its
+    // LoadSource continuation; -1 when none. Keying the seed to the generation
+    // (rather than a bool) stops a seed abandoned by a resolver-less or failed
+    // load from attaching to the next unrelated one.
+    private int metadataSeedGeneration = -1;
+    // LoadGeneration a resolver continuation captured at LoadUrl time and handed
+    // back through LoadResolvedSource; -1 for a plain LoadSource. Matching it to
+    // metadataSeedGeneration is what ties a continuation to the seed its own
+    // LoadUrl planted, so an unrelated LoadSource racing the resolve can't adopt it.
+    private int resolvedContinuationGeneration = -1;
+    // Metadata origin of the active source (the page URL a resolver started
+    // from), kept player-side so a reload of the same instance keeps its origin
+    // without the player writing state back into the caller's BasisMediaSource.
+    private string activeSourceOrigin;
+    private string activeSourceUri;
     private float sleepTimerRemainingSeconds;
     private bool sleepTimerArmed;
 
@@ -454,11 +500,15 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         // what's loading even while a resolver is still working; enrichment
         // (resolver title etc.) merges in at LoadSource / ApplyMetadata.
         metadata = BasisMediaMetadata.FromUrl(url);
-        metadataSeededByLoadUrl = true;
-        OnMetadataChanged?.Invoke(metadata);
+        metadataSeedGeneration = LoadGeneration;
+        OnMetadataChanged?.Invoke(metadata.Clone());
         if (BasisMediaUrlRouter.TryResolveAndLoad(this, url)) return;
         if (!BasisMediaUrlRouter.IsDirectlyPlayable(url))
         {
+            // This load ends here: retire the seed so it can't attach to the
+            // next unrelated load. The seeded metadata itself stays visible —
+            // it still describes what was requested.
+            metadataSeedGeneration = -1;
             // A missing optional resolver is expected graceful degradation, not a fault — warn.
             // Surfaced to LastErrorMessage too so the Media Players panel can explain why nothing played.
             LastErrorMessage = "This looks like a page URL (e.g. YouTube/Twitch). Playing it needs a media URL resolver package, and none is installed.";
@@ -481,6 +531,9 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             BasisDebug.LogWarning("BasisMediaPlayer.LoadLocalPath called with empty path.", BasisDebug.LogTag.Video);
             return;
         }
+        // Not a LoadUrl continuation — an outstanding seed belongs to some
+        // abandoned earlier load and must not become this load's origin.
+        metadataSeedGeneration = -1;
         var media = BasisMediaSource.FromLocalPath(path);
         LoadSource(media);
     }
@@ -489,14 +542,14 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     // OnMetadataChanged — for enrichment that arrives after a load started
     // (async resolvers, playlist display names, consumer-stamped titles).
     // Applies to the CURRENT load: async callers should capture LoadGeneration
-    // before awaiting and skip the call if it changed, the same guard resolvers
-    // use for LoadSource.
+    // once the load they enrich has started (a caller's own LoadSource advances
+    // it, so capture after that returns) and skip the call if it changed.
     public void ApplyMetadata(BasisMediaMetadata partial)
     {
         if (partial == null) return;
         if (metadata == null) metadata = new BasisMediaMetadata();
         metadata.MergeFrom(partial);
-        OnMetadataChanged?.Invoke(metadata);
+        OnMetadataChanged?.Invoke(metadata.Clone());
     }
 
     public void Reload()
@@ -511,6 +564,17 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         LoadSource(activeMediaSource);
     }
 
+    // Entry point for an async resolver continuation (the yt-dlp integration):
+    // it hands back the LoadGeneration it captured when LoadUrl kicked it off, so
+    // the URL-derived metadata seed that LoadUrl planted is matched to THIS load
+    // and not adopted by an unrelated direct LoadSource that raced the resolve.
+    // Otherwise identical to LoadSource.
+    public void LoadResolvedSource(BasisMediaSource media, int originatingGeneration)
+    {
+        resolvedContinuationGeneration = originatingGeneration;
+        LoadSource(media);
+    }
+
     // Resolves the descriptor to the OS-codec engine and starts it. All network
     // URLs (rtsp/rtspt/rtmp/rtmps/http/https) are decoded by basis_media_native
     // straight into a GPU texture. The CPU IBasisFrameSource path is reserved for
@@ -522,6 +586,11 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             throw new ArgumentNullException(nameof(media));
         }
 
+        // A plain LoadSource carries no continuation token; only the
+        // LoadResolvedSource path just below sets one for this call.
+        int continuationGeneration = resolvedContinuationGeneration;
+        resolvedContinuationGeneration = -1;
+
         LastErrorMessage = null;
         BasisMediaSource previousMediaSource = activeMediaSource;
         activeMediaSource = media;
@@ -529,30 +598,38 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         // Metadata keys on the ORIGIN url — the page URL a resolver started from
         // (media.Metadata.SourceUrl), else the seed a LoadUrl in flight already
         // built (a resolver's stream Uri would title as e.g. "videoplayback"),
-        // else this source's own Uri (direct LoadSource callers). Keep the
-        // existing metadata only for the load it belongs to — the seeded LoadUrl
-        // continuation or a reload of the SAME source instance (Reload(), the
-        // native auto-reconnect); a different instance rebuilds even on a
-        // matching origin so the previous load's enrichment and consumer-stamped
-        // fields don't leak into a fresh load. Source-carried enrichment then
-        // layers on top.
-        bool seeded = metadataSeededByLoadUrl;
-        metadataSeededByLoadUrl = false;
+        // else the retained origin when the SAME unmodified instance reloads
+        // (Reload(), the native auto-reconnect), else this source's own Uri
+        // (direct LoadSource callers). Keep the existing metadata only for the
+        // load it belongs to — the seeded continuation or the same-instance
+        // reload; a different instance rebuilds even on a matching origin so
+        // the previous load's enrichment and consumer-stamped fields don't leak
+        // into a fresh load. Source-carried enrichment then layers on top.
+        // The seed belongs to the resolver continuation that its LoadUrl kicked
+        // off, identified by the generation that continuation handed back; a
+        // direct LoadSource racing the resolve carries no token and can't adopt it.
+        bool seeded = metadataSeedGeneration >= 0 && metadataSeedGeneration == continuationGeneration;
+        metadataSeedGeneration = -1;
+        // Every source replacement is a new load operation: a resolver still in
+        // flight for an earlier URL sees the generation move and stands down.
+        LoadGeneration++;
+        bool sameSource = ReferenceEquals(previousMediaSource, media) &&
+                          string.Equals(activeSourceUri, media.Uri, StringComparison.Ordinal);
         string metadataUrl = media.Metadata != null && !string.IsNullOrEmpty(media.Metadata.SourceUrl)
             ? media.Metadata.SourceUrl
-            : (seeded && metadata != null ? metadata.SourceUrl : media.Uri);
-        bool sameSourceInstance = ReferenceEquals(previousMediaSource, media);
+            : (seeded && metadata != null ? metadata.SourceUrl
+               : (sameSource && !string.IsNullOrEmpty(activeSourceOrigin) ? activeSourceOrigin : media.Uri));
         if (metadata == null ||
             !string.Equals(metadata.SourceUrl, metadataUrl, StringComparison.Ordinal) ||
-            (!seeded && !sameSourceInstance))
+            (!seeded && !sameSource))
             metadata = BasisMediaMetadata.FromUrl(metadataUrl);
         metadata.MergeFrom(media.Metadata);
-        // Persist the origin on the source itself so a later reload of the SAME
-        // instance (Reload(), the native auto-reconnect) keeps it after the
-        // one-shot LoadUrl seed has been spent.
-        if (media.Metadata == null) media.Metadata = new BasisMediaMetadata { SourceUrl = metadataUrl };
-        else if (string.IsNullOrEmpty(media.Metadata.SourceUrl)) media.Metadata.SourceUrl = metadataUrl;
-        OnMetadataChanged?.Invoke(metadata);
+        // The origin is retained player-side (not written back into the
+        // caller's source, whose descriptor stays the caller's to mutate) and
+        // is only trusted again while the instance AND its Uri are unchanged.
+        activeSourceOrigin = metadataUrl;
+        activeSourceUri = media.Uri;
+        OnMetadataChanged?.Invoke(metadata.Clone());
 
         /* not needed anymore!
         // Under Wine/Proton, Media Foundation may be missing and initializing the
@@ -577,38 +654,49 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     private async System.Threading.Tasks.Task StartNativeEngineForSourceAsync(BasisMediaSource media)
     {
-        // The decision may resolve a frame or more later (dialog / DNS), so re-check
-        // this is still the source we were asked to load before starting the engine.
-        if (!ReferenceEquals(activeMediaSource, media)) return;
+        // Snapshot the load's identity and descriptor before the first await: the
+        // trust/DNS checks resume a frame or more later, by which point a newer load
+        // may have replaced this one, or the caller may have mutated the
+        // BasisMediaSource it still holds. The generation pins "is this still the
+        // load we were started for" — and unlike an object-identity check it also
+        // catches a CPU Source assignment, which keeps no BasisMediaSource. The
+        // locals pin "what were we asked to open" so a mutated Uri can't redirect
+        // the validated open to a host that never passed the trust/DNS gate.
+        int loadGeneration = LoadGeneration;
+        string uri = media.Uri;
+        string audioUri = media.AudioUri;
+        BasisMediaDelivery delivery = media.Delivery;
+        string nativeUri = ResolveNativeUri(media);
+        string nativeAudioUri = ResolveNativeAudioUri(media);
 
         try
         {
-            if (string.IsNullOrEmpty(media.Uri))
+            if (string.IsNullOrEmpty(uri))
                 throw new ArgumentException("BasisMediaSource.Uri is required.", nameof(media));
-            if (!BasisMediaPlayerSecurity.IsUrlAllowed(media.Uri, out string blockReason))
-                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{media.Uri}': {blockReason}");
+            if (!BasisMediaPlayerSecurity.IsUrlAllowed(uri, out string blockReason))
+                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{uri}': {blockReason}");
             // The separate audio stream is its own network fetch, so it passes the
             // same trust gate as the video URL.
-            if (!string.IsNullOrEmpty(media.AudioUri) &&
-                !BasisMediaPlayerSecurity.IsUrlAllowed(media.AudioUri, out string audioBlockReason))
-                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load audio '{media.AudioUri}': {audioBlockReason}");
+            if (!string.IsNullOrEmpty(audioUri) &&
+                !BasisMediaPlayerSecurity.IsUrlAllowed(audioUri, out string audioBlockReason))
+                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load audio '{audioUri}': {audioBlockReason}");
 
-            string dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(media.Uri);
-            if (dnsReason == null && !string.IsNullOrEmpty(media.AudioUri))
-                dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(media.AudioUri);
+            string dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(uri);
+            if (dnsReason == null && !string.IsNullOrEmpty(audioUri))
+                dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync(audioUri);
             if (dnsReason != null)
-                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{media.Uri}': {dnsReason}");
+                throw new UnauthorizedAccessException($"BasisMediaPlayer refused to load '{uri}': {dnsReason}");
 
-            if (!ReferenceEquals(activeMediaSource, media)) return;
+            if (loadGeneration != LoadGeneration) return;
 
-            SetNativeEngine(new BasisNativeVideoSource(ResolveNativeUri(media), ResolveNativeAudioUri(media), media.Delivery));
+            SetNativeEngine(new BasisNativeVideoSource(nativeUri, nativeAudioUri, delivery));
         }
         catch (Exception ex)
         {
-            if (ReferenceEquals(activeMediaSource, media)) HandleError(ex);
+            if (loadGeneration == LoadGeneration) HandleError(ex);
         }
 
-        if (ReferenceEquals(activeMediaSource, media)) ApplyMediaSourceSettings(media);
+        if (loadGeneration == LoadGeneration) ApplyMediaSourceSettings(media);
     }
 
     // RIST exposes a receive-buffer depth that librist parses straight from the URL
@@ -830,10 +918,25 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         else Pause();
     }
 
-    // Jumps to the given position. Only meaningful for seekable sources; live
-    // streaming sources throw NotSupportedException.
+    // Jumps to the given position. Only meaningful for sources with a seekable
+    // timeline (Duration > TimeSpan.Zero); live sources throw
+    // NotSupportedException. On the native path the seek is asynchronous and
+    // lands at or shortly before the target (preceding keyframe / segment
+    // boundary); OnSeekCompleted reports the requested target.
     public void Seek(TimeSpan position)
     {
+        if (position < TimeSpan.Zero) position = TimeSpan.Zero;
+        if (nativeEngine != null)
+        {
+            if (!nativeEngine.SeekUs(position.Ticks / 10L))
+            {
+                throw new NotSupportedException(
+                    "BasisMediaPlayer.Seek: the current native source has no seekable timeline (live, or an unindexed container).");
+            }
+            audioComponent?.ResetSyncAnchor();
+            OnSeekCompleted?.Invoke(position);
+            return;
+        }
         if (seekableSource == null)
         {
             throw new NotSupportedException(
@@ -1316,11 +1419,21 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             runtimeIsPrepared = true;
             OnReady?.Invoke();
             // Apply any deferred BasisMediaSource start-position now that the
-            // source can actually accept a seek.
-            if (activeMediaSource != null && activeMediaSource.StartPosition > TimeSpan.Zero && seekableSource != null)
+            // source can actually accept a seek. On the native path the
+            // timeline may legitimately be absent (live) — skip silently
+            // rather than raising, since StartPosition is best-effort there
+            // (a late joiner syncing into a live stream).
+            if (activeMediaSource != null && activeMediaSource.StartPosition > TimeSpan.Zero)
             {
-                try { seekableSource.Seek(activeMediaSource.StartPosition); }
-                catch (Exception ex) { RaiseError(ex); }
+                if (seekableSource != null)
+                {
+                    try { seekableSource.Seek(activeMediaSource.StartPosition); }
+                    catch (Exception ex) { RaiseError(ex); }
+                }
+                else if (nativeEngine != null && nativeEngine.SeekUs(activeMediaSource.StartPosition.Ticks / 10L))
+                {
+                    audioComponent?.ResetSyncAnchor();
+                }
             }
         }
 
