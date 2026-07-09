@@ -194,6 +194,22 @@ public static class BasisLocalHeightCalculator
             BasisDebug.LogError("Missing BasisLocalPlayer");
             return;
         }
+
+        // Preferred source: the load-time raw-joint T-pose snapshot (unscaled, root-local) — no live
+        // bone read and no dependence on the avatar being physically T-posed or unscaled right now.
+        if (BasisLocalAvatarDriver.HasTposeBoneSnapshot
+            && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.LeftHand, out var leftBind)
+            && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(BasisBoneTrackedRole.RightHand, out var rightBind))
+        {
+            Vector3 lb = leftBind.position;
+            Vector3 rb = rightBind.position;
+            BasisHeightDriver.AvatarArmSpan = Vector3.Distance(new Vector3(lb.x, 0f, lb.z), new Vector3(rb.x, 0f, rb.z));
+            BasisDebug.Log($"Current Avatar Arm Span (from T-pose snapshot): {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
+            return;
+        }
+
+        // Fallback (first capture during avatar load, before the snapshot exists): the avatar is
+        // physically T-posed at that point, so live bones are valid.
         Animator animator = Local.BasisAvatar != null ? Local.BasisAvatar.Animator : null;
         Transform leftHand = animator != null ? animator.GetBoneTransform(HumanBodyBones.LeftHand) : null;
         Transform rightHand = animator != null ? animator.GetBoneTransform(HumanBodyBones.RightHand) : null;

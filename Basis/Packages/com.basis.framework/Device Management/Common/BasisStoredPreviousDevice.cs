@@ -1,5 +1,6 @@
 using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
+using UnityEngine;
 
 namespace Basis.Scripts.Device_Management
 {
@@ -15,6 +16,15 @@ namespace Basis.Scripts.Device_Management
         /// Typically applied as <c>bonePose * InverseOffsetFromBone</c> during reconstruction.
         /// </summary>
         public BasisCalibratedCoords InverseOffsetFromBone;
+
+        /// <summary>
+        /// The device's scale-free calibration snapshot (BasisInput.CalibratedUnscaled*), carried across
+        /// a disconnect so a restored device can still have its position offset re-derived for a new
+        /// avatar/DeviceScale.
+        /// </summary>
+        public bool HasCalibratedOffsetSnapshot;
+        public Vector3 CalibratedUnscaledPosition;
+        public Quaternion CalibratedUnscaledRotation = Quaternion.identity;
 
         /// <summary>
         /// The tracked role (e.g., Head, LeftHand) that this device was assigned to.

@@ -74,6 +74,11 @@ public static class BasisHeightDriver
         ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
         ScheduleHeightChangeCallback(HeightModeChange.OnApplyHeightAndScale);
+
+        // DeviceScale (and possibly the avatar) just re-resolved: re-derive the calibrated FBT position
+        // offsets so the existing T-pose calibration keeps fitting (avatar swap / scale slider) instead
+        // of going stale by the scale delta. No-op with no stored calibration.
+        Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
     }
 
     public static void OnAvatarFBCalibration()
@@ -165,6 +170,7 @@ public static class BasisHeightDriver
         RevaluateUnscaledHeight(SMModuleCalibration.HeightMode);
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
         ScheduleHeightChangeCallback(mode);
+        Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
     }
 
     public static bool TryGetMatchedEyeHeightOverrideMeters(BasisRemotePlayer target, out float eyeHeightMeters)

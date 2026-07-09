@@ -41,6 +41,53 @@ public static class BasisCalibrationMath
     }
 
     /// <summary>
+    /// Exact inverse of <see cref="ScaleDeviceCoord"/>: recover the unscaled device pose from a scaled
+    /// one. Used to snapshot calibration-time tracker geometry in a scale-free form so it can be
+    /// rebuilt at any future DeviceScale/OffsetCoords (see <see cref="ReprojectInverseOffsetPosition"/>).
+    /// </summary>
+    public static void UnscaleDeviceCoord(Vector3 scaledPos, Quaternion scaledRot, float deviceScale, Vector3 offsetPos, Quaternion offsetRot, out Vector3 unscaledPos, out Quaternion unscaledRot)
+    {
+        Quaternion invOffset = Quaternion.Inverse(offsetRot);
+        float safeScale = (float.IsNaN(deviceScale) || float.IsInfinity(deviceScale) || deviceScale <= 1e-6f) ? 1f : deviceScale;
+        unscaledPos = (invOffset * (scaledPos - offsetPos)) / safeScale;
+        unscaledRot = invOffset * scaledRot;
+    }
+
+    /// <summary>
+    /// Re-derives a calibrated FBT tracker's POSITION inverse offset for a (possibly different) avatar
+    /// and DeviceScale, from scale-free calibration snapshots — the position analog of the rotation
+    /// calibration's reference mechanism, and what lets an FBT calibration survive an avatar swap or a
+    /// scale change without redoing the T-pose.
+    ///
+    /// Rebuilds the calibration geometry at the CURRENT scale: the tracker and head snapshots (unscaled
+    /// device space) are re-scaled with <see cref="ScaleDeviceCoord"/>, the avatar is virtually anchored
+    /// with DriveTpose's own math (yaw-flattened head; root placed so the head bone lands on the head),
+    /// and the bone reference is that anchored root plus the avatar's own T-pose bind
+    /// (TposeLocalScaled, avatar-root-local — the same quantity DriveTpose uses for the head). The
+    /// offset then captures exactly like BasisInput.CalculateOffset does against a live T-pose. The
+    /// player's live pose at reprojection time is irrelevant.
+    /// </summary>
+    public static void ReprojectInverseOffsetPosition(
+        Vector3 calibUnscaledTrackerPos, Quaternion calibUnscaledTrackerRot,
+        Vector3 calibUnscaledHeadPos, Quaternion calibUnscaledHeadRot,
+        float deviceScale, Vector3 offsetPos, Quaternion offsetRot,
+        Vector3 headTposeLocalScaled, Vector3 boneTposeLocalScaled,
+        out Vector3 inverseOffsetPosition)
+    {
+        ScaleDeviceCoord(calibUnscaledTrackerPos, calibUnscaledTrackerRot, deviceScale, offsetPos, offsetRot, out Vector3 trackerPos, out Quaternion trackerRot);
+        ScaleDeviceCoord(calibUnscaledHeadPos, calibUnscaledHeadRot, deviceScale, offsetPos, offsetRot, out Vector3 headPos, out Quaternion headRot);
+
+        // DriveTpose's anchor: yaw-only head frame, root offset so the head bone lands on the head.
+        Vector3 flatFwd = headRot * Vector3.forward;
+        flatFwd.y = 0f;
+        Quaternion rootRot = flatFwd.sqrMagnitude < 1e-6f ? Quaternion.identity : Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
+        Vector3 rootPos = headPos - rootRot * headTposeLocalScaled;
+
+        Vector3 reference = rootPos + rootRot * boneTposeLocalScaled;
+        ComputeInverseOffset(trackerPos, trackerRot, reference, Quaternion.identity, out inverseOffsetPosition, out _);
+    }
+
+    /// <summary>
     /// The DeviceScale denominator: the player's TRUE standing eye height in real-world metres -- the
     /// height the HMD center-eye sits at when standing level. DeviceScale divides the avatar's rendered
     /// eye height by this, so the avatar only feels right when this equals the real standing eye height.

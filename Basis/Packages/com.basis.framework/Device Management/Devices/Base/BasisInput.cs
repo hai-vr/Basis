@@ -359,6 +359,16 @@ namespace Basis.Scripts.Device_Management.Devices
         }
 
         /// <summary>
+        /// Calibration-time tracker pose snapshotted back into UNSCALED device space (DeviceScale and
+        /// the rigid OffsetCoords undone), so the calibration geometry can be rebuilt at any future
+        /// scale/avatar by BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar —
+        /// the position analog of the rotation calibration surviving avatar swaps.
+        /// </summary>
+        public bool HasCalibratedOffsetSnapshot;
+        public Vector3 CalibratedUnscaledPosition;
+        public Quaternion CalibratedUnscaledRotation = Quaternion.identity;
+
+        /// <summary>
         /// Computes and applies the inverse offset from the driven bone so that the tracker maintains
         /// the spatial relationship determined during calibration.
         /// </summary>
@@ -378,20 +388,42 @@ namespace Basis.Scripts.Device_Management.Devices
             // DriveTpose), converted from world into the bone-sim/player-root frame. The bone sim's
             // degenerate yaw doesn't reliably track the head at large angles, so this uses the real
             // T-pose pose for the head/body direction actually calibrated in, then follows tracker
-            // deltas. Falls back to the live bone pose if the avatar bone isn't resolvable.
+            // deltas. The bone position comes from the load-time raw-joint T-pose snapshot anchored at
+            // the live (DriveTpose'd) avatar root — identical to reading the live T-posed bone, but
+            // from captured data, and the SAME source ReprojectTrackerOffsetsForCurrentAvatar rebuilds
+            // from, so capture and reprojection agree exactly. Falls back to the live bone transform,
+            // then to the bone-sim pose, when the snapshot/avatar isn't resolvable.
             Vector3 referencePosition = bone.position;
             BasisLocalAvatarDriver avatarDriver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
-            if (avatarDriver != null && avatarDriver.StoredRolesTransforms != null
-                && TryGetRole(out BasisBoneTrackedRole role)
-                && avatarDriver.StoredRolesTransforms.TryGetValue(role, out Transform avatarBone)
-                && avatarBone != null)
+            if (avatarDriver != null && TryGetRole(out BasisBoneTrackedRole role))
             {
-                referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(avatarBone.position);
+                var mapping = BasisLocalAvatarDriver.Mapping;
+                if (BasisLocalAvatarDriver.HasTposeBoneSnapshot
+                    && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(role, out var bind)
+                    && mapping.HasAnimatorRoot && mapping.AnimatorRoot != null)
+                {
+                    mapping.AnimatorRoot.GetPositionAndRotation(out Vector3 rootPos, out Quaternion rootRot);
+                    float avatarScale = avatarDriver.ScaleAvatarModification != null ? avatarDriver.ScaleAvatarModification.ApplyScale : 1f;
+                    if (float.IsNaN(avatarScale) || float.IsInfinity(avatarScale) || avatarScale <= 1e-6f) avatarScale = 1f;
+                    Vector3 world = rootPos + rootRot * (bind.position * avatarScale);
+                    referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(world);
+                }
+                else if (avatarDriver.StoredRolesTransforms != null
+                    && avatarDriver.StoredRolesTransforms.TryGetValue(role, out Transform avatarBone)
+                    && avatarBone != null)
+                {
+                    referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(avatarBone.position);
+                }
             }
 
             BasisCalibrationMath.ComputeInverseOffset(tracker.position, tracker.rotation, referencePosition, bone.rotation, out Vector3 InverseOffsetPosition, out Quaternion InverseOffsetRotation);
             Control.SetInverseOffset(InverseOffsetPosition, InverseOffsetRotation);
             Control.UseInverseOffset = true;
+
+            // Scale-free snapshot of where this tracker sat at calibration, so the position offset can
+            // be re-derived for a new avatar/DeviceScale without redoing the T-pose.
+            BasisCalibrationMath.UnscaleDeviceCoord(tracker.position, tracker.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledPosition, out CalibratedUnscaledRotation);
+            HasCalibratedOffsetSnapshot = true;
 
             BasisCalibrationDebugRecorder.OffsetCapture(this, Control);
         }
@@ -479,6 +511,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     Control.SetInverseOffset(Vector3.zero, Quaternion.identity);
                     Control.UseInverseOffset = false;
                 }
+                HasCalibratedOffsetSnapshot = false;
                 UnAssignRoleAndTracker();
             }
         }

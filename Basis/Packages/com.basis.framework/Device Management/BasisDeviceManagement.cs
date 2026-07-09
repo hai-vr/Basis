@@ -498,8 +498,11 @@ namespace Basis.Scripts.Device_Management
             }
 
             // A full FB-tracker unassign invalidates the stored rotation-calibration reference, so a later
-            // avatar build falls back to the uncalibrated capture instead of a stale calibration.
+            // avatar build falls back to the uncalibrated capture instead of a stale calibration. The
+            // position-offset head snapshot is invalidated for the same reason (FullBodyCalibration
+            // re-captures both later in the same pass).
             BasisAvatarIKStageCalibration.HasCalibrationReference = false;
+            BasisAvatarIKStageCalibration.HasCalibrationHeadSnapshot = false;
         }
 
         /// <summary>
@@ -601,6 +604,14 @@ namespace Basis.Scripts.Device_Management
                     if (input.HasControl)
                     {
                         input.Control.SetInverseOffset(prev.InverseOffsetFromBone);
+                        // Restore the scale-free calibration snapshot too: ApplyTrackerCalibration above
+                        // re-captured against the player's LIVE (non-T-pose) body, poisoning the snapshot
+                        // the same way it poisoned the offset we just overwrote. Then re-derive for the
+                        // current avatar/DeviceScale in case either changed while the device was gone.
+                        input.HasCalibratedOffsetSnapshot = prev.HasCalibratedOffsetSnapshot;
+                        input.CalibratedUnscaledPosition = prev.CalibratedUnscaledPosition;
+                        input.CalibratedUnscaledRotation = prev.CalibratedUnscaledRotation;
+                        BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
                     }
                     else
                     {
@@ -662,7 +673,10 @@ namespace Basis.Scripts.Device_Management
                     hasRoleAssigned = device.hasRoleAssigned,
                     SubSystemIdentifier = device.SubSystemIdentifier,
                     UniqueDeviceIdentifier = device.UniqueDeviceIdentifier,
-                    InverseOffsetFromBone = device.Control.InverseOffsetFromBone
+                    InverseOffsetFromBone = device.Control.InverseOffsetFromBone,
+                    HasCalibratedOffsetSnapshot = device.HasCalibratedOffsetSnapshot,
+                    CalibratedUnscaledPosition = device.CalibratedUnscaledPosition,
+                    CalibratedUnscaledRotation = device.CalibratedUnscaledRotation
                 });
             }
         }
