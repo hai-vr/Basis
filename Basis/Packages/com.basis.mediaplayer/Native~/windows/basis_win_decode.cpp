@@ -209,6 +209,7 @@ struct basis_decoder {
     /* present clock (render thread) */
     LARGE_INTEGER qpcFreq = {};
     bool clockStarted = false;
+    LONGLONG primeStartQpc = 0;          /* first render tick with a frame (VOD prime window) */
     LONGLONG wallStartQpc = 0;
     LONGLONG lastRenderQpc = 0;
     int64_t mediaStartUs = 0;
@@ -404,6 +405,7 @@ static void release_shared_locked(basis_decoder* d) {
     d->d12OpenFail = 0;   /* new handle on the next build — don't carry the old retry count */
     d->writeSeq = 0;
     d->clockStarted = false;
+    d->primeStartQpc = 0;
     d->lastPresentedPts = INT64_MIN;
 }
 
@@ -1051,6 +1053,33 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     int64_t freq = d->qpcFreq.QuadPart ? d->qpcFreq.QuadPart : 1;
     bool paced = basis_engine_is_paced(d->engine) != 0;
     int64_t nowMedia;
+    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
+
+    /* Paced hold: covers the audio consumer's pipeline depth (streaming-clip
+     * prefetch + DSP latency, ~400ms) just like the live floor when audio is
+     * configured, or video presents that far ahead of what's audible. Capped
+     * to the ring's frame span so the decoder can't lap the presenter. */
+    int64_t pacedBuf = d->aconfigured ? 460000 : 250000;
+    {
+        int64_t ringSpanCap = (int64_t)(basis_decoder::RING - 6) * interval;
+        if (pacedBuf > ringSpanCap) pacedBuf = ringSpanCap;
+    }
+
+    /* VOD prime: hold presentation until the ring has banked a hold's worth
+     * of frames (3s fallback for sources that can't fill it), so a start
+     * against struggling delivery buffers first instead of presenting the
+     * first frame, starving, and churning through resyncs. Live starts at
+     * the edge immediately — its fast-start ramp owns that experience. */
+    if (paced && !d->clockStarted) {
+        if (!d->primeStartQpc) d->primeStartQpc = nowq.QuadPart;
+        int held = 0;
+        for (int i = 0; i < basis_decoder::RING; ++i) if (d->ringPts[i] != INT64_MIN) held++;
+        int64_t waitedUs = (nowq.QuadPart - d->primeStartQpc) * 1000000LL / freq;
+        if ((int64_t)held * interval < pacedBuf + 2 * interval && waitedUs < 3000000) {
+            LeaveCriticalSection(&d->presentLock);
+            return 0;
+        }
+    }
 
     if (!d->clockStarted) {
         d->clockStarted = true;
@@ -1064,7 +1093,6 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     if (dtUs < 0) dtUs = 0; else if (dtUs > 1000000) dtUs = 1000000;
     if (dtUs > 1000 && dtUs < 100000) d->renderTickUs += (dtUs - d->renderTickUs) / 8;
     int64_t wallElapsed = (int64_t)((nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq);
-    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
 
     if (paced) {
         /* Paced (VOD) clock: same wall-rate slew, tuned for VOD — a fixed
@@ -1072,16 +1100,7 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
          * (no 2s EMA). Delivery is throttled to ~1x upstream, so the edge
          * never leaps and the hard-resync below only fires on a real
          * discontinuity (loop/seek), never the per-segment wobble that
-         * destabilises live.
-         *
-         * With audio configured the hold must cover the audio consumer's
-         * pipeline depth (streaming-clip prefetch + DSP latency, ~400ms) just
-         * like the live floor, or video presents that much ahead of what's
-         * audible. Capped to the ring's frame span so the decoder can't lap
-         * the presenter. */
-        int64_t pacedBuf = d->aconfigured ? 460000 : 250000;
-        int64_t ringSpanCap = (int64_t)(basis_decoder::RING - 6) * interval;
-        if (pacedBuf > ringSpanCap) pacedBuf = ringSpanCap;
+         * destabilises live. */
         int64_t clk = d->mediaStartUs + wallElapsed;
         int64_t err = newest - clk;
         /* Positive error up to the ring span is normal here — startup pipeline
