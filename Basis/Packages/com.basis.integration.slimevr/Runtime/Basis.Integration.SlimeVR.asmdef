@@ -3,6 +3,7 @@
     "rootNamespace": "Basis.Integration.SlimeVR",
     "references": [
         "Basis Framework",
+        "BasisSDK",
         "BasisSettings",
         "BasisDebug"
     ],
